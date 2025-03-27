@@ -10,7 +10,7 @@ description: >- # this means to ignore newlines until "baseurl:"
   A suite of specialized MCP servers 
   that bring AWS expertise 
   directly to your development workflow.
-baseurl: "" # the subpath of your site, e.g. /blog
+baseurl: "/mcp" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 #twitter_username: jekyllrb
 github_username:  awslabs-mcp
