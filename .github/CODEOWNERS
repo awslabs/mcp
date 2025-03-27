@@ -1,0 +1,16 @@
+# Matches will be requested for review when someone opens a
+# pull request. Order is important; the last matching pattern
+# takes the most precedence.
+
+# Default owners for everything in the repo.
+*                   @awslabs/mcp-maintainers
+
+# Secure specific files and directories
+CODE_OF_CONDUCT.md  @awslabs/mcp-admins
+CONTRIBUTING.md     @awslabs/mcp-admins
+LICENSE             @awslabs/mcp-admins
+NOTICE              @awslabs/mcp-admins
+/.github/
+
+# Secure the CODEOWNERS file
+/.github/CODEOWNERS @awslabs/mcp-admins
