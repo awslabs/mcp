@@ -1,0 +1,57 @@
+name: TypeScript
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  detect-packages:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.find-packages.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find JS packages
+        id: find-packages
+        working-directory: src
+        run: |
+          PACKAGES=$(find . -name package.json -not -path "*/node_modules/*" -exec dirname {} \; | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')
+          echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
+
+  build:
+    needs: [detect-packages]
+    if: ${{ needs.detect-packages.outputs.packages != '[]' && needs.detect-packages.outputs.packages != '' }}
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.detect-packages.outputs.packages) }}
+    name: Build ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+
+
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: "src/${{ matrix.package }}/.node-version"
+          cache: npm
+
+      - name: Install dependencies
+        working-directory: src/${{ matrix.package }}
+        run: npm ci
+
+
+
+
+
+
+      - name: Build package
+        working-directory: src/${{ matrix.package }}
+        run: npm run build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.package }}
+          path: src/${{ matrix.package }}/dist/
