@@ -2,4 +2,4 @@ site_name: AWS MCP Servers for Code Assistants
 site_url: https://awslabs.github.io/mcp
 theme:
   name: material
-  logo: images/PACE-CON-2025-420x420.png
+  logo: images/logo.png
