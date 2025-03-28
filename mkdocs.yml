@@ -1,0 +1,4 @@
+site_name: AWS MCP Servers for Code Assistants
+site_url: https://awslabs.github.io/mcp
+theme:
+  name: material
