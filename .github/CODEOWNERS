@@ -10,7 +10,7 @@ CODE_OF_CONDUCT.md  @awslabs/mcp-admins
 CONTRIBUTING.md     @awslabs/mcp-admins
 LICENSE             @awslabs/mcp-admins
 NOTICE              @awslabs/mcp-admins
-/.github/
+/.github/           @awslabs/mcp-admins
 
 # Secure the CODEOWNERS file
 /.github/CODEOWNERS @awslabs/mcp-admins
