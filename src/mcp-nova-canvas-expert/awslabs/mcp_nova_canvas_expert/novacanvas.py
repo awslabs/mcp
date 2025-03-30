@@ -195,7 +195,7 @@ async def generate_image_with_text(
             )
 
             # Convert model to dictionary
-            request_model_dict = request_model.model_dump()
+            request_model_dict = request_model.to_api_dict()
             logger.info('Request validation successful')
 
         except Exception as e:
@@ -332,7 +332,7 @@ async def generate_image_with_colors(
             )
 
             # Convert model to dictionary
-            request_model_dict = request_model.model_dump()
+            request_model_dict = request_model.to_api_dict()
             logger.info('Color-guided request validation successful')
 
         except Exception as e:

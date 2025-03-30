@@ -171,8 +171,8 @@ class TextImageRequest(BaseModel):
         default_factory=ImageGenerationConfig
     )
 
-    def model_dump(self) -> Dict[str, Any]:
-        """Convert model to dictionary.
+    def to_api_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary suitable for API requests.
 
         Returns:
             A dictionary representation of the model suitable for API requests.
@@ -209,8 +209,8 @@ class ColorGuidedRequest(BaseModel):
         default_factory=ImageGenerationConfig
     )
 
-    def model_dump(self) -> Dict[str, Any]:
-        """Convert model to dictionary.
+    def to_api_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary suitable for API requests.
 
         Returns:
             A dictionary representation of the model suitable for API requests.

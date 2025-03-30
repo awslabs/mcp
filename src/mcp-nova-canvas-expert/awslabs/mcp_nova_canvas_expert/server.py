@@ -8,7 +8,6 @@ from awslabs.mcp_nova_canvas_expert.consts import (
     DEFAULT_CFG_SCALE,
     DEFAULT_HEIGHT,
     DEFAULT_NUMBER_OF_IMAGES,
-    DEFAULT_OUTPUT_DIR,
     DEFAULT_QUALITY,
     DEFAULT_WIDTH,
     PROMPT_INSTRUCTIONS,
@@ -112,8 +111,9 @@ async def mcp_generate_image(
         default=DEFAULT_NUMBER_OF_IMAGES, description='The number of images to generate (1-5)'
     ),
     workspace_dir: Optional[str] = Field(
-        default=DEFAULT_OUTPUT_DIR,
-        description=f"The current workspace directory where the image should be saved. CRITICAL: Assistant must always provide the current IDE workspace directory parameter to save images to the user's current project. Default: {DEFAULT_OUTPUT_DIR}",
+        default=None,
+        description="""The current workspace directory where the image should be saved.
+        CRITICAL: Assistant must always provide the current IDE workspace directory parameter to save images to the user's current project.""",
     ),
 ) -> McpImageGenerationResponse:
     """Generate an image using Amazon Nova Canvas with text prompt.
