@@ -31,8 +31,10 @@ bedrock_runtime_client: BedrockRuntimeClient
 aws_region: str = os.environ.get('AWS_REGION', 'us-east-1')
 
 try:
-    if (aws_profile := os.environ.get('AWS_PROFILE')):
-        bedrock_runtime_client = boto3.Session(profile_name=aws_profile, region_name=aws_region).client('bedrock-runtime')
+    if aws_profile := os.environ.get('AWS_PROFILE'):
+        bedrock_runtime_client = boto3.Session(
+            profile_name=aws_profile, region_name=aws_region
+        ).client('bedrock-runtime')
     else:
         bedrock_runtime_client = boto3.Session(region_name=aws_region).client('bedrock-runtime')
 except Exception as e:
@@ -262,7 +264,6 @@ async def mcp_generate_image_with_colors(
         )
 
         if response.status == 'success':
-
             return McpImageGenerationResponse(
                 status='success',
                 paths=[f'file://{path}' for path in response.paths],

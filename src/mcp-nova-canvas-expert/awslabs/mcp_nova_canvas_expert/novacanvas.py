@@ -266,9 +266,7 @@ async def generate_image_with_text(
         try:
             # Invoke the Nova Canvas API
             logger.debug('Sending request to Nova Canvas API')
-            model_response = await invoke_nova_canvas(
-                request_model_dict, bedrock_runtime_client
-            )
+            model_response = await invoke_nova_canvas(request_model_dict, bedrock_runtime_client)
 
             # Extract the image data
             base64_images = model_response['images']
@@ -400,9 +398,7 @@ async def generate_image_with_colors(
         try:
             # Invoke the Nova Canvas API
             logger.debug('Sending color-guided request to Nova Canvas API')
-            model_response = await invoke_nova_canvas(
-                request_model_dict, bedrock_runtime_client
-            )
+            model_response = await invoke_nova_canvas(request_model_dict, bedrock_runtime_client)
 
             # Extract the image data
             base64_images = model_response['images']
