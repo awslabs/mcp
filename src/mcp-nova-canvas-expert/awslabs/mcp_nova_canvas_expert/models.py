@@ -177,9 +177,14 @@ class TextImageRequest(BaseModel):
         Returns:
             A dictionary representation of the model suitable for API requests.
         """
+        text_to_image_params = self.textToImageParams.model_dump()
+        # Remove negativeText if it's None
+        if text_to_image_params.get('negativeText') is None:
+            text_to_image_params.pop('negativeText', None)
+
         return {
             'taskType': self.taskType,
-            'textToImageParams': self.textToImageParams.model_dump(),
+            'textToImageParams': text_to_image_params,
             'imageGenerationConfig': self.imageGenerationConfig.model_dump()
             if self.imageGenerationConfig
             else None,
@@ -210,9 +215,14 @@ class ColorGuidedRequest(BaseModel):
         Returns:
             A dictionary representation of the model suitable for API requests.
         """
+        color_guided_params = self.colorGuidedGenerationParams.model_dump()
+        # Remove negativeText if it's None
+        if color_guided_params.get('negativeText') is None:
+            color_guided_params.pop('negativeText', None)
+
         return {
             'taskType': self.taskType,
-            'colorGuidedGenerationParams': self.colorGuidedGenerationParams.model_dump(),
+            'colorGuidedGenerationParams': color_guided_params,
             'imageGenerationConfig': self.imageGenerationConfig.model_dump()
             if self.imageGenerationConfig
             else None,

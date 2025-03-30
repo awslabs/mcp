@@ -4,9 +4,17 @@ import argparse
 import boto3
 import os
 import sys
+from awslabs.mcp_nova_canvas_expert.consts import (
+    DEFAULT_CFG_SCALE,
+    DEFAULT_HEIGHT,
+    DEFAULT_NUMBER_OF_IMAGES,
+    DEFAULT_OUTPUT_DIR,
+    DEFAULT_QUALITY,
+    DEFAULT_WIDTH,
+    PROMPT_INSTRUCTIONS,
+)
 from awslabs.mcp_nova_canvas_expert.models import McpImageGenerationResponse
 from awslabs.mcp_nova_canvas_expert.novacanvas import (
-    PROMPT_INSTRUCTIONS,
     generate_image_with_colors,
     generate_image_with_text,
 )
@@ -16,18 +24,19 @@ from pydantic import Field
 from typing import TYPE_CHECKING, List, Optional
 
 
+# Logging
 logger.remove()
-
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
+# Bedrock Runtime Client typing
 if TYPE_CHECKING:
     from mypy_boto3_bedrock_runtime import BedrockRuntimeClient
 else:
     BedrockRuntimeClient = object
 
 
+# Bedrock Runtime Client
 bedrock_runtime_client: BedrockRuntimeClient
-
 aws_region: str = os.environ.get('AWS_REGION', 'us-east-1')
 
 try:
@@ -82,21 +91,29 @@ async def mcp_generate_image(
     filename: Optional[str] = Field(
         default=None, description='The name of the file to save the image to (without extension)'
     ),
-    width: int = Field(description='The width of the generated image (320-4096, divisible by 16)'),
+    width: int = Field(
+        default=DEFAULT_WIDTH,
+        description='The width of the generated image (320-4096, divisible by 16)',
+    ),
     height: int = Field(
-        description='The height of the generated image (320-4096, divisible by 16)'
+        default=DEFAULT_HEIGHT,
+        description='The height of the generated image (320-4096, divisible by 16)',
     ),
     quality: str = Field(
-        description='The quality of the generated image ("standard" or "premium")'
+        default=DEFAULT_QUALITY,
+        description='The quality of the generated image ("standard" or "premium")',
     ),
     cfg_scale: float = Field(
-        description='How strongly the image adheres to the prompt (1.1-10.0)'
+        default=DEFAULT_CFG_SCALE,
+        description='How strongly the image adheres to the prompt (1.1-10.0)',
     ),
     seed: Optional[int] = Field(default=None, description='Seed for generation (0-858,993,459)'),
-    number_of_images: int = Field(description='The number of images to generate (1-5)'),
+    number_of_images: int = Field(
+        default=DEFAULT_NUMBER_OF_IMAGES, description='The number of images to generate (1-5)'
+    ),
     workspace_dir: Optional[str] = Field(
-        default=None,
-        description="The current workspace directory where the image should be saved. CRITICAL: Assistant must always provide the current IDE workspace directory parameter to save images to the user's current project.",
+        default=DEFAULT_OUTPUT_DIR,
+        description=f"The current workspace directory where the image should be saved. CRITICAL: Assistant must always provide the current IDE workspace directory parameter to save images to the user's current project. Default: {DEFAULT_OUTPUT_DIR}",
     ),
 ) -> McpImageGenerationResponse:
     """Generate an image using Amazon Nova Canvas with text prompt.
