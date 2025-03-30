@@ -74,7 +74,7 @@ version = "0.1.2"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/mcp_nova_canvas_expert.__init__py:__version__"
+    "awslabs/mcp_nova_canvas_expert/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
