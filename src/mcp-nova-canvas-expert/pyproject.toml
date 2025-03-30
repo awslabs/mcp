@@ -79,4 +79,4 @@ version_files = [
 update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
-include = ["awslabs/mcp_nova_canvas_expert"]
+packages = ["awslabs/mcp_nova_canvas_expert"]
