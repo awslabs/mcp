@@ -63,7 +63,6 @@ Generate an image from a text prompt and color palette using Amazon Nova Canvas.
     dependencies=[
         'pydantic',
         'boto3',
-        'pillow',
     ],
 )
 
