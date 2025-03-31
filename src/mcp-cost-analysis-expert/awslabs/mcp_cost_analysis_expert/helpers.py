@@ -5,7 +5,7 @@ This module provides helper classes for analyzing AWS service costs.
 
 import json
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 class CostAnalysisHelper:
@@ -13,7 +13,7 @@ class CostAnalysisHelper:
 
     @staticmethod
     def parse_pricing_data(
-        pricing_data: Dict, service_name: str, related_services: List[str] = None
+        pricing_data: Dict, service_name: str, related_services: Optional[List[str]] = None
     ) -> Dict:
         """Extract and structure the most relevant pricing information.
 

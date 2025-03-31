@@ -5,6 +5,7 @@ This server provides tools for analyzing AWS service costs across different user
 
 import argparse
 import boto3
+import json
 import logging
 import os
 from awslabs.mcp_cost_analysis_expert.cdk_analyzer import analyze_cdk_project
@@ -101,7 +102,7 @@ async def analyze_cdk_project_wrapper(project_path: str, ctx: Context) -> Option
                 'details': {'error': 'Invalid result format'},
             }
     except Exception as e:
-        ctx.error(f'Failed to analyze CDK project: {e}')
+        await ctx.error(f'Failed to analyze CDK project: {e}')
         return None
 
 
@@ -159,7 +160,7 @@ async def get_pricing_from_web(service_code: str, ctx: Context) -> Optional[Dict
             return result
 
     except Exception as e:
-        ctx.error(f'Failed to get pricing from web: {e}')
+        await ctx.error(f'Failed to get pricing from web: {e}')
         return None
 
 
@@ -196,7 +197,7 @@ async def get_pricing_from_api(service_code: str, region: str, ctx: Context) -> 
         )
 
         if not response['PriceList']:
-            ctx.error(f'Pricing API returned empty results for service code: {service_code}')
+            await ctx.error(f'Pricing API returned empty results for service code: {service_code}')
             return {
                 'status': 'error',
                 'error_type': 'empty_results',
@@ -222,7 +223,7 @@ async def get_pricing_from_api(service_code: str, region: str, ctx: Context) -> 
 
     except Exception as e:
         error_msg = str(e)
-        ctx.error(f'Pricing API request failed: {e}')
+        await ctx.error(f'Pricing API request failed: {e}')
 
         # Just pass through the original error message
         return {
@@ -239,7 +240,7 @@ async def get_pricing_from_api(service_code: str, region: str, ctx: Context) -> 
     name='get_bedrock_architecture_patterns',
     description='Get architecture patterns for Amazon Bedrock applications, including component relationships and cost considerations',
 )
-async def get_bedrock_architecture_patterns(ctx: Context = None) -> Dict:
+async def get_bedrock_architecture_patterns(ctx: Optional[Context] = None) -> Dict:
     """Get architecture patterns for Amazon Bedrock applications.
 
     This tool provides architecture patterns, component relationships, and cost considerations
@@ -249,7 +250,7 @@ async def get_bedrock_architecture_patterns(ctx: Context = None) -> Dict:
     Returns:
         Dict containing the architecture patterns in markdown format
     """
-    return BEDROCK
+    return json.loads(BEDROCK)
 
 
 # Default recommendation prompt template
@@ -381,7 +382,7 @@ async def generate_cost_analysis_report_wrapper(
     recommendations: Optional[
         Dict[str, Any]
     ] = None,  # Direct recommendations or guidance for generation
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> str:
     """Generate a cost analysis report for AWS services.
 
@@ -427,20 +428,20 @@ async def generate_cost_analysis_report_wrapper(
     from awslabs.mcp_cost_analysis_expert.report_generator import generate_cost_analysis_report
 
     # 1. Extract services from pricing data and parameters
-    services = [service_name]
+    services = service_name
     if related_services:
-        services.extend(related_services)
+        services = f"{service_name}, {', '.join(related_services)}"
 
     # 2. Get architecture patterns if relevant (e.g., for Bedrock)
     architecture_patterns = {}
-    if any('bedrock' in s.lower() for s in services):
+    if 'bedrock' in services.lower():
         try:
             # Get Bedrock architecture patterns
             bedrock_patterns = await get_bedrock_architecture_patterns(ctx)
             architecture_patterns['bedrock'] = bedrock_patterns
         except Exception as e:
             if ctx:
-                ctx.warning(f'Could not get Bedrock patterns: {e}')
+                await ctx.warning(f'Could not get Bedrock patterns: {e}')
 
     # 3. Process recommendations
     try:
@@ -457,7 +458,7 @@ async def generate_cost_analysis_report_wrapper(
             architecture_patterns_str = 'Available' if architecture_patterns else 'Not provided'
 
             prompt = DEFAULT_RECOMMENDATION_PROMPT.format(
-                services=', '.join(services),
+                services=services,
                 architecture_patterns=architecture_patterns_str,
                 pricing_model=pricing_model,
             )
@@ -469,7 +470,7 @@ async def generate_cost_analysis_report_wrapper(
             }
     except Exception as e:
         if ctx:
-            ctx.warning(f'Could not prepare recommendations: {e}')
+            await ctx.warning(f'Could not prepare recommendations: {e}')
 
     # 6. Call the report generator with the enhanced data
     return await generate_cost_analysis_report(

@@ -131,10 +131,10 @@ def _create_unit_pricing_details_table(services_info: Dict) -> str:
     return unit_pricing_details_table
 
 
-def _create_cost_calculation_table(services_info: Dict) -> Tuple[str, float, float, float]:
+def _create_cost_calculation_table(services_info: Dict) -> Tuple[str, float, float,  Optional[float]]:
     """Create the cost calculation table and extract total min/max costs."""
-    total_min = 0
-    total_max = 0
+    total_min = 0.0
+    total_max = 0.0
     base_cost = None
 
     if not services_info:
@@ -181,7 +181,7 @@ def _create_cost_calculation_table(services_info: Dict) -> Tuple[str, float, flo
                     total_max += cost_val
 
     # Add total row
-    if total_min > 0 or total_max > 0:
+    if total_min > 0.0 or total_max > 0.0:
         if total_min == total_max:
             cost_calculation_table += f'| **Total** | **All services** | **Sum of all calculations** | **${total_min:.2f}/month** |\n'
             base_cost = total_min
@@ -192,7 +192,7 @@ def _create_cost_calculation_table(services_info: Dict) -> Tuple[str, float, flo
     return cost_calculation_table, total_min, total_max, base_cost
 
 
-def _create_unit_pricing_table(services_info: Dict) -> Tuple[str, float, float, float]:
+def _create_unit_pricing_table(services_info: Dict) -> Tuple[str, float, float, Optional[float]]:
     """Legacy function to maintain backward compatibility."""
     # This function is kept for backward compatibility
     # It now delegates to the new functions
@@ -459,19 +459,39 @@ def _process_recommendations(
     best_practices = []
 
     if 'recommendations' in custom_cost_data:
-        # Use provided recommendations
-        if isinstance(custom_cost_data['recommendations'], dict):
+        recommendations = custom_cost_data['recommendations']
+        if isinstance(recommendations, dict):
             # Check if there's a prompt included for Cline
-            if '_prompt' in custom_cost_data['recommendations']:
-                # The presence of a prompt indicates Cline should generate recommendations
-                # In the actual implementation, Cline will fill in the recommendations
-                # For now, we'll just use the immediate and best_practices arrays if they exist
-                immediate_actions = custom_cost_data['recommendations'].get('immediate', [])
-                best_practices = custom_cost_data['recommendations'].get('best_practices', [])
+            if '_prompt' in recommendations:
+                # Extract immediate actions
+                immediate = recommendations.get('immediate', [])
+                if isinstance(immediate, (list, tuple)):
+                    immediate_actions.extend(str(item) for item in immediate)
+                elif immediate:
+                    immediate_actions.append(str(immediate))
+
+                # Extract best practices
+                best = recommendations.get('best_practices', [])
+                if isinstance(best, (list, tuple)):
+                    best_practices.extend(str(item) for item in best)
+                elif best:
+                    best_practices.append(str(best))
             else:
                 # Use the provided recommendations directly
-                immediate_actions = custom_cost_data['recommendations'].get('immediate', [])
-                best_practices = custom_cost_data['recommendations'].get('best_practices', [])
+                immediate = recommendations.get('immediate', [])
+                best = recommendations.get('best_practices', [])
+
+                # Process immediate actions
+                if isinstance(immediate, (list, tuple)):
+                    immediate_actions.extend(str(item) for item in immediate)
+                elif immediate:
+                    immediate_actions.append(str(immediate))
+
+                # Process best practices
+                if isinstance(best, (list, tuple)):
+                    best_practices.extend(str(item) for item in best)
+                elif best:
+                    best_practices.append(str(best))
 
     # If no recommendations were provided or they're empty, generate them
     if not immediate_actions and not best_practices:
@@ -493,40 +513,54 @@ def _process_custom_sections(custom_cost_data: Dict) -> str:
         # Add a section for Custom Analysis Data
         custom_sections.append('## Detailed Cost Analysis\n\n')
 
-        # Process each top-level key in custom_cost_data
-        for key, value in custom_cost_data.items():
-            # Skip keys we've already processed elsewhere
-            if key in [
-                'project_name',
-                'service_name',
-                'description',
-                'assumptions',
-                'limitations',
-                'free_tier_info',
-                'conclusion',
-                'services',
-            ]:
-                continue
+    # Process each top-level key in custom_cost_data
+    for key, value in custom_cost_data.items():
+        # Skip keys we've already processed elsewhere
+        if key in [
+            'project_name',
+            'service_name',
+            'description',
+            'assumptions',
+            'limitations',
+            'free_tier_info',
+            'conclusion',
+            'services',
+            'pricing_data',
+            'pricing_data_reference'
+        ]:
+            continue
 
-            # Format the section title
-            section_title = key.replace('_', ' ').title()
-            custom_sections.append(f'### {section_title}\n\n')
+        # Format the section title
+        section_title = key.replace('_', ' ').title()
+        custom_sections.append(f'### {section_title}\n\n')
 
-            # Special handling for recommendations section
+        # Special handling for assumptions and exclusions
+        if key in ['assumptions', 'exclusions']:
+            if isinstance(value, list):
+                for item in value:
+                    custom_sections.append(f'- {item}\n')
+            elif isinstance(value, str):
+                # Split string by newlines and create bullet points
+                lines = value.split('\n')
+                for line in lines:
+                    if line.strip():
+                        custom_sections.append(f'- {line.strip()}\n')
+            custom_sections.append('\n')
+            continue
+
+        # Special handling for recommendations section
             if key.lower() == 'recommendations':
                 if isinstance(value, dict):
                     # Process immediate actions
                     if 'immediate' in value and isinstance(value['immediate'], list):
                         custom_sections.append('#### Immediate Actions\n\n')
-                        for item in value['immediate']:
-                            custom_sections.append(f'- {item}\n')
+                        custom_sections.append(''.join(f'- {item}\n' for item in value['immediate']))
                         custom_sections.append('\n')
 
                     # Process best practices
                     if 'best_practices' in value and isinstance(value['best_practices'], list):
                         custom_sections.append('#### Best Practices\n\n')
-                        for item in value['best_practices']:
-                            custom_sections.append(f'- {item}\n')
+                        custom_sections.append(''.join(f'- {item}\n' for item in value['best_practices']))
                         custom_sections.append('\n')
                 else:
                     # Fallback if recommendations is not a dict
@@ -702,8 +736,17 @@ async def _generate_custom_data_report(
             'No reserved instances or savings plans applied',
         ],
     )
-    assumptions_list = '\n'.join([f'- {assumption}' for assumption in assumptions])
-    report = report.replace('{assumptions_section}', assumptions_list)
+    assumptions_list = []
+    if isinstance(assumptions, str):
+        # Handle case where assumptions is a string
+        for line in assumptions.split('\n'):
+            if line.strip():
+                assumptions_list.append(f'- {line.strip()}')
+    elif isinstance(assumptions, list):
+        # Handle case where assumptions is a list
+        for assumption in assumptions:
+            assumptions_list.append(f'- {assumption}')
+    report = report.replace('{assumptions_section}', '\n'.join(assumptions_list))
 
     # Add limitations and exclusions section
     default_limitations = [
@@ -720,8 +763,17 @@ async def _generate_custom_data_report(
     else:
         limitations = default_limitations
 
-    limitations_list = '\n'.join([f'- {limitation}' for limitation in limitations])
-    report = report.replace('{limitations_section}', limitations_list)
+    limitations_list = []
+    if isinstance(limitations, str):
+        # Handle case where limitations is a string
+        for line in limitations.split('\n'):
+            if line.strip():
+                limitations_list.append(f'- {line.strip()}')
+    elif isinstance(limitations, list):
+        # Handle case where limitations is a list
+        for limitation in limitations:
+            limitations_list.append(f'- {limitation}')
+    report = report.replace('{limitations_section}', '\n'.join(limitations_list))
 
     # Extract services information
     services_info, service_names = _extract_services_info(custom_cost_data)
@@ -758,9 +810,9 @@ async def _generate_custom_data_report(
 
     # Replace recommendation placeholders
     if isinstance(immediate_actions, list) and len(immediate_actions) >= 3:
-        report = report.replace('{recommendation_1}', immediate_actions[0])
-        report = report.replace('{recommendation_2}', immediate_actions[1])
-        report = report.replace('{recommendation_3}', immediate_actions[2])
+        report = report.replace('{recommendation_1}', str(immediate_actions[0]))
+        report = report.replace('{recommendation_2}', str(immediate_actions[1]))
+        report = report.replace('{recommendation_3}', str(immediate_actions[2]))
     else:
         report = report.replace(
             '- {recommendation_1}\n- {recommendation_2}\n- {recommendation_3}',
@@ -770,9 +822,9 @@ async def _generate_custom_data_report(
         )
 
     if isinstance(best_practices, list) and len(best_practices) >= 3:
-        report = report.replace('{best_practice_1}', best_practices[0])
-        report = report.replace('{best_practice_2}', best_practices[1])
-        report = report.replace('{best_practice_3}', best_practices[2])
+        report = report.replace('{best_practice_1}', str(best_practices[0]))
+        report = report.replace('{best_practice_2}', str(best_practices[1]))
+        report = report.replace('{best_practice_3}', str(best_practices[2]))
     else:
         report = report.replace(
             '- {best_practice_1}\n- {best_practice_2}\n- {best_practice_3}',
@@ -783,7 +835,7 @@ async def _generate_custom_data_report(
 
     # Process custom sections
     custom_analysis = _process_custom_sections(custom_cost_data)
-    report = report.replace('{custom_analysis_sections}', custom_analysis)
+    report = report.replace('{custom_analysis_sections}', str(custom_analysis))
 
     # Conclusion
     conclusion = custom_cost_data.get(
@@ -802,10 +854,10 @@ async def _generate_custom_data_report(
             with open(output_file, 'w') as f:
                 f.write(report)
             if ctx:
-                ctx.info(f'Report saved to {output_file}')
+                await ctx.info(f'Report saved to {output_file}')
         except Exception as e:
             if ctx:
-                ctx.error(f'Failed to write report to file: {e}')
+                await ctx.error(f'Failed to write report to file: {e}')
 
     return report
 
@@ -947,10 +999,10 @@ async def _generate_pricing_data_report(
             with open(output_file, 'w') as f:
                 f.write(report)
             if ctx:
-                ctx.info(f'Report saved to {output_file}')
+                await ctx.info(f'Report saved to {output_file}')
         except Exception as e:
             if ctx:
-                ctx.error(f'Failed to write report to file: {e}')
+                await ctx.error(f'Failed to write report to file: {e}')
 
     return report
 
@@ -1001,11 +1053,11 @@ async def generate_cost_analysis_report(
 
         # Add assumptions if provided
         if assumptions:
-            cost_data['assumptions'] = assumptions
+            cost_data['assumptions'] = "\n".join(assumptions)
 
         # Add exclusions if provided
         if exclusions:
-            cost_data['exclusions'] = exclusions
+            cost_data['exclusions'] = "\n".join(exclusions)
 
         # Merge detailed_cost_data if provided
         if detailed_cost_data:
@@ -1013,7 +1065,7 @@ async def generate_cost_analysis_report(
                 cost_data[key] = value
 
         # Store reference to the original pricing data
-        cost_data['pricing_data_reference'] = pricing_data
+        cost_data['pricing_data_reference'] = str(pricing_data)
 
         # Generate the report using the consolidated cost data
         if 'services' in cost_data:
@@ -1038,5 +1090,5 @@ async def generate_cost_analysis_report(
             )
     except Exception as e:
         if ctx:
-            ctx.error(f'Error generating cost report: {str(e)}')
+            await ctx.error(f'Error generating cost report: {str(e)}')
         return f'Error generating cost report: {str(e)}'
