@@ -86,6 +86,7 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.create-metadata.outputs.version }}"
+          git remote set-url origin https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com/${{ github.repository }}
           git add -u
           if git diff-index --quiet HEAD; then
             echo "changes_made=false" >> $GITHUB_OUTPUT
