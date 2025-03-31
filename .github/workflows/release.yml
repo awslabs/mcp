@@ -6,7 +6,7 @@ on:
     - cron: '0 10 * * *'
 
 permissions:
-  content: write
+  contents: write
 
 jobs:
   create-metadata:
