@@ -30,7 +30,7 @@ MCP server for generating images using Amazon Nova Canvas
 
 Install the MCP server:
 
-Add the server to your MCP client config (e.g. `~/.cursor-server/data/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
+Add the server to your MCP client config (e.g. for Amazon Q CLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
