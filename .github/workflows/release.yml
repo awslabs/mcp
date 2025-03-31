@@ -94,7 +94,7 @@ jobs:
             git commit -m 'Automatic update of packages'
             git push origin release-update-$VERSION
             gh pr create --base main --head release-update-$VERSION --title "Release $VERSION" --body "Automatic update of packages"
-            gh pr merge --auto --admin --squash --subject "Release $VERSION" --body "Automatic update of packages"
+            gh pr merge --admin --squash --subject "Release $VERSION" --body "Automatic update of packages"
             git fetch origin main
             git tag -a "$VERSION" -m "Release $VERSION" origin/main
             git push origin tag "$VERSION"
