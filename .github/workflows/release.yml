@@ -77,13 +77,13 @@ jobs:
 
       - name: Configure git
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
+          git config --global user.name "awslabs-mcp"
+          git config --global user.email "203918161+awslabs-mcp@users.noreply.github.com"
 
       - name: Commit changes
         id: commit
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.create-metadata.outputs.version }}"
           git add -u
