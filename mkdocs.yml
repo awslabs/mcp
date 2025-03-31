@@ -3,3 +3,15 @@ site_url: https://awslabs.github.io/mcp
 theme:
   name: material
   logo: images/logo.png
+  features:
+    - search.suggest
+    - search.highlight
+    - navigation.instant
+plugins:
+  - search
+  - include-markdown
+nav:
+  - Home: index.md
+  - AWS MCP Servers:
+    - MCP Server for Nova Canvas: src/mcp-nova-canvas-expert/README.md
+    - MCP Server for Amazon Bedrock Knowledge Base Retrieval: src/mcp-bedrock-knowledge-base-retrieval/README.md

@@ -1,5 +1,7 @@
 # awslabs MCP Nova Canvas Expert
 
+{%include "../src/mcp-nova-canvas-expert/README.md"%}
+
 MCP server for generating images using Amazon Nova Canvas
 
 ## Features

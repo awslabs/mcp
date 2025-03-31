@@ -9,6 +9,7 @@ A suite of specialized MCP servers that bring AWS expertise directly to your dev
 The MCP Nova Canvas Expert server enables AI assistants to generate images using Amazon Nova Canvas.
 
 **Features:**
+
 - Generate images with Amazon Nova Canvas through MCP
 - Simple API for image generation
 - Seamless integration with code assistant workflows
