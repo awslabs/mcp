@@ -132,24 +132,59 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
     try:
         print(f"DEBUG: Checking changes in {path} since {git_hash}")
         
-        output = subprocess.run(
-            ["git", "diff", "--name-only", git_hash, "--", "."],
-            cwd=path,
-            check=True,
+        # Get the repository root directory
+        repo_root = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            check=True, 
             capture_output=True,
-            text=True,
-        )
+            text=True
+        ).stdout.strip()
         
-        print(f"DEBUG: Git command: git diff --name-only {git_hash} -- .")
-        print(f"DEBUG: Working directory: {path}")
+        try:
+            # Get the relative path from repo root to package directory
+            rel_path = path.relative_to(Path(repo_root))
+            
+            # Run git diff from repo root, but filter by package path
+            output = subprocess.run(
+                ["git", "diff", "--name-only", git_hash, "--", str(rel_path)],
+                cwd=repo_root,  # Run from repo root
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            
+            print(f"DEBUG: Git command: git diff --name-only {git_hash} -- {rel_path}")
+            print(f"DEBUG: Working directory: {repo_root}")
 
-        changed_files = [Path(f) for f in output.stdout.splitlines()]
-        print(f"DEBUG: Changed files: {changed_files}")
-        
-        relevant_files = [f for f in changed_files if f.suffix in [".py", ".ts", ".toml", ".lock", ".json"]]
-        print(f"DEBUG: Relevant files: {relevant_files}")
-        
-        return len(relevant_files) >= 1
+            changed_files = [Path(f) for f in output.stdout.splitlines()]
+            print(f"DEBUG: Changed files: {changed_files}")
+            
+            relevant_files = [f for f in changed_files if f.suffix in [".py", ".ts", ".toml", ".lock", ".json"]]
+            print(f"DEBUG: Relevant files: {relevant_files}")
+            
+            return len(relevant_files) >= 1
+        except ValueError as e:
+            # Handle case where path is not relative to repo_root
+            print(f"DEBUG: Path error: {path} is not inside repo root {repo_root}")
+            print(f"DEBUG: Using absolute path as fallback")
+            
+            # Use absolute path as fallback
+            output = subprocess.run(
+                ["git", "diff", "--name-only", git_hash],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            
+            # Filter to only include files under the specified path
+            path_str = str(path).rstrip('/') + '/'
+            changed_files = [
+                Path(f) for f in output.stdout.splitlines() 
+                if f.startswith(path_str)
+            ]
+            
+            relevant_files = [f for f in changed_files if f.suffix in [".py", ".ts", ".toml", ".lock", ".json"]]
+            return len(relevant_files) >= 1
     except subprocess.CalledProcessError as e:
         print(f"DEBUG: Error executing git command: {e}")
         return False
@@ -173,8 +208,9 @@ def find_changed_packages(directory: Path, git_hash: GitHash) -> Iterator[Packag
     # List all PyPI packages
     for path in directory.glob("*/pyproject.toml"):
         print(f"DEBUG: Found PyPI package at {path.parent}")
-        # Force-include all PyPI packages for now
-        yield PyPiPackage(path.parent)
+        # Check if it has relevant changes
+        if has_changes(path.parent, git_hash):
+            yield PyPiPackage(path.parent)
         
     # List all NPM packages
     for path in directory.glob("*/package.json"):
