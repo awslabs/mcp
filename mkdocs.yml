@@ -13,5 +13,5 @@ plugins:
 nav:
   - Home: index.md
   - AWS MCP Servers:
-    - MCP Server for Nova Canvas: src/mcp-nova-canvas-expert/README.md
-    - MCP Server for Amazon Bedrock Knowledge Base Retrieval: src/mcp-bedrock-knowledge-base-retrieval/README.md
+    - MCP Server for Nova Canvas: servers/mcp-nova-canvas-expert.md
+    - MCP Server for Amazon Bedrock Knowledge Base Retrieval: servers/mcp-bedrock-kb-retrieval-expert.md

@@ -1,4 +1,4 @@
-# Welcome to AWS MCP Servers for Code Assistants
+# Welcome to AWS MCP Servers
 
 A suite of specialized MCP servers that bring AWS expertise directly to your development workflow.
 
@@ -14,7 +14,19 @@ The MCP Nova Canvas Expert server enables AI assistants to generate images using
 - Simple API for image generation
 - Seamless integration with code assistant workflows
 
-**Location:** [`src/mcp-nova-canvas-expert/`](../src/mcp-nova-canvas-expert/)
+[Learn more about the MCP Nova Canvas Expert](servers/mcp-nova-canvas-expert.md)
+
+### MCP Bedrock Knowledge Bases Retrieval Expert
+
+The MCP Bedrock Knowledge Bases Retrieval Expert server enables AI assistants to retrieve information from Amazon Bedrock Knowledge Bases.
+
+**Features:**
+
+- Retrieve information from multiple Amazon Bedrock Knowledge Bases through MCP
+- Filter results by data source
+- Rerank results
+
+[Learn more about the MCP Bedrock Knowledge Bases Retrieval Expert](servers/mcp-bedrock-kb-retrieval-expert.md)
 
 ## Installation and Setup
 
