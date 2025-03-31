@@ -549,140 +549,140 @@ def _process_custom_sections(custom_cost_data: Dict) -> str:
             continue
 
         # Special handling for recommendations section
-            if key.lower() == 'recommendations':
-                if isinstance(value, dict):
-                    # Process immediate actions
-                    if 'immediate' in value and isinstance(value['immediate'], list):
-                        custom_sections.append('#### Immediate Actions\n\n')
-                        custom_sections.append(''.join(f'- {item}\n' for item in value['immediate']))
-                        custom_sections.append('\n')
+        if key.lower() == 'recommendations':
+            if isinstance(value, dict):
+                # Process immediate actions
+                if 'immediate' in value and isinstance(value['immediate'], list):
+                    custom_sections.append('#### Immediate Actions\n\n')
+                    custom_sections.append(''.join(f'- {item}\n' for item in value['immediate']))
+                    custom_sections.append('\n')
 
-                    # Process best practices
-                    if 'best_practices' in value and isinstance(value['best_practices'], list):
-                        custom_sections.append('#### Best Practices\n\n')
-                        custom_sections.append(''.join(f'- {item}\n' for item in value['best_practices']))
-                        custom_sections.append('\n')
-                else:
-                    # Fallback if recommendations is not a dict
-                    custom_sections.append(str(value) + '\n\n')
-            # Handle different value types for non-recommendations sections
-            elif isinstance(value, dict):
-                # For dictionaries, create a table
-                custom_sections.append('| Key | Value |\n|-----|-------|\n')
-                for sub_key, sub_value in value.items():
-                    formatted_key = sub_key.replace('_', ' ').title()
-
-                    # Format the value based on its type
-                    if isinstance(sub_value, (int, float)):
-                        # Only format as currency if the field name suggests it's a monetary value
-                        monetary_fields = [
-                            'cost',
-                            'price',
-                            'rate',
-                            'fee',
-                            'charge',
-                            'amount',
-                        ]
-                        exact_monetary_fields = ['total']
-
-                        # Check if the field name exactly matches a monetary field or contains a monetary term
-                        is_monetary = sub_key.lower() in exact_monetary_fields or any(
-                            money_term in sub_key.lower()
-                            and money_term == sub_key.lower()
-                            or money_term + '_' in sub_key.lower()
-                            or '_' + money_term in sub_key.lower()
-                            for money_term in monetary_fields
-                        )
-
-                        if sub_key.lower() == 'total':
-                            formatted_value = (
-                                f'**${sub_value}**'  # Always format totals as currency with bold
-                            )
-                        elif is_monetary:
-                            formatted_value = f'${sub_value}'  # Format monetary values as currency
-                        else:
-                            formatted_value = str(
-                                sub_value
-                            )  # Format non-monetary values as plain numbers
-                    elif isinstance(sub_value, dict):
-                        formatted_value = 'See nested table below'
-                    else:
-                        formatted_value = str(sub_value)
-
-                    custom_sections.append(f'| {formatted_key} | {formatted_value} |\n')
-
-                # Add nested tables for dictionary values
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, dict):
-                        formatted_sub_key = sub_key.replace('_', ' ').title()
-                        custom_sections.append(f'\n#### {formatted_sub_key}\n\n')
-                        custom_sections.append('| Key | Value |\n|-----|-------|\n')
-
-                        for nested_key, nested_value in sub_value.items():
-                            formatted_nested_key = nested_key.replace('_', ' ').title()
-
-                            # Handle different types of nested values
-                            if isinstance(nested_value, (int, float)):
-                                # Only format as currency if the field name suggests it's a monetary value
-                                monetary_fields = [
-                                    'cost',
-                                    'price',
-                                    'rate',
-                                    'fee',
-                                    'charge',
-                                    'amount',
-                                ]
-                                exact_monetary_fields = ['total']
-
-                                # Check if the field name exactly matches a monetary field or contains a monetary term
-                                is_monetary = nested_key.lower() in exact_monetary_fields or any(
-                                    money_term in nested_key.lower()
-                                    and money_term == nested_key.lower()
-                                    or money_term + '_' in nested_key.lower()
-                                    or '_' + money_term in nested_key.lower()
-                                    for money_term in monetary_fields
-                                )
-
-                                if is_monetary:
-                                    formatted_nested_value = f'${nested_value}'
-                                else:
-                                    # For non-monetary values, just use the number without $ sign
-                                    formatted_nested_value = str(nested_value)
-                            elif isinstance(nested_value, dict):
-                                # Extract key information from nested dictionaries
-                                price = None
-                                description = nested_value.get('description', '')
-
-                                # Try to get price from various fields
-                                for price_field in [
-                                    'price',
-                                    'price_per_1000_pages',
-                                    'cost',
-                                ]:
-                                    if price_field in nested_value:
-                                        price = nested_value[price_field]
-                                        break
-
-                                if price is not None:
-                                    formatted_nested_value = f'${price} - {description}'
-                                else:
-                                    formatted_nested_value = description or str(nested_value)
-                            else:
-                                formatted_nested_value = str(nested_value)
-
-                            custom_sections.append(
-                                f'| {formatted_nested_key} | {formatted_nested_value} |\n'
-                            )
-            elif isinstance(value, list):
-                # For lists, create a bullet list
-                for item in value:
-                    custom_sections.append(f'- {item}\n')
+                # Process best practices
+                if 'best_practices' in value and isinstance(value['best_practices'], list):
+                    custom_sections.append('#### Best Practices\n\n')
+                    custom_sections.append(''.join(f'- {item}\n' for item in value['best_practices']))
+                    custom_sections.append('\n')
             else:
-                # For simple values, just add the value
-                custom_sections.append(f'{value}\n\n')
+                # Fallback if recommendations is not a dict
+                custom_sections.append(str(value) + '\n\n')
+        # Handle different value types for non-recommendations sections
+        elif isinstance(value, dict):
+            # For dictionaries, create a table
+            custom_sections.append('| Key | Value |\n|-----|-------|\n')
+            for sub_key, sub_value in value.items():
+                formatted_key = sub_key.replace('_', ' ').title()
 
-            # Add spacing between sections
-            custom_sections.append('\n')
+                # Format the value based on its type
+                if isinstance(sub_value, (int, float)):
+                    # Only format as currency if the field name suggests it's a monetary value
+                    monetary_fields = [
+                        'cost',
+                        'price',
+                        'rate',
+                        'fee',
+                        'charge',
+                        'amount',
+                    ]
+                    exact_monetary_fields = ['total']
+
+                    # Check if the field name exactly matches a monetary field or contains a monetary term
+                    is_monetary = sub_key.lower() in exact_monetary_fields or any(
+                        money_term in sub_key.lower()
+                        and money_term == sub_key.lower()
+                        or money_term + '_' in sub_key.lower()
+                        or '_' + money_term in sub_key.lower()
+                        for money_term in monetary_fields
+                    )
+
+                    if sub_key.lower() == 'total':
+                        formatted_value = (
+                            f'**${sub_value}**'  # Always format totals as currency with bold
+                        )
+                    elif is_monetary:
+                        formatted_value = f'${sub_value}'  # Format monetary values as currency
+                    else:
+                        formatted_value = str(
+                            sub_value
+                        )  # Format non-monetary values as plain numbers
+                elif isinstance(sub_value, dict):
+                    formatted_value = 'See nested table below'
+                else:
+                    formatted_value = str(sub_value)
+
+                custom_sections.append(f'| {formatted_key} | {formatted_value} |\n')
+
+            # Add nested tables for dictionary values
+            for sub_key, sub_value in value.items():
+                if isinstance(sub_value, dict):
+                    formatted_sub_key = sub_key.replace('_', ' ').title()
+                    custom_sections.append(f'\n#### {formatted_sub_key}\n\n')
+                    custom_sections.append('| Key | Value |\n|-----|-------|\n')
+
+                    for nested_key, nested_value in sub_value.items():
+                        formatted_nested_key = nested_key.replace('_', ' ').title()
+
+                        # Handle different types of nested values
+                        if isinstance(nested_value, (int, float)):
+                            # Only format as currency if the field name suggests it's a monetary value
+                            monetary_fields = [
+                                'cost',
+                                'price',
+                                'rate',
+                                'fee',
+                                'charge',
+                                'amount',
+                            ]
+                            exact_monetary_fields = ['total']
+
+                            # Check if the field name exactly matches a monetary field or contains a monetary term
+                            is_monetary = nested_key.lower() in exact_monetary_fields or any(
+                                money_term in nested_key.lower()
+                                and money_term == nested_key.lower()
+                                or money_term + '_' in nested_key.lower()
+                                or '_' + money_term in nested_key.lower()
+                                for money_term in monetary_fields
+                            )
+
+                            if is_monetary:
+                                formatted_nested_value = f'${nested_value}'
+                            else:
+                                # For non-monetary values, just use the number without $ sign
+                                formatted_nested_value = str(nested_value)
+                        elif isinstance(nested_value, dict):
+                            # Extract key information from nested dictionaries
+                            price = None
+                            description = nested_value.get('description', '')
+
+                            # Try to get price from various fields
+                            for price_field in [
+                                'price',
+                                'price_per_1000_pages',
+                                'cost',
+                            ]:
+                                if price_field in nested_value:
+                                    price = nested_value[price_field]
+                                    break
+
+                            if price is not None:
+                                formatted_nested_value = f'${price} - {description}'
+                            else:
+                                formatted_nested_value = description or str(nested_value)
+                        else:
+                            formatted_nested_value = str(nested_value)
+
+                        custom_sections.append(
+                            f'| {formatted_nested_key} | {formatted_nested_value} |\n'
+                        )
+        elif isinstance(value, list):
+            # For lists, create a bullet list
+            for item in value:
+                custom_sections.append(f'- {item}\n')
+        else:
+            # For simple values, just add the value
+            custom_sections.append(f'{value}\n\n')
+
+        # Add spacing between sections
+        custom_sections.append('\n')
 
     # Join all custom sections
     return ''.join(custom_sections) if custom_sections else ''
