@@ -83,7 +83,7 @@ jobs:
       - name: Commit changes
         id: commit
         env:
-          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.create-metadata.outputs.version }}"
           git config --global credential.helper store
