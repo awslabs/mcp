@@ -8,6 +8,7 @@
 # ///
 import datetime
 import json
+import logging
 import re
 import subprocess
 import sys
@@ -17,6 +18,11 @@ from typing import Any, Iterator, NewType, Protocol
 
 import click
 import tomlkit
+
+# Configure logging to stderr
+logging.basicConfig(
+    level=logging.DEBUG, format="%(levelname)s: %(message)s", stream=sys.stderr
+)
 
 Version = NewType("Version", str)
 Patch = NewType("Patch", str)
@@ -114,12 +120,12 @@ class PyPiPackage:
             project_table = data.get("project")
             if project_table is None:
                 raise Exception("No project section in pyproject.toml")
-            
+
             version_str = str(project_table.get("version", ""))
             major, minor, _ = version_str.split(".")
-            print(f"DEBUG: {major}")
+            logging.debug(f"Major version: {major}")
             version = ".".join([major, minor, patch])
-            
+
             # Update the version safely
             project_table["version"] = version
 
@@ -127,23 +133,24 @@ class PyPiPackage:
             f.write(tomlkit.dumps(data))
         return version
 
+
 def has_changes(path: Path, git_hash: GitHash) -> bool:
     """Check if any files changed between current state and git hash"""
     try:
-        print(f"DEBUG: Checking changes in {path} since {git_hash}")
-        
+        logging.debug(f"Checking changes in {path} since {git_hash}")
+
         # Get the repository root directory
         repo_root = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
-            check=True, 
+            check=True,
             capture_output=True,
-            text=True
+            text=True,
         ).stdout.strip()
-        
+
         try:
             # Get the relative path from repo root to package directory
             rel_path = path.relative_to(Path(repo_root))
-            
+
             # Run git diff from repo root, but filter by package path
             output = subprocess.run(
                 ["git", "diff", "--name-only", git_hash, "--", str(rel_path)],
@@ -152,22 +159,26 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
                 capture_output=True,
                 text=True,
             )
-            
-            print(f"DEBUG: Git command: git diff --name-only {git_hash} -- {rel_path}")
-            print(f"DEBUG: Working directory: {repo_root}")
+
+            logging.debug(f"Git command: git diff --name-only {git_hash} -- {rel_path}")
+            logging.debug(f"Working directory: {repo_root}")
 
             changed_files = [Path(f) for f in output.stdout.splitlines()]
-            print(f"DEBUG: Changed files: {changed_files}")
-            
-            relevant_files = [f for f in changed_files if f.suffix in [".py", ".ts", ".toml", ".lock", ".json"]]
-            print(f"DEBUG: Relevant files: {relevant_files}")
-            
+            logging.debug(f"Changed files: {changed_files}")
+
+            relevant_files = [
+                f
+                for f in changed_files
+                if f.suffix in [".py", ".ts", ".toml", ".lock", ".json"]
+            ]
+            logging.debug(f"Relevant files: {relevant_files}")
+
             return len(relevant_files) >= 1
-        except ValueError as e:
+        except ValueError:
             # Handle case where path is not relative to repo_root
-            print(f"DEBUG: Path error: {path} is not inside repo root {repo_root}")
-            print(f"DEBUG: Using absolute path as fallback")
-            
+            logging.debug(f"Path error: {path} is not inside repo root {repo_root}")
+            logging.debug("Using absolute path as fallback")
+
             # Use absolute path as fallback
             output = subprocess.run(
                 ["git", "diff", "--name-only", git_hash],
@@ -175,24 +186,29 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
                 capture_output=True,
                 text=True,
             )
-            
+
             # Filter to only include files under the specified path
-            path_str = str(path).rstrip('/') + '/'
+            path_str = str(path).rstrip("/") + "/"
             changed_files = [
-                Path(f) for f in output.stdout.splitlines() 
-                if f.startswith(path_str)
+                Path(f) for f in output.stdout.splitlines() if f.startswith(path_str)
             ]
-            
-            relevant_files = [f for f in changed_files if f.suffix in [".py", ".ts", ".toml", ".lock", ".json"]]
+
+            relevant_files = [
+                f
+                for f in changed_files
+                if f.suffix in [".py", ".ts", ".toml", ".lock", ".json"]
+            ]
             return len(relevant_files) >= 1
     except subprocess.CalledProcessError as e:
-        print(f"DEBUG: Error executing git command: {e}")
+        logging.error(f"Error executing git command: {e}")
         return False
+
 
 def gen_version() -> Version:
     """Generate release version based on current time"""
     now = datetime.datetime.now(datetime.UTC)
     return Version(f"{now.year}.{now.month}.{gen_patch()}")
+
 
 def gen_patch() -> Patch:
     """Generate version based on current UTC timestamp"""
@@ -203,18 +219,18 @@ def gen_patch() -> Patch:
 
 def find_changed_packages(directory: Path, git_hash: GitHash) -> Iterator[Package]:
     # Debug info
-    print(f"DEBUG: Searching for changed packages in {directory} since {git_hash}")
-    
+    logging.debug(f"Searching for changed packages in {directory} since {git_hash}")
+
     # List all PyPI packages
     for path in directory.glob("*/pyproject.toml"):
-        print(f"DEBUG: Found PyPI package at {path.parent}")
+        logging.debug(f"Found PyPI package at {path.parent}")
         # Check if it has relevant changes
         if has_changes(path.parent, git_hash):
             yield PyPiPackage(path.parent)
-        
+
     # List all NPM packages
     for path in directory.glob("*/package.json"):
-        print(f"DEBUG: Found NPM package at {path.parent}")
+        logging.debug(f"Found NPM package at {path.parent}")
         # Check if it has relevant changes
         if has_changes(path.parent, git_hash):
             yield NpmPackage(path.parent)
@@ -262,7 +278,7 @@ def generate_notes(directory: Path, git_hash: GitHash) -> int:
         version = package.package_version()
         click.echo(f"- {name}@{version}")
     click.echo("")
-    
+
     return 0
 
 
