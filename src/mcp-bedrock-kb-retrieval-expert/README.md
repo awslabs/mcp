@@ -1,4 +1,4 @@
-# mcp-bedrock-kb-retrieval-expert
+# awslabs MCP Bedrock KB Retrieval Expert
 
 A Model Context Protocol (MCP) server for accessing Amazon Bedrock Knowledge Bases.
 
