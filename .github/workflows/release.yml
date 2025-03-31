@@ -86,15 +86,17 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.create-metadata.outputs.version }}"
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com" > ~/.git-credentials
           git remote set-url origin https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com/${{ github.repository }}
           git add -u
           if git diff-index --quiet HEAD; then
             echo "changes_made=false" >> $GITHUB_OUTPUT
           else
             git commit -m 'Automatic update of packages'
-            git push
+            git push https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main
             git tag -a "$VERSION" -m "Release $VERSION"
-            git push origin tag "$VERSION"
+            git push https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com/${{ github.repository }} tag "$VERSION"
             echo "changes_made=true" >> $GITHUB_OUTPUT
           fi
           
