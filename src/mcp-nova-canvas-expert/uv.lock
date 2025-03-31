@@ -35,7 +35,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-mcp-nova-canvas-expert"
-version = "0.1.6"
+version = "0.1.311549"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
