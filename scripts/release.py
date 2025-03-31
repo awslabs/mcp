@@ -6,17 +6,17 @@
 #     "tomlkit>=0.13.2"
 # ]
 # ///
-import sys
-import re
-import click
-from pathlib import Path
-import json
-import tomlkit
 import datetime
+import json
+import re
 import subprocess
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterator, NewType, Protocol
 
+import click
+import tomlkit
 
 Version = NewType("Version", str)
 Patch = NewType("Patch", str)
@@ -110,10 +110,18 @@ class PyPiPackage:
         # Update version in pyproject.toml
         with open(self.path / "pyproject.toml") as f:
             data = tomlkit.parse(f.read())
-            major, minor, _ = data["project"]["version"].split(".")
+            # Access the version safely from tomlkit document
+            project_table = data.get("project")
+            if project_table is None:
+                raise Exception("No project section in pyproject.toml")
+            
+            version_str = str(project_table.get("version", ""))
+            major, minor, _ = version_str.split(".")
             print(f"DEBUG: {major}")
             version = ".".join([major, minor, patch])
-            data["project"]["version"] = version
+            
+            # Update the version safely
+            project_table["version"] = version
 
         with open(self.path / "pyproject.toml", "w") as f:
             f.write(tomlkit.dumps(data))
@@ -122,6 +130,8 @@ class PyPiPackage:
 def has_changes(path: Path, git_hash: GitHash) -> bool:
     """Check if any files changed between current state and git hash"""
     try:
+        print(f"DEBUG: Checking changes in {path} since {git_hash}")
+        
         output = subprocess.run(
             ["git", "diff", "--name-only", git_hash, "--", "."],
             cwd=path,
@@ -129,11 +139,19 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
             capture_output=True,
             text=True,
         )
+        
+        print(f"DEBUG: Git command: git diff --name-only {git_hash} -- .")
+        print(f"DEBUG: Working directory: {path}")
 
         changed_files = [Path(f) for f in output.stdout.splitlines()]
-        relevant_files = [f for f in changed_files if f.suffix in [".py", ".ts"]]
+        print(f"DEBUG: Changed files: {changed_files}")
+        
+        relevant_files = [f for f in changed_files if f.suffix in [".py", ".ts", ".toml", ".lock", ".json"]]
+        print(f"DEBUG: Relevant files: {relevant_files}")
+        
         return len(relevant_files) >= 1
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
+        print(f"DEBUG: Error executing git command: {e}")
         return False
 
 def gen_version() -> Version:
@@ -149,12 +167,21 @@ def gen_patch() -> Patch:
 
 
 def find_changed_packages(directory: Path, git_hash: GitHash) -> Iterator[Package]:
+    # Debug info
+    print(f"DEBUG: Searching for changed packages in {directory} since {git_hash}")
+    
+    # List all PyPI packages
+    for path in directory.glob("*/pyproject.toml"):
+        print(f"DEBUG: Found PyPI package at {path.parent}")
+        # Force-include all PyPI packages for now
+        yield PyPiPackage(path.parent)
+        
+    # List all NPM packages
     for path in directory.glob("*/package.json"):
+        print(f"DEBUG: Found NPM package at {path.parent}")
+        # Check if it has relevant changes
         if has_changes(path.parent, git_hash):
             yield NpmPackage(path.parent)
-    for path in directory.glob("*/pyproject.toml"):
-        if has_changes(path.parent, git_hash):
-            yield PyPiPackage(path.parent)
 
 
 @click.group()
