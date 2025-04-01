@@ -8,11 +8,21 @@ import subprocess
 import sys
 import traceback
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, TypedDict
 
 from awslabs.core_mcp_server.available_servers import AVAILABLE_MCP_SERVERS
 from awslabs.core_mcp_server.static import PROMPT_UNDERSTANDING
 from mcp.server.fastmcp import FastMCP
+
+
+class ContentItem(TypedDict):
+    type: str
+    text: str
+
+
+class McpResponse(TypedDict, total=False):
+    content: List[ContentItem]
+    isError: bool
 
 
 logger = loguru.logger
@@ -37,7 +47,7 @@ def get_prompt_understanding() -> str:
 
 
 @mcp.tool(name='update')
-def update_mcp_servers() -> dict[str, list[dict[str, str]]]:
+def update_mcp_servers() -> McpResponse:
     """Update MCP servers.
 
     This tool updates all MCP servers in the configuration to ensure they are up-to-date.
@@ -136,7 +146,7 @@ def get_mcp_config_path() -> Path:
 
 
 def install_to_mcp_config(
-    name: str, cmd: str, args: List[str] = None, env: Dict[str, str] = None
+    name: str, cmd: str, args: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None
 ) -> None:
     """Install an MCP server to the MCP config file."""
     config_path = get_mcp_config_path()
@@ -177,7 +187,7 @@ def install_to_mcp_config(
 
 
 @mcp.tool(name='install_awslabs_mcp_server')
-def install_repo_mcp_server(name: str, args: List[str] = None, env: List[str] = None) -> dict[str, list[dict[str, str]]]:
+def install_repo_mcp_server(name: str, args: Optional[List[str]] = None, env: Optional[List[str]] = None) -> McpResponse:
     """Install an MCP server via uvx.
 
     Args:
@@ -224,7 +234,7 @@ def install_repo_mcp_server(name: str, args: List[str] = None, env: List[str] = 
     }
 
 
-def ensure_mcp_servers_installed():
+def ensure_mcp_servers_installed() -> None:
     """Ensure all available MCP servers are installed in the MCP config."""
     try:
         # Get the MCP config path
@@ -295,7 +305,7 @@ def ensure_mcp_servers_installed():
         logger.error(f'Stack trace: {traceback.format_exc()}')
 
 
-def main():
+def main() -> None:
     """Run the MCP server."""
     parser = argparse.ArgumentParser(
         description='A Model Context Protocol (MCP) server for mcp-core'
