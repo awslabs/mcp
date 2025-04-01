@@ -37,7 +37,7 @@ def get_prompt_understanding() -> str:
 
 
 @mcp.tool(name='update')
-def update_mcp_servers() -> str:
+def update_mcp_servers() -> dict[str, list[dict[str, str]]]:
     """Update MCP servers.
 
     This tool updates all MCP servers in the configuration to ensure they are up-to-date.
@@ -177,7 +177,7 @@ def install_to_mcp_config(
 
 
 @mcp.tool(name='install_awslabs_mcp_server')
-def install_repo_mcp_server(name: str, args: List[str] = None, env: List[str] = None) -> str:
+def install_repo_mcp_server(name: str, args: List[str] = None, env: List[str] = None) -> dict[str, list[dict[str, str]]]:
     """Install an MCP server via uvx.
 
     Args:
