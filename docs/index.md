@@ -74,3 +74,7 @@ Please refer to the README files in each server's directory for specific install
 ## Contributing
 
 Contributions are welcome! Please see the [contributing guidelines](../CONTRIBUTING.md) for more information.
+
+## Disclaimer
+
+Before using an MCP Server, you should consider conducting your own independent assessment to ensure that your use would comply with your own specific security and quality control practices and standards, as well as the laws, rules, and regulations that govern you and your content.
