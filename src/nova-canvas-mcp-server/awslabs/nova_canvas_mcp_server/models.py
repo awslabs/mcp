@@ -15,8 +15,8 @@ class Quality(str, Enum):
         PREMIUM: Premium quality image generation with enhanced details.
     """
 
-    STANDARD = 'standard'
-    PREMIUM = 'premium'
+    STANDARD = "standard"
+    PREMIUM = "premium"
 
 
 class TaskType(str, Enum):
@@ -27,8 +27,8 @@ class TaskType(str, Enum):
         COLOR_GUIDED_GENERATION: Generate an image guided by both text and color palette.
     """
 
-    TEXT_IMAGE = 'TEXT_IMAGE'
-    COLOR_GUIDED_GENERATION = 'COLOR_GUIDED_GENERATION'
+    TEXT_IMAGE = "TEXT_IMAGE"
+    COLOR_GUIDED_GENERATION = "COLOR_GUIDED_GENERATION"
 
 
 class ImageGenerationConfig(BaseModel):
@@ -50,10 +50,12 @@ class ImageGenerationConfig(BaseModel):
     height: int = Field(default=1024, ge=320, le=4096)
     quality: Quality = Quality.STANDARD
     cfgScale: float = Field(default=6.5, ge=1.1, le=10.0)
-    seed: int = Field(default_factory=lambda: random.randint(0, 858993459), ge=0, le=858993459)
+    seed: int = Field(
+        default_factory=lambda: random.randint(0, 858993459), ge=0, le=858993459
+    )
     numberOfImages: int = Field(default=1, ge=1, le=5)
 
-    @field_validator('width', 'height')
+    @field_validator("width", "height")
     @classmethod
     def must_be_divisible_by_16(cls, v: int) -> int:
         """Validate that width and height are divisible by 16.
@@ -68,10 +70,10 @@ class ImageGenerationConfig(BaseModel):
             ValueError: If the value is not divisible by 16.
         """
         if v % 16 != 0:
-            raise ValueError('Value must be divisible by 16')
+            raise ValueError("Value must be divisible by 16")
         return v
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_aspect_ratio_and_total_pixels(self):
         """Validate aspect ratio and total pixel count.
 
@@ -91,12 +93,12 @@ class ImageGenerationConfig(BaseModel):
         # Check aspect ratio between 1:4 and 4:1
         aspect_ratio = width / height
         if aspect_ratio < 0.25 or aspect_ratio > 4.0:
-            raise ValueError('Aspect ratio must be between 1:4 and 4:1')
+            raise ValueError("Aspect ratio must be between 1:4 and 4:1")
 
         # Check total pixel count
         total_pixels = width * height
         if total_pixels >= 4194304:
-            raise ValueError('Total pixel count must be less than 4,194,304')
+            raise ValueError("Total pixel count must be less than 4,194,304")
 
         return self
 
@@ -130,7 +132,7 @@ class ColorGuidedGenerationParams(BaseModel):
     text: str = Field(..., min_length=1, max_length=1024)
     negativeText: Optional[str] = Field(default=None, min_length=1, max_length=1024)
 
-    @field_validator('colors')
+    @field_validator("colors")
     @classmethod
     def validate_hex_colors(cls, v: List[str]) -> List[str]:
         """Validate that colors are in the correct hexadecimal format.
@@ -144,7 +146,7 @@ class ColorGuidedGenerationParams(BaseModel):
         Raises:
             ValueError: If any color is not a valid hexadecimal color in the format '#RRGGBB'.
         """
-        hex_pattern = re.compile(r'^#[0-9A-Fa-f]{6}$')
+        hex_pattern = re.compile(r"^#[0-9A-Fa-f]{6}$")
         for color in v:
             if not hex_pattern.match(color):
                 raise ValueError(
@@ -180,13 +182,13 @@ class TextImageRequest(BaseModel):
         """
         text_to_image_params = self.textToImageParams.model_dump()
         # Remove negativeText if it's None
-        if text_to_image_params.get('negativeText') is None:
-            text_to_image_params.pop('negativeText', None)
+        if text_to_image_params.get("negativeText") is None:
+            text_to_image_params.pop("negativeText", None)
 
         return {
-            'taskType': self.taskType,
-            'textToImageParams': text_to_image_params,
-            'imageGenerationConfig': self.imageGenerationConfig.model_dump()
+            "taskType": self.taskType,
+            "textToImageParams": text_to_image_params,
+            "imageGenerationConfig": self.imageGenerationConfig.model_dump()
             if self.imageGenerationConfig
             else None,
         }
@@ -204,7 +206,9 @@ class ColorGuidedRequest(BaseModel):
         imageGenerationConfig: Configuration for image generation.
     """
 
-    taskType: Literal[TaskType.COLOR_GUIDED_GENERATION] = TaskType.COLOR_GUIDED_GENERATION
+    taskType: Literal[
+        TaskType.COLOR_GUIDED_GENERATION
+    ] = TaskType.COLOR_GUIDED_GENERATION
     colorGuidedGenerationParams: ColorGuidedGenerationParams
     imageGenerationConfig: Optional[ImageGenerationConfig] = Field(
         default_factory=ImageGenerationConfig
@@ -219,13 +223,13 @@ class ColorGuidedRequest(BaseModel):
         """
         color_guided_params = self.colorGuidedGenerationParams.model_dump()
         # Remove negativeText if it's None
-        if color_guided_params.get('negativeText') is None:
-            color_guided_params.pop('negativeText', None)
+        if color_guided_params.get("negativeText") is None:
+            color_guided_params.pop("negativeText", None)
 
         return {
-            'taskType': self.taskType,
-            'colorGuidedGenerationParams': color_guided_params,
-            'imageGenerationConfig': self.imageGenerationConfig.model_dump()
+            "taskType": self.taskType,
+            "colorGuidedGenerationParams": color_guided_params,
+            "imageGenerationConfig": self.imageGenerationConfig.model_dump()
             if self.imageGenerationConfig
             else None,
         }

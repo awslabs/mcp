@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 # Logging
 logger.remove()
-logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
+logger.add(sys.stderr, level=os.getenv("FASTMCP_LOG_LEVEL", "WARNING"))
 
 # Bedrock Runtime Client typing
 if TYPE_CHECKING:
@@ -36,23 +36,25 @@ else:
 
 # Bedrock Runtime Client
 bedrock_runtime_client: BedrockRuntimeClient
-aws_region: str = os.environ.get('AWS_REGION', 'us-east-1')
+aws_region: str = os.environ.get("AWS_REGION", "us-east-1")
 
 try:
-    if aws_profile := os.environ.get('AWS_PROFILE'):
+    if aws_profile := os.environ.get("AWS_PROFILE"):
         bedrock_runtime_client = boto3.Session(
             profile_name=aws_profile, region_name=aws_region
-        ).client('bedrock-runtime')
+        ).client("bedrock-runtime")
     else:
-        bedrock_runtime_client = boto3.Session(region_name=aws_region).client('bedrock-runtime')
+        bedrock_runtime_client = boto3.Session(region_name=aws_region).client(
+            "bedrock-runtime"
+        )
 except Exception as e:
-    logger.error(f'Error creating bedrock runtime client: {str(e)}')
+    logger.error(f"Error creating bedrock runtime client: {str(e)}")
     raise
 
 
 # Create the MCP server Pwith detailed instructions
 mcp = FastMCP(
-    'awslabs-nova-canvas-mcp-server',
+    "awslabs-nova-canvas-mcp-server",
     instructions=f"""
 # Amazon Nova Canvas Image Generation
 
@@ -71,32 +73,33 @@ Generate an image from a text prompt and color palette using Amazon Nova Canvas.
 {PROMPT_INSTRUCTIONS}
 """,
     dependencies=[
-        'pydantic',
-        'boto3',
+        "pydantic",
+        "boto3",
     ],
 )
 
 
-@mcp.tool(name='generate_image')
+@mcp.tool(name="generate_image")
 async def mcp_generate_image(
     ctx: Context,
     prompt: str = Field(
-        description='The text description of the image to generate (1-1024 characters)'
+        description="The text description of the image to generate (1-1024 characters)"
     ),
     negative_prompt: Optional[str] = Field(
         default=None,
-        description='Text to define what not to include in the image (1-1024 characters)',
+        description="Text to define what not to include in the image (1-1024 characters)",
     ),
     filename: Optional[str] = Field(
-        default=None, description='The name of the file to save the image to (without extension)'
+        default=None,
+        description="The name of the file to save the image to (without extension)",
     ),
     width: int = Field(
         default=DEFAULT_WIDTH,
-        description='The width of the generated image (320-4096, divisible by 16)',
+        description="The width of the generated image (320-4096, divisible by 16)",
     ),
     height: int = Field(
         default=DEFAULT_HEIGHT,
-        description='The height of the generated image (320-4096, divisible by 16)',
+        description="The height of the generated image (320-4096, divisible by 16)",
     ),
     quality: str = Field(
         default=DEFAULT_QUALITY,
@@ -104,11 +107,14 @@ async def mcp_generate_image(
     ),
     cfg_scale: float = Field(
         default=DEFAULT_CFG_SCALE,
-        description='How strongly the image adheres to the prompt (1.1-10.0)',
+        description="How strongly the image adheres to the prompt (1.1-10.0)",
     ),
-    seed: Optional[int] = Field(default=None, description='Seed for generation (0-858,993,459)'),
+    seed: Optional[int] = Field(
+        default=None, description="Seed for generation (0-858,993,459)"
+    ),
     number_of_images: int = Field(
-        default=DEFAULT_NUMBER_OF_IMAGES, description='The number of images to generate (1-5)'
+        default=DEFAULT_NUMBER_OF_IMAGES,
+        description="The number of images to generate (1-5)",
     ),
     workspace_dir: Optional[str] = Field(
         default=None,
@@ -155,7 +161,7 @@ async def mcp_generate_image(
 
     try:
         logger.info(
-            f'Generating image with text prompt, quality: {quality}, cfg_scale: {cfg_scale}'
+            f"Generating image with text prompt, quality: {quality}, cfg_scale: {cfg_scale}"
         )
         response = await generate_image_with_text(
             prompt=prompt,
@@ -171,54 +177,62 @@ async def mcp_generate_image(
             workspace_dir=workspace_dir,
         )
 
-        if response.status == 'success':
+        if response.status == "success":
             # return response.paths
             return McpImageGenerationResponse(
-                status='success',
-                paths=[f'file://{path}' for path in response.paths],
+                status="success",
+                paths=[f"file://{path}" for path in response.paths],
             )
         else:
-            logger.error(f'Image generation returned error status: {response.message}')
-            await ctx.error(f'Failed to generate image: {response.message}')  # type: ignore
+            logger.error(f"Image generation returned error status: {response.message}")
+            await ctx.error(f"Failed to generate image: {response.message}")  # type: ignore
             # Return empty image or raise exception based on requirements
-            raise Exception(f'Failed to generate image: {response.message}')
+            raise Exception(f"Failed to generate image: {response.message}")
     except Exception as e:
-        logger.error(f'Error in mcp_generate_image: {str(e)}')
-        await ctx.error(f'Error generating image: {str(e)}')  # type: ignore
+        logger.error(f"Error in mcp_generate_image: {str(e)}")
+        await ctx.error(f"Error generating image: {str(e)}")  # type: ignore
         raise
 
 
-@mcp.tool(name='generate_image_with_colors')
+@mcp.tool(name="generate_image_with_colors")
 async def mcp_generate_image_with_colors(
     ctx: Context,
     prompt: str = Field(
-        description='The text description of the image to generate (1-1024 characters)'
+        description="The text description of the image to generate (1-1024 characters)"
     ),
     colors: List[str] = Field(
         description='List of up to 10 hexadecimal color values (e.g., "#FF9800")'
     ),
     negative_prompt: Optional[str] = Field(
         default=None,
-        description='Text to define what not to include in the image (1-1024 characters)',
+        description="Text to define what not to include in the image (1-1024 characters)",
     ),
     filename: Optional[str] = Field(
-        default=None, description='The name of the file to save the image to (without extension)'
+        default=None,
+        description="The name of the file to save the image to (without extension)",
     ),
     width: int = Field(
-        default=1024, description='The width of the generated image (320-4096, divisible by 16)'
+        default=1024,
+        description="The width of the generated image (320-4096, divisible by 16)",
     ),
     height: int = Field(
-        default=1024, description='The height of the generated image (320-4096, divisible by 16)'
+        default=1024,
+        description="The height of the generated image (320-4096, divisible by 16)",
     ),
     quality: str = Field(
-        default='standard',
+        default="standard",
         description='The quality of the generated image ("standard" or "premium")',
     ),
     cfg_scale: float = Field(
-        default=6.5, description='How strongly the image adheres to the prompt (1.1-10.0)'
+        default=6.5,
+        description="How strongly the image adheres to the prompt (1.1-10.0)",
     ),
-    seed: Optional[int] = Field(default=None, description='Seed for generation (0-858,993,459)'),
-    number_of_images: int = Field(default=1, description='The number of images to generate (1-5)'),
+    seed: Optional[int] = Field(
+        default=None, description="Seed for generation (0-858,993,459)"
+    ),
+    number_of_images: int = Field(
+        default=1, description="The number of images to generate (1-5)"
+    ),
     workspace_dir: Optional[str] = Field(
         default=None,
         description="The current workspace directory where the image should be saved. CRITICAL: Assistant must always provide this parameter to save images to the user's current project.",
@@ -260,9 +274,9 @@ async def mcp_generate_image_with_colors(
     )
 
     try:
-        color_hex_list = ', '.join(colors[:3]) + (', ...' if len(colors) > 3 else '')
+        color_hex_list = ", ".join(colors[:3]) + (", ..." if len(colors) > 3 else "")
         logger.info(
-            f'Generating color-guided image with colors: [{color_hex_list}], quality: {quality}'
+            f"Generating color-guided image with colors: [{color_hex_list}], quality: {quality}"
         )
 
         response = await generate_image_with_colors(
@@ -280,45 +294,51 @@ async def mcp_generate_image_with_colors(
             workspace_dir=workspace_dir,
         )
 
-        if response.status == 'success':
+        if response.status == "success":
             return McpImageGenerationResponse(
-                status='success',
-                paths=[f'file://{path}' for path in response.paths],
+                status="success",
+                paths=[f"file://{path}" for path in response.paths],
             )
         else:
             logger.error(
-                f'Color-guided image generation returned error status: {response.message}'
+                f"Color-guided image generation returned error status: {response.message}"
             )
-            await ctx.error(f'Failed to generate color-guided image: {response.message}')
-            raise Exception(f'Failed to generate color-guided image: {response.message}')
+            await ctx.error(
+                f"Failed to generate color-guided image: {response.message}"
+            )
+            raise Exception(
+                f"Failed to generate color-guided image: {response.message}"
+            )
     except Exception as e:
-        logger.error(f'Error in mcp_generate_image_with_colors: {str(e)}')
-        await ctx.error(f'Error generating color-guided image: {str(e)}')
+        logger.error(f"Error in mcp_generate_image_with_colors: {str(e)}")
+        await ctx.error(f"Error generating color-guided image: {str(e)}")
         raise
 
 
 def main():
     """Run the MCP server with CLI argument support."""
-    logger.info('Starting nova-canvas-mcp-server MCP server')
+    logger.info("Starting nova-canvas-mcp-server MCP server")
 
     parser = argparse.ArgumentParser(
-        description='MCP server for generating images using Amazon Nova Canvas'
+        description="MCP server for generating images using Amazon Nova Canvas"
     )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
+    parser.add_argument("--sse", action="store_true", help="Use SSE transport")
+    parser.add_argument(
+        "--port", type=int, default=8888, help="Port to run the server on"
+    )
 
     args = parser.parse_args()
-    logger.debug(f'Parsed arguments: sse={args.sse}, port={args.port}')
+    logger.debug(f"Parsed arguments: sse={args.sse}, port={args.port}")
 
     # Run server with appropriate transport
     if args.sse:
-        logger.info(f'Using SSE transport on port {args.port}')
+        logger.info(f"Using SSE transport on port {args.port}")
         mcp.settings.port = args.port
-        mcp.run(transport='sse')
+        mcp.run(transport="sse")
     else:
-        logger.info('Using standard stdio transport')
+        logger.info("Using standard stdio transport")
         mcp.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

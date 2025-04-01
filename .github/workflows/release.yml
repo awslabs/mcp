@@ -70,7 +70,7 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
-  
+
       - name: Update packages
         env:
           GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
@@ -104,7 +104,7 @@ jobs:
             git push https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com/${{ github.repository }} tag "$VERSION"
             echo "changes_made=true" >> $GITHUB_OUTPUT
           fi
-          
+
       - name: Create notes
         env:
           GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
@@ -233,7 +233,7 @@ jobs:
             --generate-notes \
             --draft \
             --verify-tag
-          gh release view "$VERSION" --json body | jq -r '.body' > GENERATED_NOTES.md 
+          gh release view "$VERSION" --json body | jq -r '.body' > GENERATED_NOTES.md
           cat RELEASE_NOTES.md GENERATED_NOTES.md | gh release edit "$VERSION" \
             --draft=false \
             --notes-file -

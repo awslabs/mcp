@@ -19,7 +19,7 @@ async def query_knowledge_base(
     kb_agent_client: AgentsforBedrockRuntimeClient,
     number_of_results: int = 20,
     reranking: bool = True,
-    reranking_model_name: Literal['COHERE', 'AMAZON'] = 'AMAZON',
+    reranking_model_name: Literal["COHERE", "AMAZON"] = "AMAZON",
     data_source_ids: list[str] | None = None,
 ) -> str:
     """# Amazon Bedrock Knowledge Base query tool.
@@ -39,61 +39,61 @@ async def query_knowledge_base(
     - A string containing the results of the query.
     """
     if reranking and kb_agent_client.meta.region_name not in [
-        'us-west-2',
-        'us-east-1',
-        'ap-northeast-1',
-        'ca-central-1',
+        "us-west-2",
+        "us-east-1",
+        "ap-northeast-1",
+        "ca-central-1",
     ]:
         raise ValueError(
-            f'Reranking is not supported in region {kb_agent_client.meta.region_name}'
+            f"Reranking is not supported in region {kb_agent_client.meta.region_name}"
         )
 
     retrieve_request: KnowledgeBaseRetrievalConfigurationTypeDef = {
-        'vectorSearchConfiguration': {
-            'numberOfResults': number_of_results,
+        "vectorSearchConfiguration": {
+            "numberOfResults": number_of_results,
         }
     }
 
     if data_source_ids:
-        retrieve_request['vectorSearchConfiguration']['filter'] = {  # type: ignore
-            'in': {
-                'key': 'x-amz-bedrock-kb-data-source-id',
-                'value': data_source_ids,  # type: ignore
+        retrieve_request["vectorSearchConfiguration"]["filter"] = {  # type: ignore
+            "in": {
+                "key": "x-amz-bedrock-kb-data-source-id",
+                "value": data_source_ids,  # type: ignore
             }
         }
 
     if reranking:
         model_name_mapping = {
-            'COHERE': 'cohere.rerank-v3-5:0',
-            'AMAZON': 'amazon.rerank-v1:0',
+            "COHERE": "cohere.rerank-v3-5:0",
+            "AMAZON": "amazon.rerank-v1:0",
         }
-        retrieve_request['vectorSearchConfiguration']['rerankingConfiguration'] = {
-            'type': 'BEDROCK_RERANKING_MODEL',
-            'bedrockRerankingConfiguration': {
-                'modelConfiguration': {
-                    'modelArn': f'arn:aws:bedrock:{kb_agent_client.meta.region_name}::foundation-model/{model_name_mapping[reranking_model_name]}'
+        retrieve_request["vectorSearchConfiguration"]["rerankingConfiguration"] = {
+            "type": "BEDROCK_RERANKING_MODEL",
+            "bedrockRerankingConfiguration": {
+                "modelConfiguration": {
+                    "modelArn": f"arn:aws:bedrock:{kb_agent_client.meta.region_name}::foundation-model/{model_name_mapping[reranking_model_name]}"
                 },
             },
         }
 
     response = kb_agent_client.retrieve(
         knowledgeBaseId=knowledge_base_id,
-        retrievalQuery={'text': query},
+        retrievalQuery={"text": query},
         retrievalConfiguration=retrieve_request,
     )
-    results = response['retrievalResults']
+    results = response["retrievalResults"]
     documents: list[dict] = []
     for result in results:
-        if result['content'].get('type') == 'IMAGE':
-            logger.warning('Images are not supported at this time. Skipping...')
+        if result["content"].get("type") == "IMAGE":
+            logger.warning("Images are not supported at this time. Skipping...")
             continue
         else:
             documents.append(
                 {
-                    'content': result['content'],
-                    'location': result.get('location', ''),
-                    'score': result.get('score', ''),
+                    "content": result["content"],
+                    "location": result.get("location", ""),
+                    "score": result.get("score", ""),
                 }
             )
 
-    return '\n\n'.join([json.dumps(document) for document in documents])
+    return "\n\n".join([json.dumps(document) for document in documents])

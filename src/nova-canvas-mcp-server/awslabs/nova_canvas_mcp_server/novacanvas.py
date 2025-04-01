@@ -41,7 +41,7 @@ def save_generated_images(
     base64_images: List[str],
     filename: Optional[str] = None,
     number_of_images: int = DEFAULT_NUMBER_OF_IMAGES,
-    prefix: str = 'nova_canvas',
+    prefix: str = "nova_canvas",
     workspace_dir: Optional[str] = None,
 ) -> Dict[str, List]:
     """Save base64-encoded images to files.
@@ -56,7 +56,7 @@ def save_generated_images(
     Returns:
         Dictionary with lists of paths to the saved image files and PIL Image objects.
     """
-    logger.debug(f'Saving {len(base64_images)} images')
+    logger.debug(f"Saving {len(base64_images)} images")
     # Determine the output directory
     if workspace_dir:
         output_dir = os.path.join(workspace_dir, DEFAULT_OUTPUT_DIR)
@@ -73,25 +73,27 @@ def save_generated_images(
         # Generate filename if not provided
         if filename:
             image_filename = (
-                f'{filename}_{i + 1}.png' if number_of_images > 1 else f'{filename}.png'
+                f"{filename}_{i + 1}.png" if number_of_images > 1 else f"{filename}.png"
             )
         else:
             # Generate a random filename
-            random_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=8))
-            image_filename = f'{prefix}_{random_id}_{i + 1}.png'
+            random_id = "".join(
+                random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=8)
+            )
+            image_filename = f"{prefix}_{random_id}_{i + 1}.png"
 
         # Decode the base64 image data
         image_data = base64.b64decode(base64_image_data)
 
         # Save the image
         image_path = os.path.join(output_dir, image_filename)
-        with open(image_path, 'wb') as file:
+        with open(image_path, "wb") as file:
             file.write(image_data)
         # Convert to absolute path
         abs_image_path = os.path.abspath(image_path)
         saved_paths.append(abs_image_path)
 
-    return {'paths': saved_paths}
+    return {"paths": saved_paths}
 
 
 async def invoke_nova_canvas(
@@ -110,22 +112,24 @@ async def invoke_nova_canvas(
     Raises:
         Exception: If the API call fails.
     """
-    logger.debug('Invoking Nova Canvas API')
+    logger.debug("Invoking Nova Canvas API")
 
     # Convert the request payload to JSON
     request = json.dumps(request_model_dict)
 
     try:
         # Invoke the model
-        logger.info(f'Sending request to Nova Canvas model: {NOVA_CANVAS_MODEL_ID}')
-        response = bedrock_runtime_client.invoke_model(modelId=NOVA_CANVAS_MODEL_ID, body=request)
+        logger.info(f"Sending request to Nova Canvas model: {NOVA_CANVAS_MODEL_ID}")
+        response = bedrock_runtime_client.invoke_model(
+            modelId=NOVA_CANVAS_MODEL_ID, body=request
+        )
 
         # Decode the response body
-        result = json.loads(response['body'].read())
-        logger.info('Nova Canvas API call successful')
+        result = json.loads(response["body"].read())
+        logger.info("Nova Canvas API call successful")
         return result
     except Exception as e:
-        logger.error(f'Nova Canvas API call failed: {str(e)}')
+        logger.error(f"Nova Canvas API call failed: {str(e)}")
         raise
 
 
@@ -165,18 +169,22 @@ async def generate_image_with_text(
         ImageGenerationResponse: An object containing the paths to the generated images,
         PIL Image objects, and status information.
     """
-    logger.debug(f"Generating text-to-image with prompt: '{prompt[:30]}...' ({width}x{height})")
+    logger.debug(
+        f"Generating text-to-image with prompt: '{prompt[:30]}...' ({width}x{height})"
+    )
 
     try:
         # Validate input parameters using Pydantic
         try:
-            logger.debug('Validating parameters and creating request model')
+            logger.debug("Validating parameters and creating request model")
 
             # Create image generation config
             config = ImageGenerationConfig(
                 width=width,
                 height=height,
-                quality=Quality.STANDARD if quality == DEFAULT_QUALITY else Quality.PREMIUM,
+                quality=Quality.STANDARD
+                if quality == DEFAULT_QUALITY
+                else Quality.PREMIUM,
                 cfgScale=cfg_scale,
                 seed=seed if seed is not None else random.randint(0, 858993459),
                 numberOfImages=number_of_images,
@@ -185,7 +193,9 @@ async def generate_image_with_text(
             # Create text-to-image params
             # The Nova Canvas API doesn't accept null for negativeText
             if negative_prompt is not None:
-                text_params = TextToImageParams(text=prompt, negativeText=negative_prompt)
+                text_params = TextToImageParams(
+                    text=prompt, negativeText=negative_prompt
+                )
             else:
                 text_params = TextToImageParams(text=prompt)
 
@@ -196,13 +206,13 @@ async def generate_image_with_text(
 
             # Convert model to dictionary
             request_model_dict = request_model.to_api_dict()
-            logger.info('Request validation successful')
+            logger.info("Request validation successful")
 
         except Exception as e:
-            logger.error(f'Parameter validation failed: {str(e)}')
+            logger.error(f"Parameter validation failed: {str(e)}")
             return ImageGenerationResponse(
-                status='error',
-                message=f'Validation error: {str(e)}',
+                status="error",
+                message=f"Validation error: {str(e)}",
                 paths=[],
                 prompt=prompt,
                 negative_prompt=negative_prompt,
@@ -210,34 +220,36 @@ async def generate_image_with_text(
 
         try:
             # Invoke the Nova Canvas API
-            logger.debug('Sending request to Nova Canvas API')
-            model_response = await invoke_nova_canvas(request_model_dict, bedrock_runtime_client)
+            logger.debug("Sending request to Nova Canvas API")
+            model_response = await invoke_nova_canvas(
+                request_model_dict, bedrock_runtime_client
+            )
 
             # Extract the image data
-            base64_images = model_response['images']
-            logger.info(f'Received {len(base64_images)} images from Nova Canvas API')
+            base64_images = model_response["images"]
+            logger.info(f"Received {len(base64_images)} images from Nova Canvas API")
 
             # Save the generated images
             result = save_generated_images(
                 base64_images,
                 filename,
                 number_of_images,
-                prefix='nova_canvas',
+                prefix="nova_canvas",
                 workspace_dir=workspace_dir,
             )
 
             logger.info(f'Successfully generated {len(result["paths"])} image(s)')
             return ImageGenerationResponse(
-                status='success',
+                status="success",
                 message=f'Generated {len(result["paths"])} image(s)',
-                paths=result['paths'],
+                paths=result["paths"],
                 prompt=prompt,
                 negative_prompt=negative_prompt,
             )
         except Exception as e:
-            logger.error(f'Image generation failed: {str(e)}')
+            logger.error(f"Image generation failed: {str(e)}")
             return ImageGenerationResponse(
-                status='error',
+                status="error",
                 message=str(e),
                 paths=[],
                 prompt=prompt,
@@ -245,9 +257,9 @@ async def generate_image_with_text(
             )
 
     except Exception as e:
-        logger.error(f'Unexpected error in generate_image_with_text: {str(e)}')
+        logger.error(f"Unexpected error in generate_image_with_text: {str(e)}")
         return ImageGenerationResponse(
-            status='error',
+            status="error",
             message=str(e),
             paths=[],
             prompt=prompt,
@@ -300,13 +312,17 @@ async def generate_image_with_colors(
     try:
         # Validate input parameters using Pydantic
         try:
-            logger.debug('Validating parameters and creating color-guided request model')
+            logger.debug(
+                "Validating parameters and creating color-guided request model"
+            )
 
             # Create image generation config
             config = ImageGenerationConfig(
                 width=width,
                 height=height,
-                quality=Quality.STANDARD if quality == DEFAULT_QUALITY else Quality.PREMIUM,
+                quality=Quality.STANDARD
+                if quality == DEFAULT_QUALITY
+                else Quality.PREMIUM,
                 cfgScale=cfg_scale,
                 seed=seed if seed is not None else random.randint(0, 858993459),
                 numberOfImages=number_of_images,
@@ -333,13 +349,13 @@ async def generate_image_with_colors(
 
             # Convert model to dictionary
             request_model_dict = request_model.to_api_dict()
-            logger.info('Color-guided request validation successful')
+            logger.info("Color-guided request validation successful")
 
         except Exception as e:
-            logger.error(f'Color-guided parameter validation failed: {str(e)}')
+            logger.error(f"Color-guided parameter validation failed: {str(e)}")
             return ImageGenerationResponse(
-                status='error',
-                message=f'Validation error: {str(e)}',
+                status="error",
+                message=f"Validation error: {str(e)}",
                 paths=[],
                 prompt=prompt,
                 negative_prompt=negative_prompt,
@@ -348,35 +364,39 @@ async def generate_image_with_colors(
 
         try:
             # Invoke the Nova Canvas API
-            logger.debug('Sending color-guided request to Nova Canvas API')
-            model_response = await invoke_nova_canvas(request_model_dict, bedrock_runtime_client)
+            logger.debug("Sending color-guided request to Nova Canvas API")
+            model_response = await invoke_nova_canvas(
+                request_model_dict, bedrock_runtime_client
+            )
 
             # Extract the image data
-            base64_images = model_response['images']
-            logger.info(f'Received {len(base64_images)} images from Nova Canvas API')
+            base64_images = model_response["images"]
+            logger.info(f"Received {len(base64_images)} images from Nova Canvas API")
 
             # Save the generated images
             result = save_generated_images(
                 base64_images,
                 filename,
                 number_of_images,
-                prefix='nova_canvas_color',
+                prefix="nova_canvas_color",
                 workspace_dir=workspace_dir,
             )
 
-            logger.info(f'Successfully generated {len(result["paths"])} color-guided image(s)')
+            logger.info(
+                f'Successfully generated {len(result["paths"])} color-guided image(s)'
+            )
             return ImageGenerationResponse(
-                status='success',
+                status="success",
                 message=f'Generated {len(result["paths"])} image(s)',
-                paths=result['paths'],
+                paths=result["paths"],
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 colors=colors,
             )
         except Exception as e:
-            logger.error(f'Color-guided image generation failed: {str(e)}')
+            logger.error(f"Color-guided image generation failed: {str(e)}")
             return ImageGenerationResponse(
-                status='error',
+                status="error",
                 message=str(e),
                 paths=[],
                 prompt=prompt,
@@ -385,9 +405,9 @@ async def generate_image_with_colors(
             )
 
     except Exception as e:
-        logger.error(f'Unexpected error in generate_image_with_colors: {str(e)}')
+        logger.error(f"Unexpected error in generate_image_with_colors: {str(e)}")
         return ImageGenerationResponse(
-            status='error',
+            status="error",
             message=str(e),
             paths=[],
             prompt=prompt,

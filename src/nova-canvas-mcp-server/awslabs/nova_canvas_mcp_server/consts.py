@@ -1,11 +1,11 @@
 # Constants
-NOVA_CANVAS_MODEL_ID = 'amazon.nova-canvas-v1:0'
+NOVA_CANVAS_MODEL_ID = "amazon.nova-canvas-v1:0"
 DEFAULT_WIDTH = 1024
 DEFAULT_HEIGHT = 1024
-DEFAULT_QUALITY = 'standard'
+DEFAULT_QUALITY = "standard"
 DEFAULT_CFG_SCALE = 6.5
 DEFAULT_NUMBER_OF_IMAGES = 1
-DEFAULT_OUTPUT_DIR = 'output'  # Default directory inside workspace_dir
+DEFAULT_OUTPUT_DIR = "output"  # Default directory inside workspace_dir
 
 
 # Nova Canvas Prompt Best Practices

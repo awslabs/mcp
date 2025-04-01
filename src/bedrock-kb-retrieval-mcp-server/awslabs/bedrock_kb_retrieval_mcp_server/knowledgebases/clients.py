@@ -11,7 +11,7 @@ else:
 
 
 def get_bedrock_agent_runtime_client(
-    region_name: str = 'us-west-2', profile_name: str | None = None
+    region_name: str = "us-west-2", profile_name: str | None = None
 ) -> AgentsforBedrockRuntimeClient:
     """Get a Bedrock agent runtime client.
 
@@ -23,13 +23,13 @@ def get_bedrock_agent_runtime_client(
     """
     if profile_name:
         return boto3.Session(profile_name=profile_name).client(
-            'bedrock-agent-runtime', region_name=region_name
+            "bedrock-agent-runtime", region_name=region_name
         )
-    return boto3.client('bedrock-agent-runtime', region_name=region_name)
+    return boto3.client("bedrock-agent-runtime", region_name=region_name)
 
 
 def get_bedrock_agent_client(
-    region_name: str = 'us-west-2', profile_name: str | None = None
+    region_name: str = "us-west-2", profile_name: str | None = None
 ) -> AgentsforBedrockClient:
     """Get a Bedrock agent management client.
 
@@ -41,6 +41,6 @@ def get_bedrock_agent_client(
     """
     if profile_name:
         return boto3.Session(profile_name=profile_name).client(
-            'bedrock-agent', region_name=region_name
+            "bedrock-agent", region_name=region_name
         )
-    return boto3.client('bedrock-agent', region_name=region_name)
+    return boto3.client("bedrock-agent", region_name=region_name)

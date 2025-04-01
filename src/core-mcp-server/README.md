@@ -24,7 +24,7 @@ The server requires certain environment variables to be set for proper operation
 
 ### Required Environment Variables
 
-- `MCP_CONFIG_PATH` - Path to the MCP configuration file (e.g., `/Users/username/Library/Application Support/Kiro/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`)
+- `MCP_CONFIG_PATH` - Path to the MCP configuration file (e.g., `/Users/username/Library/Application Support/vscode/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`)
 
 ### Alternative Environment Variables
 
@@ -62,28 +62,29 @@ For AWS services integration:
 Follow the instructions here: <https://docs.astral.sh/uv/getting-started/installation/#installing-uv>
 
 2. Install with uv tools
-  
+
 ```bash
-uv tool install mcp-core
+uv tool install awslabs.core-mcp-server
 ```
 
 3. Configure your MCP client (e.g., Cline):
-This can be found in Cline (extension) > MCP Servers Button (Top Right, it looks like building blocks) > Configure MCP Servers
 
-![mcp_directions](screenshot_settings.png)
+
 
 
 ```json
 {
   "mcpServers": {
     ...
-    "mcp-core": {
+    "awslabs.core-mcp-server": {
       "command": "uvx",
       "args": [
-        "mcp-core"
+        "aswlabs.core-mcp-server",
       ],
       "env": {
-        "SHELL": "/usr/bin/zsh"
+        "SHELL": "/usr/bin/zsh",
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MCP_SETTINGS_PATH": "path to your mcp server settings"
       },
       "autoApprove": [],
       "disabled": false
@@ -92,39 +93,6 @@ This can be found in Cline (extension) > MCP Servers Button (Top Right, it looks
 }
 ```
 
-## Development
-
-1. Clone the repo:
-
-```bash
-git clone https://github.com/your-organization/mcp-core.git
-```
-
-2. Install dependencies:
-
-```bash
-uv sync --all-groups
-```
-
-3. Configure environment variables:
-
-Copy .env.sample to .env and configure:
-
-```bash
-cp .env.sample .env
-```
-
-4. Run the server:
-
-```bash
-uv run src/server.py
-```
-
-or 
-
-```bash
-uv run mcp_core/server/server.py
-```
 
 ## Tools and Resources
 
@@ -153,61 +121,9 @@ The list of servers to be automatically installed is defined in `mcp_core/server
   "disabled": False,  # Whether the server is disabled
   "autoApprove": []  # List of tools to auto-approve
 }
-```
 
-### Command-line Options
 
-The server supports the following command-line options for server installation:
 
-- `--skip-server-check` - Skip checking for missing MCP servers
-- `--debug-servers` - Run server installation check in debug mode
 
-Example:
 
-```bash
-python -m mcp_core.server.server --debug-servers
-```
 
-### Code Quality
-
-The project uses ruff for formatting and linting:
-
-```bash
-ruff check .    # Run linting
-ruff format .   # Format code
-```
-
-Configuration is in pyproject.toml with:
-
-- 99 character line length
-- Google-style docstrings
-- Jupyter notebook support
-- Customized import sorting
-
-### Dependency Management
-
-Dependencies are managed with uv:
-
-- Core dependencies in pyproject.toml
-- Development tools in [dependency-groups.dev]
-- Locked versions in uv.lock
-
-Update dependencies:
-
-```bash
-uv sync --all-groups
-```
-
-## Contributing
-
-1. Ensure code passes all quality checks:
-
-   ```bash
-   ruff check .
-   ruff format .
-   ```
-
-2. Add comprehensive docstrings following Google style
-3. Include type hints for all functions
-4. Add tests for new functionality
-5. Update documentation as needed

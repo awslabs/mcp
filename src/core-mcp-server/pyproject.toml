@@ -4,7 +4,7 @@ version = "0.0.01"
 description = "An AWS Labs Model Context Protocol (MCP) server for aswlabs Core MCP Server"
 readme = "README.md"
 requires-python = ">=3.13"
-ependencies = [
+dependencies = [
     "boto3>=1.37.0",
     "loguru>=0.7.3",
     "mcp[cli]>=1.3.0",
@@ -74,7 +74,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/cost_analysis_mcp_server/__init__.py:__version__"
+    "awslabs/core_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 

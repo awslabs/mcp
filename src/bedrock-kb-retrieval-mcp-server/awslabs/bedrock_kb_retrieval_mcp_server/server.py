@@ -21,22 +21,26 @@ from typing import List, Literal, Optional
 
 
 logger.remove(0)
-logger.add(sys.stderr, level='INFO')
+logger.add(sys.stderr, level="INFO")
 
 
 global kb_runtime_client
 global kb_agent_mgmt_client
 
 try:
-    kb_runtime_client = get_bedrock_agent_runtime_client(profile_name=os.getenv('AWS_PROFILE'))
-    kb_agent_mgmt_client = get_bedrock_agent_client(profile_name=os.getenv('AWS_PROFILE'))
+    kb_runtime_client = get_bedrock_agent_runtime_client(
+        profile_name=os.getenv("AWS_PROFILE")
+    )
+    kb_agent_mgmt_client = get_bedrock_agent_client(
+        profile_name=os.getenv("AWS_PROFILE")
+    )
 except Exception as e:
-    logger.error(f'Error getting bedrock agent client: {e}')
+    logger.error(f"Error getting bedrock agent client: {e}")
     raise e
 
 
 mcp = FastMCP(
-    'awslabs.bedrock-kb-retrieval-mcp-server',
+    "awslabs.bedrock-kb-retrieval-mcp-server",
     instructions="""
     The AWS Labs Bedrock Knowledge Bases Retrieval MCP Server provides access to Amazon Bedrock Knowledge Bases for retrieving relevant information through natural language queries.
 
@@ -51,11 +55,13 @@ mcp = FastMCP(
     - You can filter by specific data sources within a knowledge base using data_source_ids
     - Always verify that the knowledge base ID exists in the resource response before querying
     """,
-    dependencies=['boto3'],
+    dependencies=["boto3"],
 )
 
 
-@mcp.resource(uri='resource://knowledgebases', name='KnowledgeBases', mime_type='application/json')
+@mcp.resource(
+    uri="resource://knowledgebases", name="KnowledgeBases", mime_type="application/json"
+)
 async def knowledgebases_resource() -> str:
     """List all available Amazon Bedrock Knowledge Bases and their data sources.
 
@@ -92,29 +98,30 @@ async def knowledgebases_resource() -> str:
     return json.dumps(await discover_knowledge_bases(kb_agent_mgmt_client))
 
 
-@mcp.tool(name='QueryKnowledgeBases')
+@mcp.tool(name="QueryKnowledgeBases")
 async def query_knowledge_bases_tool(
     query: str = Field(
-        ..., description='A natural language query to search the knowledge base with'
+        ..., description="A natural language query to search the knowledge base with"
     ),
     knowledge_base_id: str = Field(
         ...,
-        description='The knowledge base ID to query. It must be a valid ID from the resource://knowledgebases MCP resource',
+        description="The knowledge base ID to query. It must be a valid ID from the resource://knowledgebases MCP resource",
     ),
     number_of_results: int = Field(
         10,
-        description='The number of results to return. Use smaller values for focused results and larger values for broader coverage.',
+        description="The number of results to return. Use smaller values for focused results and larger values for broader coverage.",
     ),
     reranking: bool = Field(
         True,
-        description='Whether to rerank the results. Useful for improving relevance and sorting.',
+        description="Whether to rerank the results. Useful for improving relevance and sorting.",
     ),
-    reranking_model_name: Literal['COHERE', 'AMAZON'] = Field(
-        'AMAZON', description="The name of the reranking model to use. Options: 'COHERE', 'AMAZON'"
+    reranking_model_name: Literal["COHERE", "AMAZON"] = Field(
+        "AMAZON",
+        description="The name of the reranking model to use. Options: 'COHERE', 'AMAZON'",
     ),
     data_source_ids: Optional[List[str]] = Field(
         None,
-        description='The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the resource://knowledgebases MCP resource',
+        description="The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the resource://knowledgebases MCP resource",
     ),
 ) -> str:
     """Query an Amazon Bedrock Knowledge Base using natural language.
@@ -156,19 +163,23 @@ async def query_knowledge_bases_tool(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='A Model Context Protocol (MCP) server')
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
+    parser = argparse.ArgumentParser(
+        description="A Model Context Protocol (MCP) server"
+    )
+    parser.add_argument("--sse", action="store_true", help="Use SSE transport")
+    parser.add_argument(
+        "--port", type=int, default=8888, help="Port to run the server on"
+    )
 
     args = parser.parse_args()
 
     # Run server with appropriate transport
     if args.sse:
         mcp.settings.port = args.port
-        mcp.run(transport='sse')
+        mcp.run(transport="sse")
     else:
         mcp.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
