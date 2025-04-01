@@ -69,7 +69,6 @@ uv tool install awslabs.core-mcp-server
 
 3. Configure your MCP client (e.g., Amazon Q Developer CLI, Cline):
 
-
 ```json
 {
   "mcpServers": {
@@ -90,7 +89,6 @@ uv tool install awslabs.core-mcp-server
   }
 }
 ```
-
 
 ## Tools and Resources
 
