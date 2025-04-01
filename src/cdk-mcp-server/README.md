@@ -27,7 +27,7 @@ MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as
 
 ## Installation
 
-Add the server to your MCP client config (e.g. for Amazon Q CLI MCP, `~/.aws/amazonq/mcp.json`):
+Here are some ways you can work with MCP across AWS, and we’ll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {

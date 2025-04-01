@@ -26,7 +26,7 @@ MCP server for analyzing AWS service costs and generating cost reports
 
 Install the MCP server:
 
-Add the server to your MCP client config (e.g. for Amazon Q CLI MCP, `~/.aws/amazonq/mcp.json`):
+Here are some ways you can work with MCP across AWS, and we’ll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
@@ -35,7 +35,7 @@ Add the server to your MCP client config (e.g. for Amazon Q CLI MCP, `~/.aws/ama
       "command": "uvx",
       "args": ["awslabs.cost-analysis-mcp-server@latest"],
       "env": {
-        "AWS_PROFILE": "your-aws-profile"  // Optional: specify AWS profile
+        "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
       "autoApprove": []

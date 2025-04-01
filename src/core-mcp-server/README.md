@@ -67,9 +67,7 @@ Follow the instructions here: <https://docs.astral.sh/uv/getting-started/install
 uv tool install awslabs.core-mcp-server
 ```
 
-3. Configure your MCP client (e.g., Cline):
-
-
+3. Configure your MCP client (e.g., Amazon Q Developer CLI, Cline):
 
 
 ```json
