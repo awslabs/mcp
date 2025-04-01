@@ -57,17 +57,9 @@ For AWS services integration:
 
 ## Installation
 
-1. Install uv if you haven't already:
+Install the MCP server:
 
-Follow the instructions here: <https://docs.astral.sh/uv/getting-started/installation/#installing-uv>
-
-2. Install with uv tools
-
-```bash
-uv tool install awslabs.core-mcp-server
-```
-
-3. Configure your MCP client (e.g., Amazon Q Developer CLI, Cline):
+Here are some ways you can work with MCP across AWS, and we’ll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
@@ -76,7 +68,7 @@ uv tool install awslabs.core-mcp-server
     "awslabs.core-mcp-server": {
       "command": "uvx",
       "args": [
-        "aswlabs.core-mcp-server",
+        "awslabs.core-mcp-server",
       ],
       "env": {
         "SHELL": "/usr/bin/zsh",
