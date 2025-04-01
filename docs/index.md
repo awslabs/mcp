@@ -1,12 +1,12 @@
 # Welcome to AWS MCP Servers
 
-A suite of specialized MCP servers that bring AWS expertise directly to your development workflow.
+A suite of specialized MCP servers that bring AWS best practices directly to your development workflow.
 
 ## Available MCP Servers
 
-### MCP Nova Canvas Expert
+### Nova Canvas MCP Server
 
-The MCP Nova Canvas Expert server enables AI assistants to generate images using Amazon Nova Canvas.
+The Nova Canvas MCP Server enables AI assistants to generate images using Amazon Nova Canvas.
 
 **Features:**
 
@@ -14,11 +14,11 @@ The MCP Nova Canvas Expert server enables AI assistants to generate images using
 - Simple API for image generation
 - Seamless integration with code assistant workflows
 
-[Learn more about the MCP Nova Canvas Expert](servers/mcp-nova-canvas-expert.md)
+[Learn more about the Nova Canvas MCP Server](servers/nova-canvas-mcp-server.md)
 
-### MCP Bedrock Knowledge Bases Retrieval Expert
+### Bedrock Knowledge Bases Retrieval MCP Server
 
-The MCP Bedrock Knowledge Bases Retrieval Expert server enables AI assistants to retrieve information from Amazon Bedrock Knowledge Bases.
+The Bedrock Knowledge Bases Retrieval MCP Server enables AI assistants to retrieve information from Amazon Bedrock Knowledge Bases.
 
 **Features:**
 
@@ -26,7 +26,19 @@ The MCP Bedrock Knowledge Bases Retrieval Expert server enables AI assistants to
 - Filter results by data source
 - Rerank results
 
-[Learn more about the MCP Bedrock Knowledge Bases Retrieval Expert](servers/mcp-bedrock-kb-retrieval-expert.md)
+[Learn more about the Bedrock Knowledge Bases Retrieval MCP Server](servers/bedrock-kb-retrieval-mcp-server.md)
+
+### Cost Analysis MCP Server
+
+The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS services.
+
+**Features:**
+
+- Analyze the cost of AWS services
+- Generate a cost analysis report
+- Identify cost-saving opportunities
+
+[Learn more about the Cost Analysis MCP Server](servers/cost-analysis-mcp-server.md)
 
 ## Installation and Setup
 

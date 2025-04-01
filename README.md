@@ -1,6 +1,6 @@
 # AWS MCP Servers
 
-A suite of specialized Model Context Protocol (MCP) servers that bring AWS expertise directly to your development workflow.
+A suite of specialized MCP servers that bring AWS best practices directly to your development workflow.
 
 [![GitHub](https://img.shields.io/badge/github-awslabs/mcp-blue.svg?style=flat&logo=github)](https://github.com/awslabs/mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen)](LICENSE)
@@ -9,9 +9,9 @@ A suite of specialized Model Context Protocol (MCP) servers that bring AWS exper
 
 This monorepo contains the following MCP servers:
 
-### MCP Bedrock Knowledge Bases Retrieval Expert
+### Bedrock Knowledge Bases Retrieval MCP Server
 
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.mcp-bedrock-kb-retrieval-expert.svg)](https://pypi.org/project/awslabs.mcp-bedrock-kb-retrieval-expert/)
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.bedrock-kb-retrieval-mcp-server.svg)](https://pypi.org/project/awslabs.bedrock-kb-retrieval-mcp-server/)
 
 A server for accessing Amazon Bedrock Knowledge Bases.
 
@@ -20,23 +20,23 @@ A server for accessing Amazon Bedrock Knowledge Bases.
 - Filter results by data source
 - Rerank results
 
-[Learn more](src/mcp-bedrock-kb-retrieval-expert/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/mcp-bedrock-kb-retrieval-expert/)
+[Learn more](src/bedrock-kb-retrieval-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/bedrock-kb-retrieval-mcp-server/)
 
-### MCP CDK Expert
+### CDK MCP Server
 
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.mcp-cdk-expert.svg)](https://pypi.org/project/awslabs.mcp-cdk-expert/)
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.cdk-mcp-server.svg)](https://pypi.org/project/awslabs.cdk-mcp-server/)
 
-A server for AWS CDK expertise and automation.
+A server for AWS CDK best practices.
 
 - AWS CDK project analysis and assistance
 - CDK construct recommendations
 - Infrastructure as Code best practices
 
-[Learn more](src/mcp-cdk-expert/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/mcp-cdk-expert/)
+[Learn more](src/cdk-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
 
-### MCP Cost Analysis Expert
+### Cost Analysis MCP Server
 
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.mcp-cost-analysis-expert.svg)](https://pypi.org/project/awslabs.mcp-cost-analysis-expert/)
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.cost-analysis-mcp-server.svg)](https://pypi.org/project/awslabs.cost-analysis-mcp-server/)
 
 A server for AWS Cost Analysis.
 
@@ -44,11 +44,11 @@ A server for AWS Cost Analysis.
 - Query cost data with natural language
 - Generate cost reports and insights
 
-[Learn more](src/mcp-cost-analysis-expert/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/mcp-cost-analysis-expert/)
+[Learn more](src/cost-analysis-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 
-### MCP Nova Canvas Expert
+### Nova Canvas MCP Server
 
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.mcp-nova-canvas-expert.svg)](https://pypi.org/project/awslabs.mcp-nova-canvas-expert/)
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.nova-canvas-mcp-server.svg)](https://pypi.org/project/awslabs.nova-canvas-mcp-server/)
 
 A server for generating images using Amazon Nova Canvas.
 
@@ -57,7 +57,7 @@ A server for generating images using Amazon Nova Canvas.
 - Workspace integration for saving generated images
 - AWS authentication through profiles
 
-[Learn more](src/mcp-nova-canvas-expert/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/mcp-nova-canvas-expert/)
+[Learn more](src/nova-canvas-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 
 ## Installation and Setup
 
@@ -73,33 +73,33 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 ```json
 {
   "mcpServers": {
-    "mcp-nova-canvas-expert": {
+    "awslabs.nova-canvas-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.mcp-nova-canvas-expert@latest"],
+      "args": ["awslabs.nova-canvas-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
       }
     },
-    "mcp-bedrock-kb-retrieval-expert": {
+    "awslabs.bedrock-kb-retrieval-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.mcp-bedrock-kb-retrieval-expert@latest"],
+      "args": ["awslabs.bedrock-kb-retrieval-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
       }
     },
-    "mcp-cost-analysis-expert": {
+    "awslabs.cost-analysis-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.mcp-cost-analysis-expert@latest"],
+      "args": ["awslabs.cost-analysis-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
       }
     },
-    "mcp-cdk-expert": {
+    "awslabs.cdk-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.mcp-cdk-expert@latest"],
+      "args": ["awslabs.cdk-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
@@ -117,8 +117,10 @@ Comprehensive documentation for all servers is available on our [documentation w
 
 Documentation for each server:
 
-- [MCP Bedrock Knowledge Bases Retrieval Expert](https://awslabs.github.io/mcp/servers/mcp-bedrock-kb-retrieval-expert/)
-- [MCP Nova Canvas Expert](https://awslabs.github.io/mcp/servers/mcp-nova-canvas-expert/)
+- [Bedrock Knowledge Bases Retrieval MCP Server](https://awslabs.github.io/mcp/servers/bedrock-kb-retrieval-mcp-server/)
+- [Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
+- [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
+- [CDK MCP Server](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
 
 Documentation includes:
 

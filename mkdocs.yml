@@ -1,4 +1,4 @@
-site_name: AWS MCP Servers for Code Assistants
+site_name: AWS MCP Servers
 site_url: https://awslabs.github.io/mcp
 theme:
   name: material
@@ -13,5 +13,6 @@ plugins:
 nav:
   - Home: index.md
   - AWS MCP Servers:
-    - MCP Server for Nova Canvas: servers/mcp-nova-canvas-expert.md
-    - MCP Server for Amazon Bedrock Knowledge Base Retrieval: servers/mcp-bedrock-kb-retrieval-expert.md
+    - MCP Server for Nova Canvas: servers/nova-canvas-mcp-server.md
+    - MCP Server for Amazon Bedrock Knowledge Base Retrieval: servers/bedrock-kb-retrieval-mcp-server.md
+    - MCP Server for Cost Analysis: servers/cost-analysis-mcp-server.md
