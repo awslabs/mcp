@@ -68,7 +68,7 @@ Here are some ways you can work with MCP across AWS, and we’ll be adding suppo
     "awslabs.core-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.core-mcp-server",
+        "awslabs.core-mcp-server@latest",
       ],
       "env": {
         "SHELL": "/usr/bin/zsh",
