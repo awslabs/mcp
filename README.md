@@ -86,12 +86,20 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 ```json
 {
   "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
     "awslabs.nova-canvas-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.nova-canvas-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.bedrock-kb-retrieval-mcp-server": {
@@ -99,7 +107,8 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       "args": ["awslabs.bedrock-kb-retrieval-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.cost-analysis-mcp-server": {
