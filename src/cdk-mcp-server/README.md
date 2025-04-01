@@ -1,4 +1,4 @@
-# CDK MCP Server
+# AWS CDK MCP Server
 
 MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as code patterns, and security compliance with CDK Nag.
 
@@ -20,7 +20,7 @@ MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as
   - Discover specialized constructs for AI/ML workloads
   - Get implementation guidance for generative AI applications
 
-- **Bedrock Agent Schema Generation** - Generate OpenAPI schema for Bedrock Agent Action Groups
+- **Amazon Bedrock Agent Schema Generation** - Generate OpenAPI schema for Bedrock Agent Action Groups
   - Streamline the creation of Bedrock Agent schemas
   - Convert code files to compatible OpenAPI specifications
 

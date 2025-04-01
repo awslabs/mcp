@@ -1,4 +1,4 @@
-# Bedrock Knowledge Base Retrieval MCP Server
+# Amazon Bedrock Knowledge Base Retrieval MCP Server
 
 MCP server for accessing Amazon Bedrock Knowledge Bases
 

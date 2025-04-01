@@ -22,7 +22,7 @@ A server for managing and coordinating other AWS Labs MCP servers.
 
 [Learn more](src/core-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/core-mcp-server/)
 
-### Bedrock Knowledge Bases Retrieval MCP Server
+### Amazon Bedrock Knowledge Bases Retrieval MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.bedrock-kb-retrieval-mcp-server.svg)](https://pypi.org/project/awslabs.bedrock-kb-retrieval-mcp-server/)
 
@@ -35,7 +35,7 @@ A server for accessing Amazon Bedrock Knowledge Bases.
 
 [Learn more](src/bedrock-kb-retrieval-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/bedrock-kb-retrieval-mcp-server/)
 
-### CDK MCP Server
+### AWS CDK MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.cdk-mcp-server.svg)](https://pypi.org/project/awslabs.cdk-mcp-server/)
 
@@ -59,7 +59,7 @@ A server for AWS Cost Analysis.
 
 [Learn more](src/cost-analysis-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 
-### Nova Canvas MCP Server
+### Amazon Nova Canvas MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.nova-canvas-mcp-server.svg)](https://pypi.org/project/awslabs.nova-canvas-mcp-server/)
 
@@ -141,10 +141,10 @@ Comprehensive documentation for all servers is available on our [documentation w
 Documentation for each server:
 
 - [Core MCP Server](https://awslabs.github.io/mcp/servers/core-mcp-server/)
-- [Bedrock Knowledge Bases Retrieval MCP Server](https://awslabs.github.io/mcp/servers/bedrock-kb-retrieval-mcp-server/)
-- [CDK MCP Server](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
+- [Amazon Bedrock Knowledge Bases Retrieval MCP Server](https://awslabs.github.io/mcp/servers/bedrock-kb-retrieval-mcp-server/)
+- [AWS CDK MCP Server](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
-- [Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
+- [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 
 Documentation includes:
 

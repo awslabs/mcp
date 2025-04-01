@@ -17,7 +17,7 @@ The Core MCP Server manages and coordinates other MCP servers in your environmen
 
 [Learn more about the Core MCP Server](servers/core-mcp-server.md)
 
-### CDK MCP Server
+### AWS CDK MCP Server
 
 The CDK MCP Server provides AWS Cloud Development Kit (CDK) best practices, infrastructure as code patterns, and security compliance with CDK Nag.
 
@@ -30,7 +30,7 @@ The CDK MCP Server provides AWS Cloud Development Kit (CDK) best practices, infr
 
 [Learn more about the CDK MCP Server](servers/cdk-mcp-server.md)
 
-### Nova Canvas MCP Server
+### Amazon Nova Canvas MCP Server
 
 The Nova Canvas MCP Server enables AI assistants to generate images using Amazon Nova Canvas.
 
@@ -42,7 +42,7 @@ The Nova Canvas MCP Server enables AI assistants to generate images using Amazon
 
 [Learn more about the Nova Canvas MCP Server](servers/nova-canvas-mcp-server.md)
 
-### Bedrock Knowledge Base Retrieval MCP Server
+### Amazon Bedrock Knowledge Base Retrieval MCP Server
 
 The Bedrock Knowledge Base Retrieval MCP Server enables AI assistants to retrieve information from Amazon Bedrock Knowledge Bases.
 

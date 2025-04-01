@@ -1,4 +1,4 @@
-# Nova Canvas MCP Server
+# Amazon Nova Canvas MCP Server
 
 MCP server for generating images using Amazon Nova Canvas
 
