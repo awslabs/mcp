@@ -52,7 +52,7 @@ To generate a Bedrock-compatible OpenAPI schema:
 ```python
 # Generate schema from a file
 result = await use_mcp_tool(
-    server_name="awslabs.mcp-cdk-expert",
+    server_name="awslabs.cdk-mcp-server",
     tool_name="GenerateBedrockAgentSchemaFromFile",
     arguments={
         "lambda_code_path": "/path/to/your/agent_actions.py",

@@ -1,7 +1,7 @@
-"""AWS CDK expert MCP server package."""
+"""AWS CDK MCP server package."""
 
 # Import the minimal set of essential functions
-from awslabs.mcp_cdk_expert.core.server import main, mcp
+from awslabs.cdk_mcp_server.core.server import main, mcp
 
 __all__ = ['main', 'mcp']
 

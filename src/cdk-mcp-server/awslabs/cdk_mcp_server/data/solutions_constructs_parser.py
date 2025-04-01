@@ -4,7 +4,7 @@ import httpx
 import logging
 import re
 import urllib.parse
-from awslabs.mcp_cdk_expert.core import search_utils
+from awslabs.cdk_mcp_server.core import search_utils
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 

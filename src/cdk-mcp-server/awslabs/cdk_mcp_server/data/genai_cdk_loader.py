@@ -2,7 +2,7 @@
 
 import logging
 import os
-from awslabs.mcp_cdk_expert.data.construct_descriptions import get_construct_descriptions
+from awslabs.cdk_mcp_server.data.construct_descriptions import get_construct_descriptions
 from enum import Enum
 from typing import Any, Dict, List, Optional
 

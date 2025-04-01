@@ -1,8 +1,8 @@
-"""AWS CDK Expert MCP server implementation."""
+"""AWS CDK MCP server implementation."""
 
 import argparse
 import logging
-from awslabs.mcp_cdk_expert.core import resources, tools
+from awslabs.cdk_mcp_server.core import resources, tools
 from mcp.server.fastmcp import FastMCP
 
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Create MCP server
 mcp = FastMCP(
-    'AWS CDK Expert',
+    'AWS CDK MCP Server',
     dependencies=[
         'pydantic',
         'aws-lambda-powertools',
@@ -56,7 +56,7 @@ mcp.tool(name='SearchGenAICDKConstructs')(tools.search_genai_cdk_constructs)
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='CDK Expert MCP Server')
+    parser = argparse.ArgumentParser(description='AWS CDK MCP Server')
     parser.add_argument('--sse', action='store_true', help='Use SSE transport')
     parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
 

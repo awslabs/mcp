@@ -1,15 +1,15 @@
-"""AWS CDK Expert MCP resource handlers."""
+"""AWS CDK MCP resource handlers."""
 
 import logging
-from awslabs.mcp_cdk_expert.data.cdk_nag_parser import get_errors, get_rule_pack, get_warnings
-from awslabs.mcp_cdk_expert.data.genai_cdk_loader import (
+from awslabs.cdk_mcp_server.data.cdk_nag_parser import get_errors, get_rule_pack, get_warnings
+from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
     get_genai_cdk_construct,
     get_genai_cdk_construct_section,
     get_genai_cdk_overview,
     list_available_sections,
 )
-from awslabs.mcp_cdk_expert.data.lambda_powertools_loader import get_lambda_powertools_section
-from awslabs.mcp_cdk_expert.data.solutions_constructs_parser import get_pattern_raw
+from awslabs.cdk_mcp_server.data.lambda_powertools_loader import get_lambda_powertools_section
+from awslabs.cdk_mcp_server.data.solutions_constructs_parser import get_pattern_raw
 from enum import Enum
 
 
@@ -157,7 +157,7 @@ async def get_solutions_construct_pattern_resource(pattern_name: str) -> str:
     pattern_raw = await get_pattern_raw(pattern_name)
 
     if 'error' in pattern_raw:
-        from awslabs.mcp_cdk_expert.data.solutions_constructs_parser import fetch_pattern_list
+        from awslabs.cdk_mcp_server.data.solutions_constructs_parser import fetch_pattern_list
 
         return f"Pattern '{pattern_name}' not found. Available patterns: {', '.join(await fetch_pattern_list())}"
 

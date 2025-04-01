@@ -1,7 +1,7 @@
 [project]
-name = "awslabs.mcp-cdk-expert"
+name = "awslabs.cdk-mcp-server"
 version = "0.0.0"
-description = "An AWS CDK expert MCP server that provides guidance on AWS Cloud Development Kit best practices, infrastructure as code patterns, and security compliance with CDK Nag. This server offers tools to validate infrastructure designs, explain CDK Nag rules, analyze suppressions, generate Bedrock Agent schemas, and discover Solutions Constructs patterns."
+description = "An AWS CDK MCP server that provides guidance on AWS Cloud Development Kit best practices, infrastructure as code patterns, and security compliance with CDK Nag. This server offers tools to validate infrastructure designs, explain CDK Nag rules, analyze suppressions, generate Bedrock Agent schemas, and discover Solutions Constructs patterns."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-"awslabs.mcp-cdk-expert" = "awslabs.mcp_cdk_expert.server:main"
+"awslabs.cdk-mcp-server" = "awslabs.cdk_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -73,7 +73,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/mcp_cdk_expert/__init__.py:__version__"
+    "awslabs/cdk_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 

@@ -47,7 +47,7 @@ wheels = [
 ]
 
 [[package]]
-name = "awslabs-mcp-cdk-expert"
+name = "awslabs-cdk-mcp-server"
 version = "0.0.0"
 source = { editable = "." }
 dependencies = [

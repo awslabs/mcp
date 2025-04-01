@@ -1,23 +1,23 @@
-"""AWS CDK Expert MCP tool handlers."""
+"""AWS CDK MCP tool handlers."""
 
 import logging
 import os
 import re
-from awslabs.mcp_cdk_expert.core import search_utils
-from awslabs.mcp_cdk_expert.data.cdk_nag_parser import (
+from awslabs.cdk_mcp_server.core import search_utils
+from awslabs.cdk_mcp_server.data.cdk_nag_parser import (
     check_cdk_nag_suppressions,
     get_rule,
 )
-from awslabs.mcp_cdk_expert.data.genai_cdk_loader import (
+from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
     list_available_constructs,
 )
-from awslabs.mcp_cdk_expert.data.schema_generator import generate_bedrock_schema_from_file
-from awslabs.mcp_cdk_expert.data.solutions_constructs_parser import (
+from awslabs.cdk_mcp_server.data.schema_generator import generate_bedrock_schema_from_file
+from awslabs.cdk_mcp_server.data.solutions_constructs_parser import (
     fetch_pattern_list,
     get_pattern_info,
     search_patterns,
 )
-from awslabs.mcp_cdk_expert.static import (
+from awslabs.cdk_mcp_server.static import (
     CDK_GENERAL_GUIDANCE,
 )
 from mcp.server.fastmcp import Context

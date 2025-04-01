@@ -1,4 +1,4 @@
-"""Common search utilities for AWS CDK Expert."""
+"""Common search utilities for AWS CDK MCP Server."""
 
 import re
 import urllib.parse
