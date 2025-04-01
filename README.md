@@ -93,17 +93,15 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       "command": "uvx",
       "args": ["awslabs.cost-analysis-mcp-server@latest"],
       "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.cdk-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.cdk-mcp-server@latest"],
       "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
-      }
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
     }
   }
 }

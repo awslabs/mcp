@@ -1,4 +1,4 @@
-# awslabs MCP Cost Analysis Server
+# Cost Analysis MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for Cost Analysis of the AWS services
 
@@ -31,7 +31,7 @@ Add the server to your MCP client config (e.g. for Amazon Q CLI MCP, `~/.aws/ama
 ```json
 {
   "mcpServers": {
-    "awslabs.nova-canvas-mcp-server": {
+    "awslabs.cost-analysis-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.cost-analysis-mcp-server@latest"],
       "env": {

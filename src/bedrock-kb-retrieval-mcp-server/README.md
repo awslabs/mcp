@@ -1,4 +1,4 @@
-# awslabs Bedrock Knowledge Base Retrieval MCP Server
+# Bedrock Knowledge Base Retrieval MCP Server
 
 A Model Context Protocol (MCP) server for accessing Amazon Bedrock Knowledge Bases.
 
