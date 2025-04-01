@@ -1,6 +1,6 @@
-# AWS MCP Servers for Code Assistants
+# AWS MCP Servers
 
-A suite of specialized MCP servers that bring AWS expertise directly to your development workflow.
+A suite of specialized MCP servers that bring AWS best practices directly to your development workflow.
 
 ## Security
 
