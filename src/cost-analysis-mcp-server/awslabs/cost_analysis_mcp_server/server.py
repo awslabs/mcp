@@ -240,7 +240,7 @@ async def get_pricing_from_api(service_code: str, region: str, ctx: Context) -> 
     name='get_bedrock_architecture_patterns',
     description='Get architecture patterns for Amazon Bedrock applications, including component relationships and cost considerations',
 )
-async def get_bedrock_architecture_patterns(ctx: Optional[Context] = None) -> Dict:
+async def get_bedrock_architecture_patterns(ctx: Optional[Context] = None) -> str:
     """Get architecture patterns for Amazon Bedrock applications.
 
     This tool provides architecture patterns, component relationships, and cost considerations
@@ -248,9 +248,9 @@ async def get_bedrock_architecture_patterns(ctx: Optional[Context] = None) -> Di
     should be obtained using get_pricing_from_web or get_pricing_from_api.
 
     Returns:
-        Dict containing the architecture patterns in markdown format
+        String containing the architecture patterns in markdown format
     """
-    return json.loads(BEDROCK)
+    return BEDROCK
 
 
 # Default recommendation prompt template
