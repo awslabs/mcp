@@ -86,13 +86,17 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 ```json
 {
   "mcpServers": {
-    "awslabs.nova-canvas-mcp-server": {
+    "awslabs.core-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.nova-canvas-mcp-server@latest"],
+      "args": [
+        "awslabs.core-mcp-server@latest"
+      ],
       "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
-      }
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MCP_SETTINGS_PATH": "path to your mcp server settings"
+      },
+      "autoApprove": [],
+      "disabled": false
     },
     "awslabs.bedrock-kb-retrieval-mcp-server": {
       "command": "uvx",
@@ -102,6 +106,13 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
         "AWS_REGION": "us-east-1"
       }
     },
+    "awslabs.cdk-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cdk-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+    },
     "awslabs.cost-analysis-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.cost-analysis-mcp-server@latest"],
@@ -109,13 +120,14 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
-    "awslabs.cdk-mcp-server": {
+    "awslabs.nova-canvas-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.cdk-mcp-server@latest"],
+      "args": ["awslabs.nova-canvas-mcp-server@latest"],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-    }
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    },
   }
 }
 ```
@@ -128,10 +140,11 @@ Comprehensive documentation for all servers is available on our [documentation w
 
 Documentation for each server:
 
+- [Core MCP Server](https://awslabs.github.io/mcp/servers/core-mcp-server/)
 - [Bedrock Knowledge Bases Retrieval MCP Server](https://awslabs.github.io/mcp/servers/bedrock-kb-retrieval-mcp-server/)
-- [Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
-- [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [CDK MCP Server](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
+- [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
+- [Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 
 Documentation includes:
 
@@ -143,6 +156,10 @@ Documentation includes:
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+## Disclaimer
+
+Before using an MCP Server, you should consider conducting your own independent assessment to ensure that your use would comply with your own specific security and quality control practices and standards, as well as the laws, rules, and regulations that govern you and your content.
 
 ## License
 
