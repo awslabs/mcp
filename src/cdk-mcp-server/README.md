@@ -4,21 +4,32 @@ MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as
 
 ## Features
 
-### Tools
+- **CDK Best Practices**: Get prescriptive CDK advice for building applications on AWS
+  - AWS Well-Architected guidance for CDK applications
+  - Security and compliance recommendations
 
-- **CDKGeneralGuidance** - Get prescriptive CDK advice for building applications on AWS
-- **ExplainCDKNagRule** - Explain specific CDK Nag rules with AWS Well-Architected guidance
-- **CheckCDKNagSuppressions** - Check if CDK code contains Nag suppressions that require human review
-- **GenerateBedrockAgentSchemaFromFile** - Generate OpenAPI schema for Bedrock Agent Action Groups from a file
-- **GetAwsSolutionsConstructPattern** - Search and discover AWS Solutions Constructs patterns
-- **SearchGenAICDKConstructs** - Search for GenAI CDK constructs by name or type
+- **CDK Nag Integration**: Work with CDK Nag rules for security and compliance
+  - Explain specific CDK Nag rules with AWS Well-Architected guidance
+  - Check if CDK code contains Nag suppressions that require human review
 
-### Resources
+- **AWS Solutions Constructs**: Search and discover AWS Solutions Constructs patterns
+  - Find recommended patterns for common architecture needs
+  - Get detailed documentation on Solutions Constructs
 
-- **CDK Nag Rules** - Access rule packs via `cdk-nag://rules/{rule_pack}`
-- **Lambda Powertools** - Get guidance on Lambda Powertools via `lambda-powertools://{topic}`
-- **AWS Solutions Constructs** - Access patterns via `aws-solutions-constructs://{pattern_name}`
-- **GenAI CDK Constructs** - Access documentation via `genai-cdk-constructs://{construct_type}/{construct_name}`
+- **Generative AI CDK Constructs**: Search for GenAI CDK constructs by name or type
+  - Discover specialized constructs for AI/ML workloads
+  - Get implementation guidance for generative AI applications
+
+- **Bedrock Agent Schema Generation**: Generate OpenAPI schema for Bedrock Agent Action Groups
+  - Streamline the creation of Bedrock Agent schemas
+  - Convert code files to compatible OpenAPI specifications
+
+## Tools and Resources
+
+- **CDK Nag Rules**: Access rule packs via `cdk-nag://rules/{rule_pack}`
+- **Lambda Powertools**: Get guidance on Lambda Powertools via `lambda-powertools://{topic}`
+- **AWS Solutions Constructs**: Access patterns via `aws-solutions-constructs://{pattern_name}`
+- **GenAI CDK Constructs**: Access documentation via `genai-cdk-constructs://{construct_type}/{construct_name}`
 
 ## Prerequisites
 
@@ -27,7 +38,7 @@ MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as
 
 ## Installation
 
-Here are some ways you can work with MCP across AWS, and we’ll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
+Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
@@ -35,6 +46,9 @@ Here are some ways you can work with MCP across AWS, and we’ll be adding suppo
     "awslabs.cdk-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.cdk-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
       "disabled": false,
       "autoApprove": []
     }

@@ -4,18 +4,18 @@ MCP server for generating images using Amazon Nova Canvas
 
 ## Features
 
-- **Text-based image generation** - Create images from text prompts with `generate_image`
+- **Text-based image generation**: Create images from text prompts with `generate_image`
   - Customizable dimensions (320-4096px), quality options, and negative prompting
   - Supports multiple image generation (1-5) in single request
   - Adjustable parameters like cfg_scale (1.1-10.0) and seeded generation
 
-- **Color-guided image generation** - Generate images with specific color palettes using `generate_image_with_colors`
+- **Color-guided image generation**: Generate images with specific color palettes using `generate_image_with_colors`
   - Define up to 10 hex color values to influence the image style and mood
   - Same customization options as text-based generation
 
-- **Workspace integration** - Images saved to user-specified workspace directories with automatic folder creation
+- **Workspace integration**: Images saved to user-specified workspace directories with automatic folder creation
 
-- **AWS authentication** - Uses AWS profiles for secure access to Amazon Nova Canvas services
+- **AWS authentication**: Uses AWS profiles for secure access to Amazon Nova Canvas services
 
 ## Prerequisites
 
@@ -28,9 +28,7 @@ MCP server for generating images using Amazon Nova Canvas
 
 ## Installation
 
-Install the MCP server:
-
-Here are some ways you can work with MCP across AWS, and we’ll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
+Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
@@ -39,8 +37,9 @@ Here are some ways you can work with MCP across AWS, and we’ll be adding suppo
       "command": "uvx",
       "args": ["awslabs.nova-canvas-mcp-server@latest"],
       "env": {
-        "AWS_PROFILE": "your-aws-profile",  // Optional: specify AWS profile
-        "AWS_REGION": "us-east-1"           // Required: region where Bedrock is available
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
       "autoApprove": []
@@ -55,8 +54,8 @@ The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment v
 
 ```json
 "env": {
-  "AWS_PROFILE": "your-aws-profile",  // Specify which AWS profile to use
-  "AWS_REGION": "us-east-1"           // Region where Bedrock is available
+  "AWS_PROFILE": "your-aws-profile",
+  "AWS_REGION": "us-east-1"
 }
 ```
 

@@ -1,5 +1,5 @@
 ---
-title: MCP Server for Cost Analysis
+title: Cost Analysis MCP Server
 ---
 
 {%include "../../src/cost-analysis-mcp-server/README.md"%}

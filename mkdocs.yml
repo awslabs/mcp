@@ -13,9 +13,9 @@ plugins:
 nav:
   - Home: index.md
   - AWS MCP Servers:
-    - MCP Server for Core: servers/core-mcp-server.md
-    - MCP Server for CDK: servers/cdk-mcp-server.md
-    - MCP Server for Nova Canvas: servers/nova-canvas-mcp-server.md
-    - MCP Server for Amazon Bedrock Knowledge Base Retrieval: servers/bedrock-kb-retrieval-mcp-server.md
-    - MCP Server for Cost Analysis: servers/cost-analysis-mcp-server.md
+    - Core MCP Server: servers/core-mcp-server.md
+    - CDK MCP Server: servers/cdk-mcp-server.md
+    - Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
+    - Bedrock Knowledge Base Retrieval MCP Server: servers/bedrock-kb-retrieval-mcp-server.md
+    - Cost Analysis MCP Server: servers/cost-analysis-mcp-server.md
 

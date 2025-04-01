@@ -1,5 +1,5 @@
 ---
-title: MCP Server for AWS CDK
+title: CDK MCP Server
 ---
 
 {%include "../../src/cdk-mcp-server/README.md"%}

@@ -1,5 +1,5 @@
 ---
-title: MCP Server for Amazon Nova Canvas
+title: Nova Canvas MCP Server
 ---
 
 {%include "../../src/nova-canvas-mcp-server/README.md"%}

@@ -1,15 +1,30 @@
-# MCP Core
+# Core MCP Server
 
-MCP Core is a central server that manages and coordinates other MCP servers in your environment. It provides automatic installation, configuration, and management of MCP servers to ensure a seamless experience when working with AWS services.
+MCP server that manages and coordinates other MCP servers in your environment
 
-## Core Features
+## Features
 
 - **Automatic MCP Server Management**: Automatically installs and configures required MCP servers on startup
+  - Ensures all necessary MCP servers are available
+  - Maintains consistent configuration across servers
+
+- **Planning and orchestration** - Provides tools to plan and orchestrate AWS Labs MCP servers
+
 - **UVX Installation Support**: Provides tools to install MCP servers via UVX
-- **AWS Service Integration**: Connects to various AWS services through specialized MCP servers
+  - Simplifies installation of additional MCP servers
+  - Manages dependencies and version requirements
+
 - **Centralized Configuration**: Manages MCP server configurations in one place
+  - Single configuration file for all servers
+  - Automatic configuration validation
+
 - **Environment Management**: Handles environment variables and AWS credentials
+  - Ensures proper AWS authentication
+  - Manages environment variables across servers
+
 - **Comprehensive Logging**: Detailed logging for troubleshooting
+  - Centralized logs for all servers
+  - Configurable log levels
 
 ## Prerequisites
 
@@ -57,21 +72,17 @@ For AWS services integration:
 
 ## Installation
 
-Install the MCP server:
-
-Here are some ways you can work with MCP across AWS, and we’ll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
+Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
   "mcpServers": {
-    ...
     "awslabs.core-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.core-mcp-server",
+        "awslabs.core-mcp-server@latest"
       ],
       "env": {
-        "SHELL": "/usr/bin/zsh",
         "FASTMCP_LOG_LEVEL": "ERROR",
         "MCP_SETTINGS_PATH": "path to your mcp server settings"
       },
@@ -109,6 +120,7 @@ The list of servers to be automatically installed is defined in `mcp_core/server
   "disabled": False,  # Whether the server is disabled
   "autoApprove": []  # List of tools to auto-approve
 }
+```
 
 
 
