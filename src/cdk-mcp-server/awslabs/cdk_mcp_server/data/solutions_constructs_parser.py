@@ -84,6 +84,8 @@ async def get_pattern_info(pattern_name: str) -> Dict[str, Any]:
     Returns:
         Dictionary with pattern metadata
     """
+    global _pattern_details_cache
+
     try:
         logger.info(f'Fetching pattern info for {pattern_name}')
 
@@ -92,7 +94,8 @@ async def get_pattern_info(pattern_name: str) -> Dict[str, Any]:
 
         # Check cache first
         if (
-            pattern_name in _pattern_details_cache
+            _pattern_details_cache is not None
+            and pattern_name in _pattern_details_cache
             and datetime.now() - _pattern_details_cache[pattern_name]['timestamp'] < CACHE_TTL
         ):
             logger.info(f'Using cached info for {pattern_name}')
@@ -130,7 +133,6 @@ async def get_pattern_info(pattern_name: str) -> Dict[str, Any]:
         }
 
         # Update cache
-        global _pattern_details_cache
         if _pattern_details_cache is None:
             _pattern_details_cache = {}
             
