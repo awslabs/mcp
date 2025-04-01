@@ -327,7 +327,10 @@ def list_available_constructs(construct_type: Optional[str] = None) -> List[Dict
     constructs = []
 
     # Determine which construct types to search
-    construct_types = [construct_type.lower()] if construct_type else get_construct_types()
+    if construct_type is not None:
+        construct_types = [construct_type.lower()]
+    else:
+        construct_types = get_construct_types()
 
     # For each construct type, list files in the directory
     for ct in construct_types:
@@ -361,7 +364,7 @@ def list_available_constructs(construct_type: Optional[str] = None) -> List[Dict
 
 
 def process_directory_files(
-    dir_path: str, construct_type: str, constructs: List[Dict[str, Any]], parent: str = None
+    dir_path: str, construct_type: str, constructs: List[Dict[str, Any]], parent: Optional[str] = None
 ):
     """Process files in a directory and add them to the constructs list.
 
@@ -397,10 +400,10 @@ def process_directory_files(
 
         # Get description from fixed mapping or use default
         descriptions = get_construct_descriptions()
-        description = descriptions.get(display_name, None)
+        description = descriptions.get(display_name, "")
 
         # If no fixed description, fall back to current behavior
-        if description is None:
+        if not description:
             try:
                 with open(file_path, 'r') as f:
                     first_line = f.readline().strip()

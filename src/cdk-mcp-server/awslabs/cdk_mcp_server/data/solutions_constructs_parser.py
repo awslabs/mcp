@@ -22,7 +22,7 @@ PATTERNS_PATH = 'source/patterns/@aws-solutions-constructs'
 CACHE_TTL = timedelta(hours=24)  # Cache for 24 hours
 
 # Cache for pattern list and pattern details
-_pattern_list_cache = {'timestamp': None, 'data': None}
+_pattern_list_cache = {'timestamp': None, 'data': []}
 _pattern_details_cache = {}
 
 
@@ -32,6 +32,12 @@ async def fetch_pattern_list() -> List[str]:
     Returns:
         List of pattern names (e.g., ['aws-lambda-dynamodb', 'aws-apigateway-lambda', ...])
     """
+    global _pattern_list_cache
+    
+    # Initialize cache if it's None
+    if _pattern_list_cache is None:
+        _pattern_list_cache = {'timestamp': None, 'data': []}
+        
     # Check cache first
     if (
         _pattern_list_cache['timestamp'] is not None
@@ -124,6 +130,10 @@ async def get_pattern_info(pattern_name: str) -> Dict[str, Any]:
         }
 
         # Update cache
+        global _pattern_details_cache
+        if _pattern_details_cache is None:
+            _pattern_details_cache = {}
+            
         _pattern_details_cache[pattern_name] = {'timestamp': datetime.now(), 'data': pattern_info}
 
         return pattern_info
