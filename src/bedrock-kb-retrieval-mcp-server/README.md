@@ -4,19 +4,19 @@ MCP server for accessing Amazon Bedrock Knowledge Bases
 
 ## Features
 
-- **Discover knowledge bases and their data sources**: Find and explore all available knowledge bases
+- **Discover knowledge bases and their data sources** - Find and explore all available knowledge bases
   - Search for knowledge bases by name or tag
   - List data sources associated with each knowledge base
 
-- **Query knowledge bases with natural language**: Retrieve information using conversational queries
+- **Query knowledge bases with natural language** - Retrieve information using conversational queries
   - Get relevant passages from your knowledge bases
   - Access citation information for all results
 
-- **Filter results by data source**: Focus your queries on specific data sources
+- **Filter results by data source** - Focus your queries on specific data sources
   - Include or exclude specific data sources
   - Prioritize results from specific data sources
 
-- **Rerank results**: Improve relevance of retrieval results
+- **Rerank results** - Improve relevance of retrieval results
   - Use Amazon Bedrock reranking capabilities
   - Sort results by relevance to your query
 
@@ -52,7 +52,7 @@ For detailed instructions on setting up knowledge bases, see:
 
 ## Installation
 
-Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
+Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {

@@ -4,25 +4,25 @@ MCP server that manages and coordinates other MCP servers in your environment
 
 ## Features
 
-- **Automatic MCP Server Management**: Automatically installs and configures required MCP servers on startup
+- **Automatic MCP Server Management** - Automatically installs and configures required MCP servers on startup
   - Ensures all necessary MCP servers are available
   - Maintains consistent configuration across servers
 
-- **Planning and orchestration** - Provides tools to plan and orchestrate AWS Labs MCP servers
+  - **Planning and orchestration** - Provides tools to plan and orchestrate AWS Labs MCP servers
 
-- **UVX Installation Support**: Provides tools to install MCP servers via UVX
+- **UVX Installation Support** - Provides tools to install MCP servers via UVX
   - Simplifies installation of additional MCP servers
   - Manages dependencies and version requirements
 
-- **Centralized Configuration**: Manages MCP server configurations in one place
+- **Centralized Configuration** - Manages MCP server configurations in one place
   - Single configuration file for all servers
   - Automatic configuration validation
 
-- **Environment Management**: Handles environment variables and AWS credentials
+- **Environment Management** - Handles environment variables and AWS credentials
   - Ensures proper AWS authentication
   - Manages environment variables across servers
 
-- **Comprehensive Logging**: Detailed logging for troubleshooting
+- **Comprehensive Logging** - Detailed logging for troubleshooting
   - Centralized logs for all servers
   - Configurable log levels
 
@@ -72,7 +72,7 @@ For AWS services integration:
 
 ## Installation
 
-Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q DeveloperCLI MCP, `~/.aws/amazonq/mcp.json`):
+Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
@@ -121,9 +121,3 @@ The list of servers to be automatically installed is defined in `mcp_core/server
   "autoApprove": []  # List of tools to auto-approve
 }
 ```
-
-
-
-
-
-
