@@ -1,6 +1,6 @@
 # Cost Analysis MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for Cost Analysis of the AWS services
+MCP server for analyzing AWS service costs and generating cost reports
 
 ## Features
 
@@ -17,10 +17,10 @@ An AWS Labs Model Context Protocol (MCP) server for Cost Analysis of the AWS ser
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.13`
-3. Set up AWS credentials with access to Amazon Bedrock
-   - You need an AWS account with Amazon Bedrock and desired models enabled
+3. Set up AWS credentials with access to AWS services
+   - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
-   - Ensure your IAM role/user has permissions to use Amazon Bedrock and Nova Canvas
+   - Ensure your IAM role/user has permissions to access AWS Pricing API
 
 ## Installation
 
@@ -35,8 +35,7 @@ Add the server to your MCP client config (e.g. for Amazon Q CLI MCP, `~/.aws/ama
       "command": "uvx",
       "args": ["awslabs.cost-analysis-mcp-server@latest"],
       "env": {
-        "AWS_PROFILE": "your-aws-profile",  // Optional: specify AWS profile
-        "AWS_REGION": "us-east-1"           // Required: region where Bedrock is available
+        "AWS_PROFILE": "your-aws-profile"  // Optional: specify AWS profile
       },
       "disabled": false,
       "autoApprove": []
@@ -51,9 +50,8 @@ The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment v
 
 ```json
 "env": {
-  "AWS_PROFILE": "your-aws-profile",  // Specify which AWS profile to use
-  "AWS_REGION": "us-east-1"           // Region where Bedrock is available
+  "AWS_PROFILE": "your-aws-profile"  // Specify which AWS profile to use
 }
 ```
 
-Make sure the AWS profile has permissions to access Amazon Bedrock and desired model. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for using the Amazon Bedrock model APIs.
+Make sure the AWS profile has permissions to access the AWS Pricing API. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.

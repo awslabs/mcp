@@ -35,7 +35,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-cost-analysis-mcp-server"
-version = "0.0.10023"
+version = "0.0.10233"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
