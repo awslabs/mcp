@@ -1,6 +1,6 @@
-# AWS CDK Best Practices Guide
+# AWS CDK General Guidance
 
-This guide provides essential best practices for AWS CDK development, focusing on when to use specific constructs and tools.
+This guide provides essential guidance for AWS CDK development, focusing on when to use specific constructs and tools.
 
 ## Getting Started with CDK
 
@@ -20,7 +20,7 @@ Proper initialization ensures:
 - Appropriate tsconfig/package.json configuration
 - Necessary boilerplate files
 
-This foundation helps avoid common issues and ensures compatibility with AWS CDK best practices.
+This foundation helps avoid common issues and ensures compatibility with the AWS CDK ecosystem.
 
 ## Development Workflow
 
