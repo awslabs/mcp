@@ -15,7 +15,7 @@ This MCP server provides tools to access AWS documentation, search for content, 
 ### Installation Requirements
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python using `uv python install 3.13`
+2. Install Python 3.10 or newer using `uv python install 3.10` (or a more recent version)
 
 ## Installation
 
