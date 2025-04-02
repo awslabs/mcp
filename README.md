@@ -77,7 +77,7 @@ A server for generating images using Amazon Nova Canvas.
 Each server has specific installation instructions. Generally, you can:
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
-2. Install Python using `uv python install 3.13`
+2. Install Python using `uv python install 3.10`
 3. Configure AWS credentials with access to required services
 4. Add the server to your MCP client configuration
 
