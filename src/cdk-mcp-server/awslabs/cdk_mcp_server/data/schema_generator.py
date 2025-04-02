@@ -484,12 +484,14 @@ def generate_bedrock_schema_from_file(
                         f'{module_name}_simplified', simplified_path
                     )
                     if spec is None:
-                        raise ImportError(f"Could not find spec for module: {module_name}_simplified")
-                    
+                        raise ImportError(
+                            f'Could not find spec for module: {module_name}_simplified'
+                        )
+
                     simplified_module = importlib.util.module_from_spec(spec)
                     if spec.loader is None:
-                        raise ImportError(f"Module spec has no loader: {module_name}_simplified")
-                        
+                        raise ImportError(f'Module spec has no loader: {module_name}_simplified')
+
                     spec.loader.exec_module(simplified_module)
 
                     # Get app and generate schema

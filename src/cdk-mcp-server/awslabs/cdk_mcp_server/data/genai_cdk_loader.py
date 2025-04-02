@@ -364,7 +364,10 @@ def list_available_constructs(construct_type: Optional[str] = None) -> List[Dict
 
 
 def process_directory_files(
-    dir_path: str, construct_type: str, constructs: List[Dict[str, Any]], parent: Optional[str] = None
+    dir_path: str,
+    construct_type: str,
+    constructs: List[Dict[str, Any]],
+    parent: Optional[str] = None,
 ):
     """Process files in a directory and add them to the constructs list.
 
@@ -400,7 +403,7 @@ def process_directory_files(
 
         # Get description from fixed mapping or use default
         descriptions = get_construct_descriptions()
-        description = descriptions.get(display_name, "")
+        description = descriptions.get(display_name, '')
 
         # If no fixed description, fall back to current behavior
         if not description:

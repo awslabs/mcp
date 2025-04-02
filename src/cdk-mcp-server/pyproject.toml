@@ -3,7 +3,7 @@ name = "awslabs.cdk-mcp-server"
 version = "0.0.011704"
 description = "An AWS CDK MCP server that provides guidance on AWS Cloud Development Kit best practices, infrastructure as code patterns, and security compliance with CDK Nag. This server offers tools to validate infrastructure designs, explain CDK Nag rules, analyze suppressions, generate Bedrock Agent schemas, and discover Solutions Constructs patterns."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",

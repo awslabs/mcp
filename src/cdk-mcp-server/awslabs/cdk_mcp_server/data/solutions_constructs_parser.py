@@ -33,11 +33,11 @@ async def fetch_pattern_list() -> List[str]:
         List of pattern names (e.g., ['aws-lambda-dynamodb', 'aws-apigateway-lambda', ...])
     """
     global _pattern_list_cache
-    
+
     # Initialize cache if it's None
     if _pattern_list_cache is None:
         _pattern_list_cache = {'timestamp': None, 'data': []}
-        
+
     # Check cache first
     if (
         _pattern_list_cache['timestamp'] is not None
@@ -135,7 +135,7 @@ async def get_pattern_info(pattern_name: str) -> Dict[str, Any]:
         # Update cache
         if _pattern_details_cache is None:
             _pattern_details_cache = {}
-            
+
         _pattern_details_cache[pattern_name] = {'timestamp': datetime.now(), 'data': pattern_info}
 
         return pattern_info
