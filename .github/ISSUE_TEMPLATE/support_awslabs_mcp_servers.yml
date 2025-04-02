@@ -1,0 +1,68 @@
+name: 💞 Support Awslabs MCP Servers (become a reference)
+description: Add your organization's name or logo to the Awslabs MCP Servers documentation
+title: "[Support Awslabs MCP Servers]: <your organization name>"
+labels: ["customer-reference"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for becoming a reference customer. Your support means a lot to us. It also helps new customers to know who's using it.
+
+        If you would like us to also display your organization's logo, please share a link in the `Company logo` field.
+  - type: input
+    id: organization
+    attributes:
+      label: Organization Name
+      description: Please share the name of your organization
+      placeholder: ACME
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Your Name
+      description: Please share your name
+    validations:
+      required: true
+  - type: input
+    id: job
+    attributes:
+      label: Your current position
+      description: Please share your current position at your company
+    validations:
+      required: true
+  - type: input
+    id: logo
+    attributes:
+      label: (Optional) Company logo
+      description: Company logo you want us to display. You also allow us to resize for optimal placement in the documentation.
+    validations:
+      required: false
+  - type: textarea
+    id: use_case
+    attributes:
+      label: (Optional) Use case
+      description: How are you using Awslabs MCP Servers today? *features, etc.*
+    validations:
+      required: false
+  - type: checkboxes
+    id: languages
+    attributes:
+      label: What servers are you using from Awslabs MCP Servers?
+      options:
+        - label: core-mcp-server
+          required: false
+        - label: nova-canvas-mcp-server
+          required: false
+        - label: bedrock-kb-retrieval-mcp-server
+          required: false
+        - label: cost-analysis-mcp-server
+          required: false
+        - label: cdk-mcp-server
+          required: false
+  - type: markdown
+    attributes:
+      value: |
+        *By raising a Support Awslabs MCP Servers issue, you are granting AWS permission to use your company's name (and/or logo) for the limited purpose described here. You are also confirming that you have authority to grant such permission.*
+
+        *You can opt-out at any time by commenting or reopening this issue.*
