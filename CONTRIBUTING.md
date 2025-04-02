@@ -57,19 +57,14 @@ Thank you for your interest in adding more functionality to AWS MCP Servers. To 
 3. Answer the cli prompted questions:
 
     ```cli
-    [1/12] project_namespace (awslabs): # Keep default (awslabs)
-    [2/12] hyphen_namespace (awslabs): # Keep default (awslabs)
-    [3/12] underscore_namespace (awslabs): # Keep default (awslabs)
-    [4/12] project_domain (Short Domain): example # Your new MCP server name (e.g., "example")
-    [5/12] hyphen_domain (example): # Press Enter (will create "example-mcp-server")
-    [6/12] underscore_domain (example): # Press Enter (will create "example_mcp_server")
-    [7/12] description: # Brief description of your MCP server's purpose
-    [8/12] instructions: # How to use your MCP server (will help LLMs understand it)
-    [9/12] author_name: # Your name
-    [10/12] author_email: # Your email
-    [11/12] python_version (>=3.13): # Keep default (>=3.13)
-    [12/12] version (0.0.0): # Starting version
-    ```
+   [1/5] project_domain (Short Domain): # Your new MCP server name (e.g., "example" will create "example-mcp-server")
+   [2/5] description (An AWS Labs Model Context Protocol (MCP) server for example): 
+   [3/5] instructions (Instructions for using this MCP server. This can be used by clients to improve the LLM's 
+   understanding of available tools, resources, etc. It can be thought of like a 'hint' to the model. For example, this 
+   information MAY be added to the system prompt. Important to be clear, direct, and detailed.): 
+   [4/5] author_name (Your Name): 
+   [5/5] author_email (githubusername@users.noreply.github.com): 
+   ```
 
 4. Check the generated boilerplate files and start building from there.
 5. Go to your MCP Server directory and add your dependencies.
