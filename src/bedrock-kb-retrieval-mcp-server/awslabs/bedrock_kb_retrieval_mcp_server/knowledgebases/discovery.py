@@ -9,7 +9,7 @@ else:
     AgentsforBedrockClient = object
 
 
-KNOWLEDGE_BASE_TAG_INCLUSION_KEY = "mcp-multirag-kb"
+KNOWLEDGE_BASE_TAG_INCLUSION_KEY = 'mcp-multirag-kb'
 
 
 async def discover_knowledge_bases(
@@ -29,43 +29,41 @@ async def discover_knowledge_bases(
 
     # Collect all knowledge bases with their ARNs in one pass
     kb_data = []
-    kb_paginator = agent_client.get_paginator("list_knowledge_bases")
+    kb_paginator = agent_client.get_paginator('list_knowledge_bases')
 
     # First, collect all knowledge bases that match our tag criteria
     for page in kb_paginator.paginate():
-        for kb in page.get("knowledgeBaseSummaries", []):
-            logger.debug(f"KB: {kb}")
-            kb_id = kb.get("knowledgeBaseId")
-            kb_name = kb.get("name")
+        for kb in page.get('knowledgeBaseSummaries', []):
+            logger.debug(f'KB: {kb}')
+            kb_id = kb.get('knowledgeBaseId')
+            kb_name = kb.get('name')
 
             kb_arn = (
                 agent_client.get_knowledge_base(knowledgeBaseId=kb_id)
-                .get("knowledgeBase", {})
-                .get("knowledgeBaseArn")
+                .get('knowledgeBase', {})
+                .get('knowledgeBaseArn')
             )
 
-            tags = agent_client.list_tags_for_resource(resourceArn=kb_arn).get(
-                "tags", {}
-            )
-            if tag_key in tags and tags[tag_key] == "true":
-                logger.debug(f"KB Name: {kb_name}")
+            tags = agent_client.list_tags_for_resource(resourceArn=kb_arn).get('tags', {})
+            if tag_key in tags and tags[tag_key] == 'true':
+                logger.debug(f'KB Name: {kb_name}')
                 kb_data.append((kb_id, kb_name))
 
     # Then, for each matching knowledge base, collect its data sources
     for kb_id, kb_name in kb_data:
-        result[kb_id] = {"name": kb_name, "data_sources": []}
+        result[kb_id] = {'name': kb_name, 'data_sources': []}
 
         # Collect data sources for this knowledge base
         data_sources = []
-        data_sources_paginator = agent_client.get_paginator("list_data_sources")
+        data_sources_paginator = agent_client.get_paginator('list_data_sources')
 
         for page in data_sources_paginator.paginate(knowledgeBaseId=kb_id):
-            for ds in page.get("dataSourceSummaries", []):
-                ds_id = ds.get("dataSourceId")
-                ds_name = ds.get("name")
-                logger.debug(f"DS: {ds}")
-                data_sources.append({"id": ds_id, "name": ds_name})
+            for ds in page.get('dataSourceSummaries', []):
+                ds_id = ds.get('dataSourceId')
+                ds_name = ds.get('name')
+                logger.debug(f'DS: {ds}')
+                data_sources.append({'id': ds_id, 'name': ds_name})
 
-        result[kb_id]["data_sources"] = data_sources
+        result[kb_id]['data_sources'] = data_sources
 
     return result

@@ -7,12 +7,11 @@ import platform
 import subprocess
 import sys
 import traceback
-from pathlib import Path
-from typing import Dict, List, Optional, TypedDict
-
 from awslabs.core_mcp_server.available_servers import AVAILABLE_MCP_SERVERS
 from awslabs.core_mcp_server.static import PROMPT_UNDERSTANDING
 from mcp.server.fastmcp import FastMCP
+from pathlib import Path
+from typing import Dict, List, Optional, TypedDict
 
 
 class ContentItem(TypedDict):
@@ -187,7 +186,9 @@ def install_to_mcp_config(
 
 
 @mcp.tool(name='install_awslabs_mcp_server')
-def install_repo_mcp_server(name: str, args: Optional[List[str]] = None, env: Optional[List[str]] = None) -> McpResponse:
+def install_repo_mcp_server(
+    name: str, args: Optional[List[str]] = None, env: Optional[List[str]] = None
+) -> McpResponse:
     """Install an MCP server via uvx.
 
     Args:
