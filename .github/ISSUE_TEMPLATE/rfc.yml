@@ -63,13 +63,6 @@ body:
       render: markdown
     validations:
       required: false
-  - type: checkboxes
-    id: acknowledgment
-    attributes:
-      label: Acknowledgment
-      options:
-        - label: This RFC proposal meets [GenAI CDK constructs design guidelines](https://github.com/awslabs/generative-ai-cdk-constructs/blob/main/DESIGN_GUIDELINES.md)
-          required: true
   - type: markdown
     attributes:
       value: |
