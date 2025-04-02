@@ -125,7 +125,7 @@ def format_rule_info(rule_info: Optional[Dict[str, str]]) -> str:
         A formatted markdown string.
     """
     if not rule_info:
-        return "Rule information not found."
+        return 'Rule information not found.'
 
     result = f'# {rule_info["rule_id"]}\n\n'
     result += f'## Cause\n\n{rule_info["cause"]}\n\n'
@@ -275,10 +275,10 @@ def check_cdk_nag_suppressions(
                 code = f.read()
         except Exception as e:
             return {'error': f'Failed to read file: {str(e)}', 'status': 'error'}
-    
+
     # Ensure code is not None at this point
     if code is None:
-        code = ""  # Default to empty string if somehow still None
+        code = ''  # Default to empty string if somehow still None
 
     # Define patterns to look for
     patterns = [
