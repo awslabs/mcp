@@ -3,7 +3,7 @@ name = "awslabs.core-mcp-server"
 version = "0.0.010652"
 description = "An AWS Labs Model Context Protocol (MCP) server for aswlabs Core MCP Server"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.37.0",
     "loguru>=0.7.3",
