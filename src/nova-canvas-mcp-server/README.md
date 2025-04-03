@@ -1,5 +1,7 @@
 # Amazon Nova Canvas MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@awslabs/nova-canvas-mcp-server)](https://smithery.ai/server/@awslabs/nova-canvas-mcp-server)
+
 MCP server for generating images using Amazon Nova Canvas
 
 ## Features
@@ -54,6 +56,14 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
     }
   }
 }
+```
+
+### Installing via Smithery
+
+To install Amazon Nova Canvas MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@awslabs/nova-canvas-mcp-server):
+
+```bash
+npx -y @smithery/cli install @awslabs/nova-canvas-mcp-server --client claude
 ```
 
 ### AWS Authentication
