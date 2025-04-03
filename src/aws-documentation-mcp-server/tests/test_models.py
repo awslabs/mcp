@@ -1,82 +1,60 @@
 """Tests for data models in the AWS Documentation MCP Server."""
 
-import pytest
 from awslabs.aws_documentation_mcp_server.models import (
-    ReadDocumentationParams,
+    RecommendationResult,
+    SearchResult,
 )
-from pydantic import ValidationError
 
 
-class TestReadDocumentationParams:
-    """Tests for ReadDocumentationParams model."""
+class TestSearchResult:
+    """Tests for SearchResult model."""
 
-    def test_valid_params(self):
-        """Test validation of valid parameters."""
-        params = ReadDocumentationParams(
+    def test_search_result_creation(self):
+        """Test creation of SearchResult."""
+        result = SearchResult(
+            rank_order=1,
             url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
-            max_length=5000,
-            start_index=0,
+            title='Welcome to AWS Lambda',
+            context='AWS Lambda is a compute service...',
         )
-        assert str(params.url) == 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
-        assert params.max_length == 5000
-        assert params.start_index == 0
+        assert result.rank_order == 1
+        assert result.url == 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
+        assert result.title == 'Welcome to AWS Lambda'
+        assert result.context == 'AWS Lambda is a compute service...'
 
-    def test_invalid_url_domain(self):
-        """Test validation fails for invalid URL domain."""
-        with pytest.raises(ValidationError):
-            ReadDocumentationParams(
-                url='https://example.com/lambda/latest/dg/welcome.html',
-                max_length=5000,
-                start_index=0,
-            )
-
-    def test_invalid_url_extension(self):
-        """Test validation fails for invalid URL extension."""
-        with pytest.raises(ValidationError):
-            ReadDocumentationParams(
-                url='https://docs.aws.amazon.com/lambda/latest/dg/welcome',
-                max_length=5000,
-                start_index=0,
-            )
-
-        with pytest.raises(ValidationError):
-            ReadDocumentationParams(
-                url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.pdf',
-                max_length=5000,
-                start_index=0,
-            )
-
-    def test_default_values(self):
-        """Test default values are set correctly."""
-        params = ReadDocumentationParams(
+    def test_search_result_without_context(self):
+        """Test creation of SearchResult without context."""
+        result = SearchResult(
+            rank_order=1,
             url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
-            max_length=5000,
-            start_index=0,
+            title='Welcome to AWS Lambda',
         )
-        assert params.max_length == 5000
-        assert params.start_index == 0
+        assert result.rank_order == 1
+        assert result.url == 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
+        assert result.title == 'Welcome to AWS Lambda'
+        assert result.context is None
 
-    def test_invalid_max_length(self):
-        """Test validation fails for invalid max_length."""
-        with pytest.raises(ValidationError):
-            ReadDocumentationParams(
-                url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
-                max_length=0,
-                start_index=0,
-            )
 
-        with pytest.raises(ValidationError):
-            ReadDocumentationParams(
-                url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
-                max_length=1000001,
-                start_index=0,
-            )
+class TestRecommendationResult:
+    """Tests for RecommendationResult model."""
 
-    def test_invalid_start_index(self):
-        """Test validation fails for invalid start_index."""
-        with pytest.raises(ValidationError):
-            ReadDocumentationParams(
-                url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
-                start_index=-1,
-                max_length=5000,
-            )
+    def test_recommendation_result_creation(self):
+        """Test creation of RecommendationResult."""
+        result = RecommendationResult(
+            url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
+            title='Welcome to AWS Lambda',
+            context='AWS Lambda is a compute service...',
+        )
+        assert result.url == 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
+        assert result.title == 'Welcome to AWS Lambda'
+        assert result.context == 'AWS Lambda is a compute service...'
+
+    def test_recommendation_result_without_context(self):
+        """Test creation of RecommendationResult without context."""
+        result = RecommendationResult(
+            url='https://docs.aws.amazon.com/lambda/latest/dg/welcome.html',
+            title='Welcome to AWS Lambda',
+        )
+        assert result.url == 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
+        assert result.title == 'Welcome to AWS Lambda'
+        assert result.context is None

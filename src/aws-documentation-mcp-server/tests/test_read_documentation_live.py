@@ -1,8 +1,15 @@
 """Live test for the read_documentation tool in the AWS Documentation MCP server."""
 
 import pytest
-from awslabs.aws_documentation_mcp_server.models import ReadDocumentationParams
 from awslabs.aws_documentation_mcp_server.server import read_documentation
+
+
+class MockContext:
+    """Mock context for testing."""
+
+    async def error(self, message):
+        """Mock error method."""
+        print(f'Error: {message}')
 
 
 @pytest.mark.asyncio
@@ -11,12 +18,10 @@ async def test_read_documentation_live():
     """Test that read_documentation can fetch real AWS documentation."""
     # Use a stable AWS documentation URL that's unlikely to change
     url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html'
-
-    # Create parameters for the tool
-    params = ReadDocumentationParams(url=url, max_length=5000, start_index=0)
+    ctx = MockContext()
 
     # Call the tool
-    result = await read_documentation(params)
+    result = await read_documentation(ctx, url=url, max_length=5000, start_index=0)
 
     # Verify the result
     assert result is not None
@@ -51,13 +56,13 @@ async def test_read_documentation_pagination_live():
     """Test that read_documentation pagination works correctly."""
     # Use a stable AWS documentation URL that's likely to have substantial content
     url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html'
+    ctx = MockContext()
 
     # Create parameters for the tool with a small max_length to force pagination
     small_max_length = 1000
-    params = ReadDocumentationParams(url=url, max_length=small_max_length, start_index=0)
 
     # Call the tool for the first page
-    first_page = await read_documentation(params)
+    first_page = await read_documentation(ctx, url=url, max_length=small_max_length, start_index=0)
 
     # Verify the first page
     assert first_page is not None
@@ -77,10 +82,9 @@ async def test_read_documentation_pagination_live():
     assert next_start_index > 0, 'Next start_index should be greater than 0'
 
     # Get the second page
-    params_page2 = ReadDocumentationParams(
-        url=url, max_length=small_max_length, start_index=next_start_index
+    second_page = await read_documentation(
+        ctx, url=url, max_length=small_max_length, start_index=next_start_index
     )
-    second_page = await read_documentation(params_page2)
 
     # Verify the second page
     assert second_page is not None

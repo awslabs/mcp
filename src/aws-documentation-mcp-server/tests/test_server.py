@@ -2,11 +2,6 @@
 
 import httpx
 import pytest
-from awslabs.aws_documentation_mcp_server.models import (
-    ReadDocumentationParams,
-    RecommendParams,
-    SearchDocumentationParams,
-)
 from awslabs.aws_documentation_mcp_server.server import (
     read_documentation,
     recommend,
@@ -14,6 +9,14 @@ from awslabs.aws_documentation_mcp_server.server import (
 )
 from awslabs.aws_documentation_mcp_server.util import extract_content_from_html
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+class MockContext:
+    """Mock context for testing."""
+
+    async def error(self, message):
+        """Mock error method."""
+        print(f'Error: {message}')
 
 
 class TestExtractContentFromHTML:
@@ -48,7 +51,7 @@ class TestReadDocumentation:
     async def test_read_documentation(self):
         """Test reading AWS documentation."""
         url = 'https://docs.aws.amazon.com/test.html'
-        params = ReadDocumentationParams(url=url, max_length=5000, start_index=0)
+        ctx = MockContext()
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -62,7 +65,7 @@ class TestReadDocumentation:
             ) as mock_extract:
                 mock_extract.return_value = '# Test\n\nThis is a test.'
 
-                result = await read_documentation(params)
+                result = await read_documentation(ctx, url=url, max_length=5000, start_index=0)
 
                 assert 'AWS Documentation from' in result
                 assert '# Test\n\nThis is a test.' in result
@@ -73,12 +76,12 @@ class TestReadDocumentation:
     async def test_read_documentation_error(self):
         """Test reading AWS documentation with an error."""
         url = 'https://docs.aws.amazon.com/test.html'
-        params = ReadDocumentationParams(url=url, max_length=5000, start_index=0)
+        ctx = MockContext()
 
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.side_effect = httpx.HTTPError('Connection error')
 
-            result = await read_documentation(params)
+            result = await read_documentation(ctx, url=url, max_length=5000, start_index=0)
 
             assert 'Failed to fetch' in result
             assert 'Connection error' in result
@@ -92,7 +95,7 @@ class TestSearchDocumentation:
     async def test_search_documentation(self):
         """Test searching AWS documentation."""
         search_phrase = 'test'
-        params = SearchDocumentationParams(search_phrase=search_phrase, limit=10)
+        ctx = MockContext()
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -118,7 +121,7 @@ class TestSearchDocumentation:
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            results = await search_documentation(params)
+            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
 
             assert len(results) == 2
             assert results[0].rank_order == 1
@@ -139,7 +142,7 @@ class TestRecommend:
     async def test_recommend(self):
         """Test getting content recommendations."""
         url = 'https://docs.aws.amazon.com/test'
-        params = RecommendParams(url=url)
+        ctx = MockContext()
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -167,7 +170,7 @@ class TestRecommend:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
 
-            results = await recommend(params)
+            results = await recommend(ctx, url=url)
 
             assert len(results) == 2
             assert results[0].url == 'https://docs.aws.amazon.com/rec1'

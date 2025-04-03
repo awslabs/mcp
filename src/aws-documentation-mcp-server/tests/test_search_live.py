@@ -2,10 +2,15 @@
 
 import asyncio
 import pytest
-from awslabs.aws_documentation_mcp_server.server import (
-    SearchDocumentationParams,
-    search_documentation,
-)
+from awslabs.aws_documentation_mcp_server.server import search_documentation
+
+
+class MockContext:
+    """Mock context for testing."""
+
+    async def error(self, message):
+        """Mock error method."""
+        print(f'Error: {message}')
 
 
 @pytest.mark.asyncio
@@ -14,10 +19,10 @@ async def test_search_documentation_live():
     """Test the search_documentation tool with a live API call."""
     # Use a search phrase that should return results
     search_phrase = 'S3 bucket naming rules'
-    params = SearchDocumentationParams(search_phrase=search_phrase, limit=5)
+    ctx = MockContext()
 
     # Call the search_documentation function
-    results = await search_documentation(params)
+    results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
 
     # Verify the results
     assert results is not None
@@ -47,10 +52,10 @@ async def test_search_documentation_empty_results():
     """Test the search_documentation tool with a search phrase that should return few or no results."""
     # Use a very specific search phrase that might not have many results
     search_phrase = 'xyzabcnonexistentdocumentationterm123456789'
-    params = SearchDocumentationParams(search_phrase=search_phrase, limit=5)
+    ctx = MockContext()
 
     # Call the search_documentation function
-    results = await search_documentation(params)
+    results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
 
     # We don't assert on the number of results, as it might change over time
     # Just verify that the function returns a valid response
@@ -72,14 +77,13 @@ async def test_search_documentation_empty_results():
 async def test_search_documentation_limit():
     """Test the search_documentation tool with different limit values."""
     search_phrase = 'AWS Lambda'
+    ctx = MockContext()
 
     # Test with limit=3
-    params_small = SearchDocumentationParams(search_phrase=search_phrase, limit=3)
-    results_small = await search_documentation(params_small)
+    results_small = await search_documentation(ctx, search_phrase=search_phrase, limit=3)
 
     # Test with limit=10
-    params_large = SearchDocumentationParams(search_phrase=search_phrase, limit=10)
-    results_large = await search_documentation(params_large)
+    results_large = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
 
     # Verify that the limits are respected
     assert len(results_small) <= 3

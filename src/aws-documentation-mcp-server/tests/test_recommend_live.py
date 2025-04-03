@@ -2,7 +2,15 @@
 
 import asyncio
 import pytest
-from awslabs.aws_documentation_mcp_server.server import RecommendParams, recommend
+from awslabs.aws_documentation_mcp_server.server import recommend
+
+
+class MockContext:
+    """Mock context for testing."""
+
+    async def error(self, message):
+        """Mock error method."""
+        print(f'Error: {message}')
 
 
 @pytest.mark.asyncio
@@ -11,10 +19,10 @@ async def test_recommend_live():
     """Test the recommend tool with a live API call."""
     # Use a real AWS documentation URL
     url = 'https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/concepts.html'
-    params = RecommendParams(url=url)
+    ctx = MockContext()
 
     # Call the recommend function
-    results = await recommend(params)
+    results = await recommend(ctx, url=url)
 
     # Verify the results
     assert results is not None
