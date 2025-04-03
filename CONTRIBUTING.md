@@ -99,7 +99,11 @@ Thank you for your interest in adding more functionality to AWS MCP Servers. To 
    - `uvx ruff format .` (code formatting)
    - `uvx run —frozen pyright` (type checking)
 
-10. Take a moment to conform to the other READMEs as those will be transposed into GitHub pages.
+10. Create MCP Server documentation:
+    - `README`: Ensure it conforms to the style of other READMEs, as these will be used for GitHub Pages.
+    - `docs/servers`: Add a new page for your MCP Server
+    - `mkdocs.yml`: Add your new page to the navigation list
+    - Run `mkdocs serve` to locally build and view the site
 
 11. Commit to your fork using clear commit messages.
 12. Send us a pull request, answering any default questions in the pull request interface.
