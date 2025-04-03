@@ -141,6 +141,15 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
+    },
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }
