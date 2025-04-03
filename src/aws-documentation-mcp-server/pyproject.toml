@@ -1,18 +1,20 @@
 [project]
-name = "awslabs.cdk-mcp-server"
-version = "0.0.031004"
-description = "An AWS CDK MCP server that provides guidance on AWS Cloud Development Kit best practices, infrastructure as code patterns, and security compliance with CDK Nag. This server offers tools to validate infrastructure designs, explain CDK Nag rules, analyze suppressions, generate Bedrock Agent schemas, and discover Solutions Constructs patterns."
+name = "awslabs.aws-documentation-mcp-server"
+version = "0.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for AWS Documentation"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "markdownify>=1.1.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-    "aws-lambda-powertools>=2.30.0",
+    "readabilipy>=0.2.0",
     "httpx>=0.27.0",
+    "loguru>=0.7.0",
 ]
 
 [project.scripts]
-"awslabs.cdk-mcp-server" = "awslabs.cdk_mcp_server.server:main"
+"awslabs.aws-documentation-mcp-server" = "awslabs.aws_documentation_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -20,6 +22,9 @@ dev = [
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
+    "pytest>=7.4.0",
+    "pytest-mock>=3.11.1",
+    "pytest-asyncio>=0.26.0",
 ]
 
 [build-system]
@@ -69,13 +74,21 @@ docstring-code-format = true
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.0.0"
+version = "0.0.1"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/cdk_mcp_server/__init__.py:__version__"
+    "awslabs/aws-documentation_mcp_server.__init__py:__version__"
 ]
 update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
+
+[tool.pytest.ini_options]
+markers = [
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
+]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"

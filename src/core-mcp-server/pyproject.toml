@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.core-mcp-server"
-version = "0.0.010652"
+version = "0.0.031004"
 description = "An AWS Labs Model Context Protocol (MCP) server for aswlabs Core MCP Server"
 readme = "README.md"
 requires-python = ">=3.10"
