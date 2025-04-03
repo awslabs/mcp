@@ -26,7 +26,7 @@ To add this MCP server to your Amazon Q or Claude, add the following to your MCP
   "mcpServers": {
     "awslabs.aws-documentation-mcp-server": {
         "command": "uvx",
-        "args": ["awslabs.aws-documentation-mcp-server"],
+        "args": ["awslabs.aws-documentation-mcp-server@latest"],
         "env": {
           "FASTMCP_LOG_LEVEL": "ERROR"
         },
