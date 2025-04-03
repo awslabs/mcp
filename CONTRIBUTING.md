@@ -89,7 +89,7 @@ Thank you for your interest in adding more functionality to AWS MCP Servers. To 
    ```cli
    uv venv
    source .venv/bin/activate
-   uv sync --all-group
+   uv sync --all-groups
    ```
 
 8. (Optional) If you are migrating your existing MCP server from another path, open two editors, one in the fork, one in your current MCP Server. Ensure your relative imports are correct.
