@@ -35,6 +35,12 @@ When a user presents a query, follow these steps to break it down:
   - get_pricing_from_api: Get pricing information from AWS Price List API
   - generate_cost_analysis_report: Generate a detailed cost analysis report based on pricing data
 
+-Use `awslabs.aws-documentation-mcp-server` for requesting specific AWS documentation
+    - Use `search_documentation` when: You need to find documentation about a specific AWS service or feature
+    - Use `read_documentation` when: You have a specific documentation URL and need its content
+    - Use `recommend` when: You want to find related content to a documentation page you're already viewing or need to find newly released information
+    - Use `recommend` as a fallback when: Multiple searches have not yielded the specific information needed
+
 ### 2.2 Modern AWS Service Categories
 
 Map user requirements to these AWS categories:

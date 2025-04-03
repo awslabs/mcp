@@ -38,4 +38,10 @@ AVAILABLE_MCP_SERVERS = {
         'env': {'SHELL': '/usr/bin/zsh', 'FASTMCP_LOG_LEVEL': 'ERROR'},
         'autoApprove': [''],
     },
+    'awslabs.aws-documentation-mcp-server': {
+        'command': 'uvx',
+        'args': ['awslabs.aws-documentation-mcp-server@latest'],
+        'env': {'SHELL': '/usr/bin/zsh', 'FASTMCP_LOG_LEVEL': 'ERROR'},
+        'autoApprove': [''],
+    },
 }
