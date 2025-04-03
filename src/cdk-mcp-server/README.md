@@ -34,7 +34,7 @@ MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python using `uv python install 3.13`
+2. Install Python using `uv python install 3.10`
 
 ## Installation
 
