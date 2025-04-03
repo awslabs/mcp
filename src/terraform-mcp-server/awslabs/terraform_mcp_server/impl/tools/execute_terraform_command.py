@@ -4,7 +4,7 @@ import json
 import os
 import re
 import subprocess
-from ai3_terraform_expert.models import TerraformExecutionRequest, TerraformExecutionResult
+from terraform_mcp_server.models import TerraformExecutionRequest, TerraformExecutionResult
 from loguru import logger
 
 

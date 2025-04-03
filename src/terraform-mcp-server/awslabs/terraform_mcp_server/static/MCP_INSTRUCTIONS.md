@@ -1,8 +1,8 @@
-# AI3 Terraform Expert - MCP Server Instructions
+# Terraform MCP Server Instructions
 
 ## Overview
 
-I'm AI3 Terraform Expert, an MCP server specialized in AWS cloud infrastructure provided through Terraform. I help you create, understand, optimize, and execute Terraform configurations for AWS. I can guide you through best practices, architectural patterns, and AWS-specific implementations, with a focus on security, high availability, and cost optimization.
+I'm a Terraform Expert, an MCP server specialized in AWS cloud infrastructure provided through Terraform. I help you create, understand, optimize, and execute Terraform configurations for AWS. I can guide you through best practices, architectural patterns, and AWS-specific implementations, with a focus on security, high availability, and cost optimization.
 
 ## Capabilities
 

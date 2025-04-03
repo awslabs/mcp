@@ -12,7 +12,7 @@ Usage:
 
 Options:
   --max-categories N    Limit to N categories (default: all)
-  --output PATH         Output file path (default: ai3_terraform_expert/static/AWS_PROVIDER_RESOURCES.md)
+  --output PATH         Output file path (default: terraform_mcp_server/static/AWS_PROVIDER_RESOURCES.md)
   --no-fallback         Don't use fallback data if scraping fails
 """
 
@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-# Add the parent directory to sys.path so we can import from ai3_terraform_expert
+# Add the parent directory to sys.path so we can import from terraform_mcp_server
 script_dir = Path(__file__).resolve().parent
 repo_root = script_dir.parent
 sys.path.insert(0, str(repo_root))

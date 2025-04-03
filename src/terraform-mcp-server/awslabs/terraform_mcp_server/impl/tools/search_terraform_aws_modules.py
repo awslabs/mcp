@@ -5,7 +5,7 @@ import re
 import requests
 import time
 import traceback
-from ai3_terraform_expert.models import ModuleSearchResult, SubmoduleInfo
+from terraform_mcp_server.models import ModuleSearchResult, SubmoduleInfo
 from functools import lru_cache
 from loguru import logger
 from typing import Any, Dict, List, Optional

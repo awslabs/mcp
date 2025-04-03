@@ -1,6 +1,6 @@
 """Implementation of AWS provider documentation search tool."""
 
-from ai3_terraform_expert.models import ProviderDocsResult
+from terraform_mcp_server.models import ProviderDocsResult
 from loguru import logger
 from typing import List, Optional
 

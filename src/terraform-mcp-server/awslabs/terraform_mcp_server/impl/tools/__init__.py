@@ -1,4 +1,4 @@
-"""Tool implementations for the ai3-terraform-expert MCP server."""
+"""Tool implementations for the terraform MCP server."""
 
 from .execute_terraform_command import execute_terraform_command_impl
 from .search_terraform_aws_modules import search_terraform_aws_modules_impl
