@@ -73,7 +73,7 @@ Please refer to the README files in each server's directory for specific install
 
 ## Contributing
 
-Contributions are welcome! Please see the [contributing guidelines](../CONTRIBUTING.md) for more information.
+Contributions are welcome! Please see the [contributing guidelines](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) for more information.
 
 ## Disclaimer
 

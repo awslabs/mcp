@@ -4,27 +4,39 @@ MCP server that manages and coordinates other MCP servers in your environment
 
 ## Features
 
-- **Automatic MCP Server Management** - Automatically installs and configures required MCP servers on startup
-  - Ensures all necessary MCP servers are available
-  - Maintains consistent configuration across servers
+### Automatic MCP Server Management
 
-  - **Planning and orchestration** - Provides tools to plan and orchestrate AWS Labs MCP servers
+- Automatically installs and configures required MCP servers on startup
+- Ensures all necessary MCP servers are available
+- Maintains consistent configuration across servers
 
-- **UVX Installation Support** - Provides tools to install MCP servers via UVX
-  - Simplifies installation of additional MCP servers
-  - Manages dependencies and version requirements
+### Planning and orchestration
 
-- **Centralized Configuration** - Manages MCP server configurations in one place
-  - Single configuration file for all servers
-  - Automatic configuration validation
+- Provides tools to plan and orchestrate AWS Labs MCP servers
 
-- **Environment Management** - Handles environment variables and AWS credentials
-  - Ensures proper AWS authentication
-  - Manages environment variables across servers
+### UVX Installation Support
 
-- **Comprehensive Logging** - Detailed logging for troubleshooting
-  - Centralized logs for all servers
-  - Configurable log levels
+- Provides tools to install MCP servers via UVX
+- Simplifies installation of additional MCP servers
+- Manages dependencies and version requirements
+
+### Centralized Configuration
+
+- Manages MCP server configurations in one place
+- Single configuration file for all servers
+- Automatic configuration validation
+
+### Environment Management
+
+- Handles environment variables and AWS credentials
+- Ensures proper AWS authentication
+- Manages environment variables across servers
+
+### Comprehensive Logging
+
+- Detailed logging for troubleshooting
+- Centralized logs for all servers
+- Configurable log levels
 
 ## Prerequisites
 

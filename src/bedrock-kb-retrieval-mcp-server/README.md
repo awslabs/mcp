@@ -4,21 +4,29 @@ MCP server for accessing Amazon Bedrock Knowledge Bases
 
 ## Features
 
-- **Discover knowledge bases and their data sources** - Find and explore all available knowledge bases
-  - Search for knowledge bases by name or tag
-  - List data sources associated with each knowledge base
+### Discover knowledge bases and their data sources
 
-- **Query knowledge bases with natural language** - Retrieve information using conversational queries
-  - Get relevant passages from your knowledge bases
-  - Access citation information for all results
+- Find and explore all available knowledge bases
+- Search for knowledge bases by name or tag
+- List data sources associated with each knowledge base
 
-- **Filter results by data source** - Focus your queries on specific data sources
-  - Include or exclude specific data sources
-  - Prioritize results from specific data sources
+### Query knowledge bases with natural language
 
-- **Rerank results** - Improve relevance of retrieval results
-  - Use Amazon Bedrock reranking capabilities
-  - Sort results by relevance to your query
+- Retrieve information using conversational queries
+- Get relevant passages from your knowledge bases
+- Access citation information for all results
+
+### Filter results by data source
+
+- Focus your queries on specific data sources
+- Include or exclude specific data sources
+- Prioritize results from specific data sources
+
+### Rerank results
+
+- Improve relevance of retrieval results
+- Use Amazon Bedrock reranking capabilities
+- Sort results by relevance to your query
 
 ## Prerequisites
 

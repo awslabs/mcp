@@ -15,6 +15,7 @@ cdk init app --language python
 ```
 
 Proper initialization ensures:
+
 - Consistent project structure
 - Correct dependency setup
 - Appropriate tsconfig/package.json configuration
@@ -61,6 +62,7 @@ When implementing AWS infrastructure with CDK, consider these complementary appr
    - Perfect for agents, knowledge bases, vector stores, and other GenAI components
 
    **Installation:**
+
    ```typescript
    // TypeScript
    // Create or use an existing CDK application
@@ -174,12 +176,14 @@ Always check the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedr
 AWS Solutions Constructs are vetted architecture patterns that combine multiple AWS services to solve common use cases following AWS Well-Architected best practices.
 
 **Key benefits:**
+
 - Accelerated Development: Implement common patterns without boilerplate code
 - Best Practices Built-in: Security, reliability, and performance best practices
 - Reduced Complexity: Simplified interfaces for multi-service architectures
 - Well-Architected: Patterns follow AWS Well-Architected Framework principles
 
 **When to use Solutions Constructs:**
+
 - Implementing common architecture patterns (e.g., API + Lambda + DynamoDB)
 - You want secure defaults and best practices applied automatically
 - You need to quickly prototype or build production-ready infrastructure
@@ -191,6 +195,7 @@ To discover available patterns, use the `GetAwsSolutionsConstructPattern` tool.
 CDK Nag is a crucial tool for ensuring your CDK applications follow AWS security best practices. **Always apply CDK Nag to all your stacks by default.**
 
 Key security practices to remember:
+
 - Follow the principle of least privilege for IAM
 - Secure S3 buckets with encryption, access controls, and policies
 - Implement secure authentication with Cognito
@@ -201,6 +206,7 @@ For detailed guidance, use the `CDKNagGuidance` tool.
 ## Operational Excellence with Lambda Powertools
 
 Always implement Lambda Powertools for:
+
 - Structured Logging
 - Tracing
 - Metrics
