@@ -17,6 +17,18 @@ The Core MCP Server manages and coordinates other MCP servers in your environmen
 
 [Learn more about the Core MCP Server](servers/core-mcp-server.md)
 
+### AWS Documentation MCP Server
+
+The AWS Documentation MCP Server provides access to AWS documentation and best practices.
+
+**Features:**
+
+- Search Documentation using the official AWS search API
+- Get content recommendations for AWS documentation pages
+- Convert documentation to markdown format
+
+[Learn more about the AWS Documentation MCP Server](servers/aws-documentation-mcp-server.md)
+
 ### AWS CDK MCP Server
 
 The CDK MCP Server provides AWS Cloud Development Kit (CDK) best practices, infrastructure as code patterns, and security compliance with CDK Nag.

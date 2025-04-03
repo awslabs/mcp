@@ -22,6 +22,19 @@ A server for managing and coordinating other AWS Labs MCP servers.
 
 [Learn more](src/core-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/core-mcp-server/)
 
+### AWS Documentation MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-documentation-mcp-server.svg)](https://pypi.org/project/awslabs.aws-documentation-mcp-server/)
+
+A server for accessing AWS documentation and best practices.
+
+- Search Documentation using the official AWS search API
+- Get content recommendations for AWS documentation pages
+- Convert documentation to markdown format
+
+[Learn more](src/aws-documentation-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/)
+
+
 ### Amazon Bedrock Knowledge Bases Retrieval MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.bedrock-kb-retrieval-mcp-server.svg)](https://pypi.org/project/awslabs.bedrock-kb-retrieval-mcp-server/)
