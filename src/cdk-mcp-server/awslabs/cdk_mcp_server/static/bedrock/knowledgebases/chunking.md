@@ -62,7 +62,7 @@ ChunkingStrategy.HIERARCHICAL_COHERE;
 // Hierarchical Chunking with the default for Titan Models.
 ChunkingStrategy.HIERARCHICAL_TITAN;
 
-// Hierarchical Chunking with custom values. Tthe maximum chunk size depends on the model.
+// Hierarchical Chunking with custom values. The maximum chunk size depends on the model.
 // Amazon Titan Text Embeddings: 8192. Cohere Embed models: 512
 ChunkingStrategy.hierarchical({
   overlapTokens: 60,
@@ -80,7 +80,7 @@ ChunkingStrategy.HIERARCHICAL_COHERE
 # Hierarchical Chunking with the default for Titan Models.
 ChunkingStrategy.HIERARCHICAL_TITAN
 
-# Hierarchical Chunking with custom values. Tthe maximum chunk size depends on the model.
+# Hierarchical Chunking with custom values. The maximum chunk size depends on the model.
 # Amazon Titan Text Embeddings: 8192. Cohere Embed models: 512
 chunking_strategy= ChunkingStrategy.hierarchical(
     overlap_tokens=60,
