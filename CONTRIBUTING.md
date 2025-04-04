@@ -89,7 +89,7 @@ Thank you for your interest in adding more functionality to AWS MCP Servers. To 
    ```cli
    uv venv
    source .venv/bin/activate
-   uv sync --all-group
+   uv sync --all-groups
    ```
 
 8. (Optional) If you are migrating your existing MCP server from another path, open two editors, one in the fork, one in your current MCP Server. Ensure your relative imports are correct.
@@ -97,7 +97,7 @@ Thank you for your interest in adding more functionality to AWS MCP Servers. To 
 9. Ensure local tests pass. If your code doesn't pass the tests, the PR checks will fail.
    - `uvx ruff check .` (linting)
    - `uvx ruff format .` (code formatting)
-   - `uvx run —frozen pyright` (type checking)
+   - `uv run --frozen pyright` (type checking)
 
 10. Create MCP Server documentation:
     - `README`: Ensure it conforms to the style of other READMEs, as these will be used for GitHub Pages.

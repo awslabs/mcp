@@ -42,22 +42,14 @@ mcp = FastMCP(
 
     This server provides tools to access public AWS documentation, search for content, and get recommendations.
 
-    ## Usage Recommendation
-
-    - **Find Documentation**: Searching for relevant AWS documentation using `search_documentation`
-    - **Read Content**: Use `read_documentation` to fetch and read specific documentation pages
-    - **Discover Related Content**: Use `recommend` to find related documentation for the current page or pages in the search result
-    - **Refine or Pivot**: Refine your search phrase based on information read. If search results are insufficient, either use `recommend` on the most relevant page found or ask for clarifying information.
-
     ## Best Practices
 
     - For long documentation pages, make multiple calls to `read_documentation` with different `start_index` values for pagination
     - For very long documents (>30,000 characters), stop reading if you've found the needed information
     - When searching, use specific technical terms rather than general phrases
-    - Use recommendations to discover related content that might not appear in search results
-    - For recent updates to a service, check the **New** recommendations from any page in that service
-    - If multiple searches with similar terms yield insufficient results, pivot to using `recommend` on related pages
-    - When searches are unsuccessful, ask for clarifying information rather than continuing with similar searches
+    - Use `recommend` tool to discover related content that might not appear in search results
+    - For recent updates to a service, get an URL for any page in that service, then check the **New** section of the `recommend` tool output on that URL
+    - If multiple searches with similar terms yield insufficient results, pivot to using `recommend` to find related pages.
     - Always cite the documentation URL when providing information to users
 
     ## Tool Selection Guide
@@ -72,7 +64,6 @@ mcp = FastMCP(
         'httpx',
         'beautifulsoup4',
     ],
-    log_level='WARNING',
 )
 
 
@@ -215,16 +206,6 @@ async def search_documentation(
     - url: The documentation page URL
     - title: The page title
     - context: A brief excerpt or summary (if available)
-
-    ## Follow-up Actions
-
-    After searching, you can:
-    1. Use `read_documentation` to fetch the full content of relevant pages
-    2. Make additional searches with refined terms based on what you read, but avoid repeating similar searches
-    3. Use `recommend` to find related content for a specific result
-    4. If multiple searches don't yield useful results:
-       - Use `recommend` on a related service's landing page
-       - Ask the user for clarifying information about their specific use case
 
     Args:
         ctx: MCP context for logging and error handling

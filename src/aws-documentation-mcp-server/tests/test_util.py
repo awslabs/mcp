@@ -1,5 +1,6 @@
 """Tests for utility functions in the AWS Documentation MCP Server."""
 
+import os
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
     format_documentation_result,
@@ -109,34 +110,98 @@ class TestFormatDocumentationResult:
 class TestExtractContentFromHtml:
     """Tests for extract_content_from_html function."""
 
-    @patch('readabilipy.simple_json.simple_json_from_html_string')
+    @patch('bs4.BeautifulSoup')
     @patch('markdownify.markdownify')
-    def test_successful_extraction(self, mock_markdownify, mock_simple_json):
+    def test_successful_extraction(self, mock_markdownify, mock_soup):
         """Test successful HTML content extraction."""
         # Setup mocks
-        mock_simple_json.return_value = {'content': '<p>Test content</p>'}
+        mock_soup_instance = mock_soup.return_value
+        mock_soup_instance.body = mock_soup_instance
+        mock_soup_instance.select_one.return_value = None  # No main content found
         mock_markdownify.return_value = 'Test content'
 
         # Call function
         result = extract_content_from_html('<html><body><p>Test content</p></body></html>')
 
         # Assertions
-        assert result == 'Test content'
-        mock_simple_json.assert_called_once()
+        assert 'Test content' in result
+        mock_soup.assert_called_once()
         mock_markdownify.assert_called_once()
 
-    @patch('readabilipy.simple_json.simple_json_from_html_string')
-    def test_empty_content(self, mock_simple_json):
+    @patch('bs4.BeautifulSoup')
+    def test_empty_content(self, mock_soup):
         """Test extraction with empty content."""
-        # Setup mock
-        mock_simple_json.return_value = {'content': ''}
-
-        # Call function
-        result = extract_content_from_html('<html><body></body></html>')
+        # Call function with empty content
+        result = extract_content_from_html('')
 
         # Assertions
-        assert result == '<e>Page failed to be simplified from HTML</e>'
-        mock_simple_json.assert_called_once()
+        assert result == '<e>Empty HTML content</e>'
+        mock_soup.assert_not_called()
+
+    def test_extract_content_with_programlisting(self):
+        """Test extraction of HTML content with programlisting tags for code examples."""
+        # Load the test HTML file
+        test_file_path = os.path.join(
+            os.path.dirname(__file__), 'resources', 'lambda_sns_raw.html'
+        )
+        with open(test_file_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        # Extract content
+        markdown_content = extract_content_from_html(html_content)
+
+        # Verify TypeScript code block is properly extracted
+        assert '```typescript' in markdown_content or '```' in markdown_content
+        assert "import { Construct } from 'constructs';" in markdown_content
+        assert "import { Stack, StackProps } from 'aws-cdk-lib';" in markdown_content
+        assert (
+            'import { LambdaToSns, LambdaToSnsProps } from "@aws-solutions-constructs/aws-lambda-sns";'
+            in markdown_content
+        )
+
+        # Verify Python code block is properly extracted
+        assert (
+            'from aws_solutions_constructs.aws_lambda_sns import LambdaToSns' in markdown_content
+        )
+        assert 'from aws_cdk import (' in markdown_content
+        assert 'aws_lambda as _lambda,' in markdown_content
+
+        # Verify Java code block is properly extracted
+        assert 'import software.constructs.Construct;' in markdown_content
+        assert 'import software.amazon.awscdk.Stack;' in markdown_content
+        assert 'import software.amazon.awscdk.services.lambda.*;' in markdown_content
+
+        # Verify tab structure is preserved in some form
+        assert 'Typescript' in markdown_content
+        assert 'Python' in markdown_content
+        assert 'Java' in markdown_content
+
+        # Verify the position of code blocks relative to the rest of the markdown
+        # Check that "Overview" section appears before the code blocks
+        overview_pos = markdown_content.find('Overview')
+        typescript_code_pos = markdown_content.find("import { Construct } from 'constructs';")
+        assert overview_pos > 0, 'Overview section not found'
+        assert typescript_code_pos > overview_pos, (
+            'TypeScript code block should appear after Overview section'
+        )
+
+        # Check that code blocks appear in the correct order (TypeScript, Python, Java)
+        python_code_pos = markdown_content.find(
+            'from aws_solutions_constructs.aws_lambda_sns import LambdaToSns'
+        )
+        java_code_pos = markdown_content.find('import software.constructs.Construct;')
+        assert python_code_pos > typescript_code_pos, (
+            'Python code block should appear after TypeScript code block'
+        )
+        assert java_code_pos > python_code_pos, (
+            'Java code block should appear after Python code block'
+        )
+
+        # Check that "Pattern Construct Props" section appears after the code blocks
+        props_pos = markdown_content.find('Pattern Construct Props')
+        assert props_pos > typescript_code_pos, (
+            'Pattern Construct Props section should appear after code blocks'
+        )
 
 
 class TestParseRecommendationResults:
