@@ -1,0 +1,994 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://awslabs.github.io/mcp/servers/core-mcp-server/">
+      
+      
+        <link rel="prev" href="../..">
+      
+      
+        <link rel="next" href="../bedrock-kb-retrieval-mcp-server/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.11">
+    
+    
+      
+        <title>Core MCP Server - AWS MCP Servers</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.4af4bdda.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#core-mcp-server" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="AWS MCP Servers" class="md-header__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AWS MCP Servers
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Core MCP Server
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="AWS MCP Servers" class="md-nav__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    AWS MCP Servers
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    AWS MCP Servers
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            AWS MCP Servers
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Core MCP Server
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Core MCP Server
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automatic-mcp-server-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic MCP Server Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#planning-and-orchestration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Planning and orchestration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uvx-installation-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      UVX Installation Support
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#centralized-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Centralized Configuration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#environment-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comprehensive-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      Comprehensive Logging
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prerequisites
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment Requirements
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment Requirements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#required-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Required Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternative Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#setting-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Setting Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aws-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      AWS Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools-and-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tools and Resources
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-server-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic Server Installation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Automatic Server Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bedrock-kb-retrieval-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Bedrock Knowledge Base Retrieval MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cdk-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS CDK MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cost-analysis-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cost Analysis MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nova-canvas-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Nova Canvas MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-documentation-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Documentation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#automatic-mcp-server-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic MCP Server Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#planning-and-orchestration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Planning and orchestration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#uvx-installation-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      UVX Installation Support
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#centralized-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Centralized Configuration
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#environment-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#comprehensive-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      Comprehensive Logging
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prerequisites
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment Requirements
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment Requirements">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#required-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Required Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Alternative Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#setting-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Setting Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aws-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      AWS Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tools-and-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tools and Resources
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automatic-server-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Automatic Server Installation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Automatic Server Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="core-mcp-server">Core MCP Server</h1>
+<p>MCP server that manages and coordinates other MCP servers in your environment</p>
+<h2 id="features">Features</h2>
+<h3 id="automatic-mcp-server-management">Automatic MCP Server Management</h3>
+<ul>
+<li>Automatically installs and configures required MCP servers on startup</li>
+<li>Ensures all necessary MCP servers are available</li>
+<li>Maintains consistent configuration across servers</li>
+</ul>
+<h3 id="planning-and-orchestration">Planning and orchestration</h3>
+<ul>
+<li>Provides tools to plan and orchestrate AWS Labs MCP servers</li>
+</ul>
+<h3 id="uvx-installation-support">UVX Installation Support</h3>
+<ul>
+<li>Provides tools to install MCP servers via UVX</li>
+<li>Simplifies installation of additional MCP servers</li>
+<li>Manages dependencies and version requirements</li>
+</ul>
+<h3 id="centralized-configuration">Centralized Configuration</h3>
+<ul>
+<li>Manages MCP server configurations in one place</li>
+<li>Single configuration file for all servers</li>
+<li>Automatic configuration validation</li>
+</ul>
+<h3 id="environment-management">Environment Management</h3>
+<ul>
+<li>Handles environment variables and AWS credentials</li>
+<li>Ensures proper AWS authentication</li>
+<li>Manages environment variables across servers</li>
+</ul>
+<h3 id="comprehensive-logging">Comprehensive Logging</h3>
+<ul>
+<li>Detailed logging for troubleshooting</li>
+<li>Centralized logs for all servers</li>
+<li>Configurable log levels</li>
+</ul>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>Python 3.12 or higher</li>
+<li><a href="https://github.com/astral-sh/uv">uv</a> - Fast Python package installer and resolver</li>
+<li>AWS credentials configured with Bedrock access</li>
+<li>Node.js (for UVX installation support)</li>
+</ul>
+<h2 id="environment-requirements">Environment Requirements</h2>
+<p>The server requires certain environment variables to be set for proper operation:</p>
+<h3 id="required-environment-variables">Required Environment Variables</h3>
+<ul>
+<li><code>MCP_CONFIG_PATH</code> - Path to the MCP configuration file (e.g., <code>/Users/username/Library/Application Support/vscode/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json</code>)</li>
+</ul>
+<h3 id="alternative-environment-variables">Alternative Environment Variables</h3>
+<p>The server will also check for these alternative environment variables if <code>MCP_CONFIG_PATH</code> is not set:</p>
+<ul>
+<li><code>CLINE_MCP_SETTINGS_PATH</code> - Path to Cline MCP settings file</li>
+<li><code>MCP_SETTINGS_PATH</code> - Alternative path to MCP settings file</li>
+</ul>
+<h3 id="setting-environment-variables">Setting Environment Variables</h3>
+<p>You can set these environment variables in your shell profile (e.g., <code>~/.zshrc</code> or <code>~/.bashrc</code>):</p>
+<pre><code class="language-bash"># Add to your shell profile
+export MCP_CONFIG_PATH=&quot;/path/to/your/mcp/config.json&quot;
+</code></pre>
+<p>Or you can set them when running the server:</p>
+<pre><code class="language-bash">MCP_CONFIG_PATH=&quot;/path/to/your/mcp/config.json&quot; python -m mcp_core.server.server
+</code></pre>
+<h3 id="aws-environment-variables">AWS Environment Variables</h3>
+<p>For AWS services integration:</p>
+<ul>
+<li><code>AWS_PROFILE</code> - AWS profile to use for AWS services</li>
+<li><code>AWS_REGION</code> - AWS region to use for AWS services</li>
+</ul>
+<h2 id="installation">Installation</h2>
+<p>Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, <code>~/.aws/amazonq/mcp.json</code>):</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;awslabs.core-mcp-server&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [
+        &quot;awslabs.core-mcp-server@latest&quot;
+      ],
+      &quot;env&quot;: {
+        &quot;FASTMCP_LOG_LEVEL&quot;: &quot;ERROR&quot;,
+        &quot;MCP_SETTINGS_PATH&quot;: &quot;path to your mcp server settings&quot;
+      },
+      &quot;autoApprove&quot;: [],
+      &quot;disabled&quot;: false
+    }
+  }
+}
+</code></pre>
+<h2 id="tools-and-resources">Tools and Resources</h2>
+<p>The server exposes the following tools through the MCP interface:</p>
+<ul>
+<li><code>prompt_understanding</code> - Helps to provide clear plan for building AWS Solutions</li>
+<li><code>install_awslabs_mcp_server</code> - Installs MCP servers via UVX</li>
+<li><code>update</code> - Updates all MCP servers to ensure they are up-to-date with the latest configuration</li>
+</ul>
+<h2 id="automatic-server-installation">Automatic Server Installation</h2>
+<p>The server automatically installs and configures required MCP servers on startup and before the server is started. This feature ensures that all necessary MCP servers are always available for use and up-to-date with the latest configuration, even when the server is restarted.</p>
+<h3 id="configuration">Configuration</h3>
+<p>The list of servers to be automatically installed is defined in <code>mcp_core/server/available_servers.py</code>. Each server entry includes:</p>
+<pre><code class="language-python">&quot;server-name&quot;: {
+  &quot;command&quot;: &quot;uvx&quot;,  # Command to run the server
+  &quot;args&quot;: [&quot;package-name&quot;],  # Arguments for the command
+  &quot;env&quot;: {  # Environment variables
+    &quot;SHELL&quot;: &quot;/usr/bin/zsh&quot;,
+    &quot;FASTMCP_LOG_LEVEL&quot;: &quot;ERROR&quot;
+  },
+  &quot;disabled&quot;: False,  # Whether the server is disabled
+  &quot;autoApprove&quot;: []  # List of tools to auto-approve
+}
+</code></pre>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["search.suggest", "search.highlight", "navigation.instant"], "search": "../../assets/javascripts/workers/search.f8cc74c7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c8b220af.min.js"></script>
+      
+    
+  </body>
+</html>
