@@ -5,6 +5,8 @@ A suite of specialized MCP servers that bring AWS best practices directly to you
 [![GitHub](https://img.shields.io/badge/github-awslabs/mcp-blue.svg?style=flat&logo=github)](https://github.com/awslabs/mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen)](LICENSE)
 
+AWS MCP Servers are AWS-optimized implementations of the [Model Context Protocol](https://modelcontextprotocol.io/), providing specialized integrations with AWS services like Bedrock, CDK, and Cost Explorer. These servers extend the open MCP standard with AWS best practices while maintaining cross-platform compatibility. They enable centralized management of AWS resources through MCP's model interoperability framework.
+
 ## Available Servers
 
 This monorepo contains the following MCP servers:
