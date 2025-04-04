@@ -215,13 +215,13 @@ graph TD
     
     %% Schema generation flow
     BA --> BS["GenerateBedrockAgentSchema"]
-    BS -->|"Success"| JSON1["openapi.json created"]
+    BS -->|"Success"| JSON["openapi.json created"]
     BS -->|"Import Errors"| BSF["Tool generates<br/>generate_schema.py"]
     BSF --> BSR["Run script manually:<br/>python generate_schema.py"]
-    BSR --> JSON1["openapi.json created"]
+    BSR --> JSON["openapi.json created"]
     
     %% Use schema in Agent CDK
-    JSON1 --> AgentCDK["Use schema in<br/>Agent CDK code"]
+    JSON --> AgentCDK["Use schema in<br/>Agent CDK code"]
     AgentCDK --> D2
     
     %% Conditional Lambda Powertools implementation
@@ -251,7 +251,7 @@ graph TD
     
     class Init,Synth,Deploy,BSR cmd;
     class C1,C2,BS,E,CN tool;
-    class JSON1,JSON2 output;
+    class JSON output;
     class HasLambda,Nag decision;
 ```
 
