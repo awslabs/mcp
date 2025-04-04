@@ -1,13 +1,13 @@
 FROM python:3.12-slim
 
-WORKDIR /awslabs/cost_analysis_mcp_server
+WORKDIR /app
 
-# install astral uv for Python dependencies
+# Install uv (from Astral Software) for Python dependencies
 RUN pip install uv
 
-# Copy project files
-COPY pyproject.toml .
-COPY server.py .
+# Copy necessary files
+COPY pyproject.toml README.md ./
+COPY awslabs/cost_analysis_mcp_server/ /app/awslabs/cost_analysis_mcp_server/
 
 # Install dependencies using uv
 RUN uv pip install --no-cache --system -e .
@@ -16,7 +16,7 @@ RUN uv pip install --no-cache --system -e .
 RUN mkdir -p /root/.aws
 
 # Expose port for SSE transport
-EXPOSE 8000
+EXPOSE 8888
 
 # Run the MCP server
-CMD ["python", "server.py"]
+CMD ["python", "-m", "awslabs.cost_analysis_mcp_server.server", "--sse", "--port", "8888"]
