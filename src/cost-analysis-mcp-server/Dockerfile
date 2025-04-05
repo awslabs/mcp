@@ -13,7 +13,7 @@ COPY awslabs/cost_analysis_mcp_server/ /app/awslabs/cost_analysis_mcp_server/
 RUN uv pip install --no-cache --system -e .
 
 # Add AWS configuration directory
-RUN mkdir -p /root/.aws
+#RUN mkdir -p /root/.aws
 
 # Expose port for SSE transport
 EXPOSE 8888

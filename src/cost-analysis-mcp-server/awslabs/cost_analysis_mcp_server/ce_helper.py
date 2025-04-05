@@ -1,11 +1,10 @@
-import boto3
-import json
 import os
+import json
+import boto3
 import pandas as pd
-from datetime import datetime, timedelta
-from pydantic import BaseModel, Field
 from typing import Optional
-
+from pydantic import BaseModel, Field
+from datetime import datetime, timedelta
 
 class DaysParam(BaseModel):
     """Parameters for specifying the number of days to look back."""
