@@ -32,6 +32,8 @@ MCP server for analyzing AWS service costs and generating cost reports
 
 Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 
+### Option 1: Using `UV`
+
 ```json
 {
   "mcpServers": {
@@ -40,7 +42,9 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
       "args": ["awslabs.cost-analysis-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "your-aws-profile"
+        "AWS_PROFILE": "your-aws-profile",
+        "BEDROCK_LOG_GROUP_NAME": "BedrockModelInvocationLogGroup",
+        "MCP_TRANSPORT": "stdio"
       },
       "disabled": false,
       "autoApprove": []
@@ -48,6 +52,31 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
   }
 }
 ```
+
+### Option 2: Using Docker
+
+Build the Docker container using the following command `docker build -t aws-cost-analysis-mcp-server .` and then use the following settings to make your MCP host talk to your MCP server.
+
+```json
+{
+  "mcpServers": {
+    "awslabs.cost-analysis-mcp-server": {
+      "command": "docker",
+      "args": [ "run", "-i", "--rm", "-e", "AWS_PROFILE", "-e", "FASTMCP_LOG_LEVEL", "-e", "BEDROCK_LOG_GROUP_NAME", "-e", "MCP_TRANSPORT", "-v", "$HOME/.aws:/root/.aws", "aws-cost-analysis-mcp-server" ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "BEDROCK_LOG_GROUP_NAME": "your-BedrockModelInvocationLogGroup",
+        "MCP_TRANSPORT": "stdio"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+For Windows use ` "-v", "%USERPROFILE%\\.aws:/root/.aws", ` instead of `"-v", "$HOME/.aws:/root/.aws"` above.
 
 ### AWS Authentication
 
