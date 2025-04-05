@@ -18,5 +18,7 @@ RUN mkdir -p /root/.aws
 # Expose port for SSE transport
 EXPOSE 8888
 
-# Run the MCP server
-CMD ["python", "-m", "awslabs.cost_analysis_mcp_server.server", "--sse", "--port", "8888"]
+# Set the entrypoint to run the MCP server
+ENTRYPOINT ["python", "-m", "awslabs.cost_analysis_mcp_server.server"]
+# Default command if no arguments provided
+CMD []
