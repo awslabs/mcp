@@ -3,6 +3,7 @@
 This module provides helper classes for analyzing AWS service costs.
 """
 
+
 import json
 import re
 from typing import Dict, List, Optional
@@ -610,3 +611,5 @@ class CostAnalysisHelper:
         recommendations['best_practices'] = recommendations['best_practices'][:5]
 
         return recommendations
+
+
