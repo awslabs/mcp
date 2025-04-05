@@ -1,0 +1,41 @@
+{
+  "name": "cdk-diagram-generator-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for generating architectural diagrams from AWS CDK code",
+  "main": "build/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node scripts/build.js",
+    "start": "node build/index.js",
+    "test": "node --loader ts-node/esm tests/run-tests.js",
+    "test:simple": "node tests/simple-test.js",
+    "test:simple:cjs": "node tests/simple-test.cjs",
+    "test:typescript-parser": "node --loader ts-node/esm tests/typescript-parser.test.js",
+    "test:python-parser": "node --loader ts-node/esm tests/python-parser.test.js",
+    "test:drawio-generator": "node --loader ts-node/esm tests/drawio-generator.test.js",
+    "test:mcp-server": "node --loader ts-node/esm tests/mcp-server.test.js",
+    "test:comprehensive": "node --loader ts-node/esm tests/typescript-parser-comprehensive.test.js && node --loader ts-node/esm tests/python-parser-comprehensive.test.js && node --loader ts-node/esm tests/drawio-generator-comprehensive.test.js && node --loader ts-node/esm tests/mcp-server-comprehensive.test.js",
+    "build-and-test": "npm run build && npm test"
+  },
+  "keywords": [
+    "aws",
+    "cdk",
+    "diagram",
+    "architecture",
+    "mcp",
+    "drawio"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@babel/parser": "^7.27.0",
+    "@babel/traverse": "^7.27.0",
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "axios": "^1.6.0",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "ts-node": "^10.9.2"
+  }
+}
