@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mxfile host="app.diagrams.net" modified="2023-04-04T00:00:00.000Z" agent="CDK Diagram Generator" version="14.6.13">
-  <diagram id="cdk-diagram" name="CDK Architecture">
-    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+<mxfile host="app.diagrams.net" modified="2023-01-01T00:00:00.000Z" agent="CDK Diagram Generator" version="14.6.13">
+  <diagram id="cdk-diagram" name="CDK Infrastructure">
+    <mxGraphModel dx="1422" dy="798" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="cell-2" value="MainVPC" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="100" y="100" width="120" height="60" as="geometry" />
+        <mxCell id="resource-2" value="MainVPC" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#D05C17;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.AWS Cloud;" parent="1" vertex="1">
+          <mxGeometry x="100" y="400" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="cell-3" value="ApiHandler" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="300" y="100" width="120" height="60" as="geometry" />
+        <mxCell id="resource-3" value="PublicSubnet" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#D05C17;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.AWS Cloud;" parent="1" vertex="1">
+          <mxGeometry x="300" y="400" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="cell-4" value="ConnectionsTable" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="500" y="100" width="120" height="60" as="geometry" />
+        <mxCell id="resource-4" value="ApiFunction" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#D05C17;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.AWS Cloud;" parent="1" vertex="1">
+          <mxGeometry x="500" y="400" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="conn-5" value="deployed in" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cell-3" target="cell-2">
+        <mxCell id="connection-5" value="contains" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;" parent="1" source="resource-3" target="resource-2" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="conn-6" value="reads/writes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cell-3" target="cell-4">
+        <mxCell id="connection-6" value="uses" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;startArrow=none;startFill=0;endArrow=classic;endFill=1;" parent="1" source="resource-4" target="resource-3" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
