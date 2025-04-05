@@ -9,7 +9,7 @@ import logging
 import os
 import pandas as pd
 from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
-from awslabs.cost_analysis_mcp_server.helpers import (
+from awslabs.cost_analysis_mcp_server.CEhelper import (
     BedrockLogsParams,
     DaysParam,
     get_bedrock_logs,
