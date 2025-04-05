@@ -35,10 +35,10 @@ def get_lambda_powertools_section(topic: str = '') -> str:
 
     if topic.lower() in topic_map:
         # Fix the path to correctly point to the static directory (parent of 'data')
-        base_dir = os.path.dirname(os.path.dirname(__file__))  # Go up from 'data' to get to the package root
-        file_path = os.path.join(
-            base_dir, 'static', 'lambda_powertools', f'{topic.lower()}.md'
-        )
+        base_dir = os.path.dirname(
+            os.path.dirname(__file__)
+        )  # Go up from 'data' to get to the package root
+        file_path = os.path.join(base_dir, 'static', 'lambda_powertools', f'{topic.lower()}.md')
         try:
             with open(file_path, 'r') as f:
                 return f.read()
