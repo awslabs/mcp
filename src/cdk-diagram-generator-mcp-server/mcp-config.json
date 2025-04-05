@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "cdk-diagram-generator": {
+      "command": "node",
+      "args": ["/Users/miketran/WebstormProjects/mcp/src/cdk-diagram-generator-mcp-server/build/index.js"],
+      "env": {
+        "CDK_DIAGRAM_OUTPUT_DIR": "/Users/miketran/WebstormProjects/mcp/src/cdk-diagram-generator-mcp-server/output"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
