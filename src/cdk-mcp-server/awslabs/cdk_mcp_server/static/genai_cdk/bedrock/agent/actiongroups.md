@@ -32,7 +32,7 @@ For Action Groups, use the built-in OpenAPI schema generation tool provided by t
 // Using MCP client
 const result = await use_mcp_tool({
   server_name: "awslabs.cdk-mcp-server",
-  tool_name: "GenerateBedrockAgentSchemaFromFile",
+  tool_name: "GenerateBedrockAgentSchema",
   arguments: {
     lambda_code_path: "path/to/your/lambda.py",
     output_path: "path/to/output/openapi.json"
