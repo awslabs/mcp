@@ -27,45 +27,46 @@ try {
   const infrastructure = {
     resources: [
       {
-        id: 'vpc1',
-        type: 'AWS::EC2::VPC',
-        name: 'MainVPC',
-        properties: {
-          cidrBlock: '10.0.0.0/16'
-        }
-      },
-      {
-        id: 'subnet1',
-        type: 'AWS::EC2::Subnet',
-        name: 'PublicSubnet',
-        properties: {
-          vpcId: 'vpc1',
-          cidrBlock: '10.0.1.0/24'
-        }
-      },
-      {
         id: 'lambda1',
-        type: 'AWS::Lambda::Function',
+        type: 'lambda',
         name: 'ApiFunction',
         properties: {
           runtime: 'nodejs18.x',
           handler: 'index.handler'
         }
+      },
+      {
+        id: 'dynamodb1',
+        type: 'dynamodb',
+        name: 'ItemsTable',
+        properties: {
+          hashKey: 'id'
+        }
       }
     ],
     connections: [
       {
-        source: 'subnet1',
-        target: 'vpc1',
-        type: 'contains'
-      },
-      {
         source: 'lambda1',
-        target: 'subnet1',
+        target: 'dynamodb1',
         type: 'uses'
       }
     ],
-    vpcs: []
+    vpcs: [
+      {
+        id: 'vpc1',
+        name: 'MainVPC',
+        resources: [
+          {
+            id: 'subnet1',
+            type: 'subnet',
+            name: 'PublicSubnet',
+            properties: {
+              cidrBlock: '10.0.1.0/24'
+            }
+          }
+        ]
+      }
+    ]
   };
   
   // Generate the diagram

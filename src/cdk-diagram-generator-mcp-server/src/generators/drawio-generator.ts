@@ -5,22 +5,13 @@
  */
 
 import { Infrastructure, Resource, Connection, VPC } from '../models/infrastructure.js';
+import { getIconForSimpleResourceType } from './aws-icons-mapping.js';
 
 // Constants for diagram generation
 const CELL_WIDTH = 120;
 const CELL_HEIGHT = 60;
 const CELL_SPACING = 80;
 const VPC_PADDING = 40;
-
-// AWS service icons (base64 encoded SVG would go here in a real implementation)
-const AWS_ICONS: Record<string, string> = {
-  lambda: 'AWS Lambda',
-  dynamodb: 'Amazon DynamoDB',
-  s3: 'Amazon S3',
-  apigateway: 'Amazon API Gateway',
-  vpc: 'Amazon VPC',
-  default: 'AWS Cloud'
-};
 
 /**
  * Generate a draw.io diagram from the infrastructure model
@@ -76,7 +67,7 @@ export function generateDiagramFromCode(infrastructure: Infrastructure): string 
       cellIds[resource.id] = resourceId;
       
       // Add the resource
-      diagram += `        <mxCell id="${resourceId}" value="${resource.name}" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#D05C17;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.${AWS_ICONS[resource.type] || AWS_ICONS.default};" parent="${vpcId}" vertex="1">\n`;
+      diagram += `        <mxCell id="${resourceId}" value="${resource.name}" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#D05C17;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.${getIconForSimpleResourceType(resource.type)};" parent="${vpcId}" vertex="1">\n`;
       diagram += `          <mxGeometry x="${resourceX}" y="${resourceY}" width="${CELL_WIDTH}" height="${CELL_HEIGHT}" as="geometry" />\n`;
       diagram += `        </mxCell>\n`;
     });
@@ -94,7 +85,7 @@ export function generateDiagramFromCode(infrastructure: Infrastructure): string 
     cellIds[resource.id] = resourceId;
     
     // Add the resource
-    diagram += `        <mxCell id="${resourceId}" value="${resource.name}" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#D05C17;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.${AWS_ICONS[resource.type] || AWS_ICONS.default};" parent="1" vertex="1">\n`;
+    diagram += `        <mxCell id="${resourceId}" value="${resource.name}" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#D05C17;strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.${getIconForSimpleResourceType(resource.type)};" parent="1" vertex="1">\n`;
     diagram += `          <mxGeometry x="${resourceX}" y="${resourceY}" width="${CELL_WIDTH}" height="${CELL_HEIGHT}" as="geometry" />\n`;
     diagram += `        </mxCell>\n`;
   });

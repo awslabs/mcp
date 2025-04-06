@@ -4,8 +4,11 @@
   "description": "MCP server for generating architectural diagrams from AWS CDK code",
   "main": "build/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
-    "build": "tsc && node scripts/build.js",
+    "build": "tsc && node scripts/build.js && node scripts/post-build.js",
     "start": "node build/index.js",
     "test": "node --loader ts-node/esm tests/run-tests.js",
     "test:simple": "node tests/simple-test.js",

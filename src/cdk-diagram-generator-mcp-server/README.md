@@ -213,6 +213,9 @@ npm run test:python-parser       # Test Python CDK parser
 npm run test:drawio-generator    # Test draw.io diagram generator
 npm run test:mcp-server          # Test MCP server interface
 
+# Run comprehensive tests
+npm run test:comprehensive       # Run all comprehensive tests
+
 # Run legacy simple tests
 npm run test:simple              # ES module version
 npm run test:simple:cjs          # CommonJS version
@@ -220,10 +223,19 @@ npm run test:simple:cjs          # CommonJS version
 
 The test suite includes:
 
-- **Parser Tests**: Tests for both TypeScript and Python CDK parsers, ensuring they correctly extract resources, connections, and VPCs from CDK code.
-- **Generator Tests**: Tests for the draw.io diagram generator, ensuring it correctly generates diagrams from infrastructure models.
-- **MCP Server Tests**: Tests for the MCP server interface, ensuring it correctly handles requests and generates diagrams.
+- **Basic Tests**: Simple tests that verify the basic functionality of each component.
+  - **Parser Tests**: Tests for both TypeScript and Python CDK parsers, ensuring they correctly extract resources, connections, and VPCs from CDK code.
+  - **Generator Tests**: Tests for the draw.io diagram generator, ensuring it correctly generates diagrams from infrastructure models.
+  - **MCP Server Tests**: Tests for the MCP server interface, ensuring it correctly handles requests and generates diagrams.
+
+- **Comprehensive Tests**: More thorough tests that cover edge cases and additional functionality.
+  - **Parser Comprehensive Tests**: Tests that verify the parsers can handle complex CDK code with various AWS resources and relationships.
+  - **Generator Comprehensive Tests**: Tests that verify the generator can create complex diagrams with many resources and connections.
+  - **MCP Server Comprehensive Tests**: Tests that verify the server can handle various requests and edge cases.
+
 - **Error Handling Tests**: Tests for error handling in all components, ensuring the server gracefully handles invalid inputs.
+
+For more information about the tests, see the [tests/README.md](./tests/README.md) file.
 
 ### Running Locally
 
