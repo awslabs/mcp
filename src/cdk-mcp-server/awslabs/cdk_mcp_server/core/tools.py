@@ -168,48 +168,48 @@ def save_fallback_script_to_file(
     """
     # Sanitize paths to prevent path traversal attacks
     output_dir = os.path.dirname(os.path.abspath(output_path))
-    
+
     # Create scripts directory in the same directory as the output file
     scripts_dir = os.path.join(output_dir, 'scripts')
-    
+
     try:
         os.makedirs(scripts_dir, exist_ok=True)
     except (OSError, IOError) as e:
-        logger.error(f"Failed to create scripts directory: {e}")
+        logger.error(f'Failed to create scripts directory: {e}')
         # Fall back to output directory if scripts dir creation fails
         scripts_dir = output_dir
-    
+
     # Sanitize file name - remove any path components and ensure it's just a base name
     lambda_file_name = os.path.basename(lambda_code_path)
     # Remove extension and any potentially problematic characters
     sanitized_name = os.path.splitext(lambda_file_name)[0]
     sanitized_name = re.sub(r'[^a-zA-Z0-9_-]', '', sanitized_name)
-    
+
     # Generate script name
     script_file_name = f'generate_schema_{sanitized_name}.py'
     script_path = os.path.join(scripts_dir, script_file_name)
-    
+
     # Validate the resulting path is still within the expected directory
     if not os.path.abspath(script_path).startswith(os.path.abspath(scripts_dir)):
-        logger.error(f"Path traversal attempt detected: {script_path}")
+        logger.error(f'Path traversal attempt detected: {script_path}')
         # Fall back to a safe default
         script_path = os.path.join(scripts_dir, 'generate_schema.py')
-    
+
     try:
         # Write the script to file with restricted permissions
         # Open with restricted permissions from the start (only owner can read/write)
         with open(os.open(script_path, os.O_CREAT | os.O_WRONLY, 0o600), 'w') as f:
             f.write(script_content)
-        
+
         # Update to executable permissions (only for the owner)
         os.chmod(script_path, 0o700)  # rwx------ permissions (owner only)
-        
-        logger.info(f"Successfully created script at {script_path}")
+
+        logger.info(f'Successfully created script at {script_path}')
         return script_path
-    
+
     except (OSError, IOError) as e:
-        logger.error(f"Failed to save script: {e}")
-        return f"Error saving script: {str(e)}"
+        logger.error(f'Failed to save script: {e}')
+        return f'Error saving script: {str(e)}'
 
 
 async def bedrock_schema_generator_from_file(

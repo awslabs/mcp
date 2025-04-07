@@ -38,8 +38,14 @@ global kb_runtime_client
 global kb_agent_mgmt_client
 
 try:
-    kb_runtime_client = get_bedrock_agent_runtime_client(profile_name=os.getenv('AWS_PROFILE'))
-    kb_agent_mgmt_client = get_bedrock_agent_client(profile_name=os.getenv('AWS_PROFILE'))
+    kb_runtime_client = get_bedrock_agent_runtime_client(
+        region_name=os.getenv('AWS_REGION'),
+        profile_name=os.getenv('AWS_PROFILE'),
+    )
+    kb_agent_mgmt_client = get_bedrock_agent_client(
+        region_name=os.getenv('AWS_REGION'),
+        profile_name=os.getenv('AWS_PROFILE'),
+    )
 except Exception as e:
     logger.error(f'Error getting bedrock agent client: {e}')
     raise e
