@@ -1,8 +1,8 @@
-"""Tests for the scanner module of the diagram-expert MCP server."""
+"""Tests for the scanner module of the diagrams-mcp-server."""
 
 import pytest
 
-from ai3_diagrams_expert.scanner import (
+from diagrams_mcp_server.scanner import (
     validate_syntax,
     check_security,
     count_code_metrics,

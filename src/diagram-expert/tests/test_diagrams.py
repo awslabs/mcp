@@ -1,15 +1,15 @@
-"""Tests for the diagrams module of the diagram-expert MCP server."""
+"""Tests for the diagrams module of the diagrams-mcp-server."""
 
 import os
 import pytest
 from pathlib import Path
 
-from ai3_diagrams_expert.diagrams import (
+from diagrams_mcp_server.diagrams import (
     generate_diagram,
     get_diagram_examples,
     list_diagram_icons,
 )
-from ai3_diagrams_expert.models import DiagramType
+from diagrams_mcp_server.models import DiagramType
 
 
 class TestGetDiagramExamples:

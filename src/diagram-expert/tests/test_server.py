@@ -1,22 +1,22 @@
-"""Tests for the server module of the diagram-expert MCP server."""
+"""Tests for the server module of the diagrams-mcp-server."""
 
 import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from ai3_diagrams_expert.server import (
+from diagrams_mcp_server.server import (
     mcp_generate_diagram,
     mcp_get_diagram_examples,
     mcp_list_diagram_icons,
 )
-from ai3_diagrams_expert.models import DiagramType
+from diagrams_mcp_server.models import DiagramType
 
 
 class TestMcpGenerateDiagram:
     """Tests for the mcp_generate_diagram function."""
 
     @pytest.mark.asyncio
-    @patch('ai3_diagrams_expert.server.generate_diagram')
+    @patch('diagrams_mcp_server.server.generate_diagram')
     async def test_generate_diagram(self, mock_generate_diagram):
         """Test the mcp_generate_diagram function."""
         # Set up the mock
@@ -54,7 +54,7 @@ class TestMcpGenerateDiagram:
         )
 
     @pytest.mark.asyncio
-    @patch('ai3_diagrams_expert.server.generate_diagram')
+    @patch('diagrams_mcp_server.server.generate_diagram')
     async def test_generate_diagram_with_defaults(self, mock_generate_diagram):
         """Test the mcp_generate_diagram function with default values."""
         # Set up the mock
@@ -89,7 +89,7 @@ class TestMcpGenerateDiagram:
         )
 
     @pytest.mark.asyncio
-    @patch('ai3_diagrams_expert.server.generate_diagram')
+    @patch('diagrams_mcp_server.server.generate_diagram')
     async def test_generate_diagram_error(self, mock_generate_diagram):
         """Test the mcp_generate_diagram function with an error."""
         # Set up the mock
@@ -119,7 +119,7 @@ class TestMcpGenerateDiagram:
 class TestMcpGetDiagramExamples:
     """Tests for the mcp_get_diagram_examples function."""
 
-    @patch('ai3_diagrams_expert.server.get_diagram_examples')
+    @patch('diagrams_mcp_server.server.get_diagram_examples')
     def test_get_diagram_examples(self, mock_get_diagram_examples):
         """Test the mcp_get_diagram_examples function."""
         # Set up the mock
@@ -148,7 +148,7 @@ class TestMcpGetDiagramExamples:
         # Check that get_diagram_examples was called with the correct arguments
         mock_get_diagram_examples.assert_called_once_with(DiagramType.ALL)
 
-    @patch('ai3_diagrams_expert.server.get_diagram_examples')
+    @patch('diagrams_mcp_server.server.get_diagram_examples')
     def test_get_diagram_examples_with_specific_type(self, mock_get_diagram_examples):
         """Test the mcp_get_diagram_examples function with a specific diagram type."""
         # Set up the mock
@@ -180,7 +180,7 @@ class TestMcpListDiagramIcons:
     """Tests for the mcp_list_diagram_icons function."""
 
     @pytest.mark.asyncio
-    @patch('ai3_diagrams_expert.server.list_diagram_icons')
+    @patch('diagrams_mcp_server.server.list_diagram_icons')
     async def test_list_diagram_icons(self, mock_list_diagram_icons):
         """Test the mcp_list_diagram_icons function."""
         # Set up the mock
@@ -227,7 +227,7 @@ class TestServerIntegration:
     async def test_server_tool_registration(self):
         """Test that the server tools are registered correctly."""
         # Import the server module
-        from ai3_diagrams_expert.server import mcp
+        from diagrams_mcp_server.server import mcp
 
         # Check that the tools are registered
         assert 'generate_diagram' in [tool.name for tool in mcp.tools]

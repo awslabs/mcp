@@ -1,6 +1,6 @@
-# Diagram Expert MCP Server Tests
+# Diagrams MCP Server Tests
 
-This directory contains tests for the diagram-expert MCP server. The tests are organized by module and cover all aspects of the server's functionality.
+This directory contains tests for the diagrams-mcp-server. The tests are organized by module and cover all aspects of the server's functionality.
 
 ## Test Structure
 
@@ -11,28 +11,36 @@ This directory contains tests for the diagram-expert MCP server. The tests are o
 
 ## Running the Tests
 
-To run the tests, use the following command from the root directory of the project:
+To run the tests, use the provided script from the root directory of the project:
 
 ```bash
-pytest -xvs src/diagram-expert/tests/
+./run_tests.sh
+```
+
+This script will automatically install pytest and its dependencies if they're not already installed.
+
+Alternatively, if you have pytest installed, you can run the tests directly:
+
+```bash
+pytest -xvs tests/
 ```
 
 To run a specific test file:
 
 ```bash
-pytest -xvs src/diagram-expert/tests/test_models.py
+pytest -xvs tests/test_models.py
 ```
 
 To run a specific test class:
 
 ```bash
-pytest -xvs src/diagram-expert/tests/test_models.py::TestDiagramType
+pytest -xvs tests/test_models.py::TestDiagramType
 ```
 
 To run a specific test:
 
 ```bash
-pytest -xvs src/diagram-expert/tests/test_models.py::TestDiagramType::test_diagram_type_values
+pytest -xvs tests/test_models.py::TestDiagramType::test_diagram_type_values
 ```
 
 ## Test Coverage
@@ -40,13 +48,13 @@ pytest -xvs src/diagram-expert/tests/test_models.py::TestDiagramType::test_diagr
 To generate a test coverage report, use the following command:
 
 ```bash
-pytest --cov=ai3_diagrams_expert src/diagram-expert/tests/
+pytest --cov=diagrams_mcp_server tests/
 ```
 
 For a more detailed HTML coverage report:
 
 ```bash
-pytest --cov=ai3_diagrams_expert --cov-report=html src/diagram-expert/tests/
+pytest --cov=diagrams_mcp_server --cov-report=html tests/
 ```
 
 This will generate a coverage report in the `htmlcov` directory. Open `htmlcov/index.html` in a web browser to view the report.

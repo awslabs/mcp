@@ -1,4 +1,4 @@
-"""Test fixtures for the diagram-expert MCP server tests."""
+"""Test fixtures for the diagrams-mcp-server tests."""
 
 import os
 import pytest
@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Generator
 
-from ai3_diagrams_expert.models import DiagramType
+from diagrams_mcp_server.models import DiagramType
 
 
 @pytest.fixture

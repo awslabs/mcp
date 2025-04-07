@@ -1,9 +1,9 @@
-"""Tests for the models module of the diagram-expert MCP server."""
+"""Tests for the models module of the diagrams-mcp-server."""
 
 import pytest
 from pydantic import ValidationError
 
-from ai3_diagrams_expert.models import (
+from diagrams_mcp_server.models import (
     DiagramType,
     DiagramGenerateRequest,
     DiagramGenerateResponse,
