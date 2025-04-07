@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.cost-analysis-mcp-server"
-version = "0.0.031004"
+version = "0.0.062303"
 description = "An AWS Labs Model Context Protocol (MCP) server for Cost Analysis of the AWS services"
 readme = "README.md"
 requires-python = ">=3.10"

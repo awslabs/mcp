@@ -49,7 +49,7 @@ mcp.resource('genai-cdk-constructs://{construct_type}')(resources.get_genai_cdk_
 mcp.tool(name='CDKGeneralGuidance')(tools.cdk_guidance)
 mcp.tool(name='ExplainCDKNagRule')(tools.explain_cdk_nag_rule)
 mcp.tool(name='CheckCDKNagSuppressions')(tools.check_cdk_nag_suppressions_tool)
-mcp.tool(name='GenerateBedrockAgentSchemaFromFile')(tools.bedrock_schema_generator_from_file)
+mcp.tool(name='GenerateBedrockAgentSchema')(tools.bedrock_schema_generator_from_file)
 mcp.tool(name='GetAwsSolutionsConstructPattern')(tools.get_aws_solutions_construct_pattern)
 mcp.tool(name='SearchGenAICDKConstructs')(tools.search_genai_cdk_constructs)
 
