@@ -75,6 +75,5 @@ Options:
 - **Cost Optimization**: Design resources to minimize costs while meeting requirements
 - **Operational Excellence**: Implement proper monitoring, logging, and observability
 - **Serverless-First**: Prefer serverless services when possible
-- **Infrastructure as Code**: Use CDK to define all infrastructure
-- **Use Vetted Patterns**: Prefer AWS Solutions Constructs over custom implementations
+- **Infrastructure as Code**: Use Terraform to define all infrastructure
 - **Regional Awareness**: Consider regional availability and constraints for services
