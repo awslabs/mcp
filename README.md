@@ -123,7 +123,7 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     "awslabs.nova-canvas-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.core-mcp-server@latest",
+        "awslabs.nova-canvas-mcp-server@latest",
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
