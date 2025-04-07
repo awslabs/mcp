@@ -1,7 +1,6 @@
 """Utility functions for AWS Documentation MCP Server."""
 
 import markdownify
-import readabilipy.simple_json
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
 from typing import Any, Dict, List
 
@@ -15,14 +14,118 @@ def extract_content_from_html(html: str) -> str:
     Returns:
         Simplified markdown version of the content
     """
-    ret = readabilipy.simple_json.simple_json_from_html_string(html, use_readability=True)
-    if not ret['content']:
-        return '<e>Page failed to be simplified from HTML</e>'
-    content = markdownify.markdownify(
-        ret['content'],
-        heading_style=markdownify.ATX,
-    )
-    return content
+    if not html:
+        return '<e>Empty HTML content</e>'
+
+    try:
+        # First use BeautifulSoup to clean up the HTML
+        from bs4 import BeautifulSoup
+
+        # Parse HTML with BeautifulSoup
+        soup = BeautifulSoup(html, 'html.parser')
+
+        # Try to find the main content area
+        main_content = None
+
+        # Common content container selectors for AWS documentation
+        content_selectors = [
+            'main',
+            'article',
+            '#main-content',
+            '.main-content',
+            '#content',
+            '.content',
+            "div[role='main']",
+            '#awsdocs-content',
+            '.awsui-article',
+        ]
+
+        # Try to find the main content using common selectors
+        for selector in content_selectors:
+            content = soup.select_one(selector)
+            if content:
+                main_content = content
+                break
+
+        # If no main content found, use the body
+        if not main_content:
+            main_content = soup.body if soup.body else soup
+
+        # Remove navigation elements that might be in the main content
+        nav_selectors = [
+            'noscript',
+            '.prev-next',
+            '#main-col-footer',
+            '.awsdocs-page-utilities',
+            '#quick-feedback-yes',
+            '#quick-feedback-no',
+            '.page-loading-indicator',
+            '#tools-panel',
+            '.doc-cookie-banner',
+            'awsdocs-copyright',
+            'awsdocs-thumb-feedback',
+        ]
+
+        for selector in nav_selectors:
+            for element in main_content.select(selector):
+                element.decompose()
+
+        # Define tags to strip - these are elements we don't want in the output
+        tags_to_strip = [
+            'script',
+            'style',
+            'noscript',
+            'meta',
+            'link',
+            'footer',
+            'nav',
+            'aside',
+            'header',
+            # AWS documentation specific elements
+            'awsdocs-cookie-consent-container',
+            'awsdocs-feedback-container',
+            'awsdocs-page-header',
+            'awsdocs-page-header-container',
+            'awsdocs-filter-selector',
+            'awsdocs-breadcrumb-container',
+            'awsdocs-page-footer',
+            'awsdocs-page-footer-container',
+            'awsdocs-footer',
+            'awsdocs-cookie-banner',
+            # Common unnecessary elements
+            'js-show-more-buttons',
+            'js-show-more-text',
+            'feedback-container',
+            'feedback-section',
+            'doc-feedback-container',
+            'doc-feedback-section',
+            'warning-container',
+            'warning-section',
+            'cookie-banner',
+            'cookie-notice',
+            'copyright-section',
+            'legal-section',
+            'terms-section',
+        ]
+
+        # Use markdownify on the cleaned HTML content
+        content = markdownify.markdownify(
+            str(main_content),
+            heading_style=markdownify.ATX,
+            autolinks=True,
+            default_title=True,
+            escape_asterisks=True,
+            escape_underscores=True,
+            newline_style='SPACES',
+            strip=tags_to_strip,
+        )
+
+        if not content:
+            return '<e>Page failed to be simplified from HTML</e>'
+
+        return content
+    except Exception as e:
+        return f'<e>Error converting HTML to Markdown: {str(e)}</e>'
 
 
 def is_html_content(page_raw: str, content_type: str) -> bool:

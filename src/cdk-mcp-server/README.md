@@ -34,6 +34,68 @@ MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as
 - Streamline the creation of Bedrock Agent schemas
 - Convert code files to compatible OpenAPI specifications
 
+## CDK Implementation Workflow
+
+This diagram provides a comprehensive view of the recommended CDK implementation workflow:
+
+```mermaid
+graph TD
+    Start([Start]) --> Init["cdk init app"]
+    
+    Init --> B{Choose Approach}
+    B -->|"Common Patterns"| C1["GetAwsSolutionsConstructPattern"]
+    B -->|"GenAI Features"| C2["SearchGenAICDKConstructs"]
+    B -->|"Custom Needs"| C3["Custom CDK Code"]
+    
+    C1 --> D1["Implement Solutions Construct"]
+    C2 --> D2["Implement GenAI Constructs"]
+    C3 --> D3["Implement Custom Resources"]
+    
+    %% Bedrock Agent with Action Groups specific flow
+    D2 -->|"For Bedrock Agents<br/>with Action Groups"| BA["Create Lambda with<br/>BedrockAgentResolver"]
+    
+    %% Schema generation flow
+    BA --> BS["GenerateBedrockAgentSchema"]
+    BS -->|"Success"| JSON["openapi.json created"]
+    BS -->|"Import Errors"| BSF["Tool generates<br/>generate_schema.py"]
+    BSF --> BSR["Run script manually:<br/>python generate_schema.py"]
+    BSR --> JSON["openapi.json created"]
+    
+    %% Use schema in Agent CDK
+    JSON --> AgentCDK["Use schema in<br/>Agent CDK code"]
+    AgentCDK --> D2
+    
+    %% Conditional Lambda Powertools implementation
+    D1 & D2 & D3 --> HasLambda{"Using Lambda<br/>Functions?"}
+    HasLambda -->|"Yes"| L["Add Lambda Powertools<br/>and create Layer"]
+    HasLambda -->|"No"| SkipL["Skip Lambda<br/>Powertools"]
+    
+    %% Rest of workflow
+    L --> Synth["cdk synth"]
+    SkipL --> Synth
+    
+    Synth --> Nag{"CDK Nag<br/>warnings?"}
+    Nag -->|Yes| E["ExplainCDKNagRule"]
+    Nag -->|No| Deploy["cdk deploy"]
+    
+    E --> Fix["Fix or Add Suppressions"]
+    Fix --> CN["CheckCDKNagSuppressions"]
+    CN --> Synth
+    
+    %% Styling with darker colors
+    classDef default fill:#424242,stroke:#ffffff,stroke-width:1px,color:#ffffff;
+    classDef cmd fill:#4a148c,stroke:#ffffff,stroke-width:1px,color:#ffffff;
+    classDef tool fill:#01579b,stroke:#ffffff,stroke-width:1px,color:#ffffff;
+    classDef note fill:#1b5e20,stroke:#ffffff,stroke-width:1px,color:#ffffff;
+    classDef output fill:#006064,stroke:#ffffff,stroke-width:1px,color:#ffffff;
+    classDef decision fill:#5d4037,stroke:#ffffff,stroke-width:1px,color:#ffffff;
+    
+    class Init,Synth,Deploy,BSR cmd;
+    class C1,C2,BS,E,CN tool;
+    class JSON output;
+    class HasLambda,Nag decision;
+```
+
 ## Tools and Resources
 
 - **CDK Nag Rules**: Access rule packs via `cdk-nag://rules/{rule_pack}`

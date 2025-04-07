@@ -51,14 +51,19 @@ jobs:
         run: pip install bandit[toml]
 
       - name: Security check - Bandit
+        id: bandit-check
         working-directory: src/${{ matrix.package }}
-        run: bandit --recursive -ll --format html --output bandit-report-${{ matrix.package }}.html -r . -c "pyproject.toml" || exit 1
+        run: bandit --recursive -ll --format html --output bandit-report-${{ matrix.package }}.html -r . -c "pyproject.toml" || echo "::set-output name=status::failure"
 
       - name: Store Bandit as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: bandit-report-${{ matrix.package }}.html
           path: src/${{ matrix.package }}/bandit-report-${{ matrix.package }}.html
+
+      - name: Stop on Bandit failure
+        if: steps.bandit-check.outputs.status == 'failure'
+        run: exit 1
 
       - name: Install dependencies
         working-directory: src/${{ matrix.package }}
