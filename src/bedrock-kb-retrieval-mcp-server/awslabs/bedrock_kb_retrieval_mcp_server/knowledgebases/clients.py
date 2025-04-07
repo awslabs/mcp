@@ -11,36 +11,36 @@ else:
 
 
 def get_bedrock_agent_runtime_client(
-    region_name: str = 'us-west-2', profile_name: str | None = None
+    region_name: str | None = 'us-west-2', profile_name: str | None = None
 ) -> AgentsforBedrockRuntimeClient:
     """Get a Bedrock agent runtime client.
 
     You access knowledge bases for RAG via the Bedrock agent runtime client.
 
     Args:
-        region_name (str): The region name
+        region_name (str | None): The region name
         profile_name (str | None): The profile name
     """
     if profile_name:
         return boto3.Session(profile_name=profile_name).client(
-            'bedrock-agent-runtime', region_name=region_name
+            'bedrock-agent-runtime', region_name=region_name or 'us-west-2'
         )
-    return boto3.client('bedrock-agent-runtime', region_name=region_name)
+    return boto3.client('bedrock-agent-runtime', region_name=region_name or 'us-west-2')
 
 
 def get_bedrock_agent_client(
-    region_name: str = 'us-west-2', profile_name: str | None = None
+    region_name: str | None = 'us-west-2', profile_name: str | None = None
 ) -> AgentsforBedrockClient:
     """Get a Bedrock agent management client.
 
     You access configuration and management of Knowledge Bases via the Bedrock agent client.
 
     Args:
-        region_name (str): The region name
+        region_name (str | None): The region name
         profile_name (str | None): The profile name
     """
     if profile_name:
         return boto3.Session(profile_name=profile_name).client(
-            'bedrock-agent', region_name=region_name
+            'bedrock-agent', region_name=region_name or 'us-west-2'
         )
-    return boto3.client('bedrock-agent', region_name=region_name)
+    return boto3.client('bedrock-agent', region_name=region_name or 'us-west-2')
