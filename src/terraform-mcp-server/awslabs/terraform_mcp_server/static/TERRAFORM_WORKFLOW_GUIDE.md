@@ -68,3 +68,13 @@ Options:
 2. Run `terraform validate` after you make changes to the terraform application.
 3. Use `-out` to save plans and apply those exact plans.
 4. Always show changes from the plan to the user and get confirmation before applying them.
+
+## Key Principles
+
+- **Security First**: Always implement security best practices by default
+- **Cost Optimization**: Design resources to minimize costs while meeting requirements
+- **Operational Excellence**: Implement proper monitoring, logging, and observability
+- **Serverless-First**: Prefer serverless services when possible
+- **Infrastructure as Code**: Use CDK to define all infrastructure
+- **Use Vetted Patterns**: Prefer AWS Solutions Constructs over custom implementations
+- **Regional Awareness**: Consider regional availability and constraints for services

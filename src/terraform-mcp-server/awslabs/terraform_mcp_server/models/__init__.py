@@ -4,6 +4,12 @@ from .models import (
     SubmoduleInfo,
     TerraformExecutionRequest,
     TerraformExecutionResult,
+    CheckovVulnerability,
+    CheckovScanRequest,
+    CheckovScanResult,
+    CheckovFixRequest,
+    CheckovFixResult,
+    TerraformVariable,
 )
 
 __all__ = [
@@ -12,4 +18,10 @@ __all__ = [
     'SubmoduleInfo',
     'TerraformExecutionRequest',
     'TerraformExecutionResult',
+    'CheckovVulnerability',
+    'CheckovScanRequest',
+    'CheckovScanResult',
+    'CheckovFixRequest',
+    'CheckovFixResult',
+    'TerraformVariable',
 ]

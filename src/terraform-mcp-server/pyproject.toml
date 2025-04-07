@@ -7,6 +7,11 @@ requires-python = ">=3.10"
 dependencies = [
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "loguru>=0.7.0",
+    "playwright>=1.40.0",
+    "PyPDF2>=3.0.0",
 ]
 
 [project.scripts]

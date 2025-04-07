@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 
 class TerraformExecutionRequest(BaseModel):
@@ -38,6 +38,24 @@ class SubmoduleInfo(BaseModel):
     readme_content: Optional[str] = None
 
 
+class TerraformVariable(BaseModel):
+    """Model representing a Terraform variable definition.
+
+    Attributes:
+        name: The name of the variable.
+        type: The data type of the variable (string, number, bool, etc.).
+        description: Description of the variable's purpose.
+        default: Default value of the variable, if any.
+        required: Whether the variable is required (no default value).
+    """
+
+    name: str
+    type: Optional[str] = None
+    description: Optional[str] = None
+    default: Optional[Any] = None
+    required: bool = True
+
+
 class ModuleSearchResult(BaseModel):
     """Model representing search results from Terraform module registry.
 
@@ -54,6 +72,8 @@ class ModuleSearchResult(BaseModel):
         version_details: Detailed information about the version from GitHub releases.
         submodules: List of submodules contained in this module.
         has_submodules: Whether this module contains submodules.
+        variables: List of variables defined in the module's variables.tf file.
+        variables_content: Raw content of the variables.tf file.
     """
 
     name: str
@@ -67,6 +87,8 @@ class ModuleSearchResult(BaseModel):
     output_count: Optional[int] = None
     version_details: Optional[Dict[str, Any]] = None
     submodules: Optional[list[SubmoduleInfo]] = None
+    variables: Optional[List[TerraformVariable]] = None
+    variables_content: Optional[str] = None
 
     @property
     def has_submodules(self) -> bool:
@@ -114,3 +136,109 @@ class TerraformExecutionResult(BaseModel):
     outputs: Optional[Dict[str, Any]] = Field(
         None, description='Terraform outputs (for apply command)'
     )
+
+
+class CheckovVulnerability(BaseModel):
+    """Model representing a security vulnerability found by Checkov.
+
+    Attributes:
+        id: The Checkov check ID (e.g., CKV_AWS_1).
+        type: The type of check (e.g., terraform_aws).
+        resource: The resource identifier where the vulnerability was found.
+        file_path: Path to the file containing the vulnerability.
+        line: Line number where the vulnerability was found.
+        description: Description of the vulnerability.
+        guideline: Recommended fix or security guideline.
+        severity: Severity level of the vulnerability.
+        fixed: Whether the vulnerability has been fixed.
+        fix_details: Details about how the vulnerability was fixed (if applicable).
+    """
+
+    id: str = Field(..., description='Checkov check ID')
+    type: str = Field(..., description='Type of security check')
+    resource: str = Field(..., description='Resource identifier')
+    file_path: str = Field(..., description='Path to the file with the vulnerability')
+    line: int = Field(..., description='Line number of the vulnerability')
+    description: str = Field(..., description='Description of the vulnerability')
+    guideline: Optional[str] = Field(None, description='Recommended fix or guideline')
+    severity: str = Field('MEDIUM', description='Severity level (HIGH, MEDIUM, LOW)')
+    fixed: bool = Field(False, description='Whether the vulnerability has been fixed')
+    fix_details: Optional[str] = Field(None, description='Details about the fix applied')
+
+
+class CheckovScanRequest(BaseModel):
+    """Request model for Checkov scan execution.
+
+    Attributes:
+        working_directory: Directory containing Terraform files to scan.
+        framework: Framework to scan (default: terraform).
+        check_ids: Optional list of specific check IDs to run.
+        skip_check_ids: Optional list of check IDs to skip.
+        output_format: Format for the scan results output.
+        auto_fix: Whether to attempt automatic fixes for found vulnerabilities.
+    """
+
+    working_directory: str = Field(..., description='Directory containing Terraform files')
+    framework: str = Field('terraform', description='Framework to scan (terraform, cloudformation, etc.)')
+    check_ids: Optional[List[str]] = Field(None, description='Specific check IDs to run')
+    skip_check_ids: Optional[List[str]] = Field(None, description='Check IDs to skip')
+    output_format: str = Field('json', description='Output format (json, cli, etc.)')
+    auto_fix: bool = Field(False, description='Whether to attempt automatic fixes')
+
+
+class CheckovScanResult(BaseModel):
+    """Result model for Checkov scan execution.
+
+    Attributes:
+        status: Execution status (success/error).
+        return_code: The command's return code (0 for success).
+        working_directory: Directory where the scan was executed.
+        error_message: Optional error message if execution failed.
+        vulnerabilities: List of vulnerabilities found by the scan.
+        summary: Summary of the scan results.
+        raw_output: Raw output from the Checkov command.
+    """
+
+    status: Literal['success', 'error']
+    return_code: Optional[int] = None
+    working_directory: str
+    error_message: Optional[str] = None
+    vulnerabilities: List[CheckovVulnerability] = Field([], description='List of found vulnerabilities')
+    summary: Dict[str, Any] = Field({}, description='Summary of scan results')
+    raw_output: Optional[str] = Field(None, description='Raw output from Checkov')
+
+
+class CheckovFixRequest(BaseModel):
+    """Request model for fixing Checkov vulnerabilities.
+
+    Attributes:
+        working_directory: Directory containing Terraform files to fix.
+        vulnerability_ids: List of vulnerability IDs to fix.
+        backup_files: Whether to create backup files before fixing.
+    """
+
+    working_directory: str = Field(..., description='Directory containing Terraform files')
+    vulnerability_ids: List[str] = Field(..., description='List of vulnerability IDs to fix')
+    backup_files: bool = Field(True, description='Whether to create backup files before fixing')
+
+
+class CheckovFixResult(BaseModel):
+    """Result model for Checkov fix execution.
+
+    Attributes:
+        status: Execution status (success/error).
+        return_code: The command's return code (0 for success).
+        working_directory: Directory where the fix was executed.
+        error_message: Optional error message if execution failed.
+        fixed_vulnerabilities: List of vulnerabilities that were fixed.
+        unfixed_vulnerabilities: List of vulnerabilities that could not be fixed.
+        summary: Summary of the fix results.
+    """
+
+    status: Literal['success', 'error']
+    return_code: Optional[int] = None
+    working_directory: str
+    error_message: Optional[str] = None
+    fixed_vulnerabilities: List[CheckovVulnerability] = Field([], description='List of fixed vulnerabilities')
+    unfixed_vulnerabilities: List[CheckovVulnerability] = Field([], description='List of unfixed vulnerabilities')
+    summary: Dict[str, Any] = Field({}, description='Summary of fix results')

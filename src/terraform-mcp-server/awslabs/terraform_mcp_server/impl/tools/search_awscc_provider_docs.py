@@ -1,4 +1,4 @@
-"""Implementation of AWS provider documentation search tool."""
+"""Implementation of AWSCC provider documentation search tool."""
 
 import os
 import re
@@ -12,29 +12,29 @@ from typing import Dict, List, Optional, Tuple
 
 # Path to the static markdown file
 STATIC_RESOURCES_PATH = (
-    Path(__file__).parent.parent.parent / 'static' / 'AWS_PROVIDER_RESOURCES.md'
+    Path(__file__).parent.parent.parent / 'static' / 'AWSCC_PROVIDER_RESOURCES.md'
 )
 
-# Base URL for AWS provider documentation
-AWS_DOCS_BASE_URL = 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs'
+# Base URL for AWSCC provider documentation
+AWSCC_DOCS_BASE_URL = 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs'
 
 
-async def search_aws_provider_docs_impl(
+async def search_awscc_provider_docs_impl(
     resource_type: str, attribute: Optional[str] = None
 ) -> List[ProviderDocsResult]:
-    """Search AWS provider documentation for resources and attributes.
+    """Search AWSCC provider documentation for resources and attributes.
 
-    This tool searches the Terraform AWS provider documentation for information about
+    This tool searches the Terraform AWSCC provider documentation for information about
     specific resource types and their attributes.
 
     Parameters:
-        resource_type: AWS resource type (e.g., 'aws_s3_bucket', 'aws_lambda_function')
+        resource_type: AWSCC resource type (e.g., 'awscc_s3_bucket', 'awscc_lambda_function')
         attribute: Optional specific attribute to search for
 
     Returns:
         A list of matching documentation entries with details
     """
-    logger.info(f"Searching AWS provider docs for '{resource_type}'")
+    logger.info(f"Searching AWSCC provider docs for '{resource_type}'")
     search_term = resource_type.lower()
 
     try:
@@ -44,9 +44,9 @@ async def search_aws_provider_docs_impl(
         if not resource_url:
             logger.warning(f"Resource '{search_term}' not found in static resources file")
             # Construct a URL based on the resource name pattern
-            if search_term.startswith('aws_'):
+            if search_term.startswith('awscc_'):
                 # Extract the service and resource name from the resource type
-                parts = search_term[4:].split('_', 1)  # Remove 'aws_' prefix
+                parts = search_term[6:].split('_', 1)  # Remove 'awscc_' prefix
                 if len(parts) > 1:
                     service, resource_name = parts
                 else:
@@ -58,12 +58,12 @@ async def search_aws_provider_docs_impl(
                 
                 # Construct the URL
                 if is_data_source:
-                    resource_url = f"{AWS_DOCS_BASE_URL}/data-sources/{resource_name}"
+                    resource_url = f"{AWSCC_DOCS_BASE_URL}/data-sources/{service}_{resource_name}"
                 else:
-                    resource_url = f"{AWS_DOCS_BASE_URL}/resources/{resource_name}"
+                    resource_url = f"{AWSCC_DOCS_BASE_URL}/resources/{service}_{resource_name}"
             else:
-                # If no 'aws_' prefix, assume it's a resource name and add the prefix
-                resource_url = f"{AWS_DOCS_BASE_URL}/resources/{search_term}"
+                # If no 'awscc_' prefix, assume it's a resource name and add the prefix
+                resource_url = f"{AWSCC_DOCS_BASE_URL}/resources/{search_term}"
         
         # Step 2: Fetch and parse the documentation page
         resource_info = fetch_resource_documentation(resource_url, search_term, attribute)
@@ -75,19 +75,19 @@ async def search_aws_provider_docs_impl(
             return [
                 ProviderDocsResult(
                     resource_name='Not found',
-                    url=f"{AWS_DOCS_BASE_URL}/resources",
+                    url=f"{AWSCC_DOCS_BASE_URL}/resources",
                     description=f"No documentation found for resource type '{resource_type}'.",
                     example_snippet=None,
                 )
             ]
             
     except Exception as e:
-        logger.error(f'Error searching AWS provider docs: {e}')
+        logger.error(f'Error searching AWSCC provider docs: {e}')
         return [
             ProviderDocsResult(
                 resource_name='Error',
                 url='',
-                description=f'Failed to search AWS provider documentation: {str(e)}',
+                description=f'Failed to search AWSCC provider documentation: {str(e)}',
                 example_snippet=None,
             )
         ]
@@ -97,7 +97,7 @@ def find_resource_url(resource_type: str) -> Optional[str]:
     """Find the URL for a specific resource type in the static resources file.
     
     Args:
-        resource_type: The resource type to search for (e.g., 'aws_s3_bucket')
+        resource_type: The resource type to search for (e.g., 'awscc_s3_bucket')
         
     Returns:
         The URL for the resource documentation, or None if not found
@@ -129,7 +129,7 @@ def fetch_resource_documentation(
     
     Args:
         url: The URL of the resource documentation
-        resource_type: The resource type (e.g., 'aws_s3_bucket')
+        resource_type: The resource type (e.g., 'awscc_s3_bucket')
         attribute: Optional attribute to search for
         
     Returns:

@@ -1,4 +1,4 @@
-"""Implementation for terraform_aws_provider_resources_listing resource."""
+"""Implementation for terraform_awscc_provider_resources_listing resource."""
 
 import asyncio
 import os
@@ -13,7 +13,8 @@ try:
 except ImportError:
     # Playwright is optional, we'll use fallback data if it's not available
     async_playwright = None
-
+    # Set USE_PLAYWRIGHT to False if playwright is not available
+    os.environ['USE_PLAYWRIGHT'] = '0'
 
 # Configure logger to show debug messages
 logger.remove()
@@ -21,7 +22,7 @@ logger.add(sys.stderr, level='DEBUG')
 
 # Path to the static markdown file
 STATIC_RESOURCES_PATH = (
-    Path(__file__).parent.parent.parent / 'static' / 'AWS_PROVIDER_RESOURCES.md'
+    Path(__file__).parent.parent.parent / 'static' / 'AWSCC_PROVIDER_RESOURCES.md'
 )
 
 
@@ -30,12 +31,15 @@ USE_PLAYWRIGHT = os.environ.get('USE_PLAYWRIGHT', '1').lower() in ('1', 'true', 
 # Shorter timeout to fail faster if it's not going to work
 NAVIGATION_TIMEOUT = 20000  # 20 seconds
 
+# AWSCC provider URL
+AWSCC_PROVIDER_URL = 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs'
 
-async def fetch_aws_provider_page():
-    """Fetch the AWS provider documentation page using Playwright.
+
+async def fetch_awscc_provider_page():
+    """Fetch the AWSCC provider documentation page using Playwright.
 
     This function uses a headless browser to render the JavaScript-driven
-    Terraform Registry website and extract the AWS provider resources.
+    Terraform Registry website and extract the AWSCC provider resources.
 
     It will fall back to pre-defined data if:
     - The USE_PLAYWRIGHT environment variable is set to 0/false/no
@@ -43,8 +47,8 @@ async def fetch_aws_provider_page():
 
     Returns:
         A dictionary containing:
-        - 'categories': Dictionary of AWS service categories with resources and data sources
-        - 'version': AWS provider version string (e.g., "5.91.0")
+        - 'categories': Dictionary of AWSCC service categories with resources and data sources
+        - 'version': AWSCC provider version string (e.g., "1.36.0")
     """
     # Check if we should skip Playwright and use fallback data directly
     if not USE_PLAYWRIGHT:
@@ -53,7 +57,7 @@ async def fetch_aws_provider_page():
         )
         return {'categories': get_fallback_resource_data(), 'version': 'unknown'}
 
-    logger.info('Starting browser to extract AWS provider resources structure')
+    logger.info('Starting browser to extract AWSCC provider resources structure')
     start_time = time.time()
     categories = {}
 
@@ -75,18 +79,18 @@ async def fetch_aws_provider_page():
 
             # Navigate to the AWS provider docs with reduced timeout
             logger.info(
-                f'Navigating to Terraform AWS provider documentation (timeout: {NAVIGATION_TIMEOUT}ms)'
+                f'Navigating to Terraform AWSCC provider documentation (timeout: {NAVIGATION_TIMEOUT}ms)'
             )
             try:
                 await page.goto(
-                    'https://registry.terraform.io/providers/hashicorp/aws/latest/docs',
+                    AWSCC_PROVIDER_URL,
                     wait_until='domcontentloaded',
                 )  # Using 'domcontentloaded' instead of 'networkidle'
                 logger.info('Basic page loaded successfully')
             except Exception as nav_error:
                 logger.error(f'Error during navigation: {nav_error}')
                 await browser.close()
-                return get_fallback_resource_data()
+                return {'categories': get_fallback_resource_data(), 'version': 'unknown'}
 
             # Wait for the content to be fully loaded
             logger.info('Waiting for page to render completely')
@@ -98,7 +102,7 @@ async def fetch_aws_provider_page():
             provider_version = 'unknown'
             try:
                 # Try to extract version using the selector provided
-                logger.info('Attempting to extract AWS provider version')
+                logger.info('Attempting to extract AWSCC provider version')
 
                 # Try using the selector approach
                 version_element = await page.query_selector(
@@ -115,7 +119,7 @@ async def fetch_aws_provider_page():
                     version_match = re.search(r'Version\s+([0-9.]+)', version_text)
                     if version_match:
                         provider_version = version_match.group(1)  # e.g., "5.91.0"
-                        logger.info(f'Extracted AWS provider version: {provider_version}')
+                        logger.info(f'Extracted AWSCC provider version: {provider_version}')
                     else:
                         # If regex doesn't match, try JavaScript approach
                         logger.debug("Regex pattern didn't match, trying JavaScript approach")
@@ -165,10 +169,10 @@ async def fetch_aws_provider_page():
                         if version_match:
                             provider_version = version_match.group(1)
                             logger.info(
-                                f'Extracted AWS provider version via alternative selector: {provider_version}'
+                                f'Extracted AWSCC provider version via alternative selector: {provider_version}'
                             )
             except Exception as version_error:
-                logger.warning(f'Error extracting AWS provider version: {version_error}')
+                logger.warning(f'Error extracting AWSCC provider version: {version_error}')
 
             # Check for and handle cookie consent banner
             logger.info('Checking for cookie consent banner')
@@ -219,7 +223,6 @@ async def fetch_aws_provider_page():
                             logger.info('Removed banner using JavaScript')
                         except Exception as js_error:
                             logger.warning(f'Failed to remove banner via JavaScript: {js_error}')
-
             except Exception as banner_error:
                 logger.warning(f'Error handling consent banner: {banner_error}')
 
@@ -249,9 +252,9 @@ async def fetch_aws_provider_page():
             content = await page.content()
 
             # Save HTML for debugging
-            with open('/tmp/terraform_aws_debug_playwright.html', 'w') as f:
+            with open('/tmp/terraform_awscc_debug_playwright.html', 'w') as f:
                 f.write(content)
-            logger.debug('Saved rendered HTML content to /tmp/terraform_aws_debug_playwright.html')
+            logger.debug('Saved rendered HTML content to /tmp/terraform_awscc_debug_playwright.html')
 
             # Parse the HTML
             soup = BeautifulSoup(content, 'html.parser')
@@ -293,7 +296,7 @@ async def fetch_aws_provider_page():
                 if not menu_content:
                     logger.error("Couldn't find any navigation element, using fallback data")
                     await browser.close()
-                    return get_fallback_resource_data()
+                    return {'categories': get_fallback_resource_data(), 'version': 'unknown'}
 
             # Find all category titles (excluding 'guides' and 'functions')
             category_titles = menu_content.select('.menu-list-category-link-title')
@@ -301,7 +304,7 @@ async def fetch_aws_provider_page():
             if not category_titles:
                 logger.error("Couldn't find any .menu-list-category-link-title elements")
                 await browser.close()
-                return get_fallback_resource_data()
+                return {'categories': get_fallback_resource_data(), 'version': 'unknown'}
 
             logger.info(f'Found {len(category_titles)} category titles')
 
@@ -311,7 +314,7 @@ async def fetch_aws_provider_page():
                 category_name = category_el.get_text(strip=True)
 
                 # Skip non-service entries like 'Guides' and 'Functions'
-                if category_name.lower() in ['guides', 'functions', 'aws provider']:
+                if category_name.lower() in ['guides', 'functions', 'awscc provider']:
                     logger.debug(f'Skipping category: {category_name}')
                     continue
 
@@ -484,13 +487,42 @@ async def fetch_aws_provider_page():
                                     )
                                 break
 
+                        # If we can't find the Resources section using the span approach,
+                        # try alternative methods
+                        if not resource_section:
+                            # Look for any UL that might contain resource links
+                            potential_resource_sections = category_menu_list.find_all('ul')
+                            for ul in potential_resource_sections:
+                                # Check if this UL contains links that look like resources
+                                links = ul.find_all('a')
+                                for link in links:
+                                    link_text = link.get_text(strip=True)
+                                    # AWSCC resources typically start with "awscc_"
+                                    if link_text.startswith('awscc_') and '_data_' not in link_text.lower():
+                                        resource_section = ul
+                                        break
+                                if resource_section:
+                                    break
+
                         # Extract resources
                         if resource_section:
+                            # Try both menu-list-link class and direct a tags
                             resource_links = resource_section.find_all(
                                 'li', class_='menu-list-link'
                             )
+                            
+                            # If no menu-list-link items found, try direct a tags
+                            if not resource_links:
+                                resource_links = resource_section.find_all('a')
+                                
                             for item in resource_links:
-                                link = item.find('a')
+                                # If item is a link itself (a tag)
+                                if item.name == 'a':
+                                    link = item
+                                else:
+                                    # If item is a container (li), find the link inside
+                                    link = item.find('a')
+                                
                                 if not link:
                                     continue
 
@@ -500,6 +532,14 @@ async def fetch_aws_provider_page():
 
                                 link_text = link.get_text(strip=True)
                                 if not link_text:
+                                    continue
+                                
+                                # Skip if this doesn't look like an AWSCC resource
+                                if not link_text.startswith('awscc_'):
+                                    continue
+                                
+                                # Skip data sources (they'll be handled separately)
+                                if '_data_' in link_text.lower():
                                     continue
 
                                 # Complete the URL if it's a relative path
@@ -528,11 +568,43 @@ async def fetch_aws_provider_page():
                                     data_section = data_section_li.find('ul', class_='menu-list')
                                 break
 
+                        # If we can't find the Data Sources section using the span approach,
+                        # try alternative methods
+                        if not data_section:
+                            # Look for any UL that might contain data source links
+                            potential_data_sections = category_menu_list.find_all('ul')
+                            for ul in potential_data_sections:
+                                # Check if this UL contains links that look like data sources
+                                links = ul.find_all('a')
+                                for link in links:
+                                    link_text = link.get_text(strip=True)
+                                    # Data sources typically have "data" in the URL or name
+                                    if link_text.startswith('awscc_') and ('data' in link.get('href', '').lower() or 
+                                                                          'data' in link_text.lower()):
+                                        data_section = ul
+                                        break
+                                if data_section:
+                                    break
+
                         # Extract data sources
                         if data_section:
-                            data_links = data_section.find_all('li', class_='menu-list-link')
+                            # Try both menu-list-link class and direct a tags
+                            data_links = data_section.find_all(
+                                'li', class_='menu-list-link'
+                            )
+                            
+                            # If no menu-list-link items found, try direct a tags
+                            if not data_links:
+                                data_links = data_section.find_all('a')
+                                
                             for item in data_links:
-                                link = item.find('a')
+                                # If item is a link itself (a tag)
+                                if item.name == 'a':
+                                    link = item
+                                else:
+                                    # If item is a container (li), find the link inside
+                                    link = item.find('a')
+                                
                                 if not link:
                                     continue
 
@@ -542,6 +614,14 @@ async def fetch_aws_provider_page():
 
                                 link_text = link.get_text(strip=True)
                                 if not link_text:
+                                    continue
+                                
+                                # Skip if this doesn't look like an AWSCC data source
+                                if not link_text.startswith('awscc_'):
+                                    continue
+                                
+                                # Make sure it's a data source (contains "data" in URL or name)
+                                if not ('data' in href.lower() or 'data' in link_text.lower()):
                                     continue
 
                                 # Complete the URL if it's a relative path
@@ -560,6 +640,42 @@ async def fetch_aws_provider_page():
 
                                 categories[category_name]['data_sources'].append(data_source)
                                 data_source_count += 1
+                                
+                        # If we still haven't found any resources or data sources,
+                        # try a more aggressive approach by looking at all links in the category
+                        if resource_count == 0 and data_source_count == 0:
+                            all_links = category_menu_list.find_all('a')
+                            for link in all_links:
+                                href = link.get('href', '')
+                                link_text = link.get_text(strip=True)
+                                
+                                if not link_text.startswith('awscc_'):
+                                    continue
+                                    
+                                # Complete the URL if it's a relative path
+                                full_url = (
+                                    f'https://registry.terraform.io{href}'
+                                    if href.startswith('/')
+                                    else href
+                                )
+                                
+                                # Determine if it's a resource or data source based on URL/name
+                                if 'data' in href.lower() or 'data-source' in href.lower():
+                                    data_source = {
+                                        'name': link_text,
+                                        'url': full_url,
+                                        'type': 'data_source',
+                                    }
+                                    categories[category_name]['data_sources'].append(data_source)
+                                    data_source_count += 1
+                                else:
+                                    resource = {
+                                        'name': link_text,
+                                        'url': full_url,
+                                        'type': 'resource',
+                                    }
+                                    categories[category_name]['resources'].append(resource)
+                                    resource_count += 1
 
                         logger.info(
                             f'Category {category_name}: found {resource_count} resources, {data_source_count} data sources'
@@ -596,324 +712,83 @@ async def fetch_aws_provider_page():
                 return {'categories': get_fallback_resource_data(), 'version': 'unknown'}
 
     except Exception as e:
-        logger.error(f'Error extracting AWS provider resources: {str(e)}')
+        logger.error(f'Error extracting AWSCC provider resources: {str(e)}')
         # Return fallback data in case of error
-        return get_fallback_resource_data()
+        return {'categories': get_fallback_resource_data(), 'version': 'unknown'}
 
 
 def get_fallback_resource_data():
     """Provide fallback resource data in case the scraping fails.
 
     Returns:
-        A dictionary with pre-defined AWS resources and data sources
+        A dictionary with pre-defined AWSCC resources and data sources
     """
     logger.warning('Using pre-defined resource structure as fallback')
 
-    # Pre-defined structure of AWS services and their resources/data sources
+    # The AWSCC provider has a different structure than the AWS provider
+    # It has two main categories: Resources and Data Sources
     categories = {
-        'ACM (Certificate Manager)': {
+        'Resources': {
             'resources': [
                 {
-                    'name': 'aws_acm_certificate',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate',
+                    'name': 'awscc_accessanalyzer_analyzer',
+                    'url': 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/resources/accessanalyzer_analyzer',
                     'type': 'resource',
                 },
                 {
-                    'name': 'aws_acm_certificate_validation',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate_validation',
+                    'name': 'awscc_acmpca_certificate',
+                    'url': 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/resources/acmpca_certificate',
                     'type': 'resource',
                 },
+                {
+                    'name': 'awscc_acmpca_certificate_authority',
+                    'url': 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/resources/acmpca_certificate_authority',
+                    'type': 'resource',
+                },
+                {
+                    'name': 'awscc_acmpca_certificate_authority_activation',
+                    'url': 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/resources/acmpca_certificate_authority_activation',
+                    'type': 'resource',
+                },
+                {
+                    'name': 'awscc_acmpca_permission',
+                    'url': 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/resources/acmpca_permission',
+                    'type': 'resource',
+                },
+                # Add more resources as needed
             ],
+            'data_sources': [],
+        },
+        'Data Sources': {
+            'resources': [],
             'data_sources': [
                 {
-                    'name': 'aws_acm_certificate',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/acm_certificate',
-                    'type': 'data_source',
-                }
-            ],
-        },
-        'API Gateway': {
-            'resources': [
-                {
-                    'name': 'aws_api_gateway_account',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_account',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_api_gateway_api_key',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_api_key',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_api_gateway_authorizer',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_authorizer',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_api_gateway_api_key',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/api_gateway_api_key',
-                    'type': 'data_source',
-                }
-            ],
-        },
-        'AMP (Managed Prometheus)': {
-            'resources': [
-                {
-                    'name': 'aws_prometheus_workspace',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/prometheus_workspace',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_prometheus_alert_manager_definition',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/prometheus_alert_manager_definition',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_prometheus_workspace',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/prometheus_workspace',
-                    'type': 'data_source',
-                }
-            ],
-        },
-        'CloudWatch': {
-            'resources': [
-                {
-                    'name': 'aws_cloudwatch_metric_alarm',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_metric_alarm',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_cloudwatch_log_group',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_cloudwatch_log_group',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/cloudwatch_log_group',
-                    'type': 'data_source',
-                }
-            ],
-        },
-        'EC2': {
-            'resources': [
-                {
-                    'name': 'aws_instance',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_security_group',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_vpc',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_subnet',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_instance',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/instance',
+                    'name': 'awscc_accessanalyzer_analyzer',
+                    'url': 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/data-sources/accessanalyzer_analyzer',
                     'type': 'data_source',
                 },
                 {
-                    'name': 'aws_vpc',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc',
+                    'name': 'awscc_accessanalyzer_analyzers',
+                    'url': 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/data-sources/accessanalyzer_analyzers',
                     'type': 'data_source',
                 },
+                # Add more data sources as needed
             ],
-        },
-        'IAM': {
-            'resources': [
-                {
-                    'name': 'aws_iam_role',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_iam_policy',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_iam_user',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_user',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_iam_role',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_role',
-                    'type': 'data_source',
-                },
-                {
-                    'name': 'aws_iam_policy',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy',
-                    'type': 'data_source',
-                },
-            ],
-        },
-        'Lambda': {
-            'resources': [
-                {
-                    'name': 'aws_lambda_function',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_lambda_permission',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_permission',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_lambda_function',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/lambda_function',
-                    'type': 'data_source',
-                }
-            ],
-        },
-        'S3': {
-            'resources': [
-                {
-                    'name': 'aws_s3_bucket',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_s3_bucket_policy',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_policy',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_s3_bucket',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/s3_bucket',
-                    'type': 'data_source',
-                },
-                {
-                    'name': 'aws_s3_object',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/s3_object',
-                    'type': 'data_source',
-                },
-            ],
-        },
-        'DynamoDB': {
-            'resources': [
-                {
-                    'name': 'aws_dynamodb_table',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/dynamodb_table',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_dynamodb_table_item',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/dynamodb_table_item',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_dynamodb_table',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/dynamodb_table',
-                    'type': 'data_source',
-                }
-            ],
-        },
-        'Route53': {
-            'resources': [
-                {
-                    'name': 'aws_route53_zone',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_zone',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_route53_record',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_route53_zone',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone',
-                    'type': 'data_source',
-                }
-            ],
-        },
-        'SNS': {
-            'resources': [
-                {
-                    'name': 'aws_sns_topic',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_sns_topic_subscription',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_sns_topic',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/sns_topic',
-                    'type': 'data_source',
-                }
-            ],
-        },
-        'SQS': {
-            'resources': [
-                {
-                    'name': 'aws_sqs_queue',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sqs_queue',
-                    'type': 'resource',
-                },
-                {
-                    'name': 'aws_sqs_queue_policy',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sqs_queue_policy',
-                    'type': 'resource',
-                },
-            ],
-            'data_sources': [
-                {
-                    'name': 'aws_sqs_queue',
-                    'url': 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/sqs_queue',
-                    'type': 'data_source',
-                }
-            ],
-        },
+        }
     }
-
     return categories
 
-
-async def terraform_aws_provider_resources_listing_impl() -> str:
-    """Generate a comprehensive listing of AWS provider resources and data sources.
+async def terraform_awscc_provider_resources_listing_impl() -> str:
+    """Generate a comprehensive listing of AWSCC provider resources and data sources.
 
     This implementation reads from a pre-generated static markdown file instead of
     scraping the web in real-time. The static file should be generated using the
-    generate_aws_provider_resources.py script.
+    generate_awscc_provider_resources.py script.
 
     Returns:
         A markdown formatted string with categorized resources and data sources
     """
-    logger.info('Loading AWS provider resources listing from static file')
+    logger.info('Loading AWSCC provider resources listing from static file')
 
     try:
         # Check if the static file exists
@@ -922,7 +797,7 @@ async def terraform_aws_provider_resources_listing_impl() -> str:
             with open(STATIC_RESOURCES_PATH, 'r') as f:
                 content = f.read()
 
-            logger.info(f'Successfully loaded AWS provider resources from {STATIC_RESOURCES_PATH}')
+            logger.info(f'Successfully loaded AWSCC provider resources from {STATIC_RESOURCES_PATH}')
             return content
         else:
             # If the static file doesn't exist, fall back to generating it on the fly
@@ -934,58 +809,66 @@ async def terraform_aws_provider_resources_listing_impl() -> str:
             STATIC_RESOURCES_PATH.parent.mkdir(parents=True, exist_ok=True)
 
             # Get resource categories
-            categories = await fetch_aws_provider_page()
+            result = await fetch_awscc_provider_page()
 
-            # Sort categories alphabetically
-            sorted_categories = sorted(categories.keys())
+            # Extract categories and version
+            if isinstance(result, dict) and 'categories' in result and 'version' in result:
+                categories = result['categories']
+                provider_version = result.get('version', 'unknown')
+            else:
+                # Handle backward compatibility with older API
+                categories = result
+                provider_version = 'unknown'
 
-            # Count totals
-            total_resources = sum(len(cat['resources']) for cat in categories.values())
-            total_data_sources = sum(len(cat['data_sources']) for cat in categories.values())
+            # For AWSCC provider, we want to flatten the structure into just Resources and Data Sources
+            # Collect all resources and data sources from all categories
+            all_resources = []
+            all_data_sources = []
+            
+            for category_name, category_data in categories.items():
+                for resource in category_data.get('resources', []):
+                    all_resources.append(resource)
+                for data_source in category_data.get('data_sources', []):
+                    all_data_sources.append(data_source)
+            
+            # Sort resources and data sources by name
+            all_resources.sort(key=lambda x: x['name'])
+            all_data_sources.sort(key=lambda x: x['name'])
 
             # Generate markdown
             markdown = []
-            markdown.append('# AWS Provider Resources Listing')
+            markdown.append('# AWSCC Provider Resources Listing')
+            markdown.append(f'\nAWSCC Provider Version: {provider_version}')
             markdown.append(f'\nLast updated: {datetime.now().strftime("%B %d, %Y %H:%M:%S")}')
             markdown.append(
-                f'\nFound {total_resources} resources and {total_data_sources} data sources across {len(categories)} AWS service categories.\n'
+                f'\nFound {len(all_resources)} resources and {len(all_data_sources)} data sources.\n'
             )
             markdown.append(
                 '\n**NOTE:** This content was generated on-the-fly because the static file was not found.'
             )
             markdown.append(
-                'Please run the `scripts/generate_aws_provider_resources.py` script to create the static file.\n'
+                'Please run the `scripts/generate_awscc_provider_resources.py` script to create the static file.\n'
             )
 
             # Generate table of contents
             markdown.append('## Table of Contents')
-            for category in sorted_categories:
-                sanitized_category = (
-                    category.replace(' ', '-').replace('(', '').replace(')', '').lower()
-                )
-                markdown.append(f'- [{category}](#{sanitized_category})')
+            markdown.append('- [Resources](#resources)')
+            markdown.append('- [Data Sources](#data-sources)')
             markdown.append('')
 
-            # Generate content for each category
-            for category in sorted_categories:
-                cat_data = categories[category]
-                sanitized_heading = category.replace('(', '').replace(')', '')
-
-                markdown.append(f'## {sanitized_heading}')
-
-                # Add resources section if available
-                if cat_data['resources']:
-                    markdown.append('\n### Resources')
-                    for resource in sorted(cat_data['resources'], key=lambda x: x['name']):
-                        markdown.append(f'- [{resource["name"]}]({resource["url"]})')
-
-                # Add data sources section if available
-                if cat_data['data_sources']:
-                    markdown.append('\n### Data Sources')
-                    for data_source in sorted(cat_data['data_sources'], key=lambda x: x['name']):
-                        markdown.append(f'- [{data_source["name"]}]({data_source["url"]})')
-
-                markdown.append('')  # Add blank line between categories
+            # Resources section
+            markdown.append('## Resources')
+            markdown.append(f'\n*{len(all_resources)} resources*\n')
+            for resource in all_resources:
+                markdown.append(f'- [{resource["name"]}]({resource["url"]})')
+            
+            markdown.append('')  # Add blank line between sections
+            
+            # Data Sources section
+            markdown.append('## Data Sources')
+            markdown.append(f'\n*{len(all_data_sources)} data sources*\n')
+            for data_source in all_data_sources:
+                markdown.append(f'- [{data_source["name"]}]({data_source["url"]})')
 
             content = '\n'.join(markdown)
 
@@ -993,11 +876,11 @@ async def terraform_aws_provider_resources_listing_impl() -> str:
             try:
                 with open(STATIC_RESOURCES_PATH, 'w') as f:
                     f.write(content)
-                logger.info(f'Saved generated AWS provider resources to {STATIC_RESOURCES_PATH}')
+                logger.info(f'Saved generated AWSCC provider resources to {STATIC_RESOURCES_PATH}')
             except Exception as write_error:
                 logger.error(f'Failed to write static file: {write_error}')
 
             return content
     except Exception as e:
-        logger.error(f'Error generating AWS provider resources listing: {e}')
-        return f'# AWS Provider Resources Listing\n\nError generating listing: {str(e)}'
+        logger.error(f'Error generating AWSCC provider resources listing: {e}')
+        return f'# AWSCC Provider Resources Listing\n\nError generating listing: {str(e)}'
