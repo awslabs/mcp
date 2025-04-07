@@ -1,197 +1,213 @@
-"""awslabs Cost Analysis Report Generator.
+"""AWS Cost Analysis Report Generator.
 
 This module provides functionality for generating cost analysis reports for AWS services.
+It supports both markdown and CSV output formats with detailed cost breakdowns.
 """
 
+import csv
+import io
 import re
 from awslabs.cost_analysis_mcp_server.helpers import CostAnalysisHelper
 from awslabs.cost_analysis_mcp_server.static import COST_REPORT_TEMPLATE
+from dataclasses import dataclass
 from mcp.server.fastmcp import Context
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
-def _extract_services_info(custom_cost_data: Dict) -> Tuple[Dict, List[str]]:
+# Constants
+SKIP_KEYS = {
+    'project_name',
+    'service_name',
+    'description',
+    'assumptions',
+    'limitations',
+    'free_tier_info',
+    'conclusion',
+    'services',
+}
+
+COST_FIELDS = {'monthly_cost', 'cost', 'price', 'one_time_cost', 'total_cost'}
+
+MONETARY_FIELDS = {'cost', 'price', 'rate', 'fee', 'charge', 'amount', 'total'}
+
+
+@dataclass
+class ServiceInfo:
+    """Container for service cost information."""
+
+    name: str
+    estimated_cost: str
+    usage: str
+    unit_pricing: Optional[Dict[str, str]] = None
+    usage_quantities: Optional[Dict[str, str]] = None
+    calculation_details: Optional[str] = None
+    free_tier_info: Optional[str] = None
+
+
+def _extract_services_info(custom_cost_data: Dict) -> Tuple[Dict[str, ServiceInfo], List[str]]:
     """Extract services information from custom cost data."""
-    services_info = custom_cost_data.get('services', {})
+    services_info = {}
 
-    # If no services are provided, try to extract them from custom sections
-    if not services_info:
-        extracted_services = {}
-
-        # Look for service entries with costs in the custom data
-        for key, value in custom_cost_data.items():
-            # Skip keys we've already processed
-            if key in [
-                'project_name',
-                'service_name',
-                'description',
-                'assumptions',
-                'limitations',
-                'free_tier_info',
-                'conclusion',
-                'services',
-            ]:
-                continue
-
-            if isinstance(value, dict):
-                # This could be a flow or section with services
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, dict):
-                        # Look for cost fields
-                        cost = None
-                        description = ''
-
-                        # Try to find cost information
-                        for cost_field in [
-                            'monthly_cost',
-                            'cost',
-                            'price',
-                            'one_time_cost',
-                            'total_cost',
-                        ]:
-                            if cost_field in sub_value:
-                                cost = sub_value[cost_field]
-                                break
-
-                        # Look for description
-                        if 'description' in sub_value:
-                            description = sub_value['description']
-
-                        # If we found a cost, add this as a service
-                        if cost is not None:
-                            service_name = sub_key.replace('_', ' ').title()
-                            extracted_services[service_name] = {
-                                'estimated_cost': f'${cost}',
-                                'usage': description,
-                            }
-
-        # Use extracted services if we found any
-        if extracted_services:
-            services_info = extracted_services
-
-    service_names = list(services_info.keys())
-    return services_info, service_names
-
-
-def _create_unit_pricing_details_table(services_info: Dict) -> str:
-    """Create a detailed unit pricing reference table."""
-    if not services_info:
-        return 'No unit pricing details available.'
-
-    # Check if any service has detailed pricing information
-    has_detailed_pricing = any('unit_pricing' in info for info in services_info.values())
-
-    if not has_detailed_pricing:
-        return 'No detailed unit pricing information available.'
-
-    # Create the detailed unit pricing table
-    unit_pricing_details_table = (
-        '| Service | Resource Type | Unit | Price | Free Tier |\n'
-        '|---------|--------------|------|-------|------------|\n'
-    )
-
-    for service, info in services_info.items():
-        # Skip services without unit pricing information
-        if 'unit_pricing' not in info or not isinstance(info['unit_pricing'], dict):
-            continue
-
-        free_tier_info = info.get('free_tier_info', 'None')
-
-        # Process each unit pricing type
-        for price_type, price_value in info['unit_pricing'].items():
-            # Format the resource type
-            resource_type = price_type.replace('_', ' ').title()
-
-            # Extract unit from price value if possible
-            unit = '1 unit'
-            if 'per' in price_value:
-                parts = price_value.split('per')
-                if len(parts) > 1:
-                    unit = parts[1].strip()
-
-            # For common units, standardize the format
-            if '1K' in price_value or '1k' in price_value:
-                unit = '1,000 units'
-            if '1M' in price_value or '1m' in price_value:
-                unit = '1,000,000 units'
-
-            # Replace generic "units" with the actual resource type
-            unit = unit.replace('units', resource_type.lower())
-
-            # Extract just the price value
-            price = price_value
-            if 'per' in price:
-                price = price.split('per')[0].strip()
-
-            unit_pricing_details_table += (
-                f'| {service} | {resource_type} | {unit} | {price} | {free_tier_info} |\n'
+    # First try to get services directly
+    if 'services' in custom_cost_data:
+        for name, info in custom_cost_data['services'].items():
+            services_info[name] = ServiceInfo(
+                name=name,
+                estimated_cost=info.get('estimated_cost', 'N/A'),
+                usage=info.get('usage', ''),
+                unit_pricing=info.get('unit_pricing'),
+                usage_quantities=info.get('usage_quantities'),
+                calculation_details=info.get('calculation_details'),
+                free_tier_info=info.get('free_tier_info'),
             )
 
-    return unit_pricing_details_table
+    # If no services found, try to extract from custom sections
+    if not services_info:
+        for key, value in custom_cost_data.items():
+            if key in SKIP_KEYS or not isinstance(value, dict):
+                continue
+
+            for sub_key, sub_value in value.items():
+                if not isinstance(sub_value, dict):
+                    continue
+
+                cost = next(
+                    (sub_value[field] for field in COST_FIELDS if field in sub_value), None
+                )
+
+                if cost is not None:
+                    name = sub_key.replace('_', ' ').title()
+                    services_info[name] = ServiceInfo(
+                        name=name,
+                        estimated_cost=f'${cost}',
+                        usage=sub_value.get('description', ''),
+                    )
+
+    return services_info, list(services_info.keys())
+
+
+def _create_unit_pricing_details_table(services_info: Dict[str, ServiceInfo]) -> str:
+    """Create a detailed unit pricing reference table."""
+    # Check if any service has unit pricing information
+    has_pricing = False
+    for service in services_info.values():
+        if isinstance(service.unit_pricing, dict) and service.unit_pricing:
+            has_pricing = True
+            break
+
+    if not has_pricing:
+        return 'No detailed unit pricing information available.'
+
+    table = [
+        '| Service | Resource Type | Unit | Price | Free Tier |',
+        '|---------|--------------|------|-------|------------|',
+    ]
+
+    for service in services_info.values():
+        if not isinstance(service.unit_pricing, dict) or not service.unit_pricing:
+            continue
+
+        for price_type, price_value in service.unit_pricing.items():
+            if not isinstance(price_value, str):
+                continue
+
+            resource_type = price_type.replace('_', ' ').title()
+
+            # Parse unit and price
+            unit = '1 unit'
+            price = price_value
+            if 'per' in price_value:
+                parts = price_value.split('per', 1)
+                if len(parts) == 2:
+                    price, unit = parts
+                    price = price.strip()
+                    unit = unit.strip()
+
+            # Standardize units
+            unit = unit.replace('1K', '1,000').replace('1M', '1,000,000')
+            unit = unit.replace('units', resource_type.lower())
+
+            # Get free tier info with safe fallback
+            free_tier = service.free_tier_info if hasattr(service, 'free_tier_info') else None
+
+            table.append(
+                f'| {service.name} | {resource_type} | {unit} | {price} | {free_tier or "None"} |'
+            )
+
+    return '\n'.join(table)
+
+
+def _parse_cost_value(cost_str: str) -> Tuple[float, float]:
+    """Parse cost string into min and max values."""
+    if not isinstance(cost_str, str):
+        return 0.0, 0.0
+
+    # Try to match "$X-Y" pattern
+    if match := re.search(r'\$(\d+)-(\d+)', cost_str):
+        return float(match.group(1)), float(match.group(2))
+
+    # Try to match "$X" pattern
+    if match := re.search(r'\$(\d+(\.\d+)?)', cost_str):
+        value = float(match.group(1))
+        return value, value
+
+    return 0.0, 0.0
 
 
 def _create_cost_calculation_table(
-    services_info: Dict,
+    services_info: Dict[str, ServiceInfo],
 ) -> Tuple[str, float, float, Optional[float]]:
     """Create the cost calculation table and extract total min/max costs."""
-    total_min = 0.0
-    total_max = 0.0
-    base_cost = None
-
     if not services_info:
-        return 'No cost calculation details available.', total_min, total_max, base_cost
+        return 'No cost calculation details available.', 0.0, 0.0, None
 
-    # Create the cost calculation table
-    cost_calculation_table = (
-        '| Service | Usage | Calculation | Monthly Cost |\n'
-        '|---------|-------|-------------|-------------|\n'
-    )
+    table = [
+        '| Service | Usage | Calculation | Monthly Cost |',
+        '|---------|-------|-------------|-------------|',
+    ]
 
-    for service, info in services_info.items():
-        usage = info.get('usage', 'N/A')
-        cost = info.get('estimated_cost', 'N/A')
+    total_min = total_max = 0.0
 
-        # Format usage with quantities if available
-        usage_details = usage
-        if 'usage_quantities' in info and isinstance(info['usage_quantities'], dict):
-            quantities = []
-            for usage_type, usage_value in info['usage_quantities'].items():
-                formatted_type = usage_type.replace('_', ' ').title()
-                quantities.append(f'{formatted_type}: {usage_value}')
-
+    for service in services_info.values():
+        # Format usage details
+        usage_details = service.usage
+        if service.usage_quantities:
+            quantities = [
+                f'{k.replace("_", " ").title()}: {v}' for k, v in service.usage_quantities.items()
+            ]
             if quantities:
-                usage_details = f'{usage} ({", ".join(quantities)})'
+                usage_details = f'{usage_details} ({", ".join(quantities)})'
 
-        # Get calculation details
-        calculation = info.get('calculation_details', 'N/A')
+        # Add table row
+        table.append(
+            f'| {service.name} | {usage_details} | '
+            f'{service.calculation_details or "N/A"} | {service.estimated_cost} |'
+        )
 
-        cost_calculation_table += f'| {service} | {usage_details} | {calculation} | {cost} |\n'
+        # Update totals
+        min_cost, max_cost = _parse_cost_value(service.estimated_cost)
+        total_min += min_cost
+        total_max += max_cost
 
-        # Try to extract min-max values from cost strings like "$150-200/month"
-        if isinstance(cost, str):
-            cost_match = re.search(r'\$(\d+)-(\d+)', cost)
-            if cost_match:
-                total_min += int(cost_match.group(1))
-                total_max += int(cost_match.group(2))
-            else:
-                # Try to match patterns like "$40.00" or "$40"
-                cost_match = re.search(r'\$(\d+(\.\d+)?)', cost)
-                if cost_match:
-                    cost_val = float(cost_match.group(1))
-                    total_min += cost_val
-                    total_max += cost_val
-
-    # Add total row
-    if total_min > 0.0 or total_max > 0.0:
+    # Add total row if we have costs
+    if total_min > 0 or total_max > 0:
         if total_min == total_max:
-            cost_calculation_table += f'| **Total** | **All services** | **Sum of all calculations** | **${total_min:.2f}/month** |\n'
+            table.append(
+                f'| **Total** | **All services** | **Sum of all calculations** | '
+                f'**${total_min:.2f}/month** |'
+            )
             base_cost = total_min
         else:
-            cost_calculation_table += f'| **Total** | **All services** | **Sum of all calculations** | **${total_min:.2f}-{total_max:.2f}/month** |\n'
+            table.append(
+                f'| **Total** | **All services** | **Sum of all calculations** | '
+                f'**${total_min:.2f}-{total_max:.2f}/month** |'
+            )
             base_cost = (total_min + total_max) / 2
+    else:
+        base_cost = None
 
-    return cost_calculation_table, total_min, total_max, base_cost
+    return '\n'.join(table), total_min, total_max, base_cost
 
 
 def _create_unit_pricing_table(
@@ -215,295 +231,248 @@ def _create_unit_pricing_table(
     return combined_table, total_min, total_max, base_cost
 
 
-def _create_free_tier_info(custom_cost_data: Dict, services_info: Dict) -> str:
+def _create_free_tier_info(custom_cost_data: Dict, services_info: Dict[str, ServiceInfo]) -> str:
     """Create the free tier information section."""
-    free_tier_text = []
+    free_tier_entries = []
 
-    # First look for free tier info in services
-    for service_name, service_info in services_info.items():
-        if 'free_tier_info' in service_info:
-            free_tier_text.append(f'- **{service_name}**: {service_info["free_tier_info"]}')
+    # Collect free tier info from services
+    for service in services_info.values():
+        if service.free_tier_info:
+            free_tier_entries.append(f'- **{service.name}**: {service.free_tier_info}')
 
-    # If we found free tier info in services, use it
-    if free_tier_text:
-        free_tier_info = 'Free tier information by service:\n' + '\n'.join(free_tier_text)
-    # Otherwise, check for top-level free tier info (legacy support)
-    elif 'free_tier_info' in custom_cost_data:
-        free_tier_info = custom_cost_data['free_tier_info']
-    else:
-        # Check if any services mention free tier
-        has_free_tier = False
+    # If no service-specific info found, check custom data
+    if not free_tier_entries:
+        if 'free_tier_info' in custom_cost_data:
+            return custom_cost_data['free_tier_info']
 
-        # Look in custom data for free tier mentions
+        # Search for free tier mentions in custom data
         for key, value in custom_cost_data.items():
             if isinstance(value, dict):
                 for sub_key, sub_value in value.items():
                     if isinstance(sub_value, str) and 'free' in sub_value.lower():
-                        has_free_tier = True
-                        free_tier_text.append(
+                        free_tier_entries.append(
                             f'- **{key.replace("_", " ").title()}**: {sub_value}'
                         )
 
-        if free_tier_text:
-            free_tier_info = 'Free tier information:\n' + '\n'.join(free_tier_text)
-        elif has_free_tier:
-            free_tier_info = 'Some services in this solution offer free tier benefits. See service documentation for details.'
-        else:
-            free_tier_info = 'AWS offers a Free Tier for many services. Check the AWS Free Tier page for current offers and limitations.'
+    # Return appropriate message based on findings
+    if free_tier_entries:
+        return 'Free tier information by service:\n' + '\n'.join(free_tier_entries)
 
-    return free_tier_info
+    return 'AWS offers a Free Tier for many services. Check the AWS Free Tier page for current offers and limitations.'
 
 
-def _create_usage_cost_table(services_info: Dict) -> str:
-    """Create the usage cost table."""
-    if services_info:
-        usage_tiers = {
-            'Low': 0.5,  # 50% of estimated
-            'Medium': 1.0,  # 100% of estimated
-            'High': 2.0,  # 200% of estimated
+def _create_usage_cost_table(services_info: Dict[str, ServiceInfo]) -> str:
+    """Create the usage cost table with different usage tiers."""
+    if not services_info:
+        return 'Cost scaling information not available. See Custom Analysis Data section for detailed cost information.'
+
+    USAGE_TIERS = {
+        'Low': 0.5,  # 50% of estimated
+        'Medium': 1.0,  # 100% of estimated
+        'High': 2.0,  # 200% of estimated
+    }
+
+    table = [
+        '| Service | Low Usage | Medium Usage | High Usage |',
+        '|---------|-----------|--------------|------------|',
+    ]
+
+    for service in services_info.values():
+        min_cost, max_cost = _parse_cost_value(service.estimated_cost)
+
+        if min_cost == 0 and max_cost == 0:
+            table.append(f'| {service.name} | Varies | Varies | Varies |')
+            continue
+
+        # Use average if range provided
+        base_cost = max_cost if min_cost == max_cost else (min_cost + max_cost) / 2
+
+        costs = {
+            tier: f'${int(base_cost * multiplier)}/month'
+            for tier, multiplier in USAGE_TIERS.items()
         }
 
-        usage_cost_table = '| Service | Low Usage | Medium Usage | High Usage |\n|---------|-----------|--------------|------------|\n'
+        table.append(f'| {service.name} | {costs["Low"]} | {costs["Medium"]} | {costs["High"]} |')
 
-        for service, info in services_info.items():
-            cost = info.get('estimated_cost', 'N/A')
-
-            # Try to extract cost value from cost strings
-            low_cost = med_cost = high_cost = 'Varies'
-            if isinstance(cost, str):
-                # Try to match patterns like "$150-200/month"
-                cost_match = re.search(r'\$(\d+)-(\d+)', cost)
-                if cost_match:
-                    min_val = int(cost_match.group(1))
-                    max_val = int(cost_match.group(2))
-                    avg = (min_val + max_val) / 2
-
-                    low_cost = f'${int(avg * usage_tiers["Low"])}/month'
-                    med_cost = f'${int(avg)}/month'
-                    high_cost = f'${int(avg * usage_tiers["High"])}/month'
-                else:
-                    # Try to match patterns like "$40.00" or "$40"
-                    cost_match = re.search(r'\$(\d+(\.\d+)?)', cost)
-                    if cost_match:
-                        cost_val = float(cost_match.group(1))
-
-                        low_cost = f'${int(cost_val * usage_tiers["Low"])}/month'
-                        med_cost = f'${int(cost_val)}/month'
-                        high_cost = f'${int(cost_val * usage_tiers["High"])}/month'
-
-            usage_cost_table += f'| {service} | {low_cost} | {med_cost} | {high_cost} |\n'
-    else:
-        # Create a meaningful message about where to find cost information
-        usage_cost_table = 'Cost scaling information not available. See Custom Analysis Data section for detailed cost information.'
-
-    return usage_cost_table
+    return '\n'.join(table)
 
 
-def _extract_key_factors(custom_cost_data: Dict, services_info: Dict) -> List[str]:
-    """Extract key cost factors."""
-    key_factors = []
+def _extract_key_factors(
+    custom_cost_data: Dict, services_info: Dict[str, ServiceInfo]
+) -> List[str]:
+    """Extract key cost factors from services and custom data."""
+    DEFAULT_FACTORS = [
+        '- Request volume and frequency',
+        '- Data storage requirements',
+        '- Data transfer between services',
+        '- Compute resources utilized',
+    ]
 
-    # Try to extract key factors from services info
-    if services_info:
-        for service, info in services_info.items():
-            usage = info.get('usage', '')
-            if usage:
-                key_factors.append(f'- **{service}**: {usage}')
+    # Extract from services
+    factors = [
+        f'- **{service.name}**: {service.usage}'
+        for service in services_info.values()
+        if service.usage
+    ]
 
-    # If we couldn't extract any key factors, try to find them in custom sections
-    if not key_factors:
-        for key, value in custom_cost_data.items():
-            if isinstance(value, dict) and 'description' in value:
-                key_factors.append(
-                    f'- **{key.replace("_", " ").title()}**: {value["description"]}'
-                )
-
-    # If we still don't have any key factors, use default ones
-    if not key_factors:
-        key_factors = [
-            '- Request volume and frequency',
-            '- Data storage requirements',
-            '- Data transfer between services',
-            '- Compute resources utilized',
+    # If no service factors found, try custom sections
+    if not factors:
+        factors = [
+            f'- **{key.replace("_", " ").title()}**: {value["description"]}'
+            for key, value in custom_cost_data.items()
+            if isinstance(value, dict) and 'description' in value
         ]
 
-    return key_factors
+    return factors if factors else DEFAULT_FACTORS
 
 
 def _calculate_base_cost(
     custom_cost_data: Dict,
-    services_info: Dict,
+    services_info: Dict[str, ServiceInfo],
     total_min: float = 0,
     total_max: float = 0,
 ) -> Optional[float]:
-    """Calculate the base cost for projections."""
-    base_cost = None
-
-    # First check if we have min-max values from unit pricing
+    """Calculate the base cost for projections using multiple strategies."""
+    # Strategy 1: Use min-max values from unit pricing
     if total_min > 0 and total_max > 0:
-        base_cost = (total_min + total_max) / 2
+        return (total_min + total_max) / 2
 
-    # If not, look for total_monthly_cost in custom data
-    if base_cost is None:
-        for key, value in custom_cost_data.items():
-            if isinstance(value, dict) and 'total_monthly_cost' in value:
-                base_cost = value['total_monthly_cost']
-                break
+    # Strategy 2: Look for total_monthly_cost in custom data
+    for value in custom_cost_data.values():
+        if isinstance(value, dict) and 'total_monthly_cost' in value:
+            return float(value['total_monthly_cost'])
 
-    # If still no base cost, try to calculate from service costs
-    if base_cost is None and services_info:
-        total_cost = 0
-        service_count = 0
+    # Strategy 3: Calculate from service costs
+    if services_info:
+        total = 0
+        count = 0
 
-        for service, info in services_info.items():
-            cost = info.get('estimated_cost', 'N/A')
-            if isinstance(cost, str):
-                # Try to match patterns like "$150-200/month"
-                cost_match = re.search(r'\$(\d+)-(\d+)', cost)
-                if cost_match:
-                    min_val = int(cost_match.group(1))
-                    max_val = int(cost_match.group(2))
-                    total_cost += (min_val + max_val) / 2
-                    service_count += 1
-                else:
-                    # Try to match patterns like "$40.00" or "$40"
-                    cost_match = re.search(r'\$(\d+(\.\d+)?)', cost)
-                    if cost_match:
-                        cost_val = float(cost_match.group(1))
-                        total_cost += cost_val
-                        service_count += 1
+        for service in services_info.values():
+            min_cost, max_cost = _parse_cost_value(service.estimated_cost)
+            if min_cost > 0 or max_cost > 0:
+                total += max_cost if min_cost == max_cost else (min_cost + max_cost) / 2
+                count += 1
 
-        if service_count > 0:
-            base_cost = total_cost
+        if count > 0:
+            return total
 
-    # If still no base cost, try to extract from nested pricing data
-    if base_cost is None:
-        total_cost = 0
-        price_count = 0
+    # Strategy 4: Extract from nested pricing data
+    total = 0
+    count = 0
 
-        # Look for price fields in nested structures
-        for key, value in custom_cost_data.items():
+    def extract_costs(data: Dict) -> Tuple[float, int]:
+        """Recursively extract costs from nested dictionaries."""
+        subtotal = 0
+        subcount = 0
+
+        for key, value in data.items():
             if isinstance(value, dict):
-                # Check if this is a flow with a pricing key
                 if 'pricing' in value and isinstance(value['pricing'], dict):
-                    for service_name, service_info in value['pricing'].items():
-                        if isinstance(service_info, dict):
-                            # Look for fields containing 'price' or 'cost' in their name
-                            for field_name, field_value in service_info.items():
-                                if isinstance(field_value, (int, float)) and (
-                                    'price' in field_name.lower() or 'cost' in field_name.lower()
-                                ):
-                                    total_cost += float(field_value)
-                                    price_count += 1
-                # Also check for direct price fields
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, dict):
-                        # Look for fields containing 'price' or 'cost' in their name
-                        for field_name, field_value in sub_value.items():
-                            if isinstance(field_value, (int, float)) and (
-                                'price' in field_name.lower() or 'cost' in field_name.lower()
-                            ):
-                                total_cost += float(field_value)
-                                price_count += 1
+                    sub_total, sub_count = extract_costs(value['pricing'])
+                    subtotal += sub_total
+                    subcount += sub_count
 
-        if price_count > 0:
-            base_cost = total_cost
+                for field_name, field_value in value.items():
+                    if isinstance(field_value, (int, float)) and (
+                        'price' in field_name.lower() or 'cost' in field_name.lower()
+                    ):
+                        subtotal += float(field_value)
+                        subcount += 1
 
-    return base_cost
+        return subtotal, subcount
+
+    total, count = extract_costs(custom_cost_data)
+    return total if count > 0 else None
 
 
-def _generate_projected_costs_table(base_cost: Optional[float], services_info: Dict) -> str:
-    """Generate the projected costs table."""
-    if base_cost is not None:
-        growth_rates = {
-            'Steady': 1.0,  # No monthly growth
-            'Moderate': 1.05,  # 5% monthly growth
-            'Rapid': 1.1,  # 10% monthly growth
-        }
+def _generate_projected_costs_table(
+    base_cost: Optional[float], services_info: Dict[str, ServiceInfo]
+) -> str:
+    """Generate the projected costs table with growth patterns."""
+    if base_cost is None:
+        return 'Insufficient data to generate cost projections. See Custom Analysis Data section for available cost information.'
 
-        # Add explanation of how the base cost is calculated
-        base_cost_explanation = 'Base monthly cost calculation:\n\n'
+    GROWTH_RATES = {
+        'Steady': 1.0,  # No monthly growth
+        'Moderate': 1.05,  # 5% monthly growth
+        'Rapid': 1.1,  # 10% monthly growth
+    }
 
-        # If we have service costs, list them
-        if services_info:
-            base_cost_explanation += '| Service | Monthly Cost |\n|---------|-------------|\n'
-            for service, info in services_info.items():
-                cost = info.get('estimated_cost', 'N/A')
-                if isinstance(cost, str):
-                    cost_match = re.search(r'\$(\d+(\.\d+)?)', cost)
-                    if cost_match:
-                        base_cost_explanation += f'| {service} | ${cost_match.group(1)} |\n'
+    MONTHS = {
+        1: 0,  # base_cost * (rate^0)
+        3: 2,  # base_cost * (rate^2)
+        6: 5,  # base_cost * (rate^5)
+        12: 11,  # base_cost * (rate^11)
+    }
 
-            base_cost_explanation += f'| **Total Monthly Cost** | **${int(base_cost)}** |\n\n'
+    # Generate base cost explanation
+    sections = ['Base monthly cost calculation:\n']
 
-        projected_costs_table = (
-            base_cost_explanation
-            + '| Growth Pattern | Month 1 | Month 3 | Month 6 | Month 12 |\n|---------------|---------|---------|---------|----------|\n'
-        )
+    if services_info:
+        sections.extend(['| Service | Monthly Cost |', '|---------|-------------|'])
 
-        for pattern, rate in growth_rates.items():
-            month1 = base_cost
-            month3 = base_cost * (rate**2)
-            month6 = base_cost * (rate**5)
-            month12 = base_cost * (rate**11)
+        for service in services_info.values():
+            min_cost, max_cost = _parse_cost_value(service.estimated_cost)
+            if min_cost > 0 or max_cost > 0:
+                cost = max_cost if min_cost == max_cost else (min_cost + max_cost) / 2
+                sections.append(f'| {service.name} | ${cost:.2f} |')
 
-            projected_costs_table += f'| {pattern} | ${int(month1)}/mo | ${int(month3)}/mo | ${int(month6)}/mo | ${int(month12)}/mo |\n'
+        sections.extend([f'| **Total Monthly Cost** | **${int(base_cost)}** |', ''])
 
-        # Add growth rate explanations right after the table
-        projected_costs_table += '\n\n'
-        projected_costs_table += f'* Steady: No monthly growth ({growth_rates["Steady"]}x)\n'
-        projected_costs_table += f'* Moderate: {int((growth_rates["Moderate"] - 1) * 100)}% monthly growth ({growth_rates["Moderate"]}x)\n'
-        projected_costs_table += f'* Rapid: {int((growth_rates["Rapid"] - 1) * 100)}% monthly growth ({growth_rates["Rapid"]}x)'
-    else:
-        # If we still can't determine a base cost, provide a message
-        projected_costs_table = 'Insufficient data to generate cost projections. See Custom Analysis Data section for available cost information.'
+    # Generate growth projections
+    sections.extend(
+        [
+            '| Growth Pattern | Month 1 | Month 3 | Month 6 | Month 12 |',
+            '|---------------|---------|---------|---------|----------|',
+        ]
+    )
 
-    return projected_costs_table
+    for pattern, rate in GROWTH_RATES.items():
+        costs = [
+            f'${int(base_cost * (rate**power))}/mo'
+            for power in [MONTHS[month] for month in [1, 3, 6, 12]]
+        ]
+        sections.append(f'| {pattern} | {" | ".join(costs)} |')
+
+    # Add growth rate explanations
+    sections.extend(
+        [
+            '',
+            *[
+                f'* {pattern}: {int((rate - 1) * 100)}% monthly growth ({rate}x)'
+                if rate > 1
+                else f'* {pattern}: No monthly growth ({rate}x)'
+                for pattern, rate in GROWTH_RATES.items()
+            ],
+        ]
+    )
+
+    return '\n'.join(sections)
 
 
 def _process_recommendations(
     custom_cost_data: Dict, service_names: List[str]
 ) -> Tuple[List[str], List[str]]:
     """Process recommendations for the report."""
+
+    def extract_items(items: Any) -> List[str]:
+        """Extract items into a list of strings."""
+        if isinstance(items, (list, tuple)):
+            return [str(item) for item in items]
+        elif items:
+            return [str(items)]
+        return []
+
     immediate_actions = []
     best_practices = []
 
-    if 'recommendations' in custom_cost_data:
-        recommendations = custom_cost_data['recommendations']
+    if recommendations := custom_cost_data.get('recommendations'):
         if isinstance(recommendations, dict):
-            # Check if there's a prompt included for assistant
-            if '_prompt' in recommendations:
-                # Extract immediate actions
-                immediate = recommendations.get('immediate', [])
-                if isinstance(immediate, (list, tuple)):
-                    immediate_actions.extend(str(item) for item in immediate)
-                elif immediate:
-                    immediate_actions.append(str(immediate))
+            # Extract recommendations regardless of prompt presence
+            immediate_actions = extract_items(recommendations.get('immediate', []))
+            best_practices = extract_items(recommendations.get('best_practices', []))
 
-                # Extract best practices
-                best = recommendations.get('best_practices', [])
-                if isinstance(best, (list, tuple)):
-                    best_practices.extend(str(item) for item in best)
-                elif best:
-                    best_practices.append(str(best))
-            else:
-                # Use the provided recommendations directly
-                immediate = recommendations.get('immediate', [])
-                best = recommendations.get('best_practices', [])
-
-                # Process immediate actions
-                if isinstance(immediate, (list, tuple)):
-                    immediate_actions.extend(str(item) for item in immediate)
-                elif immediate:
-                    immediate_actions.append(str(immediate))
-
-                # Process best practices
-                if isinstance(best, (list, tuple)):
-                    best_practices.extend(str(item) for item in best)
-                elif best:
-                    best_practices.append(str(best))
-
-    # If no recommendations were provided or they're empty, generate them
+    # If no recommendations found, generate from Well-Architected Framework
     if not immediate_actions and not best_practices:
         wa_recommendations = CostAnalysisHelper.generate_well_architected_recommendations(
             service_names
@@ -514,190 +483,104 @@ def _process_recommendations(
     return immediate_actions, best_practices
 
 
+def _format_value(key: str, value: Any) -> str:
+    """Format a value based on its type and key name."""
+    if isinstance(value, (int, float)):
+        # Check if the field name suggests it's a monetary value
+        is_monetary = key.lower() == 'total' or any(
+            term in key.lower() for term in MONETARY_FIELDS
+        )
+
+        if key.lower() == 'total':
+            return f'**${value}**'
+        elif is_monetary:
+            return f'${value}'
+        return str(value)
+
+    elif isinstance(value, dict):
+        return 'See nested table below'
+
+    return str(value)
+
+
 def _process_custom_sections(custom_cost_data: Dict) -> str:
     """Process custom sections for the report."""
-    custom_sections = []
+    if not custom_cost_data:
+        return ''
 
-    # Convert custom_cost_data to a readable format
-    if custom_cost_data:
-        # Add a section for Custom Analysis Data
-        custom_sections.append('## Detailed Cost Analysis\n\n')
+    SKIP_KEYS = {
+        'project_name',
+        'service_name',
+        'description',
+        'assumptions',
+        'limitations',
+        'free_tier_info',
+        'conclusion',
+        'services',
+        'pricing_data',
+        'pricing_data_reference',
+    }
 
-    # Process each top-level key in custom_cost_data
+    def format_list_as_bullets(items: Union[List, str]) -> str:
+        """Format a list or string as bullet points."""
+        if isinstance(items, str):
+            items = items.split('\n')
+        return ''.join(f'- {item.strip()}\n' for item in items if item.strip())
+
+    def create_table(data: Dict, nested: bool = False) -> str:
+        """Create a markdown table from dictionary data."""
+        table = ['| Key | Value |', '|-----|-------|']
+
+        for key, value in data.items():
+            formatted_key = key.replace('_', ' ').title()
+            formatted_value = _format_value(key, value)
+            table.append(f'| {formatted_key} | {formatted_value} |')
+
+        return '\n'.join(table)
+
+    sections = ['## Detailed Cost Analysis\n\n']
+
     for key, value in custom_cost_data.items():
-        # Skip keys we've already processed elsewhere
-        if key in [
-            'project_name',
-            'service_name',
-            'description',
-            'assumptions',
-            'limitations',
-            'free_tier_info',
-            'conclusion',
-            'services',
-            'pricing_data',
-            'pricing_data_reference',
-        ]:
+        if key in SKIP_KEYS:
             continue
 
-        # Format the section title
         section_title = key.replace('_', ' ').title()
-        custom_sections.append(f'### {section_title}\n\n')
+        sections.append(f'### {section_title}\n\n')
 
-        # Special handling for assumptions and exclusions
+        # Handle different section types
         if key in ['assumptions', 'exclusions']:
-            if isinstance(value, list):
-                for item in value:
-                    custom_sections.append(f'- {item}\n')
-            elif isinstance(value, str):
-                # Split string by newlines and create bullet points
-                lines = value.split('\n')
-                for line in lines:
-                    if line.strip():
-                        custom_sections.append(f'- {line.strip()}\n')
-            custom_sections.append('\n')
-            continue
+            sections.append(format_list_as_bullets(value))
 
-        # Special handling for recommendations section
-        if key.lower() == 'recommendations':
-            if isinstance(value, dict):
-                # Process immediate actions
-                if 'immediate' in value and isinstance(value['immediate'], list):
-                    custom_sections.append('#### Immediate Actions\n\n')
-                    custom_sections.append(''.join(f'- {item}\n' for item in value['immediate']))
-                    custom_sections.append('\n')
+        elif key.lower() == 'recommendations' and isinstance(value, dict):
+            if immediate := value.get('immediate'):
+                sections.extend(['#### Immediate Actions\n\n', format_list_as_bullets(immediate)])
+            if best_practices := value.get('best_practices'):
+                sections.extend(
+                    ['#### Best Practices\n\n', format_list_as_bullets(best_practices)]
+                )
 
-                # Process best practices
-                if 'best_practices' in value and isinstance(value['best_practices'], list):
-                    custom_sections.append('#### Best Practices\n\n')
-                    custom_sections.append(
-                        ''.join(f'- {item}\n' for item in value['best_practices'])
-                    )
-                    custom_sections.append('\n')
-            else:
-                # Fallback if recommendations is not a dict
-                custom_sections.append(str(value) + '\n\n')
-        # Handle different value types for non-recommendations sections
         elif isinstance(value, dict):
-            # For dictionaries, create a table
-            custom_sections.append('| Key | Value |\n|-----|-------|\n')
-            for sub_key, sub_value in value.items():
-                formatted_key = sub_key.replace('_', ' ').title()
+            sections.append(create_table(value))
 
-                # Format the value based on its type
-                if isinstance(sub_value, (int, float)):
-                    # Only format as currency if the field name suggests it's a monetary value
-                    monetary_fields = [
-                        'cost',
-                        'price',
-                        'rate',
-                        'fee',
-                        'charge',
-                        'amount',
-                    ]
-                    exact_monetary_fields = ['total']
-
-                    # Check if the field name exactly matches a monetary field or contains a monetary term
-                    is_monetary = sub_key.lower() in exact_monetary_fields or any(
-                        money_term in sub_key.lower()
-                        and money_term == sub_key.lower()
-                        or money_term + '_' in sub_key.lower()
-                        or '_' + money_term in sub_key.lower()
-                        for money_term in monetary_fields
-                    )
-
-                    if sub_key.lower() == 'total':
-                        formatted_value = (
-                            f'**${sub_value}**'  # Always format totals as currency with bold
-                        )
-                    elif is_monetary:
-                        formatted_value = f'${sub_value}'  # Format monetary values as currency
-                    else:
-                        formatted_value = str(
-                            sub_value
-                        )  # Format non-monetary values as plain numbers
-                elif isinstance(sub_value, dict):
-                    formatted_value = 'See nested table below'
-                else:
-                    formatted_value = str(sub_value)
-
-                custom_sections.append(f'| {formatted_key} | {formatted_value} |\n')
-
-            # Add nested tables for dictionary values
+            # Handle nested tables
             for sub_key, sub_value in value.items():
                 if isinstance(sub_value, dict):
-                    formatted_sub_key = sub_key.replace('_', ' ').title()
-                    custom_sections.append(f'\n#### {formatted_sub_key}\n\n')
-                    custom_sections.append('| Key | Value |\n|-----|-------|\n')
+                    sections.extend(
+                        [
+                            f'\n#### {sub_key.replace("_", " ").title()}\n\n',
+                            create_table(sub_value, nested=True),
+                        ]
+                    )
 
-                    for nested_key, nested_value in sub_value.items():
-                        formatted_nested_key = nested_key.replace('_', ' ').title()
-
-                        # Handle different types of nested values
-                        if isinstance(nested_value, (int, float)):
-                            # Only format as currency if the field name suggests it's a monetary value
-                            monetary_fields = [
-                                'cost',
-                                'price',
-                                'rate',
-                                'fee',
-                                'charge',
-                                'amount',
-                            ]
-                            exact_monetary_fields = ['total']
-
-                            # Check if the field name exactly matches a monetary field or contains a monetary term
-                            is_monetary = nested_key.lower() in exact_monetary_fields or any(
-                                money_term in nested_key.lower()
-                                and money_term == nested_key.lower()
-                                or money_term + '_' in nested_key.lower()
-                                or '_' + money_term in nested_key.lower()
-                                for money_term in monetary_fields
-                            )
-
-                            if is_monetary:
-                                formatted_nested_value = f'${nested_value}'
-                            else:
-                                # For non-monetary values, just use the number without $ sign
-                                formatted_nested_value = str(nested_value)
-                        elif isinstance(nested_value, dict):
-                            # Extract key information from nested dictionaries
-                            price = None
-                            description = nested_value.get('description', '')
-
-                            # Try to get price from various fields
-                            for price_field in [
-                                'price',
-                                'price_per_1000_pages',
-                                'cost',
-                            ]:
-                                if price_field in nested_value:
-                                    price = nested_value[price_field]
-                                    break
-
-                            if price is not None:
-                                formatted_nested_value = f'${price} - {description}'
-                            else:
-                                formatted_nested_value = description or str(nested_value)
-                        else:
-                            formatted_nested_value = str(nested_value)
-
-                        custom_sections.append(
-                            f'| {formatted_nested_key} | {formatted_nested_value} |\n'
-                        )
         elif isinstance(value, list):
-            # For lists, create a bullet list
-            for item in value:
-                custom_sections.append(f'- {item}\n')
+            sections.append(format_list_as_bullets(value))
+
         else:
-            # For simple values, just add the value
-            custom_sections.append(f'{value}\n\n')
+            sections.append(f'{value}\n\n')
 
-        # Add spacing between sections
-        custom_sections.append('\n')
+        sections.append('\n')
 
-    # Join all custom sections
-    return ''.join(custom_sections) if custom_sections else ''
+    return ''.join(sections)
 
 
 async def _generate_custom_data_report(
@@ -884,6 +767,7 @@ async def _generate_pricing_data_report(
     output_file: Optional[str] = None,
     ctx: Optional[Context] = None,
     params: Optional[Dict] = None,
+    format: str = 'markdown',
 ) -> str:
     """Generate a report using pricing data."""
     # Parse the pricing data with related services context
@@ -1025,6 +909,153 @@ async def _generate_pricing_data_report(
     return report
 
 
+async def _generate_csv_report(
+    cost_data: Dict[str, Any],
+    output_file: Optional[str] = None,
+    ctx: Optional[Context] = None,
+) -> str:
+    """Generate a CSV format cost analysis report.
+
+    Args:
+        cost_data: Dictionary containing cost analysis data
+        output_file: Optional path to save the CSV file
+        ctx: Optional MCP context for logging
+
+    Returns:
+        The generated report in CSV format
+    """
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Extract services information
+    services_info, service_names = _extract_services_info(cost_data)
+
+    # Write header
+    writer.writerow(['AWS Cost Analysis Report'])
+    writer.writerow([])
+
+    # Project Information
+    writer.writerow(['Project Information'])
+    writer.writerow(['Name', cost_data.get('project_name', 'AWS Project')])
+    writer.writerow(['Pricing Model', cost_data.get('pricing_model', 'ON DEMAND')])
+    writer.writerow([])
+
+    # Assumptions
+    writer.writerow(['Assumptions'])
+    assumptions = cost_data.get(
+        'assumptions',
+        [
+            'Standard configuration for all services',
+            'Default usage patterns based on typical workloads',
+            'No reserved instances or savings plans applied',
+        ],
+    )
+    if isinstance(assumptions, str):
+        assumptions = assumptions.split('\n')
+    for assumption in assumptions:
+        writer.writerow(['', assumption.strip()])
+    writer.writerow([])
+
+    # Unit Pricing
+    writer.writerow(['Unit Pricing'])
+    writer.writerow(['Service', 'Resource Type', 'Unit', 'Price', 'Free Tier'])
+    for service_name, service_info in services_info.items():
+        if not service_info.unit_pricing:
+            continue
+
+        free_tier_info = service_info.free_tier_info or 'None'
+
+        for price_type, price_value in service_info.unit_pricing.items():
+            resource_type = price_type.replace('_', ' ').title()
+
+            # Extract unit from price value
+            unit = '1 unit'
+            if 'per' in price_value:
+                parts = price_value.split('per')
+                if len(parts) > 1:
+                    unit = parts[1].strip()
+
+            # Standardize common units
+            if '1K' in price_value or '1k' in price_value:
+                unit = '1,000 units'
+            if '1M' in price_value or '1m' in price_value:
+                unit = '1,000,000 units'
+
+            # Replace generic "units" with resource type
+            unit = unit.replace('units', resource_type.lower())
+
+            # Extract price
+            price = price_value
+            if 'per' in price:
+                price = price.split('per')[0].strip()
+
+            writer.writerow([service_name, resource_type, unit, price, free_tier_info])
+    writer.writerow([])
+
+    # Cost Calculations
+    writer.writerow(['Cost Calculations'])
+    writer.writerow(['Service', 'Usage', 'Calculation', 'Monthly Cost'])
+    total_cost = 0.0
+    for service_name, service_info in services_info.items():
+        usage = service_info.usage or 'N/A'
+        calculation = service_info.calculation_details or 'N/A'
+        cost = service_info.estimated_cost or 'N/A'
+
+        # Add usage quantities if available
+        if service_info.usage_quantities:
+            quantities = []
+            for usage_type, usage_value in service_info.usage_quantities.items():
+                formatted_type = usage_type.replace('_', ' ').title()
+                quantities.append(f'{formatted_type}: {usage_value}')
+            if quantities:
+                usage = f'{usage} ({", ".join(quantities)})'
+
+        writer.writerow([service_name, usage, calculation, cost])
+
+        # Extract cost value for total
+        if isinstance(cost, str):
+            cost_match = re.search(r'\$(\d+(\.\d+)?)', cost)
+            if cost_match:
+                total_cost += float(cost_match.group(1))
+
+    if total_cost > 0:
+        writer.writerow(
+            ['Total', 'All services', 'Sum of all calculations', f'${total_cost:.2f}/month']
+        )
+    writer.writerow([])
+
+    # Recommendations
+    immediate_actions, best_practices = _process_recommendations(cost_data, service_names)
+
+    writer.writerow(['Immediate Actions'])
+    for action in immediate_actions:
+        writer.writerow(['', action])
+    writer.writerow([])
+
+    writer.writerow(['Best Practices'])
+    for practice in best_practices:
+        writer.writerow(['', practice])
+
+    # Get the final CSV content
+    csv_content = output.getvalue()
+    output.close()
+
+    # Write to file if requested
+    if output_file:
+        try:
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_file, 'w') as f:
+                f.write(csv_content)
+            if ctx:
+                await ctx.info(f'CSV report saved to {output_file}')
+        except Exception as e:
+            if ctx:
+                await ctx.error(f'Failed to write CSV report to file: {e}')
+
+    return csv_content
+
+
 async def generate_cost_analysis_report(
     pricing_data: Dict[str, Any],  # Required: Raw pricing data from AWS
     service_name: str,  # Required: Primary service name
@@ -1037,6 +1068,7 @@ async def generate_cost_analysis_report(
     # Advanced parameters (grouped in a dictionary for complex use cases)
     detailed_cost_data: Optional[Dict[str, Any]] = None,
     ctx: Optional[Context] = None,
+    format: str = 'markdown',  # Output format ('markdown' or 'csv')
 ) -> str:
     """Main entry point for generating cost analysis reports.
 
@@ -1058,6 +1090,17 @@ async def generate_cost_analysis_report(
                 - usage_quantities: Dictionary mapping usage types to their quantities
                 - calculation_details: String showing the calculation breakdown
         ctx: MCP context for logging and error handling
+        format: Output format for the cost analysis report
+            - Supported values: "markdown" (default) or "csv"
+            - markdown: Generates a well-formatted markdown report with:
+                * Tables for pricing and calculations
+                * Sections for assumptions and recommendations
+                * Rich text formatting for better readability
+            - csv: Generates a comma-separated values report with:
+                * Structured data format for spreadsheet compatibility
+                * Headers for each data section
+                * Raw values without text formatting
+            - Example: format="csv" for spreadsheet-compatible output
 
     Returns:
         The generated report in markdown format
@@ -1085,27 +1128,38 @@ async def generate_cost_analysis_report(
         # Store reference to the original pricing data
         cost_data['pricing_data_reference'] = str(pricing_data)
 
-        # Generate the report using the consolidated cost data
-        if 'services' in cost_data:
-            # If services are defined in detailed_cost_data, use the custom data report generator
-            return await _generate_custom_data_report(cost_data, output_file, ctx)
-        else:
-            # Otherwise, use the pricing data report generator
-            params = {
-                'pricing_model': pricing_model,
-                'assumptions': assumptions,
-                'exclusions': exclusions,
-                'detailed_calculations': True,
-            }
+        # Validate format parameter
+        if format not in ['markdown', 'csv']:
+            if ctx:
+                await ctx.warning(f"Invalid format '{format}'. Using 'markdown' as default.")
+            format = 'markdown'
 
-            return await _generate_pricing_data_report(
-                pricing_data=pricing_data,
-                service_name=service_name,
-                related_services=related_services,
-                output_file=output_file,
-                ctx=ctx,
-                params=params,
-            )
+        # Generate the report using the consolidated cost data
+        if format == 'csv':
+            # For CSV format, use the CSV report generator
+            return await _generate_csv_report(cost_data, output_file, ctx)
+        else:
+            # For markdown format, use the appropriate report generator based on data
+            if 'services' in cost_data:
+                # If services are defined in detailed_cost_data, use the custom data report generator
+                return await _generate_custom_data_report(cost_data, output_file, ctx)
+            else:
+                # Otherwise, use the pricing data report generator
+                params = {
+                    'pricing_model': pricing_model,
+                    'assumptions': assumptions,
+                    'exclusions': exclusions,
+                }
+
+                return await _generate_pricing_data_report(
+                    pricing_data=pricing_data,
+                    service_name=service_name,
+                    related_services=related_services,
+                    output_file=output_file,
+                    ctx=ctx,
+                    params=params,
+                    format=format,
+                )
     except Exception as e:
         if ctx:
             await ctx.error(f'Error generating cost report: {str(e)}')
