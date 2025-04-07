@@ -121,12 +121,13 @@ def main():
 
             # Generate the OpenAPI schema
             print("Generating OpenAPI schema...")
+            # Note: This might show a UserWarning about Pydantic v2 and OpenAPI versions
             openapi_schema = json.loads(app.get_openapi_json_schema(openapi_version="3.0.0"))
 
             # Fix Pydantic v2 issue (forcing OpenAPI 3.0.0)
             if openapi_schema.get("openapi") != "3.0.0":
                 openapi_schema["openapi"] = "3.0.0"
-                print("Fixed OpenAPI version to 3.0.0 (Pydantic v2 issue)")
+                print("Note: Adjusted OpenAPI version for compatibility with Bedrock Agents")
 
             # Fix operationIds
             for path in openapi_schema['paths']:
@@ -158,12 +159,19 @@ def main():
                 json.dump(openapi_schema, f, indent=2)
 
             print(f"Schema successfully generated and saved to {{OUTPUT_PATH}}")
+            print("Next steps: Use this schema in your CDK code with bedrock.ApiSchema.fromLocalAsset()")
             return True
 
         except Exception as simplified_error:
             print(f"Error with simplified version: {{str(simplified_error)}}")
-            print("You may need to manually modify the script to handle this error.")
-            print("Focus on preserving the BedrockAgentResolver app definition and routes.")
+            if "No module named" in str(simplified_error):
+                missing_dep = str(simplified_error).split("'")[-2] if "'" in str(simplified_error) else str(simplified_error).split("No module named ")[-1].strip()
+                print("To resolve this error, install the missing dependency:")
+                print("    pip install " + missing_dep.replace('_', '-'))
+                print("Then run this script again.")
+            else:
+                print("You may need to manually modify the script to handle this error.")
+                print("Focus on preserving the BedrockAgentResolver app definition and routes.")
             return False
 
     except Exception as e:
