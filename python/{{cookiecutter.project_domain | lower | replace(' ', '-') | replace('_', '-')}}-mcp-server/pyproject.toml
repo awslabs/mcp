@@ -77,3 +77,6 @@ update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv", "tests"]
