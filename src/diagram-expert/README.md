@@ -2,14 +2,16 @@
 
 An MCP server that seamlessly creates diagrams using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
 
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
+
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python using `uv python install 3.13`
-3. Install Graphviz (required by the diagrams package):
-   - Ubuntu/Debian: `sudo apt-get install graphviz`
-   - macOS: `brew install graphviz`
-   - Windows: Download from [Graphviz website](https://graphviz.org/download/)
+2. Install Python using `uv python install 3.10`
+3. Set up AWS credentials with access to AWS services
+   - You need an AWS account with appropriate permissions
+   - Configure AWS credentials with `aws configure` or environment variables
+   - Ensure your IAM role/user has permissions to access the Diagram expert API
 
 ## Installation
 
@@ -33,55 +35,50 @@ Add the server to your MCP client config (e.g. `~/.cursor-server/data/User/globa
 }
 ```
 
+### AWS Authentication
+
+The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
+
+```json
+"env": {
+  "AWS_PROFILE": "your-aws-profile"
+}
+```
+
+Make sure the AWS profile has permissions to access the AWS Pricing API. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+
 ## Development
 
-1. Set up the development environment:
+### Testing
+
+The project includes a comprehensive test suite to ensure the functionality of the MCP server. The tests are organized by module and cover all aspects of the server's functionality.
+
+To run the tests, use the provided script:
+
 ```bash
-uv sync --all-groups
+./run_tests.sh
 ```
 
-2. Run the server:
+Or run pytest directly:
+
 ```bash
-uv run ai3-diagrams-expert/server.py
+pytest -xvs tests/
 ```
 
-3. Install pre-commit hooks:
+To run with coverage:
+
 ```bash
-GIT_CONFIG=/dev/null pre-commit install
+pytest --cov=ai3_diagrams_expert --cov-report=term-missing tests/
 ```
 
-## Running the Server
+For more information about the tests, see the [tests README](tests/README.md).
 
-Run the server with default stdio transport:
+### Development Dependencies
+
+To set up the development environment, install the development dependencies:
+
 ```bash
-uv run diagrams-expert/server.py
+uv pip install -e ".[dev]"
 ```
 
-Or with SSE transport on a specific port:
-```bash
-uvx ai3-diagrams-expert/server.py --sse --port 8888
-```
-
-## Customizing the Server
-
-1. Edit `diagrams_expert/server.py` to implement your MCP tools and resources
-2. Add dependencies to `pyproject.toml` with `uv add <dependency>`
-3. Update tests and documentation as needed
-4. Build the project: `uv build`
-5. Push the changes: `git push`
-6. Create a release: `uv run cz bump`
-7. Tag the release: `git push --tags`
-
-## Testing
-
-You can test the server directly using the provided test scripts:
-
-1. Run the server in one terminal:
-```bash
-./run_server.py
-```
-
-2. Run the test script in another terminal:
-```bash
-python test_direct.py
-```
+This will install the required dependencies for development, including pytest, pytest-asyncio, and pytest-cov.

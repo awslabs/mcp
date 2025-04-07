@@ -18,6 +18,9 @@ ai3-diagrams-expert = "ai3_diagrams_expert.server:main"
 dev = [
     "commitizen>=4.4.1",
     "pre-commit>=4.1.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.5",
+    "pytest-cov>=4.1.0",
     "ruff>=0.11.0",
 ]
 
