@@ -50,7 +50,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-cdk-mcp-server"
-version = "0.0.31004"
+version = "0.0.62303"
 source = { editable = "." }
 dependencies = [
     { name = "aws-lambda-powertools" },
