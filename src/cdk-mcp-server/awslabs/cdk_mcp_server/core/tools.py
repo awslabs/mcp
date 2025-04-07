@@ -142,6 +142,65 @@ async def check_cdk_nag_suppressions_tool(
     return check_cdk_nag_suppressions(code=code, file_path=file_path)
 
 
+def save_fallback_script_to_file(
+    script_content: str, lambda_code_path: str, output_path: str
+) -> str:
+    """Save fallback script to a file instead of including it in the response.
+
+    Args:
+        script_content: The script content to save
+        lambda_code_path: Original Lambda file path (used for naming)
+        output_path: Schema output path (used for directory)
+
+    Returns:
+        Path to the saved script file
+    """
+    # Sanitize paths to prevent path traversal attacks
+    output_dir = os.path.dirname(os.path.abspath(output_path))
+
+    # Create scripts directory in the same directory as the output file
+    scripts_dir = os.path.join(output_dir, 'scripts')
+
+    try:
+        os.makedirs(scripts_dir, exist_ok=True)
+    except (OSError, IOError) as e:
+        logger.error(f'Failed to create scripts directory: {e}')
+        # Fall back to output directory if scripts dir creation fails
+        scripts_dir = output_dir
+
+    # Sanitize file name - remove any path components and ensure it's just a base name
+    lambda_file_name = os.path.basename(lambda_code_path)
+    # Remove extension and any potentially problematic characters
+    sanitized_name = os.path.splitext(lambda_file_name)[0]
+    sanitized_name = re.sub(r'[^a-zA-Z0-9_-]', '', sanitized_name)
+
+    # Generate script name
+    script_file_name = f'generate_schema_{sanitized_name}.py'
+    script_path = os.path.join(scripts_dir, script_file_name)
+
+    # Validate the resulting path is still within the expected directory
+    if not os.path.abspath(script_path).startswith(os.path.abspath(scripts_dir)):
+        logger.error(f'Path traversal attempt detected: {script_path}')
+        # Fall back to a safe default
+        script_path = os.path.join(scripts_dir, 'generate_schema.py')
+
+    try:
+        # Write the script to file with restricted permissions
+        # Open with restricted permissions from the start (only owner can read/write)
+        with open(os.open(script_path, os.O_CREAT | os.O_WRONLY, 0o600), 'w') as f:
+            f.write(script_content)
+
+        # Update to executable permissions (only for the owner)
+        os.chmod(script_path, 0o700)  # rwx------ permissions (owner only)
+
+        logger.info(f'Successfully created script at {script_path}')
+        return script_path
+
+    except (OSError, IOError) as e:
+        logger.error(f'Failed to save script: {e}')
+        return f'Error saving script: {str(e)}'
+
+
 async def bedrock_schema_generator_from_file(
     ctx: Context, lambda_code_path: str, output_path: str
 ) -> Dict[str, Any]:
@@ -170,6 +229,58 @@ async def bedrock_schema_generator_from_file(
         lambda_code_path=lambda_code_path,
         output_path=output_path,
     )
+
+    # If fallback script was generated, save it to a file instead of returning it in the response
+    if result.get('status') == 'error' and result.get('fallback_script'):
+        # Save the script to a file
+        script_path = save_fallback_script_to_file(
+            result['fallback_script'], lambda_code_path, output_path
+        )
+
+        # Get the output filename for use in examples
+        output_filename = os.path.basename(output_path)
+        output_dir = os.path.dirname(output_path)
+
+        # Update the result dictionary to include the script path instead of script content
+        result['fallback_script_path'] = script_path
+
+        # Remove the full script content to avoid verbose responses
+        del result['fallback_script']
+
+        # Enhanced client instructions with CDK integration example
+        result['client_instructions'] = {
+            'title': 'Schema Generation and Integration Guide',
+            'steps': [
+                f"1. Run the script at '{script_path}'",
+                f"2. The script will generate the schema file at '{output_path}'",
+                '3. In your CDK code, reference this exact schema file as shown below:',
+            ],
+            'command_suggestion': f'python {script_path}',
+            'cdk_integration_example': f"// Assuming your Lambda function is named '{os.path.basename(lambda_code_path).replace('.py', 'Lambda')}'\n"
+            f'const {os.path.basename(lambda_code_path).replace(".py", "ActionGroup")} = new bedrock.AgentActionGroup({{\n'
+            f'  name: "{os.path.basename(lambda_code_path).replace(".py", "ActionGroup")}",\n'
+            f'  description: "This action group is used for {os.path.basename(lambda_code_path).replace(".py", "")}",\n'
+            f'  executor: bedrock.ActionGroupExecutor.fromlambdaFunction({os.path.basename(lambda_code_path).replace(".py", "Lambda")}),\n'
+            f'  apiSchema: bedrock.ApiSchema.fromLocalAsset(\n'
+            f'    path.join(__dirname, "{os.path.relpath(output_dir, os.path.dirname(lambda_code_path))}", "{output_filename}")\n'
+            f'  )\n'
+            f'}});\n'
+            f'agent.addActionGroup({os.path.basename(lambda_code_path).replace(".py", "ActionGroup")});',
+            'important_notes': [
+                '✅ Use the exact openapi.json file generated by the script',
+                '✅ Adjust the path in fromLocalAsset() to point to where the schema was generated',
+                '❌ Do NOT regenerate or modify the schema manually',
+            ],
+        }
+
+        if 'instructions' in result:
+            result['instructions'] = result['instructions'].replace(
+                'save the fallback script to a file',
+                f'run the fallback script located at {script_path}',
+            )
+
+        # Update the solution message
+        result['solution'] = f'Use the fallback script at {script_path} to generate the schema'
 
     return result
 
