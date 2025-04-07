@@ -43,6 +43,29 @@ To send us a pull request, please:
 GitHub provides additional document on [forking a repository](https://help.github.com/articles/fork-a-repo/) and
 [creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
 
+### Testing with a Local Development MCP Server
+
+To test the MCP servers using your local code, you can modify your settings as follows:
+
+```json
+    "awslabs.cdk-mcp-server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/jimini/Documents/PACE/doc-test/mcp/src/cdk-mcp-server/awslabs/cdk_mcp_server",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+```
+
+This configuration allows you to verify how the MCP Client interprets and responds to your tools and instructions.
+
 ### Adding a new MCP Server
 
 Thank you for your interest in adding more functionality to AWS MCP Servers. To add a new one, we highly recommend using [Python cookiecutter](https://cookiecutter.readthedocs.io/en/stable/index.html), as it provides templates and boilerplates that you can quickly start from.
