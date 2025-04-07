@@ -1,0 +1,81 @@
+[project]
+name = "ai3-diagrams-expert"
+version = "0.8.0"
+description = "An MCP server that seamlessly creates diagrams using the Python diagrams package DSL"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "bandit>=1.8.3",
+    "diagrams>=0.24.4",
+    "mcp[cli]>=1.4.1",
+    "pydantic>=2.10.6",
+]
+
+[project.scripts]
+ai3-diagrams-expert = "ai3_diagrams_expert.server:main"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.4.1",
+    "pre-commit>=4.1.0",
+    "ruff>=0.11.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["ai3_diagrams_expert"]
+include = ["ai3_diagrams_expert/icons/*.png"]
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.8.0"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "ai3_diagrams_expert/__init__.py:__version__"
+]
+update_changelog_on_bump = true
