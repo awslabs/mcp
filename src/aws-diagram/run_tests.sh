@@ -48,7 +48,7 @@ fi
 # Install missing packages
 if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
     echo "Installing missing packages: ${MISSING_PACKAGES[*]}"
-    
+
     # Try pip first (more reliable)
     if command -v pip &> /dev/null; then
         echo "Using pip to install packages..."
@@ -65,7 +65,7 @@ if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
         echo "Error: No package manager (pip, pip3, or uv) is available. Please install the missing packages manually."
         exit 1
     fi
-    
+
     # Verify installation with more verbose output
     echo "Verifying package installations..."
     for pkg in "pytest" "diagrams" "bandit" "pydantic"; do
@@ -74,7 +74,7 @@ if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
         if [ $? -ne 0 ]; then
             echo "Failed to install $pkg. Trying to install it individually..."
             pip install $pkg -v || pip3 install $pkg -v || echo "Failed to install $pkg. Please install it manually."
-            
+
             # Check again
             python -c "import $pkg" 2>/dev/null
             if [ $? -ne 0 ]; then
@@ -100,7 +100,7 @@ python -c "import diagrams_mcp_server; print(f'diagrams_mcp_server module found 
 if [ $? -ne 0 ]; then
     echo "Warning: diagrams_mcp_server module cannot be imported. This may cause test failures."
     echo "Installing the package in development mode..."
-    
+
     # Check if uv is available
     if command -v uv &> /dev/null; then
         uv pip install -e .
@@ -112,7 +112,7 @@ if [ $? -ne 0 ]; then
         # Create a symbolic link to the module in the current directory
         ln -sf $(pwd)/awslabs/aws_diagram $(pwd)/aws_diagram 2>/dev/null
     fi
-    
+
     echo "Trying again..."
     python -c "import diagrams_mcp_server; print(f'diagrams_mcp_server module found at: {diagrams_mcp_server.__file__}')" 2>/dev/null
     if [ $? -ne 0 ]; then
