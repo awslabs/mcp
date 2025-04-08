@@ -9,6 +9,7 @@ dependencies = [
     "pydantic>=2.10.6",
     "aws-lambda-powertools>=2.30.0",
     "httpx>=0.27.0",
+    "bs4>=0.0.2",
 ]
 
 [project.scripts]

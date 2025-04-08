@@ -9,38 +9,52 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-"""AWS CDK MCP tool implementations."""
+"""AWS CDK MCP tool handlers."""
 
 import logging
+import os
 import re
-from model_context_protocol import Context, ToolCallResult
-
-from awslabs.cdk_mcp_server.data.lambda_layer_parser import LambdaLayerParser
-from awslabs.cdk_mcp_server.data.solutions_constructs_parser import get_pattern_info, search_patterns
-from awslabs.cdk_mcp_server.data.schema_generator import generate_schema_from_file, format_generated_schema
-from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
-    search_genai_cdk_constructs,
-    get_genai_cdk_construct_types,
+from awslabs.cdk_mcp_server.core import search_utils
+from awslabs.cdk_mcp_server.data.cdk_nag_parser import (
+    check_cdk_nag_suppressions,
+    get_rule,
 )
+from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
+    list_available_constructs,
+)
+from awslabs.cdk_mcp_server.data.lambda_layer_parser import LambdaLayerParser
+from awslabs.cdk_mcp_server.data.schema_generator import generate_bedrock_schema_from_file
+from awslabs.cdk_mcp_server.data.solutions_constructs_parser import (
+    fetch_pattern_list,
+    get_pattern_info,
+    search_patterns,
+)
+from awslabs.cdk_mcp_server.static import (
+    CDK_GENERAL_GUIDANCE,
+)
+from mcp.server.fastmcp import Context
 from typing import Any, Dict, List, Optional
+
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
 
-async def cdk_guidance(ctx: Context) -> Dict[str, Any]:
+async def cdk_guidance(
+    ctx: Context,
+) -> str:
     """Use this tool to get prescriptive CDK advice for building applications on AWS.
 
     Args:
         ctx: MCP context
     """
-    # Just import to get the content from the file
-    from awslabs.cdk_mcp_server.static import CDK_GENERAL_GUIDANCE
-
-    return {"guidance": CDK_GENERAL_GUIDANCE}
+    return CDK_GENERAL_GUIDANCE
 
 
-async def explain_cdk_nag_rule(ctx: Context, rule_id: str) -> Dict[str, Any]:
+async def explain_cdk_nag_rule(
+    ctx: Context,
+    rule_id: str,
+) -> Dict[str, Any]:
     """Explain a specific CDK Nag rule with AWS Well-Architected guidance.
 
     CDK Nag is a crucial tool for ensuring your CDK applications follow AWS security best practices.
@@ -88,76 +102,40 @@ async def explain_cdk_nag_rule(ctx: Context, rule_id: str) -> Dict[str, Any]:
     Returns:
         Dictionary with detailed explanation and remediation steps
     """
-    from awslabs.cdk_mcp_server.static import CDK_NAG_GUIDANCE
+    # Use the resource we created to fetch the rule information
+    try:
+        rule_content = await get_rule(rule_id)
 
-    # Regex to extract rule name from rule_id
-    match = re.search(r'([A-Za-z]+)-([A-Za-z0-9]+)(\d+)', rule_id)
-    if not match:
+        # If the rule was found, return a structured response
+        if not rule_content.startswith('Rule'):
+            return {
+                'rule_id': rule_id,
+                'content': rule_content,
+                'source': 'https://github.com/cdklabs/cdk-nag/blob/main/RULES.md',
+                'status': 'success',
+            }
+        else:
+            # Rule not found
+            return {
+                'rule_id': rule_id,
+                'error': f'Rule {rule_id} not found in CDK Nag documentation.',
+                'source': 'https://github.com/cdklabs/cdk-nag/blob/main/RULES.md',
+                'status': 'not_found',
+            }
+    except Exception as e:
+        # Handle any errors
         return {
-            "error": f"Invalid rule ID format: {rule_id}. Expected format: '<RulePack>-<Category><Number>' (e.g., AwsSolutions-IAM4)"
+            'rule_id': rule_id,
+            'error': f'Failed to fetch rule information: {str(e)}',
+            'source': 'https://github.com/cdklabs/cdk-nag/blob/main/RULES.md',
+            'status': 'error',
         }
-
-    rule_pack, category, number = match.groups()
-    full_rule_name = f"{category}{number}"
-
-    # Look for a section with the rule ID in the guidance document
-    rule_pattern = re.compile(
-        fr'#+\s+{re.escape(rule_id)}|#+\s+{re.escape(full_rule_name)}', re.IGNORECASE
-    )
-    rule_match = rule_pattern.search(CDK_NAG_GUIDANCE)
-
-    if not rule_match:
-        return {
-            "error": f"Rule {rule_id} not found in guidance document.",
-            "available_rules": "Use resource 'cdk-nag://rules/AWS Solutions' to see all available rules.",
-        }
-
-    # Extract the rule section
-    start_pos = rule_match.start()
-    next_rule_match = re.search(r'#+\s+[A-Za-z]+-[A-Za-z0-9]+\d+', CDK_NAG_GUIDANCE[start_pos + 1 :])
-    end_pos = (
-        start_pos + 1 + next_rule_match.start() if next_rule_match else len(CDK_NAG_GUIDANCE)
-    )
-
-    rule_guidance = CDK_NAG_GUIDANCE[start_pos:end_pos].strip()
-
-    # Extract summary, risk, and remediation if available
-    summary_match = re.search(r'#+\s*Summary\s*\n+(.*?)(?=#+|\Z)', rule_guidance, re.DOTALL)
-    summary = summary_match.group(1).strip() if summary_match else ""
-
-    risk_match = re.search(r'#+\s*Risk\s*\n+(.*?)(?=#+|\Z)', rule_guidance, re.DOTALL)
-    risk = risk_match.group(1).strip() if risk_match else ""
-
-    remediation_match = re.search(
-        r'#+\s*Remediation\s*\n+(.*?)(?=#+|\Z)', rule_guidance, re.DOTALL
-    )
-    remediation = remediation_match.group(1).strip() if remediation_match else ""
-
-    code_examples_match = re.search(
-        r'#+\s*Code Examples\s*\n+(.*?)(?=#+|\Z)', rule_guidance, re.DOTALL
-    )
-    code_examples = code_examples_match.group(1).strip() if code_examples_match else ""
-
-    result = {
-        "rule_id": rule_id,
-        "rule_pack": rule_pack,
-        "full_guidance": rule_guidance,
-    }
-
-    if summary:
-        result["summary"] = summary
-    if risk:
-        result["risk"] = risk
-    if remediation:
-        result["remediation"] = remediation
-    if code_examples:
-        result["code_examples"] = code_examples
-
-    return result
 
 
 async def check_cdk_nag_suppressions_tool(
-    ctx: Context, code: Optional[str] = None, file_path: Optional[str] = None
+    ctx: Context,
+    code: Optional[str] = None,
+    file_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Check if CDK code contains Nag suppressions that require human review.
 
@@ -172,104 +150,67 @@ async def check_cdk_nag_suppressions_tool(
     Returns:
         Analysis results with suppression details and security guidance
     """
-    if not code and not file_path:
-        return {
-            "error": "Either code or file_path must be provided",
-            "suppressions_found": 0,
-            "details": [],
-        }
+    # Use the imported function from cdk_nag_parser.py
+    return check_cdk_nag_suppressions(code=code, file_path=file_path)
 
-    if file_path:
-        try:
-            with open(file_path, "r") as f:
-                code = f.read()
-        except Exception as e:
-            return {
-                "error": f"Failed to read file: {str(e)}",
-                "suppressions_found": 0,
-                "details": [],
-            }
 
-    if not code:
-        return {
-            "error": "No code provided",
-            "suppressions_found": 0,
-            "details": [],
-        }
+def save_fallback_script_to_file(
+    script_content: str, lambda_code_path: str, output_path: str
+) -> str:
+    """Save fallback script to a file instead of including it in the response.
 
-    # Look for NagSuppressions.addResourceSuppressions or NagSuppressions.addStackSuppressions
-    suppression_pattern = re.compile(
-        r'NagSuppressions\.add(?:Resource|Stack)Suppressions\s*\(\s*([^,]+)(?:,\s*\[([^\]]+)\])?(?:,\s*{([^}]+)})?\s*\)'
-    )
-    matches = suppression_pattern.finditer(code)
+    Args:
+        script_content: The script content to save
+        lambda_code_path: Original Lambda file path (used for naming)
+        output_path: Schema output path (used for directory)
 
-    suppressions = []
-    for match in matches:
-        resource = match.group(1).strip()
-        rules = []
-        if match.group(2):
-            # Extract rules from the array
-            rule_pattern = re.compile(r'[\'"]([^\'"]+)[\'"]')
-            rules = rule_pattern.findall(match.group(2))
+    Returns:
+        Path to the saved script file
+    """
+    # Sanitize paths to prevent path traversal attacks
+    output_dir = os.path.dirname(os.path.abspath(output_path))
 
-        reason = None
-        if match.group(3):
-            # Extract reason if it exists
-            reason_match = re.search(r'reason\s*:\s*[\'"]([^\'"]+)[\'"]', match.group(3))
-            if reason_match:
-                reason = reason_match.group(1)
+    # Create scripts directory in the same directory as the output file
+    scripts_dir = os.path.join(output_dir, 'scripts')
 
-        suppressions.append(
-            {
-                "resource": resource,
-                "rules": rules,
-                "reason": reason,
-                "has_reason": reason is not None,
-            }
-        )
+    try:
+        os.makedirs(scripts_dir, exist_ok=True)
+    except (OSError, IOError) as e:
+        logger.error(f'Failed to create scripts directory: {e}')
+        # Fall back to output directory if scripts dir creation fails
+        scripts_dir = output_dir
 
-    # High-risk rules that should always be justified
-    high_risk_rules = [
-        "AwsSolutions-IAM4",
-        "AwsSolutions-IAM5",
-        "AwsSolutions-L1",
-        "AwsSolutions-S1",
-        "AwsSolutions-S2",
-        "AwsSolutions-S10",
-    ]
+    # Sanitize file name - remove any path components and ensure it's just a base name
+    lambda_file_name = os.path.basename(lambda_code_path)
+    # Remove extension and any potentially problematic characters
+    sanitized_name = os.path.splitext(lambda_file_name)[0]
+    sanitized_name = re.sub(r'[^a-zA-Z0-9_-]', '', sanitized_name)
 
-    # Check for high-risk suppressions without reasons
-    high_risk_suppressions = []
-    for suppression in suppressions:
-        if not suppression["has_reason"]:
-            high_risk_rules_suppressed = [rule for rule in suppression["rules"] if rule in high_risk_rules]
-            if high_risk_rules_suppressed:
-                high_risk_suppressions.append(
-                    {
-                        "resource": suppression["resource"],
-                        "rules": high_risk_rules_suppressed,
-                        "recommendation": "Add a detailed reason for suppressing these high-risk rules",
-                    }
-                )
+    # Generate script name
+    script_file_name = f'generate_schema_{sanitized_name}.py'
+    script_path = os.path.join(scripts_dir, script_file_name)
 
-    # Generate summary
-    suppressions_without_reason = sum(1 for s in suppressions if not s["has_reason"])
+    # Validate the resulting path is still within the expected directory
+    if not os.path.abspath(script_path).startswith(os.path.abspath(scripts_dir)):
+        logger.error(f'Path traversal attempt detected: {script_path}')
+        # Fall back to a safe default
+        script_path = os.path.join(scripts_dir, 'generate_schema.py')
 
-    return {
-        "suppressions_found": len(suppressions),
-        "suppressions_without_reason": suppressions_without_reason,
-        "high_risk_suppressions": len(high_risk_suppressions),
-        "details": suppressions,
-        "high_risk_details": high_risk_suppressions,
-        "recommendation": """
-Best practices for CDK Nag suppressions:
-1. Always include a reason for every suppression
-2. Document why the rule is not applicable in your specific case
-3. Include a JIRA ticket or other reference if this is a temporary suppression
-4. Consider adding a @todo comment with a timeline for addressing the issue
-5. For high-risk rules, perform additional security review before suppressing
-""",
-    }
+    try:
+        # Write the script to file with restricted permissions
+        # Open with restricted permissions from the start (only owner can read/write)
+        with open(os.open(script_path, os.O_CREAT | os.O_WRONLY, 0o600), 'w') as f:
+            f.write(script_content)
+
+        # Update to executable permissions (only for the owner)
+        os.chmod(script_path, 0o700)  # rwx------ permissions (owner only)
+
+        logger.info(f'Successfully created script at {script_path}')
+        return script_path
+
+    except (OSError, IOError) as e:
+        logger.error(f'Failed to save script: {e}')
+        return f'Error saving script: {str(e)}'
 
 
 async def bedrock_schema_generator_from_file(
@@ -292,33 +233,106 @@ async def bedrock_schema_generator_from_file(
         Dictionary with schema generation results, including status, path to generated schema,
         and diagnostic information if errors occurred
     """
-    try:
-        logger.info(f"Generating schema from {lambda_code_path}")
+    # Ensure the output directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
-        # Try to generate schema from the file
-        schema_result = await generate_schema_from_file(lambda_code_path)
+    # Generate the schema
+    result = generate_bedrock_schema_from_file(
+        lambda_code_path=lambda_code_path,
+        output_path=output_path,
+    )
 
-        # If we have a schema, save it to the output path
-        if schema_result.get("schema"):
-            try:
-                formatted_schema = format_generated_schema(schema_result["schema"])
-                with open(output_path, "w") as f:
-                    f.write(formatted_schema)
-                logger.info(f"Schema generated successfully and saved to {output_path}")
-                schema_result["output_path"] = output_path
-            except Exception as e:
-                schema_result["error"] = f"Failed to save schema to {output_path}: {str(e)}"
-                logger.error(schema_result["error"])
+    # Add comprehensive next steps for successful schema generation
+    if result.get('status') == 'success':
+        output_filename = os.path.basename(output_path)
+        output_dir = os.path.dirname(output_path)
+        lambda_dir = os.path.dirname(os.path.abspath(lambda_code_path))
+        lambda_name = os.path.basename(os.path.dirname(lambda_code_path))
 
-        return schema_result
-    except Exception as e:
-        error_message = f"Failed to generate schema: {str(e)}"
-        logger.error(error_message)
-        return {"status": "error", "error": error_message}
+        # Create a more comprehensive integration example
+        result['next_steps'] = {
+            'success_message': f'Schema successfully generated and saved to {output_path}',
+            'integration_steps': [
+                '1. Ensure your Lambda function has the right permissions:',
+                '   - Add bedrock.amazonaws.com as a principal in permissions',
+                '   - Include Lambda Powertools and Pydantic as layers',
+                '2. Add the ActionGroup to your Bedrock Agent:',
+                '   - Create an action group with your Lambda as the executor',
+                '   - Use the generated schema with ApiSchema.fromLocalAsset()',
+                '3. Deploy your CDK stack',
+            ],
+            'cdk_example': [
+                '// Add the Action Group to your agent',
+                'agent.addActionGroup(new bedrock.AgentActionGroup({',
+                f"  name: '{lambda_name}-action-group',",
+                f"  description: 'Action group for {lambda_name}',",
+                '  executor: bedrock.ActionGroupExecutor.fromlambdaFunction(yourLambdaFunction),',
+                '  apiSchema: bedrock.ApiSchema.fromLocalAsset(',
+                f"    path.join(__dirname, '{os.path.relpath(output_dir, lambda_dir)}', '{output_filename}')",
+                '  )',
+                '}));',
+            ],
+        }
+
+    # If fallback script was generated, save it to a file instead of returning it in the response
+    if result.get('status') == 'error' and result.get('fallback_script'):
+        # Save the script to a file
+        script_path = save_fallback_script_to_file(
+            result['fallback_script'], lambda_code_path, output_path
+        )
+
+        # Get the output filename for use in examples
+        output_filename = os.path.basename(output_path)
+        output_dir = os.path.dirname(output_path)
+
+        # Update the result dictionary to include the script path instead of script content
+        result['fallback_script_path'] = script_path
+
+        # Remove the full script content to avoid verbose responses
+        del result['fallback_script']
+
+        # Enhanced client instructions with CDK integration example
+        result['client_instructions'] = {
+            'title': 'Schema Generation and Integration Guide',
+            'steps': [
+                f"1. Run the script at '{script_path}'",
+                f"2. The script will generate the schema file at '{output_path}'",
+                '3. In your CDK code, reference this exact schema file as shown below:',
+            ],
+            'command_suggestion': f'python {script_path}',
+            'cdk_integration_example': f"// Assuming your Lambda function is named '{os.path.basename(lambda_code_path).replace('.py', 'Lambda')}'\n"
+            f'const {os.path.basename(lambda_code_path).replace(".py", "ActionGroup")} = new bedrock.AgentActionGroup({{\n'
+            f'  name: "{os.path.basename(lambda_code_path).replace(".py", "ActionGroup")}",\n'
+            f'  description: "This action group is used for {os.path.basename(lambda_code_path).replace(".py", "")}",\n'
+            f'  executor: bedrock.ActionGroupExecutor.fromlambdaFunction({os.path.basename(lambda_code_path).replace(".py", "Lambda")}),\n'
+            f'  apiSchema: bedrock.ApiSchema.fromLocalAsset(\n'
+            f'    path.join(__dirname, "{os.path.relpath(output_dir, os.path.dirname(lambda_code_path))}", "{output_filename}")\n'
+            f'  )\n'
+            f'}});\n'
+            f'agent.addActionGroup({os.path.basename(lambda_code_path).replace(".py", "ActionGroup")});',
+            'important_notes': [
+                '✅ Use the exact openapi.json file generated by the script',
+                '✅ Adjust the path in fromLocalAsset() to point to where the schema was generated',
+                '❌ Do NOT regenerate or modify the schema manually',
+            ],
+        }
+
+        if 'instructions' in result:
+            result['instructions'] = result['instructions'].replace(
+                'save the fallback script to a file',
+                f'run the fallback script located at {script_path}',
+            )
+
+        # Update the solution message
+        result['solution'] = f'Use the fallback script at {script_path} to generate the schema'
+
+    return result
 
 
 async def get_aws_solutions_construct_pattern(
-    ctx: Context, pattern_name: Optional[str] = None, services: Optional[List[str]] = None
+    ctx: Context,
+    pattern_name: Optional[str] = None,
+    services: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Search and discover AWS Solutions Constructs patterns.
 
@@ -348,35 +362,30 @@ async def get_aws_solutions_construct_pattern(
     Returns:
         Dictionary with pattern metadata including description, services, and documentation URI
     """
-    # If pattern_name is provided, get info for that specific pattern
     if pattern_name:
-        pattern_info = await get_pattern_info(pattern_name)
-        if 'error' in pattern_info:
-            return pattern_info
-        return pattern_info
-
-    # If services is provided, search for patterns that use those services
-    if services:
+        result = await get_pattern_info(pattern_name)
+        return result
+    elif services:
         patterns = await search_patterns(services)
         return {
-            "status": "success",
-            "patterns_found": len(patterns),
-            "patterns": patterns,
-            "services_searched": services,
+            'results': patterns,
+            'count': len(patterns),
+            'status': 'success',
+            'metadata': {'services_searched': services},
         }
-
-    # If neither is provided, return an error
-    return {
-        "error": "Either pattern_name or services must be provided",
-        "examples": {
-            "pattern_name": "aws-lambda-dynamodb",
-            "services": ["lambda", "dynamodb"],
-        },
-    }
+    else:
+        available_patterns = await fetch_pattern_list()
+        return {
+            'error': 'Either pattern_name or services must be provided',
+            'available_patterns': available_patterns,
+            'status': 'error',
+        }
 
 
 async def search_genai_cdk_constructs(
-    ctx: Context, query: Optional[str] = None, construct_type: Optional[str] = None
+    ctx: Context,
+    query: Optional[str] = None,
+    construct_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Search for GenAI CDK constructs by name or type.
 
@@ -396,108 +405,127 @@ async def search_genai_cdk_constructs(
     Returns:
         Dictionary with matching constructs and resource URIs
     """
-    # If neither query nor construct_type is provided, return available construct types
-    if not query and not construct_type:
-        construct_types = get_genai_cdk_construct_types()
+    try:
+        # Get list of constructs
+        constructs = list_available_constructs(construct_type)
+
+        # If no query, return all constructs
+        if not query:
+            results = []
+            for construct in constructs:
+                results.append(
+                    {
+                        'name': construct['name'],
+                        'type': construct['type'],
+                        'description': construct['description'],
+                        'resource_uri': f'genai-cdk-constructs://{construct["type"]}/{construct["name"]}',
+                    }
+                )
+
+            return {
+                'results': results,
+                'count': len(results),
+                'status': 'success',
+                'installation_required': {
+                    'package_name': '@cdklabs/generative-ai-cdk-constructs',
+                    'message': 'This construct requires the @cdklabs/generative-ai-cdk-constructs package to be installed',
+                },
+            }
+
+        # Define functions to extract searchable text and name parts
+        def get_text_fn(construct: Dict[str, Any]) -> str:
+            # Create a searchable string from the construct
+            name = construct['name'].lower().replace('_', ' ')
+            # Split camelCase words (e.g., actionGroups -> action Groups)
+            name = re.sub(r'([a-z])([A-Z])', r'\1 \2', name).lower()
+            return f'{name} {construct["type"]} {construct["description"]}'.lower()
+
+        def get_name_parts_fn(construct: Dict[str, Any]) -> List[str]:
+            name = construct['name'].lower().replace('_', ' ')
+            # Split camelCase words
+            name = re.sub(r'([a-z])([A-Z])', r'\1 \2', name).lower()
+            return name.split()
+
+        # Use common search utility
+        search_terms = query.lower().split()
+        scored_constructs = search_utils.search_items_with_terms(
+            constructs, search_terms, get_text_fn, get_name_parts_fn
+        )
+
+        # Format results with resource URIs and matched keywords
+        results = []
+        for scored_item in scored_constructs:
+            construct = scored_item['item']
+            results.append(
+                {
+                    'name': construct['name'],
+                    'type': construct['type'],
+                    'description': construct['description'],
+                    'resource_uri': f'genai-cdk-constructs://{construct["type"]}/{construct["name"]}',
+                    'matched_keywords': scored_item['matched_terms'],
+                }
+            )
+
         return {
-            "status": "no_search_terms",
-            "message": "Please provide a search query or construct type",
-            "available_construct_types": construct_types,
-            "examples": {
-                "query": "agent actiongroups",
-                "construct_type": "bedrock",
+            'results': results,
+            'count': len(results),
+            'status': 'success',
+            'installation_required': {
+                'package_name': '@cdklabs/generative-ai-cdk-constructs',
+                'message': 'This construct requires the @cdklabs/generative-ai-cdk-constructs package to be installed',
             },
         }
-
-    # Perform the search
-    search_results = await search_genai_cdk_constructs(query, construct_type)
-
-    return {
-        "status": "success",
-        "results": search_results,
-        "query": query,
-        "construct_type": construct_type,
-    }
+    except Exception as e:
+        return {'error': f'Error searching constructs: {str(e)}', 'status': 'error'}
 
 
-async def generate_lambda_layer_code(
+async def lambda_layer_documentation_provider(
     ctx: Context,
     layer_type: str,  # "generic" or "python"
-    entry_path: str,
-    layer_name: str,
-    compatible_runtimes: Optional[List[str]] = None,
-    description: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Generate CDK code for Lambda layers.
-    
-    This tool creates CDK code snippets for Lambda layers using best practices
-    from the AWS documentation.
-    
+    """Provide documentation sources for Lambda layers.
+
+    This tool returns information about where to find documentation for Lambda layers
+    and instructs the MCP Client to fetch and process this documentation.
+
     Args:
         ctx: MCP context
         layer_type: Type of layer ("generic" or "python")
-        entry_path: Path to the layer code
-        layer_name: Name for the layer construct
-        compatible_runtimes: List of compatible Lambda runtimes
-        description: Optional description for the layer
-        
+
     Returns:
-        Dictionary with generated code snippets and documentation from AWS docs
+        Dictionary with documentation source information
     """
-    # Fetch Lambda layer documentation
-    docs = await LambdaLayerParser.fetch_lambda_layer_docs()
-    
-    # Format compatible runtimes
-    if compatible_runtimes:
-        runtime_strings = [f"lambda.Runtime.{runtime.upper()}" for runtime in compatible_runtimes]
-        formatted_runtimes = ", ".join(runtime_strings)
+    if layer_type.lower() == 'python':
+        # For Python layers, use AWS Documentation MCP Server
+        return {
+            'layer_type': 'python',
+            'documentation_source': {
+                'server': 'awslabs.aws-documentation-mcp-server',
+                'tool': 'read_documentation',
+                'parameters': {'url': LambdaLayerParser.PYTHON_LAYER_URL, 'max_length': 10000},
+            },
+            'documentation_usage_guide': {
+                'when_to_fetch_full_docs': 'Fetch full documentation to view detailed property definitions, learn about optional parameters, and find additional code examples',
+                'contains_sample_code': True,
+                'contains_props_documentation': True,
+            },
+            'code_generation_guidance': {
+                'imports': [
+                    "import { PythonLayerVersion } from '@aws-cdk/aws-lambda-python-alpha'"
+                ],
+                'construct_types': {'python': 'PythonLayerVersion'},
+                'required_properties': {'python': ['entry']},
+                'sample_code': "new python.PythonLayerVersion(this, 'MyLayer', {\n  entry: '/path/to/my/layer', // point this to your library's directory\n})",
+            },
+        }
     else:
-        # Use latest versions
-        if layer_type.lower() == "python":
-            formatted_runtimes = "lambda.Runtime.PYTHON_3_13"
-        else:
-            formatted_runtimes = "lambda.Runtime.NODEJS_22_X"
-    
-    # Generate code based on layer type
-    if layer_type.lower() == "python":
-        code = f"""
-import * as path from 'path';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import {{ PythonLayerVersion }} from '@aws-cdk/aws-lambda-python-alpha';
+        # For all other layer types (including generic), use the existing parser
+        docs = await LambdaLayerParser.fetch_lambda_layer_docs()
+        layer_docs = docs['generic_layers']
 
-// Create a Python Lambda layer
-const {layer_name} = new PythonLayerVersion(this, '{layer_name}', {{
-  entry: path.join(__dirname, '{entry_path}'),  // Directory containing requirements.txt
-  compatibleRuntimes: [{formatted_runtimes}],
-  description: '{description or ""}',
-}});
-"""
-    else:  # generic
-        code = f"""
-import * as path from 'path';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-
-// Create a generic Lambda layer
-const {layer_name} = new lambda.LayerVersion(this, '{layer_name}', {{
-  code: lambda.Code.fromAsset(path.join(__dirname, '{entry_path}')),
-  compatibleRuntimes: [{formatted_runtimes}],
-  description: '{description or ""}',
-}});
-"""
-
-    # Return the result with documentation directly from AWS
-    layer_docs = docs[f"{layer_type.lower()}_layers"]
-    return {
-        "code": code,
-        "documentation": layer_docs,
-        "best_practices": """
-## Lambda Layer Best Practices
-
-1. **Minimize Layer Size**: Keep layers focused on a single responsibility and minimize dependencies
-2. **Version Pinning**: Pin dependency versions in requirements.txt to ensure consistent builds
-3. **Layer Organization**: Follow the expected directory structure for your runtime
-4. **Caching**: Use asset hashing to take advantage of CDK's built-in layer caching
-5. **Testing**: Test your layers thoroughly with the runtimes they support
-6. **Documentation**: Document what's in each layer and why it exists
-"""
-    }
+        return {
+            'layer_type': 'generic',
+            'code_examples': layer_docs['examples'],
+            'directory_structure': layer_docs['directory_structure'],
+            'source_url': layer_docs['url'],
+        }
