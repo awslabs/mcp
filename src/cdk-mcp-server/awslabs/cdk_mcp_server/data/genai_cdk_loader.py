@@ -1,3 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
 """GenAI CDK constructs static content loader."""
 
 import logging
@@ -60,7 +71,7 @@ def get_genai_cdk_overview(construct_type: str = '') -> str:
         'overview.md',
     )
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
         return f"Error: Overview file for '{construct_type}' not found."
@@ -173,7 +184,7 @@ def get_genai_cdk_construct_section(construct_type: str, construct_name: str, se
         )
 
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
         return (
@@ -296,7 +307,7 @@ def get_genai_cdk_construct(construct_type: str, construct_name: str) -> str:
         f'{construct_name_lower}.md',
     )
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
         # Try to see if this is a directory with an overview.md file
@@ -309,7 +320,7 @@ def get_genai_cdk_construct(construct_type: str, construct_name: str) -> str:
             'overview.md',
         )
         try:
-            with open(overview_path, 'r') as f:
+            with open(overview_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except FileNotFoundError:
             return f"Error: Documentation for '{construct_name}' in '{construct_type}' not found."
@@ -408,7 +419,7 @@ def process_directory_files(
         # If no fixed description, fall back to current behavior
         if not description:
             try:
-                with open(file_path, 'r') as f:
+                with open(file_path, 'r', encoding='utf-8') as f:
                     first_line = f.readline().strip()
                     description = (
                         first_line[1:].strip() if first_line.startswith('#') else display_name

@@ -1,3 +1,13 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
 """awslabs Bedrock Knowledge Base Retrieval MCP Server."""
 
 import argparse
@@ -28,8 +38,14 @@ global kb_runtime_client
 global kb_agent_mgmt_client
 
 try:
-    kb_runtime_client = get_bedrock_agent_runtime_client(profile_name=os.getenv('AWS_PROFILE'))
-    kb_agent_mgmt_client = get_bedrock_agent_client(profile_name=os.getenv('AWS_PROFILE'))
+    kb_runtime_client = get_bedrock_agent_runtime_client(
+        region_name=os.getenv('AWS_REGION'),
+        profile_name=os.getenv('AWS_PROFILE'),
+    )
+    kb_agent_mgmt_client = get_bedrock_agent_client(
+        region_name=os.getenv('AWS_REGION'),
+        profile_name=os.getenv('AWS_PROFILE'),
+    )
 except Exception as e:
     logger.error(f'Error getting bedrock agent client: {e}')
     raise e

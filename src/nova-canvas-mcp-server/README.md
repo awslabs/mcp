@@ -1,21 +1,31 @@
 # Amazon Nova Canvas MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@awslabs/nova-canvas-mcp-server)](https://smithery.ai/server/@awslabs/nova-canvas-mcp-server)
+
 MCP server for generating images using Amazon Nova Canvas
 
 ## Features
 
-- **Text-based image generation** - Create images from text prompts with `generate_image`
-  - Customizable dimensions (320-4096px), quality options, and negative prompting
-  - Supports multiple image generation (1-5) in single request
-  - Adjustable parameters like cfg_scale (1.1-10.0) and seeded generation
+### Text-based image generation
 
-- **Color-guided image generation** - Generate images with specific color palettes using `generate_image_with_colors`
-  - Define up to 10 hex color values to influence the image style and mood
-  - Same customization options as text-based generation
+- Create images from text prompts with `generate_image`
+- Customizable dimensions (320-4096px), quality options, and negative prompting
+- Supports multiple image generation (1-5) in single request
+- Adjustable parameters like cfg_scale (1.1-10.0) and seeded generation
 
-- **Workspace integration** - Images saved to user-specified workspace directories with automatic folder creation
+### Color-guided image generation
 
-- **AWS authentication** - Uses AWS profiles for secure access to Amazon Nova Canvas services
+- Generate images with specific color palettes using `generate_image_with_colors`
+- Define up to 10 hex color values to influence the image style and mood
+- Same customization options as text-based generation
+
+### Workspace integration
+
+- Images saved to user-specified workspace directories with automatic folder creation
+
+### AWS authentication
+
+- Uses AWS profiles for secure access to Amazon Nova Canvas services
 
 ## Prerequisites
 
@@ -46,6 +56,14 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
     }
   }
 }
+```
+
+### Installing via Smithery
+
+To install Amazon Nova Canvas MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@awslabs/nova-canvas-mcp-server):
+
+```bash
+npx -y @smithery/cli install @awslabs/nova-canvas-mcp-server --client claude
 ```
 
 ### AWS Authentication
