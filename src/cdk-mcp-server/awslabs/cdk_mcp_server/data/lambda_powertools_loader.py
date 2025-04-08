@@ -51,7 +51,7 @@ def get_lambda_powertools_section(topic: str = '') -> str:
         )  # Go up from 'data' to get to the package root
         file_path = os.path.join(base_dir, 'static', 'lambda_powertools', f'{topic.lower()}.md')
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except FileNotFoundError:
             return f"Error: File for topic '{topic}' not found. (Looking in: {file_path})"

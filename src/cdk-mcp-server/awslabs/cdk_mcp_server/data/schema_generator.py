@@ -85,7 +85,7 @@ def main():
     # Example of creating a simplified version:
     simplified_path = os.path.join(lambda_dir, f"{{module_name}}_simplified.py")
     try:
-        with open(LAMBDA_FILE_PATH, 'r') as f:
+        with open(LAMBDA_FILE_PATH, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # Comment out problematic imports (add more as needed)
@@ -104,7 +104,7 @@ def main():
 
         simplified_content = '\\n'.join(lines)
 
-        with open(simplified_path, 'w') as f:
+        with open(simplified_path, 'w', encoding='utf-8') as f:
             f.write(simplified_content)
 
         print("Created simplified version with problematic imports commented out")
@@ -166,7 +166,7 @@ def main():
             os.makedirs(os.path.dirname(os.path.abspath(OUTPUT_PATH)), exist_ok=True)
 
             # Save the schema to the output path
-            with open(OUTPUT_PATH, 'w') as f:
+            with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
                 json.dump(openapi_schema, f, indent=2)
 
             print(f"Schema successfully generated and saved to {{OUTPUT_PATH}}")
@@ -218,7 +218,7 @@ def main():
             os.makedirs(os.path.dirname(os.path.abspath(OUTPUT_PATH)), exist_ok=True)
 
             # Save the schema to the output path
-            with open(OUTPUT_PATH, 'w') as f:
+            with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
                 json.dump(openapi_schema, f, indent=2)
 
             print(f"Schema successfully generated and saved to {{OUTPUT_PATH}}")
@@ -441,7 +441,7 @@ def generate_bedrock_schema_from_file(
             os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
             # Save the schema to the output path
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(openapi_schema, f, indent=2)
 
             result['schema'] = openapi_schema
@@ -460,7 +460,7 @@ def generate_bedrock_schema_from_file(
             simplified_path = os.path.join(lambda_dir, f'{module_name}_simplified.py')
 
             try:
-                with open(lambda_code_path, 'r') as f:
+                with open(lambda_code_path, 'r', encoding='utf-8') as f:
                     content = f.read()
 
                 # Define problematic packages
@@ -494,7 +494,7 @@ def generate_bedrock_schema_from_file(
                 result['process']['simplified_version']['modifications'] = modifications
 
                 # Write simplified file
-                with open(simplified_path, 'w') as f:
+                with open(simplified_path, 'w', encoding='utf-8') as f:
                     f.write(simplified_content)
 
                 try:
@@ -536,7 +536,7 @@ def generate_bedrock_schema_from_file(
                     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
                     # Save the schema to the output path
-                    with open(output_path, 'w') as f:
+                    with open(output_path, 'w', encoding='utf-8') as f:
                         json.dump(openapi_schema, f, indent=2)
 
                     result['schema'] = openapi_schema
