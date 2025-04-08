@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-awslabs.aws-diagram = "awslabs.aws_diagram.server:main"
+"awslabs.aws-diagram" = "awslabs.aws_diagram.server:main"
 
 [dependency-groups]
 dev = [
