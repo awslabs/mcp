@@ -186,7 +186,7 @@ def install_to_mcp_config(
 
     # Read existing config or create new one
     if config_path.exists():
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             try:
                 config = json.load(f)
             except json.JSONDecodeError:
@@ -276,7 +276,7 @@ def ensure_mcp_servers_installed() -> None:
         # Read existing config
         if config_path.exists():
             logger.info('Config file exists, reading content')
-            with open(config_path, 'r') as f:
+            with open(config_path, 'r', encoding='utf-8') as f:
                 try:
                     config = json.load(f)
                     logger.info(

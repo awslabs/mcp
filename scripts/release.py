@@ -86,15 +86,15 @@ class NpmPackage:
     path: Path
 
     def package_name(self) -> str:
-        with open(self.path / "package.json", "r") as f:
+        with open(self.path / "package.json", "r", encoding="utf-8") as f:
             return json.load(f)["name"]
 
     def package_version(self) -> str:
-        with open(self.path / "package.json", "r") as f:
+        with open(self.path / "package.json", "r", encoding="utf-8") as f:
             return json.load(f)["version"]
 
     def update_version(self, patch: Patch) -> str:
-        with open(self.path / "package.json", "r+") as f:
+        with open(self.path / "package.json", "r+", encoding="utf-8") as f:
             data = json.load(f)
             major, minor, _ = data["version"].split(".")
             version = ".".join([major, minor, patch])
@@ -110,7 +110,7 @@ class PyPiPackage:
     path: Path
 
     def package_name(self) -> str:
-        with open(self.path / "pyproject.toml") as f:
+        with open(self.path / "pyproject.toml", encoding="utf-8") as f:
             toml_data = tomlkit.parse(f.read())
             name = toml_data.get("project", {}).get("name")
             if not name:
@@ -118,7 +118,7 @@ class PyPiPackage:
             return str(name)
 
     def package_version(self) -> str:
-        with open(self.path / "pyproject.toml") as f:
+        with open(self.path / "pyproject.toml", encoding="utf-8") as f:
             toml_data = tomlkit.parse(f.read())
             version = toml_data.get("project", {}).get("version")
             if not version:
@@ -127,7 +127,7 @@ class PyPiPackage:
 
     def update_version(self, patch: Patch) -> str:
         # Update version in pyproject.toml
-        with open(self.path / "pyproject.toml") as f:
+        with open(self.path / "pyproject.toml", encoding="utf-8") as f:
             data = tomlkit.parse(f.read())
             # Access the version safely from tomlkit document
             project_table = data.get("project")
@@ -142,7 +142,7 @@ class PyPiPackage:
             # Update the version safely
             project_table["version"] = version
 
-        with open(self.path / "pyproject.toml", "w") as f:
+        with open(self.path / "pyproject.toml", "w", encoding="utf-8") as f:
             f.write(tomlkit.dumps(data))
         return version
 
