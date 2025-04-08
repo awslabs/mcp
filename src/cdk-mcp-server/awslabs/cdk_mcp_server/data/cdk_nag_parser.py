@@ -282,7 +282,7 @@ def check_cdk_nag_suppressions(
     # If file_path is provided, read the file content
     if file_path is not None:
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 code = f.read()
         except Exception as e:
             return {'error': f'Failed to read file: {str(e)}', 'status': 'error'}

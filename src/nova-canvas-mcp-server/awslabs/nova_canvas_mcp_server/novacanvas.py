@@ -131,7 +131,7 @@ async def invoke_nova_canvas(
         response = bedrock_runtime_client.invoke_model(modelId=NOVA_CANVAS_MODEL_ID, body=request)
 
         # Decode the response body
-        result = json.loads(response['body'].read())
+        result = json.loads(response['body'].read().decode('utf-8'))
         logger.info('Nova Canvas API call successful')
         return result
     except Exception as e:
