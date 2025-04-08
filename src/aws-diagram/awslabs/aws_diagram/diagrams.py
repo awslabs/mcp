@@ -74,8 +74,10 @@ async def generate_diagram(
             # Create a "generated-diagrams" subdirectory in the workspace
             output_dir = os.path.join(workspace_dir, 'generated-diagrams')
         else:
-            # Fall back to /tmp/generated-diagrams/ if workspace_dir isn't provided or isn't writable
-            output_dir = '/tmp/generated-diagrams'
+            # Fall back to a secure temporary directory if workspace_dir isn't provided or isn't writable
+            import tempfile
+            temp_base = tempfile.gettempdir()
+            output_dir = os.path.join(temp_base, 'generated-diagrams')
 
         # Create the output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)

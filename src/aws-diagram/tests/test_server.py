@@ -1,6 +1,8 @@
 """Tests for the server module of the diagrams-mcp-server."""
 
+import os
 import pytest
+import tempfile
 from diagrams_mcp_server.models import DiagramType
 from diagrams_mcp_server.server import (
     mcp_generate_diagram,
@@ -22,7 +24,7 @@ class TestMcpGenerateDiagram:
             model_dump=MagicMock(
                 return_value={
                     'status': 'success',
-                    'path': '/tmp/diagram.png',
+                    'path': os.path.join(tempfile.gettempdir(), 'diagram.png'),
                     'message': 'Diagram generated successfully',
                 }
             )
@@ -33,13 +35,13 @@ class TestMcpGenerateDiagram:
             code='with Diagram("Test", show=False):\n    ELB("lb") >> EC2("web")',
             filename='test',
             timeout=60,
-            workspace_dir='/tmp',
+            workspace_dir=tempfile.gettempdir(),
         )
 
         # Check the result
         assert result == {
             'status': 'success',
-            'path': '/tmp/diagram.png',
+            'path': os.path.join(tempfile.gettempdir(), 'diagram.png'),
             'message': 'Diagram generated successfully',
         }
 
@@ -48,7 +50,7 @@ class TestMcpGenerateDiagram:
             'with Diagram("Test", show=False):\n    ELB("lb") >> EC2("web")',
             'test',
             60,
-            '/tmp',
+            tempfile.gettempdir(),
         )
 
     @pytest.mark.asyncio
@@ -60,7 +62,7 @@ class TestMcpGenerateDiagram:
             model_dump=MagicMock(
                 return_value={
                     'status': 'success',
-                    'path': '/tmp/diagram.png',
+                    'path': os.path.join(tempfile.gettempdir(), 'diagram.png'),
                     'message': 'Diagram generated successfully',
                 }
             )
@@ -74,7 +76,7 @@ class TestMcpGenerateDiagram:
         # Check the result
         assert result == {
             'status': 'success',
-            'path': '/tmp/diagram.png',
+            'path': os.path.join(tempfile.gettempdir(), 'diagram.png'),
             'message': 'Diagram generated successfully',
         }
 

@@ -1,0 +1,7 @@
+# Bandit configuration file
+
+# Skip the virtual environment directory
+exclude_dirs: ['./venv']
+
+# Alternatively, you can skip specific issues if needed
+# skips: ['B101', 'B404', 'B603']

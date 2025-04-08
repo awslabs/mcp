@@ -1,6 +1,8 @@
 """Tests for the models module of the diagrams-mcp-server."""
 
+import os
 import pytest
+import tempfile
 from diagrams_mcp_server.models import (
     DiagramExampleResponse,
     DiagramGenerateRequest,
@@ -51,12 +53,12 @@ class TestDiagramGenerateRequest:
             code='with Diagram("Test", show=False):\n    ELB("lb") >> EC2("web")',
             filename='test',
             timeout=60,
-            workspace_dir='/tmp',
+            workspace_dir=tempfile.gettempdir(),
         )
         assert request.code == 'with Diagram("Test", show=False):\n    ELB("lb") >> EC2("web")'
         assert request.filename == 'test'
         assert request.timeout == 60
-        assert request.workspace_dir == '/tmp'
+        assert request.workspace_dir == tempfile.gettempdir()
 
     def test_minimal_request(self):
         """Test that a minimal request with only required fields is accepted."""
@@ -94,11 +96,11 @@ class TestDiagramGenerateResponse:
         """Test that a success response is created correctly."""
         response = DiagramGenerateResponse(
             status='success',
-            path='/tmp/diagram.png',
+            path=os.path.join(tempfile.gettempdir(), 'diagram.png'),
             message='Diagram generated successfully',
         )
         assert response.status == 'success'
-        assert response.path == '/tmp/diagram.png'
+        assert response.path == os.path.join(tempfile.gettempdir(), 'diagram.png')
         assert response.message == 'Diagram generated successfully'
 
     def test_error_response(self):
