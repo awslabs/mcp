@@ -1,3 +1,11 @@
+#!/usr/bin/env uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "click>=8.1.8",
+#     "tomlkit>=0.13.2"
+# ]
+# ///
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
@@ -8,14 +16,6 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-#!/usr/bin/env uv run --script
-# /// script
-# requires-python = ">=3.12"
-# dependencies = [
-#     "click>=8.1.8",
-#     "tomlkit>=0.13.2"
-# ]
-# ///
 import click
 import datetime
 import json
@@ -38,11 +38,14 @@ GitHash = NewType('GitHash', str)
 
 
 class GitHashParamType(click.ParamType):
+    """The GitHash paramater type."""
+
     name = 'git_hash'
 
     def convert(
         self, value: Any, param: click.Parameter | None, ctx: click.Context | None
     ) -> GitHash | None:
+        """Convert the value to a GitHash."""
         if value is None:
             return None
 
@@ -67,28 +70,41 @@ GIT_HASH = GitHashParamType()
 
 
 class Package(Protocol):
+    """The package protocol."""
+
     path: Path
 
-    def package_name(self) -> str: ...
+    def package_name(self) -> str:
+        """The package name."""
+        ...
 
-    def package_version(self) -> str: ...
+    def package_version(self) -> str:
+        """The package version."""
+        ...
 
-    def update_version(self, patch: Patch) -> str: ...
+    def update_version(self, patch: Patch) -> str:
+        """Update the package version."""
+        ...
 
 
 @dataclass
 class NpmPackage:
+    """A NPM package."""
+
     path: Path
 
     def package_name(self) -> str:
+        """Get the package name from the package.json file."""
         with open(self.path / 'package.json', 'r', encoding='utf-8') as f:
             return json.load(f)['name']
 
     def package_version(self) -> str:
+        """Get the package version from the package.json file."""
         with open(self.path / 'package.json', 'r', encoding='utf-8') as f:
             return json.load(f)['version']
 
     def update_version(self, patch: Patch) -> str:
+        """Update the package.json with a version."""
         with open(self.path / 'package.json', 'r+', encoding='utf-8') as f:
             data = json.load(f)
             major, minor, _ = data['version'].split('.')
@@ -102,9 +118,12 @@ class NpmPackage:
 
 @dataclass
 class PyPiPackage:
+    """A PyPi package."""
+
     path: Path
 
     def package_name(self) -> str:
+        """Get the package name from the pyproject.toml file."""
         with open(self.path / 'pyproject.toml', encoding='utf-8') as f:
             toml_data = tomlkit.parse(f.read())
             name = toml_data.get('project', {}).get('name')
@@ -113,6 +132,7 @@ class PyPiPackage:
             return str(name)
 
     def package_version(self) -> str:
+        """Read the version from the pyproject.toml file."""
         with open(self.path / 'pyproject.toml', encoding='utf-8') as f:
             toml_data = tomlkit.parse(f.read())
             version = toml_data.get('project', {}).get('version')
@@ -121,7 +141,7 @@ class PyPiPackage:
             return str(version)
 
     def update_version(self, patch: Patch) -> str:
-        # Update version in pyproject.toml
+        """Update version in pyproject.toml."""
         with open(self.path / 'pyproject.toml', encoding='utf-8') as f:
             data = tomlkit.parse(f.read())
             # Access the version safely from tomlkit document
@@ -143,7 +163,7 @@ class PyPiPackage:
 
 
 def has_changes(path: Path, git_hash: GitHash) -> bool:
-    """Check if any files changed between current state and git hash"""
+    """Check if any files changed between current state and git hash."""
     try:
         logging.debug(f'Checking changes in {path} since {git_hash}')
 
@@ -207,19 +227,20 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
 
 
 def gen_version() -> Version:
-    """Generate release version based on current time"""
+    """Generate release version based on current time."""
     now = datetime.datetime.now(datetime.UTC)
     return Version(f'{now.year}.{now.month}.{gen_patch()}')
 
 
 def gen_patch() -> Patch:
-    """Generate version based on current UTC timestamp"""
+    """Generate version based on current UTC timestamp."""
     now = datetime.datetime.now(datetime.UTC)
     # return Patch(f"{int(now.timestamp())}")
     return Patch(f'{now.day:02d}{now.hour:02d}{now.minute:02d}')
 
 
 def find_changed_packages(directory: Path, git_hash: GitHash) -> Iterator[Package]:
+    """This looks for changed packages."""
     # Debug info
     logging.debug(f'Searching for changed packages in {directory} since {git_hash}')
 
@@ -240,6 +261,7 @@ def find_changed_packages(directory: Path, git_hash: GitHash) -> Iterator[Packag
 
 @click.group()
 def cli():
+    """Simply pass."""
     pass
 
 
@@ -247,6 +269,7 @@ def cli():
 @click.option('--directory', type=click.Path(exists=True, path_type=Path), default=Path.cwd())
 @click.argument('git_hash', type=GIT_HASH)
 def update_packages(directory: Path, git_hash: GitHash) -> int:
+    """Updates the package version with a patch."""
     # Detect package type
     path = directory.resolve(strict=True)
     patch = gen_patch()
@@ -264,6 +287,7 @@ def update_packages(directory: Path, git_hash: GitHash) -> int:
 @click.option('--directory', type=click.Path(exists=True, path_type=Path), default=Path.cwd())
 @click.argument('git_hash', type=GIT_HASH)
 def generate_notes(directory: Path, git_hash: GitHash) -> int:
+    """Generates detailed release notes."""
     # Detect package type
     path = directory.resolve(strict=True)
     release = gen_version()
@@ -282,6 +306,7 @@ def generate_notes(directory: Path, git_hash: GitHash) -> int:
 
 @cli.command('generate-version')
 def generate_version() -> int:
+    """Generates a version."""
     # Detect package type
     click.echo(gen_version())
     return 0
@@ -293,6 +318,7 @@ def generate_version() -> int:
 @click.option('--pypi', is_flag=True, default=False)
 @click.argument('git_hash', type=GIT_HASH)
 def generate_matrix(directory: Path, git_hash: GitHash, pypi: bool, npm: bool) -> int:
+    """Outputs JSON for changes in the repository under a path."""
     # Detect package type
     path = directory.resolve(strict=True)
 
