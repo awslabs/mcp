@@ -320,6 +320,92 @@ def extract_description_from_readme(readme_content: str) -> Optional[str]:
     return None
 
 
+def extract_outputs_from_readme(readme_content: str) -> List[Dict[str, str]]:
+    """Extract module outputs from the README content.
+    
+    Looks for the Outputs section in the README, which is typically at the bottom
+    of the file and contains a table of outputs with descriptions.
+    
+    Args:
+        readme_content: The README markdown content
+        
+    Returns:
+        List of dictionaries containing output name and description
+    """
+    if not readme_content:
+        return []
+        
+    outputs = []
+    
+    # Find the Outputs section
+    lines = readme_content.split('\n')
+    in_outputs_section = False
+    in_outputs_table = False
+    
+    for i, line in enumerate(lines):
+        # Look for Outputs heading
+        if re.match(r'^#+\s+Outputs?$', line, re.IGNORECASE):
+            in_outputs_section = True
+            continue
+            
+        # If we're in the outputs section, look for the table header
+        if in_outputs_section and not in_outputs_table:
+            if '|' in line and ('Name' in line or 'Output' in line) and 'Description' in line:
+                in_outputs_table = True
+                continue
+                
+        # If we're in the outputs table, parse each row
+        if in_outputs_section and in_outputs_table:
+            # Skip the table header separator line
+            if line.strip().startswith('|') and all(c in '|-: ' for c in line):
+                continue
+                
+            # If we hit another heading or the table ends, stop parsing
+            if line.strip().startswith('#') or not line.strip() or '|' not in line:
+                break
+                
+            # Parse the table row
+            if '|' in line:
+                parts = [part.strip() for part in line.split('|')]
+                if len(parts) >= 3:  # Should have at least empty, name, description columns
+                    name_part = parts[1].strip()
+                    desc_part = parts[2].strip()
+                    
+                    # Clean up any markdown formatting
+                    name = re.sub(r'`(.*?)`', r'\1', name_part).strip()
+                    description = re.sub(r'`(.*?)`', r'\1', desc_part).strip()
+                    
+                    if name:
+                        outputs.append({
+                            'name': name,
+                            'description': description
+                        })
+    
+    # If we didn't find a table, try looking for a list format
+    if not outputs and in_outputs_section:
+        in_list = False
+        current_output = {}
+        
+        for line in lines:
+            # If we hit another heading, stop parsing
+            if line.strip().startswith('#'):
+                break
+                
+            # Look for list items that might be outputs
+            list_match = re.match(r'^[-*]\s+`([^`]+)`\s*[-:]\s*(.+)$', line)
+            if list_match:
+                name = list_match.group(1).strip()
+                description = list_match.group(2).strip()
+                
+                outputs.append({
+                    'name': name,
+                    'description': description
+                })
+                
+    logger.debug(f'Extracted {len(outputs)} outputs from README')
+    return outputs
+
+
 async def get_variables_tf(owner: str, repo: str, branch: str = 'main') -> Tuple[Optional[str], Optional[List[TerraformVariable]]]:
     """Fetch and parse the variables.tf file from a GitHub repository.
 

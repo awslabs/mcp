@@ -56,6 +56,18 @@ class TerraformVariable(BaseModel):
     required: bool = True
 
 
+class TerraformOutput(BaseModel):
+    """Model representing a Terraform output definition.
+
+    Attributes:
+        name: The name of the output.
+        description: Description of the output's purpose.
+    """
+
+    name: str
+    description: Optional[str] = None
+
+
 class ModuleSearchResult(BaseModel):
     """Model representing search results from Terraform module registry.
 
@@ -74,6 +86,7 @@ class ModuleSearchResult(BaseModel):
         has_submodules: Whether this module contains submodules.
         variables: List of variables defined in the module's variables.tf file.
         variables_content: Raw content of the variables.tf file.
+        outputs: List of outputs defined in the module's README file.
     """
 
     name: str
@@ -89,6 +102,7 @@ class ModuleSearchResult(BaseModel):
     submodules: Optional[list[SubmoduleInfo]] = None
     variables: Optional[List[TerraformVariable]] = None
     variables_content: Optional[str] = None
+    outputs: Optional[List[TerraformOutput]] = None
 
     @property
     def has_submodules(self) -> bool:

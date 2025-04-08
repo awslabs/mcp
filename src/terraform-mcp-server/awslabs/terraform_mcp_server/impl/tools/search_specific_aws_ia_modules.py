@@ -5,13 +5,14 @@ import re
 import requests
 import time
 import traceback
-from ...models import ModuleSearchResult, SubmoduleInfo
+from ...models import ModuleSearchResult, SubmoduleInfo, TerraformOutput
 from .utils import (
     clean_description,
     cached_github_request,
     get_github_release_details,
     get_submodules,
     extract_description_from_readme,
+    extract_outputs_from_readme,
     get_variables_tf,
 )
 from functools import lru_cache
@@ -197,6 +198,14 @@ async def get_module_details(namespace: str, name: str, provider: str = 'aws') -
             logger.info(f'Successfully extracted README content ({len(readme_content)} chars)')
             logger.debug(f'First 100 characters of README: {readme_content[:100]}...')
 
+            # Extract outputs from README content
+            outputs = extract_outputs_from_readme(readme_content)
+            if outputs:
+                logger.info(f'Extracted {len(outputs)} outputs from README')
+                details['outputs'] = outputs
+            else:
+                logger.info('No outputs found in README')
+
             # Trim if too large
             if len(readme_content) > 8000:
                 logger.debug(
@@ -306,6 +315,21 @@ async def get_specific_module_info(module_info: Dict[str, str]) -> Optional[Modu
             if 'variables_content' in details and details['variables_content']:
                 result.variables_content = details['variables_content']
                 
+            # Add outputs from README if available
+            if 'outputs' in details and details['outputs']:
+                from ...models import TerraformOutput
+                outputs = [
+                    TerraformOutput(
+                        name=output['name'],
+                        description=output.get('description')
+                    )
+                    for output in details['outputs']
+                ]
+                result.outputs = outputs
+                # Update output_count if not already set
+                if result.output_count is None:
+                    result.output_count = len(outputs)
+                
         return result
         
     except Exception as e:
@@ -317,19 +341,24 @@ async def search_specific_aws_ia_modules_impl(query: str) -> List[ModuleSearchRe
     """Search for specific AWS-IA Terraform modules.
     
     This tool checks for information about four specific AWS-IA modules:
-    - aws-ia/bedrock/aws
-    - aws-ia/opensearch-serverless/aws
-    - aws-ia/sagemaker-endpoint/aws
-    - aws-ia/serverless-streamlit-app/aws
+    - aws-ia/bedrock/aws - Amazon Bedrock module for generative AI applications
+    - aws-ia/opensearch-serverless/aws - OpenSearch Serverless collection for vector search
+    - aws-ia/sagemaker-endpoint/aws - SageMaker endpoint deployment module
+    - aws-ia/serverless-streamlit-app/aws - Serverless Streamlit application deployment
     
-    It returns detailed information about these modules, including their README content
-    and submodules when available.
+    It returns detailed information about these modules, including their README content,
+    variables.tf content, and submodules when available.
     
     Parameters:
-        query: Search term to filter modules (can be empty to return all modules)
+        query: Optional search term to filter modules (empty returns all four modules)
         
     Returns:
-        A list of matching modules with their details
+        A list of matching modules with their details, including:
+        - Basic module information (name, namespace, version)
+        - Module documentation (README content)
+        - Input and output parameter counts
+        - Variables from variables.tf with descriptions and default values
+        - Submodules information
     """
     logger.info(f"Searching for specific AWS-IA modules with query: '{query}'")
     
@@ -367,6 +396,12 @@ async def search_specific_aws_ia_modules_impl(query: str) -> List[ModuleSearchRe
             # Add variables.tf content to search text if available
             if result.variables_content:
                 search_text += f" {result.variables_content.lower()}"
+                
+            # Add outputs information to search text if available
+            if result.outputs:
+                for output in result.outputs:
+                    output_text = f"{output.name} {output.description or ''}"
+                    search_text += f" {output_text.lower()}"
             
             for term in query_terms:
                 if term in search_text:
