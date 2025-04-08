@@ -1,3 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
 """awslabs MCP Cost Analysis mcp server implementation.
 
 This server provides tools for analyzing AWS service costs across different user tiers.
@@ -287,6 +298,10 @@ IMPORTANT REQUIREMENTS:
 - ALWAYS specify the pricing model (e.g., "ON DEMAND")
 - ALWAYS list all assumptions and exclusions explicitly
 
+Output Format Options:
+- 'markdown' (default): Generates a well-formatted markdown report
+- 'csv': Generates a CSV format report with sections for service information, unit pricing, cost calculations, etc.
+
 Example usage:
 
 ```json
@@ -314,7 +329,8 @@ Example usage:
     "Custom model training costs",
     "Development and maintenance costs"
   ],
-  "output_file": "cost_analysis_report.md",
+  "output_file": "cost_analysis_report.md",  // or "cost_analysis_report.csv" for CSV format
+  "format": "markdown",  // or "csv" for CSV format
 
   // Advanced parameter for complex scenarios
   "detailed_cost_data": {
@@ -376,6 +392,7 @@ async def generate_cost_analysis_report_wrapper(
     assumptions: Optional[List[str]] = None,
     exclusions: Optional[List[str]] = None,
     output_file: Optional[str] = None,
+    format: str = 'markdown',  # Output format ('markdown' or 'csv')
     # Advanced parameters (grouped in a dictionary for complex use cases)
     detailed_cost_data: Optional[Dict[str, Any]] = None,
     recommendations: Optional[
@@ -411,6 +428,10 @@ async def generate_cost_analysis_report_wrapper(
         assumptions: List of assumptions made for the cost analysis
         exclusions: List of items excluded from the cost analysis
         output_file: Path to save the report to a file
+        format: Output format for the cost analysis report
+            - Values: "markdown" (default) or "csv"
+            - markdown: Generates a well-formatted report with tables and sections
+            - csv: Generates a structured data format for spreadsheet compatibility
         detailed_cost_data: Dictionary containing detailed cost information for complex scenarios
             This can include:
             - services: Dictionary mapping service names to their detailed cost information
@@ -484,6 +505,7 @@ async def generate_cost_analysis_report_wrapper(
         output_file=output_file,
         detailed_cost_data=detailed_cost_data,
         ctx=ctx,
+        format=format,
     )
 
 

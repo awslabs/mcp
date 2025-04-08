@@ -30,9 +30,15 @@ MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as
 
 ### Amazon Bedrock Agent Schema Generation
 
-- Generate OpenAPI schema for Bedrock Agent Action Groups
+- Use this tool when creating Bedrock Agents with Action Groups that use Lambda functions
 - Streamline the creation of Bedrock Agent schemas
 - Convert code files to compatible OpenAPI specifications
+
+#### Developer Notes
+
+- **Requirements**: Your Lambda function must use `BedrockAgentResolver` from AWS Lambda Powertools
+- **Lambda Dependencies**: If schema generation fails, a fallback script will be generated. If you see error messages about missing dependencies, install them and then run the script again.
+- **Integration**: Use the generated schema with `bedrock.ApiSchema.fromLocalAsset()` in your CDK code
 
 ## CDK Implementation Workflow
 
@@ -58,7 +64,8 @@ graph TD
     BA --> BS["GenerateBedrockAgentSchema"]
     BS -->|"Success"| JSON["openapi.json created"]
     BS -->|"Import Errors"| BSF["Tool generates<br/>generate_schema.py"]
-    BSF --> BSR["Run script manually:<br/>python generate_schema.py"]
+    BSF -->|"Missing dependencies?"| InstallDeps["Install dependencies"]
+    InstallDeps --> BSR["Run script manually:<br/>python generate_schema.py"]
     BSR --> JSON["openapi.json created"]
     
     %% Use schema in Agent CDK

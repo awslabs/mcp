@@ -1,3 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
 """AWS CDK MCP tool handlers."""
 
 import logging
@@ -229,6 +240,38 @@ async def bedrock_schema_generator_from_file(
         lambda_code_path=lambda_code_path,
         output_path=output_path,
     )
+
+    # Add comprehensive next steps for successful schema generation
+    if result.get('status') == 'success':
+        output_filename = os.path.basename(output_path)
+        output_dir = os.path.dirname(output_path)
+        lambda_dir = os.path.dirname(os.path.abspath(lambda_code_path))
+        lambda_name = os.path.basename(os.path.dirname(lambda_code_path))
+
+        # Create a more comprehensive integration example
+        result['next_steps'] = {
+            'success_message': f'Schema successfully generated and saved to {output_path}',
+            'integration_steps': [
+                '1. Ensure your Lambda function has the right permissions:',
+                '   - Add bedrock.amazonaws.com as a principal in permissions',
+                '   - Include Lambda Powertools and Pydantic as layers',
+                '2. Add the ActionGroup to your Bedrock Agent:',
+                '   - Create an action group with your Lambda as the executor',
+                '   - Use the generated schema with ApiSchema.fromLocalAsset()',
+                '3. Deploy your CDK stack',
+            ],
+            'cdk_example': [
+                '// Add the Action Group to your agent',
+                'agent.addActionGroup(new bedrock.AgentActionGroup({',
+                f"  name: '{lambda_name}-action-group',",
+                f"  description: 'Action group for {lambda_name}',",
+                '  executor: bedrock.ActionGroupExecutor.fromlambdaFunction(yourLambdaFunction),',
+                '  apiSchema: bedrock.ApiSchema.fromLocalAsset(',
+                f"    path.join(__dirname, '{os.path.relpath(output_dir, lambda_dir)}', '{output_filename}')",
+                '  )',
+                '}));',
+            ],
+        }
 
     # If fallback script was generated, save it to a file instead of returning it in the response
     if result.get('status') == 'error' and result.get('fallback_script'):
