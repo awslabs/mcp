@@ -6,11 +6,11 @@ from diagrams.aws.database import RDS
 from diagrams.aws.network import ELB
 
 
-with Diagram("AWS Example", show=False):
-    lb = ELB("Load Balancer")
-    web = EC2("Web Server")
-    db = RDS("Database")
-    fn = Lambda("Function")
+with Diagram('AWS Example', show=False):
+    lb = ELB('Load Balancer')
+    web = EC2('Web Server')
+    db = RDS('Database')
+    fn = Lambda('Function')
 
     lb >> web >> db
     web >> fn

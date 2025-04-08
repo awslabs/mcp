@@ -76,6 +76,7 @@ async def generate_diagram(
         else:
             # Fall back to a secure temporary directory if workspace_dir isn't provided or isn't writable
             import tempfile
+
             temp_base = tempfile.gettempdir()
             output_dir = os.path.join(temp_base, 'generated-diagrams')
 

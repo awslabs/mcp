@@ -131,7 +131,9 @@ class TestGenerateDiagram:
         assert os.path.exists(result.path)
         assert result.path.endswith('.png')
         # Check that the file is in the expected location
-        expected_path = os.path.join(temp_workspace_dir, 'generated-diagrams', 'test_aws_diagram.png')
+        expected_path = os.path.join(
+            temp_workspace_dir, 'generated-diagrams', 'test_aws_diagram.png'
+        )
         assert result.path == expected_path
 
     @pytest.mark.asyncio
@@ -151,7 +153,9 @@ class TestGenerateDiagram:
         assert result.path == expected_path
 
     @pytest.mark.asyncio
-    async def test_generate_diagram_with_random_filename(self, aws_diagram_code, temp_workspace_dir):
+    async def test_generate_diagram_with_random_filename(
+        self, aws_diagram_code, temp_workspace_dir
+    ):
         """Test diagram generation with a random filename."""
         result = await generate_diagram(
             code=aws_diagram_code,
@@ -162,11 +166,15 @@ class TestGenerateDiagram:
         assert os.path.exists(result.path)
         assert result.path.endswith('.png')
         # Check that the file is in the expected location
-        assert os.path.dirname(result.path) == os.path.join(temp_workspace_dir, 'generated-diagrams')
+        assert os.path.dirname(result.path) == os.path.join(
+            temp_workspace_dir, 'generated-diagrams'
+        )
         assert os.path.basename(result.path).startswith('diagram_')
 
     @pytest.mark.asyncio
-    async def test_generate_diagram_with_invalid_code(self, invalid_diagram_code, temp_workspace_dir):
+    async def test_generate_diagram_with_invalid_code(
+        self, invalid_diagram_code, temp_workspace_dir
+    ):
         """Test diagram generation with invalid code."""
         result = await generate_diagram(
             code=invalid_diagram_code,
@@ -178,7 +186,9 @@ class TestGenerateDiagram:
         assert 'error' in result.message.lower()
 
     @pytest.mark.asyncio
-    async def test_generate_diagram_with_dangerous_code(self, dangerous_diagram_code, temp_workspace_dir):
+    async def test_generate_diagram_with_dangerous_code(
+        self, dangerous_diagram_code, temp_workspace_dir
+    ):
         """Test diagram generation with dangerous code."""
         result = await generate_diagram(
             code=dangerous_diagram_code,
@@ -264,4 +274,6 @@ class TestGenerateDiagram:
         assert os.path.exists(result.path)
         assert result.path.endswith('.png')
         # The filename in the code should be overridden by the workspace_dir path
-        assert os.path.dirname(result.path) == os.path.join(temp_workspace_dir, 'generated-diagrams')
+        assert os.path.dirname(result.path) == os.path.join(
+            temp_workspace_dir, 'generated-diagrams'
+        )

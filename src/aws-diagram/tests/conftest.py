@@ -118,5 +118,5 @@ with Diagram("Custom Example", show=False):
     queue = Custom("Message queue", rabbitmq_icon)
     db = PostgreSQL("db")
     queue >> db
-"""
+""",
     }

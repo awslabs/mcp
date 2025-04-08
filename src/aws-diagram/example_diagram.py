@@ -10,7 +10,7 @@ from diagrams.aws.network import ELB
 
 
 # Create a simple AWS diagram
-with Diagram("Web Service Architecture", show=True, outformat="png", filename="example_diagram"):
-    ELB("lb") >> EC2("web") >> RDS("userdb")
+with Diagram('Web Service Architecture', show=True, outformat='png', filename='example_diagram'):
+    ELB('lb') >> EC2('web') >> RDS('userdb')
 
-print("Diagram generated successfully!")
+print('Diagram generated successfully!')

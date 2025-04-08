@@ -238,8 +238,13 @@ class TestServerIntegration:
         generate_diagram_tool = next(tool for tool in mcp.tools if tool.name == 'generate_diagram')
         assert 'Generate a diagram from Python code' in generate_diagram_tool.description
 
-        get_diagram_examples_tool = next(tool for tool in mcp.tools if tool.name == 'get_diagram_examples')
-        assert 'Get example code for different types of diagrams' in get_diagram_examples_tool.description
+        get_diagram_examples_tool = next(
+            tool for tool in mcp.tools if tool.name == 'get_diagram_examples'
+        )
+        assert (
+            'Get example code for different types of diagrams'
+            in get_diagram_examples_tool.description
+        )
 
         list_icons_tool = next(tool for tool in mcp.tools if tool.name == 'list_icons')
         assert 'List all available icons from the diagrams package' in list_icons_tool.description

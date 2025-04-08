@@ -90,7 +90,7 @@ class TestCodeMetrics:
     @pytest.mark.asyncio
     async def test_empty_code(self):
         """Test metrics for empty code."""
-        code = ""
+        code = ''
         metrics = await count_code_metrics(code)
         assert metrics.total_lines == 0
         assert metrics.code_lines == 0
