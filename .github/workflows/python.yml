@@ -82,6 +82,14 @@ jobs:
         working-directory: src/${{ matrix.package }}
         run: uv run --frozen pyright
 
+      - name: Run ruff format
+        working-directory: src/${{ matrix.package }}
+        run: uv run --frozen ruff format .
+
+      - name: Run ruff check
+        working-directory: src/${{ matrix.package }}
+        run: uv run --frozen ruff check .
+
       - name: Build package
         working-directory: src/${{ matrix.package }}
         run: uv build
