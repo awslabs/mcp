@@ -22,7 +22,7 @@ Add the server to your MCP client config (e.g. `~/.cursor-server/data/User/globa
   "mcpServers": {
     "diagrams-mcp-server": {
       "command": "uvx",
-      "args": ["diagrams-mcp-server"],
+      "args": ["awslabs.diagrams-mcp-server"],
       "env": {
         "SHELL": "/usr/bin/zsh"
       }
