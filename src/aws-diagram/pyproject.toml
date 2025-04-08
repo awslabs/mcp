@@ -9,6 +9,7 @@ dependencies = [
     "boto3>=1.37.27",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
+    "bandit>=1.7.5",
 ]
 
 [project.scripts]

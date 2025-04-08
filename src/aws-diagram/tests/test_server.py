@@ -232,21 +232,25 @@ class TestServerIntegration:
         from awslabs.aws_diagram.server import mcp
 
         # Check that the tools are registered
-        assert 'generate_diagram' in [tool.name for tool in mcp.tools]
-        assert 'get_diagram_examples' in [tool.name for tool in mcp.tools]
-        assert 'list_icons' in [tool.name for tool in mcp.tools]
+        assert 'generate_diagram' in [tool['name'] for tool in mcp._tools]
+        assert 'get_diagram_examples' in [tool['name'] for tool in mcp._tools]
+        assert 'list_icons' in [tool['name'] for tool in mcp._tools]
 
         # Check that the tools have the correct descriptions
-        generate_diagram_tool = next(tool for tool in mcp.tools if tool.name == 'generate_diagram')
-        assert 'Generate a diagram from Python code' in generate_diagram_tool.description
+        generate_diagram_tool = next(
+            tool for tool in mcp._tools if tool['name'] == 'generate_diagram'
+        )
+        assert 'Generate a diagram from Python code' in generate_diagram_tool['description']
 
         get_diagram_examples_tool = next(
-            tool for tool in mcp.tools if tool.name == 'get_diagram_examples'
+            tool for tool in mcp._tools if tool['name'] == 'get_diagram_examples'
         )
         assert (
             'Get example code for different types of diagrams'
-            in get_diagram_examples_tool.description
+            in get_diagram_examples_tool['description']
         )
 
-        list_icons_tool = next(tool for tool in mcp.tools if tool.name == 'list_icons')
-        assert 'List all available icons from the diagrams package' in list_icons_tool.description
+        list_icons_tool = next(tool for tool in mcp._tools if tool['name'] == 'list_icons')
+        assert (
+            'List all available icons from the diagrams package' in list_icons_tool['description']
+        )

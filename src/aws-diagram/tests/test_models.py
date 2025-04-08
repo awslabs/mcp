@@ -64,6 +64,9 @@ class TestDiagramGenerateRequest:
         """Test that a minimal request with only required fields is accepted."""
         request = DiagramGenerateRequest(
             code='with Diagram("Test", show=False):\n    ELB("lb") >> EC2("web")',
+            filename=None,
+            timeout=90,
+            workspace_dir=None,
         )
         assert request.code == 'with Diagram("Test", show=False):\n    ELB("lb") >> EC2("web")'
         assert request.filename is None
@@ -73,19 +76,28 @@ class TestDiagramGenerateRequest:
     def test_invalid_code(self):
         """Test that code without a Diagram definition is rejected."""
         with pytest.raises(ValidationError):
-            DiagramGenerateRequest(code='print("Hello, world!")')
+            DiagramGenerateRequest(
+                code='print("Hello, world!")',
+                filename=None,
+                timeout=90,
+                workspace_dir=None,
+            )
 
     def test_invalid_timeout(self):
         """Test that invalid timeout values are rejected."""
         with pytest.raises(ValidationError):
             DiagramGenerateRequest(
                 code='with Diagram("Test", show=False):\n    ELB("lb") >> EC2("web")',
+                filename=None,
                 timeout=0,
+                workspace_dir=None,
             )
         with pytest.raises(ValidationError):
             DiagramGenerateRequest(
                 code='with Diagram("Test", show=False):\n    ELB("lb") >> EC2("web")',
+                filename=None,
                 timeout=301,  # Greater than the maximum allowed (300)
+                workspace_dir=None,
             )
 
 
@@ -117,7 +129,7 @@ class TestDiagramGenerateResponse:
         """Test that invalid status values are rejected."""
         with pytest.raises(ValidationError):
             DiagramGenerateResponse(
-                status='invalid',
+                status='invalid',  # This should raise a ValidationError since 'invalid' is not in the Literal type
                 message='Invalid status',
             )
 
