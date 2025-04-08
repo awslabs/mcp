@@ -1,0 +1,30 @@
+gerenciamento_switches/
+│
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py          # Ponto de entrada do FastAPI
+│   │   ├── models.py        # Modelos do banco de dados
+│   │   ├── schemas.py       # Esquemas Pydantic para validação
+│   │   ├── crud.py          # Operações CRUD no banco de dados
+│   │   ├── database.py      # Configuração do banco de dados
+│   │   └── routers/        # Rotas da API
+│   │       ├── auth.py      # Rotas de autenticação
+│   │       ├── switches.py  # Rotas para gerenciamento de switches
+│   │       └── logs.py      # Rotas para logs de comandos
+│   ├── requirements.txt     # Dependências do backend
+│   └── Dockerfile           # Dockerfile para o backend
+│
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── components/      # Componentes React
+│   │   ├── pages/           # Páginas da aplicação
+│   │   ├── App.js           # Componente principal
+│   │   ├── index.js         # Ponto de entrada
+│   │   └── api.js           # Configuração da API
+│   ├── package.json         # Dependências do frontend
+│   └── Dockerfile           # Dockerfile para o frontend
+│
+├── docker-compose.yml       # Configuração do Docker Compose
+└── README.md                # Documentação do projeto
