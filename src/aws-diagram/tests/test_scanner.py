@@ -1,7 +1,7 @@
 """Tests for the scanner module of the diagrams-mcp-server."""
 
 import pytest
-from diagrams_mcp_server.scanner import (
+from awslabs.aws_diagram.scanner import (
     check_dangerous_functions,
     check_security,
     count_code_metrics,

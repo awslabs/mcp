@@ -3,7 +3,7 @@
 import os
 import pytest
 import tempfile
-from diagrams_mcp_server.models import (
+from awslabs.aws_diagram.models import (
     DiagramExampleResponse,
     DiagramGenerateRequest,
     DiagramGenerateResponse,
