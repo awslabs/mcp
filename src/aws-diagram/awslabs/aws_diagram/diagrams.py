@@ -94,7 +94,7 @@ async def generate_diagram(
         exec('import os', namespace)  # nosec
         exec('import diagrams', namespace)  # nosec
         exec('from diagrams import Diagram, Cluster, Edge', namespace)  # nosec
-        exec(
+        exec(  # nosec B102 - This exec is necessary to import all diagram modules
             """from diagrams.saas.crm import *
 from diagrams.saas.identity import *
 from diagrams.saas.chat import *
