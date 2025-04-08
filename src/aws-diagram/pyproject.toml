@@ -1,5 +1,5 @@
 [project]
-name = "diagrams-mcp-server"
+name = "aws-diagram"
 version = "0.8.0"
 description = "An MCP server that seamlessly creates diagrams using the Python diagrams package DSL"
 readme = "README.md"
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-awslabs.diagrams-mcp-server = "awslabs.diagrams_mcp_server.server:main"
+awslabs.aws-diagram = "awslabs.aws_diagram.server:main"
 
 [dependency-groups]
 dev = [
@@ -73,7 +73,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/diagrams_mcp_server/__init__.py:__version__"
+    "awslabs/aws-diagram/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 

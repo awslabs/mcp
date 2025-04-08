@@ -9,10 +9,8 @@ from pathlib import Path
 # Add the current directory to the Python path
 sys.path.append(str(Path.cwd()))
 
-# Import the diagram generation function directly from our diagrams module
-from ai3_diagrams_expert.diagrams import generate_diagram, get_diagram_examples, list_diagram_icons
-from ai3_diagrams_expert.models import DiagramType
-
+from awslabs.aws_diagram.diagrams import generate_diagram, get_diagram_examples, list_diagram_icons
+from awslabs.aws_diagram.models import DiagramType
 
 async def test_diagram_generation():
     """Test the diagram generation functionality directly."""

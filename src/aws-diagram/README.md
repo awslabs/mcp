@@ -63,7 +63,7 @@ pytest -xvs tests/
 To run with coverage:
 
 ```bash
-pytest --cov=diagrams_mcp_server --cov-report=term-missing tests/
+pytest --cov=aws_diagram --cov-report=term-missing tests/
 ```
 
 For more information about the tests, see the [tests README](tests/README.md).

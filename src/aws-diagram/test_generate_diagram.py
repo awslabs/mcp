@@ -1,7 +1,7 @@
 import asyncio
 import os
 import traceback
-from diagrams_mcp_server.diagrams import generate_diagram
+from awslabs.aws_diagram.diagrams import generate_diagram
 
 async def main():
     try:

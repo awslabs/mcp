@@ -48,13 +48,13 @@ pytest -xvs tests/test_models.py::TestDiagramType::test_diagram_type_values
 To generate a test coverage report, use the following command:
 
 ```bash
-pytest --cov=diagrams_mcp_server tests/
+pytest --cov=aws_diagram tests/
 ```
 
 For a more detailed HTML coverage report:
 
 ```bash
-pytest --cov=diagrams_mcp_server --cov-report=html tests/
+pytest --cov=aws_diagram --cov-report=html tests/
 ```
 
 This will generate a coverage report in the `htmlcov` directory. Open `htmlcov/index.html` in a web browser to view the report.

@@ -16,7 +16,7 @@ class TestMcpGenerateDiagram:
     """Tests for the mcp_generate_diagram function."""
 
     @pytest.mark.asyncio
-    @patch('diagrams_mcp_server.server.generate_diagram')
+    @patch('aws_diagram.server.generate_diagram')
     async def test_generate_diagram(self, mock_generate_diagram):
         """Test the mcp_generate_diagram function."""
         # Set up the mock
@@ -54,7 +54,7 @@ class TestMcpGenerateDiagram:
         )
 
     @pytest.mark.asyncio
-    @patch('diagrams_mcp_server.server.generate_diagram')
+    @patch('aws_diagram.server.generate_diagram')
     async def test_generate_diagram_with_defaults(self, mock_generate_diagram):
         """Test the mcp_generate_diagram function with default values."""
         # Set up the mock
@@ -89,7 +89,7 @@ class TestMcpGenerateDiagram:
         )
 
     @pytest.mark.asyncio
-    @patch('diagrams_mcp_server.server.generate_diagram')
+    @patch('aws_diagram.server.generate_diagram')
     async def test_generate_diagram_error(self, mock_generate_diagram):
         """Test the mcp_generate_diagram function with an error."""
         # Set up the mock
@@ -119,7 +119,7 @@ class TestMcpGenerateDiagram:
 class TestMcpGetDiagramExamples:
     """Tests for the mcp_get_diagram_examples function."""
 
-    @patch('diagrams_mcp_server.server.get_diagram_examples')
+    @patch('aws_diagram.server.get_diagram_examples')
     def test_get_diagram_examples(self, mock_get_diagram_examples):
         """Test the mcp_get_diagram_examples function."""
         # Set up the mock
@@ -148,7 +148,7 @@ class TestMcpGetDiagramExamples:
         # Check that get_diagram_examples was called with the correct arguments
         mock_get_diagram_examples.assert_called_once_with(DiagramType.ALL)
 
-    @patch('diagrams_mcp_server.server.get_diagram_examples')
+    @patch('aws_diagram.server.get_diagram_examples')
     def test_get_diagram_examples_with_specific_type(self, mock_get_diagram_examples):
         """Test the mcp_get_diagram_examples function with a specific diagram type."""
         # Set up the mock
@@ -180,7 +180,7 @@ class TestMcpListDiagramIcons:
     """Tests for the mcp_list_diagram_icons function."""
 
     @pytest.mark.asyncio
-    @patch('diagrams_mcp_server.server.list_diagram_icons')
+    @patch('aws_diagram.server.list_diagram_icons')
     async def test_list_diagram_icons(self, mock_list_diagram_icons):
         """Test the mcp_list_diagram_icons function."""
         # Set up the mock
