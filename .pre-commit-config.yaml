@@ -15,7 +15,8 @@ repos:
     -   id: end-of-file-fixer
     -   id: destroyed-symlinks
     -   id: detect-private-key
-    #-   id: detect-aws-credentials
+    -   id: detect-aws-credentials
+        args: [ --allow-missing-credentials ]
     -   id: forbid-submodules
     -   id: pretty-format-json
     -   id: trailing-whitespace
