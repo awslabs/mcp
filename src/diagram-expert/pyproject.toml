@@ -3,7 +3,7 @@ name = "diagrams-mcp-server"
 version = "0.8.0"
 description = "An MCP server that seamlessly creates diagrams using the Python diagrams package DSL"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "bandit>=1.8.3",
     "diagrams>=0.24.4",
