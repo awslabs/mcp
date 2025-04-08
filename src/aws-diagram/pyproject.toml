@@ -79,3 +79,10 @@ update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
+
+[tool.bandit]
+# Skip specific issues
+skips = ["B102"]
+
+# Per-file skips
+per_file_skips = { "awslabs/aws_diagram/diagrams.py" = ["B102"] }
