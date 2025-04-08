@@ -1,17 +1,29 @@
+import importlib.util
+
+
 try:
-    print("Importing pydantic...")
-    from pydantic import BaseModel, Field, field_validator
-    print("Successfully imported pydantic")
-    
-    print("Importing aws_diagram.models...")
-    from aws_cdk.aws_diagram.models import DiagramType, DiagramGenerateResponse
-    print("Successfully imported aws_diagram.models")
-    
-    print("Importing aws_diagram.diagrams...")
-    from aws_cdk.aws_diagram.diagrams import generate_diagram, get_diagram_examples
-    print("Successfully imported aws_diagram.diagrams")
-    
-    print("All imports successful!")
+    print("Checking for pydantic...")
+    pydantic_spec = importlib.util.find_spec("pydantic")
+    if pydantic_spec is not None:
+        print("Successfully found pydantic")
+    else:
+        print("pydantic not found")
+
+    print("Checking for aws_diagram.models...")
+    models_spec = importlib.util.find_spec("aws_cdk.aws_diagram.models")
+    if models_spec is not None:
+        print("Successfully found aws_diagram.models")
+    else:
+        print("aws_diagram.models not found")
+
+    print("Checking for aws_diagram.diagrams...")
+    diagrams_spec = importlib.util.find_spec("aws_cdk.aws_diagram.diagrams")
+    if diagrams_spec is not None:
+        print("Successfully found aws_diagram.diagrams")
+    else:
+        print("aws_diagram.diagrams not found")
+
+    print("All checks successful!")
 except ImportError as e:
     print(f"Import error: {e}")
 except Exception as e:

@@ -1,15 +1,13 @@
 """Tests for the server module of the diagrams-mcp-server."""
 
-import os
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-
+from diagrams_mcp_server.models import DiagramType
 from diagrams_mcp_server.server import (
     mcp_generate_diagram,
     mcp_get_diagram_examples,
     mcp_list_diagram_icons,
 )
-from diagrams_mcp_server.models import DiagramType
+from unittest.mock import MagicMock, patch
 
 
 class TestMcpGenerateDiagram:

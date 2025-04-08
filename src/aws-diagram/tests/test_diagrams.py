@@ -2,8 +2,6 @@
 
 import os
 import pytest
-from pathlib import Path
-
 from diagrams_mcp_server.diagrams import (
     generate_diagram,
     get_diagram_examples,

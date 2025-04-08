@@ -1,15 +1,14 @@
 """Tests for the models module of the diagrams-mcp-server."""
 
 import pytest
-from pydantic import ValidationError
-
 from diagrams_mcp_server.models import (
-    DiagramType,
+    DiagramExampleResponse,
     DiagramGenerateRequest,
     DiagramGenerateResponse,
-    DiagramExampleResponse,
     DiagramIconsResponse,
+    DiagramType,
 )
+from pydantic import ValidationError
 
 
 class TestDiagramType:

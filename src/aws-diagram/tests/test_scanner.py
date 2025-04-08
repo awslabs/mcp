@@ -1,13 +1,12 @@
 """Tests for the scanner module of the diagrams-mcp-server."""
 
 import pytest
-
 from diagrams_mcp_server.scanner import (
-    validate_syntax,
+    check_dangerous_functions,
     check_security,
     count_code_metrics,
     scan_python_code,
-    check_dangerous_functions,
+    validate_syntax,
 )
 
 

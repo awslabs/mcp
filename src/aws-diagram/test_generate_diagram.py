@@ -3,7 +3,9 @@ import os
 import traceback
 from awslabs.aws_diagram.diagrams import generate_diagram
 
+
 async def main():
+    """Test function to demonstrate diagram generation using the aws_diagram library."""
     try:
         code = """with Diagram("Test AWS Diagram", show=False):
     ELB("lb") >> EC2("web") >> RDS("userdb")
@@ -13,7 +15,7 @@ async def main():
         print(f"Status: {result.status}")
         print(f"Path: {result.path}")
         print(f"Message: {result.message}")
-        
+
         if result.status == "success" and result.path and os.path.exists(result.path):
             print(f"Diagram generated successfully at {result.path}")
             print(f"File size: {os.path.getsize(result.path)} bytes")

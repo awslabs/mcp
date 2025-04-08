@@ -12,6 +12,7 @@ sys.path.append(str(Path.cwd()))
 from awslabs.aws_diagram.diagrams import generate_diagram, get_diagram_examples, list_diagram_icons
 from awslabs.aws_diagram.models import DiagramType
 
+
 async def test_diagram_generation():
     """Test the diagram generation functionality directly."""
     # Get example code for AWS diagram

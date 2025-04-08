@@ -1,12 +1,9 @@
 """Test fixtures for the diagrams-mcp-server tests."""
 
-import os
 import pytest
 import tempfile
-from pathlib import Path
-from typing import Dict, Generator
-
 from diagrams_mcp_server.models import DiagramType
+from typing import Dict, Generator
 
 
 @pytest.fixture
@@ -72,7 +69,7 @@ def dangerous_diagram_code() -> str:
     """Return diagram code with dangerous functions for testing."""
     return """with Diagram("Dangerous Diagram", show=False):
     ELB("lb") >> EC2("web")
-    
+
     # This contains a dangerous function
     exec("print('This is dangerous')")
 """

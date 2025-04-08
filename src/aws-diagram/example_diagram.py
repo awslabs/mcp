@@ -3,10 +3,11 @@
 This script creates a simple AWS diagram using the diagrams package.
 """
 
-from diagrams import Diagram, Cluster, Edge
+from diagrams import Diagram
 from diagrams.aws.compute import EC2
 from diagrams.aws.database import RDS
 from diagrams.aws.network import ELB
+
 
 # Create a simple AWS diagram
 with Diagram("Web Service Architecture", show=True, outformat="png", filename="example_diagram"):
