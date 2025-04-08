@@ -5,23 +5,21 @@ description = "An MCP server that seamlessly creates diagrams using the Python d
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "bandit>=1.8.3",
     "diagrams>=0.24.4",
-    "mcp[cli]>=1.4.1",
+    "boto3>=1.37.27",
+    "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
 ]
 
 [project.scripts]
-diagrams-mcp-server = "diagrams_mcp_server.server:main"
+awslabs.diagrams-mcp-server = "awslabs.diagrams_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
-    "commitizen>=4.4.1",
+    "commitizen>=4.2.2",
     "pre-commit>=4.1.0",
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.5",
-    "pytest-cov>=4.1.0",
-    "ruff>=0.11.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
 ]
 
 [build-system]
@@ -30,10 +28,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
 allow-direct-references = true
-
-[tool.hatch.build.targets.wheel]
-packages = ["diagrams_mcp_server"]
-include = ["diagrams_mcp_server/icons/*.png"]
 
 [tool.ruff]
 line-length = 99
@@ -75,14 +69,13 @@ docstring-code-format = true
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.8.0"
+version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "diagrams_mcp_server/__init__.py:__version__"
+    "awslabs/diagrams_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
-[tool.bandit]
-exclude_dirs = [".venv", "venv", "tests"]
-
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
