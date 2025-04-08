@@ -73,7 +73,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/aws-diagram/__init__.py:__version__"
+    "awslabs/aws_diagram/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
