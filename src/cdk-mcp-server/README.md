@@ -74,8 +74,9 @@ graph TD
     
     %% Conditional Lambda Powertools implementation
     D1 & D2 & D3 --> HasLambda{"Using Lambda<br/>Functions?"}
-    HasLambda -->|"Yes"| L["Add Lambda Powertools<br/>and create Layer"]
-    HasLambda -->|"No"| SkipL["Skip Lambda<br/>Powertools"]
+    HasLambda -->|"Yes"| L1["GenerateLambdaLayerCode"]
+    L1 --> L["Add Lambda Powertools<br/>and create Layer"]
+    HasLambda -->|"No"| SkipL["Skip"]
     
     %% Rest of workflow
     L --> Synth["cdk synth"]

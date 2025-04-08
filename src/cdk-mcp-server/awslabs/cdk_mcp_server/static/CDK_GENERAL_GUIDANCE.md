@@ -173,6 +173,7 @@ Match CDK tasks to appropriate tools:
 | Implement GenAI features | SearchGenAICDKConstructs | ❌ Building GenAI components without specialized constructs |
 | Add Lambda observability | lambda-powertools://cdk | ❌ Missing Layer creation, structured logging and monitoring |
 | Audit CDK Nag suppressions | CheckCDKNagSuppressions | ❌ Insufficient documentation for security suppressions |
+| Create Lambda layers | GenerateLambdaLayerCode | ❌ Incorrect layer structure or missing proper configuration for runtime |
 
 ## Lambda Powertools Implementation
 
@@ -217,7 +218,8 @@ graph TD
     BA --> BS["GenerateBedrockAgentSchema"]
     BS -->|"Success"| JSON["openapi.json created"]
     BS -->|"Import Errors"| BSF["Tool generates<br/>generate_schema.py"]
-    BSF --> BSR["Run script manually:<br/>python generate_schema.py"]
+    BSF -->|"Missing dependencies?"| InstallDeps["Install dependencies"]
+    InstallDeps --> BSR["Run script manually:<br/>python generate_schema.py"]
     BSR --> JSON["openapi.json created"]
     
     %% Use schema in Agent CDK
@@ -226,7 +228,8 @@ graph TD
     
     %% Conditional Lambda Powertools implementation
     D1 & D2 & D3 --> HasLambda{"Using Lambda<br/>Functions?"}
-    HasLambda -->|"Yes"| L["Add Lambda Powertools<br/>and create Layer"]
+    HasLambda -->|"Yes"| L1["GenerateLambdaLayerCode"]
+    L1 --> L["Add Lambda Powertools<br/>and create Layer"]
     HasLambda -->|"No"| SkipL["Skip Lambda<br/>Powertools"]
     
     %% Rest of workflow
@@ -265,6 +268,7 @@ This MCP server provides several tools to help you implement AWS CDK best practi
 4. **GenerateBedrockAgentSchema**: Generate OpenAPI schema for Bedrock Agent Action Groups from Lambda functions
 5. **GetAwsSolutionsConstructPattern**: Search and discover AWS Solutions Constructs patterns
 6. **SearchGenAICDKConstructs**: Search for GenAI CDK constructs by name or type
+7. **GenerateLambdaLayerCode**: Generate CDK code for Lambda layers with best practices
 
 ## Available MCP Resources
 
