@@ -82,3 +82,7 @@ version_files = [
     "diagrams_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
+
+[tool.bandit]
+exclude_dirs = [".venv", "venv", "tests"]
+
