@@ -86,7 +86,7 @@ A server for generating images using Amazon Nova Canvas.
 
 ### AWS Diagram MCP Server
 
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](src/aws-diagram-mcp-server/tests/)
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-diagram-mcp-server.svg)](https://pypi.org/project/awslabs.aws-diagram-mcp-server/)
 
 A server for seamlessly creating diagrams using the Python diagrams package DSL.
 
