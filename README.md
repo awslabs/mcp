@@ -95,7 +95,7 @@ A server for seamlessly creating diagrams using the Python diagrams package DSL.
 - Customize diagram appearance, layout, and styling
 - Code scanning to ensure secure diagram generation
 
-[Learn more](src/aws-diagram/README.md)
+[Learn more](src/aws-diagram/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
 
 ## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
 
