@@ -173,7 +173,18 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
         )
 
     # Build the command
-    cmd = ['checkov', '--quiet', '-d', request.working_directory]
+    # Convert working_directory to absolute path if it's not already
+    working_dir = request.working_directory
+    if not os.path.isabs(working_dir):
+        # Get the current working directory of the MCP server
+        current_dir = os.getcwd()
+        # Go up to the project root directory (assuming we're in src/terraform-mcp-server/awslabs/terraform_mcp_server)
+        project_root = os.path.abspath(os.path.join(current_dir, '..', '..', '..', '..'))
+        # Join with the requested working directory
+        working_dir = os.path.abspath(os.path.join(project_root, working_dir))
+    
+    logger.info(f"Using absolute working directory: {working_dir}")
+    cmd = ['checkov', '--quiet', '-d', working_dir]
 
     # Add framework if specified
     if request.framework:
@@ -202,16 +213,51 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
         # Clean output text
         stdout = _clean_output_text(process.stdout)
         stderr = _clean_output_text(process.stderr)
+        
+        # Debug logging
+        logger.info(f"Checkov return code: {process.returncode}")
+        logger.info(f"Checkov stdout: {stdout}")
+        logger.info(f"Checkov stderr: {stderr}")
 
         # Parse results if JSON output was requested
         vulnerabilities = []
         summary = {}
         if request.output_format == 'json' and stdout:
             vulnerabilities, summary = _parse_checkov_json_output(stdout)
+        
+        # For non-JSON output, try to parse vulnerabilities from the text output
+        elif stdout and process.returncode == 1:  # Return code 1 means vulnerabilities were found
+            # Simple regex to extract failed checks from CLI output
+            failed_checks = re.findall(r'Check: (CKV\w*_\d+).*?FAILED for resource: ([\w\.]+).*?File: ([\w\/\.-]+):(\d+)', stdout, re.DOTALL)
+            for check_id, resource, file_path, line in failed_checks:
+                vuln = CheckovVulnerability(
+                    id=check_id,
+                    type='terraform',
+                    resource=resource,
+                    file_path=file_path,
+                    line=int(line),
+                    description=f"Failed check: {check_id}",
+                    severity='MEDIUM',
+                    fixed=False,
+                )
+                vulnerabilities.append(vuln)
+            
+            # Extract summary counts
+            passed_match = re.search(r'Passed checks: (\d+)', stdout)
+            failed_match = re.search(r'Failed checks: (\d+)', stdout)
+            skipped_match = re.search(r'Skipped checks: (\d+)', stdout)
+            
+            summary = {
+                'passed': int(passed_match.group(1)) if passed_match else 0,
+                'failed': int(failed_match.group(1)) if failed_match else 0,
+                'skipped': int(skipped_match.group(1)) if skipped_match else 0,
+            }
 
-        # Prepare the result
+        # Prepare the result - consider it a success even if vulnerabilities were found
+        # A return code of 1 from Checkov means vulnerabilities were found, not an error
+        is_error = process.returncode not in [0, 1]
         result = CheckovScanResult(
-            status='success' if process.returncode == 0 else 'error',
+            status='error' if is_error else 'success',
             return_code=process.returncode,
             working_directory=request.working_directory,
             vulnerabilities=vulnerabilities,
