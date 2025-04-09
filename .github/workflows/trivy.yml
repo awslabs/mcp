@@ -28,7 +28,6 @@ jobs:
         id: find-dockerfiles
         run: |
           DOCKERFILES=$(find . -name Dockerfile -exec dirname {} \; | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')
-          echo "dockerfiles=$DOCKERFILES"
           echo "dockerfiles=$DOCKERFILES" >> $GITHUB_OUTPUT
 
   build:
