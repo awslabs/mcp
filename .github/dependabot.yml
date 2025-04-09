@@ -33,7 +33,7 @@ updates:
     schedule:
       interval: "weekly"
     commit-message:
-      prefix: "chore(deps): update uv"
+      prefix: "chore(deps): update npm"
     groups:
       versioning:
         applies-to: version-updates
