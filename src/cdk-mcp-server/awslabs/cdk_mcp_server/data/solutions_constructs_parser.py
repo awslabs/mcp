@@ -288,7 +288,7 @@ def extract_services_from_pattern_name(pattern_name: str) -> List[str]:
         'iot': 'IoT Core',
         'elasticsearch': 'Elasticsearch',
         'opensearch': 'OpenSearch',
-        'secretsmanager': 'Secrets Manager',
+        'secretsmanager': 'Secrets Manager',  # pragma: allowlist secret
         'sagemakerendpoint': 'SageMaker Endpoint',
         'stepfunctions': 'Step Functions',
         'wafwebacl': 'WAF Web ACL',
