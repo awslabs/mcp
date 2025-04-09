@@ -70,6 +70,20 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportUnusedExpression = false
+reportArgumentType = false
+reportAttributeAccessIssue = false
+reportPrivateUsage = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportGeneralTypeIssues = false
+
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "0.0.0"
