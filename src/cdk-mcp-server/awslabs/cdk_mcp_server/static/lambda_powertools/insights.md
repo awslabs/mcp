@@ -30,16 +30,16 @@ import * as path from 'path';
 const myFunction = new PythonFunction(this, 'MyFunction', {
   entry: path.join(__dirname, '../src/my_function'),
   runtime: Runtime.PYTHON_3_13,
-  
+
   // Attach Lambda layer (see lambda-powertools://cdk)
   layers: [powertoolsLayer],
-  
+
   // Enable Lambda Insights
   insightsVersion: LambdaInsightsVersion.VERSION_1_0_119_0,
-  
+
   // Enable X-Ray tracing
   tracing: Tracing.ACTIVE,
-  
+
   // Configure Powertools environment variables
   environment: {
     POWERTOOLS_SERVICE_NAME: "my-service",
