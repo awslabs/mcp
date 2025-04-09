@@ -24,11 +24,11 @@ jobs:
       dockerfiles: ${{ steps.find-dockerfiles.outputs.dockerfiles }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Find Python packages
+      - name: Find Dockerfiles
         id: find-dockerfiles
-        working-directory: src
         run: |
           DOCKERFILES=$(find . -name Dockerfile -exec dirname {} \; | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')
+          echo "dockerfiles=$DOCKERFILES"
           echo "dockerfiles=$DOCKERFILES" >> $GITHUB_OUTPUT
 
   build:
@@ -49,7 +49,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Build an image from Dockerfile
-        working-directory: src/${{ matrix.dockerfile }}
+        working-directory: ${{ matrix.dockerfile }}
         run: |
           docker build -t docker.io/${{ matrix.dockerfile }}:${{ github.sha }} .
 
