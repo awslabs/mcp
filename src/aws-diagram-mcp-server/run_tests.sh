@@ -95,10 +95,10 @@ echo "Python executable: $(which python)"
 echo "Pytest module location: $(python -c "import pytest; print(pytest.__file__)" 2>/dev/null || echo "Not found")"
 
 # Check if aws_diagram_mcp_server module can be imported
-echo "Checking if diagrams_mcp_server module can be imported..."
-python -c "import diagrams_mcp_server; print(f'diagrams_mcp_server module found at: {diagrams_mcp_server.__file__}')" 2>/dev/null
+echo "Checking if aws_diagram_mcp_server module can be imported..."
+python -c "import awslabs.aws_diagram_mcp_server; print(f'aws_diagram_mcp_server module found at: {awslabs.aws_diagram_mcp_server.__file__}')" 2>/dev/null
 if [ $? -ne 0 ]; then
-    echo "Warning: diagrams_mcp_server module cannot be imported. This may cause test failures."
+    echo "Warning: aws_diagram_mcp_server module cannot be imported. This may cause test failures."
     echo "Installing the package in development mode..."
 
     # Check if uv is available
@@ -114,9 +114,9 @@ if [ $? -ne 0 ]; then
     fi
 
     echo "Trying again..."
-    python -c "import diagrams_mcp_server; print(f'diagrams_mcp_server module found at: {diagrams_mcp_server.__file__}')" 2>/dev/null
+    python -c "import awslabs.aws_diagram_mcp_server; print(f'aws_diagram_mcp_server module found at: {awslabs.aws_diagram_mcp_server.__file__}')" 2>/dev/null
     if [ $? -ne 0 ]; then
-        echo "Still cannot import diagrams_mcp_server module. Tests may fail."
+        echo "Still cannot import aws_diagram_mcp_server module. Tests may fail."
         echo "Directory structure:"
         ls -la
         echo "awslabs directory:"

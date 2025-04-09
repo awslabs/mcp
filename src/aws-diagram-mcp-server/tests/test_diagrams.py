@@ -243,6 +243,12 @@ class TestGenerateDiagram:
         assert result.path is not None
         assert os.path.exists(result.path)
         assert result.path.endswith('.png')
+        # Check that the file is in the expected location
+        expected_path = os.path.join(
+            temp_workspace_dir, 'generated-diagrams', 'test_flow_diagram.png'
+        )
+        assert result.path == expected_path
+
 
     @pytest.mark.asyncio
     async def test_generate_diagram_with_show_parameter(self, temp_workspace_dir):

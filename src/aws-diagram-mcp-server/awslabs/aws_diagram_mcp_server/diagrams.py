@@ -238,12 +238,19 @@ from diagrams.aws.enduser import *
                 # Prepare new arguments
                 new_args = original_args
 
-                # Add parameters as needed
-                if not has_filename:
+                # Add or replace parameters as needed
+                # If filename is already set, we need to replace it with our output_path
+                if has_filename:
+                    # Replace the existing filename parameter
+                    filename_pattern = r'filename\s*=\s*[\'"]([^\'"]*)[\'"]'
+                    new_args = re.sub(filename_pattern, f"filename='{output_path}'", new_args)
+                else:
+                    # Add the filename parameter
                     if new_args and not new_args.endswith(','):
                         new_args += ', '
                     new_args += f"filename='{output_path}'"
 
+                # Add show=False if not already set
                 if not has_show:
                     if new_args and not new_args.endswith(','):
                         new_args += ', '

@@ -41,13 +41,13 @@ def sequence_diagram_code() -> str:
 def flow_diagram_code() -> str:
     """Return example flow diagram code for testing."""
     return """with Diagram("Test Flow Diagram", show=False):
-    start = Predefined("Start")
+    start = StartEnd("Start")
     order = InputOutput("Order Received")
     check = Decision("In Stock?")
     process = Action("Process Order")
     wait = Delay("Backorder")
     ship = Action("Ship Order")
-    end = Predefined("End")
+    end = StartEnd("End")
 
     start >> order >> check
     check >> process >> ship >> end
@@ -89,9 +89,9 @@ def example_diagrams() -> Dict[str, str]:
     user >> login >> auth
 """,
         DiagramType.FLOW: """with Diagram("Flow Example", show=False):
-    start = Predefined("Start")
+    start = StartEnd("Start")
     process = Action("Process")
-    end = Predefined("End")
+    end = StartEnd("End")
     start >> process >> end
 """,
         DiagramType.CLASS: """with Diagram("Class Example", show=False):

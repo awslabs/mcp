@@ -1,4 +1,4 @@
-"""diagrams-mcp-server implementation.
+"""aws-diagram-mcp-server implementation.
 
 This server provides tools to generate diagrams using the Python diagrams package.
 It accepts Python code as a string and generates PNG diagrams without displaying them.
@@ -14,7 +14,7 @@ from typing import Optional
 
 # Create the MCP server
 mcp = FastMCP(
-    'diagrams-mcp-server',
+    'aws-diagram-mcp-server',
     dependencies=[
         'pydantic',
         'diagrams',
