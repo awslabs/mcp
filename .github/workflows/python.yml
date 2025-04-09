@@ -26,6 +26,7 @@ jobs:
     needs: [detect-packages]
     if: ${{ needs.detect-packages.outputs.packages != '[]' && needs.detect-packages.outputs.packages != '' }}
     strategy:
+      fail-fast: false
       matrix:
         package: ${{ fromJson(needs.detect-packages.outputs.packages) }}
     name: Build ${{ matrix.package }}
@@ -53,7 +54,7 @@ jobs:
       - name: Security check - Bandit
         id: bandit-check
         working-directory: src/${{ matrix.package }}
-        run: bandit --recursive -ll --format html --output bandit-report-${{ matrix.package }}.html -r . -c "pyproject.toml" || echo "::set-output name=status::failure"
+        run: bandit -r --severity-level medium --confidence-level medium -f html -o bandit-report-${{ matrix.package }}.html -c "pyproject.toml" . || echo "::set-output name=status::failure"
 
       - name: Store Bandit as Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

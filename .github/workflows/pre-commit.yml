@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-
+permissions: read-all
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
