@@ -1,4 +1,4 @@
-# Diagrams MCP Server
+# AWS Diagram MCP Server
 
 An MCP server that seamlessly creates diagrams using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
 
@@ -13,16 +13,16 @@ An MCP server that seamlessly creates diagrams using the Python diagrams package
 
 Install the MCP server:
 ```bash
-uv tool install diagrams-mcp-server
+uv tool install aws-diagram-mcp-server
 ```
 
 Add the server to your MCP client config (e.g. `~/.cursor-server/data/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
 ```json
 {
   "mcpServers": {
-    "diagrams-mcp-server": {
+    "aws-diagram-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.diagrams-mcp-server"],
+      "args": ["awslabs.aws-diagram-mcp-server"],
       "env": {
         "SHELL": "/usr/bin/zsh"
       }
@@ -39,6 +39,29 @@ The Diagrams MCP Server provides the following capabilities:
 2. **Multiple Diagram Types**: Support for AWS architecture, sequence diagrams, flow charts, class diagrams, and more
 3. **Customization**: Customize diagram appearance, layout, and styling
 4. **Security**: Code scanning to ensure secure diagram generation
+
+## Quick Start Example
+
+The repository includes an example script (`example_diagram.py`) that demonstrates how to create a simple AWS architecture diagram:
+
+```python
+from diagrams import Diagram
+from diagrams.aws.compute import EC2
+from diagrams.aws.database import RDS
+from diagrams.aws.network import ELB
+
+# Create a simple AWS diagram
+with Diagram('Web Service Architecture', show=True, outformat='png', filename='example_diagram'):
+    ELB('lb') >> EC2('web') >> RDS('userdb')
+```
+
+Running this script will generate an `example_diagram.png` file that visualizes a basic web service architecture with a load balancer, web server, and database:
+
+```bash
+python example_diagram.py
+```
+
+The generated diagram shows the flow from the Elastic Load Balancer (ELB) to an EC2 instance, and then to an RDS database, representing a typical three-tier web architecture.
 
 ## Development
 
@@ -63,7 +86,7 @@ pytest -xvs tests/
 To run with coverage:
 
 ```bash
-pytest --cov=aws_diagram --cov-report=term-missing tests/
+pytest --cov=awslabs.aws_diagram --cov-report=term-missing tests/
 ```
 
 For more information about the tests, see the [tests README](tests/README.md).

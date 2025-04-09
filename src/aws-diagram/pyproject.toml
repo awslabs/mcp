@@ -1,5 +1,5 @@
 [project]
-name = "aws-diagram"
+name = "aws-diagram-mcp-server"
 version = "0.8.0"
 description = "An MCP server that seamlessly creates diagrams using the Python diagrams package DSL"
 readme = "README.md"
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-"awslabs.aws-diagram" = "awslabs.aws_diagram.server:main"
+"awslabs.aws-diagram-mcp-server" = "awslabs.aws_diagram.server:main"
 
 [dependency-groups]
 dev = [
