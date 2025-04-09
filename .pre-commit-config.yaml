@@ -1,0 +1,35 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    -   id: check-added-large-files
+    -   id: check-executables-have-shebangs
+    -   id: check-illegal-windows-names
+    -   id: check-json
+    -   id: check-merge-conflict
+    -   id: check-shebang-scripts-are-executable
+    -   id: check-symlinks
+    -   id: check-toml
+    -   id: check-xml
+    -   id: check-yaml
+    -   id: end-of-file-fixer
+    -   id: destroyed-symlinks
+    -   id: detect-private-key
+    -   id: detect-aws-credentials
+        args: [ --allow-missing-credentials ]
+    -   id: forbid-submodules
+    -   id: pretty-format-json
+    -   id: trailing-whitespace
+
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.11.4
+  hooks:
+    - id: ruff
+      args: [ --fix ]
+    - id: ruff-format
+
+-   repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+    -   id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']

@@ -60,7 +60,7 @@ Map user requirements to these AWS categories:
 - S3 (object storage)
 - OpenSearch Serverless (search and analytics)
 - RDS (relational databases)
-- DocumentDB 
+- DocumentDB
 - ElastiCache (in-memory caching)
 - FSx (file systems)
 - EFS (elastic file system)
@@ -250,7 +250,7 @@ Generate images for for use in UI or solution architecture diagrams:
 <tool_name>get_pricing_from_web</tool_name>
 <arguments>
 {
-  "service_code": "3D isometric view of AWS cloud architecture with Lambda functions, API Gateway, and DynamoDB tables, professional technical 
+  "service_code": "3D isometric view of AWS cloud architecture with Lambda functions, API Gateway, and DynamoDB tables, professional technical
 }
 </arguments>
 </use_mcp_tool>

@@ -37,9 +37,9 @@
     ]
 }
 </script></head><body><div id="main"><div style="display: none"><a href="/pdfs/solutions/latest/constructs/constructs.pdf#aws-lambda-sns" target="_blank" rel="noopener noreferrer" title="Open PDF"></a></div><div id="breadcrumbs" class="breadcrumb"><a href="/index.html">Documentation</a><a href="https://aws.amazon.com/solutions/">AWS Solutions</a><a href="welcome.html">AWS Solutions</a></div><div id="page-toc-src"><a href="#overview">Overview</a><a href="#pattern-construct-props">Pattern Construct Props</a><a href="#pattern-properties">Pattern Properties</a><a href="#default-settings">Default settings</a><a href="#w6aab9d129c15">Architecture</a><a href="#github">GitHub</a></div><div id="main-content" class="awsui-util-container"><div id="main-col-body"><awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner><h1 class="topictitle" id="aws-lambda-sns">aws-lambda-sns</h1><div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header><awsdocs-filter-selector id="awsdocs-filter-selector"></awsdocs-filter-selector></div><div class="mediaobject">
-       
+
           <img src="/images/solutions/latest/constructs/images/stable.png" class="aws-docs-img-whiteBg aws-docs-img-padding" alt="Two labels: &#34;CFN-RESOURCES&#34; in gray and &#34;STABLE&#34; in green." data-alt-text-source="generated" />
-         
+
     </div><div class="table-container"><div class="table-contents"><table id="w161aab9d129b4"><thead>
           <tr>
             <th>
@@ -53,10 +53,10 @@
           <tr>
             <td tabindex="-1">
               <span class="inlinemediaobject">
-                 
+
                   <img src="https://docs.aws.amazon.com/cdk/api/latest/img/python32.png" class="aws-docs-img-whiteBg aws-docs-img-xs-padding" alt="Python Logo" />
-                 
-                 
+
+
               </span> Python
             </td>
             <td tabindex="-1">
@@ -66,10 +66,10 @@
           <tr>
             <td tabindex="-1">
               <span class="inlinemediaobject">
-                 
+
                   <img src="https://docs.aws.amazon.com/cdk/api/latest/img/typescript32.png" class="aws-docs-img-whiteBg aws-docs-img-xs-padding" alt="Typescript Logo" />
-                 
-                 
+
+
               </span> Typescript
             </td>
             <td tabindex="-1">
@@ -79,10 +79,10 @@
           <tr>
             <td tabindex="-1">
               <span class="inlinemediaobject">
-                 
+
                   <img src="https://docs.aws.amazon.com/cdk/api/latest/img/java32.png" class="aws-docs-img-whiteBg aws-docs-img-xs-padding" alt="Java Logo" />
-                 
-                 
+
+
               </span> Java
             </td>
             <td tabindex="-1">
@@ -90,7 +90,7 @@
             </td>
           </tr>
         </table></div></div><h2 id="overview">Overview</h2>
-      
+
       <p>
         This AWS Solutions Construct implements an AWS Lambda function
         connected to an Amazon SNS topic.
@@ -113,7 +113,7 @@ new LambdaToSns(this, 'test-lambda-sns', <span>{</span>
   }
 });
 </code></pre></dd>
-    
+
       <dt>Python</dt><dd tab-id="python"><pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (python)--><code class="python ">
 from aws_solutions_constructs.aws_lambda_sns import LambdaToSns
 from aws_cdk import (
@@ -131,7 +131,7 @@ LambdaToSns(
     )
 )
 </code></pre></dd>
-    
+
       <dt>Java</dt><dd tab-id="java"><pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (java)--><code class="java ">
 import software.constructs.Construct;
 
@@ -150,9 +150,9 @@ new LambdaToSns(this, "test-lambda-sns-stack", new LambdaToSnsProps.Builder()
         .build());
 </code></pre></dd>
     </dl></awsdocs-tabs>
-    
+
     <h2 id="pattern-construct-props">Pattern Construct Props</h2>
-      
+
       <div class="table-container"><div class="table-contents"><table id="w161aab9d129b8b2"><thead>
             <tr>
               <th>
@@ -339,7 +339,7 @@ new LambdaToSns(this, "test-lambda-sns-stack", new LambdaToSnsProps.Builder()
             </tr>
           </table></div></div>
     <h2 id="pattern-properties">Pattern Properties</h2>
-      
+
       <div class="table-container"><div class="table-contents"><table id="w161aab9d129c10b2"><thead>
             <tr>
               <th>
@@ -392,18 +392,18 @@ new LambdaToSns(this, "test-lambda-sns-stack", new LambdaToSnsProps.Builder()
             </tr>
           </table></div></div>
     <h2 id="default-settings">Default settings</h2>
-      
+
       <p>
         Out of the box implementation of the Construct without any
         override will set the following defaults:
       </p>
       <h3 id="aws-lambda-function">AWS Lambda Function</h3>
-        
+
         <div class="itemizedlist">
-           
-           
-           
-           
+
+
+
+
         <ul class="itemizedlist"><li class="listitem">
             <p>
               Configure limited privilege access IAM role for Lambda
@@ -423,9 +423,9 @@ new LambdaToSns(this, "test-lambda-sns-stack", new LambdaToSnsProps.Builder()
               Set Environment Variables
             </p>
             <div class="itemizedlist">
-               
-               
-               
+
+
+
             <ul class="itemizedlist"><li class="listitem">
                 <p>
                   (default) SNS_TOPIC_NAME
@@ -441,13 +441,13 @@ new LambdaToSns(this, "test-lambda-sns-stack", new LambdaToSnsProps.Builder()
                 </p>
               </li></ul></div>
           </li></ul></div>
-       
+
       <h3 id="amazon-sns-topic">Amazon SNS Topic</h3>
-        
+
         <div class="itemizedlist">
-           
-           
-           
+
+
+
         <ul class="itemizedlist"><li class="listitem">
             <p>
               Configure least privilege access permissions for SNS Topic
@@ -462,15 +462,15 @@ new LambdaToSns(this, "test-lambda-sns-stack", new LambdaToSnsProps.Builder()
               Enforce encryption of data in transit
             </p>
           </li></ul></div>
-       
-     
+
+
       <h2 id="w6aab9d129c15">Architecture</h2>
       <div class="mediaobject">
-         
+
           <img src="/images/solutions/latest/constructs/images/aws-lambda-sns.png" class="aws-docs-img-whiteBg aws-docs-img-padding" alt="AWS Lambda connected to Amazon Simple Notification Service with IAM role below Lambda." data-alt-text-source="generated" style="max-width:100%" />
-         
+
       </div>
-     
+
     <h2 id="github">GitHub</h2>
     <div class="table-container"><div class="table-contents"><table id="w161aab9d129c16b3"><thead>
           <tr>
@@ -482,9 +482,9 @@ new LambdaToSns(this, "test-lambda-sns-stack", new LambdaToSnsProps.Builder()
           <tr>
             <td tabindex="-1">
               <div class="mediaobject">
-                 
+
                   <img src="/images/solutions/latest/constructs/images/GitHub-Mark-32px.png" class="aws-docs-img-whiteBg aws-docs-img-padding" alt="Circular icon with a graduation cap symbol representing education or learning." data-alt-text-source="generated" style="max-width:100%" />
-                 
+
               </div>
             </td>
             <td tabindex="-1">
