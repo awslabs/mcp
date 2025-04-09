@@ -45,53 +45,96 @@ cdk diff
 - Generates CloudFormation templates for inspection
 - Provides more informative error messages for debugging
 
-## Decision Flow for CDK Implementation
+## CDK Implementation Approach and Workflow
 
-When implementing AWS infrastructure with CDK, consider these complementary approaches:
+# Compare deployed stack with current state
 
-1. **For Common Architecture Patterns: AWS Solutions Constructs**
-   - Use the `GetAwsSolutionsConstructPattern` tool to search for patterns that match your use case
-   - Example: `GetAwsSolutionsConstructPattern(services=["lambda", "dynamodb"])`
-   - AWS Solutions Constructs implement AWS best practices by default
-   - For complete documentation: `aws-solutions-constructs://{pattern_name}`
-   - Ideal for REST APIs, serverless backends, data processing pipelines, etc.
+### Common Architecture Patterns
 
-2. **For GenAI/AI/ML Use Cases: GenAI CDK Constructs**
-   - Use the `SearchGenAICDKConstructs` tool for specialized AI/ML constructs
-   - These simplify implementation of Bedrock, SageMaker, and other AI services
-   - Perfect for agents, knowledge bases, vector stores, and other GenAI components
+**For standard application architectures:**
 
-   **Installation:**
+- Use the `GetAwsSolutionsConstructPattern` tool to find pre-built patterns
+- AWS Solutions Constructs implement AWS best practices by default
+- Ideal for REST APIs, serverless backends, data processing pipelines, etc.
+- Example: `GetAwsSolutionsConstructPattern(services=["lambda", "dynamodb"])`
+- For complete documentation: `aws-solutions-constructs://{pattern_name}`
 
-   ```typescript
-   // TypeScript
-   // Create or use an existing CDK application
-   cdk init app --language typescript
-   // Install the package
-   npm install @cdklabs/generative-ai-cdk-constructs
-   // Import the library
-   import * as genai from '@cdklabs/generative-ai-cdk-constructs';
-   ```
+**Key benefits:**
+- Accelerated development with vetted patterns
+- Built-in security and best practices
+- Reduced complexity for multi-service architectures
 
-   ```python
-   # Python
-   # Create or use an existing CDK application
-   cdk init app --language python
-   # Install the package
-   pip install cdklabs.generative-ai-cdk-constructs
-   # Import the library
-   import cdklabs.generative_ai_cdk_constructs
-   ```
+### GenAI/AI/ML Implementations
 
-3. **For All Projects: Apply CDK Nag**
+**For AI/ML and generative AI workloads:**
+
+- Use the `SearchGenAICDKConstructs` tool for specialized AI/ML constructs
+- These simplify implementation of Bedrock, SageMaker, and other AI services
+- Perfect for agents, knowledge bases, vector stores, and other GenAI components
+
+**Installation:**
+
+```typescript
+// TypeScript
+npm install @cdklabs/generative-ai-cdk-constructs
+import * as genai from '@cdklabs/generative-ai-cdk-constructs';
+```
+
+```python
+# Python
+pip install cdklabs.generative-ai-cdk-constructs
+import cdklabs.generative_ai_cdk_constructs
+```
+
+**Regional considerations for Bedrock:**
+- Many foundation models require inference profiles in specific regions
+- Use `CrossRegionInferenceProfile` class for proper configuration
+- For details: `genai-cdk-constructs://bedrock/profiles`
+
+### Combined Implementation Patterns
+
+**Important:** AWS Solutions Constructs and GenAI CDK Constructs can be used together in the same project:
+
+- Use GenAI CDK Constructs for Bedrock components (agents, knowledge bases)
+- Use AWS Solutions Constructs for REST APIs, databases, and other infrastructure
+- Apply CDK Nag across all components for security validation
+
+**Example combined architecture:**
+- REST API backend using aws-apigateway-lambda-dynamodb construct
+- Bedrock Agent using GenAI CDK constructs for natural language processing
+- Shared data layer between traditional and AI components
+
+### Implementation Workflow
+
+Follow this step-by-step workflow for developing AWS CDK applications:
+
+1. **Get CDK Guidance**: Start with the **CDKGeneralGuidance** tool to understand best practices.
+
+2. **Initialize CDK Project**: Use `cdk init app` to create your project with proper structure.
+
+3. **Choose Implementation Approach**:
+   - For common patterns: Use **GetAwsSolutionsConstructPattern** tool
+   - For GenAI applications: Use **SearchGenAICDKConstructs** tool
+   - For custom requirements: Develop custom CDK code following best practices
+
+4. **For Lambda Functions**:
+   - For observability: Implement Lambda Powertools (see `lambda-powertools://cdk` for details)
+   - For Lambda layers: Use **LambdaLayerDocumentationProvider** tool
+
+5. **For Bedrock Agents with Action Groups**:
+   - Create Lambda function with BedrockAgentResolver from Lambda Powertools
+   - Use **GenerateBedrockAgentSchema** tool to generate OpenAPI schema
+   - Integrate schema into Agent CDK code
+
+6. **Apply Security Best Practices**:
    - Always apply CDK Nag to ensure security best practices
-   - Use the `ExplainCDKNagRule` tool to understand specific rules
+   - Use **ExplainCDKNagRule** tool to understand specific rules
+   - Validate suppressions with **CheckCDKNagSuppressions** tool
 
-4. **For Custom Requirements: Custom Implementation**
-   - Create custom CDK code when no suitable constructs exist
-   - Follow AWS Well-Architected best practices
-
-> **IMPORTANT**: AWS Solutions Constructs and GenAI CDK Constructs are complementary and can be used together in the same project. For example, you might use GenAI CDK Constructs for Bedrock components and AWS Solutions Constructs for the REST API and database layers of your application.
+7. **Validate and Deploy**:
+   - Run `cdk synth` to check for errors and generate CloudFormation
+   - Ensure all CDK Nag warnings are resolved or properly justified
+   - Deploy using `cdk deploy`
 
 ## Key Principles
 
@@ -102,27 +145,6 @@ When implementing AWS infrastructure with CDK, consider these complementary appr
 - **Infrastructure as Code**: Use CDK to define all infrastructure
 - **Use Vetted Patterns**: Prefer AWS Solutions Constructs over custom implementations
 - **Regional Awareness**: Consider regional availability and constraints for services
-
-## Amazon Bedrock Cross-Region Inference Profiles
-
-When working with Amazon Bedrock foundation models, many models (including Claude models, Meta Llama models, and Amazon's own Nova models) require the use of inference profiles rather than direct on-demand usage in specific regions.
-
-### Key Considerations
-
-- **Required for Many Models**: Foundation models like Claude 3 often require inference profiles
-- **Regional Configuration**: Profiles are configured for specific geographic regions (US, EU, APAC)
-- **Error Prevention**: Prevents errors like "Invocation with on-demand throughput isn't supported"
-- **Implementation**: Use the `CrossRegionInferenceProfile` class from the GenAI CDK constructs
-
-For detailed implementation examples, see the `genai-cdk-constructs://bedrock/profiles` resource.
-
-### Regional Considerations
-
-- **Model Availability**: Not all foundation models are available in all regions
-- **Performance**: Choose the region closest to your users for optimal latency
-- **Compliance**: Consider data residency requirements when selecting regions
-
-Always check the [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html) for the latest information on model availability and regional constraints.
 
 ## AWS Solutions Constructs
 
@@ -148,10 +170,12 @@ To discover available patterns, use the `GetAwsSolutionsConstructPattern` tool.
 CDK Nag ensures your CDK applications follow AWS security best practices. **Always apply CDK Nag to all stacks.**
 
 **When to use CDK Nag tools:**
+
 - **ExplainCDKNagRule**: When encountering warnings that need remediation
 - **CheckCDKNagSuppressions**: During code reviews to verify suppression justifications
 
 Key security practices:
+
 - Follow least privilege for IAM
 - Secure S3 buckets with encryption and access controls
 - Implement secure authentication with Cognito
@@ -160,6 +184,8 @@ Key security practices:
 ## Operational Excellence with Lambda Powertools
 
 **Always implement Lambda Powertools** for structured logging, tracing, and metrics. For detailed guidance, use the `lambda-powertools://cdk` resource.
+
+**Critical for Bedrock Agents**: When creating Bedrock Agents with Action Groups, use BedrockAgentResolver from Lambda Powertools with the **GenerateBedrockAgentSchema** tool to generate the required OpenAPI schema.
 
 ## Tool Selection Guide
 
@@ -171,114 +197,6 @@ Match CDK tasks to appropriate tools:
 | Understand CDK Nag rules | ExplainCDKNagRule | ❌ Ignoring security warnings without understanding remediation steps |
 | Find architecture patterns | GetAwsSolutionsConstructPattern | ❌ Building common patterns from scratch instead of using vetted constructs |
 | Implement GenAI features | SearchGenAICDKConstructs | ❌ Building GenAI components without specialized constructs |
-| Add Lambda observability | lambda-powertools://cdk | ❌ Missing Layer creation, structured logging and monitoring |
+| Access Lambda layer docs | LambdaLayerDocumentationProvider | ❌ Missing proper Lambda layer structure or configuration |
+| Add Lambda observability | lambda-powertools://cdk | ❌ Missing structured logging and monitoring |
 | Audit CDK Nag suppressions | CheckCDKNagSuppressions | ❌ Insufficient documentation for security suppressions |
-| Create Lambda layers | GenerateLambdaLayerCode | ❌ Incorrect layer structure or missing proper configuration for runtime |
-
-## Lambda Powertools Implementation
-
-> **CRITICAL:** All Lambda functions should implement Lambda Powertools for proper observability.
-
-**Key requirements:**
-- Use language-specific constructs (PythonFunction, NodejsFunction)
-- Include Powertools dependencies with appropriate extras
-- Configure required environment variables
-- Create Lambda layers when needed
-
-**Example Lambda layer for Python:**
-```typescript
-const lambdaPowertoolsLayer = new PythonLayerVersion(this, "LambdaPowertoolsLayer", {
-  entry: path.join("src", "layers", "aws_lambda_powertools"),
-  compatibleRuntimes: [Runtime.PYTHON_3_13],
-  description: "Lambda Powertools for Python",
-});
-```
-
-For complete implementation details and examples for all languages, see the [lambda-powertools://cdk](lambda-powertools://cdk) resource.
-
-## CDK Implementation Workflow
-
-```mermaid
-graph TD
-    Start([Start]) --> Init["cdk init app"]
-    
-    Init --> B{Choose Approach}
-    B -->|"Common Patterns"| C1["GetAwsSolutionsConstructPattern"]
-    B -->|"GenAI Features"| C2["SearchGenAICDKConstructs"]
-    B -->|"Custom Needs"| C3["Custom CDK Code"]
-    
-    C1 --> D1["Implement Solutions Construct"]
-    C2 --> D2["Implement GenAI Constructs"]
-    C3 --> D3["Implement Custom Resources"]
-    
-    %% Bedrock Agent with Action Groups specific flow
-    D2 -->|"For Bedrock Agents<br/>with Action Groups"| BA["Create Lambda with<br/>BedrockAgentResolver"]
-    
-    %% Schema generation flow
-    BA --> BS["GenerateBedrockAgentSchema"]
-    BS -->|"Success"| JSON["openapi.json created"]
-    BS -->|"Import Errors"| BSF["Tool generates<br/>generate_schema.py"]
-    BSF -->|"Missing dependencies?"| InstallDeps["Install dependencies"]
-    InstallDeps --> BSR["Run script manually:<br/>python generate_schema.py"]
-    BSR --> JSON["openapi.json created"]
-    
-    %% Use schema in Agent CDK
-    JSON --> AgentCDK["Use schema in<br/>Agent CDK code"]
-    AgentCDK --> D2
-    
-    %% Conditional Lambda Powertools implementation
-    D1 & D2 & D3 --> HasLambda{"Using Lambda<br/>Functions?"}
-    HasLambda -->|"Yes"| L1["GenerateLambdaLayerCode"]
-    L1 --> L["Add Lambda Powertools<br/>and create Layer"]
-    HasLambda -->|"No"| SkipL["Skip Lambda<br/>Powertools"]
-    
-    %% Rest of workflow
-    L --> Synth["cdk synth"]
-    SkipL --> Synth
-    
-    Synth --> Nag{"CDK Nag<br/>warnings?"}
-    Nag -->|Yes| E["ExplainCDKNagRule"]
-    Nag -->|No| Deploy["cdk deploy"]
-    
-    E --> Fix["Fix or Add Suppressions"]
-    Fix --> CN["CheckCDKNagSuppressions"]
-    CN --> Synth
-    
-    %% Styling with darker colors
-    classDef default fill:#424242,stroke:#ffffff,stroke-width:1px,color:#ffffff;
-    classDef cmd fill:#4a148c,stroke:#ffffff,stroke-width:1px,color:#ffffff;
-    classDef tool fill:#01579b,stroke:#ffffff,stroke-width:1px,color:#ffffff;
-    classDef note fill:#1b5e20,stroke:#ffffff,stroke-width:1px,color:#ffffff;
-    classDef output fill:#006064,stroke:#ffffff,stroke-width:1px,color:#ffffff;
-    classDef decision fill:#5d4037,stroke:#ffffff,stroke-width:1px,color:#ffffff;
-    
-    class Init,Synth,Deploy,BSR cmd;
-    class C1,C2,BS,E,CN tool;
-    class JSON output;
-    class HasLambda,Nag decision;
-```
-
-## Available MCP Tools
-
-This MCP server provides several tools to help you implement AWS CDK best practices:
-
-1. **CDKGeneralGuidance**: This document - general CDK best practices
-2. **ExplainCDKNagRule**: Explain a specific CDK Nag rule with AWS Well-Architected guidance
-3. **CheckCDKNagSuppressions**: Check if CDK code contains Nag suppressions that require human review
-4. **GenerateBedrockAgentSchema**: Generate OpenAPI schema for Bedrock Agent Action Groups from Lambda functions
-5. **GetAwsSolutionsConstructPattern**: Search and discover AWS Solutions Constructs patterns
-6. **SearchGenAICDKConstructs**: Search for GenAI CDK constructs by name or type
-7. **GenerateLambdaLayerCode**: Generate CDK code for Lambda layers with best practices
-
-## Available MCP Resources
-
-This MCP server also provides several resources for accessing documentation:
-
-1. **cdk-nag://rules/{rule_pack}**: Get all rules for a specific CDK Nag rule pack
-2. **cdk-nag://warnings/{rule_pack}**: Get warnings for a specific CDK Nag rule pack
-3. **cdk-nag://errors/{rule_pack}**: Get errors for a specific CDK Nag rule pack
-4. **lambda-powertools://{topic}**: Get Lambda Powertools guidance on a specific topic
-5. **aws-solutions-constructs://{pattern_name}**: Get complete documentation for an AWS Solutions Constructs pattern
-6. **genai-cdk-constructs://{construct_type}/{construct_name}**: Get documentation for a GenAI CDK construct
-
-Always check for these tools and resources when implementing CDK infrastructure to ensure you're following AWS best practices.

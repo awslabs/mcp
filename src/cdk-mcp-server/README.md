@@ -28,6 +28,13 @@ MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as
 - Discover specialized constructs for AI/ML workloads
 - Get implementation guidance for generative AI applications
 
+### Lambda Layer Documentation Provider
+
+- Access comprehensive documentation for AWS Lambda layers
+- Get code examples for generic Lambda layers and Python-specific layers
+- Retrieve directory structure information and implementation best practices
+- Seamless integration with AWS Documentation MCP Server for detailed documentation
+
 ### Amazon Bedrock Agent Schema Generation
 
 - Use this tool when creating Bedrock Agents with Action Groups that use Lambda functions
@@ -46,7 +53,8 @@ This diagram provides a comprehensive view of the recommended CDK implementation
 
 ```mermaid
 graph TD
-    Start([Start]) --> Init["cdk init app"]
+    Start([Start]) --> A["CDKGeneralGuidance"]
+    A --> Init["cdk init app"]
     
     Init --> B{Choose Approach}
     B -->|"Common Patterns"| C1["GetAwsSolutionsConstructPattern"]
@@ -74,12 +82,13 @@ graph TD
     
     %% Conditional Lambda Powertools implementation
     D1 & D2 & D3 --> HasLambda{"Using Lambda<br/>Functions?"}
-    HasLambda -->|"Yes"| L1["GenerateLambdaLayerCode"]
-    L1 --> L["Add Lambda Powertools<br/>and create Layer"]
+    HasLambda --> UseLayer{"Using Lambda<br/>Layers?"}
+    UseLayer -->|"Yes"| LLDP["LambdaLayerDocumentationProvider"]
+
     HasLambda -->|"No"| SkipL["Skip"]
     
     %% Rest of workflow
-    L --> Synth["cdk synth"]
+    LLDP["LambdaLayerDocumentationProvider"] --> Synth["cdk synth"]
     SkipL --> Synth
     
     Synth --> Nag{"CDK Nag<br/>warnings?"}
@@ -99,22 +108,33 @@ graph TD
     classDef decision fill:#5d4037,stroke:#ffffff,stroke-width:1px,color:#ffffff;
     
     class Init,Synth,Deploy,BSR cmd;
-    class C1,C2,BS,E,CN tool;
+    class A,C1,C2,BS,E,CN,LLDP tool;
     class JSON output;
-    class HasLambda,Nag decision;
+    class HasLambda,UseLayer,Nag decision;
 ```
 
-## Tools and Resources
+## Available MCP Tools
+
+- **CDKGeneralGuidance**: Get prescriptive advice for building AWS applications with CDK
+- **GetAwsSolutionsConstructPattern**: Find vetted architecture patterns combining AWS services
+- **SearchGenAICDKConstructs**: Discover GenAI CDK constructs by name or features
+- **GenerateBedrockAgentSchema**: Create OpenAPI schemas for Bedrock Agent action groups
+- **LambdaLayerDocumentationProvider**: Access documentation for Lambda layers implementation
+- **ExplainCDKNagRule**: Get detailed guidance on CDK Nag security rules
+- **CheckCDKNagSuppressions**: Validate CDK Nag suppressions in your code
+
+## Available MCP Resources
 
 - **CDK Nag Rules**: Access rule packs via `cdk-nag://rules/{rule_pack}`
-- **Lambda Powertools**: Get guidance on Lambda Powertools via `lambda-powertools://{topic}`
 - **AWS Solutions Constructs**: Access patterns via `aws-solutions-constructs://{pattern_name}`
 - **GenAI CDK Constructs**: Access documentation via `genai-cdk-constructs://{construct_type}/{construct_name}`
+- **Lambda Powertools**: Get guidance on Lambda Powertools via `lambda-powertools://{topic}`
 
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
+3. Install AWS CDK CLI using `npm install -g aws-cdk` (Note: The MCP server itself doesn't use the CDK CLI directly, but it guides users through CDK application development that requires the CLI)
 
 ## Installation
 
