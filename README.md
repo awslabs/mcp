@@ -1,6 +1,6 @@
 # AWS MCP Servers
 
-A suite of specialized MCP servers that bring AWS best practices directly to your development workflow.
+A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
 [![GitHub](https://img.shields.io/badge/github-awslabs/mcp-blue.svg?style=flat&logo=github)](https://github.com/awslabs/mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen)](LICENSE)
