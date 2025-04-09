@@ -103,3 +103,4 @@ skips = ["B102"]
 
 # Per-file skips
 per_file_skips = { "awslabs/aws_diagram_mcp_server/diagrams.py" = ["B102"] }
+

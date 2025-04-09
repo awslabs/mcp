@@ -249,7 +249,6 @@ class TestGenerateDiagram:
         )
         assert result.path == expected_path
 
-
     @pytest.mark.asyncio
     async def test_generate_diagram_with_show_parameter(self, temp_workspace_dir):
         """Test diagram generation with show parameter already set."""
