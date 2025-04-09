@@ -11,7 +11,10 @@ updates:
     schedule:
       interval: "weekly"
     commit-message:
-      prefix: "chore(deps): update github-actions versions"
+      prefix: "chore(deps): update github-actions"
+    groups:
+      versioning:
+        applies-to: version-updates
 
   - package-ecosystem: "uv"
     directories:
@@ -20,6 +23,9 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore(deps): update uv"
+    groups:
+      versioning:
+        applies-to: version-updates
 
   - package-ecosystem: "npm"
     directories:
@@ -28,6 +34,9 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore(deps): update uv"
+    groups:
+      versioning:
+        applies-to: version-updates
 
   - package-ecosystem: "docker"
     directories:
@@ -36,3 +45,6 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "chore(deps): update docker images"
+    groups:
+      versioning:
+        applies-to: version-updates
