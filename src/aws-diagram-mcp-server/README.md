@@ -13,7 +13,7 @@ An MCP server that seamlessly creates diagrams using the Python diagrams package
 
 Install the MCP server:
 ```bash
-uv tool install aws-diagram-mcp-server
+uv tool install aws-diagram-mcp-server-mcp-server
 ```
 
 Add the server to your MCP client config (e.g. `~/.cursor-server/data/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
@@ -22,7 +22,7 @@ Add the server to your MCP client config (e.g. `~/.cursor-server/data/User/globa
   "mcpServers": {
     "aws-diagram-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-diagram-mcp-server"],
+      "args": ["awslabs.aws-diagram-mcp-server-mcp-server"],
       "env": {
         "SHELL": "/usr/bin/zsh"
       }
@@ -86,7 +86,7 @@ pytest -xvs tests/
 To run with coverage:
 
 ```bash
-pytest --cov=awslabs.aws_diagram --cov-report=term-missing tests/
+pytest --cov=awslabs.aws_diagram_mcp_server --cov-report=term-missing tests/
 ```
 
 For more information about the tests, see the [tests README](tests/README.md).

@@ -94,7 +94,7 @@ echo "Current directory: $(pwd)"
 echo "Python executable: $(which python)"
 echo "Pytest module location: $(python -c "import pytest; print(pytest.__file__)" 2>/dev/null || echo "Not found")"
 
-# Check if aws_diagram module can be imported
+# Check if aws_diagram_mcp_server module can be imported
 echo "Checking if diagrams_mcp_server module can be imported..."
 python -c "import diagrams_mcp_server; print(f'diagrams_mcp_server module found at: {diagrams_mcp_server.__file__}')" 2>/dev/null
 if [ $? -ne 0 ]; then
@@ -110,7 +110,7 @@ if [ $? -ne 0 ]; then
     else
         echo "Neither uv nor pip is available. Creating a symbolic link instead..."
         # Create a symbolic link to the module in the current directory
-        ln -sf $(pwd)/awslabs/aws_diagram $(pwd)/aws_diagram 2>/dev/null
+        ln -sf $(pwd)/awslabs/aws_diagram_mcp_server $(pwd)/aws_diagram_mcp_server 2>/dev/null
     fi
 
     echo "Trying again..."
@@ -150,9 +150,9 @@ if [ $? -ne 0 ]; then
 fi
 
 # If you want to run with coverage, uncomment the following line
-# $PYTEST_CMD --cov=aws_diagram --cov-report=term-missing tests/
+# $PYTEST_CMD --cov=aws_diagram_mcp_server --cov-report=term-missing tests/
 
 # If you want to run with coverage and generate an HTML report, uncomment the following line
-# $PYTEST_CMD --cov=aws_diagram --cov-report=html tests/
+# $PYTEST_CMD --cov=aws_diagram_mcp_server --cov-report=html tests/
 
 echo "Test run completed."

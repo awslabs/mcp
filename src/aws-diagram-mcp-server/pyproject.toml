@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-"awslabs.aws-diagram-mcp-server" = "awslabs.aws_diagram.server:main"
+"awslabs.aws-diagram-mcp-server" = "awslabs.aws_diagram_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -90,7 +90,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/aws_diagram/__init__.py:__version__"
+    "awslabs/aws_diagram_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
@@ -102,4 +102,4 @@ packages = ["awslabs"]
 skips = ["B102"]
 
 # Per-file skips
-per_file_skips = { "awslabs/aws_diagram/diagrams.py" = ["B102"] }
+per_file_skips = { "awslabs/aws_diagram_mcp_server/diagrams.py" = ["B102"] }

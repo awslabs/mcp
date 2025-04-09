@@ -2,12 +2,12 @@
 
 import os
 import pytest
-from awslabs.aws_diagram.diagrams import (
+from awslabs.aws_diagram_mcp_server.diagrams import (
     generate_diagram,
     get_diagram_examples,
     list_diagram_icons,
 )
-from awslabs.aws_diagram.models import DiagramType
+from awslabs.aws_diagram_mcp_server.models import DiagramType
 
 
 class TestGetDiagramExamples:
