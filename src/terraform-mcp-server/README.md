@@ -9,6 +9,11 @@ MCP server for Terraform on AWS best practices, infrastructure as code patterns,
   - Security and compliance recommendations
   - AWSCC provider prioritization for consistent API behavior
 
+- **Security-First Development Workflow** - Follow a structured process for creating secure code
+  - Step-by-step guidance for validation and security scanning
+  - Integration of Checkov at the right stages of development
+  - Clear handoff points between AI assistance and developer deployment
+
 - **Checkov Integration** - Work with Checkov for security and compliance scanning
   - Run security scans on Terraform code to identify vulnerabilities
   - Automatically fix identified security issues when possible
@@ -32,15 +37,17 @@ MCP server for Terraform on AWS best practices, infrastructure as code patterns,
 
 ## Tools and Resources
 
+- **Terraform Development Workflow**: Follow security-focused development process via `terraform://workflow_guide`
+- **AWS Best Practices**: Access AWS-specific guidance via `terraform://aws_best_practices`
 - **AWS Provider Resources**: Access resource listings via `terraform://aws_provider_resources_listing`
 - **AWSCC Provider Resources**: Access resource listings via `terraform://awscc_provider_resources_listing`
-- **Terraform Workflow Guide**: Get command guidance via `terraform://workflow_guide`
 
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
 3. Install Terraform CLI for workflow execution
+4. Install Checkov for security scanning
 
 ## Installation
 
@@ -65,7 +72,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 ## Security Considerations
 
 When using this MCP server, you should consider:
-
+- **Following the structured development workflow** that integrates validation and security scanning
 - Reviewing all Checkov warnings and errors manually
 - Fixing security issues rather than ignoring them whenever possible
 - Documenting clear justifications for any necessary exceptions

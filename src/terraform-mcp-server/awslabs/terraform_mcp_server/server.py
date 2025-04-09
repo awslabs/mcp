@@ -61,8 +61,6 @@ async def execute_terraform_command(
     return await execute_terraform_command_impl(request)
 
 
-
-
 @mcp.tool(name='SearchAwsProviderDocs')
 async def search_aws_provider_docs(
     resource_type: str, attribute: Optional[str] = None
@@ -175,15 +173,14 @@ async def fix_checkov_vulnerabilities(request: CheckovFixRequest) -> CheckovFixR
 
 # * Resources
 @mcp.resource(
-    name='terraform_workflow_guide',
-    uri='terraform://workflow_guide',
-    description='Guide for Terraform workflow commands and best practices',
+    name='terraform_development_workflow',
+    uri='terraform://development_workflow',
+    description='Terraform Development Workflow Guide with integrated validation and security scanning',
     mime_type='text/markdown',
 )
-async def terraform_workflow_guide() -> str:
-    """Provides guidance on Terraform workflow commands."""
+async def terraform_development_workflow() -> str:
+    """Provides guidance for developing Terraform code and integrates with Terraform workflow commands."""
     return f'{TERRAFORM_WORKFLOW_GUIDE}'
-
 
 
 @mcp.resource(

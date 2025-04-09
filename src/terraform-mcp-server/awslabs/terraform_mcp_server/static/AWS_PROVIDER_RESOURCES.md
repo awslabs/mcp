@@ -1,10 +1,10 @@
 # AWS Provider Resources Listing
 
-AWS Provider Version: 5.91.0
+AWS Provider Version: 5.94.1
 
-Last updated: March 13, 2025 15:52:48
+Last updated: April 08, 2025 16:51:28
 
-Found 1490 resources and 597 data sources across 240 AWS service categories.
+Found 1492 resources and 601 data sources across 240 AWS service categories.
 
 ## Table of Contents
 - [ACM (Certificate Manager)](#acm-certificate-manager)
@@ -291,7 +291,7 @@ Found 1490 resources and 597 data sources across 240 AWS service categories.
 
 ## API Gateway
 
-*25 resources and 9 data sources*
+*26 resources and 10 data sources*
 
 ### Resources
 - [aws_api_gateway_account](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_account)
@@ -315,6 +315,7 @@ Found 1490 resources and 597 data sources across 240 AWS service categories.
 - [aws_api_gateway_resource](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_resource)
 - [aws_api_gateway_rest_api](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_rest_api)
 - [aws_api_gateway_rest_api_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_rest_api_policy)
+- [aws_api_gateway_rest_api_put](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_rest_api_put)
 - [aws_api_gateway_stage](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_stage)
 - [aws_api_gateway_usage_plan](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_usage_plan)
 - [aws_api_gateway_usage_plan_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/api_gateway_usage_plan_key)
@@ -322,6 +323,7 @@ Found 1490 resources and 597 data sources across 240 AWS service categories.
 
 ### Data Sources
 - [aws_api_gateway_api_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/api_gateway_api_key)
+- [aws_api_gateway_api_keys](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/api_gateway_api_keys)
 - [aws_api_gateway_authorizer](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/api_gateway_authorizer)
 - [aws_api_gateway_authorizers](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/api_gateway_authorizers)
 - [aws_api_gateway_domain_name](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/api_gateway_domain_name)
@@ -515,9 +517,10 @@ Found 1490 resources and 597 data sources across 240 AWS service categories.
 
 ## Athena
 
-*5 resources and 1 data sources*
+*6 resources and 1 data sources*
 
 ### Resources
+- [aws_athena_capacity_reservation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_capacity_reservation)
 - [aws_athena_data_catalog](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_data_catalog)
 - [aws_athena_database](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_database)
 - [aws_athena_named_query](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query)
@@ -1645,7 +1648,7 @@ Found 1490 resources and 597 data sources across 240 AWS service categories.
 
 ## EKS Elastic Kubernetes
 
-*8 resources and 8 data sources*
+*8 resources and 9 data sources*
 
 ### Resources
 - [aws_eks_access_entry](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eks_access_entry)
@@ -1663,6 +1666,7 @@ Found 1490 resources and 597 data sources across 240 AWS service categories.
 - [aws_eks_addon_version](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/eks_addon_version)
 - [aws_eks_cluster](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/eks_cluster)
 - [aws_eks_cluster_auth](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/eks_cluster_auth)
+- [aws_eks_cluster_versions](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/eks_cluster_versions)
 - [aws_eks_clusters](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/eks_clusters)
 - [aws_eks_node_group](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/eks_node_group)
 - [aws_eks_node_groups](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/eks_node_groups)
@@ -3410,7 +3414,7 @@ Found 1490 resources and 597 data sources across 240 AWS service categories.
 
 ## SSO Identity Store
 
-*3 resources and 3 data sources*
+*3 resources and 5 data sources*
 
 ### Resources
 - [aws_identitystore_group](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/identitystore_group)
@@ -3419,8 +3423,10 @@ Found 1490 resources and 597 data sources across 240 AWS service categories.
 
 ### Data Sources
 - [aws_identitystore_group](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/identitystore_group)
+- [aws_identitystore_group_memberships](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/identitystore_group_memberships)
 - [aws_identitystore_groups](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/identitystore_groups)
 - [aws_identitystore_user](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/identitystore_user)
+- [aws_identitystore_users](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/identitystore_users)
 
 ## STS Security Token
 
@@ -4066,4 +4072,4 @@ Found 1490 resources and 597 data sources across 240 AWS service categories.
 
 ---
 *This document was generated automatically by the AWS Provider Resources Generator script.*
-*Generation time: 174.74 seconds*
+*Generation time: 184.69 seconds*

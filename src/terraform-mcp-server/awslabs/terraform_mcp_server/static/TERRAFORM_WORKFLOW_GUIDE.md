@@ -1,76 +1,199 @@
-# Terraform Workflow Guide
+# Terraform Development Workflow
+
+## Purpose and Usage
+
+This workflow guide provides a structured approach for developing valid, secure Terraform configurations for AWS infrastructure. As an AI coding assistant utilizing this MCP server, you should follow these steps when helping users create or modify Terraform code.
+
+## How to Use This Guide
+You have access to specialized tools and resources through this MCP server that significantly enhance your ability to assist with Terraform development. When working with users on Terraform code:
+
+1. Reference this workflow consistently throughout your interactions
+2. Leverage this MCP server's capabilities rather than relying solely on your general knowledge
+3. Explain the workflow steps to users as you assist them
+
+## Benefits to Emphasize
+When following this workflow and using these tools, you provide several advantages to users:
+
+- Early detection of configuration errors
+- Identification of security vulnerabilities before deployment
+- Adherence to AWS best practices
+- Validation that code will work correctly when deployed
+
+By following this workflow guide and leveraging the provided tools and resources, you'll deliver consistent, high-quality assistance for Terraform development on AWS, helping users create infrastructure code that is syntactically valid, secure, and ready for review before deployment.
+
+## DEVELOPMENT WORKFLOW
+
+``` mermaid
+flowchart TD
+    start([Start Development]) --> edit[Edit Terraform Code]
+    
+    %% Initial Code Validation
+    edit --> tfValidate[Run terraform validate\nvia ExecuteTerraformCommand]
+    
+    %% Validation Flow
+    tfValidate -->|Passes| checkovScan[Run Security Scan\nvia RunCheckovScan]
+    tfValidate -->|Fails| fixValidation[Fix Configuration\nIssues]
+    fixValidation --> edit
+    
+    %% Checkov Flow
+    checkovScan -->|No Issues| tfInit[Run terraform init\nvia ExecuteTerraformCommand]
+    checkovScan -->|Finds Issues| reviewIssues[Review Security\nIssues]
+    
+    reviewIssues --> autoFix[Apply Automatic Fixes\nvia FixCheckovVulnerabilities]
+    reviewIssues --> manualFix[Apply Manual Fixes]
+    
+    autoFix --> checkovScan
+    manualFix --> edit
+    
+    %% Terraform Init & Plan (No Apply)
+    tfInit -->|Success| tfPlan[Run terraform plan\nvia ExecuteTerraformCommand]
+    tfInit -->|Fails| fixInit[Fix Provider/Module\nIssues]
+    fixInit --> edit
+    
+    %% Final Review & Handoff to Developer
+    tfPlan -->|Plan Generated| reviewPlan[Review Planned Changes]
+    tfPlan -->|Issues Detected| edit
+    
+    reviewPlan --> codeReady[Valid, Secure Code Ready\nfor Developer Review]
+    
+    %% Iteration for Improvements
+    codeReady --> newChanges{Need Code\nImprovements?}
+    newChanges -->|Yes| edit
+    newChanges -->|No| handoff([Hand Off to Developer\nfor Deployment Decision])
+    
+    %% Styling
+    classDef success fill:#bef5cb,stroke:#28a745
+    classDef warning fill:#fff5b1,stroke:#dbab09  
+    classDef error fill:#ffdce0,stroke:#cb2431
+    classDef process fill:#f1f8ff,stroke:#0366d6
+    classDef decision fill:#d1bcf9,stroke:#8a63d2
+    classDef mcptool fill:#d0f0fd,stroke:#0969da,font-style:italic
+    classDef handoff fill:#ffdfb6,stroke:#f9a03f
+    
+    class codeReady success
+    class reviewIssues,reviewPlan warning
+    class fixValidation,fixInit,manualFix error
+    class edit process
+    class newChanges decision
+    class tfValidate,checkovScan,tfInit,tfPlan,autoFix mcptool
+    class handoff handoff
+```
+
+1. Edit Terraform Code
+    - Write or modify Terraform configuration files for AWS resources
+    - MCP Resources and tools to consult:
+        - terraform_awscc_provider_resources_listing for available AWS Cloud Control API resources
+        - terraform_aws_provider_resources_listing for available AWS resources
+        - terraform_aws_best_practices for AWS best practices
+        - SearchAwsccProviderDocs tool to look up specific Cloud Control API resources.
+        - SearchAwsProviderDocs tool to look up specific resource documentation
+        - SearchSpecificAwsIaModules tool when working with supported AWS-IA modules
+2. Validate Code
+    - Tool: ExecuteTerraformCommand with command="validate"
+        - Checks syntax and configuration validity without accessing AWS
+        - Identifies syntax errors, invalid resource configurations, and reference issues
+        - Example: ExecuteTerraformCommand(TerraformExecutionRequest(command="validate", working_directory="./my_project"))
+3. Run Security Scan
+    - Tool: RunCheckovScan
+        - Scans code for security misconfigurations, compliance issues, and AWS best practice violations
+        - Example: RunCheckovScan(CheckovScanRequest(working_directory="./my_project", framework="terraform"))
+4. Fix Security Issues
+    - For automated fixes:
+        - Tool: FixCheckovVulnerabilities
+        - Automatically remediate supported issues identified by the scan
+        - Example: FixCheckovVulnerabilities(CheckovFixRequest(working_directory="./my_project", vulnerability_ids=["CKV_AWS_123"], backup_files=True))
+    - For manual fixes:
+        - Edit the code to address issues that can't be automatically fixed
+        - Consult terraform_aws_best_practices resource for guidance
+5. Initialize Working Directory
+    - Tool: ExecuteTerraformCommand with command="init"
+        - Downloads provider plugins and sets up modules
+        - Example: ExecuteTerraformCommand(TerraformExecutionRequest(command="init", working_directory="./my_project"))
+6. Plan Changes
+    - Tool: ExecuteTerraformCommand with command="plan"
+        - Creates an execution plan showing what changes would be made (without applying)
+        - Verifies that the configuration is deployable
+        - Example: ExecuteTerraformCommand(TerraformExecutionRequest(command="plan", working_directory="./my_project", output_file="tfplan"))
+7. Review Plan & Code Ready
+    - Review the plan output to ensure it reflects intended changes
+    - Confirm all validation and security checks have passed
+    - Code is now ready for handoff to the developer for deployment decisions
+
 
 ## Core Commands
 
-### terraform init
-* Initialize a working directory containing Terraform configuration files.
-* Sets up the backend and provider plugins.
+### Terraform Commands
 
-```bash
-terraform init
-```
+#### terraform init
+
+* Purpose: Initializes a Terraform working directory, downloading provider plugins and setting up modules.
+* When to use: Before running any other commands on a new configuration or after adding new modules/providers.
 
 Options:
 - `-backend-config=PATH` - Configuration for backend
 - `-reconfigure` - Reconfigure backend
 
-### terraform plan
-* Creates an execution plan to reach desired state.
-* Shows changes to add, modify, or destroy resources.
-* Safe operation with no changes to infrastructure
+#### terraform validate
 
-```bash
-terraform plan -out=plan.tfplan
+* Purpose: Checks whether a configuration is syntactically valid and internally consistent.
+* When to use: After making changes to configuration files but before planning or applying.
+
+```python
+ExecuteTerraformCommand(TerraformExecutionRequest(
+    command="validate", 
+    working_directory="./project_dir"
+))
 ```
+
+#### terraform plan
+
+* Purpose: Creates an execution plan showing what actions Terraform would take to apply the current configuration.
+* When to use: After validation passes to preview changes before applying them.
 
 Options:
 - `-var 'name=value'` - Set variable
 - `-var-file=filename` - Set variables from file
 
-### terraform validate
-* Validates the configuration files.
-* Checks configuration files for syntax and consistency.
-* Validates resource relationships and dependencies.
+#### terraform apply
 
-```bash
-terraform validate
-```
+* Purpose: Applies changes required to reach the desired state of the configuration.
+* When to use: After plan confirms the intended changes, and developer decides to proceed.
 
-### terraform apply
-* Apply changes to reach desired state.
-* Updates the state file to match the new reality.
-
-```bash
-terraform apply plan.tfplan
-# Or directly
-terraform apply
-```
+>Note: This is typically executed by the developer after reviewing code generated by the assistant.
 
 Options:
 - `-auto-approve` - Skip interactive approval
 - `-var 'name=value'` - Set variable
+- Use `-out` to save plans and apply those exact plans.
 
-### terraform destroy
-* Destroy the Terraform-managed infrastructure.
-* Completely tears down the infrastructure and updates state
+#### terraform destroy
 
-```bash
-terraform destroy
-```
+* Purpose: Destroys all resources managed by the current configuration.
+* When to use: When resources are no longer needed, typically executed by the developer.
+
+>Note: This is typically executed by the developer once it has been decided the application should be destroyed.
 
 Options:
 - `-auto-approve` - Skip interactive approval
 
+### Checkov Commands
 
-## Best Practices for Workflow
+These security scanning and remediation commands are available through dedicated tools:
 
-1. Always run `terraform plan` before `apply`.
-2. Run `terraform validate` after you make changes to the terraform application.
-3. Use `-out` to save plans and apply those exact plans.
-4. Always show changes from the plan to the user and get confirmation before applying them.
+#### Checkov Scan
+
+* Purpose: Scans Terraform code for security issues, misconfigurations, and compliance violations.
+* Tool: RunCheckovScan
+* When to use: After code passes terraform validate but before initializing and planning.
+
+#### Checkov Fix
+
+* Purpose: Automatically fixes supported security issues found by Checkov.
+* Tool: FixCheckovVulnerabilities
+* When to use: After Checkov scan identifies fixable issues.
 
 ## Key Principles
-
+- **Code Development**: Strongly prefer using the AWSCC provider first (Cloud Control API-based provider) before falling back to the traditional AWS provider.
 - **Security First**: Always implement security best practices by default
 - **Cost Optimization**: Design resources to minimize costs while meeting requirements
 - **Operational Excellence**: Implement proper monitoring, logging, and observability

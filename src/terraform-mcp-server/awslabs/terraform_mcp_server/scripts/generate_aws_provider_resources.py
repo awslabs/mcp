@@ -23,20 +23,19 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 # Add the parent directory to sys.path so we can import from terraform_mcp_server
 script_dir = Path(__file__).resolve().parent
-repo_root = script_dir.parent
+repo_root = script_dir.parent.parent.parent
 sys.path.insert(0, str(repo_root))
 
 # Now import modules after modifying sys.path
-from terraform_mcp_server.impl.resources.terraform_aws_provider_resources_listing import (  # noqa: E402
+from awslabs.terraform_mcp_server.impl.resources.terraform_aws_provider_resources_listing import (  # noqa: E402
     fetch_aws_provider_page,
 )
 
 
 # Default output path
-DEFAULT_OUTPUT_PATH = repo_root / 'terraform_mcp_server' / 'static' / 'AWS_PROVIDER_RESOURCES.md'
+DEFAULT_OUTPUT_PATH = repo_root / 'awslabs' / 'terraform_mcp_server' / 'static' / 'AWS_PROVIDER_RESOURCES.md'
 
 
 def parse_arguments():
