@@ -17,39 +17,30 @@ Lambda Insights is an extension of CloudWatch that provides system-level metrics
 
 ## CDK Integration
 
-```typescript
-import { LambdaInsightsVersion } from 'aws-cdk-lib/aws-lambda';
-import { PythonFunction } from '@aws-cdk/aws-lambda-python-alpha';
-
-// Create Lambda function with Lambda Insights enabled
-const function = new PythonFunction(this, 'MyFunction', {
-  entry: path.join(__dirname, '../src/my_function'),
-  runtime: Runtime.PYTHON_3_13,
-
-  // Enable Lambda Insights with specific version
-  insightsVersion: LambdaInsightsVersion.VERSION_1_0_119_0,
-
-  // Other configuration...
-});
-```
-
-## Combining with Lambda Powertools
-
-Lambda Insights works seamlessly alongside Lambda Powertools to provide a complete observability solution:
+> **REMINDER**: Lambda Powertools requires a Lambda layer. See `lambda-powertools://cdk` for details.
 
 ```typescript
 import { LambdaInsightsVersion } from 'aws-cdk-lib/aws-lambda';
 import { PythonFunction } from '@aws-cdk/aws-lambda-python-alpha';
+import { Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
+import { PythonLayerVersion } from '@aws-cdk/aws-lambda-python-alpha';
+import * as path from 'path';
 
 // Create Lambda function with both Lambda Insights and Powertools
-const function = new PythonFunction(this, 'MyFunction', {
+const myFunction = new PythonFunction(this, 'MyFunction', {
   entry: path.join(__dirname, '../src/my_function'),
   runtime: Runtime.PYTHON_3_13,
-
+  
+  // Attach Lambda layer (see lambda-powertools://cdk)
+  layers: [powertoolsLayer],
+  
   // Enable Lambda Insights
   insightsVersion: LambdaInsightsVersion.VERSION_1_0_119_0,
-
-  // Configure Powertools for business metrics
+  
+  // Enable X-Ray tracing
+  tracing: Tracing.ACTIVE,
+  
+  // Configure Powertools environment variables
   environment: {
     POWERTOOLS_SERVICE_NAME: "my-service",
     POWERTOOLS_METRICS_NAMESPACE: "MyService",

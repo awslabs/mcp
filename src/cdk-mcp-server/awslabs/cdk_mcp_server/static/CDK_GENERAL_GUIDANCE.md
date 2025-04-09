@@ -185,6 +185,8 @@ Key security practices:
 
 **Always implement Lambda Powertools** for structured logging, tracing, and metrics. For detailed guidance, use the `lambda-powertools://cdk` resource.
 
+> **CRITICAL**: Lambda Powertools libraries are NOT included in the default Lambda runtime. You MUST create a Lambda layer to include these dependencies. Use the **LambdaLayerDocumentationProvider** tool for comprehensive guidance on creating and configuring Lambda layers.
+
 **Critical for Bedrock Agents**: When creating Bedrock Agents with Action Groups, use BedrockAgentResolver from Lambda Powertools with the **GenerateBedrockAgentSchema** tool to generate the required OpenAPI schema.
 
 ## Tool Selection Guide
@@ -198,5 +200,5 @@ Match CDK tasks to appropriate tools:
 | Find architecture patterns | GetAwsSolutionsConstructPattern | ❌ Building common patterns from scratch instead of using vetted constructs |
 | Implement GenAI features | SearchGenAICDKConstructs | ❌ Building GenAI components without specialized constructs |
 | Access Lambda layer docs | LambdaLayerDocumentationProvider | ❌ Missing proper Lambda layer structure or configuration |
-| Add Lambda observability | lambda-powertools://cdk | ❌ Missing structured logging and monitoring |
+| Add Lambda observability | lambda-powertools://cdk | ❌ Missing Lambda layer for Powertools or incomplete monitoring setup |
 | Audit CDK Nag suppressions | CheckCDKNagSuppressions | ❌ Insufficient documentation for security suppressions |
