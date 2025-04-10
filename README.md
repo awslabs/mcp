@@ -170,6 +170,10 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 
 See individual server READMEs for specific requirements and configuration options.
 
+## Samples
+
+Ready-to-use examples of AWS MCP Servers in action are available in the [samples](samples/) directory. These samples provide working code and step-by-step guides to help you get started with each MCP server.
+
 ## Documentation
 
 Comprehensive documentation for all servers is available on our [documentation website](https://awslabs.github.io/mcp/).
