@@ -8,6 +8,15 @@ dependencies = [
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
 ]
+license = "Apache-2.0"
+license-files = ["LICEN[CS]E*", "NOTICE.txt" ]
+
+[project.urls]
+homepage = "https://awslabs.github.io/mcp/"
+docs = "https://awslabs.github.io/mcp/servers/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server/"
+repository = "https://github.com/awslabs/mcp.git"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server/CHANGELOG.md"
 
 [project.scripts]
 "awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server" = "awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-') | replace('-', '_')}}_mcp_server.server:main"
