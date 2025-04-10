@@ -1067,7 +1067,7 @@ async def _generate_csv_report(
     return csv_content
 
 
-async def generate_cost_analysis_report(
+async def generate_cost_report(
     pricing_data: Dict[str, Any],  # Required: Raw pricing data from AWS
     service_name: str,  # Required: Primary service name
     # Core parameters (simple, commonly used)
