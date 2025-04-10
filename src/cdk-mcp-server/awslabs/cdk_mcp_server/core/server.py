@@ -1,3 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
 """AWS CDK MCP server implementation."""
 
 import argparse
@@ -49,7 +60,7 @@ mcp.resource('genai-cdk-constructs://{construct_type}')(resources.get_genai_cdk_
 mcp.tool(name='CDKGeneralGuidance')(tools.cdk_guidance)
 mcp.tool(name='ExplainCDKNagRule')(tools.explain_cdk_nag_rule)
 mcp.tool(name='CheckCDKNagSuppressions')(tools.check_cdk_nag_suppressions_tool)
-mcp.tool(name='GenerateBedrockAgentSchemaFromFile')(tools.bedrock_schema_generator_from_file)
+mcp.tool(name='GenerateBedrockAgentSchema')(tools.bedrock_schema_generator_from_file)
 mcp.tool(name='GetAwsSolutionsConstructPattern')(tools.get_aws_solutions_construct_pattern)
 mcp.tool(name='SearchGenAICDKConstructs')(tools.search_genai_cdk_constructs)
 

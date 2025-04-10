@@ -1,3 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
 """Lambda Powertools guidance loader module."""
 
 import os
@@ -34,14 +45,16 @@ def get_lambda_powertools_section(topic: str = '') -> str:
         topic = 'index'
 
     if topic.lower() in topic_map:
-        file_path = os.path.join(
-            os.path.dirname(__file__), 'static', 'lambda_powertools', f'{topic.lower()}.md'
-        )
+        # Fix the path to correctly point to the static directory (parent of 'data')
+        base_dir = os.path.dirname(
+            os.path.dirname(__file__)
+        )  # Go up from 'data' to get to the package root
+        file_path = os.path.join(base_dir, 'static', 'lambda_powertools', f'{topic.lower()}.md')
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except FileNotFoundError:
-            return f"Error: File for topic '{topic}' not found."
+            return f"Error: File for topic '{topic}' not found. (Looking in: {file_path})"
     else:
         # Topic not found
         topic_list = '\n'.join([f'- {t}: {desc}' for t, desc in topic_map.items() if t != 'index'])

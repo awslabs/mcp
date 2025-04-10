@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.cost-analysis-mcp-server"
-version = "0.0.010652"
+version = "0.0.081650"
 description = "An AWS Labs Model Context Protocol (MCP) server for Cost Analysis of the AWS services"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -79,3 +79,6 @@ update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv","tests"]

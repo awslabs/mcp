@@ -4,14 +4,20 @@ MCP server for analyzing AWS service costs and generating cost reports
 
 ## Features
 
-- **Analyze and visualize AWS costs** - Get detailed breakdown of your AWS costs by service, region and tier
-  - Understand how costs are distributed across various services
+### Analyze and visualize AWS costs
 
-- **Query cost data with natural language** - Ask questions about your AWS costs in plain English, no complex query languages required
-  - Get instant answers fetched from pricing webpage and AWS Pricing API, for questions related to AWS services
+- Get detailed breakdown of your AWS costs by service, region and tier
+- Understand how costs are distributed across various services
 
-- **Generate cost reports and insights** - Generate comprehensive cost reports based on your IaC implementation
-  - Get cost optimization recommendations
+### Query cost data with natural language
+
+- Ask questions about your AWS costs in plain English, no complex query languages required
+- Get instant answers fetched from pricing webpage and AWS Pricing API, for questions related to AWS services
+
+### Generate cost reports and insights
+
+- Generate comprehensive cost reports based on your IaC implementation
+- Get cost optimization recommendations
 
 ## Prerequisites
 

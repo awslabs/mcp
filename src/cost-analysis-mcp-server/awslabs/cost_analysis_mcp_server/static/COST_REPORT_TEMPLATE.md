@@ -1,4 +1,4 @@
-# {service_name} Cost Analysis Report
+# {service_name} Cost Analysis Estimate Report
 
 ## Service Overview
 
@@ -6,7 +6,7 @@
 
 ## Pricing Model
 
-This cost analysis is based on the following pricing model:
+This cost analysis estimate is based on the following pricing model:
 - **ON DEMAND** pricing (pay-as-you-go) unless otherwise specified
 - Standard service configurations without reserved capacity or savings plans
 - No caching or optimization techniques applied
@@ -35,7 +35,7 @@ This cost analysis is based on the following pricing model:
 
 ## Cost Scaling with Usage
 
-The following table illustrates how costs scale with different usage levels:
+The following table illustrates how cost estimates scale with different usage levels:
 
 {usage_cost_table}
 

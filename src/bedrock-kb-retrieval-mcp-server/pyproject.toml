@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.bedrock-kb-retrieval-mcp-server"
-version = "0.0.010652"
+version = "0.0.081650"
 description = "An AWS Labs Model Context Protocol (MCP) server for Bedrock Knowledge Base Retrieval"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -80,3 +80,6 @@ update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv","tests"]
