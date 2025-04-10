@@ -4,18 +4,15 @@ import json
 import os
 import re
 import subprocess
-import tempfile
-from typing import Dict, List, Optional, Any, Union, Tuple
-
-from loguru import logger
-
 from ...models import (
-    CheckovScanRequest,
-    CheckovScanResult,
     CheckovFixRequest,
     CheckovFixResult,
+    CheckovScanRequest,
+    CheckovScanResult,
     CheckovVulnerability,
 )
+from loguru import logger
+from typing import Any, Dict, List, Tuple
 
 
 def _clean_output_text(text: str) -> str:
@@ -162,7 +159,7 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
     Returns:
         A CheckovScanResult object containing scan results and vulnerabilities
     """
-    logger.info(f"Running Checkov scan in {request.working_directory}")
+    logger.info(f'Running Checkov scan in {request.working_directory}')
 
     # Ensure Checkov is installed
     if not _ensure_checkov_installed():
@@ -182,8 +179,8 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
         project_root = os.path.abspath(os.path.join(current_dir, '..', '..', '..', '..'))
         # Join with the requested working directory
         working_dir = os.path.abspath(os.path.join(project_root, working_dir))
-    
-    logger.info(f"Using absolute working directory: {working_dir}")
+
+    logger.info(f'Using absolute working directory: {working_dir}')
     cmd = ['checkov', '--quiet', '-d', working_dir]
 
     # Add framework if specified
@@ -203,7 +200,7 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
 
     # Execute command
     try:
-        logger.info(f"Executing command: {' '.join(cmd)}")
+        logger.info(f'Executing command: {" ".join(cmd)}')
         process = subprocess.run(
             cmd,
             capture_output=True,
@@ -213,22 +210,26 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
         # Clean output text
         stdout = _clean_output_text(process.stdout)
         stderr = _clean_output_text(process.stderr)
-        
+
         # Debug logging
-        logger.info(f"Checkov return code: {process.returncode}")
-        logger.info(f"Checkov stdout: {stdout}")
-        logger.info(f"Checkov stderr: {stderr}")
+        logger.info(f'Checkov return code: {process.returncode}')
+        logger.info(f'Checkov stdout: {stdout}')
+        logger.info(f'Checkov stderr: {stderr}')
 
         # Parse results if JSON output was requested
         vulnerabilities = []
         summary = {}
         if request.output_format == 'json' and stdout:
             vulnerabilities, summary = _parse_checkov_json_output(stdout)
-        
+
         # For non-JSON output, try to parse vulnerabilities from the text output
         elif stdout and process.returncode == 1:  # Return code 1 means vulnerabilities were found
             # Simple regex to extract failed checks from CLI output
-            failed_checks = re.findall(r'Check: (CKV\w*_\d+).*?FAILED for resource: ([\w\.]+).*?File: ([\w\/\.-]+):(\d+)', stdout, re.DOTALL)
+            failed_checks = re.findall(
+                r'Check: (CKV\w*_\d+).*?FAILED for resource: ([\w\.]+).*?File: ([\w\/\.-]+):(\d+)',
+                stdout,
+                re.DOTALL,
+            )
             for check_id, resource, file_path, line in failed_checks:
                 vuln = CheckovVulnerability(
                     id=check_id,
@@ -236,17 +237,17 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
                     resource=resource,
                     file_path=file_path,
                     line=int(line),
-                    description=f"Failed check: {check_id}",
+                    description=f'Failed check: {check_id}',
                     severity='MEDIUM',
                     fixed=False,
                 )
                 vulnerabilities.append(vuln)
-            
+
             # Extract summary counts
             passed_match = re.search(r'Passed checks: (\d+)', stdout)
             failed_match = re.search(r'Failed checks: (\d+)', stdout)
             skipped_match = re.search(r'Skipped checks: (\d+)', stdout)
-            
+
             summary = {
                 'passed': int(passed_match.group(1)) if passed_match else 0,
                 'failed': int(failed_match.group(1)) if failed_match else 0,
@@ -267,14 +268,16 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
 
         # If auto-fix is requested and vulnerabilities were found, attempt to fix them
         if request.auto_fix and vulnerabilities:
-            logger.info(f"Auto-fix requested, attempting to fix {len(vulnerabilities)} vulnerabilities")
+            logger.info(
+                f'Auto-fix requested, attempting to fix {len(vulnerabilities)} vulnerabilities'
+            )
             fix_request = CheckovFixRequest(
                 working_directory=request.working_directory,
                 vulnerability_ids=[v.id for v in vulnerabilities],
                 backup_files=True,
             )
             fix_result = await run_checkov_fix_impl(fix_request)
-            
+
             # Update vulnerabilities with fix status
             for vuln in result.vulnerabilities:
                 for fixed_vuln in fix_result.fixed_vulnerabilities:
@@ -284,7 +287,7 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
 
         return result
     except Exception as e:
-        logger.error(f"Error running Checkov scan: {e}")
+        logger.error(f'Error running Checkov scan: {e}')
         return CheckovScanResult(
             status='error',
             working_directory=request.working_directory,
@@ -301,7 +304,9 @@ async def run_checkov_fix_impl(request: CheckovFixRequest) -> CheckovFixResult:
     Returns:
         A CheckovFixResult object containing fix results
     """
-    logger.info(f"Attempting to fix {len(request.vulnerability_ids)} vulnerabilities in {request.working_directory}")
+    logger.info(
+        f'Attempting to fix {len(request.vulnerability_ids)} vulnerabilities in {request.working_directory}'
+    )
 
     # Ensure Checkov is installed
     if not _ensure_checkov_installed():
@@ -316,9 +321,9 @@ async def run_checkov_fix_impl(request: CheckovFixRequest) -> CheckovFixResult:
         try:
             backup_dir = os.path.join(request.working_directory, '.checkov_backups')
             os.makedirs(backup_dir, exist_ok=True)
-            logger.info(f"Created backup directory: {backup_dir}")
+            logger.info(f'Created backup directory: {backup_dir}')
         except Exception as e:
-            logger.error(f"Failed to create backup directory: {e}")
+            logger.error(f'Failed to create backup directory: {e}')
             return CheckovFixResult(
                 status='error',
                 working_directory=request.working_directory,
@@ -327,17 +332,17 @@ async def run_checkov_fix_impl(request: CheckovFixRequest) -> CheckovFixResult:
 
     # Build the command for fixing
     cmd = ['checkov', '--quiet', '-d', request.working_directory, '--framework', 'terraform']
-    
+
     # Add specific check IDs to fix
     if request.vulnerability_ids:
         cmd.extend(['--check', ','.join(request.vulnerability_ids)])
-    
+
     # Add fix flag
     cmd.extend(['--fix'])
-    
+
     # Execute command
     try:
-        logger.info(f"Executing command: {' '.join(cmd)}")
+        logger.info(f'Executing command: {" ".join(cmd)}')
         process = subprocess.run(
             cmd,
             capture_output=True,
@@ -365,7 +370,7 @@ async def run_checkov_fix_impl(request: CheckovFixRequest) -> CheckovFixResult:
         if scan_result.vulnerabilities:
             # These are the remaining unfixed vulnerabilities
             unfixed_vulnerabilities = scan_result.vulnerabilities
-            
+
             # For fixed vulnerabilities, we need to parse the fix output
             # This is a simplified approach - in a real implementation, you'd want to
             # compare before/after scan results to determine exactly what was fixed
@@ -378,9 +383,9 @@ async def run_checkov_fix_impl(request: CheckovFixRequest) -> CheckovFixResult:
                     resource=resource,
                     file_path=file_path,
                     line=0,  # We don't know the exact line
-                    description=f"Fixed {check_id}",
+                    description=f'Fixed {check_id}',
                     fixed=True,
-                    fix_details=f"Automatically fixed by Checkov",
+                    fix_details='Automatically fixed by Checkov',
                 )
                 fixed_vulnerabilities.append(fixed_vuln)
 
@@ -399,7 +404,7 @@ async def run_checkov_fix_impl(request: CheckovFixRequest) -> CheckovFixResult:
             },
         )
     except Exception as e:
-        logger.error(f"Error fixing vulnerabilities: {e}")
+        logger.error(f'Error fixing vulnerabilities: {e}')
         return CheckovFixResult(
             status='error',
             working_directory=request.working_directory,

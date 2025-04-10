@@ -8,6 +8,8 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from loguru import logger
 from pathlib import Path
+
+
 try:
     from playwright.async_api import async_playwright
 except ImportError:
@@ -254,7 +256,9 @@ async def fetch_awscc_provider_page():
             # Save HTML for debugging
             with open('/tmp/terraform_awscc_debug_playwright.html', 'w') as f:
                 f.write(content)
-            logger.debug('Saved rendered HTML content to /tmp/terraform_awscc_debug_playwright.html')
+            logger.debug(
+                'Saved rendered HTML content to /tmp/terraform_awscc_debug_playwright.html'
+            )
 
             # Parse the HTML
             soup = BeautifulSoup(content, 'html.parser')
@@ -498,7 +502,10 @@ async def fetch_awscc_provider_page():
                                 for link in links:
                                     link_text = link.get_text(strip=True)
                                     # AWSCC resources typically start with "awscc_"
-                                    if link_text.startswith('awscc_') and '_data_' not in link_text.lower():
+                                    if (
+                                        link_text.startswith('awscc_')
+                                        and '_data_' not in link_text.lower()
+                                    ):
                                         resource_section = ul
                                         break
                                 if resource_section:
@@ -510,11 +517,11 @@ async def fetch_awscc_provider_page():
                             resource_links = resource_section.find_all(
                                 'li', class_='menu-list-link'
                             )
-                            
+
                             # If no menu-list-link items found, try direct a tags
                             if not resource_links:
                                 resource_links = resource_section.find_all('a')
-                                
+
                             for item in resource_links:
                                 # If item is a link itself (a tag)
                                 if item.name == 'a':
@@ -522,7 +529,7 @@ async def fetch_awscc_provider_page():
                                 else:
                                     # If item is a container (li), find the link inside
                                     link = item.find('a')
-                                
+
                                 if not link:
                                     continue
 
@@ -533,11 +540,11 @@ async def fetch_awscc_provider_page():
                                 link_text = link.get_text(strip=True)
                                 if not link_text:
                                     continue
-                                
+
                                 # Skip if this doesn't look like an AWSCC resource
                                 if not link_text.startswith('awscc_'):
                                     continue
-                                
+
                                 # Skip data sources (they'll be handled separately)
                                 if '_data_' in link_text.lower():
                                     continue
@@ -579,8 +586,10 @@ async def fetch_awscc_provider_page():
                                 for link in links:
                                     link_text = link.get_text(strip=True)
                                     # Data sources typically have "data" in the URL or name
-                                    if link_text.startswith('awscc_') and ('data' in link.get('href', '').lower() or 
-                                                                          'data' in link_text.lower()):
+                                    if link_text.startswith('awscc_') and (
+                                        'data' in link.get('href', '').lower()
+                                        or 'data' in link_text.lower()
+                                    ):
                                         data_section = ul
                                         break
                                 if data_section:
@@ -589,14 +598,12 @@ async def fetch_awscc_provider_page():
                         # Extract data sources
                         if data_section:
                             # Try both menu-list-link class and direct a tags
-                            data_links = data_section.find_all(
-                                'li', class_='menu-list-link'
-                            )
-                            
+                            data_links = data_section.find_all('li', class_='menu-list-link')
+
                             # If no menu-list-link items found, try direct a tags
                             if not data_links:
                                 data_links = data_section.find_all('a')
-                                
+
                             for item in data_links:
                                 # If item is a link itself (a tag)
                                 if item.name == 'a':
@@ -604,7 +611,7 @@ async def fetch_awscc_provider_page():
                                 else:
                                     # If item is a container (li), find the link inside
                                     link = item.find('a')
-                                
+
                                 if not link:
                                     continue
 
@@ -615,11 +622,11 @@ async def fetch_awscc_provider_page():
                                 link_text = link.get_text(strip=True)
                                 if not link_text:
                                     continue
-                                
+
                                 # Skip if this doesn't look like an AWSCC data source
                                 if not link_text.startswith('awscc_'):
                                     continue
-                                
+
                                 # Make sure it's a data source (contains "data" in URL or name)
                                 if not ('data' in href.lower() or 'data' in link_text.lower()):
                                     continue
@@ -640,7 +647,7 @@ async def fetch_awscc_provider_page():
 
                                 categories[category_name]['data_sources'].append(data_source)
                                 data_source_count += 1
-                                
+
                         # If we still haven't found any resources or data sources,
                         # try a more aggressive approach by looking at all links in the category
                         if resource_count == 0 and data_source_count == 0:
@@ -648,17 +655,17 @@ async def fetch_awscc_provider_page():
                             for link in all_links:
                                 href = link.get('href', '')
                                 link_text = link.get_text(strip=True)
-                                
+
                                 if not link_text.startswith('awscc_'):
                                     continue
-                                    
+
                                 # Complete the URL if it's a relative path
                                 full_url = (
                                     f'https://registry.terraform.io{href}'
                                     if href.startswith('/')
                                     else href
                                 )
-                                
+
                                 # Determine if it's a resource or data source based on URL/name
                                 if 'data' in href.lower() or 'data-source' in href.lower():
                                     data_source = {
@@ -774,9 +781,10 @@ def get_fallback_resource_data():
                 },
                 # Add more data sources as needed
             ],
-        }
+        },
     }
     return categories
+
 
 async def terraform_awscc_provider_resources_listing_impl() -> str:
     """Generate a comprehensive listing of AWSCC provider resources and data sources.
@@ -797,7 +805,9 @@ async def terraform_awscc_provider_resources_listing_impl() -> str:
             with open(STATIC_RESOURCES_PATH, 'r') as f:
                 content = f.read()
 
-            logger.info(f'Successfully loaded AWSCC provider resources from {STATIC_RESOURCES_PATH}')
+            logger.info(
+                f'Successfully loaded AWSCC provider resources from {STATIC_RESOURCES_PATH}'
+            )
             return content
         else:
             # If the static file doesn't exist, fall back to generating it on the fly
@@ -824,13 +834,13 @@ async def terraform_awscc_provider_resources_listing_impl() -> str:
             # Collect all resources and data sources from all categories
             all_resources = []
             all_data_sources = []
-            
+
             for category_name, category_data in categories.items():
                 for resource in category_data.get('resources', []):
                     all_resources.append(resource)
                 for data_source in category_data.get('data_sources', []):
                     all_data_sources.append(data_source)
-            
+
             # Sort resources and data sources by name
             all_resources.sort(key=lambda x: x['name'])
             all_data_sources.sort(key=lambda x: x['name'])
@@ -861,9 +871,9 @@ async def terraform_awscc_provider_resources_listing_impl() -> str:
             markdown.append(f'\n*{len(all_resources)} resources*\n')
             for resource in all_resources:
                 markdown.append(f'- [{resource["name"]}]({resource["url"]})')
-            
+
             markdown.append('')  # Add blank line between sections
-            
+
             # Data Sources section
             markdown.append('## Data Sources')
             markdown.append(f'\n*{len(all_data_sources)} data sources*\n')

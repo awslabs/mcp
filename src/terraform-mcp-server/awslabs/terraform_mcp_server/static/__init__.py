@@ -1,6 +1,10 @@
 from importlib import resources
 
-with resources.files('awslabs.terraform_mcp_server.static').joinpath('MCP_INSTRUCTIONS.md').open('r') as f:
+with (
+    resources.files('awslabs.terraform_mcp_server.static')
+    .joinpath('MCP_INSTRUCTIONS.md')
+    .open('r') as f
+):
     MCP_INSTRUCTIONS = f.read()
 
 with (

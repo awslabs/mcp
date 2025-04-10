@@ -8,6 +8,8 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from loguru import logger
 from pathlib import Path
+
+
 try:
     from playwright.async_api import async_playwright
 except ImportError:

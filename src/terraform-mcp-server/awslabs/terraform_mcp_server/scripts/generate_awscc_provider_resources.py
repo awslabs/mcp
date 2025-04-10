@@ -36,7 +36,9 @@ from awslabs.terraform_mcp_server.impl.resources.terraform_awscc_provider_resour
 
 
 # Default output path
-DEFAULT_OUTPUT_PATH = repo_root / 'awslabs' / 'terraform_mcp_server' / 'static' / 'AWSCC_PROVIDER_RESOURCES.md'
+DEFAULT_OUTPUT_PATH = (
+    repo_root / 'awslabs' / 'terraform_mcp_server' / 'static' / 'AWSCC_PROVIDER_RESOURCES.md'
+)
 
 
 def parse_arguments():

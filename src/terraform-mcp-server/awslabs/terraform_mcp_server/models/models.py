@@ -129,25 +129,19 @@ class ProviderDocsResult(BaseModel):
     url: str
     description: str
     example_snippets: Optional[List[Dict[str, str]]] = Field(
-        None, 
-        description="List of example snippets with titles"
+        None, description='List of example snippets with titles'
     )
     arguments: Optional[List[Dict[str, str]]] = Field(
-        None,
-        description="List of arguments with descriptions (specific to AWS provider)"
+        None, description='List of arguments with descriptions (specific to AWS provider)'
     )
     attributes: Optional[List[Dict[str, str]]] = Field(
-        None,
-        description="List of attributes with descriptions (specific to AWS provider)"
+        None, description='List of attributes with descriptions (specific to AWS provider)'
     )
     schema: Optional[Any] = Field(
         None,
-        description="Schema structure that can be a structured dictionary with sections (AWSCC provider)"
+        description='Schema structure that can be a structured dictionary with sections (AWSCC provider)',
     )
-    kind: str = Field(
-        "resource",
-        description="Type of the item - 'resource' or 'data_source'"
-    )
+    kind: str = Field('resource', description="Type of the item - 'resource' or 'data_source'")
 
 
 class TerraformExecutionResult(BaseModel):
@@ -217,7 +211,9 @@ class CheckovScanRequest(BaseModel):
     """
 
     working_directory: str = Field(..., description='Directory containing Terraform files')
-    framework: str = Field('terraform', description='Framework to scan (terraform, cloudformation, etc.)')
+    framework: str = Field(
+        'terraform', description='Framework to scan (terraform, cloudformation, etc.)'
+    )
     check_ids: Optional[List[str]] = Field(None, description='Specific check IDs to run')
     skip_check_ids: Optional[List[str]] = Field(None, description='Check IDs to skip')
     output_format: str = Field('json', description='Output format (json, cli, etc.)')
@@ -241,7 +237,9 @@ class CheckovScanResult(BaseModel):
     return_code: Optional[int] = None
     working_directory: str
     error_message: Optional[str] = None
-    vulnerabilities: List[CheckovVulnerability] = Field([], description='List of found vulnerabilities')
+    vulnerabilities: List[CheckovVulnerability] = Field(
+        [], description='List of found vulnerabilities'
+    )
     summary: Dict[str, Any] = Field({}, description='Summary of scan results')
     raw_output: Optional[str] = Field(None, description='Raw output from Checkov')
 
@@ -277,6 +275,10 @@ class CheckovFixResult(BaseModel):
     return_code: Optional[int] = None
     working_directory: str
     error_message: Optional[str] = None
-    fixed_vulnerabilities: List[CheckovVulnerability] = Field([], description='List of fixed vulnerabilities')
-    unfixed_vulnerabilities: List[CheckovVulnerability] = Field([], description='List of unfixed vulnerabilities')
+    fixed_vulnerabilities: List[CheckovVulnerability] = Field(
+        [], description='List of fixed vulnerabilities'
+    )
+    unfixed_vulnerabilities: List[CheckovVulnerability] = Field(
+        [], description='List of unfixed vulnerabilities'
+    )
     summary: Dict[str, Any] = Field({}, description='Summary of fix results')

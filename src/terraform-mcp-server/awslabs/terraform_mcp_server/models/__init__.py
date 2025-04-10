@@ -10,7 +10,7 @@ from .models import (
     CheckovFixRequest,
     CheckovFixResult,
     TerraformVariable,
-    TerraformOutput
+    TerraformOutput,
 )
 
 __all__ = [
@@ -25,5 +25,5 @@ __all__ = [
     'CheckovFixRequest',
     'CheckovFixResult',
     'TerraformVariable',
-    'TerraformOutput'
+    'TerraformOutput',
 ]

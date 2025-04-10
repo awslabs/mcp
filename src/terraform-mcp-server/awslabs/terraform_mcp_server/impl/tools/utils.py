@@ -322,91 +322,84 @@ def extract_description_from_readme(readme_content: str) -> Optional[str]:
 
 def extract_outputs_from_readme(readme_content: str) -> List[Dict[str, str]]:
     """Extract module outputs from the README content.
-    
+
     Looks for the Outputs section in the README, which is typically at the bottom
     of the file and contains a table of outputs with descriptions.
-    
+
     Args:
         readme_content: The README markdown content
-        
+
     Returns:
         List of dictionaries containing output name and description
     """
     if not readme_content:
         return []
-        
+
     outputs = []
-    
+
     # Find the Outputs section
     lines = readme_content.split('\n')
     in_outputs_section = False
     in_outputs_table = False
-    
+
     for i, line in enumerate(lines):
         # Look for Outputs heading
         if re.match(r'^#+\s+Outputs?$', line, re.IGNORECASE):
             in_outputs_section = True
             continue
-            
+
         # If we're in the outputs section, look for the table header
         if in_outputs_section and not in_outputs_table:
             if '|' in line and ('Name' in line or 'Output' in line) and 'Description' in line:
                 in_outputs_table = True
                 continue
-                
+
         # If we're in the outputs table, parse each row
         if in_outputs_section and in_outputs_table:
             # Skip the table header separator line
             if line.strip().startswith('|') and all(c in '|-: ' for c in line):
                 continue
-                
+
             # If we hit another heading or the table ends, stop parsing
             if line.strip().startswith('#') or not line.strip() or '|' not in line:
                 break
-                
+
             # Parse the table row
             if '|' in line:
                 parts = [part.strip() for part in line.split('|')]
                 if len(parts) >= 3:  # Should have at least empty, name, description columns
                     name_part = parts[1].strip()
                     desc_part = parts[2].strip()
-                    
+
                     # Clean up any markdown formatting
                     name = re.sub(r'`(.*?)`', r'\1', name_part).strip()
                     description = re.sub(r'`(.*?)`', r'\1', desc_part).strip()
-                    
+
                     if name:
-                        outputs.append({
-                            'name': name,
-                            'description': description
-                        })
-    
+                        outputs.append({'name': name, 'description': description})
+
     # If we didn't find a table, try looking for a list format
     if not outputs and in_outputs_section:
-        in_list = False
-        current_output = {}
-        
         for line in lines:
             # If we hit another heading, stop parsing
             if line.strip().startswith('#'):
                 break
-                
+
             # Look for list items that might be outputs
             list_match = re.match(r'^[-*]\s+`([^`]+)`\s*[-:]\s*(.+)$', line)
             if list_match:
                 name = list_match.group(1).strip()
                 description = list_match.group(2).strip()
-                
-                outputs.append({
-                    'name': name,
-                    'description': description
-                })
-                
+
+                outputs.append({'name': name, 'description': description})
+
     logger.debug(f'Extracted {len(outputs)} outputs from README')
     return outputs
 
 
-async def get_variables_tf(owner: str, repo: str, branch: str = 'main') -> Tuple[Optional[str], Optional[List[TerraformVariable]]]:
+async def get_variables_tf(
+    owner: str, repo: str, branch: str = 'main'
+) -> Tuple[Optional[str], Optional[List[TerraformVariable]]]:
     """Fetch and parse the variables.tf file from a GitHub repository.
 
     Args:
@@ -438,22 +431,28 @@ async def get_variables_tf(owner: str, repo: str, branch: str = 'main') -> Tuple
 
             return variables_content, variables
         else:
-            logger.debug(f'No variables.tf found at {branch} branch, status: {response.status_code}')
-            
+            logger.debug(
+                f'No variables.tf found at {branch} branch, status: {response.status_code}'
+            )
+
             # Try master branch as fallback
             if branch != 'master':
                 logger.debug('Trying master branch for variables.tf')
-                master_variables_url = f'https://raw.githubusercontent.com/{owner}/{repo}/master/variables.tf'
+                master_variables_url = (
+                    f'https://raw.githubusercontent.com/{owner}/{repo}/master/variables.tf'
+                )
                 master_response = requests.get(master_variables_url, timeout=3.0)
-                
+
                 if master_response.status_code == 200:
                     variables_content = master_response.text
-                    logger.info(f'Found variables.tf in master branch ({len(variables_content)} chars)')
-                    
+                    logger.info(
+                        f'Found variables.tf in master branch ({len(variables_content)} chars)'
+                    )
+
                     # Parse the variables.tf file
                     variables = parse_variables_tf(variables_content)
                     logger.info(f'Parsed {len(variables)} variables from variables.tf')
-                    
+
                     return variables_content, variables
     except Exception as ex:
         logger.error(f'Error fetching variables.tf: {ex}')
@@ -475,35 +474,35 @@ def parse_variables_tf(content: str) -> List[TerraformVariable]:
         return []
 
     variables = []
-    
+
     # Simple regex pattern to match variable blocks
     # This is a simplified approach and may not handle all complex HCL syntax
     variable_blocks = re.finditer(r'variable\s+"([^"]+)"\s*{([^}]+)}', content, re.DOTALL)
-    
+
     for match in variable_blocks:
         var_name = match.group(1)
         var_block = match.group(2)
-        
+
         # Initialize variable with name
         variable = TerraformVariable(name=var_name)
-        
+
         # Extract type
         type_match = re.search(r'type\s*=\s*(.+?)($|\n)', var_block)
         if type_match:
             variable.type = type_match.group(1).strip()
-        
+
         # Extract description
         desc_match = re.search(r'description\s*=\s*"([^"]+)"', var_block)
         if desc_match:
             variable.description = desc_match.group(1).strip()
-        
+
         # Check for default value
         default_match = re.search(r'default\s*=\s*(.+?)($|\n)', var_block)
         if default_match:
             default_value = default_match.group(1).strip()
             variable.default = default_value
             variable.required = False
-        
+
         variables.append(variable)
-    
+
     return variables

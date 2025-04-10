@@ -2,37 +2,42 @@
 """terraform MCP server implementation."""
 
 import argparse
-import sys
 import os
-from typing import List, Optional, Annotated
+import sys
+from typing import List, Optional
+
 
 # Add the parent directory to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from mcp.server.fastmcp import FastMCP
 from awslabs.terraform_mcp_server.impl.resources import (
     terraform_aws_provider_resources_listing_impl,
     terraform_awscc_provider_resources_listing_impl,
 )
 from awslabs.terraform_mcp_server.impl.tools import (
     execute_terraform_command_impl,
+    run_checkov_fix_impl,
+    run_checkov_scan_impl,
     search_aws_provider_docs_impl,
     search_awscc_provider_docs_impl,
     search_specific_aws_ia_modules_impl,
-    run_checkov_scan_impl,
-    run_checkov_fix_impl,
 )
 from awslabs.terraform_mcp_server.models import (
+    CheckovFixRequest,
+    CheckovFixResult,
+    CheckovScanRequest,
+    CheckovScanResult,
     ModuleSearchResult,
     ProviderDocsResult,
     TerraformExecutionRequest,
     TerraformExecutionResult,
-    CheckovScanRequest,
-    CheckovScanResult,
-    CheckovFixRequest,
-    CheckovFixResult,
 )
-from awslabs.terraform_mcp_server.static import MCP_INSTRUCTIONS, TERRAFORM_WORKFLOW_GUIDE, AWS_TERRAFORM_BEST_PRACTICES
+from awslabs.terraform_mcp_server.static import (
+    AWS_TERRAFORM_BEST_PRACTICES,
+    MCP_INSTRUCTIONS,
+    TERRAFORM_WORKFLOW_GUIDE,
+)
+from mcp.server.fastmcp import FastMCP
 
 
 mcp = FastMCP(
@@ -63,7 +68,7 @@ async def execute_terraform_command(
 
 @mcp.tool(name='SearchAwsProviderDocs')
 async def search_aws_provider_docs(
-    resource_type: str, attribute: Optional[str] = None, kind: str = "both"
+    resource_type: str, attribute: Optional[str] = None, kind: str = 'both'
 ) -> List[ProviderDocsResult]:
     """Search AWS provider documentation for resources and attributes.
 
@@ -105,21 +110,21 @@ async def search_awscc_provider_docs(
 
 
 @mcp.tool(name='SearchSpecificAwsIaModules')
-async def search_specific_aws_ia_modules(query: str = "") -> List[ModuleSearchResult]:
+async def search_specific_aws_ia_modules(query: str = '') -> List[ModuleSearchResult]:
     """Search for specific AWS-IA Terraform modules.
-    
+
     This tool checks for information about four specific AWS-IA modules:
     - aws-ia/bedrock/aws - Amazon Bedrock module for generative AI applications
     - aws-ia/opensearch-serverless/aws - OpenSearch Serverless collection for vector search
     - aws-ia/sagemaker-endpoint/aws - SageMaker endpoint deployment module
     - aws-ia/serverless-streamlit-app/aws - Serverless Streamlit application deployment
-    
+
     It returns detailed information about these modules, including their README content,
     variables.tf content, and submodules when available.
-    
+
     Parameters:
         query: Optional search term to filter modules (empty returns all four modules)
-        
+
     Returns:
         A list of matching modules with their details, including:
         - Basic module information (name, namespace, version)
@@ -134,13 +139,13 @@ async def search_specific_aws_ia_modules(query: str = "") -> List[ModuleSearchRe
 @mcp.tool(name='RunCheckovScan')
 async def run_checkov_scan(request: CheckovScanRequest) -> CheckovScanResult:
     """Run Checkov security scan on Terraform code.
-    
+
     This tool runs Checkov to scan Terraform code for security and compliance issues,
     identifying potential vulnerabilities and misconfigurations according to best practices.
-    
+
     Checkov (https://www.checkov.io/) is an open-source static code analysis tool that
     can detect hundreds of security and compliance issues in infrastructure-as-code.
-    
+
     Parameters:
         request: Details about the Checkov scan to execute, including:
             - working_directory: Directory containing Terraform files to scan
@@ -149,7 +154,7 @@ async def run_checkov_scan(request: CheckovScanRequest) -> CheckovScanResult:
             - skip_check_ids: Optional list of check IDs to skip
             - output_format: Format for scan results (default: json)
             - auto_fix: Whether to attempt automatic fixes (default: false)
-            
+
     Returns:
         A CheckovScanResult object containing scan results and identified vulnerabilities
     """
@@ -159,16 +164,16 @@ async def run_checkov_scan(request: CheckovScanRequest) -> CheckovScanResult:
 @mcp.tool(name='FixCheckovVulnerabilities')
 async def fix_checkov_vulnerabilities(request: CheckovFixRequest) -> CheckovFixResult:
     """Fix security vulnerabilities found by Checkov in Terraform code.
-    
+
     This tool attempts to automatically fix security and compliance issues identified
     by Checkov in Terraform code. It applies recommended fixes for supported checks.
-    
+
     Parameters:
         request: Details about the vulnerabilities to fix, including:
             - working_directory: Directory containing Terraform files to fix
             - vulnerability_ids: List of vulnerability IDs to fix
             - backup_files: Whether to create backup files before fixing
-            
+
     Returns:
         A CheckovFixResult object containing fix results, including which vulnerabilities
         were successfully fixed and which could not be automatically remediated
@@ -224,70 +229,90 @@ async def terraform_aws_best_practices() -> str:
 # Add parameter descriptions for tools
 # SearchAwsProviderDocs
 search_tool = mcp._tool_manager.get_tool('SearchAwsProviderDocs')
-search_tool.parameters['properties']['resource_type']['description'] = "AWS resource type (e.g., aws_s3_bucket, aws_lambda_function)"
-search_tool.parameters['properties']['attribute']['description'] = "Optional specific attribute to search for within the resource type documentation"
-search_tool.parameters['properties']['kind']['description'] = "Type of documentation to search - 'resource', 'data_source', or 'both' (default)"
+search_tool.parameters['properties']['resource_type']['description'] = (
+    'AWS resource type (e.g., aws_s3_bucket, aws_lambda_function)'
+)
+search_tool.parameters['properties']['attribute']['description'] = (
+    'Optional specific attribute to search for within the resource type documentation'
+)
+search_tool.parameters['properties']['kind']['description'] = (
+    "Type of documentation to search - 'resource', 'data_source', or 'both' (default)"
+)
 
 # SearchAwsccProviderDocs
 awscc_docs_tool = mcp._tool_manager.get_tool('SearchAwsccProviderDocs')
-awscc_docs_tool.parameters['properties']['resource_type']['description'] = "AWSCC resource type (e.g., awscc_s3_bucket, awscc_lambda_function)"
-awscc_docs_tool.parameters['properties']['attribute']['description'] = "Optional specific attribute to search for within the resource type documentation"
+awscc_docs_tool.parameters['properties']['resource_type']['description'] = (
+    'AWSCC resource type (e.g., awscc_s3_bucket, awscc_lambda_function)'
+)
+awscc_docs_tool.parameters['properties']['attribute']['description'] = (
+    'Optional specific attribute to search for within the resource type documentation'
+)
 
 # SearchSpecificAwsIaModules
 modules_tool = mcp._tool_manager.get_tool('SearchSpecificAwsIaModules')
-modules_tool.parameters['properties']['query']['description'] = "Optional search term to filter modules (empty returns all four modules)"
+modules_tool.parameters['properties']['query']['description'] = (
+    'Optional search term to filter modules (empty returns all four modules)'
+)
 
 # ExecuteTerraformCommand
 terraform_tool = mcp._tool_manager.get_tool('ExecuteTerraformCommand')
-terraform_tool.parameters['properties']['request']['description'] = "Details about the Terraform command to execute"
+terraform_tool.parameters['properties']['request']['description'] = (
+    'Details about the Terraform command to execute'
+)
 
 # Since request is a complex object with nested properties, update its schema
 if 'properties' in terraform_tool.parameters['properties']['request']:
     props = terraform_tool.parameters['properties']['request']['properties']
     if 'command' in props:
-        props['command']['description'] = "Terraform command to execute (init, plan, validate, apply, destroy)"
+        props['command']['description'] = (
+            'Terraform command to execute (init, plan, validate, apply, destroy)'
+        )
     if 'working_directory' in props:
-        props['working_directory']['description'] = "Directory containing Terraform files"
+        props['working_directory']['description'] = 'Directory containing Terraform files'
     if 'variables' in props:
-        props['variables']['description'] = "Terraform variables to pass"
+        props['variables']['description'] = 'Terraform variables to pass'
     if 'aws_region' in props:
-        props['aws_region']['description'] = "AWS region to use"
+        props['aws_region']['description'] = 'AWS region to use'
     if 'strip_ansi' in props:
-        props['strip_ansi']['description'] = "Whether to strip ANSI color codes from output"
+        props['strip_ansi']['description'] = 'Whether to strip ANSI color codes from output'
 
 # RunCheckovScan
 checkov_scan_tool = mcp._tool_manager.get_tool('RunCheckovScan')
-checkov_scan_tool.parameters['properties']['request']['description'] = "Details about the Checkov scan to execute"
+checkov_scan_tool.parameters['properties']['request']['description'] = (
+    'Details about the Checkov scan to execute'
+)
 
 # Since request is a complex object with nested properties, update its schema
 if 'properties' in checkov_scan_tool.parameters['properties']['request']:
     props = checkov_scan_tool.parameters['properties']['request']['properties']
     if 'working_directory' in props:
-        props['working_directory']['description'] = "Directory containing Terraform files to scan"
+        props['working_directory']['description'] = 'Directory containing Terraform files to scan'
     if 'framework' in props:
-        props['framework']['description'] = "Framework to scan (terraform, cloudformation, etc.)"
+        props['framework']['description'] = 'Framework to scan (terraform, cloudformation, etc.)'
     if 'check_ids' in props:
-        props['check_ids']['description'] = "Optional list of specific check IDs to run"
+        props['check_ids']['description'] = 'Optional list of specific check IDs to run'
     if 'skip_check_ids' in props:
-        props['skip_check_ids']['description'] = "Optional list of check IDs to skip"
+        props['skip_check_ids']['description'] = 'Optional list of check IDs to skip'
     if 'output_format' in props:
-        props['output_format']['description'] = "Format for scan results (default: json)"
+        props['output_format']['description'] = 'Format for scan results (default: json)'
     if 'auto_fix' in props:
-        props['auto_fix']['description'] = "Whether to attempt automatic fixes (default: false)"
+        props['auto_fix']['description'] = 'Whether to attempt automatic fixes (default: false)'
 
 # FixCheckovVulnerabilities
 checkov_fix_tool = mcp._tool_manager.get_tool('FixCheckovVulnerabilities')
-checkov_fix_tool.parameters['properties']['request']['description'] = "Details about the vulnerabilities to fix"
+checkov_fix_tool.parameters['properties']['request']['description'] = (
+    'Details about the vulnerabilities to fix'
+)
 
 # Since request is a complex object with nested properties, update its schema
 if 'properties' in checkov_fix_tool.parameters['properties']['request']:
     props = checkov_fix_tool.parameters['properties']['request']['properties']
     if 'working_directory' in props:
-        props['working_directory']['description'] = "Directory containing Terraform files to fix"
+        props['working_directory']['description'] = 'Directory containing Terraform files to fix'
     if 'vulnerability_ids' in props:
-        props['vulnerability_ids']['description'] = "List of vulnerability IDs to fix"
+        props['vulnerability_ids']['description'] = 'List of vulnerability IDs to fix'
     if 'backup_files' in props:
-        props['backup_files']['description'] = "Whether to create backup files before fixing"
+        props['backup_files']['description'] = 'Whether to create backup files before fixing'
 
 
 def main():
