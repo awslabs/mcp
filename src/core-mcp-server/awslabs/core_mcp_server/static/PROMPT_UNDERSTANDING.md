@@ -25,7 +25,7 @@ When a user presents a query, follow these steps to break it down:
 - Use `awslabs.core-mcp-server` tools for:
   - get_prompt_understanding: Initial query analysis
   - get_plan: Generate implementation strategy
-- Use `aswlabs.bedrock-kb-retrieval-mcp-server` to querd user defined KB
+- Use `awslabs.bedrock-kb-retrieval-mcp-server` to query user defined KB
 - Use `awslabs.nova-canvas-expert-mcp-server` to help create images
   - get_imagegenerate_image: Generate an image for the UI
   - generate_image_with_colors: Generate images using color pallet
@@ -33,7 +33,7 @@ When a user presents a query, follow these steps to break it down:
 -Use `awslabs.cost-analasys-mcp-server`  for analyzing AWS service costs
   - get_pricing_from_web: Get pricing information from AWS pricing webpage
   - get_pricing_from_api: Get pricing information from AWS Price List API
-  - generate_cost_analysis_report: Generate a detailed cost analysis report based on pricing data
+  - generate_cost_report: Generate a detailed cost analysis report based on pricing data
 
 -Use `awslabs.aws-documentation-mcp-server` for requesting specific AWS documentation
     - Use `search_documentation` when: You need to find documentation about a specific AWS service or feature
