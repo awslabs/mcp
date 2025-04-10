@@ -11,10 +11,10 @@ At the moment, there is no dedicated development container, thus you need to con
 - (optional) [AWS CLI](https://aws.amazon.com/cli/). Some servers will require to use your AWS credentials to interact with your AWS account. Configure your credentials:
 
 ```shell
-aws configure --profile [your-profile] 
+aws configure --profile [your-profile]
 AWS Access Key ID [None]: xxxxxx
 AWS Secret Access Key [None]:yyyyyyyyyy
-Default region name [None]: us-east-1 
+Default region name [None]: us-east-1
 Default output format [None]: json
 ```
 
