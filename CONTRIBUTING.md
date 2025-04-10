@@ -24,21 +24,9 @@ Contributions via pull requests are much appreciated. Before sending us a pull r
 
 1. You are working against the latest source on the *main* branch.
 2. You check existing open, and recently merged, pull requests to make sure someone else hasn't addressed the problem already.
-3. You open an issue to discuss any significant work - we would hate for your time to be wasted.
+3. You open an issue to discuss any significant work - we would hate for your time to be wasted. For instance. If you plan to propose a new MCP Server, please open first a new RFC issue. 
 
-To send us a pull request, please:
-
-1. Fork the repository.
-2. Modify the source; please focus on the specific change you are contributing. If you also reformat all the code, it will be hard for us to focus on your change.
-3. Ensure local tests pass before submitting your PR:
-   - `uvx ruff check .` (runs the linter to catch code quality issues)
-   - `uvx ruff format .` (formats code according to project standards)
-   - `uvx run —frozen pyright` (runs static type checking)
-
-   These checks will automatically run in CI when you submit your PR, so running them locally first will save time and iterations.
-4. Commit to your fork using clear commit messages.
-5. Send us a pull request, answering any default questions in the pull request interface.
-6. Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation.
+The [Developer guide](DEVELOPER_GUIDE.md) provides the steps to set up your dev environment and make sure your code is ready before you submit your pull request.
 
 GitHub provides additional document on [forking a repository](https://help.github.com/articles/fork-a-repo/) and
 [creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
