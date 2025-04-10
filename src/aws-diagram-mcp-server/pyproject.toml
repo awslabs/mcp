@@ -100,6 +100,7 @@ packages = ["awslabs"]
 [tool.bandit]
 # Skip specific issues
 skips = ["B102"]
+exclude_dirs = ["venv","tests"]
 
 # Per-file skips
 per_file_skips = { "awslabs/aws_diagram_mcp_server/diagrams.py" = ["B102"] }
