@@ -48,6 +48,9 @@ jobs:
           python-version-file: "src/${{ matrix.package }}/.python-version"
           # cache: uv (not supported)
 
+      - name: Install Graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
       - name: Install Bandit
         run: pip install bandit[toml]
 
