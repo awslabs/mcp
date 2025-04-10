@@ -9,7 +9,7 @@ dependencies = [
     "pydantic>=2.10.6",
 ]
 license = "Apache-2.0"
-license-files = ["LICEN[CS]E*", "NOTICE.txt" ]
+license-files = ["LICEN[CS]E*", "NOTICE" ]
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
