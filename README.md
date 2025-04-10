@@ -189,6 +189,10 @@ Documentation includes:
 - API references
 - Usage examples
 
+## Security
+
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
 ## Contributing
 
 Big shout out to our awesome contributors! Thank you for making this project better!
