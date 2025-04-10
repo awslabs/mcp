@@ -16,6 +16,7 @@ from awslabs.terraform_mcp_server.impl.resources import (
 )
 from awslabs.terraform_mcp_server.impl.tools import (
     execute_terraform_command_impl,
+    parse_awscc_data_source_docs_impl,
     run_checkov_fix_impl,
     run_checkov_scan_impl,
     search_aws_provider_docs_impl,
@@ -97,8 +98,6 @@ async def search_awscc_provider_docs(
     This tool searches the Terraform AWSCC provider documentation for information about
     specific resource types and their attributes.
 
-    Use the 'kind' parameter to specify if you are looking for information about provider resources, data sources, or both.
-
     Parameters:
         resource_type: AWSCC resource type (e.g., 'awscc_s3_bucket', 'awscc_lambda_function')
         attribute: Optional specific attribute to search for
@@ -179,6 +178,28 @@ async def fix_checkov_vulnerabilities(request: CheckovFixRequest) -> CheckovFixR
         were successfully fixed and which could not be automatically remediated
     """
     return await run_checkov_fix_impl(request)
+
+
+@mcp.tool(name='ParseAwsccDataSourceDocs')
+async def parse_awscc_data_source_docs(
+    url: str, resource_type: str, attribute: Optional[str] = None
+) -> ProviderDocsResult:
+    """Parse AWSCC data source documentation from a URL.
+
+    This tool parses the Terraform AWSCC provider data source documentation from a URL
+    and returns a structured representation of the documentation. It is specifically
+    designed to handle the format of data source documentation, which differs from
+    resource documentation.
+
+    Parameters:
+        url: URL to the data source documentation (e.g., 'https://raw.githubusercontent.com/hashicorp/terraform-provider-awscc/main/docs/data-sources/lambda_function.md')
+        resource_type: AWSCC resource type (e.g., 'awscc_lambda_function')
+        attribute: Optional specific attribute to search for
+
+    Returns:
+        A ProviderDocsResult object containing the parsed documentation
+    """
+    return await parse_awscc_data_source_docs_impl(url, resource_type, attribute)
 
 
 # * Resources
@@ -313,6 +334,18 @@ if 'properties' in checkov_fix_tool.parameters['properties']['request']:
         props['vulnerability_ids']['description'] = 'List of vulnerability IDs to fix'
     if 'backup_files' in props:
         props['backup_files']['description'] = 'Whether to create backup files before fixing'
+
+# ParseAwsccDataSourceDocs
+parse_data_source_tool = mcp._tool_manager.get_tool('ParseAwsccDataSourceDocs')
+parse_data_source_tool.parameters['properties']['url']['description'] = (
+    'URL to the data source documentation (e.g., https://raw.githubusercontent.com/hashicorp/terraform-provider-awscc/main/docs/data-sources/lambda_function.md)'
+)
+parse_data_source_tool.parameters['properties']['resource_type']['description'] = (
+    'AWSCC resource type (e.g., awscc_lambda_function)'
+)
+parse_data_source_tool.parameters['properties']['attribute']['description'] = (
+    'Optional specific attribute to search for within the data source documentation'
+)
 
 
 def main():

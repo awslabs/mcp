@@ -139,7 +139,7 @@ def _parse_checkov_json_output(output: str) -> Tuple[List[CheckovVulnerability],
                     line=check.get('file_line_range', [0, 0])[0],
                     description=check.get('check_name', 'UNKNOWN'),
                     guideline=check.get('guideline', None),
-                    severity=check.get('severity', 'MEDIUM').upper(),
+                    severity=(check.get('severity', 'MEDIUM') or 'MEDIUM').upper(),
                     fixed=False,
                 )
                 vulnerabilities.append(vuln)

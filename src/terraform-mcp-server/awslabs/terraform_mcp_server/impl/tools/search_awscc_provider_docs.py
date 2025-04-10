@@ -4,12 +4,10 @@ import re
 import requests
 import sys
 import time
-import traceback
 from ...models import ProviderDocsResult
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
 
 # Configure logger for enhanced diagnostics with stacktraces
 logger.configure(
@@ -39,14 +37,13 @@ _GITHUB_DOC_CACHE = {}
 
 
 def resource_to_github_path(
-    resource_type: str, correlation_id: str = '', doc_kind: str = 'resource'
+    resource_type: str, correlation_id: str = ''
 ) -> Tuple[str, str]:
     """Convert AWSCC resource type to GitHub documentation file path.
 
     Args:
         resource_type: The resource type (e.g., 'awscc_s3_bucket')
         correlation_id: Identifier for tracking this request in logs
-        doc_kind: Type of document to search for - 'resource', 'data_source', or 'both' (default: 'resource')
 
     Returns:
         A tuple of (path, url) for the GitHub documentation file
@@ -59,16 +56,8 @@ def resource_to_github_path(
         resource_name = resource_type
         logger.debug(f"[{correlation_id}] No 'awscc_' prefix to remove: {resource_name}")
 
-    # Determine document type based on doc_kind parameter
-    if doc_kind == 'data_source':
-        doc_path = 'data-sources'  # data sources directory
-    elif doc_kind == 'resource':
-        doc_path = 'resources'  # resources directory
-    else:
-        # For "both" or any other value, determine based on name pattern
-        # Data sources typically have 'data' in the name or follow other patterns
-        is_data_source = 'data' in resource_type.lower()
-        doc_path = 'data-sources' if is_data_source else 'resources'
+    # Always use resources path
+    doc_path = 'resources'
 
     # Create the file path for the markdown documentation
     file_path = f'{doc_path}/{resource_name}.md'
@@ -82,14 +71,13 @@ def resource_to_github_path(
 
 
 def fetch_github_documentation(
-    resource_type: str, correlation_id: str = '', doc_kind: str = 'resource'
+    resource_type: str, correlation_id: str = ''
 ) -> Optional[Dict[str, Any]]:
     """Fetch documentation from GitHub for a specific resource type.
 
     Args:
         resource_type: The resource type (e.g., 'awscc_s3_bucket')
         correlation_id: Identifier for tracking this request in logs
-        doc_kind: Type of document to search for - 'resource', 'data_source', or 'both' (default: 'resource')
 
     Returns:
         Dictionary with markdown content and metadata, or None if not found
@@ -97,19 +85,19 @@ def fetch_github_documentation(
     start_time = time.time()
     logger.info(f"[{correlation_id}] Fetching documentation from GitHub for '{resource_type}'")
 
-    # Create a cache key that includes both resource_type and doc_kind
-    cache_key = f'{resource_type}_{doc_kind}'
+    # Create a cache key
+    cache_key = f'{resource_type}_resource'
 
     # Check cache first
     if cache_key in _GITHUB_DOC_CACHE:
         logger.info(
-            f"[{correlation_id}] Using cached documentation for '{resource_type}' (kind: {doc_kind})"
+            f"[{correlation_id}] Using cached documentation for '{resource_type}'"
         )
         return _GITHUB_DOC_CACHE[cache_key]
 
     try:
         # Convert resource type to GitHub path and URL
-        _, github_url = resource_to_github_path(resource_type, correlation_id, doc_kind)
+        _, github_url = resource_to_github_path(resource_type, correlation_id)
 
         # Fetch the markdown content from GitHub
         logger.debug(f'[{correlation_id}] Fetching from GitHub: {github_url}')
@@ -132,9 +120,24 @@ def fetch_github_documentation(
             )
 
         # Parse the markdown content
-        result = parse_markdown_documentation(
-            markdown_content, resource_type, github_url, correlation_id, doc_kind
-        )
+        try:
+            result = parse_markdown_documentation(
+                markdown_content, resource_type, github_url, correlation_id
+            )
+        except Exception as e:
+            logger.exception(f'[{correlation_id}] Error parsing markdown content')
+            
+            # Create a basic result with error information
+            result = {
+                'title': f'AWSCC {resource_type}',
+                'description': f'Documentation for AWSCC {resource_type} (Error parsing details: {str(e)})',
+                'example_snippets': None,
+                'attribute_info': None,
+                'schema_sections': {'required': [], 'optional': [], 'read_only': [], 'nested': {}},
+                'schema_content': None,
+                'url': github_url,
+                'kind': 'resource',
+            }
 
         # Cache the result with the composite key
         _GITHUB_DOC_CACHE[cache_key] = result
@@ -154,13 +157,36 @@ def fetch_github_documentation(
         logger.error(f'[{correlation_id}] Error type: {type(e).__name__}, message: {str(e)}')
         return None
 
+'''
+# Function to parse data source markdown documentation
+def parse_data_source_markdown(
+    content: str,
+    resource_type: str,
+    url: str,
+    correlation_id: str = '',
+    attribute: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Parse markdown documentation content for a data source.
+
+    Args:
+        content: The markdown content
+        resource_type: The resource type
+        url: The source URL for this documentation
+        correlation_id: Identifier for tracking this request in logs
+        attribute: Optional attribute to look for
+
+    Returns:
+        A dictionary with parsed documentation details
+    """
+    # This function is commented out as we're only supporting resources now
+    pass
+'''
 
 def parse_markdown_documentation(
     content: str,
     resource_type: str,
     url: str,
     correlation_id: str = '',
-    doc_kind: str = 'resource',
     attribute: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Parse markdown documentation content for a resource.
@@ -170,7 +196,6 @@ def parse_markdown_documentation(
         resource_type: The resource type
         url: The source URL for this documentation
         correlation_id: Identifier for tracking this request in logs
-        doc_kind: Type of document - 'resource' or 'data_source'
         attribute: Optional attribute to look for
 
     Returns:
@@ -178,6 +203,13 @@ def parse_markdown_documentation(
     """
     start_time = time.time()
     logger.debug(f"[{correlation_id}] Parsing markdown documentation for '{resource_type}'")
+    
+    # Always treat as resource
+    doc_kind = 'resource'
+    
+    # Add debug info about the document kind
+    logger.debug(f"[{correlation_id}] Document kind: {doc_kind}")
+    logger.debug(f"[{correlation_id}] Content preview: {content[:200]}...")
 
     try:
         # Extract description: First paragraph after page title or from the description section
@@ -241,9 +273,10 @@ def parse_markdown_documentation(
         example_section_match = re.search(
             r'## Example Usage\s*(?:###[^#]+)?([\s\S]*?)(?=\n## |\Z)', content, re.DOTALL
         )
-        logger.debug(
-            f'[{correlation_id}] example_section_match content: {example_section_match.group()}'
-        )
+        if example_section_match:
+            logger.debug(
+                f'[{correlation_id}] example_section_match content: {example_section_match.group()}'
+            )
 
         if example_section_match:
             example_section = example_section_match.group(1).strip()
@@ -376,76 +409,80 @@ def parse_markdown_documentation(
             )
 
             for nested_schema in nested_schemas:
-                nested_schema.group(1)
-                parent_name = nested_schema.group(2)
-                nested_content = nested_schema.group(3).strip()
+                try:
+                    anchor_id = nested_schema.group(1)
+                    parent_name = nested_schema.group(2)
+                    nested_content = nested_schema.group(3).strip()
+                    
+                    logger.debug(f"[{correlation_id}] Found nested schema for '{parent_name}'")
+                    
+                    # Initialize the nested schema structure for this parent
+                    if parent_name not in schema_sections['nested']:
+                        schema_sections['nested'][parent_name] = {
+                            'required': [],
+                            'optional': [],
+                            'read_only': [],
+                        }
 
-                logger.debug(f"[{correlation_id}] Found nested schema for '{parent_name}'")
-
-                # Initialize the nested schema structure for this parent
-                if parent_name not in schema_sections['nested']:
-                    schema_sections['nested'][parent_name] = {
-                        'required': [],
-                        'optional': [],
-                        'read_only': [],
-                    }
-
-                # Look for sections in the nested schema
-                for section_type in section_types:
-                    nested_section_match = re.search(
-                        rf'{section_type}:\s*\n([\s\S]*?)(?=\n\w+:|\Z)', nested_content, re.DOTALL
-                    )
-                    if nested_section_match:
-                        nested_section = nested_section_match.group(1).strip()
-                        section_key = section_type.lower().replace('-', '_')
-
-                        # Items are typically listed with bullet points
-                        nested_items = re.finditer(
-                            r'-\s+`([^`]+)`(?:\s+\(([^)]+)\))?\s*(.*?)(?=\n-|\n\n|\Z)',
-                            nested_section,
-                            re.DOTALL,
+                    # Look for sections in the nested schema
+                    for section_type in section_types:
+                        nested_section_match = re.search(
+                            rf'{section_type}:\s*\n([\s\S]*?)(?=\n\w+:|\Z)', nested_content, re.DOTALL
                         )
+                        if nested_section_match:
+                            nested_section = nested_section_match.group(1).strip()
+                            section_key = section_type.lower().replace('-', '_')
 
-                        for item in nested_items:
-                            name = item.group(1).strip()
-                            type_info = item.group(2).strip() if item.group(2) else ''
-                            desc = item.group(3).strip() if item.group(3) else ''
-
-                            # Create fully qualified name for nested field
-                            full_name = f'{parent_name}.{name}'
-
-                            # Combine type info and description for nested field
-                            full_desc = f'{desc}'
-                            if type_info:
-                                full_desc = f'Type: {type_info}. {full_desc}'
-
-                            # Add metadata about requirement level and parent
-                            if section_type == 'Required':
-                                full_desc = (
-                                    f"{full_desc} (Required nested field in '{parent_name}')"
-                                )
-                            elif section_type == 'Optional':
-                                full_desc = (
-                                    f"{full_desc} (Optional nested field in '{parent_name}')"
-                                )
-                            elif section_type == 'Read-Only':
-                                full_desc = (
-                                    f"{full_desc} (Read-only nested field in '{parent_name}')"
-                                )
-
-                            nested_item = {
-                                'name': name,
-                                'qualified_name': full_name,
-                                'description': full_desc,
-                                'section': section_key,
-                                'parent': parent_name,
-                            }
-
-                            # Add to the appropriate nested section
-                            schema_sections['nested'][parent_name][section_key].append(nested_item)
-                            logger.debug(
-                                f"[{correlation_id}] Added nested schema item '{name}' to {parent_name}.{section_key}"
+                            # Items are typically listed with bullet points
+                            nested_items = re.finditer(
+                                r'-\s+`([^`]+)`(?:\s+\(([^)]+)\))?\s*(.*?)(?=\n-|\n\n|\Z)',
+                                nested_section,
+                                re.DOTALL,
                             )
+
+                            for item in nested_items:
+                                name = item.group(1).strip()
+                                type_info = item.group(2).strip() if item.group(2) else ''
+                                desc = item.group(3).strip() if item.group(3) else ''
+
+                                # Create fully qualified name for nested field
+                                full_name = f'{parent_name}.{name}'
+
+                                # Combine type info and description for nested field
+                                full_desc = f'{desc}'
+                                if type_info:
+                                    full_desc = f'Type: {type_info}. {full_desc}'
+
+                                # Add metadata about requirement level and parent
+                                if section_type == 'Required':
+                                    full_desc = (
+                                        f"{full_desc} (Required nested field in '{parent_name}')"
+                                    )
+                                elif section_type == 'Optional':
+                                    full_desc = (
+                                        f"{full_desc} (Optional nested field in '{parent_name}')"
+                                    )
+                                elif section_type == 'Read-Only':
+                                    full_desc = (
+                                        f"{full_desc} (Read-only nested field in '{parent_name}')"
+                                    )
+
+                                nested_item = {
+                                    'name': name,
+                                    'qualified_name': full_name,
+                                    'description': full_desc,
+                                    'section': section_key,
+                                    'parent': parent_name,
+                                }
+
+                                # Add to the appropriate nested section
+                                schema_sections['nested'][parent_name][section_key].append(nested_item)
+                                logger.debug(
+                                    f"[{correlation_id}] Added nested schema item '{name}' to {parent_name}.{section_key}"
+                                )
+                except Exception as e:
+                    logger.warning(f"[{correlation_id}] Error parsing nested schema: {str(e)}")
+                    continue
 
             # Debug log the schema structure
             logger.debug(f'[{correlation_id}] Schema structure summary:')
@@ -575,7 +612,7 @@ def parse_markdown_documentation(
 
 
 async def search_awscc_provider_docs_impl(
-    resource_type: str, attribute: Optional[str] = None, kind: str = 'both'
+    resource_type: str, attribute: Optional[str] = None
 ) -> List[ProviderDocsResult]:
     """Search AWSCC provider documentation for resources and attributes.
 
@@ -585,7 +622,6 @@ async def search_awscc_provider_docs_impl(
     Parameters:
         resource_type: AWSCC resource type (e.g., 'awscc_s3_bucket', 'awscc_lambda_function')
         attribute: Optional specific attribute to search for
-        kind: Type of documentation to search - 'resource', 'data_source', or 'both' (default)
 
     Returns:
         A list of matching documentation entries with details
@@ -603,106 +639,37 @@ async def search_awscc_provider_docs_impl(
         # Try fetching from GitHub
         logger.info(f'[{correlation_id}] Fetching from GitHub')
 
-        results = []
+        # Search for resource documentation
+        github_result = fetch_github_documentation(search_term, correlation_id)
+        if github_result:
+            logger.info(f'[{correlation_id}] Found documentation as a resource')
+            # Create result object
+            description = github_result['description']
+            if attribute and github_result.get('attribute_info'):
+                description += f' {github_result["attribute_info"]}'
 
-        # If kind is "both", try both resource and data source paths
-        if kind == 'both':
-            logger.info(f'[{correlation_id}] Searching for both resources and data sources')
+            # Use schema_sections directly instead of flattening
+            resource_result = ProviderDocsResult(
+                resource_name=resource_type,
+                url=github_result['url'],
+                description=description,
+                example_snippets=github_result.get('example_snippets'),
+                schema=github_result.get('schema_sections'),  # Pass schema_sections directly
+                kind='resource',
+            )
+            
+        
 
-            # First try as a resource
-            github_result = fetch_github_documentation(search_term, correlation_id, 'resource')
-            if github_result:
-                logger.info(f'[{correlation_id}] Found documentation as a resource')
-                # Create result object
-                description = github_result['description']
-                if attribute and github_result.get('attribute_info'):
-                    description += f' {github_result["attribute_info"]}'
-
-                # Use schema_sections directly instead of flattening
-                result = ProviderDocsResult(
-                    resource_name=resource_type,
-                    url=github_result['url'],
-                    description=description,
-                    example_snippets=github_result.get('example_snippets'),
-                    schema=github_result.get('schema_sections'),  # Pass schema_sections directly
-                    kind='resource',
-                )
-                results.append(result)
-
-            # Then try as a data source
-            data_result = fetch_github_documentation(search_term, correlation_id, 'data_source')
-            if data_result:
-                logger.info(f'[{correlation_id}] Found documentation as a data source')
-                # Create result object
-                description = data_result['description']
-                if attribute and data_result.get('attribute_info'):
-                    description += f' {data_result["attribute_info"]}'
-
-                # Use schema_sections directly instead of flattening
-                result = ProviderDocsResult(
-                    resource_name=resource_type,
-                    url=data_result['url'],
-                    description=description,
-                    example_snippets=data_result.get('example_snippets'),
-                    schema=data_result.get('schema_sections'),  # Pass schema_sections directly
-                    kind='data_source',
-                )
-                results.append(result)
-
-            if results:
-                logger.info(f'[{correlation_id}] Found {len(results)} documentation entries')
-                for result in results:
-                    if hasattr(result, 'schema') and result.schema:
-                        logger.debug(
-                            f'[{correlation_id}] Schema structure for {result.resource_name} ({result.kind}):'
-                        )
-                        if isinstance(result.schema, dict):
-                            for section, items in result.schema.items():
-                                if section != 'nested':
-                                    logger.debug(
-                                        f'[{correlation_id}]   - {section}: {len(items)} items'
-                                    )
-                                else:
-                                    logger.debug(
-                                        f'[{correlation_id}]   - nested: {len(items)} parent objects'
-                                    )
-
-                end_time = time.time()
-                logger.info(
-                    f'[{correlation_id}] Search completed in {end_time - start_time:.2f} seconds (GitHub source)'
-                )
-                return results
-        else:
-            # Search for either resource or data source based on kind parameter
-            github_result = fetch_github_documentation(search_term, correlation_id, kind)
-            if github_result:
-                logger.info(f'[{correlation_id}] Successfully found GitHub documentation')
-
-                # Create result object
-                description = github_result['description']
-                if attribute and github_result.get('attribute_info'):
-                    description += f' {github_result["attribute_info"]}'
-
-                # Use schema_sections directly instead of flattening
-                result = ProviderDocsResult(
-                    resource_name=resource_type,
-                    url=github_result['url'],
-                    description=description,
-                    example_snippets=github_result.get('example_snippets'),
-                    schema=github_result.get('schema_sections'),  # Pass schema_sections directly
-                    kind=kind,
-                )
-
-                end_time = time.time()
-                logger.info(
-                    f'[{correlation_id}] Search completed in {end_time - start_time:.2f} seconds (GitHub source)'
-                )
-                return [result]
+            end_time = time.time()
+            logger.info(
+                f'[{correlation_id}] Search completed in {end_time - start_time:.2f} seconds (GitHub source)'
+            )
+            return [resource_result]
 
         # If GitHub approach fails, return a "not found" result
         logger.warning(f"[{correlation_id}] Documentation not found on GitHub for '{search_term}'")
 
-        # Return a "not found" result
+        # Return a "not found" result for both resource and data source
         logger.warning(f'[{correlation_id}] No resource documentation found')
         end_time = time.time()
         logger.info(
@@ -715,16 +682,14 @@ async def search_awscc_provider_docs_impl(
                 description=f"No documentation found for resource type '{resource_type}'.",
                 example_snippets=None,
                 schema=None,
+                kind='resource'
             )
         ]
 
     except Exception as e:
         logger.exception(f'[{correlation_id}] Error searching AWSCC provider docs')
         logger.error(f'[{correlation_id}] Exception details: {type(e).__name__}: {str(e)}')
-        logger.debug(
-            f'[{correlation_id}] Traceback: {"".join(traceback.format_tb(e.__traceback__))}'
-        )
-
+        
         end_time = time.time()
         logger.info(f'[{correlation_id}] Search failed in {end_time - start_time:.2f} seconds')
 
@@ -735,5 +700,6 @@ async def search_awscc_provider_docs_impl(
                 description=f'Failed to search AWSCC provider documentation: {type(e).__name__}: {str(e)}',
                 example_snippets=None,
                 schema=None,
+                kind='resource'
             )
         ]
