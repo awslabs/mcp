@@ -25,7 +25,7 @@ When a user presents a query, follow these steps to break it down:
 - Use `awslabs.core-mcp-server` tools for:
   - get_prompt_understanding: Initial query analysis
   - get_plan: Generate implementation strategy
-- Use `aswlabs.bedrock-kb-retrieval-mcp-server` to query user defined KB
+- Use `awslabs.bedrock-kb-retrieval-mcp-server` to query user defined KB
 - Use `awslabs.nova-canvas-expert-mcp-server` to help create images
   - get_imagegenerate_image: Generate an image for the UI
   - generate_image_with_colors: Generate images using color pallet
