@@ -472,7 +472,29 @@ async def search_aws_provider_docs_impl(
     """Search AWS provider documentation for resources and attributes.
 
     This tool searches the Terraform AWS provider documentation for information about
-    specific resource types and their attributes.
+    specific resource types and their attributes. It retrieves comprehensive details including
+    descriptions, example code snippets, argument references, and attribute references.
+
+    The implementation fetches documentation directly from the official Terraform AWS provider
+    GitHub repository to ensure the most up-to-date information. Results are cached for
+    improved performance on subsequent queries.
+
+    Use the 'kind' parameter to specify if you are looking for information about provider 
+    resources, data sources, or both. The tool will automatically handle prefixes - you can 
+    search for either 'aws_s3_bucket' or 's3_bucket'.
+
+    Examples:
+        - To get documentation for an S3 bucket resource:
+          search_aws_provider_docs_impl(resource_type='aws_s3_bucket')
+        
+        - To find information about a specific attribute:
+          search_aws_provider_docs_impl(resource_type='aws_lambda_function', attribute='runtime')
+        
+        - To search only for data sources:
+          search_aws_provider_docs_impl(resource_type='aws_ami', kind='data_source')
+        
+        - To search only for resources:
+          search_aws_provider_docs_impl(resource_type='aws_instance', kind='resource')
 
     Parameters:
         resource_type: AWS resource type (e.g., 'aws_s3_bucket', 'aws_lambda_function')
@@ -480,7 +502,12 @@ async def search_aws_provider_docs_impl(
         kind: Type of documentation to search - 'resource', 'data_source', or 'both' (default)
 
     Returns:
-        A list of matching documentation entries with details
+        A list of matching documentation entries with details including:
+        - Resource name and description
+        - Example code snippets
+        - Arguments with descriptions
+        - Attributes with descriptions
+        - URL to the official documentation
     """
     start_time = time.time()
     correlation_id = f'search-{int(start_time * 1000)}'

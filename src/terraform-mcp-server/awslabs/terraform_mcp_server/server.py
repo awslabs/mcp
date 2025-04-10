@@ -74,9 +74,25 @@ async def search_aws_provider_docs(
     """Search AWS provider documentation for resources and attributes.
 
     This tool searches the Terraform AWS provider documentation for information about
-    specific resource types and their attributes.
+    specific resource types and their attributes. It retrieves comprehensive details including
+    descriptions, example code snippets, argument references, and attribute references.
 
     Use the 'kind' parameter to specify if you are looking for information about provider resources, data sources, or both.
+    
+    The tool will automatically handle prefixes - you can search for either 'aws_s3_bucket' or 's3_bucket'.
+
+    Examples:
+        - To get documentation for an S3 bucket resource:
+          search_aws_provider_docs(resource_type='aws_s3_bucket')
+        
+        - To find information about a specific attribute:
+          search_aws_provider_docs(resource_type='aws_lambda_function', attribute='runtime')
+        
+        - To search only for data sources:
+          search_aws_provider_docs(resource_type='aws_ami', kind='data_source')
+        
+        - To search only for resources:
+          search_aws_provider_docs(resource_type='aws_instance', kind='resource')
 
     Parameters:
         resource_type: AWS resource type (e.g., 'aws_s3_bucket', 'aws_lambda_function')
@@ -84,7 +100,12 @@ async def search_aws_provider_docs(
         kind: Type of documentation to search - 'resource', 'data_source', or 'both' (default)
 
     Returns:
-        A list of matching documentation entries with details
+        A list of matching documentation entries with details including:
+        - Resource name and description
+        - Example code snippets
+        - Arguments with descriptions
+        - Attributes with descriptions
+        - URL to the official documentation
     """
     return await search_aws_provider_docs_impl(resource_type, attribute, kind)
 
@@ -96,14 +117,35 @@ async def search_awscc_provider_docs(
     """Search AWSCC provider documentation for resources and attributes.
 
     This tool searches the Terraform AWSCC provider documentation for information about
-    specific resource types and their attributes.
+    specific resource types and their attributes. The AWSCC provider is based on the AWS Cloud Control API
+    and provides a more consistent interface to AWS resources compared to the standard AWS provider.
+
+    The tool retrieves comprehensive details including descriptions, example code snippets,
+    and schema information (required, optional, and read-only attributes).
+    
+    The tool will automatically handle prefixes - you can search for either 'awscc_s3_bucket' or 's3_bucket'.
+
+    Examples:
+        - To get documentation for an S3 bucket resource:
+          search_awscc_provider_docs(resource_type='awscc_s3_bucket')
+        
+        - To find information about a specific attribute:
+          search_awscc_provider_docs(resource_type='awscc_lambda_function', attribute='code')
+        
+        - Without the prefix:
+          search_awscc_provider_docs(resource_type='ec2_instance')
 
     Parameters:
         resource_type: AWSCC resource type (e.g., 'awscc_s3_bucket', 'awscc_lambda_function')
         attribute: Optional specific attribute to search for
 
     Returns:
-        A list of matching documentation entries with details
+        A list of matching documentation entries with details including:
+        - Resource name and description
+        - Example code snippets
+        - Schema information (required, optional, and read-only attributes)
+        - Nested schema structures for complex attributes
+        - URL to the official documentation
     """
     return await search_awscc_provider_docs_impl(resource_type, attribute)
 
@@ -121,6 +163,23 @@ async def search_specific_aws_ia_modules(query: str = '') -> List[ModuleSearchRe
     It returns detailed information about these modules, including their README content,
     variables.tf content, and submodules when available.
 
+    The search is performed across module names, descriptions, README content, and variable
+    definitions. This allows you to find modules based on their functionality or specific
+    configuration options.
+
+    Examples:
+        - To get information about all four modules:
+          search_specific_aws_ia_modules()
+        
+        - To find modules related to Bedrock:
+          search_specific_aws_ia_modules(query='bedrock')
+        
+        - To find modules related to vector search:
+          search_specific_aws_ia_modules(query='vector search')
+        
+        - To find modules with specific configuration options:
+          search_specific_aws_ia_modules(query='endpoint_name')
+
     Parameters:
         query: Optional search term to filter modules (empty returns all four modules)
 
@@ -131,6 +190,7 @@ async def search_specific_aws_ia_modules(query: str = '') -> List[ModuleSearchRe
         - Input and output parameter counts
         - Variables from variables.tf with descriptions and default values
         - Submodules information
+        - Version details and release information
     """
     return await search_specific_aws_ia_modules_impl(query)
 

@@ -617,14 +617,40 @@ async def search_awscc_provider_docs_impl(
     """Search AWSCC provider documentation for resources and attributes.
 
     This tool searches the Terraform AWSCC provider documentation for information about
-    specific resource types and their attributes.
+    specific resource types and their attributes. The AWSCC provider is based on the AWS Cloud Control API
+    and provides a more consistent interface to AWS resources compared to the standard AWS provider.
+
+    The implementation fetches documentation directly from the official Terraform AWSCC provider
+    GitHub repository to ensure the most up-to-date information. Results are cached for
+    improved performance on subsequent queries.
+
+    The tool retrieves comprehensive details including descriptions, example code snippets,
+    and schema information (required, optional, and read-only attributes). It also handles
+    nested schema structures for complex attributes.
+    
+    The tool will automatically handle prefixes - you can search for either 'awscc_s3_bucket' or 's3_bucket'.
+
+    Examples:
+        - To get documentation for an S3 bucket resource:
+          search_awscc_provider_docs_impl(resource_type='awscc_s3_bucket')
+        
+        - To find information about a specific attribute:
+          search_awscc_provider_docs_impl(resource_type='awscc_lambda_function', attribute='code')
+        
+        - Without the prefix:
+          search_awscc_provider_docs_impl(resource_type='ec2_instance')
 
     Parameters:
         resource_type: AWSCC resource type (e.g., 'awscc_s3_bucket', 'awscc_lambda_function')
         attribute: Optional specific attribute to search for
 
     Returns:
-        A list of matching documentation entries with details
+        A list of matching documentation entries with details including:
+        - Resource name and description
+        - Example code snippets
+        - Schema information (required, optional, and read-only attributes)
+        - Nested schema structures for complex attributes
+        - URL to the official documentation
     """
     start_time = time.time()
     correlation_id = f'search-{int(start_time * 1000)}'

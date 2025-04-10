@@ -349,6 +349,27 @@ async def search_specific_aws_ia_modules_impl(query: str) -> List[ModuleSearchRe
     It returns detailed information about these modules, including their README content,
     variables.tf content, and submodules when available.
 
+    The search is performed across module names, descriptions, README content, and variable
+    definitions. This allows you to find modules based on their functionality or specific
+    configuration options.
+
+    The implementation fetches module information directly from the Terraform Registry API
+    and GitHub repositories to ensure the most up-to-date information. Results include
+    comprehensive details about each module's structure, configuration options, and usage examples.
+
+    Examples:
+        - To get information about all four modules:
+          search_specific_aws_ia_modules_impl(query='')
+        
+        - To find modules related to Bedrock:
+          search_specific_aws_ia_modules_impl(query='bedrock')
+        
+        - To find modules related to vector search:
+          search_specific_aws_ia_modules_impl(query='vector search')
+        
+        - To find modules with specific configuration options:
+          search_specific_aws_ia_modules_impl(query='endpoint_name')
+
     Parameters:
         query: Optional search term to filter modules (empty returns all four modules)
 
@@ -359,6 +380,7 @@ async def search_specific_aws_ia_modules_impl(query: str) -> List[ModuleSearchRe
         - Input and output parameter counts
         - Variables from variables.tf with descriptions and default values
         - Submodules information
+        - Version details and release information
     """
     logger.info(f"Searching for specific AWS-IA modules with query: '{query}'")
 
