@@ -13,7 +13,7 @@ updates:
     commit-message:
       prefix: "chore(deps): update github-actions"
     groups:
-      versioning:
+      github-actions-version-updates:
         applies-to: version-updates
 
   - package-ecosystem: "uv"
@@ -24,7 +24,7 @@ updates:
     commit-message:
       prefix: "chore(deps): update uv"
     groups:
-      versioning:
+      uv-version-updates:
         applies-to: version-updates
 
   - package-ecosystem: "npm"
@@ -35,7 +35,7 @@ updates:
     commit-message:
       prefix: "chore(deps): update npm"
     groups:
-      versioning:
+      npm-version-updates:
         applies-to: version-updates
 
   - package-ecosystem: "docker"
@@ -46,5 +46,5 @@ updates:
     commit-message:
       prefix: "chore(deps): update docker images"
     groups:
-      versioning:
+      docker-version-updates:
         applies-to: version-updates
