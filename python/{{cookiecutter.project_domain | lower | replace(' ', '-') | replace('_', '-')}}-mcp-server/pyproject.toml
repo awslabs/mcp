@@ -8,8 +8,22 @@ dependencies = [
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
 ]
-license = "Apache-2.0"
+license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
@@ -88,4 +102,4 @@ update_changelog_on_bump = true
 packages = ["awslabs"]
 
 [tool.bandit]
-exclude_dirs = ["venv", "tests"]
+exclude_dirs = [".venv", "tests"]
