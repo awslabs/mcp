@@ -16,6 +16,7 @@ license-files = ["LICENSE", "NOTICE" ]
 
 authors = [
     {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
     {name = "Paul Vincent", email="44383239+PaulVincent707@users.noreply.github.com"},
 ]
 classifiers = [
