@@ -1,12 +1,3 @@
-"""Test fixtures for the diagrams-mcp-server tests."""
-
-import pytest
-import tempfile
-from awslabs.aws_diagram_mcp_server.models import DiagramType
-from typing import Dict, Generator
-
-
-# # Set the asyncio_default_fixture_loop_scope to function
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
@@ -17,7 +8,13 @@ from typing import Dict, Generator
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-# pytest_asyncio.default_fixture_loop_scope = 'function'
+
+"""Test fixtures for the diagrams-mcp-server tests."""
+
+import pytest
+import tempfile
+from awslabs.aws_diagram_mcp_server.models import DiagramType
+from typing import Dict, Generator
 
 
 @pytest.fixture
