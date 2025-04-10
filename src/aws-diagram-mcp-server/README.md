@@ -1,6 +1,6 @@
 # AWS Diagram MCP Server
 
-An MCP server that seamlessly creates diagrams using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
+An MCP server that seamlessly creates [diagrams](https://diagrams.mingrammer.com/) using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
 
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
 
@@ -12,12 +12,8 @@ An MCP server that seamlessly creates diagrams using the Python diagrams package
 
 ## Installation
 
-Install the MCP server:
-```bash
-uv tool install aws-diagram-mcp-server-mcp-server
-```
+Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 
-Add the server to your MCP client config (e.g. `~/.cursor-server/data/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
 ```json
 {
   "mcpServers": {
@@ -40,29 +36,6 @@ The Diagrams MCP Server provides the following capabilities:
 2. **Multiple Diagram Types**: Support for AWS architecture, sequence diagrams, flow charts, class diagrams, and more
 3. **Customization**: Customize diagram appearance, layout, and styling
 4. **Security**: Code scanning to ensure secure diagram generation
-
-## Quick Start Example
-
-The repository includes an example script (`example_diagram.py`) that demonstrates how to create a simple AWS architecture diagram:
-
-```python
-from diagrams import Diagram
-from diagrams.aws.compute import EC2
-from diagrams.aws.database import RDS
-from diagrams.aws.network import ELB
-
-# Create a simple AWS diagram
-with Diagram('Web Service Architecture', show=True, outformat='png', filename='example_diagram'):
-    ELB('lb') >> EC2('web') >> RDS('userdb')
-```
-
-Running this script will generate an `example_diagram.png` file that visualizes a basic web service architecture with a load balancer, web server, and database:
-
-```bash
-python example_diagram.py
-```
-
-The generated diagram shows the flow from the Elastic Load Balancer (ELB) to an EC2 instance, and then to an RDS database, representing a typical three-tier web architecture.
 
 ## Development
 

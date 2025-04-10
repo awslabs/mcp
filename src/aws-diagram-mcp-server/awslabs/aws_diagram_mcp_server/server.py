@@ -5,8 +5,12 @@ It accepts Python code as a string and generates PNG diagrams without displaying
 """
 
 import argparse
-from .diagrams import generate_diagram, get_diagram_examples, list_diagram_icons
-from .models import DiagramType
+from awslabs.aws_diagram_mcp_server.diagrams_tools import (
+    generate_diagram,
+    get_diagram_examples,
+    list_diagram_icons,
+)
+from awslabs.aws_diagram_mcp_server.models import DiagramType
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Optional
@@ -19,6 +23,7 @@ mcp = FastMCP(
         'pydantic',
         'diagrams',
     ],
+    log_level='ERROR',
     instructions="""Use this server to generate professional diagrams using the Python diagrams package.
 
 WORKFLOW:

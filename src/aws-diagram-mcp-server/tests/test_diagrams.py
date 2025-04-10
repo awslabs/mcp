@@ -2,7 +2,7 @@
 
 import os
 import pytest
-from awslabs.aws_diagram_mcp_server.diagrams import (
+from awslabs.aws_diagram_mcp_server.diagrams_tools import (
     generate_diagram,
     get_diagram_examples,
     list_diagram_icons,

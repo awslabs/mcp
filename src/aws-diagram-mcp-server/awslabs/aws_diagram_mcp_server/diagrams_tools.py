@@ -1,19 +1,24 @@
 """Diagram generation and example functions for the diagrams-mcp-server."""
 
+import diagrams
 import importlib
 import inspect
+import logging
 import os
 import re
 import signal
 import uuid
-from .models import (
+from awslabs.aws_diagram_mcp_server.models import (
     DiagramExampleResponse,
     DiagramGenerateResponse,
     DiagramIconsResponse,
     DiagramType,
 )
-from .scanner import scan_python_code
+from awslabs.aws_diagram_mcp_server.scanner import scan_python_code
 from typing import Optional
+
+
+logger = logging.getLogger(__name__)
 
 
 async def generate_diagram(
@@ -547,15 +552,15 @@ def list_diagram_icons() -> DiagramIconsResponse:
     Returns:
         DiagramIconsResponse: Dictionary with all available providers, services, and icons
     """
-    try:
-        # Import diagrams package
-        import diagrams
+    logger.debug('Starting list_diagram_icons function')
 
+    try:
         # Dictionary to store all providers and their services/icons
         providers = {}
 
         # Get the base path of the diagrams package
         diagrams_path = os.path.dirname(diagrams.__file__)
+        logger.debug(f'Diagrams package path: {diagrams_path}')
 
         # List of provider directories to exclude
         exclude_dirs = ['__pycache__', '_template']
@@ -570,22 +575,29 @@ def list_diagram_icons() -> DiagramIconsResponse:
                 or provider_name.startswith('_')
                 or provider_name in exclude_dirs
             ):
+                logger.debug(f'Skipping {provider_name}: not a directory or in exclude list')
                 continue
 
             # Add provider to the dictionary
             providers[provider_name] = {}
+            logger.debug(f'Processing provider: {provider_name}')
 
             # Iterate through all service modules in the provider
             for service_file in os.listdir(provider_path):
                 # Skip non-Python files and special files
                 if not service_file.endswith('.py') or service_file.startswith('_'):
+                    logger.debug(
+                        f'Skipping file {service_file}: not a Python file or starts with _'
+                    )
                     continue
 
                 service_name = service_file[:-3]  # Remove .py extension
+                logger.debug(f'Processing service: {provider_name}.{service_name}')
 
                 # Import the service module
                 module_path = f'diagrams.{provider_name}.{service_name}'
                 try:
+                    logger.debug(f'Attempting to import module: {module_path}')
                     service_module = importlib.import_module(module_path)
 
                     # Find all classes in the module that are Node subclasses
@@ -598,16 +610,30 @@ def list_diagram_icons() -> DiagramIconsResponse:
                         # Check if it's a class and likely a Node subclass
                         if inspect.isclass(obj) and hasattr(obj, '_icon'):
                             icons.append(name)
+                            logger.debug(f'Found icon: {name}')
 
                     # Add service and its icons to the provider
                     if icons:
                         providers[provider_name][service_name] = sorted(icons)
+                        logger.debug(
+                            f'Added {len(icons)} icons for {provider_name}.{service_name}'
+                        )
+                    else:
+                        logger.warning(f'No icons found for {provider_name}.{service_name}')
 
-                except (ImportError, AttributeError):
-                    # Skip modules that can't be imported
+                except ImportError as ie:
+                    logger.error(f'ImportError for {module_path}: {str(ie)}')
+                    continue
+                except AttributeError as ae:
+                    logger.error(f'AttributeError for {module_path}: {str(ae)}')
+                    continue
+                except Exception as e:
+                    logger.error(f'Unexpected error processing {module_path}: {str(e)}')
                     continue
 
+        logger.debug(f'Completed processing. Found {len(providers)} providers')
         return DiagramIconsResponse(providers=providers)
-    except Exception:
+    except Exception as e:
+        logger.exception(f'Error in list_diagram_icons: {str(e)}')
         # Return empty response on error
         return DiagramIconsResponse(providers={})
