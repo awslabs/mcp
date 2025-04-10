@@ -107,6 +107,7 @@ per_file_skips = { "awslabs/aws_diagram_mcp_server/diagrams.py" = ["B102"] }
 [tool.pytest]
 testpaths = "tests"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "asyncio: mark a test as an asyncio coroutine",
 ]

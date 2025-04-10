@@ -2,8 +2,12 @@
 
 import pytest
 import tempfile
+import pytest_asyncio
 from awslabs.aws_diagram_mcp_server.models import DiagramType
 from typing import Dict, Generator
+
+# Set the asyncio_default_fixture_loop_scope to function
+pytest_asyncio.default_fixture_loop_scope = "function"
 
 
 @pytest.fixture
