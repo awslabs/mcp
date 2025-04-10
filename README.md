@@ -84,6 +84,19 @@ A server for generating images using Amazon Nova Canvas.
 
 [Learn more](src/nova-canvas-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 
+### AWS Diagram MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-diagram-mcp-server.svg)](https://pypi.org/project/awslabs.aws-diagram-mcp-server/)
+
+A server for seamlessly creating diagrams using the Python diagrams package DSL.
+
+- Generate professional diagrams using Python code
+- Support for AWS architecture, sequence diagrams, flow charts, and class diagrams
+- Customize diagram appearance, layout, and styling
+- Code scanning to ensure secure diagram generation
+
+[Learn more](src/aws-diagram-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
+
 ## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
 
 > The Model Context Protocol (MCP) is an open protocol that enables seamless integration between LLM applications and external data sources and tools. Whether you're building an AI-powered IDE, enhancing a chat interface, or creating custom AI workflows, MCP provides a standardized way to connect LLMs with the context they need.
@@ -170,6 +183,10 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 
 See individual server READMEs for specific requirements and configuration options.
 
+## Samples
+
+Ready-to-use examples of AWS MCP Servers in action are available in the [samples](samples/) directory. These samples provide working code and step-by-step guides to help you get started with each MCP server.
+
 ## Documentation
 
 Comprehensive documentation for all servers is available on our [documentation website](https://awslabs.github.io/mcp/).
@@ -181,6 +198,7 @@ Documentation for each server:
 - [AWS CDK MCP Server](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
+- [AWS Diagram MCP Server]((https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/))
 
 Documentation includes:
 
