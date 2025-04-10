@@ -223,9 +223,6 @@ class TestServerIntegration:
     @pytest.mark.asyncio
     async def test_server_tool_registration(self):
         """Test that the server tools are registered correctly."""
-        # Import the server module
-        from awslabs.aws_diagram_mcp_server.server import mcp
-
         # Check that the tools are registered
         # We can't directly access the tools, so we'll check if the functions are registered
         assert hasattr(mcp_generate_diagram, '__name__')
@@ -233,6 +230,17 @@ class TestServerIntegration:
         assert hasattr(mcp_list_diagram_icons, '__name__')
 
         # Check that the functions have the correct docstrings
-        assert 'Generate a diagram from Python code' in mcp_generate_diagram.__doc__
-        assert 'Get example code for different types of diagrams' in mcp_get_diagram_examples.__doc__
-        assert 'List all available icons from the diagrams package' in mcp_list_diagram_icons.__doc__
+        assert (
+            mcp_generate_diagram.__doc__ is not None
+            and 'Generate a diagram from Python code' in mcp_generate_diagram.__doc__
+        )
+        assert (
+            mcp_get_diagram_examples.__doc__ is not None
+            and 'Get example code for different types of diagrams'
+            in mcp_get_diagram_examples.__doc__
+        )
+        assert (
+            mcp_list_diagram_icons.__doc__ is not None
+            and 'List all available icons from the diagrams package'
+            in mcp_list_diagram_icons.__doc__
+        )

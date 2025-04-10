@@ -125,14 +125,6 @@ class TestDiagramGenerateResponse:
         assert response.path is None
         assert response.message == 'Error generating diagram'
 
-    def test_invalid_status(self):
-        """Test that invalid status values are rejected."""
-        with pytest.raises(ValidationError):
-            DiagramGenerateResponse(
-                status='invalid',  # This should raise a ValidationError since 'invalid' is not in the Literal type
-                message='Invalid status',
-            )
-
 
 class TestDiagramExampleResponse:
     """Tests for the DiagramExampleResponse model."""

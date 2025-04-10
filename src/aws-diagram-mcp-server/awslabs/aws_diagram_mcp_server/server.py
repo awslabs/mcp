@@ -141,17 +141,21 @@ async def mcp_generate_diagram(
             filename_value = None if filename is None else filename
             timeout_value = 90 if timeout is None else timeout
             workspace_dir_value = None if workspace_dir is None else workspace_dir
-            
-            result = await generate_diagram(code_value, filename_value, timeout_value, workspace_dir_value)
+
+            result = await generate_diagram(
+                code_value, filename_value, timeout_value, workspace_dir_value
+            )
     else:
         # Extract the actual values from the parameters
         code_value = code
         filename_value = None if filename is None else filename
         timeout_value = 90 if timeout is None else timeout
         workspace_dir_value = None if workspace_dir is None else workspace_dir
-        
-        result = await generate_diagram(code_value, filename_value, timeout_value, workspace_dir_value)
-    
+
+        result = await generate_diagram(
+            code_value, filename_value, timeout_value, workspace_dir_value
+        )
+
     return result.model_dump()
 
 
