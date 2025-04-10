@@ -117,13 +117,37 @@ class ProviderDocsResult(BaseModel):
         resource_name: Name of the AWS resource type.
         url: URL to the documentation for this resource.
         description: Brief description of the resource.
-        attributes: Key attributes available for this resource.
+        example_snippets: List of example code snippets with titles.
+        arguments: Optional list of arguments with descriptions (specific to AWS provider).
+        attributes: Optional list of attributes with descriptions (specific to AWS provider).
+        schema: Optional schema structure with sections (specific to AWSCC provider).
+               For AWSCC provider, this is a structured dictionary with sections.
+        kind: Type of the item - resource or data source.
     """
 
     resource_name: str
     url: str
     description: str
-    example_snippet: Optional[str] = None
+    example_snippets: Optional[List[Dict[str, str]]] = Field(
+        None, 
+        description="List of example snippets with titles"
+    )
+    arguments: Optional[List[Dict[str, str]]] = Field(
+        None,
+        description="List of arguments with descriptions (specific to AWS provider)"
+    )
+    attributes: Optional[List[Dict[str, str]]] = Field(
+        None,
+        description="List of attributes with descriptions (specific to AWS provider)"
+    )
+    schema: Optional[Any] = Field(
+        None,
+        description="Schema structure that can be a structured dictionary with sections (AWSCC provider)"
+    )
+    kind: str = Field(
+        "resource",
+        description="Type of the item - 'resource' or 'data_source'"
+    )
 
 
 class TerraformExecutionResult(BaseModel):

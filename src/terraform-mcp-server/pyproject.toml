@@ -12,6 +12,7 @@ dependencies = [
     "loguru>=0.7.0",
     "playwright>=1.40.0",
     "PyPDF2>=3.0.0",
+    "checkov>=3.2.402",
 ]
 
 [project.scripts]
