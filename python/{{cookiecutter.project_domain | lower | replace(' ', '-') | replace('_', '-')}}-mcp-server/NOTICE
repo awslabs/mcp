@@ -1,1 +1,2 @@
+awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
