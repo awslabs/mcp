@@ -28,6 +28,8 @@ updates:
     groups:
       uv-version-updates:
         applies-to: version-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directories:
@@ -39,6 +41,8 @@ updates:
     groups:
       npm-version-updates:
         applies-to: version-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directories:
@@ -50,3 +54,5 @@ updates:
     groups:
       docker-version-updates:
         applies-to: version-updates
+        patterns:
+          - "*"
