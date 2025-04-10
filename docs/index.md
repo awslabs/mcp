@@ -1,6 +1,6 @@
 # Welcome to AWS MCP Servers
 
-A suite of specialized MCP servers that bring AWS best practices directly to your development workflow.
+A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
 ## Available MCP Servers
 
@@ -82,6 +82,10 @@ The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS se
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
+
+## Samples
+
+Please refer to the [samples](samples/index.md) directory for examples of how to use the MCP Servers.
 
 ## Contributing
 
