@@ -63,6 +63,7 @@ mcp.tool(name='CheckCDKNagSuppressions')(tools.check_cdk_nag_suppressions_tool)
 mcp.tool(name='GenerateBedrockAgentSchema')(tools.bedrock_schema_generator_from_file)
 mcp.tool(name='GetAwsSolutionsConstructPattern')(tools.get_aws_solutions_construct_pattern)
 mcp.tool(name='SearchGenAICDKConstructs')(tools.search_genai_cdk_constructs)
+mcp.tool(name='LambdaLayerDocumentationProvider')(tools.lambda_layer_documentation_provider)
 
 
 def main():

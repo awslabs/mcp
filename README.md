@@ -1,6 +1,6 @@
 # AWS MCP Servers
 
-A suite of specialized MCP servers that bring AWS best practices directly to your development workflow.
+A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
 [![GitHub](https://img.shields.io/badge/github-awslabs/mcp-blue.svg?style=flat&logo=github)](https://github.com/awslabs/mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen)](LICENSE)
@@ -83,6 +83,19 @@ A server for generating images using Amazon Nova Canvas.
 - AWS authentication through profiles
 
 [Learn more](src/nova-canvas-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
+
+### AWS Diagram MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-diagram-mcp-server.svg)](https://pypi.org/project/awslabs.aws-diagram-mcp-server/)
+
+A server for seamlessly creating diagrams using the Python diagrams package DSL.
+
+- Generate professional diagrams using Python code
+- Support for AWS architecture, sequence diagrams, flow charts, and class diagrams
+- Customize diagram appearance, layout, and styling
+- Code scanning to ensure secure diagram generation
+
+[Learn more](src/aws-diagram-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
 
 ## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
 
@@ -170,6 +183,10 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 
 See individual server READMEs for specific requirements and configuration options.
 
+## Samples
+
+Ready-to-use examples of AWS MCP Servers in action are available in the [samples](samples/) directory. These samples provide working code and step-by-step guides to help you get started with each MCP server.
+
 ## Documentation
 
 Comprehensive documentation for all servers is available on our [documentation website](https://awslabs.github.io/mcp/).
@@ -181,6 +198,7 @@ Documentation for each server:
 - [AWS CDK MCP Server](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
+- [AWS Diagram MCP Server]((https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/))
 
 Documentation includes:
 
@@ -192,6 +210,18 @@ Documentation includes:
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+## Contributing
+
+Big shout out to our awesome contributors! Thank you for making this project better!
+
+[![contributors](https://contrib.rocks/image?repo=awslabs/mcp&max=2000)](https://github.com/awslabs/mcp/graphs/contributors)
+
+Contributions of all kinds are welcome! Check out our [contributor guide](CONTRIBUTING.md) for more information.
+
+## Developer guide
+
+If you want to add a new MCP Server to the library, check out our [development guide](DEVELOPER_GUIDE.md)
 
 ## License
 
