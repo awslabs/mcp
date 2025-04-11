@@ -39,10 +39,8 @@ flowchart TD
     checkovScan -->|No Issues| tfInit[Run terraform init\nvia ExecuteTerraformCommand]
     checkovScan -->|Finds Issues| reviewIssues[Review Security\nIssues]
     
-    reviewIssues --> autoFix[Apply Automatic Fixes\nvia FixCheckovVulnerabilities]
     reviewIssues --> manualFix[Apply Manual Fixes]
     
-    autoFix --> checkovScan
     manualFix --> edit
     
     %% Terraform Init & Plan (No Apply)
@@ -75,7 +73,7 @@ flowchart TD
     class fixValidation,fixInit,manualFix error
     class edit process
     class newChanges decision
-    class tfValidate,checkovScan,tfInit,tfPlan,autoFix mcptool
+    class tfValidate,checkovScan,tfInit,tfPlan mcptool
     class handoff handoff
 ```
 
@@ -98,12 +96,8 @@ flowchart TD
         - Scans code for security misconfigurations, compliance issues, and AWS best practice violations
         - Example: RunCheckovScan(CheckovScanRequest(working_directory="./my_project", framework="terraform"))
 4. Fix Security Issues
-    - For automated fixes:
-        - Tool: FixCheckovVulnerabilities
-        - Automatically remediate supported issues identified by the scan
-        - Example: FixCheckovVulnerabilities(CheckovFixRequest(working_directory="./my_project", vulnerability_ids=["CKV_AWS_123"], backup_files=True))
-    - For manual fixes:
-        - Edit the code to address issues that can't be automatically fixed
+    - For fixes:
+        - Edit the code to address security issues identified by the scan
         - Consult terraform_aws_best_practices resource for guidance
 5. Initialize Working Directory
     - Tool: ExecuteTerraformCommand with command="init"
@@ -178,19 +172,13 @@ Options:
 
 ### Checkov Commands
 
-These security scanning and remediation commands are available through dedicated tools:
+These security scanning commands are available through dedicated tools:
 
 #### Checkov Scan
 
 * Purpose: Scans Terraform code for security issues, misconfigurations, and compliance violations.
 * Tool: RunCheckovScan
 * When to use: After code passes terraform validate but before initializing and planning.
-
-#### Checkov Fix
-
-* Purpose: Automatically fixes supported security issues found by Checkov.
-* Tool: FixCheckovVulnerabilities
-* When to use: After Checkov scan identifies fixable issues.
 
 ## Key Principles
 - **Code Development**: Strongly prefer using the AWSCC provider first (Cloud Control API-based provider) before falling back to the traditional AWS provider.

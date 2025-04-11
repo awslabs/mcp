@@ -77,9 +77,6 @@ For AI/ML applications, use the `SearchSpecificAwsIaModules` tool to find AWS-IA
 2. `RunCheckovScan`
    * Run after validation passes, before initialization
    * Identifies security and compliance issues
-3. `FixCheckovVulnerabilities`
-   * Apply automatic fixes to issues found by Checkov
-   * Re-validate after fixing
 
 
 ## AWS Provider Recommendation

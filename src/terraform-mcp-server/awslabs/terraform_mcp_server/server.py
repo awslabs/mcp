@@ -4,6 +4,11 @@
 import argparse
 import os
 import sys
+from awslabs.terraform_mcp_serve.static import (
+    AWS_TERRAFORM_BEST_PRACTICES,
+    MCP_INSTRUCTIONS,
+    TERRAFORM_WORKFLOW_GUIDE,
+)
 from awslabs.terraform_mcp_server.impl.resources import (
     terraform_aws_provider_resources_listing_impl,
     terraform_awscc_provider_resources_listing_impl,
@@ -23,11 +28,6 @@ from awslabs.terraform_mcp_server.models import (
     TerraformAWSProviderDocsResult,
     TerraformExecutionRequest,
     TerraformExecutionResult,
-)
-from awslabs.terraform_mcp_serve.static import (
-    AWS_TERRAFORM_BEST_PRACTICES,
-    MCP_INSTRUCTIONS,
-    TERRAFORM_WORKFLOW_GUIDE,
 )
 from mcp.server.fastmcp import FastMCP
 from typing import List
