@@ -24,12 +24,6 @@ The exact MCP server code leveraged can be found in the [src/bedrock-kb-retrieva
 - A Bedrock Knowledge Base
   - For a quick reference Knowledge Base setup, check out the [e2e RAG solution via CDK](https://github.com/aws-samples/amazon-bedrock-samples/tree/main/rag/knowledge-bases/features-examples/04-infrastructure/e2e_rag_using_bedrock_kb_cdk) repo. This will set you up with everything you need - IAM roles, vector storage (either OpenSearch Serverless or Aurora PostgreSQL), and a fully configured Knowledge Base with sample data. The Knowledge Base is the only component you'll really need for this implementation.
 
-Copy the .env.example file to .env and add your AWS credentials.
-
-```bash
-cp .env.example .env
-```
-
 ### Installation
 
 1. Clone the repository.
@@ -38,7 +32,13 @@ cp .env.example .env
 git clone <INSERT_REPO_URL>
 ```
 
-2. Open two different terminals and install the dependencies in each.
+2. Copy the .env.example file to .env and add your AWS credentials.
+
+```bash
+cp .env.example .env
+```
+
+3. Open two different terminals and install the dependencies in each.
 
 ```bash
 uv sync
@@ -50,19 +50,19 @@ then activate the virtual environment
 source .venv/bin/activate
 ```
 
-3. In one of the terminals, run the FastAPI server
+4. In one of the terminals, run the FastAPI server
 
 ```bash
 uvicorn clients.client_server:app --reload
 ```
 
-4. In the other terminal, run the Streamlit app
+5. In the other terminal, run the Streamlit app
 
 ```bash
 streamlit run user_interfaces/chat_bedrock_st.py
 ```
 
-5. The chatbot should now be running on [http://localhost:8501/](http://localhost:8501/)
+6. The chatbot should now be running on [http://localhost:8501/](http://localhost:8501/)
 
 ## Usage
 
@@ -74,7 +74,7 @@ Ask away!
 
 Logs are available in the terminal where you ran the FastAPI server, outlining various steps and actions taken by the server.
 
-If you see an error about `boto3` not being found, it is likely because you did not activate the virtual environment:
+If you see an error about `boto3` or `streamlit` not being found, it is likely because you did not activate the virtual environment:
 
 ```bash
 uv sync
