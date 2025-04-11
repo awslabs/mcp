@@ -11,6 +11,10 @@ There are two parts to this implementation:
 
 The exact MCP server code leveraged can be found in the [src/bedrock-kb-retrieval-mcp-server](../../src/bedrock-kb-retrieval-mcp-server/) folder.
 
+### Architecture
+
+![Architecture](./assets/simplified-mcp-flow-diagram.png)
+
 ## Setup
 
 ### Prerequisites
