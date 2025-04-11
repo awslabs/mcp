@@ -79,6 +79,20 @@ The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS se
 
 [Learn more about the Cost Analysis MCP Server](servers/cost-analysis-mcp-server.md)
 
+### AWS Lambda MCP Server
+
+The AWS Lambda MCP Server enables AI assistants to select and run AWS Lambda functions as MCP tools.
+
+**Features:**
+
+- Select and run AWS Lambda functions as MCP tools
+- Tool names and descriptions are taken from the AWS Lambda function configuration
+- Filter functions by name, tag, or both
+- Use AWS credentials to invoke the Lambda functions
+
+[Learn more about the AWS Lambda MCP Server](servers/lambda-mcp-server.md)
+
+
 ### AWS Diagram MCP Server
 
 This MCP server that seamlessly creates [diagrams](https://diagrams.mingrammer.com/) using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
