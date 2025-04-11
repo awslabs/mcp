@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Script to download and extract content from AWS Terraform best practices PDF and save it as markdown."""
 
 import io

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test script for verifying parameter annotations in MCP tools."""
 
 import json

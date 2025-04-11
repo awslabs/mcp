@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+import tempfile
 import time
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -250,10 +251,13 @@ async def fetch_aws_provider_page():
             logger.info('Extracting page content')
             content = await page.content()
 
-            # Save HTML for debugging
-            with open('/tmp/terraform_aws_debug_playwright.html', 'w') as f:
-                f.write(content)
-            logger.debug('Saved rendered HTML content to /tmp/terraform_aws_debug_playwright.html')
+            # Save HTML for debugging using tempfile for security
+            with tempfile.NamedTemporaryFile(
+                prefix='terraform_aws_debug_playwright_', suffix='.html', mode='w', delete=False
+            ) as temp_file:
+                temp_file.write(content)
+                debug_file_path = temp_file.name
+            logger.debug(f'Saved rendered HTML content to {debug_file_path}')
 
             # Parse the HTML
             soup = BeautifulSoup(content, 'html.parser')

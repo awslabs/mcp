@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test script for Terraform MCP server implementation functions."""
 
 import asyncio
