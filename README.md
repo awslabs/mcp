@@ -211,6 +211,18 @@ Documentation includes:
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
 
+## Contributing
+
+Big shout out to our awesome contributors! Thank you for making this project better!
+
+[![contributors](https://contrib.rocks/image?repo=awslabs/mcp&max=2000)](https://github.com/awslabs/mcp/graphs/contributors)
+
+Contributions of all kinds are welcome! Check out our [contributor guide](CONTRIBUTING.md) for more information.
+
+## Developer guide
+
+If you want to add a new MCP Server to the library, check out our [development guide](DEVELOPER_GUIDE.md)
+
 ## License
 
 This project is licensed under the Apache-2.0 License.
