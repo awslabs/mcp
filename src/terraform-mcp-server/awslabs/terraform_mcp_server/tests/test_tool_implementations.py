@@ -31,148 +31,135 @@ from awslabs.terraform_mcp_server.impl.tools.search_specific_aws_ia_modules impo
     search_specific_aws_ia_modules_impl,
 )
 
+def print_aws_provider_results(results):
+    """
+    Print formatted results data using the provided logger.
+    
+    Args:
+        results: List of result objects containing asset information
+        logger: Logger object to use for output
+    """
+    logger.info(f'Found {len(results)} results')
+    
+    for i, result in enumerate(results):
+        logger.info(f'\nResult {i + 1}:')
+        logger.info(f'  Asset Name: {result.asset_name}')
+        logger.info(f'  Asset Type: {result.asset_type}')
+        logger.info(f'  URL: {result.url}')
+
+        # Handle description
+        if result.description:
+            description_preview = (
+                result.description[:50] + '...'
+                if len(result.description) > 50
+                else result.description
+            )
+            logger.info(f'  Description: {description_preview}')
+        else:
+            logger.info('  No description')
+
+        # Handle example usage
+        if result.example_usage:
+            logger.info(f'  Example Usage: {len(result.example_usage)} found')
+            # for j, snippet in enumerate(result.example_usage):
+            #     title = snippet.get('title', 'Example')
+            #     code = snippet.get('code', '')
+            #     code_preview = code[:100] + '...' if len(code) > 100 else code
+            #     logger.info(f'    Snippet {j + 1} - {title}: {code_preview}')
+
+        # Handle arguments
+        if result.arguments:
+            logger.info(f'  Arguments: {len(result.arguments)} found')
+            # for j, argument in enumerate(result.arguments):
+            #     logger.info(f'    Argument {j + 1}: {argument}')
+        
+        # Handle attributes
+        if result.attributes:
+            logger.info(f'  Attributes: {len(result.attributes)} found')
+            # for j, attribute in enumerate(result.attributes):
+            #     logger.info(f'    Attribute {j + 1}: {attribute}')
+
+
+def print_awscc_provider_results(results):
+    """
+    Print formatted results data using the provided logger.
+    
+    Args:
+        results: List of result objects containing asset information
+        logger: Logger object to use for output
+    """
+    logger.info(f'Found {len(results)} results')
+    
+    for i, result in enumerate(results):
+        logger.info(f'\nResult {i + 1}:')
+        logger.info(f'  Asset Name: {result.asset_name}')
+        logger.info(f'  Asset Type: {result.asset_type}')
+        logger.info(f'  URL: {result.url}')
+
+        # Handle description
+        if result.description:
+            description_preview = (
+                result.description[:50] + '...'
+                if len(result.description) > 50
+                else result.description
+            )
+            logger.info(f'  Description: {description_preview}')
+        else:
+            logger.info('  No description')
+
+        # Handle example usage
+        if result.example_usage:
+            logger.info(f'  Example Usage: {len(result.example_usage)} found')
+            # for j, snippet in enumerate(result.example_usage):
+            #     title = snippet.get('title', 'Example')
+            #     code = snippet.get('code', '')
+            #     code_preview = code[:100] + '...' if len(code) > 100 else code
+            #     logger.info(f'    Snippet {j + 1} - {title}: {code_preview}')
+
+        # Handle schema arguments
+        if result.schema_arguments:
+            logger.info(f'  Schema arguments: {len(result.schema_arguments)} found')
+            # for j, schema_argument in enumerate(result.schema_arguments):
+            #     logger.info(f'    Schema Argument {j + 1}: {schema_argument}')
+
 
 async def test_search_aws_provider_docs():
     """Test the AWS provider docs search function."""
     logger.info('=== Testing search_aws_provider_docs_impl ===')
 
     # Test case 1: Common resource with just 1 example snippet
-    logger.info('**********---Test case 1: Searching for aws_s3_bucket---**********')
-    results = await search_aws_provider_docs_impl('aws_s3_bucket')
+    logger.info('**********---Test case 1: Searching for aws_s3_bucket as a resource---**********')
+    results = await search_aws_provider_docs_impl('aws_s3_bucket', 'resource')
+    print_aws_provider_results(results)
 
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  URL: {result.url}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-        else:
-            logger.info('  No description')
+    # Test case 2: Common resource with multiple example snippets
+    logger.info('**********---Test case 2: Searching for aws_api_gateway_rest_api as a resource---**********')
+    results = await search_aws_provider_docs_impl('api_gateway_rest_api', 'resource')
+    print_aws_provider_results(results)
 
-        if result.example_snippets:
-            logger.info(f'  Example Snippets: {len(result.example_snippets)} found')
-            for j, snippet in enumerate(result.example_snippets):
-                title = snippet.get('title', 'Example')
-                code = snippet.get('code', '')
-                code_preview = code[:100] + '...' if len(code) > 100 else code
-                logger.info(f'    Snippet {j + 1} - {title}: {code_preview}')
+    # Test case 3: Common resource with multiple example snippets and multiple arguments in subsections
+    logger.info('**********---Test case 3: Searching for aws_lambda_function as a resource---**********')
+    results = await search_aws_provider_docs_impl('aws_lambda_function', 'resource')
+    print_aws_provider_results(results)
 
-    # Test case 12: Common resource with multiple example snippets
-    logger.info('**********---Test case 2: Searching for aws_api_gateway_rest_api---**********')
-    results = await search_aws_provider_docs_impl('aws_api_gateway_rest_api')
-
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  URL: {result.url}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-        else:
-            logger.info('  No description')
-
-        if result.example_snippets:
-            logger.info(f'  Example Snippets: {len(result.example_snippets)} found')
-            for j, snippet in enumerate(result.example_snippets):
-                title = snippet.get('title', 'Example')
-                code = snippet.get('code', '')
-                code_preview = code[:100] + '...' if len(code) > 100 else code
-                logger.info(f'    Snippet {j + 1} - {title}: {code_preview}')
-
-    # Test case 3: Resource with attribute
+    # Test case 4: Specifying data source as asset type
     logger.info(
-        '**********---Test case 3: Searching for aws_s3_bucket with versioning attribute---**********'
+        '**********---Test case 4: Searching for aws_lambda_function as a data source ---**********'
     )
-    results = await search_aws_provider_docs_impl('aws_s3_bucket', 'versioning')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-        else:
-            logger.info('  No description')
+    results = await search_aws_provider_docs_impl('aws_lambda_function', 'data_source')
+    print_aws_provider_results(results)
 
-    # Test case 4: Specifying resource kind
+    # Test case 5: Searching for both kinds
     logger.info(
-        '**********---Test case 4: Searching for AWS resource with specific kind---**********'
+        '**********---Test case 5: Searching for aws_dynamodb_table as both ---**********'
     )
-    results = await search_aws_provider_docs_impl('aws_dynamodb_table', None, 'resource')
+    results = await search_aws_provider_docs_impl('aws_dynamodb_table', 'both')
+    print_aws_provider_results(results)
 
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  Kind: {result.kind}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-
-    # Test case 5: Specifying data source kind
-    logger.info(
-        '**********---Test case 5: Searching for AWS data source with specific kind---**********'
-    )
-    results = await search_aws_provider_docs_impl('aws_dynamodb_table', None, 'data_source')
-
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  Kind: {result.kind}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-
-    # Test case 6: Searching for both kinds
-    logger.info(
-        '**********---Test case 6: Searching for AWS resource with both kinds---**********'
-    )
-    results = await search_aws_provider_docs_impl('aws_dynamodb_table', None, 'both')
-
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  Kind: {result.kind}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-
-    # Test case 7: Non-existent resource
-    logger.info('**********---Test case 7: Searching for non-existent resource---**********')
+    # Test case 6: Non-existent resource
+    logger.info('**********---Test case 6: Searching for non-existent resource---**********')
     results = await search_aws_provider_docs_impl('aws_nonexistent_resource')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        if result.description:
-            logger.info(f'  Description: {result.description}')
+    print_aws_provider_results(results)
 
 
 async def test_search_awscc_provider_docs():
@@ -180,136 +167,33 @@ async def test_search_awscc_provider_docs():
     logger.info('\n=== Testing search_awscc_provider_docs_impl ===')
 
     # Test case 1: Common resource
-    logger.info('**********---Test case 1: Searching for awscc_apigateway_api_key---**********')
-    results = await search_awscc_provider_docs_impl('awscc_apigateway_api_key')
-
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  URL: {result.url}')
-        logger.info(f'  Kind: {result.kind}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-        else:
-            logger.info('  No description')
-
-        if result.example_snippets:
-            logger.info(f'  Example Snippets: {len(result.example_snippets)} found')
-            for j, snippet in enumerate(result.example_snippets):
-                title = snippet.get('title', 'Example')
-                code = snippet.get('code', '')
-                code_preview = code[:100] + '...' if len(code) > 100 else code
-                logger.info(f'    Snippet {j + 1} - {title}: {code_preview}')
-
-        if result.arguments:
-            logger.info(f'  Arguments/Schema: {len(result.arguments)} found')
-            for j, arg in enumerate(result.arguments[:5]):  # Show only first 5 arguments
-                name = arg.get('name', '')
-                desc = arg.get('description', '')
-                desc_preview = desc[:50] + '...' if len(desc) > 50 else desc
-                logger.info(f'    Argument {j + 1}: {name} - {desc_preview}')
+    logger.info('**********---Test case 1: Searching for awscc_apigateway_api_key as a resource---**********')
+    results = await search_awscc_provider_docs_impl('awscc_apigateway_api_key', 'resource')
+    print_awscc_provider_results(results)
 
     # Test case 2: Resource with attribute
     logger.info(
-        '**********---Test case 2: Searching for awscc_apigateway_api_key with name attribute---**********'
+        '**********---Test case 2: Searching for awscc_apigateway_api_key as a data source---**********'
     )
-    results = await search_awscc_provider_docs_impl('awscc_apigateway_api_key', 'name')
+    results = await search_awscc_provider_docs_impl('awscc_apigateway_api_key', 'data_source')
+    print_awscc_provider_results(results)
 
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  Kind: {result.kind}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
+    # Test case 3: lambda_function resource
+    logger.info('**********---Test case 7: Searching for lambda_function as a resource---**********')
+    results = await search_awscc_provider_docs_impl('lambda_function', 'resource')
+    print_awscc_provider_results(results)
 
-    # Test case 3: Specifying resource kind
+    # Test case 4: Searching for both kinds
     logger.info(
-        '**********---Test case 3: Searching for AWSCC resource with specific kind---**********'
+        '**********---Test case 4: Searching for lambda_function as both kinds---**********'
     )
-    results = await search_awscc_provider_docs_impl('awscc_apigateway_api_key', None, 'resource')
+    results = await search_awscc_provider_docs_impl('awscc_lambda_function', 'both')
+    print_awscc_provider_results(results)
 
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  Kind: {result.kind}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-
-    # Test case 4: Specifying data source kind
-    logger.info(
-        '**********---Test case 4: Searching for AWSCC data source with specific kind---**********'
-    )
-    results = await search_awscc_provider_docs_impl(
-        'awscc_apigateway_api_key', None, 'data_source'
-    )
-
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  Kind: {result.kind}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-
-    # Test case 5: Searching for both kinds
-    logger.info(
-        '**********---Test case 5: Searching for AWSCC resource with both kinds---**********'
-    )
-    results = await search_awscc_provider_docs_impl('awscc_apigateway_api_key', None, 'both')
-
-    logger.info(f'Found {len(results)} results')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        logger.info(f'  Kind: {result.kind}')
-        if result.description:
-            description_preview = (
-                result.description[:100] + '...'
-                if len(result.description) > 100
-                else result.description
-            )
-            logger.info(f'  Description: {description_preview}')
-
-    # Test case 6: Non-existent resource
-    logger.info('**********---Test case 6: Searching for non-existent resource---**********')
+    # Test case 5: Non-existent resource
+    logger.info('**********---Test case 5: Searching for non-existent resource---**********')
     results = await search_awscc_provider_docs_impl('awscc_nonexistent_resource')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        if result.description:
-            logger.info(f'  Description: {result.description}')
-
-    # Test case 7: lambda_function resource
-    logger.info('**********---Test case 7: Searching for lambda_function resource---**********')
-    results = await search_awscc_provider_docs_impl('lambda_function', kind='resource')
-    for i, result in enumerate(results):
-        logger.info(f'\nResult {i + 1}:')
-        logger.info(f'  Resource Name: {result.resource_name}')
-        if result.description:
-            logger.info(f'  Description: {result.description}')
+    print_awscc_provider_results(results)
 
 
 async def test_search_specific_aws_ia_modules():
@@ -430,7 +314,7 @@ def format_json(obj: Any) -> str:
 async def main():
     """Run all tests."""
     try:
-        # await test_search_aws_provider_docs()
+        await test_search_aws_provider_docs()
         await test_search_awscc_provider_docs()
         # await test_search_specific_aws_ia_modules()
         # Commented out as they require terraform configurations

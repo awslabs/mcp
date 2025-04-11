@@ -4,7 +4,7 @@
 import argparse
 import os
 import sys
-from typing import List, Optional
+from typing import List
 
 
 # Add the parent directory to the Python path
@@ -29,7 +29,8 @@ from awslabs.terraform_mcp_server.models import (
     CheckovScanRequest,
     CheckovScanResult,
     ModuleSearchResult,
-    ProviderDocsResult,
+    TerraformAWSProviderDocsResult,
+    TerraformAWSCCProviderDocsResult,
     TerraformExecutionRequest,
     TerraformExecutionResult,
 )
@@ -69,85 +70,84 @@ async def execute_terraform_command(
 
 @mcp.tool(name='SearchAwsProviderDocs')
 async def search_aws_provider_docs(
-    resource_type: str, attribute: Optional[str] = None, kind: str = 'both'
-) -> List[ProviderDocsResult]:
+    asset_name: str, asset_type: str = 'resource'
+) -> List[TerraformAWSProviderDocsResult]:
     """Search AWS provider documentation for resources and attributes.
 
     This tool searches the Terraform AWS provider documentation for information about
-    specific resource types and their attributes. It retrieves comprehensive details including
-    descriptions, example code snippets, argument references, and attribute references.
+    a specific asset in the AWS Provider Documentation, assets can be either resources or data sources. It retrieves comprehensive details including descriptions, example code snippets, argument references, and attribute references.
 
-    Use the 'kind' parameter to specify if you are looking for information about provider resources, data sources, or both.
+    Use the 'asset_type' parameter to specify if you are looking for information about provider resources, data sources, or both. Valid values are 'resource', 'data_source' or 'both'.
     
     The tool will automatically handle prefixes - you can search for either 'aws_s3_bucket' or 's3_bucket'.
 
     Examples:
         - To get documentation for an S3 bucket resource:
-          search_aws_provider_docs(resource_type='aws_s3_bucket')
-        
-        - To find information about a specific attribute:
-          search_aws_provider_docs(resource_type='aws_lambda_function', attribute='runtime')
+          search_aws_provider_docs(asset_name='aws_s3_bucket')
         
         - To search only for data sources:
-          search_aws_provider_docs(resource_type='aws_ami', kind='data_source')
+          search_aws_provider_docs(asset_name='aws_ami', asset_type='data_source')
         
-        - To search only for resources:
-          search_aws_provider_docs(resource_type='aws_instance', kind='resource')
+        - To search for both resource and data source documentation of a given name:
+          search_aws_provider_docs(asset_name='aws_instance', asset_type='both')
 
     Parameters:
-        resource_type: AWS resource type (e.g., 'aws_s3_bucket', 'aws_lambda_function')
-        attribute: Optional specific attribute to search for
-        kind: Type of documentation to search - 'resource', 'data_source', or 'both' (default)
+        asset_name: Name of the service (asset) to look for (e.g., 'aws_s3_bucket', 'aws_lambda_function')
+        asset_type: Type of documentation to search - 'resource' (default), 'data_source', or 'both'
 
     Returns:
         A list of matching documentation entries with details including:
         - Resource name and description
+        - URL to the official documentation
         - Example code snippets
         - Arguments with descriptions
         - Attributes with descriptions
-        - URL to the official documentation
     """
-    return await search_aws_provider_docs_impl(resource_type, attribute, kind)
+    return await search_aws_provider_docs_impl(asset_name, asset_type)
 
 
 @mcp.tool(name='SearchAwsccProviderDocs')
 async def search_awscc_provider_docs(
-    resource_type: str, attribute: Optional[str] = None
-) -> List[ProviderDocsResult]:
+    asset_name: str, asset_type: str = 'resource'
+) -> List[TerraformAWSCCProviderDocsResult]:
     """Search AWSCC provider documentation for resources and attributes.
 
-    This tool searches the Terraform AWSCC provider documentation for information about
-    specific resource types and their attributes. The AWSCC provider is based on the AWS Cloud Control API
+    The AWSCC provider is based on the AWS Cloud Control API
     and provides a more consistent interface to AWS resources compared to the standard AWS provider.
 
-    The tool retrieves comprehensive details including descriptions, example code snippets,
-    and schema information (required, optional, and read-only attributes).
+    This tool searches the Terraform AWSCC provider documentation for information about
+    a specific asset in the AWSCC Provider Documentation, assets can be either resources or data sources. It retrieves comprehensive details including descriptions, example code snippets, and schema references.
+
+    Use the 'asset_type' parameter to specify if you are looking for information about provider resources, data sources, or both. Valid values are 'resource', 'data_source' or 'both'.
     
     The tool will automatically handle prefixes - you can search for either 'awscc_s3_bucket' or 's3_bucket'.
 
     Examples:
         - To get documentation for an S3 bucket resource:
-          search_awscc_provider_docs(resource_type='awscc_s3_bucket')
+          search_awscc_provider_docs(asset_name='awscc_s3_bucket')
+          search_awscc_provider_docs(asset_name='awscc_s3_bucket', asset_type='resource')
+
+        - To search only for data sources:
+          search_aws_provider_docs(asset_name='awscc_appsync_api', kind='data_source')
         
-        - To find information about a specific attribute:
-          search_awscc_provider_docs(resource_type='awscc_lambda_function', attribute='code')
+        - To search for both resource and data source documentation of a given name:
+          search_aws_provider_docs(asset_name='awscc_appsync_api', kind='both')
         
-        - Without the prefix:
+        - Search of a resource without the prefix:
           search_awscc_provider_docs(resource_type='ec2_instance')
 
     Parameters:
-        resource_type: AWSCC resource type (e.g., 'awscc_s3_bucket', 'awscc_lambda_function')
-        attribute: Optional specific attribute to search for
+        asset_name: Name of the AWSCC Provider resource or data source to look for (e.g., 'awscc_s3_bucket', 'awscc_lambda_function')
+        asset_type: Type of documentation to search - 'resource' (default), 'data_source', or 'both'. Some resources and data sources share the same name
 
     Returns:
         A list of matching documentation entries with details including:
         - Resource name and description
-        - Example code snippets
-        - Schema information (required, optional, and read-only attributes)
-        - Nested schema structures for complex attributes
         - URL to the official documentation
+        - Example code snippets
+        - Schema information (required, optional, read-only, and nested structures attributes)
     """
-    return await search_awscc_provider_docs_impl(resource_type, attribute)
+    return await search_awscc_provider_docs_impl(asset_name, asset_type)
 
 
 @mcp.tool(name='SearchSpecificAwsIaModules')
@@ -240,28 +240,6 @@ async def fix_checkov_vulnerabilities(request: CheckovFixRequest) -> CheckovFixR
     return await run_checkov_fix_impl(request)
 
 
-@mcp.tool(name='ParseAwsccDataSourceDocs')
-async def parse_awscc_data_source_docs(
-    url: str, resource_type: str, attribute: Optional[str] = None
-) -> ProviderDocsResult:
-    """Parse AWSCC data source documentation from a URL.
-
-    This tool parses the Terraform AWSCC provider data source documentation from a URL
-    and returns a structured representation of the documentation. It is specifically
-    designed to handle the format of data source documentation, which differs from
-    resource documentation.
-
-    Parameters:
-        url: URL to the data source documentation (e.g., 'https://raw.githubusercontent.com/hashicorp/terraform-provider-awscc/main/docs/data-sources/lambda_function.md')
-        resource_type: AWSCC resource type (e.g., 'awscc_lambda_function')
-        attribute: Optional specific attribute to search for
-
-    Returns:
-        A ProviderDocsResult object containing the parsed documentation
-    """
-    return await parse_awscc_data_source_docs_impl(url, resource_type, attribute)
-
-
 # * Resources
 @mcp.resource(
     name='terraform_development_workflow',
@@ -309,24 +287,21 @@ async def terraform_aws_best_practices() -> str:
 
 # Add parameter descriptions for tools
 # SearchAwsProviderDocs
-search_tool = mcp._tool_manager.get_tool('SearchAwsProviderDocs')
-search_tool.parameters['properties']['resource_type']['description'] = (
-    'AWS resource type (e.g., aws_s3_bucket, aws_lambda_function)'
+aws_docs_tool = mcp._tool_manager.get_tool('SearchAwsProviderDocs')
+aws_docs_tool.parameters['properties']['asset_name']['description'] = (
+    'Name of the AWS service (asset) to look for (e.g., "aws_s3_bucket", "aws_lambda_function")'
 )
-search_tool.parameters['properties']['attribute']['description'] = (
-    'Optional specific attribute to search for within the resource type documentation'
-)
-search_tool.parameters['properties']['kind']['description'] = (
+aws_docs_tool.parameters['properties']['asset_type']['description'] = (
     "Type of documentation to search - 'resource', 'data_source', or 'both' (default)"
 )
 
 # SearchAwsccProviderDocs
 awscc_docs_tool = mcp._tool_manager.get_tool('SearchAwsccProviderDocs')
-awscc_docs_tool.parameters['properties']['resource_type']['description'] = (
-    'AWSCC resource type (e.g., awscc_s3_bucket, awscc_lambda_function)'
+awscc_docs_tool.parameters['properties']['asset_name']['description'] = (
+    'Name of the AWSCC service (asset) to look for (e.g., awscc_s3_bucket, awscc_lambda_function)'
 )
-awscc_docs_tool.parameters['properties']['attribute']['description'] = (
-    'Optional specific attribute to search for within the resource type documentation'
+awscc_docs_tool.parameters['properties']['asset_type']['description'] = (
+    "Type of documentation to search - 'resource', 'data_source', or 'both' (default)"
 )
 
 # SearchSpecificAwsIaModules
@@ -394,18 +369,6 @@ if 'properties' in checkov_fix_tool.parameters['properties']['request']:
         props['vulnerability_ids']['description'] = 'List of vulnerability IDs to fix'
     if 'backup_files' in props:
         props['backup_files']['description'] = 'Whether to create backup files before fixing'
-
-# ParseAwsccDataSourceDocs
-parse_data_source_tool = mcp._tool_manager.get_tool('ParseAwsccDataSourceDocs')
-parse_data_source_tool.parameters['properties']['url']['description'] = (
-    'URL to the data source documentation (e.g., https://raw.githubusercontent.com/hashicorp/terraform-provider-awscc/main/docs/data-sources/lambda_function.md)'
-)
-parse_data_source_tool.parameters['properties']['resource_type']['description'] = (
-    'AWSCC resource type (e.g., awscc_lambda_function)'
-)
-parse_data_source_tool.parameters['properties']['attribute']['description'] = (
-    'Optional specific attribute to search for within the data source documentation'
-)
 
 
 def main():

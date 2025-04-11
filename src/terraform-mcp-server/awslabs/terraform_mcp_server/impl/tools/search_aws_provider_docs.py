@@ -5,7 +5,7 @@ import requests
 import sys
 import time
 import traceback
-from ...models import ProviderDocsResult
+from ...models import TerraformAWSProviderDocsResult
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -23,7 +23,6 @@ logger.configure(
     ]
 )
 
-
 # Path to the static markdown file
 STATIC_RESOURCES_PATH = (
     Path(__file__).parent.parent.parent / 'static' / 'AWS_PROVIDER_RESOURCES.md'
@@ -40,80 +39,82 @@ _GITHUB_DOC_CACHE = {}
 
 
 def resource_to_github_path(
-    resource_type: str, correlation_id: str = '', doc_kind: str = 'resource'
+    asset_name: str, asset_type: str = 'resource', correlation_id: str = ''
 ) -> Tuple[str, str]:
     """Convert AWS resource type to GitHub documentation file path.
 
     Args:
-        resource_type: The resource type (e.g., 'aws_s3_bucket')
+        asset_name: The name of the asset to search (e.g., 'aws_s3_bucket')
+        asset_type: Type of asset to search for - 'resource' or 'data_source'
         correlation_id: Identifier for tracking this request in logs
-        doc_kind: Type of document to search for - 'resource', 'data_source', or 'both' (default: 'resource')
 
     Returns:
         A tuple of (path, url) for the GitHub documentation file
     """
     # Remove the 'aws_' prefix if present
-    if resource_type.startswith('aws_'):
-        resource_name = resource_type[4:]
-        logger.debug(f"[{correlation_id}] Removed 'aws_' prefix: {resource_name}")
+    if asset_name.startswith('aws_'):
+        resource_name = asset_name[4:]
+        logger.trace(f"[{correlation_id}] Removed 'aws_' prefix: {resource_name}")
     else:
-        resource_name = resource_type
-        logger.debug(f"[{correlation_id}] No 'aws_' prefix to remove: {resource_name}")
+        resource_name = asset_name
+        logger.trace(f"[{correlation_id}] No 'aws_' prefix to remove: {resource_name}")
 
-    # Determine document type based on doc_kind parameter
-    if doc_kind == 'data_source':
+    # Determine document type based on asset_type parameter
+    if asset_type == 'data_source':
         doc_type = 'd'  # data sources
-    elif doc_kind == 'resource':
+    elif asset_type == 'resource':
         doc_type = 'r'  # resources
     else:
         # For "both" or any other value, determine based on name pattern
         # Data sources typically have 'data' in the name or follow other patterns
-        is_data_source = 'data' in resource_type.lower()
+        is_data_source = 'data' in asset_name.lower()
         doc_type = 'd' if is_data_source else 'r'
 
     # Create the file path for the markdown documentation
     file_path = f'{doc_type}/{resource_name}.html.markdown'
-    logger.debug(f'[{correlation_id}] Constructed GitHub file path: {file_path}')
+    logger.trace(f'[{correlation_id}] Constructed GitHub file path: {file_path}')
 
     # Create the full URL to the raw GitHub content
     github_url = f'{GITHUB_RAW_BASE_URL}/{file_path}'
-    logger.debug(f'[{correlation_id}] GitHub raw URL: {github_url}')
+    logger.trace(f'[{correlation_id}] GitHub raw URL: {github_url}')
 
     return file_path, github_url
 
 
 def fetch_github_documentation(
-    resource_type: str, correlation_id: str = '', doc_kind: str = 'resource'
+    asset_name: str, asset_type: str, cache_enabled: bool, correlation_id: str = ''
 ) -> Optional[Dict[str, Any]]:
     """Fetch documentation from GitHub for a specific resource type.
 
     Args:
-        resource_type: The resource type (e.g., 'aws_s3_bucket')
+        asset_name: The asset name (e.g., 'aws_s3_bucket')
+        asset_type: Either 'resource' or 'data_source'
+        cache_enabled: Whether local cache is enabled or not
         correlation_id: Identifier for tracking this request in logs
-        doc_kind: Type of document to search for - 'resource', 'data_source', or 'both' (default: 'resource')
 
     Returns:
         Dictionary with markdown content and metadata, or None if not found
     """
     start_time = time.time()
-    logger.info(f"[{correlation_id}] Fetching documentation from GitHub for '{resource_type}'")
+    logger.info(f"[{correlation_id}] Fetching documentation from GitHub for '{asset_name}'")
 
-    # Create a cache key that includes both resource_type and doc_kind
-    cache_key = f'{resource_type}_{doc_kind}'
+    # Create a cache key that includes both asset_name and asset_type
+    cache_key = f'{asset_name}_{asset_type}'
 
     # Check cache first
-    if cache_key in _GITHUB_DOC_CACHE:
-        logger.info(
-            f"[{correlation_id}] Using cached documentation for '{resource_type}' (kind: {doc_kind})"
-        )
-        return _GITHUB_DOC_CACHE[cache_key]
+    if cache_enabled:
+        if cache_key in _GITHUB_DOC_CACHE:
+            logger.info(
+                f"[{correlation_id}] Using cached documentation for '{asset_name}' (asset_type: {asset_type})"
+            )
+            return _GITHUB_DOC_CACHE[cache_key]
 
     try:
         # Convert resource type to GitHub path and URL
-        _, github_url = resource_to_github_path(resource_type, correlation_id, doc_kind)
+        _, github_url = resource_to_github_path(asset_name, asset_type, correlation_id)
 
         # Fetch the markdown content from GitHub
-        logger.debug(f'[{correlation_id}] Fetching from GitHub: {github_url}')
+        logger.info(f'[{correlation_id}] Fetching from GitHub URL: {github_url}')
         response = requests.get(github_url, timeout=10)
 
         if response.status_code != 200:
@@ -128,17 +129,18 @@ def fetch_github_documentation(
 
         if content_length > 0:
             preview_length = min(200, content_length)
-            logger.debug(
+            logger.trace(
                 f'[{correlation_id}] Markdown preview: {markdown_content[:preview_length]}...'
             )
 
         # Parse the markdown content
         result = parse_markdown_documentation(
-            markdown_content, resource_type, github_url, correlation_id
+            markdown_content, asset_name, github_url, correlation_id
         )
 
         # Cache the result with the composite key
-        _GITHUB_DOC_CACHE[cache_key] = result
+        if cache_enabled:
+            _GITHUB_DOC_CACHE[cache_key] = result
 
         fetch_time = time.time() - start_time
         logger.info(f'[{correlation_id}] GitHub documentation fetched in {fetch_time:.2f} seconds')
@@ -158,43 +160,38 @@ def fetch_github_documentation(
 
 def parse_markdown_documentation(
     content: str,
-    resource_type: str,
+    asset_name: str,
     url: str,
-    correlation_id: str = '',
-    attribute: Optional[str] = None,
+    correlation_id: str = ''
 ) -> Dict[str, Any]:
     """Parse markdown documentation content for a resource.
 
     Args:
         content: The markdown content
-        resource_type: The resource type
+        asset_name: The asset name
         url: The source URL for this documentation
         correlation_id: Identifier for tracking this request in logs
-        attribute: Optional attribute to look for
 
     Returns:
         Dictionary with parsed documentation details
     """
     start_time = time.time()
-    logger.debug(f"[{correlation_id}] Parsing markdown documentation for '{resource_type}'")
+    logger.debug(f"[{correlation_id}] Parsing markdown documentation for '{asset_name}'")
 
     try:
-        # Extract description: First paragraph after page title
-        description = ''
-        attribute_info = None
-
         # Find the title (typically the first heading)
         title_match = re.search(r'^#\s+(.*?)$', content, re.MULTILINE)
         if title_match:
             title = title_match.group(1).strip()
             logger.debug(f"[{correlation_id}] Found title: '{title}'")
         else:
-            title = f'AWS {resource_type}'
+            title = f'AWS {asset_name}'
             logger.debug(f"[{correlation_id}] No title found, using default: '{title}'")
 
-        # Find the main resource description section (all content after resource title before next heading)
+        # Find the main description section (all content after resource title before next heading)
+        description = ''
         resource_heading_pattern = re.compile(
-            rf'# Resource: {re.escape(resource_type)}\s*(.*?)(?=\n##|\Z)', re.DOTALL
+            rf'# Resource: {re.escape(asset_name)}\s*(.*?)(?=\n##|\Z)', re.DOTALL
         )
         resource_match = resource_heading_pattern.search(content)
 
@@ -205,15 +202,15 @@ def parse_markdown_documentation(
                 f"[{correlation_id}] Found resource description section: '{description[:100]}...'"
             )
         else:
-            # Fall back to the first non-heading paragraph if resource section not found
-            desc_match = re.search(r'^(?!#)(.+?)$', content, re.MULTILINE)
+            # Fall back to the description found on the starting markdown table of each github markdown page
+            desc_match = re.search(r'description:\s*\|-\n(.*?)\n---', content, re.MULTILINE)
             if desc_match:
                 description = desc_match.group(1).strip()
                 logger.debug(
                     f"[{correlation_id}] Using fallback description: '{description[:100]}...'"
                 )
             else:
-                description = f'Documentation for AWS {resource_type}'
+                description = f'Documentation for AWS {asset_name}'
                 logger.debug(f'[{correlation_id}] No description found, using default')
 
         # Find all example snippets
@@ -249,7 +246,7 @@ def parse_markdown_documentation(
                     f"[{correlation_id}] Found subheading '{title}' with {len(subcontent)} chars content"
                 )
 
-                # Find code blocks in this subsection - improved pattern to match terraform code blocks
+                # Find code blocks in this subsection - pattern to match terraform code blocks
                 code_match = re.search(r'```(?:terraform|hcl)?\s*(.*?)```', subcontent, re.DOTALL)
                 if code_match:
                     code_snippet = code_match.group(1).strip()
@@ -284,121 +281,93 @@ def parse_markdown_documentation(
         else:
             logger.debug(f'[{correlation_id}] No Example Usage section found')
 
-            # Fallback: Look for any code block that contains the resource type
-            code_block_pattern = re.compile(r'```(?:terraform|hcl)?\s*(.*?)\n```', re.DOTALL)
-            for code_match in code_block_pattern.finditer(content):
-                code_content = code_match.group(1).strip()
-                if resource_type in code_content and 'resource' in code_content:
-                    example_snippets.append({'title': 'Example Usage', 'code': code_content})
-                    logger.debug(
-                        f'[{correlation_id}] Found resource-specific code example via fallback ({len(code_content)} chars)'
-                    )
-                    break
-
         if example_snippets:
-            logger.debug(f'[{correlation_id}] Found {len(example_snippets)} example snippets')
+            logger.info(f'[{correlation_id}] Found {len(example_snippets)} example snippets')
         else:
             logger.debug(f'[{correlation_id}] No example snippets found')
 
-        # Find attribute information if specified
-        if attribute:
-            logger.debug(f"[{correlation_id}] Looking for info about attribute '{attribute}'")
-
-            # Look in argument reference section
-            arg_ref_match = re.search(
-                r'## Argument Reference\s+(.*?)(?=##|\Z)', content, re.DOTALL
-            )
-            if arg_ref_match:
-                arg_ref_content = arg_ref_match.group(1)
-
-                # Pattern to match attributes with formatting: `attribute` - Description
-                # Also handles indentation and multiline descriptions
-                attr_pattern = re.compile(
-                    rf'[*-]\s+[`"]?{re.escape(attribute)}[`"]?\s*-\s*(.*?)(?=\n\s*[*-]|\n##|\Z)',
-                    re.DOTALL,
-                )
-                attr_match = attr_pattern.search(arg_ref_content)
-
-                if attr_match:
-                    # Clean up the attribute description - remove excessive whitespace and newlines
-                    attribute_info = re.sub(r'\s+', ' ', attr_match.group(1).strip())
-                    logger.debug(
-                        f"[{correlation_id}] Found attribute info: '{attribute_info[:100]}...'"
-                    )
-                else:
-                    # Try alternative format where attribute might be alone on a line
-                    alt_pattern = re.compile(
-                        rf'[*-]\s+[`"]?{re.escape(attribute)}[`"]?[^-\n]*\n\s+(.*?)(?=\n\s*[*-]|\n##|\Z)',
-                        re.DOTALL,
-                    )
-                    alt_match = alt_pattern.search(arg_ref_content)
-
-                    if alt_match:
-                        attribute_info = re.sub(r'\s+', ' ', alt_match.group(1).strip())
-                        logger.debug(
-                            f"[{correlation_id}] Found attribute info with alternative pattern: '{attribute_info[:100]}...'"
-                        )
-                    # Fall back to searching for just the attribute name in the section
-                    elif attribute in arg_ref_content:
-                        attribute_info = f"The '{attribute}' attribute is mentioned in the argument reference section."
-                        logger.debug(
-                            f'[{correlation_id}] Attribute mentioned but details not found'
-                        )
-
-            # If not found in argument reference, check attribute reference section
-            if not attribute_info:
-                attr_ref_match = re.search(
-                    r'## Attribute Reference\s+(.*?)(?=##|\Z)', content, re.DOTALL
-                )
-                if attr_ref_match:
-                    # Apply the same patterns to the attribute reference section
-                    attr_content = attr_ref_match.group(1)
-                    attr_pattern = re.compile(
-                        rf'[*-]\s+[`"]?{re.escape(attribute)}[`"]?\s*-\s*(.*?)(?=\n\s*[*-]|\n##|\Z)',
-                        re.DOTALL,
-                    )
-                    attr_match = attr_pattern.search(attr_content)
-
-                    if attr_match:
-                        attribute_info = re.sub(r'\s+', ' ', attr_match.group(1).strip())
-                        logger.debug(
-                            f"[{correlation_id}] Found attribute info in attribute reference section: '{attribute_info[:100]}...'"
-                        )
-                    elif attribute in attr_content:
-                        attribute_info = f"The '{attribute}' attribute is mentioned in the attribute reference section."
-                        logger.debug(
-                            f'[{correlation_id}] Attribute mentioned in attribute reference section but details not found'
-                        )
-
         # Extract Arguments Reference section
         arguments = []
-        arg_ref_match = re.search(r'## Argument Reference\n([\s\S]*?)(?=\n## |\Z)', content)
-        if arg_ref_match:
-            arg_section = arg_ref_match.group(1).strip()
+        arg_ref_section_match = re.search(r'## Argument Reference\n([\s\S]*?)(?=\n## |\Z)', content)
+        if arg_ref_section_match:
+            arg_section = arg_ref_section_match.group(1).strip()
             logger.debug(
                 f'[{correlation_id}] Found Argument Reference section ({len(arg_section)} chars)'
             )
 
-            # Parse arguments - typically in list format with bullet points
-            arg_matches = re.finditer(
-                r'[*-]\s+[`"]?([^`":\n]+)[`"]?(?:[`":\s-]+)?(.*?)(?=\n[*-]|\n\n|\Z)',
-                arg_section,
-                re.DOTALL,
-            )
-            arg_list = list(arg_matches)
-            logger.debug(
-                f'[{correlation_id}] Found {len(arg_list)} arguments in Argument Reference section'
-            )
-
-            for match in arg_list:
-                arg_name = match.group(1).strip()
-                arg_desc = match.group(2).strip() if match.group(2) else 'No description available'
-                arguments.append({'name': arg_name, 'description': arg_desc})
+            # Look for arguments directly under the main Argument Reference section
+            args_under_main_section_match = re.search(r'(.*?)(?=\n###|\n##|$)', arg_section, re.DOTALL)
+            if args_under_main_section_match:
+                args_under_main_section = args_under_main_section_match.group(1).strip()
                 logger.debug(
-                    f"[{correlation_id}] Added argument '{arg_name}': '{arg_desc[:50]}...' (truncated)"
+                    f'[{correlation_id}] Found arguments directly under the Argument Reference section ({len(args_under_main_section)} chars)'
                 )
 
+                # Find arguments in this subsection
+                arg_matches = re.finditer(
+                    r'\*\s+`([^`]+)`\s+-\s+(.*?)(?=\n\*\s+`|$)',
+                    args_under_main_section,
+                    re.DOTALL,
+                )
+                arg_list = list(arg_matches)
+                logger.debug(
+                    f'[{correlation_id}] Found {len(arg_list)} arguments directly under the Argument Reference section'
+                )
+
+                for match in arg_list:
+                    arg_name = match.group(1).strip()
+                    arg_desc = match.group(2).strip() if match.group(2) else None
+                    # Do not add arguments that do not have a description
+                    if arg_name is not None and arg_desc is not None:
+                        arguments.append({'name': arg_name, 'description': arg_desc, 'argument_section': "main"})
+                    logger.debug(
+                        f"[{correlation_id}] Added argument '{arg_name}': '{arg_desc[:50]}...' (truncated)"
+                    )
+
+            # Now, Find all subheadings in the Argument Reference section with a more robust pattern
+            subheading_list = list(
+                re.finditer(r'### (.*?)[\r\n]+(.*?)(?=###|\Z)', arg_section, re.DOTALL)
+            )
+            logger.debug(
+                f'[{correlation_id}] Found {len(subheading_list)} subheadings in Argument Reference section'
+            )
+            subheading_found = False
+
+            # Check if there are any subheadings
+            for match in subheading_list:
+                subheading_found = True
+                title = match.group(1).strip()
+                subcontent = match.group(2).strip()
+                logger.debug(
+                    f"[{correlation_id}] Found subheading '{title}' with {len(subcontent)} chars content"
+                )
+
+                # Find arguments in this subsection
+                arg_matches = re.finditer(
+                    r'\*\s+`([^`]+)`\s+-\s+(.*?)(?=\n\*\s+`|$)',
+                    subcontent,
+                    re.DOTALL,
+                )
+                arg_list = list(arg_matches)
+                logger.debug(
+                    f'[{correlation_id}] Found {len(arg_list)} arguments in subheading {title}'
+                )
+
+                for match in arg_list:
+                    arg_name = match.group(1).strip()
+                    arg_desc = match.group(2).strip() if match.group(2) else None
+                    # Do not add arguments that do not have a description
+                    if arg_name is not None and arg_desc is not None:
+                        arguments.append({'name': arg_name, 'description': arg_desc, 'argument_section': title})
+                    logger.debug(
+                        f"[{correlation_id}] Added argument '{arg_name}': '{arg_desc[:50]}...' (truncated)"
+                    )
+
             arguments = arguments if arguments else None
+            if arguments:
+                logger.info(f'[{correlation_id}] Found {len(arguments)} arguments across all sections')
+
+            
         else:
             logger.debug(f'[{correlation_id}] No Argument Reference section found')
 
@@ -433,6 +402,8 @@ def parse_markdown_documentation(
                 )
 
             attributes = attributes if attributes else None
+            if attributes:
+                logger.info(f'[{correlation_id}] Found {len(attributes)} attributes')
         else:
             logger.debug(f'[{correlation_id}] No Attribute Reference section found')
 
@@ -444,7 +415,6 @@ def parse_markdown_documentation(
             'title': title,
             'description': description,
             'example_snippets': example_snippets,
-            'attribute_info': attribute_info,
             'url': url,
             'arguments': arguments,
             'attributes': attributes,
@@ -456,67 +426,60 @@ def parse_markdown_documentation(
 
         # Return partial info if available
         return {
-            'title': f'AWS {resource_type}',
-            'description': f'Documentation for AWS {resource_type} (Error parsing details: {str(e)})',
-            'example_snippets': None,
-            'attribute_info': None,
+            'title': f'AWS {asset_name}',
+            'description': f'Documentation for AWS {asset_name} (Error parsing details: {str(e)})',
             'url': url,
+            'example_snippets': None,
             'arguments': None,
             'attributes': None,
         }
 
 
 async def search_aws_provider_docs_impl(
-    resource_type: str, attribute: Optional[str] = None, kind: str = 'both'
-) -> List[ProviderDocsResult]:
-    """Search AWS provider documentation for resources and attributes.
+    asset_name: str, asset_type: str = 'resource', cache_enabled: bool = False
+) -> List[TerraformAWSProviderDocsResult]:
+    """Search AWS provider documentation for resources and data sources.
 
     This tool searches the Terraform AWS provider documentation for information about
-    specific resource types and their attributes. It retrieves comprehensive details including
+    specific assets, which can either be resources or data sources. It retrieves comprehensive details including
     descriptions, example code snippets, argument references, and attribute references.
 
     The implementation fetches documentation directly from the official Terraform AWS provider
     GitHub repository to ensure the most up-to-date information. Results are cached for
     improved performance on subsequent queries.
 
-    Use the 'kind' parameter to specify if you are looking for information about provider 
+    Use the 'asset_type' parameter to specify if you are looking for information about provider 
     resources, data sources, or both. The tool will automatically handle prefixes - you can 
     search for either 'aws_s3_bucket' or 's3_bucket'.
 
     Examples:
         - To get documentation for an S3 bucket resource:
-          search_aws_provider_docs_impl(resource_type='aws_s3_bucket')
-        
-        - To find information about a specific attribute:
-          search_aws_provider_docs_impl(resource_type='aws_lambda_function', attribute='runtime')
+          search_aws_provider_docs_impl(asset_name='aws_s3_bucket')
         
         - To search only for data sources:
-          search_aws_provider_docs_impl(resource_type='aws_ami', kind='data_source')
+          search_aws_provider_docs_impl(asset_name='aws_ami', asset_type='data_source')
         
         - To search only for resources:
-          search_aws_provider_docs_impl(resource_type='aws_instance', kind='resource')
+          search_aws_provider_docs_impl(asset_name='aws_instance', asset_type='resource')
 
     Parameters:
-        resource_type: AWS resource type (e.g., 'aws_s3_bucket', 'aws_lambda_function')
-        attribute: Optional specific attribute to search for
-        kind: Type of documentation to search - 'resource', 'data_source', or 'both' (default)
+        asset_name: Name of the AWS Provider resource or data source to look for (e.g., 'aws_s3_bucket', 'aws_lambda_function')
+        asset_type: Type of documentation to search - 'resource' (default), 'data_source', or 'both'. Some resources and data sources share the same name.
+        cache_enabled: Whether the local cache of results is enabled or not
 
     Returns:
         A list of matching documentation entries with details including:
-        - Resource name and description
+        - Asset name, type, and description
+        - URL to the official documentation
         - Example code snippets
         - Arguments with descriptions
         - Attributes with descriptions
-        - URL to the official documentation
     """
     start_time = time.time()
     correlation_id = f'search-{int(start_time * 1000)}'
-    logger.info(f"[{correlation_id}] Starting AWS provider docs search for '{resource_type}'")
+    logger.info(f"[{correlation_id}] Starting AWS provider docs search for '{asset_name}'")
 
-    if attribute:
-        logger.info(f"[{correlation_id}] Also searching for attribute '{attribute}'")
-
-    search_term = resource_type.lower()
+    search_term = asset_name.lower()
 
     try:
         # Try fetching from GitHub
@@ -524,47 +487,43 @@ async def search_aws_provider_docs_impl(
 
         results = []
 
-        # If kind is "both", try both resource and data source paths
-        if kind == 'both':
+        # If asset_type is "both", try both resource and data source paths
+        if asset_type == 'both':
             logger.info(f'[{correlation_id}] Searching for both resources and data sources')
 
             # First try as a resource
-            github_result = fetch_github_documentation(search_term, correlation_id, 'resource')
+            github_result = fetch_github_documentation(search_term, 'resource', cache_enabled, correlation_id)
             if github_result:
                 logger.info(f'[{correlation_id}] Found documentation as a resource')
                 # Create result object
                 description = github_result['description']
-                if attribute and github_result.get('attribute_info'):
-                    description += f' {github_result["attribute_info"]}'
 
-                result = ProviderDocsResult(
-                    resource_name=resource_type,
-                    url=github_result['url'],
+                result = TerraformAWSProviderDocsResult(
+                    asset_name=asset_name,
+                    asset_type='resource',
                     description=description,
-                    example_snippets=github_result.get('example_snippets'),
+                    url=github_result['url'],
+                    example_usage=github_result.get('example_snippets'),
                     arguments=github_result.get('arguments'),
                     attributes=github_result.get('attributes'),
-                    kind='resource',
                 )
                 results.append(result)
 
             # Then try as a data source
-            data_result = fetch_github_documentation(search_term, correlation_id, 'data_source')
+            data_result = fetch_github_documentation(search_term, 'data_source', cache_enabled, correlation_id)
             if data_result:
                 logger.info(f'[{correlation_id}] Found documentation as a data source')
                 # Create result object
                 description = data_result['description']
-                if attribute and data_result.get('attribute_info'):
-                    description += f' {data_result["attribute_info"]}'
 
-                result = ProviderDocsResult(
-                    resource_name=resource_type,
-                    url=data_result['url'],
+                result = TerraformAWSProviderDocsResult(
+                    asset_name=asset_name,
+                    asset_type='data_source',
                     description=description,
-                    example_snippets=data_result.get('example_snippets'),
+                    url=data_result['url'],
+                    example_usage=data_result.get('example_snippets'),
                     arguments=data_result.get('arguments'),
                     attributes=data_result.get('attributes'),
-                    kind='data_source',
                 )
                 results.append(result)
 
@@ -576,24 +535,21 @@ async def search_aws_provider_docs_impl(
                 )
                 return results
         else:
-            # Search for either resource or data source based on kind parameter
-            github_result = fetch_github_documentation(search_term, correlation_id, kind)
+            # Search for either resource or data source based on asset_type parameter
+            github_result = fetch_github_documentation(search_term, asset_type, cache_enabled, correlation_id)
             if github_result:
                 logger.info(f'[{correlation_id}] Successfully found GitHub documentation')
 
                 # Create result object
                 description = github_result['description']
-                if attribute and github_result.get('attribute_info'):
-                    description += f' {github_result["attribute_info"]}'
-
-                result = ProviderDocsResult(
-                    resource_name=resource_type,
-                    url=github_result['url'],
+                result = TerraformAWSProviderDocsResult(
+                    asset_name=asset_name,
+                    asset_type=asset_type,
                     description=description,
-                    example_snippets=github_result.get('example_snippets'),
+                    url=github_result['url'],
+                    example_usage=github_result.get('example_snippets'),
                     arguments=github_result.get('arguments'),
                     attributes=github_result.get('attributes'),
-                    kind=kind,
                 )
 
                 end_time = time.time()
@@ -606,17 +562,18 @@ async def search_aws_provider_docs_impl(
         logger.warning(f"[{correlation_id}] Documentation not found on GitHub for '{search_term}'")
 
         # Return a "not found" result
-        logger.warning(f'[{correlation_id}] No resource documentation found')
+        logger.warning(f'[{correlation_id}] No documentation found for asset {asset_name}')
         end_time = time.time()
         logger.info(
             f'[{correlation_id}] Search completed in {end_time - start_time:.2f} seconds (no results)'
         )
         return [
-            ProviderDocsResult(
-                resource_name='Not found',
-                url=f'{AWS_DOCS_BASE_URL}/resources',
-                description=f"No documentation found for resource type '{resource_type}'.",
-                example_snippets=None,
+            TerraformAWSProviderDocsResult(
+                asset_name='Not found',
+                asset_type=asset_type,
+                description=f"No documentation found for resource type '{asset_name}'.",
+                url=None,
+                example_usage=None,
                 arguments=None,
                 attributes=None,
             )
@@ -633,11 +590,12 @@ async def search_aws_provider_docs_impl(
         logger.info(f'[{correlation_id}] Search failed in {end_time - start_time:.2f} seconds')
 
         return [
-            ProviderDocsResult(
-                resource_name='Error',
-                url='',
+            TerraformAWSProviderDocsResult(
+                asset_name='Error',
+                asset_type=asset_type,
                 description=f'Failed to search AWS provider documentation: {type(e).__name__}: {str(e)}',
-                example_snippets=None,
+                url=f'{AWS_DOCS_BASE_URL}/resources',
+                example_usage=None,
                 arguments=None,
                 attributes=None,
             )

@@ -110,38 +110,50 @@ class ModuleSearchResult(BaseModel):
         return self.submodules is not None and len(self.submodules) > 0
 
 
-class ProviderDocsResult(BaseModel):
-    """Model representing documentation results for Terraform AWS provider resources.
+class TerraformProviderDocsResult(BaseModel):
+    """Abstract Model representing documentation results for Terraform Providers.
 
     Attributes:
-        resource_name: Name of the AWS resource type.
-        url: URL to the documentation for this resource.
+        asset_name: Name of the AWS resource type.
+        asset_type: Type of the item - resource or data source.
         description: Brief description of the resource.
-        example_snippets: List of example code snippets with titles.
-        arguments: Optional list of arguments with descriptions (specific to AWS provider).
-        attributes: Optional list of attributes with descriptions (specific to AWS provider).
-        schema: Optional schema structure with sections (specific to AWSCC provider).
-               For AWSCC provider, this is a structured dictionary with sections.
-        kind: Type of the item - resource or data source.
+        url: URL to the documentation for this resource.
+        example_usage: List of example code snippets with titles.
     """
 
-    resource_name: str
-    url: str
-    description: str
-    example_snippets: Optional[List[Dict[str, str]]] = Field(
+    asset_name: str = Field(..., description='Name of the AWS resource type')    
+    asset_type: Literal['both', 'resource', 'data_source'] = Field(default='both', description="Type of the item - 'resource' or 'data_source' or 'both'")
+    description: Optional[str] = Field(..., description='Brief description of the resource')
+    url: Optional[str] = Field(None, description='URL to the documentation for this resource')        
+    example_usage: Optional[List[Dict[str, str]]] = Field(
         None, description='List of example snippets with titles'
     )
+
+class TerraformAWSProviderDocsResult(TerraformProviderDocsResult):
+    """Model representing documentation results for AWS Terraform Provider.
+
+    Attributes:
+        arguments: List of arguments with descriptions specific to AWS provider resources.
+        attributes: List of attributes with descriptions specific to AWS provider resources.
+    """
     arguments: Optional[List[Dict[str, str]]] = Field(
-        None, description='List of arguments with descriptions (specific to AWS provider)'
+        None, description='List of arguments with descriptions'
     )
     attributes: Optional[List[Dict[str, str]]] = Field(
-        None, description='List of attributes with descriptions (specific to AWS provider)'
+        None, description='List of attributes with descriptions'
     )
-    schema: Optional[Any] = Field(
+
+class TerraformAWSCCProviderDocsResult(TerraformProviderDocsResult):
+    """Model representing documentation results for AWSCC Terraform Provider.
+
+    Attributes:
+        schema_arguments: List of schema arguments with descriptions where applicable.
+                Contains the full resource schema definition from the AWSCC provider split by section.
+    """
+    schema_arguments: Optional[List[Dict[str, Any]]] = Field(
         None,
-        description='Schema structure that can be a structured dictionary with sections (AWSCC provider)',
+        description='List of schema arguments with descriptions where applicable',
     )
-    kind: str = Field('resource', description="Type of the item - 'resource' or 'data_source'")
 
 
 class TerraformExecutionResult(BaseModel):

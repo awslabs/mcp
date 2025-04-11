@@ -1,6 +1,7 @@
 from .models import (
     ModuleSearchResult,
-    ProviderDocsResult,
+    TerraformAWSProviderDocsResult,
+    TerraformAWSCCProviderDocsResult,
     SubmoduleInfo,
     TerraformExecutionRequest,
     TerraformExecutionResult,
@@ -15,7 +16,8 @@ from .models import (
 
 __all__ = [
     'ModuleSearchResult',
-    'ProviderDocsResult',
+    'TerraformAWSProviderDocsResult',
+    'TerraformAWSCCProviderDocsResult',
     'SubmoduleInfo',
     'TerraformExecutionRequest',
     'TerraformExecutionResult',
