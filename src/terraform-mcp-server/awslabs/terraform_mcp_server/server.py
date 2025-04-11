@@ -37,7 +37,6 @@ from typing import List
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 
-
 mcp = FastMCP(
     'terraform_mcp_server',
     instructions=f'{MCP_INSTRUCTIONS}',
@@ -213,6 +212,7 @@ async def run_checkov_scan(request: CheckovScanRequest) -> CheckovScanResult:
         A CheckovScanResult object containing scan results and identified vulnerabilities
     """
     return await run_checkov_scan_impl(request)
+
 
 # * Resources
 @mcp.resource(
