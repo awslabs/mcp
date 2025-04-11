@@ -618,7 +618,7 @@ AXlzBBko7b15fjrBs2+cTQtpZ3CYWFXG8C5zqx37wnOE49mRl/+OtkIKGO7fAE",
 
 "Expiration": "2024-03-15T00:05:07Z",
 
-"AccessKeyId": "ASIAIOSFODNN7EXAMPLE"
+"AccessKeyId": ...
 
 }
 

@@ -101,7 +101,8 @@ async def get_module_details(namespace: str, name: str, provider: str = 'aws') -
         # APPROACH 2: Try using the GitHub repo URL for README content and version details
         if 'source' in details:
             source_url = details.get('source')
-            if 'github.com' in source_url:
+            # Properly validate GitHub URL using regex to ensure it's actually from github.com domain
+            if isinstance(source_url, str) and re.match(r'https://github.com/', source_url):
                 logger.info(f'Found GitHub source URL: {source_url}')
 
                 # Extract GitHub owner and repo
