@@ -48,7 +48,7 @@ Default output format [None]: json
 
 ### Testing with a Local Development MCP Server
 
-You can modify the settings of your MCP client to run your local server. Open the your client json settings file and update it as needed. For instance, :
+You can modify the settings of your MCP client to run your local server. Open the your client json settings file and update it as needed. For instance:
 
 ```
 "awslabs.aws-documentation-mcp-server": {
