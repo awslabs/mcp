@@ -23,8 +23,10 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
       "command": "uvx",
       "args": ["awslabs.aws-diagram-mcp-server"],
       "env": {
-        "SHELL": "/usr/bin/zsh"
-      }
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "autoApprove": [],
+      "disabled": false
     }
   }
 }
