@@ -121,13 +121,16 @@ class TerraformProviderDocsResult(BaseModel):
         example_usage: List of example code snippets with titles.
     """
 
-    asset_name: str = Field(..., description='Name of the AWS resource type')    
-    asset_type: Literal['both', 'resource', 'data_source'] = Field(default='both', description="Type of the item - 'resource' or 'data_source' or 'both'")
+    asset_name: str = Field(..., description='Name of the AWS resource type')
+    asset_type: Literal['both', 'resource', 'data_source'] = Field(
+        default='both', description="Type of the item - 'resource' or 'data_source' or 'both'"
+    )
     description: Optional[str] = Field(..., description='Brief description of the resource')
-    url: Optional[str] = Field(None, description='URL to the documentation for this resource')        
+    url: Optional[str] = Field(None, description='URL to the documentation for this resource')
     example_usage: Optional[List[Dict[str, str]]] = Field(
         None, description='List of example snippets with titles'
     )
+
 
 class TerraformAWSProviderDocsResult(TerraformProviderDocsResult):
     """Model representing documentation results for AWS Terraform Provider.
@@ -136,12 +139,14 @@ class TerraformAWSProviderDocsResult(TerraformProviderDocsResult):
         arguments: List of arguments with descriptions specific to AWS provider resources.
         attributes: List of attributes with descriptions specific to AWS provider resources.
     """
+
     arguments: Optional[List[Dict[str, str]]] = Field(
         None, description='List of arguments with descriptions'
     )
     attributes: Optional[List[Dict[str, str]]] = Field(
         None, description='List of attributes with descriptions'
     )
+
 
 class TerraformAWSCCProviderDocsResult(TerraformProviderDocsResult):
     """Model representing documentation results for AWSCC Terraform Provider.
@@ -150,6 +155,7 @@ class TerraformAWSCCProviderDocsResult(TerraformProviderDocsResult):
         schema_arguments: List of schema arguments with descriptions where applicable.
                 Contains the full resource schema definition from the AWSCC provider split by section.
     """
+
     schema_arguments: Optional[List[Dict[str, Any]]] = Field(
         None,
         description='List of schema arguments with descriptions where applicable',

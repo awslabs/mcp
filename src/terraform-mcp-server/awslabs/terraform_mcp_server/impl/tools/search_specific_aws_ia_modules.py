@@ -360,13 +360,13 @@ async def search_specific_aws_ia_modules_impl(query: str) -> List[ModuleSearchRe
     Examples:
         - To get information about all four modules:
           search_specific_aws_ia_modules_impl(query='')
-        
+
         - To find modules related to Bedrock:
           search_specific_aws_ia_modules_impl(query='bedrock')
-        
+
         - To find modules related to vector search:
           search_specific_aws_ia_modules_impl(query='vector search')
-        
+
         - To find modules with specific configuration options:
           search_specific_aws_ia_modules_impl(query='endpoint_name')
 

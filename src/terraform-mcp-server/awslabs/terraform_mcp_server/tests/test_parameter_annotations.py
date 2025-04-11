@@ -3,6 +3,7 @@
 
 import json
 import sys
+from awslabs.terraform_mcp_server.server import mcp
 from pathlib import Path
 
 
@@ -10,9 +11,6 @@ from pathlib import Path
 project_root = str(Path(__file__).parent.parent.parent.parent)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-
-# Import the server module
-from awslabs.terraform_mcp_server.server import mcp
 
 
 def print_tool_parameters():
@@ -46,7 +44,7 @@ def add_parameter_annotations():
         'Name of the AWS service (asset) to look for (e.g., "aws_s3_bucket", "aws_lambda_function")'
     )
     search_tool.parameters['properties']['asset_type']['description'] = (
-        'Type of documentation to search - \'resource\', \'data_source\', or \'both\' (default)'
+        "Type of documentation to search - 'resource', 'data_source', or 'both' (default)"
     )
 
     # Add parameter descriptions for SearchAwsccProviderDocs
@@ -55,7 +53,7 @@ def add_parameter_annotations():
         'Name of the AWSCC service (asset) to look for (e.g., awscc_s3_bucket, awscc_lambda_function)'
     )
     awscc_docs_tool.parameters['properties']['asset_type']['description'] = (
-        'Type of documentation to search - \'resource\', \'data_source\', or \'both\' (default)'
+        "Type of documentation to search - 'resource', 'data_source', or 'both' (default)"
     )
 
     # Add parameter descriptions for SearchSpecificAwsIaModules
@@ -109,7 +107,6 @@ def add_parameter_annotations():
             props['skip_check_ids']['description'] = 'Optional list of check IDs to skip'
         if 'output_format' in props:
             props['output_format']['description'] = 'Format for scan results (default: json)'
-
 
     print('Parameter annotations added successfully.\n')
 

@@ -4,6 +4,15 @@
 import asyncio
 import json
 import sys
+from awslabs.terraform_mcp_server.impl.tools.search_aws_provider_docs import (
+    search_aws_provider_docs_impl,
+)
+from awslabs.terraform_mcp_server.impl.tools.search_awscc_provider_docs import (
+    search_awscc_provider_docs_impl,
+)
+from awslabs.terraform_mcp_server.impl.tools.search_specific_aws_ia_modules import (
+    search_specific_aws_ia_modules_impl,
+)
 from loguru import logger
 from typing import Any
 
@@ -20,27 +29,16 @@ logger.configure(
     ]
 )
 
-# Import implementation functions using absolute imports
-from awslabs.terraform_mcp_server.impl.tools.search_aws_provider_docs import (
-    search_aws_provider_docs_impl,
-)
-from awslabs.terraform_mcp_server.impl.tools.search_awscc_provider_docs import (
-    search_awscc_provider_docs_impl,
-)
-from awslabs.terraform_mcp_server.impl.tools.search_specific_aws_ia_modules import (
-    search_specific_aws_ia_modules_impl,
-)
 
 def print_aws_provider_results(results):
-    """
-    Print formatted results data using the provided logger.
-    
+    """Print formatted results data using the provided logger.
+
     Args:
         results: List of result objects containing asset information
         logger: Logger object to use for output
     """
     logger.info(f'Found {len(results)} results')
-    
+
     for i, result in enumerate(results):
         logger.info(f'\nResult {i + 1}:')
         logger.info(f'  Asset Name: {result.asset_name}')
@@ -72,7 +70,7 @@ def print_aws_provider_results(results):
             logger.info(f'  Arguments: {len(result.arguments)} found')
             # for j, argument in enumerate(result.arguments):
             #     logger.info(f'    Argument {j + 1}: {argument}')
-        
+
         # Handle attributes
         if result.attributes:
             logger.info(f'  Attributes: {len(result.attributes)} found')
@@ -81,15 +79,14 @@ def print_aws_provider_results(results):
 
 
 def print_awscc_provider_results(results):
-    """
-    Print formatted results data using the provided logger.
-    
+    """Print formatted results data using the provided logger.
+
     Args:
         results: List of result objects containing asset information
         logger: Logger object to use for output
     """
     logger.info(f'Found {len(results)} results')
-    
+
     for i, result in enumerate(results):
         logger.info(f'\nResult {i + 1}:')
         logger.info(f'  Asset Name: {result.asset_name}')
@@ -133,12 +130,16 @@ async def test_search_aws_provider_docs():
     print_aws_provider_results(results)
 
     # Test case 2: Common resource with multiple example snippets
-    logger.info('**********---Test case 2: Searching for aws_api_gateway_rest_api as a resource---**********')
+    logger.info(
+        '**********---Test case 2: Searching for aws_api_gateway_rest_api as a resource---**********'
+    )
     results = await search_aws_provider_docs_impl('api_gateway_rest_api', 'resource')
     print_aws_provider_results(results)
 
     # Test case 3: Common resource with multiple example snippets and multiple arguments in subsections
-    logger.info('**********---Test case 3: Searching for aws_lambda_function as a resource---**********')
+    logger.info(
+        '**********---Test case 3: Searching for aws_lambda_function as a resource---**********'
+    )
     results = await search_aws_provider_docs_impl('aws_lambda_function', 'resource')
     print_aws_provider_results(results)
 
@@ -150,9 +151,7 @@ async def test_search_aws_provider_docs():
     print_aws_provider_results(results)
 
     # Test case 5: Searching for both kinds
-    logger.info(
-        '**********---Test case 5: Searching for aws_dynamodb_table as both ---**********'
-    )
+    logger.info('**********---Test case 5: Searching for aws_dynamodb_table as both ---**********')
     results = await search_aws_provider_docs_impl('aws_dynamodb_table', 'both')
     print_aws_provider_results(results)
 
@@ -167,7 +166,9 @@ async def test_search_awscc_provider_docs():
     logger.info('\n=== Testing search_awscc_provider_docs_impl ===')
 
     # Test case 1: Common resource
-    logger.info('**********---Test case 1: Searching for awscc_apigateway_api_key as a resource---**********')
+    logger.info(
+        '**********---Test case 1: Searching for awscc_apigateway_api_key as a resource---**********'
+    )
     results = await search_awscc_provider_docs_impl('awscc_apigateway_api_key', 'resource')
     print_awscc_provider_results(results)
 
@@ -179,7 +180,9 @@ async def test_search_awscc_provider_docs():
     print_awscc_provider_results(results)
 
     # Test case 3: lambda_function resource
-    logger.info('**********---Test case 7: Searching for lambda_function as a resource---**********')
+    logger.info(
+        '**********---Test case 7: Searching for lambda_function as a resource---**********'
+    )
     results = await search_awscc_provider_docs_impl('lambda_function', 'resource')
     print_awscc_provider_results(results)
 

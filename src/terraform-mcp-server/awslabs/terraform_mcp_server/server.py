@@ -4,12 +4,6 @@
 import argparse
 import os
 import sys
-from typing import List
-
-
-# Add the parent directory to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
-
 from awslabs.terraform_mcp_server.impl.resources import (
     terraform_aws_provider_resources_listing_impl,
     terraform_awscc_provider_resources_listing_impl,
@@ -25,17 +19,23 @@ from awslabs.terraform_mcp_server.models import (
     CheckovScanRequest,
     CheckovScanResult,
     ModuleSearchResult,
-    TerraformAWSProviderDocsResult,
     TerraformAWSCCProviderDocsResult,
+    TerraformAWSProviderDocsResult,
     TerraformExecutionRequest,
     TerraformExecutionResult,
 )
-from awslabs.terraform_mcp_server.static import (
+from awslabs.terraform_mcp_serve.static import (
     AWS_TERRAFORM_BEST_PRACTICES,
     MCP_INSTRUCTIONS,
     TERRAFORM_WORKFLOW_GUIDE,
 )
 from mcp.server.fastmcp import FastMCP
+from typing import List
+
+
+# Add the parent directory to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 
 
 mcp = FastMCP(
@@ -74,16 +74,16 @@ async def search_aws_provider_docs(
     a specific asset in the AWS Provider Documentation, assets can be either resources or data sources. It retrieves comprehensive details including descriptions, example code snippets, argument references, and attribute references.
 
     Use the 'asset_type' parameter to specify if you are looking for information about provider resources, data sources, or both. Valid values are 'resource', 'data_source' or 'both'.
-    
+
     The tool will automatically handle prefixes - you can search for either 'aws_s3_bucket' or 's3_bucket'.
 
     Examples:
         - To get documentation for an S3 bucket resource:
           search_aws_provider_docs(asset_name='aws_s3_bucket')
-        
+
         - To search only for data sources:
           search_aws_provider_docs(asset_name='aws_ami', asset_type='data_source')
-        
+
         - To search for both resource and data source documentation of a given name:
           search_aws_provider_docs(asset_name='aws_instance', asset_type='both')
 
@@ -115,7 +115,7 @@ async def search_awscc_provider_docs(
     a specific asset in the AWSCC Provider Documentation, assets can be either resources or data sources. It retrieves comprehensive details including descriptions, example code snippets, and schema references.
 
     Use the 'asset_type' parameter to specify if you are looking for information about provider resources, data sources, or both. Valid values are 'resource', 'data_source' or 'both'.
-    
+
     The tool will automatically handle prefixes - you can search for either 'awscc_s3_bucket' or 's3_bucket'.
 
     Examples:
@@ -125,10 +125,10 @@ async def search_awscc_provider_docs(
 
         - To search only for data sources:
           search_aws_provider_docs(asset_name='awscc_appsync_api', kind='data_source')
-        
+
         - To search for both resource and data source documentation of a given name:
           search_aws_provider_docs(asset_name='awscc_appsync_api', kind='both')
-        
+
         - Search of a resource without the prefix:
           search_awscc_provider_docs(resource_type='ec2_instance')
 
@@ -166,13 +166,13 @@ async def search_specific_aws_ia_modules(query: str = '') -> List[ModuleSearchRe
     Examples:
         - To get information about all four modules:
           search_specific_aws_ia_modules()
-        
+
         - To find modules related to Bedrock:
           search_specific_aws_ia_modules(query='bedrock')
-        
+
         - To find modules related to vector search:
           search_specific_aws_ia_modules(query='vector search')
-        
+
         - To find modules with specific configuration options:
           search_specific_aws_ia_modules(query='endpoint_name')
 
