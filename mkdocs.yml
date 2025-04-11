@@ -19,5 +19,6 @@ nav:
     - Cost Analysis MCP Server: servers/cost-analysis-mcp-server.md
     - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
+    - AWS Diagram MCP Server: servers/diagram-mcp-server.md
   - Samples:
     - Home: samples/index.md
