@@ -26,48 +26,48 @@ By following this workflow guide and leveraging the provided tools and resources
 ``` mermaid
 flowchart TD
     start([Start Development]) --> edit[Edit Terraform Code]
-    
+
     %% Initial Code Validation
     edit --> tfValidate[Run terraform validate\nvia ExecuteTerraformCommand]
-    
+
     %% Validation Flow
     tfValidate -->|Passes| checkovScan[Run Security Scan\nvia RunCheckovScan]
     tfValidate -->|Fails| fixValidation[Fix Configuration\nIssues]
     fixValidation --> edit
-    
+
     %% Checkov Flow
     checkovScan -->|No Issues| tfInit[Run terraform init\nvia ExecuteTerraformCommand]
     checkovScan -->|Finds Issues| reviewIssues[Review Security\nIssues]
-    
+
     reviewIssues --> manualFix[Apply Manual Fixes]
-    
+
     manualFix --> edit
-    
+
     %% Terraform Init & Plan (No Apply)
     tfInit -->|Success| tfPlan[Run terraform plan\nvia ExecuteTerraformCommand]
     tfInit -->|Fails| fixInit[Fix Provider/Module\nIssues]
     fixInit --> edit
-    
+
     %% Final Review & Handoff to Developer
     tfPlan -->|Plan Generated| reviewPlan[Review Planned Changes]
     tfPlan -->|Issues Detected| edit
-    
+
     reviewPlan --> codeReady[Valid, Secure Code Ready\nfor Developer Review]
-    
+
     %% Iteration for Improvements
     codeReady --> newChanges{Need Code\nImprovements?}
     newChanges -->|Yes| edit
     newChanges -->|No| handoff([Hand Off to Developer\nfor Deployment Decision])
-    
+
     %% Styling
     classDef success fill:#bef5cb,stroke:#28a745
-    classDef warning fill:#fff5b1,stroke:#dbab09  
+    classDef warning fill:#fff5b1,stroke:#dbab09
     classDef error fill:#ffdce0,stroke:#cb2431
     classDef process fill:#f1f8ff,stroke:#0366d6
     classDef decision fill:#d1bcf9,stroke:#8a63d2
     classDef mcptool fill:#d0f0fd,stroke:#0969da,font-style:italic
     classDef handoff fill:#ffdfb6,stroke:#f9a03f
-    
+
     class codeReady success
     class reviewIssues,reviewPlan warning
     class fixValidation,fixInit,manualFix error
@@ -134,7 +134,7 @@ Options:
 
 ```python
 ExecuteTerraformCommand(TerraformExecutionRequest(
-    command="validate", 
+    command="validate",
     working_directory="./project_dir"
 ))
 ```

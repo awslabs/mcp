@@ -2521,4 +2521,3 @@ test your Terraform infrastructure as code.
 References 42
 
 ## AWS Prescriptive Guidance Best practices for using the Terraform AWS Provider
-
