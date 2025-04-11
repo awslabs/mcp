@@ -1,12 +1,10 @@
-"""Implementation of Checkov scan and fix tools."""
+"""Implementation of Checkov scan tools."""
 
 import json
 import os
 import re
 import subprocess
 from ...models import (
-    CheckovFixRequest,
-    CheckovFixResult,
     CheckovScanRequest,
     CheckovScanResult,
     CheckovVulnerability,
@@ -266,146 +264,10 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
             raw_output=stdout,
         )
 
-        # If auto-fix is requested and vulnerabilities were found, attempt to fix them
-        if request.auto_fix and vulnerabilities:
-            logger.info(
-                f'Auto-fix requested, attempting to fix {len(vulnerabilities)} vulnerabilities'
-            )
-            fix_request = CheckovFixRequest(
-                working_directory=request.working_directory,
-                vulnerability_ids=[v.id for v in vulnerabilities],
-                backup_files=True,
-            )
-            fix_result = await run_checkov_fix_impl(fix_request)
-
-            # Update vulnerabilities with fix status
-            for vuln in result.vulnerabilities:
-                for fixed_vuln in fix_result.fixed_vulnerabilities:
-                    if vuln.id == fixed_vuln.id and vuln.resource == fixed_vuln.resource:
-                        vuln.fixed = True
-                        vuln.fix_details = fixed_vuln.fix_details
-
         return result
     except Exception as e:
         logger.error(f'Error running Checkov scan: {e}')
         return CheckovScanResult(
-            status='error',
-            working_directory=request.working_directory,
-            error_message=str(e),
-        )
-
-
-async def run_checkov_fix_impl(request: CheckovFixRequest) -> CheckovFixResult:
-    """Fix vulnerabilities found by Checkov in Terraform code.
-
-    Args:
-        request: Details about the vulnerabilities to fix
-
-    Returns:
-        A CheckovFixResult object containing fix results
-    """
-    logger.info(
-        f'Attempting to fix {len(request.vulnerability_ids)} vulnerabilities in {request.working_directory}'
-    )
-
-    # Ensure Checkov is installed
-    if not _ensure_checkov_installed():
-        return CheckovFixResult(
-            status='error',
-            working_directory=request.working_directory,
-            error_message='Failed to install Checkov. Please install it manually with: pip install checkov',
-        )
-
-    # Create backup files if requested
-    if request.backup_files:
-        try:
-            backup_dir = os.path.join(request.working_directory, '.checkov_backups')
-            os.makedirs(backup_dir, exist_ok=True)
-            logger.info(f'Created backup directory: {backup_dir}')
-        except Exception as e:
-            logger.error(f'Failed to create backup directory: {e}')
-            return CheckovFixResult(
-                status='error',
-                working_directory=request.working_directory,
-                error_message=f'Failed to create backup directory: {str(e)}',
-            )
-
-    # Build the command for fixing
-    cmd = ['checkov', '--quiet', '-d', request.working_directory, '--framework', 'terraform']
-
-    # Add specific check IDs to fix
-    if request.vulnerability_ids:
-        cmd.extend(['--check', ','.join(request.vulnerability_ids)])
-
-    # Add fix flag
-    cmd.extend(['--fix'])
-
-    # Execute command
-    try:
-        logger.info(f'Executing command: {" ".join(cmd)}')
-        process = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-        )
-
-        # Clean output text
-        stdout = _clean_output_text(process.stdout)
-        stderr = _clean_output_text(process.stderr)
-
-        # Run a scan after fixing to see what was fixed and what remains
-        scan_request = CheckovScanRequest(
-            working_directory=request.working_directory,
-            framework='terraform',
-            check_ids=request.vulnerability_ids,
-            output_format='json',
-        )
-        scan_result = await run_checkov_scan_impl(scan_request)
-
-        # Determine which vulnerabilities were fixed
-        fixed_vulnerabilities = []
-        unfixed_vulnerabilities = []
-
-        # If we have the original scan results, we can compare to determine what was fixed
-        if scan_result.vulnerabilities:
-            # These are the remaining unfixed vulnerabilities
-            unfixed_vulnerabilities = scan_result.vulnerabilities
-
-            # For fixed vulnerabilities, we need to parse the fix output
-            # This is a simplified approach - in a real implementation, you'd want to
-            # compare before/after scan results to determine exactly what was fixed
-            fix_pattern = re.compile(r'Fixed\s+(\w+)\s+in\s+(.+?)\s+resource\s+(.+?)(?:\s|$)')
-            for match in fix_pattern.finditer(stdout):
-                check_id, file_path, resource = match.groups()
-                fixed_vuln = CheckovVulnerability(
-                    id=check_id,
-                    type='terraform',
-                    resource=resource,
-                    file_path=file_path,
-                    line=0,  # We don't know the exact line
-                    description=f'Fixed {check_id}',
-                    fixed=True,
-                    fix_details='Automatically fixed by Checkov',
-                )
-                fixed_vulnerabilities.append(fixed_vuln)
-
-        # Prepare the result
-        return CheckovFixResult(
-            status='success' if process.returncode == 0 else 'error',
-            return_code=process.returncode,
-            working_directory=request.working_directory,
-            fixed_vulnerabilities=fixed_vulnerabilities,
-            unfixed_vulnerabilities=unfixed_vulnerabilities,
-            summary={
-                'fixed_count': len(fixed_vulnerabilities),
-                'unfixed_count': len(unfixed_vulnerabilities),
-                'stdout': stdout,
-                'stderr': stderr,
-            },
-        )
-    except Exception as e:
-        logger.error(f'Error fixing vulnerabilities: {e}')
-        return CheckovFixResult(
             status='error',
             working_directory=request.working_directory,
             error_message=str(e),

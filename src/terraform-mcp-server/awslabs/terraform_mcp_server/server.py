@@ -16,16 +16,12 @@ from awslabs.terraform_mcp_server.impl.resources import (
 )
 from awslabs.terraform_mcp_server.impl.tools import (
     execute_terraform_command_impl,
-    parse_awscc_data_source_docs_impl,
-    run_checkov_fix_impl,
     run_checkov_scan_impl,
     search_aws_provider_docs_impl,
     search_awscc_provider_docs_impl,
     search_specific_aws_ia_modules_impl,
 )
 from awslabs.terraform_mcp_server.models import (
-    CheckovFixRequest,
-    CheckovFixResult,
     CheckovScanRequest,
     CheckovScanResult,
     ModuleSearchResult,
@@ -212,33 +208,11 @@ async def run_checkov_scan(request: CheckovScanRequest) -> CheckovScanResult:
             - check_ids: Optional list of specific check IDs to run
             - skip_check_ids: Optional list of check IDs to skip
             - output_format: Format for scan results (default: json)
-            - auto_fix: Whether to attempt automatic fixes (default: false)
 
     Returns:
         A CheckovScanResult object containing scan results and identified vulnerabilities
     """
     return await run_checkov_scan_impl(request)
-
-
-@mcp.tool(name='FixCheckovVulnerabilities')
-async def fix_checkov_vulnerabilities(request: CheckovFixRequest) -> CheckovFixResult:
-    """Fix security vulnerabilities found by Checkov in Terraform code.
-
-    This tool attempts to automatically fix security and compliance issues identified
-    by Checkov in Terraform code. It applies recommended fixes for supported checks.
-
-    Parameters:
-        request: Details about the vulnerabilities to fix, including:
-            - working_directory: Directory containing Terraform files to fix
-            - vulnerability_ids: List of vulnerability IDs to fix
-            - backup_files: Whether to create backup files before fixing
-
-    Returns:
-        A CheckovFixResult object containing fix results, including which vulnerabilities
-        were successfully fixed and which could not be automatically remediated
-    """
-    return await run_checkov_fix_impl(request)
-
 
 # * Resources
 @mcp.resource(
@@ -351,24 +325,6 @@ if 'properties' in checkov_scan_tool.parameters['properties']['request']:
         props['skip_check_ids']['description'] = 'Optional list of check IDs to skip'
     if 'output_format' in props:
         props['output_format']['description'] = 'Format for scan results (default: json)'
-    if 'auto_fix' in props:
-        props['auto_fix']['description'] = 'Whether to attempt automatic fixes (default: false)'
-
-# FixCheckovVulnerabilities
-checkov_fix_tool = mcp._tool_manager.get_tool('FixCheckovVulnerabilities')
-checkov_fix_tool.parameters['properties']['request']['description'] = (
-    'Details about the vulnerabilities to fix'
-)
-
-# Since request is a complex object with nested properties, update its schema
-if 'properties' in checkov_fix_tool.parameters['properties']['request']:
-    props = checkov_fix_tool.parameters['properties']['request']['properties']
-    if 'working_directory' in props:
-        props['working_directory']['description'] = 'Directory containing Terraform files to fix'
-    if 'vulnerability_ids' in props:
-        props['vulnerability_ids']['description'] = 'List of vulnerability IDs to fix'
-    if 'backup_files' in props:
-        props['backup_files']['description'] = 'Whether to create backup files before fixing'
 
 
 def main():

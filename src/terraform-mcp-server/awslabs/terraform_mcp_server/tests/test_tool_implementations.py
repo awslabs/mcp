@@ -282,8 +282,7 @@ async def test_run_checkov_scan():
     request = CheckovScanRequest(
         working_directory="/path/to/terraform/config",
         framework="terraform",
-        output_format="json",
-        auto_fix=False
+        output_format="json"
     )
 
     result = await run_checkov_scan_impl(request)

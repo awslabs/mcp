@@ -23,7 +23,6 @@ def print_tool_parameters():
         'SearchAwsccProviderDocs',
         'SearchSpecificAwsIaModules',
         'RunCheckovScan',
-        'FixCheckovVulnerabilities',
     ]
 
     print('\n=== Current Tool Parameter Schemas ===\n')
@@ -43,20 +42,20 @@ def add_parameter_annotations():
 
     # Add parameter descriptions for SearchAwsProviderDocs
     search_tool = mcp._tool_manager.get_tool('SearchAwsProviderDocs')
-    search_tool.parameters['properties']['resource_type']['description'] = (
-        'AWS resource type (e.g., aws_s3_bucket, aws_lambda_function)'
+    search_tool.parameters['properties']['asset_name']['description'] = (
+        'Name of the AWS service (asset) to look for (e.g., "aws_s3_bucket", "aws_lambda_function")'
     )
-    search_tool.parameters['properties']['attribute']['description'] = (
-        'Optional specific attribute to search for within the resource type documentation'
+    search_tool.parameters['properties']['asset_type']['description'] = (
+        'Type of documentation to search - \'resource\', \'data_source\', or \'both\' (default)'
     )
 
     # Add parameter descriptions for SearchAwsccProviderDocs
     awscc_docs_tool = mcp._tool_manager.get_tool('SearchAwsccProviderDocs')
-    awscc_docs_tool.parameters['properties']['resource_type']['description'] = (
-        'AWSCC resource type (e.g., awscc_s3_bucket, awscc_lambda_function)'
+    awscc_docs_tool.parameters['properties']['asset_name']['description'] = (
+        'Name of the AWSCC service (asset) to look for (e.g., awscc_s3_bucket, awscc_lambda_function)'
     )
-    awscc_docs_tool.parameters['properties']['attribute']['description'] = (
-        'Optional specific attribute to search for within the resource type documentation'
+    awscc_docs_tool.parameters['properties']['asset_type']['description'] = (
+        'Type of documentation to search - \'resource\', \'data_source\', or \'both\' (default)'
     )
 
     # Add parameter descriptions for SearchSpecificAwsIaModules
@@ -110,28 +109,7 @@ def add_parameter_annotations():
             props['skip_check_ids']['description'] = 'Optional list of check IDs to skip'
         if 'output_format' in props:
             props['output_format']['description'] = 'Format for scan results (default: json)'
-        if 'auto_fix' in props:
-            props['auto_fix']['description'] = (
-                'Whether to attempt automatic fixes (default: false)'
-            )
 
-    # Add parameter descriptions for FixCheckovVulnerabilities
-    checkov_fix_tool = mcp._tool_manager.get_tool('FixCheckovVulnerabilities')
-    checkov_fix_tool.parameters['properties']['request']['description'] = (
-        'Details about the vulnerabilities to fix'
-    )
-
-    # Since request is a complex object with nested properties, update its schema
-    if 'properties' in checkov_fix_tool.parameters['properties']['request']:
-        props = checkov_fix_tool.parameters['properties']['request']['properties']
-        if 'working_directory' in props:
-            props['working_directory']['description'] = (
-                'Directory containing Terraform files to fix'
-            )
-        if 'vulnerability_ids' in props:
-            props['vulnerability_ids']['description'] = 'List of vulnerability IDs to fix'
-        if 'backup_files' in props:
-            props['backup_files']['description'] = 'Whether to create backup files before fixing'
 
     print('Parameter annotations added successfully.\n')
 
