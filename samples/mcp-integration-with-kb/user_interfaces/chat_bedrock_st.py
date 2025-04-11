@@ -74,7 +74,7 @@ def query_api(prompt, kb_id):
     """Send a query to the FastAPI server and get the response"""
     try:
         response = requests.post(
-            f"{API_URL}/query", json={"query": prompt, "kb_id": kb_id}
+            f"{API_URL}/query", json={"query": prompt, "kb_id": kb_id}, timeout=30
         )
         response.raise_for_status()  # Raise an exception for HTTP errors
         return response.json()["messages"]
