@@ -59,7 +59,7 @@ class GitHashParamType(click.ParamType):
             # Verify hash exists in repo
             command = ['git', 'rev-parse', '--verify', value]
             # The `value` is verified to match a GitHash above
-            subprocess.run(command, check=True, shell=False, capture_output=True) # nosec B603
+            subprocess.run(command, check=True, shell=False, capture_output=True)  # nosec B603
         except subprocess.CalledProcessError:
             self.fail(f'Git hash {value} not found in repository')
 
