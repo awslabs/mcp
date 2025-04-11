@@ -79,6 +79,21 @@ The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS se
 
 [Learn more about the Cost Analysis MCP Server](servers/cost-analysis-mcp-server.md)
 
+### AWS Diagram MCP Server
+
+This MCP server that seamlessly creates [diagrams](https://diagrams.mingrammer.com/) using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
+
+**Features:**
+
+The Diagrams MCP Server provides the following capabilities:
+
+1. **Generate Diagrams**: Create professional diagrams using Python code
+2. **Multiple Diagram Types**: Support for AWS architecture, sequence diagrams, flow charts, class diagrams, and more
+3. **Customization**: Customize diagram appearance, layout, and styling
+4. **Security**: Code scanning to ensure secure diagram generation
+
+[Learn more about the Cost Analysis MCP Server](servers/aws-documentation-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
