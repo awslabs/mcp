@@ -111,11 +111,10 @@ class NpmPackage:
         with open(self.path / 'package.json', 'r+', encoding='utf-8') as f:
             data = json.load(f)
             matched = re.match(SemVerRegEx, data['version'])
-            version = (
-                '.'.join([matched.group('major'), matched.group('minor'), matched.group('patch')])
-                + '+'
-                + build_release
-            )
+            patch = int(matched.group('patch')) + 1
+            if patch > sys.maxsize:
+                patch = 0
+            version = '.'.join([matched.group('major'), matched.group('minor'), str(patch)])
             data['version'] = version
             f.seek(0)
             json.dump(data, f, indent=2)
@@ -157,11 +156,10 @@ class PyPiPackage:
             if project_table is None:
                 raise ValueError('No project section in pyproject.toml')
             matched = re.match(SemVerRegEx, version_str)
-            version = (
-                '.'.join([matched.group('major'), matched.group('minor'), matched.group('patch')])
-                + '+'
-                + build_release
-            )
+            patch = int(matched.group('patch')) + 1
+            if patch > sys.maxsize:
+                patch = 0
+            version = '.'.join([matched.group('major'), matched.group('minor'), str(patch)])
 
             # Update the version safely
             project_table['version'] = version
