@@ -58,7 +58,7 @@ class GitHashParamType(click.ParamType):
         try:
             # Verify hash exists in repo
             command = ['git', 'rev-parse', '--verify', value]
-            subprocess.run(command, check=True, capture_output=True)
+            subprocess.run(command, check=True, shell=False, capture_output=True)
         except subprocess.CalledProcessError:
             self.fail(f'Git hash {value} not found in repository')
 
@@ -171,6 +171,7 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
         repo_root = subprocess.run(
             command,
             check=True,
+            shell=False,
             capture_output=True,
             text=True,
         ).stdout.strip()
@@ -185,6 +186,7 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
                 command,
                 cwd=repo_root,  # Run from repo root
                 check=True,
+                shell=False,
                 capture_output=True,
                 text=True,
             )
@@ -211,6 +213,7 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
             output = subprocess.run(
                 command,
                 check=True,
+                shell=False,
                 capture_output=True,
                 text=True,
             )
