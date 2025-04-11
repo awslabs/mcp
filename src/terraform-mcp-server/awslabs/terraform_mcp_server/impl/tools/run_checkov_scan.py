@@ -139,6 +139,7 @@ def _parse_checkov_json_output(output: str) -> Tuple[List[CheckovVulnerability],
                     guideline=check.get('guideline', None),
                     severity=(check.get('severity', 'MEDIUM') or 'MEDIUM').upper(),
                     fixed=False,
+                    fix_details=None,
                 )
                 vulnerabilities.append(vuln)
 
@@ -165,6 +166,9 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
             status='error',
             working_directory=request.working_directory,
             error_message='Failed to install Checkov. Please install it manually with: pip install checkov',
+            vulnerabilities=[],
+            summary={},
+            raw_output=None,
         )
 
     # Build the command
@@ -236,8 +240,10 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
                     file_path=file_path,
                     line=int(line),
                     description=f'Failed check: {check_id}',
+                    guideline=None,
                     severity='MEDIUM',
                     fixed=False,
+                    fix_details=None,
                 )
                 vulnerabilities.append(vuln)
 
@@ -271,4 +277,7 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
             status='error',
             working_directory=request.working_directory,
             error_message=str(e),
+            vulnerabilities=[],
+            summary={},
+            raw_output=None,
         )
