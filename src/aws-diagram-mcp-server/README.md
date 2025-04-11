@@ -19,9 +19,9 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 ```json
 {
   "mcpServers": {
-    "aws-diagram-mcp-server": {
+    "awslabs.aws-diagram-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-diagram-mcp-server-mcp-server"],
+      "args": ["awslabs.aws-diagram-mcp-server"],
       "env": {
         "SHELL": "/usr/bin/zsh"
       }
