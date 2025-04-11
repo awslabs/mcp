@@ -36,8 +36,8 @@ wheels = [
 ]
 
 [[package]]
-name = "aws-diagram-mcp-server"
-version = "0.8.0"
+name = "awslabs-aws-diagram-mcp-server"
+version = "0.8.111004"
 source = { editable = "." }
 dependencies = [
     { name = "bandit" },
