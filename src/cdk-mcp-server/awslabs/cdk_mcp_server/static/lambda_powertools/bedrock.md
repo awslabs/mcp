@@ -1,12 +1,20 @@
 # Bedrock Agent Integration
 
+## Lambda Layer Requirement
+
+> **CRITICAL**: Lambda Powertools libraries are NOT included in the default Lambda runtime. You MUST create a Lambda layer to include these dependencies. Use the **LambdaLayerDocumentationProvider** tool for comprehensive guidance
+
+This is especially important for Bedrock Agent integration, as the BedrockAgentResolver is required for generating proper OpenAPI schemas.
+
+## Implementation
+
 Use Lambda Powertools with Bedrock Agent actions:
 
 ```python
 from typing import Dict, List, Optional
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.event_handler import BedrockAgentResolver
-from aws_lambda_powertools.event_handler.openapi.params import Body, Path, Query
+from aws_lambda_powertools.event_handler.openapi.params import Query
 from pydantic import BaseModel, Field
 
 # Initialize Powertools
@@ -47,35 +55,14 @@ def lambda_handler(event, context):
 
 ## Generating OpenAPI Schema
 
-To generate a Bedrock-compatible OpenAPI schema:
-
-```python
-# Generate schema from a file
-result = await use_mcp_tool(
-    server_name="awslabs.cdk-mcp-server",
-    tool_name="GenerateBedrockAgentSchema",
-    arguments={
-        "lambda_code_path": "/path/to/your/agent_actions.py",
-        "output_path": "/path/to/output/schema.json"
-    }
-)
-```
-
-## Common Schema Issues
-
-- **OpenAPI version**: Must be exactly 3.0.0
-- **operationId**: Each operation needs a unique operationId
-- **Response schemas**: All responses must have properly defined schemas
-- **Parameter descriptions**: All parameters should have descriptions
+To generate a Bedrock-compatible OpenAPI schema, use **GenerateBedrockAgentSchema** tool.
 
 ## Best Practices
 
 1. **Use Pydantic models**: Define request and response models with Pydantic
 2. **Add descriptions**: Add descriptions to all fields and parameters
 3. **Use type hints**: Specify return types for all route handlers
-4. **Handle errors gracefully**: Return appropriate error responses
-5. **Log with context**: Use structured logging with business context
-6. **Validate inputs**: Use the validation features to ensure valid inputs
+4. **Log with context**: Use structured logging with business context
 
 ## CDK Integration
 
@@ -83,30 +70,35 @@ result = await use_mcp_tool(
 import { bedrock } from '@cdklabs/generative-ai-cdk-constructs';
 import { PythonFunction } from '@aws-cdk/aws-lambda-python-alpha';
 import { Runtime, Tracing } from 'aws-cdk-lib/aws-lambda';
+import { PythonLayerVersion } from '@aws-cdk/aws-lambda-python-alpha';
 import * as path from 'path';
+
+// Create Lambda layer for Powertools
+const powertoolsLayer = new PythonLayerVersion(this, "PowertoolsLayer", {
+  entry: path.join(__dirname, '../layers/powertools'),
+  compatibleRuntimes: [Runtime.PYTHON_3_13],
+  description: "Lambda Powertools for Python",
+});
 
 // Create Lambda function for Bedrock Agent actions
 const actionFunction = new PythonFunction(this, 'AgentActionFunction', {
   entry: path.join(__dirname, '../src/agent_actions'),
   runtime: Runtime.PYTHON_3_13,
   tracing: Tracing.ACTIVE,
+  layers: [powertoolsLayer],  // Attach the Powertools layer
   environment: {
     POWERTOOLS_SERVICE_NAME: "agent-actions",
     LOG_LEVEL: "INFO",
   },
 });
 
-// Create a Bedrock Agent
+// Create a Bedrock Agent with action group
 const agent = new bedrock.Agent(this, 'Agent', {
   name: 'PowertoolsAgent',
   foundationModel: bedrock.BedrockFoundationModel.ANTHROPIC_CLAUDE_3_5_HAIKU_V1_0,
-  shouldPrepareAgent: true,
-  userInputEnabled: true,
   instruction: 'You are a helpful assistant that can perform product-related actions.',
-  description: 'Agent for product management',
 });
 
-// Add action group to the agent
 agent.addActionGroup(
   new bedrock.AgentActionGroup({
     name: 'product-actions',
@@ -117,11 +109,4 @@ agent.addActionGroup(
     ),
   })
 );
-
-// Create agent alias for deployment
-const agentAlias = new bedrock.AgentAlias(this, 'AgentAlias', {
-  aliasName: 'latest',
-  agent: agent,
-  description: 'Latest agent alias',
-});
 ```

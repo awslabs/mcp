@@ -8,8 +8,6 @@ from .models import (
     CheckovVulnerability,
     CheckovScanRequest,
     CheckovScanResult,
-    CheckovFixRequest,
-    CheckovFixResult,
     TerraformVariable,
     TerraformOutput,
 )
@@ -24,8 +22,6 @@ __all__ = [
     'CheckovVulnerability',
     'CheckovScanRequest',
     'CheckovScanResult',
-    'CheckovFixRequest',
-    'CheckovFixResult',
     'TerraformVariable',
     'TerraformOutput',
 ]

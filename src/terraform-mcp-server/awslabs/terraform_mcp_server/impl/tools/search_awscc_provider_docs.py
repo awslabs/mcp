@@ -1,11 +1,10 @@
 """Implementation of AWSCC provider documentation search tool."""
 
 import re
-import traceback
 import requests
 import sys
 import time
-
+import traceback
 from ...models import TerraformAWSCCProviderDocsResult
 from loguru import logger
 from pathlib import Path
@@ -60,7 +59,6 @@ def resource_to_github_path(
         resource_name = asset_name
         logger.trace(f"[{correlation_id}] No 'awscc_' prefix to remove: {resource_name}")
 
-    
     # Determine document type based on asset_type parameter
     if asset_type == 'data_source':
         doc_type = 'data-sources'  # data sources
@@ -179,7 +177,7 @@ def parse_markdown_documentation(
     """
     start_time = time.time()
     logger.debug(f"[{correlation_id}] Parsing markdown documentation for '{asset_name}'")
-    
+
     try:
         # Find the title (typically the first heading)
         title_match = re.search(r'^#\s+(.*?)$', content, re.MULTILINE)
@@ -189,7 +187,6 @@ def parse_markdown_documentation(
         else:
             title = f'AWS {asset_name}'
             logger.debug(f"[{correlation_id}] No title found, using default: '{title}'")
-        
 
         # Find the main resource description section (all content after resource title before next heading)
         description = ''
@@ -296,7 +293,6 @@ def parse_markdown_documentation(
             schema_section = schema_section_match.group(1).strip()
             logger.debug(f'[{correlation_id}] Found Schema section ({len(schema_section)} chars)')
 
-            
             # DO NOT Look for schema arguments directly under the main Schema section
             # args_under_main_section_match = re.search(r'(.*?)(?=\n###|\n##|$)', schema_section, re.DOTALL)
             # if args_under_main_section_match:
@@ -325,7 +321,7 @@ def parse_markdown_documentation(
             #         logger.debug(
             #             f"[{correlation_id}] Added argument '{arg_name}': '{arg_desc[:50]}...' (truncated)"
             #         )
-            
+
             # Now, Find all subheadings in the Argument Reference section with a more robust pattern
             subheading_list = list(
                 re.finditer(r'### (.*?)[\r\n]+(.*?)(?=###|\Z)', schema_section, re.DOTALL)
@@ -368,7 +364,9 @@ def parse_markdown_documentation(
 
             schema_arguments = schema_arguments if schema_arguments else None
             if schema_arguments:
-                logger.info(f'[{correlation_id}] Found {len(schema_arguments)} arguments across all sections')
+                logger.info(
+                    f'[{correlation_id}] Found {len(schema_arguments)} arguments across all sections'
+                )
         else:
             logger.debug(f'[{correlation_id}] No Schema section found')
 
@@ -405,8 +403,8 @@ async def search_awscc_provider_docs_impl(
 
     This tool searches the Terraform AWSCC provider documentation for information about
     specific assets, which can either be resources or data sources. It retrieves comprehensive details including
-    descriptions, example code snippets, and schema information. 
-    
+    descriptions, example code snippets, and schema information.
+
     The AWSCC provider is based on the AWS Cloud Control API and provides a more consistent interface to AWS resources compared to the standard AWS provider.
 
     The implementation fetches documentation directly from the official Terraform AWSCC provider
@@ -416,16 +414,16 @@ async def search_awscc_provider_docs_impl(
     The tool retrieves comprehensive details including descriptions, example code snippets,
     and schema information (required, optional, and read-only attributes). It also handles
     nested schema structures for complex attributes.
-    
+
     The tool will automatically handle prefixes - you can search for either 'awscc_s3_bucket' or 's3_bucket'.
 
     Examples:
         - To get documentation for an S3 bucket resource:
           search_awscc_provider_docs_impl(resource_type='awscc_s3_bucket')
-        
+
         - To find information about a specific attribute:
           search_awscc_provider_docs_impl(resource_type='awscc_lambda_function', attribute='code')
-        
+
         - Without the prefix:
           search_awscc_provider_docs_impl(resource_type='ec2_instance')
 
@@ -457,7 +455,9 @@ async def search_awscc_provider_docs_impl(
             logger.info(f'[{correlation_id}] Searching for both resources and data sources')
 
             # First try as a resource
-            github_result = fetch_github_documentation(search_term, 'resource', cache_enabled, correlation_id)
+            github_result = fetch_github_documentation(
+                search_term, 'resource', cache_enabled, correlation_id
+            )
             if github_result:
                 logger.info(f'[{correlation_id}] Found documentation as a resource')
                 # Create result object
@@ -473,9 +473,10 @@ async def search_awscc_provider_docs_impl(
                 )
                 results.append(result)
 
-            
             # Then try as a data source
-            data_result = fetch_github_documentation(search_term, 'data_source', cache_enabled, correlation_id)
+            data_result = fetch_github_documentation(
+                search_term, 'data_source', cache_enabled, correlation_id
+            )
             if data_result:
                 logger.info(f'[{correlation_id}] Found documentation as a data source')
                 # Create result object
@@ -500,7 +501,9 @@ async def search_awscc_provider_docs_impl(
                 return results
         else:
             # Search for either resource or data source based on asset_type parameter
-            github_result = fetch_github_documentation(search_term, asset_type, cache_enabled, correlation_id)
+            github_result = fetch_github_documentation(
+                search_term, asset_type, cache_enabled, correlation_id
+            )
             if github_result:
                 logger.info(f'[{correlation_id}] Successfully found GitHub documentation')
 
@@ -547,7 +550,7 @@ async def search_awscc_provider_docs_impl(
         logger.debug(
             f'[{correlation_id}] Traceback: {"".join(traceback.format_tb(e.__traceback__))}'
         )
-        
+
         end_time = time.time()
         logger.info(f'[{correlation_id}] Search failed in {end_time - start_time:.2f} seconds')
 

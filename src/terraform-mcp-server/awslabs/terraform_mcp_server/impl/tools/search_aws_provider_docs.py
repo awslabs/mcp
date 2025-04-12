@@ -160,10 +160,7 @@ def fetch_github_documentation(
 
 
 def parse_markdown_documentation(
-    content: str,
-    asset_name: str,
-    url: str,
-    correlation_id: str = ''
+    content: str, asset_name: str, url: str, correlation_id: str = ''
 ) -> Dict[str, Any]:
     """Parse markdown documentation content for a resource.
 
@@ -289,7 +286,9 @@ def parse_markdown_documentation(
 
         # Extract Arguments Reference section
         arguments = []
-        arg_ref_section_match = re.search(r'## Argument Reference\n([\s\S]*?)(?=\n## |\Z)', content)
+        arg_ref_section_match = re.search(
+            r'## Argument Reference\n([\s\S]*?)(?=\n## |\Z)', content
+        )
         if arg_ref_section_match:
             arg_section = arg_ref_section_match.group(1).strip()
             logger.debug(
@@ -297,7 +296,9 @@ def parse_markdown_documentation(
             )
 
             # Look for arguments directly under the main Argument Reference section
-            args_under_main_section_match = re.search(r'(.*?)(?=\n###|\n##|$)', arg_section, re.DOTALL)
+            args_under_main_section_match = re.search(
+                r'(.*?)(?=\n###|\n##|$)', arg_section, re.DOTALL
+            )
             if args_under_main_section_match:
                 args_under_main_section = args_under_main_section_match.group(1).strip()
                 logger.debug(
@@ -368,9 +369,10 @@ def parse_markdown_documentation(
 
             arguments = arguments if arguments else None
             if arguments:
-                logger.info(f'[{correlation_id}] Found {len(arguments)} arguments across all sections')
+                logger.info(
+                    f'[{correlation_id}] Found {len(arguments)} arguments across all sections'
+                )
 
-            
         else:
             logger.debug(f'[{correlation_id}] No Argument Reference section found')
 
@@ -451,17 +453,17 @@ async def search_aws_provider_docs_impl(
     GitHub repository to ensure the most up-to-date information. Results are cached for
     improved performance on subsequent queries.
 
-    Use the 'asset_type' parameter to specify if you are looking for information about provider 
-    resources, data sources, or both. The tool will automatically handle prefixes - you can 
+    Use the 'asset_type' parameter to specify if you are looking for information about provider
+    resources, data sources, or both. The tool will automatically handle prefixes - you can
     search for either 'aws_s3_bucket' or 's3_bucket'.
 
     Examples:
         - To get documentation for an S3 bucket resource:
           search_aws_provider_docs_impl(asset_name='aws_s3_bucket')
-        
+
         - To search only for data sources:
           search_aws_provider_docs_impl(asset_name='aws_ami', asset_type='data_source')
-        
+
         - To search only for resources:
           search_aws_provider_docs_impl(asset_name='aws_instance', asset_type='resource')
 
@@ -495,7 +497,9 @@ async def search_aws_provider_docs_impl(
             logger.info(f'[{correlation_id}] Searching for both resources and data sources')
 
             # First try as a resource
-            github_result = fetch_github_documentation(search_term, 'resource', cache_enabled, correlation_id)
+            github_result = fetch_github_documentation(
+                search_term, 'resource', cache_enabled, correlation_id
+            )
             if github_result:
                 logger.info(f'[{correlation_id}] Found documentation as a resource')
                 # Create result object
@@ -513,7 +517,9 @@ async def search_aws_provider_docs_impl(
                 results.append(result)
 
             # Then try as a data source
-            data_result = fetch_github_documentation(search_term, 'data_source', cache_enabled, correlation_id)
+            data_result = fetch_github_documentation(
+                search_term, 'data_source', cache_enabled, correlation_id
+            )
             if data_result:
                 logger.info(f'[{correlation_id}] Found documentation as a data source')
                 # Create result object
@@ -539,7 +545,9 @@ async def search_aws_provider_docs_impl(
                 return results
         else:
             # Search for either resource or data source based on asset_type parameter
-            github_result = fetch_github_documentation(search_term, asset_type, cache_enabled, correlation_id)
+            github_result = fetch_github_documentation(
+                search_term, asset_type, cache_enabled, correlation_id
+            )
             if github_result:
                 logger.info(f'[{correlation_id}] Successfully found GitHub documentation')
 

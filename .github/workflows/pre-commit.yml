@@ -4,13 +4,45 @@ on:
   pull_request:
   push:
     branches: [main]
-
+permissions: read-all
 jobs:
+  detect-precommit:
+    runs-on: ubuntu-latest
+    outputs:
+      precommits: ${{ steps.find-precommit.outputs.precommits }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Find precommit configurations
+        id: find-precommit
+        working-directory: .
+        run: |
+          PRECOMMITS=$(find . -name ".pre-commit-config.yaml" -exec dirname {} \; | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')
+          echo "precommits=$PRECOMMITS" >> $GITHUB_OUTPUT
+
   pre-commit:
+    needs: [detect-precommit]
+    if: ${{ needs.detect-precommit.outputs.precommits != '[]' && needs.detect-precommit.outputs.precommits != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        precommit: ${{ fromJson(needs.detect-precommit.outputs.precommits) }}
+    name: Precommit ${{ matrix.precommit }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ matrix.precommit }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
     - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 #v5.5.0
-    - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd #v3.0.1
+    - run: |
+        python -m pip install pre-commit
+        python -m pip freeze --local
+    - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles(matrix.precommit) }}
+    - run: pre-commit run --show-diff-on-failure --color=always --all-files
+      working-directory: ${{ matrix.precommit }}

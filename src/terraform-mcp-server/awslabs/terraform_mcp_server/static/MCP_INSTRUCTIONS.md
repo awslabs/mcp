@@ -6,21 +6,21 @@ MCP server specialized in AWS cloud infrastructure provided through Terraform. I
 
 ## How to Use This Server (Required Workflow)
 
-### Step 1: Start with Best Practices
-ALWAYS begin by consulting the `terraform_aws_best_practices` resource which contains:
-
-* Code base structure and organization principles
-* Security best practices for AWS resources
-* Backend configuration best practices
-* AWS-specific implementation guidance
-
-### Step 2: Follow the Development Workflow
+### Step 1: Consult and Follow the Terraform Development Workflow
 ALWAYS use the `terraform_development_workflow` resource to guide the development process. This workflow:
 
 * Provides a step-by-step approach for creating valid, secure Terraform code
 * Integrates validation and security scanning into the development process
 * Specifies when and how to use each MCP tool
 * Ensures code is properly validated before handoff to developers
+
+### Step 2: Always ensure you're following Best Practices
+ALWAYS begin by consulting the `terraform_aws_best_practices` resource which contains:
+
+* Code base structure and organization principles
+* Security best practices for AWS resources
+* Backend configuration best practices
+* AWS-specific implementation guidance
 
 ### Step 3: Use Provider Documentation
 When implementing specific AWS resources:
@@ -77,9 +77,6 @@ For AI/ML applications, use the `SearchSpecificAwsIaModules` tool to find AWS-IA
 2. `RunCheckovScan`
    * Run after validation passes, before initialization
    * Identifies security and compliance issues
-3. `FixCheckovVulnerabilities`
-   * Apply automatic fixes to issues found by Checkov
-   * Re-validate after fixing
 
 
 ## AWS Provider Recommendation

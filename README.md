@@ -1,6 +1,6 @@
 # AWS MCP Servers
 
-A suite of specialized MCP servers that bring AWS best practices directly to your development workflow.
+A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
 [![GitHub](https://img.shields.io/badge/github-awslabs/mcp-blue.svg?style=flat&logo=github)](https://github.com/awslabs/mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen)](LICENSE)
@@ -84,6 +84,30 @@ A server for generating images using Amazon Nova Canvas.
 
 [Learn more](src/nova-canvas-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 
+### AWS Diagram MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-diagram-mcp-server.svg)](https://pypi.org/project/awslabs.aws-diagram-mcp-server/)
+
+A server for seamlessly creating diagrams using the Python diagrams package DSL.
+
+- Generate professional diagrams using Python code
+- Support for AWS architecture, sequence diagrams, flow charts, and class diagrams
+- Customize diagram appearance, layout, and styling
+- Code scanning to ensure secure diagram generation
+
+[Learn more](src/aws-diagram-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
+
+### AWS Lambda MCP Server
+
+An server to select and run AWS Lambda function as MCP tools without code changes.
+
+- This server acts as a bridge between MCP clients and AWS Lambda functions, allowing foundation models (FMs) to access and run Lambda functions as tools.
+- This can be used, for example, to access private resources such as internal applications and databases without the need to provide public network access.
+- This approach allows an MCP client to use other AWS services, private networks, and the public internet.
+- The Lambda function description is used by MCP to describe the tool and should guide the FMs on when (what does the function provide?) and how (which parameters it needs? which syntax?) to use it.
+
+[Learn more](src/lambda-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/lambda-mcp-server/)
+
 ## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
 
 > The Model Context Protocol (MCP) is an open protocol that enables seamless integration between LLM applications and external data sources and tools. Whether you're building an AI-powered IDE, enhancing a chat interface, or creating custom AI workflows, MCP provides a standardized way to connect LLMs with the context they need.
@@ -163,12 +187,28 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       },
       "disabled": false,
       "autoApprove": []
+    },
+    "awslabs.lambda-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.lambda-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FUNCTION_PREFIX": "your-function-prefix",
+        "FUNCTION_LIST": "your-first-function, your-second-function",
+        "FUNCTION_TAG_KEY": "your-tag-key",
+        "FUNCTION_TAG_VALUE": "your-tag-value"
+      }
     }
   }
 }
 ```
 
 See individual server READMEs for specific requirements and configuration options.
+
+## Samples
+
+Ready-to-use examples of AWS MCP Servers in action are available in the [samples](samples/) directory. These samples provide working code and step-by-step guides to help you get started with each MCP server.
 
 ## Documentation
 
@@ -181,6 +221,7 @@ Documentation for each server:
 - [AWS CDK MCP Server](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
+- [AWS Diagram MCP Server]((https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/))
 
 Documentation includes:
 
@@ -192,6 +233,18 @@ Documentation includes:
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+## Contributing
+
+Big shout out to our awesome contributors! Thank you for making this project better!
+
+[![contributors](https://contrib.rocks/image?repo=awslabs/mcp&max=2000)](https://github.com/awslabs/mcp/graphs/contributors)
+
+Contributions of all kinds are welcome! Check out our [contributor guide](CONTRIBUTING.md) for more information.
+
+## Developer guide
+
+If you want to add a new MCP Server to the library, check out our [development guide](DEVELOPER_GUIDE.md)
 
 ## License
 

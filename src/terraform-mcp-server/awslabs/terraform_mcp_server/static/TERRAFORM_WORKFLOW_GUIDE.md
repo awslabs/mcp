@@ -26,91 +26,91 @@ By following this workflow guide and leveraging the provided tools and resources
 ``` mermaid
 flowchart TD
     start([Start Development]) --> edit[Edit Terraform Code]
-    
+
     %% Initial Code Validation
     edit --> tfValidate[Run terraform validate\nvia ExecuteTerraformCommand]
-    
+
     %% Validation Flow
     tfValidate -->|Passes| checkovScan[Run Security Scan\nvia RunCheckovScan]
     tfValidate -->|Fails| fixValidation[Fix Configuration\nIssues]
     fixValidation --> edit
-    
+
     %% Checkov Flow
     checkovScan -->|No Issues| tfInit[Run terraform init\nvia ExecuteTerraformCommand]
     checkovScan -->|Finds Issues| reviewIssues[Review Security\nIssues]
-    
-    reviewIssues --> autoFix[Apply Automatic Fixes\nvia FixCheckovVulnerabilities]
-    reviewIssues --> manualFix[Apply Manual Fixes]
-    
-    autoFix --> checkovScan
+
+    reviewIssues --> manualFix[Fix Security Issues]
+
     manualFix --> edit
-    
+
     %% Terraform Init & Plan (No Apply)
     tfInit -->|Success| tfPlan[Run terraform plan\nvia ExecuteTerraformCommand]
     tfInit -->|Fails| fixInit[Fix Provider/Module\nIssues]
     fixInit --> edit
-    
+
     %% Final Review & Handoff to Developer
     tfPlan -->|Plan Generated| reviewPlan[Review Planned Changes]
     tfPlan -->|Issues Detected| edit
-    
+
     reviewPlan --> codeReady[Valid, Secure Code Ready\nfor Developer Review]
-    
+
     %% Iteration for Improvements
     codeReady --> newChanges{Need Code\nImprovements?}
     newChanges -->|Yes| edit
     newChanges -->|No| handoff([Hand Off to Developer\nfor Deployment Decision])
-    
+
     %% Styling
     classDef success fill:#bef5cb,stroke:#28a745
-    classDef warning fill:#fff5b1,stroke:#dbab09  
+    classDef warning fill:#fff5b1,stroke:#dbab09
     classDef error fill:#ffdce0,stroke:#cb2431
     classDef process fill:#f1f8ff,stroke:#0366d6
     classDef decision fill:#d1bcf9,stroke:#8a63d2
     classDef mcptool fill:#d0f0fd,stroke:#0969da,font-style:italic
     classDef handoff fill:#ffdfb6,stroke:#f9a03f
-    
+
     class codeReady success
     class reviewIssues,reviewPlan warning
     class fixValidation,fixInit,manualFix error
     class edit process
     class newChanges decision
-    class tfValidate,checkovScan,tfInit,tfPlan,autoFix mcptool
+    class tfValidate,checkovScan,tfInit,tfPlan mcptool
     class handoff handoff
 ```
 
 1. Edit Terraform Code
     - Write or modify Terraform configuration files for AWS resources
+    - When writing code:
+        * PREFER AWSCC provider resources first (`SearchAwsccProviderDocs` tool)
+        * Fall back to traditional AWS provider (`SearchAwsProviderDocs` tool) only when necessary
     - MCP Resources and tools to consult:
-        - terraform_awscc_provider_resources_listing for available AWS Cloud Control API resources
-        - terraform_aws_provider_resources_listing for available AWS resources
-        - terraform_aws_best_practices for AWS best practices
-        - SearchAwsccProviderDocs tool to look up specific Cloud Control API resources.
-        - SearchAwsProviderDocs tool to look up specific resource documentation
-        - SearchSpecificAwsIaModules tool when working with supported AWS-IA modules
+        - Resources
+            - *terraform_development_workflow* to consult this guide and to use it to ensure you're following the development workflow correctly
+            - *terraform_aws_best_practices* for AWS best practices about security, code base structure and organization, AWS Provider version management, and usage of community modules
+            - *terraform_awscc_provider_resources_listing* for available AWS Cloud Control API resources
+            - *terraform_aws_provider_resources_listing* for available AWS resources
+        - Tools
+            - *SearchAwsccProviderDocs* tool to look up specific Cloud Control API resources.
+            - *SearchAwsProviderDocs* tool to look up specific resource documentation
+            - *SearchSpecificAwsIaModules* tool when working with supported AWS-IA modules
 2. Validate Code
-    - Tool: ExecuteTerraformCommand with command="validate"
+    - Tool: *ExecuteTerraformCommand* with command="validate"
         - Checks syntax and configuration validity without accessing AWS
         - Identifies syntax errors, invalid resource configurations, and reference issues
         - Example: ExecuteTerraformCommand(TerraformExecutionRequest(command="validate", working_directory="./my_project"))
 3. Run Security Scan
-    - Tool: RunCheckovScan
+    - Tool: *RunCheckovScan*
         - Scans code for security misconfigurations, compliance issues, and AWS best practice violations
         - Example: RunCheckovScan(CheckovScanRequest(working_directory="./my_project", framework="terraform"))
 4. Fix Security Issues
-    - For automated fixes:
-        - Tool: FixCheckovVulnerabilities
-        - Automatically remediate supported issues identified by the scan
-        - Example: FixCheckovVulnerabilities(CheckovFixRequest(working_directory="./my_project", vulnerability_ids=["CKV_AWS_123"], backup_files=True))
-    - For manual fixes:
-        - Edit the code to address issues that can't be automatically fixed
-        - Consult terraform_aws_best_practices resource for guidance
+    - For fixes:
+        - Edit the code to address security issues identified by the scan
+        - Consult *terraform_aws_best_practices* resource for guidance
 5. Initialize Working Directory
-    - Tool: ExecuteTerraformCommand with command="init"
+    - Tool: *ExecuteTerraformCommand* with command="init"
         - Downloads provider plugins and sets up modules
         - Example: ExecuteTerraformCommand(TerraformExecutionRequest(command="init", working_directory="./my_project"))
 6. Plan Changes
-    - Tool: ExecuteTerraformCommand with command="plan"
+    - Tool: *ExecuteTerraformCommand* with command="plan"
         - Creates an execution plan showing what changes would be made (without applying)
         - Verifies that the configuration is deployable
         - Example: ExecuteTerraformCommand(TerraformExecutionRequest(command="plan", working_directory="./my_project", output_file="tfplan"))
@@ -140,7 +140,7 @@ Options:
 
 ```python
 ExecuteTerraformCommand(TerraformExecutionRequest(
-    command="validate", 
+    command="validate",
     working_directory="./project_dir"
 ))
 ```
@@ -178,19 +178,13 @@ Options:
 
 ### Checkov Commands
 
-These security scanning and remediation commands are available through dedicated tools:
+These security scanning commands are available through dedicated tools:
 
 #### Checkov Scan
 
 * Purpose: Scans Terraform code for security issues, misconfigurations, and compliance violations.
 * Tool: RunCheckovScan
 * When to use: After code passes terraform validate but before initializing and planning.
-
-#### Checkov Fix
-
-* Purpose: Automatically fixes supported security issues found by Checkov.
-* Tool: FixCheckovVulnerabilities
-* When to use: After Checkov scan identifies fixable issues.
 
 ## Key Principles
 - **Code Development**: Strongly prefer using the AWSCC provider first (Cloud Control API-based provider) before falling back to the traditional AWS provider.

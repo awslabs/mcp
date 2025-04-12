@@ -23,7 +23,7 @@ dev = [
     "commitizen>=4.2.2",
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
-    "pyright>=1.1.398",
+    "pyright>=1.1.399",
 ]
 
 [build-system]

@@ -121,13 +121,16 @@ class TerraformProviderDocsResult(BaseModel):
         example_usage: List of example code snippets with titles.
     """
 
-    asset_name: str = Field(..., description='Name of the AWS resource type')    
-    asset_type: Literal['both', 'resource', 'data_source'] = Field(default='both', description="Type of the item - 'resource' or 'data_source' or 'both'")
+    asset_name: str = Field(..., description='Name of the AWS resource type')
+    asset_type: Literal['both', 'resource', 'data_source'] = Field(
+        default='both', description="Type of the item - 'resource' or 'data_source' or 'both'"
+    )
     description: Optional[str] = Field(..., description='Brief description of the resource')
-    url: Optional[str] = Field(None, description='URL to the documentation for this resource')        
+    url: Optional[str] = Field(None, description='URL to the documentation for this resource')
     example_usage: Optional[List[Dict[str, str]]] = Field(
         None, description='List of example snippets with titles'
     )
+
 
 class TerraformAWSProviderDocsResult(TerraformProviderDocsResult):
     """Model representing documentation results for AWS Terraform Provider.
@@ -136,12 +139,14 @@ class TerraformAWSProviderDocsResult(TerraformProviderDocsResult):
         arguments: List of arguments with descriptions specific to AWS provider resources.
         attributes: List of attributes with descriptions specific to AWS provider resources.
     """
+
     arguments: Optional[List[Dict[str, str]]] = Field(
         None, description='List of arguments with descriptions'
     )
     attributes: Optional[List[Dict[str, str]]] = Field(
         None, description='List of attributes with descriptions'
     )
+
 
 class TerraformAWSCCProviderDocsResult(TerraformProviderDocsResult):
     """Model representing documentation results for AWSCC Terraform Provider.
@@ -150,6 +155,7 @@ class TerraformAWSCCProviderDocsResult(TerraformProviderDocsResult):
         schema_arguments: List of schema arguments with descriptions where applicable.
                 Contains the full resource schema definition from the AWSCC provider split by section.
     """
+
     schema_arguments: Optional[List[Dict[str, Any]]] = Field(
         None,
         description='List of schema arguments with descriptions where applicable',
@@ -219,7 +225,6 @@ class CheckovScanRequest(BaseModel):
         check_ids: Optional list of specific check IDs to run.
         skip_check_ids: Optional list of check IDs to skip.
         output_format: Format for the scan results output.
-        auto_fix: Whether to attempt automatic fixes for found vulnerabilities.
     """
 
     working_directory: str = Field(..., description='Directory containing Terraform files')
@@ -229,7 +234,6 @@ class CheckovScanRequest(BaseModel):
     check_ids: Optional[List[str]] = Field(None, description='Specific check IDs to run')
     skip_check_ids: Optional[List[str]] = Field(None, description='Check IDs to skip')
     output_format: str = Field('json', description='Output format (json, cli, etc.)')
-    auto_fix: bool = Field(False, description='Whether to attempt automatic fixes')
 
 
 class CheckovScanResult(BaseModel):
@@ -254,43 +258,3 @@ class CheckovScanResult(BaseModel):
     )
     summary: Dict[str, Any] = Field({}, description='Summary of scan results')
     raw_output: Optional[str] = Field(None, description='Raw output from Checkov')
-
-
-class CheckovFixRequest(BaseModel):
-    """Request model for fixing Checkov vulnerabilities.
-
-    Attributes:
-        working_directory: Directory containing Terraform files to fix.
-        vulnerability_ids: List of vulnerability IDs to fix.
-        backup_files: Whether to create backup files before fixing.
-    """
-
-    working_directory: str = Field(..., description='Directory containing Terraform files')
-    vulnerability_ids: List[str] = Field(..., description='List of vulnerability IDs to fix')
-    backup_files: bool = Field(True, description='Whether to create backup files before fixing')
-
-
-class CheckovFixResult(BaseModel):
-    """Result model for Checkov fix execution.
-
-    Attributes:
-        status: Execution status (success/error).
-        return_code: The command's return code (0 for success).
-        working_directory: Directory where the fix was executed.
-        error_message: Optional error message if execution failed.
-        fixed_vulnerabilities: List of vulnerabilities that were fixed.
-        unfixed_vulnerabilities: List of vulnerabilities that could not be fixed.
-        summary: Summary of the fix results.
-    """
-
-    status: Literal['success', 'error']
-    return_code: Optional[int] = None
-    working_directory: str
-    error_message: Optional[str] = None
-    fixed_vulnerabilities: List[CheckovVulnerability] = Field(
-        [], description='List of fixed vulnerabilities'
-    )
-    unfixed_vulnerabilities: List[CheckovVulnerability] = Field(
-        [], description='List of unfixed vulnerabilities'
-    )
-    summary: Dict[str, Any] = Field({}, description='Summary of fix results')

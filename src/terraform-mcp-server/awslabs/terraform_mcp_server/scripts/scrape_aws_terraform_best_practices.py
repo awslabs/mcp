@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Script to download and extract content from AWS Terraform best practices PDF and save it as markdown."""
 
 import io
@@ -97,6 +96,11 @@ def convert_to_markdown(text):
 
 
 def main():
+    """Execute the main workflow to download, extract, and convert AWS Terraform best practices to markdown.
+
+    Downloads the PDF from the specified URL, extracts the text content, converts it to markdown format,
+    and saves it to the output file. Creates the output directory if it doesn't exist.
+    """
     # Create output directory if it doesn't exist
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 

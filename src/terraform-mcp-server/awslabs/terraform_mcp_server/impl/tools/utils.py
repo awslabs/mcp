@@ -6,7 +6,6 @@ import requests
 import time
 import traceback
 from ...models import SubmoduleInfo, TerraformVariable
-from functools import lru_cache
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -40,24 +39,6 @@ def clean_description(description: str) -> str:
 
     # Clean the description
     return emoji_pattern.sub(r'', description).strip()
-
-
-# Add a simple cache for GitHub API responses
-@lru_cache(maxsize=100)
-def cached_github_request(url: str) -> Dict:
-    """Cache GitHub API responses to reduce API calls.
-
-    Args:
-        url: GitHub API URL
-
-    Returns:
-        Cached response or new response
-    """
-    logger.debug(f'Cache miss for: {url}')
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    return None
 
 
 async def get_github_release_details(owner: str, repo: str) -> Dict[str, Any]:

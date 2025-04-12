@@ -55,39 +55,8 @@ def lambda_handler(event, context: LambdaContext):
 5. **Track both success and failure metrics**: Record metrics for both outcomes
 6. **Use consistent naming**: Follow a consistent naming convention for metrics
 
-## CloudWatch Dashboard Integration
+## CDK Integration
 
-You can create CloudWatch dashboards to visualize your metrics:
+> **REMINDER**: Lambda Powertools requires a Lambda layer. See `lambda-powertools://cdk` for CDK integration details.
 
-```typescript
-import { Dashboard, GraphWidget, Metric } from 'aws-cdk-lib/aws-cloudwatch';
-
-// Create a dashboard
-const dashboard = new Dashboard(this, 'PaymentsDashboard', {
-  dashboardName: 'PaymentsDashboard',
-});
-
-// Add a widget for payment metrics
-dashboard.addWidgets(
-  new GraphWidget({
-    title: 'Payment Processing',
-    left: [
-      new Metric({
-        namespace: 'PaymentService',
-        metricName: 'SuccessfulPayment',
-        dimensionsMap: {
-          service: 'payment-service',
-        },
-        statistic: 'Sum',
-      }),
-      new Metric({
-        namespace: 'PaymentService',
-        metricName: 'FailedPayment',
-        dimensionsMap: {
-          service: 'payment-service',
-        },
-        statistic: 'Sum',
-      }),
-    ],
-  })
-);
+For CloudWatch dashboard integration and other CDK-specific guidance, refer to `lambda-powertools://cdk`.

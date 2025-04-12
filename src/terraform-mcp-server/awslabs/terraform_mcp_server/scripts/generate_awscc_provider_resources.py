@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Script to generate AWSCC provider resources markdown for the Terraform Expert MCP server.
 
 This script scrapes the Terraform AWSCC provider documentation using Playwright
