@@ -77,6 +77,7 @@ class ResourceItem(TypedDict):
         url: The documentation URL for the resource
         type: The type of item - either 'resource' or 'data_source'
     """
+
     name: str
     url: str
     type: str
@@ -89,6 +90,7 @@ class CategoryData(TypedDict):
         resources: List of ResourceItem objects representing Terraform resources in this category
         data_sources: List of ResourceItem objects representing Terraform data sources in this category
     """
+
     resources: List[ResourceItem]
     data_sources: List[ResourceItem]
 
@@ -100,6 +102,7 @@ class ProviderResult(TypedDict):
         categories: Dictionary mapping AWS service category names to their resources and data sources
         version: AWS provider version string (e.g. "5.91.0")
     """
+
     categories: Dict[str, CategoryData]
     version: str
 
