@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./src/terraform-mcp-server/awslabs"
+    ]
+}
