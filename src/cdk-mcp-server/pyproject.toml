@@ -32,6 +32,13 @@ classifiers = [
 [project.scripts]
 "awslabs.cdk-mcp-server" = "awslabs.cdk_mcp_server.server:main"
 
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/cdk-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/cdk-mcp-server/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",

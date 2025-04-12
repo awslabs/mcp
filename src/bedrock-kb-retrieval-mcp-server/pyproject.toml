@@ -31,6 +31,13 @@ classifiers = [
 [project.scripts]
 "awslabs.bedrock-kb-retrieval-mcp-server" = "awslabs.bedrock_kb_retrieval_mcp_server.server:main"
 
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/bedrock-kb-retrieval-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/bedrock-kb-retrieval-mcp-server/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
     "boto3-stubs[bedrock-agent,bedrock-agent-runtime]>=1.37.24",

@@ -33,6 +33,13 @@ classifiers = [
 [project.scripts]
 "awslabs.aws-documentation-mcp-server" = "awslabs.aws_documentation_mcp_server.server:main"
 
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-documentation-mcp-server/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",

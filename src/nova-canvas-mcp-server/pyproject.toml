@@ -31,6 +31,13 @@ classifiers = [
 [project.scripts]
 "awslabs.nova-canvas-mcp-server" = "awslabs.nova_canvas_mcp_server.server:main"
 
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/nova-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/nova-mcp-server/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
     "boto3-stubs[bedrock-runtime]>=1.37.24",
