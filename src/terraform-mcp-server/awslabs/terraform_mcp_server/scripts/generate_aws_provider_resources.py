@@ -68,28 +68,34 @@ DEFAULT_OUTPUT_PATH = (
 # AWS provider URL
 AWS_PROVIDER_URL = 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs'
 
+
 # Define TypedDict classes for the structures used in the script
 class ResourceItem(TypedDict):
     name: str
     url: str
     type: str
 
+
 class CategoryData(TypedDict):
     resources: List[ResourceItem]
     data_sources: List[ResourceItem]
+
 
 class ProviderResult(TypedDict):
     categories: Dict[str, CategoryData]
     version: str
 
+
 # Type helpers for BeautifulSoup
 T = TypeVar('T')
+
 
 def ensure_tag(element: Optional[PageElement]) -> Optional[Tag]:
     """Ensure an element is a Tag or return None."""
     if isinstance(element, Tag):
         return element
     return None
+
 
 def safe_find(element: Any, *args: Any, **kwargs: Any) -> Optional[Tag]:
     """Safely find an element in a Tag."""
@@ -98,17 +104,19 @@ def safe_find(element: Any, *args: Any, **kwargs: Any) -> Optional[Tag]:
     result = element.find(*args, **kwargs)
     return ensure_tag(result)
 
+
 def safe_find_all(element: Any, *args: Any, **kwargs: Any) -> ResultSet:
     """Safely find all elements in a Tag."""
     if not isinstance(element, Tag):
         return ResultSet(SoupStrainer(), [])
     return element.find_all(*args, **kwargs)
 
+
 def safe_get_text(element: Any, strip: bool = False) -> str:
     """Safely get text from an element."""
     if hasattr(element, 'get_text'):
         return element.get_text(strip=strip)
-    return str(element) if element is not None else ""
+    return str(element) if element is not None else ''
 
 
 async def fetch_aws_provider_page() -> ProviderResult:
@@ -131,7 +139,9 @@ async def fetch_aws_provider_page() -> ProviderResult:
         logger.info(
             'Skipping Playwright and using pre-defined resource structure (USE_PLAYWRIGHT=0)'
         )
-        return cast(ProviderResult, {'categories': get_fallback_resource_data(), 'version': 'unknown'})
+        return cast(
+            ProviderResult, {'categories': get_fallback_resource_data(), 'version': 'unknown'}
+        )
     else:
         logger.info('Playwright is available and will be used to scrape the AWS provider docs')
         logger.info('Starting browser to extract AWS provider resources structure')
@@ -167,7 +177,10 @@ async def fetch_aws_provider_page() -> ProviderResult:
                 except Exception as nav_error:
                     logger.error(f'Error during navigation: {nav_error}')
                     await browser.close()
-                    return cast(ProviderResult, {'categories': get_fallback_resource_data(), 'version': 'unknown'})
+                    return cast(
+                        ProviderResult,
+                        {'categories': get_fallback_resource_data(), 'version': 'unknown'},
+                    )
 
                 # Wait for the content to be fully loaded
                 logger.info('Waiting for page to render completely')
@@ -277,12 +290,16 @@ async def fetch_aws_provider_page() -> ProviderResult:
                                     await asyncio.sleep(1)
 
                                     # Check if the banner is gone
-                                    banner_still_visible = await page.query_selector('#consent-banner')
+                                    banner_still_visible = await page.query_selector(
+                                        '#consent-banner'
+                                    )
                                     if not banner_still_visible:
                                         logger.info('Banner successfully dismissed')
                                         break
                             except Exception as button_error:
-                                logger.warning(f'Failed to click button {selector}: {button_error}')
+                                logger.warning(
+                                    f'Failed to click button {selector}: {button_error}'
+                                )
 
                         # If button clicking didn't work, try JavaScript approach as a fallback
                         banner_still_visible = await page.query_selector('#consent-banner')
@@ -297,7 +314,9 @@ async def fetch_aws_provider_page() -> ProviderResult:
                                 }""")
                                 logger.info('Removed banner using JavaScript')
                             except Exception as js_error:
-                                logger.warning(f'Failed to remove banner via JavaScript: {js_error}')
+                                logger.warning(
+                                    f'Failed to remove banner via JavaScript: {js_error}'
+                                )
 
                 except Exception as banner_error:
                     logger.warning(f'Error handling consent banner: {banner_error}')
@@ -329,7 +348,10 @@ async def fetch_aws_provider_page() -> ProviderResult:
 
                 # Save HTML for debugging using tempfile for security
                 with tempfile.NamedTemporaryFile(
-                    prefix='terraform_aws_debug_playwright_', suffix='.html', mode='w', delete=False
+                    prefix='terraform_aws_debug_playwright_',
+                    suffix='.html',
+                    mode='w',
+                    delete=False,
                 ) as temp_file:
                     temp_file.write(content)
                     debug_file_path = temp_file.name
@@ -360,9 +382,11 @@ async def fetch_aws_provider_page() -> ProviderResult:
                         # Try to find any element with many links as a potential menu
                         potential_menus: List[Tuple[Tag, int]] = []
                         for elem in soup.find_all(['div', 'nav', 'ul']):
-                             if isinstance(elem, Tag):  # Type guard to ensure elem is a Tag
+                            if isinstance(elem, Tag):  # Type guard to ensure elem is a Tag
                                 links = elem.find_all('a')
-                                if len(links) > 10:  # Any element with many links might be navigation
+                                if (
+                                    len(links) > 10
+                                ):  # Any element with many links might be navigation
                                     potential_menus.append((elem, len(links)))
 
                         # Sort by number of links, highest first
@@ -370,13 +394,18 @@ async def fetch_aws_provider_page() -> ProviderResult:
 
                         if potential_menus:
                             menu_content = potential_menus[0][0]
-                            logger.info(f'Using element with {potential_menus[0][1]} links as menu')
+                            logger.info(
+                                f'Using element with {potential_menus[0][1]} links as menu'
+                            )
 
                     # If we still have nothing, use fallback
                     if not menu_content:
                         logger.error("Couldn't find any navigation element, using fallback data")
                         await browser.close()
-                        return cast(ProviderResult, {'categories': get_fallback_resource_data(), 'version': 'unknown'})
+                        return cast(
+                            ProviderResult,
+                            {'categories': get_fallback_resource_data(), 'version': 'unknown'},
+                        )
 
                 # Find all category titles (excluding 'guides' and 'functions')
                 category_titles = menu_content.select('.menu-list-category-link-title')
@@ -384,7 +413,10 @@ async def fetch_aws_provider_page() -> ProviderResult:
                 if not category_titles:
                     logger.error("Couldn't find any .menu-list-category-link-title elements")
                     await browser.close()
-                    return cast(ProviderResult, {'categories': get_fallback_resource_data(), 'version': 'unknown'})
+                    return cast(
+                        ProviderResult,
+                        {'categories': get_fallback_resource_data(), 'version': 'unknown'},
+                    )
 
                 logger.info(f'Found {len(category_titles)} category titles')
 
@@ -459,7 +491,9 @@ async def fetch_aws_provider_page() -> ProviderResult:
                                     # If we have an href, use that to locate the element
                                     try:
                                         selector = f"a[href='{href}']"
-                                        await page.click(selector, timeout=8000)  # Increased timeout
+                                        await page.click(
+                                            selector, timeout=8000
+                                        )  # Increased timeout
                                         logger.debug(
                                             f'Clicked category using href selector: {selector}'
                                         )
@@ -545,7 +579,9 @@ async def fetch_aws_provider_page() -> ProviderResult:
                                 continue
 
                             # Find the ul.menu-list that contains both Resources and Data Sources sections
-                            category_menu_list = safe_find(parent_li, 'ul', attrs={'class': 'menu-list'})
+                            category_menu_list = safe_find(
+                                parent_li, 'ul', attrs={'class': 'menu-list'}
+                            )
                             if not category_menu_list:
                                 logger.warning(
                                     f'Could not find menu-list for category {category_name}'
@@ -565,17 +601,24 @@ async def fetch_aws_provider_page() -> ProviderResult:
                                     resource_section_li = None
                                     while parent_elem and parent_elem.parent:
                                         parent_elem = parent_elem.parent
-                                        if isinstance(parent_elem, Tag) and parent_elem.name == 'li':
+                                        if (
+                                            isinstance(parent_elem, Tag)
+                                            and parent_elem.name == 'li'
+                                        ):
                                             resource_section_li = parent_elem
                                             break
-                                    
+
                                     if resource_section_li:
-                                        resource_section = safe_find(resource_section_li, 'ul', attrs={'class': 'menu-list'})
+                                        resource_section = safe_find(
+                                            resource_section_li, 'ul', attrs={'class': 'menu-list'}
+                                        )
                                     break
 
                             # Extract resources
                             if resource_section:
-                                resource_links = safe_find_all(resource_section, 'li', class_='menu-list-link')
+                                resource_links = safe_find_all(
+                                    resource_section, 'li', class_='menu-list-link'
+                                )
                                 for item in resource_links:
                                     link = safe_find(item, 'a')
                                     if not isinstance(link, Tag):
@@ -600,7 +643,11 @@ async def fetch_aws_provider_page() -> ProviderResult:
                                     )
 
                                     # Add to resources
-                                    resource = {'name': link_text, 'url': full_url, 'type': 'resource'}
+                                    resource = {
+                                        'name': link_text,
+                                        'url': full_url,
+                                        'type': 'resource',
+                                    }
 
                                     categories[category_name]['resources'].append(resource)
                                     resource_count += 1
@@ -618,17 +665,24 @@ async def fetch_aws_provider_page() -> ProviderResult:
                                     data_section_li = None
                                     while parent_elem and parent_elem.parent:
                                         parent_elem = parent_elem.parent
-                                        if isinstance(parent_elem, Tag) and parent_elem.name == 'li':
+                                        if (
+                                            isinstance(parent_elem, Tag)
+                                            and parent_elem.name == 'li'
+                                        ):
                                             data_section_li = parent_elem
                                             break
-                                    
+
                                     if data_section_li:
-                                        data_section = safe_find(data_section_li, 'ul', attrs={'class': 'menu-list'})
+                                        data_section = safe_find(
+                                            data_section_li, 'ul', attrs={'class': 'menu-list'}
+                                        )
                                     break
 
                             # Extract data sources
                             if data_section:
-                                data_links = safe_find_all(data_section, 'li', class_='menu-list-link')
+                                data_links = safe_find_all(
+                                    data_section, 'li', class_='menu-list-link'
+                                )
                                 for item in data_links:
                                     link = safe_find(item, 'a')
                                     if not isinstance(link, Tag):
@@ -699,7 +753,9 @@ async def fetch_aws_provider_page() -> ProviderResult:
         except Exception as e:
             logger.error(f'Error extracting AWS provider resources: {str(e)}')
             # Return fallback data in case of error
-            return cast(ProviderResult, {'categories': get_fallback_resource_data(), 'version': 'unknown'})
+            return cast(
+                ProviderResult, {'categories': get_fallback_resource_data(), 'version': 'unknown'}
+            )
 
 
 def get_fallback_resource_data() -> Dict[str, CategoryData]:

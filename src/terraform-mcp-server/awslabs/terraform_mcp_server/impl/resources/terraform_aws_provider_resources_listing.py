@@ -21,6 +21,7 @@ STATIC_RESOURCES_PATH = (
     Path(__file__).parent.parent.parent / 'static' / 'AWS_PROVIDER_RESOURCES.md'
 )
 
+
 async def terraform_aws_provider_assets_listing_impl() -> str:
     """Generate a comprehensive listing of AWS provider resources and data sources.
 
@@ -44,7 +45,7 @@ async def terraform_aws_provider_assets_listing_impl() -> str:
         else:
             # Send error if static file does not exist
             logger.debug(f"Static assets list file not found at '{STATIC_RESOURCES_PATH}'")
-            raise Exception(f"Static assets list file not found")
+            raise Exception(f'Static assets list file not found')
     except Exception as e:
         logger.error(f'Error generating AWS provider assets listing: {e}')
         return f'# AWS Provider Assets Listing\n\nError generating listing: {str(e)}'

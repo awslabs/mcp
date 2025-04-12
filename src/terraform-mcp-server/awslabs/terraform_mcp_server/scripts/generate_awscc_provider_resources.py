@@ -35,11 +35,13 @@ from bs4.filter import SoupStrainer
 # Type helpers for BeautifulSoup
 T = TypeVar('T')
 
+
 def ensure_tag(element: Optional[PageElement]) -> Optional[Tag]:
     """Ensure an element is a Tag or return None."""
     if isinstance(element, Tag):
         return element
     return None
+
 
 def safe_find(element: Any, *args: Any, **kwargs: Any) -> Optional[Tag]:
     """Safely find an element in a Tag."""
@@ -48,17 +50,19 @@ def safe_find(element: Any, *args: Any, **kwargs: Any) -> Optional[Tag]:
     result = element.find(*args, **kwargs)
     return ensure_tag(result)
 
+
 def safe_find_all(element: Any, *args: Any, **kwargs: Any) -> ResultSet:
     """Safely find all elements in a Tag."""
     if not isinstance(element, Tag):
         return ResultSet(SoupStrainer(), [])
     return element.find_all(*args, **kwargs)
 
+
 def safe_get_text(element: Any, strip: bool = False) -> str:
     """Safely get text from an element."""
     if hasattr(element, 'get_text'):
         return element.get_text(strip=strip)
-    return str(element) if element is not None else ""
+    return str(element) if element is not None else ''
 
 
 ## Playwright optional import
@@ -505,8 +509,8 @@ async def fetch_awscc_provider_page():
                         # Find the clicked category element in the updated DOM
                         # This is important because the structure changes after clicking
                         # First, find the category span by its text
-                        category_spans = safe_find_all(current_soup, 
-                            'span', class_='menu-list-category-link-title'
+                        category_spans = safe_find_all(
+                            current_soup, 'span', class_='menu-list-category-link-title'
                         )
                         clicked_category_span = None
                         for span in category_spans:
@@ -538,16 +542,16 @@ async def fetch_awscc_provider_page():
 
                         # Process Resources section
                         # Find the span with text "Resources"
-                        resource_spans = safe_find_all(category_menu_list, 
-                            'span', class_='menu-list-category-link-title'
+                        resource_spans = safe_find_all(
+                            category_menu_list, 'span', class_='menu-list-category-link-title'
                         )
                         resource_section = None
                         for span in resource_spans:
                             if safe_get_text(span, strip=True) == 'Resources':
                                 resource_section_li = ensure_tag(span.find_parent('li'))
                                 if resource_section_li:
-                                    resource_section = safe_find(resource_section_li,
-                                        'ul', class_='menu-list'
+                                    resource_section = safe_find(
+                                        resource_section_li, 'ul', class_='menu-list'
                                     )
                                 break
 
@@ -563,9 +567,9 @@ async def fetch_awscc_provider_page():
                                     link_text = safe_get_text(link, strip=True)
                                     # AWSCC resources typically start with "awscc_"
                                     if (
-                                        isinstance(link_text, str) and
-                                        link_text.startswith('awscc_') and 
-                                        '_data_' not in link_text.lower()
+                                        isinstance(link_text, str)
+                                        and link_text.startswith('awscc_')
+                                        and '_data_' not in link_text.lower()
                                     ):
                                         resource_section = ul
                                         break
@@ -575,8 +579,8 @@ async def fetch_awscc_provider_page():
                         # Extract resources
                         if resource_section:
                             # Try both menu-list-link class and direct a tags
-                            resource_links = safe_find_all(resource_section, 
-                                'li', class_='menu-list-link'
+                            resource_links = safe_find_all(
+                                resource_section, 'li', class_='menu-list-link'
                             )
 
                             # If not resource_links, try direct a tags
@@ -603,7 +607,9 @@ async def fetch_awscc_provider_page():
                                     continue
 
                                 # Skip if this doesn't look like an AWSCC resource
-                                if not isinstance(link_text, str) or not link_text.startswith('awscc_'):
+                                if not isinstance(link_text, str) or not link_text.startswith(
+                                    'awscc_'
+                                ):
                                     continue
 
                                 # Skip data sources (they'll be handled separately)
@@ -625,15 +631,17 @@ async def fetch_awscc_provider_page():
 
                         # Process Data Sources section
                         # Find the span with text "Data Sources"
-                        data_spans = safe_find_all(category_menu_list,
-                            'span', class_='menu-list-category-link-title'
+                        data_spans = safe_find_all(
+                            category_menu_list, 'span', class_='menu-list-category-link-title'
                         )
                         data_section = None
                         for span in data_spans:
                             if safe_get_text(span, strip=True) == 'Data Sources':
                                 data_section_li = ensure_tag(span.find_parent('li'))
                                 if data_section_li:
-                                    data_section = safe_find(data_section_li, 'ul', class_='menu-list')
+                                    data_section = safe_find(
+                                        data_section_li, 'ul', class_='menu-list'
+                                    )
                                 break
 
                         # If we can't find the Data Sources section using the span approach,
@@ -646,12 +654,24 @@ async def fetch_awscc_provider_page():
                                 links = safe_find_all(ul, 'a')
                                 for link in links:
                                     link_text = safe_get_text(link, strip=True)
-                                    href_attr = link.get('href', '') if isinstance(link, Tag) else ''
-                                    
+                                    href_attr = (
+                                        link.get('href', '') if isinstance(link, Tag) else ''
+                                    )
+
                                     # Data sources typically have "data" in the URL or name
-                                    if isinstance(link_text, str) and link_text.startswith('awscc_') and (
-                                        (isinstance(href_attr, str) and 'data' in href_attr.lower())
-                                        or (isinstance(link_text, str) and 'data' in link_text.lower())
+                                    if (
+                                        isinstance(link_text, str)
+                                        and link_text.startswith('awscc_')
+                                        and (
+                                            (
+                                                isinstance(href_attr, str)
+                                                and 'data' in href_attr.lower()
+                                            )
+                                            or (
+                                                isinstance(link_text, str)
+                                                and 'data' in link_text.lower()
+                                            )
+                                        )
                                     ):
                                         data_section = ul
                                         break
@@ -687,12 +707,16 @@ async def fetch_awscc_provider_page():
                                     continue
 
                                 # Skip if this doesn't look like an AWSCC data source
-                                if not isinstance(link_text, str) or not link_text.startswith('awscc_'):
+                                if not isinstance(link_text, str) or not link_text.startswith(
+                                    'awscc_'
+                                ):
                                     continue
 
                                 # Make sure it's a data source (contains "data" in URL or name)
-                                if not ((isinstance(href, str) and 'data' in href.lower()) or 
-                                        (isinstance(link_text, str) and 'data' in link_text.lower())):
+                                if not (
+                                    (isinstance(href, str) and 'data' in href.lower())
+                                    or (isinstance(link_text, str) and 'data' in link_text.lower())
+                                ):
                                     continue
 
                                 # Complete the URL if it's a relative path
@@ -720,7 +744,9 @@ async def fetch_awscc_provider_page():
                                 href = link.get('href', '') if isinstance(link, Tag) else ''
                                 link_text = safe_get_text(link, strip=True)
 
-                                if not isinstance(link_text, str) or not link_text.startswith('awscc_'):
+                                if not isinstance(link_text, str) or not link_text.startswith(
+                                    'awscc_'
+                                ):
                                     continue
 
                                 # Complete the URL if it's a relative path
@@ -731,7 +757,9 @@ async def fetch_awscc_provider_page():
                                 )
 
                                 # Determine if it's a resource or data source based on URL/name
-                                if isinstance(href, str) and ('data' in href.lower() or 'data-source' in href.lower()):
+                                if isinstance(href, str) and (
+                                    'data' in href.lower() or 'data-source' in href.lower()
+                                ):
                                     data_source = {
                                         'name': link_text,
                                         'url': full_url,
@@ -848,7 +876,6 @@ def get_fallback_resource_data():
         },
     }
     return categories
-
 
 
 def parse_arguments():

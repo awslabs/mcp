@@ -356,7 +356,9 @@ def parse_markdown_documentation(
                     arg_desc = match.group(2).strip() if match.group(2) else None
                     # Do not add arguments that do not have a description
                     if arg_name is not None and arg_desc is not None:
-                        schema_arguments.append({'name': arg_name, 'description': arg_desc, 'argument_section': title})
+                        schema_arguments.append(
+                            {'name': arg_name, 'description': arg_desc, 'argument_section': title}
+                        )
                     else:
                         logger.debug(
                             f"[{correlation_id}] Added argument '{arg_name}': '{arg_desc[:50] if arg_desc else 'No description found'}...' (truncated)"
