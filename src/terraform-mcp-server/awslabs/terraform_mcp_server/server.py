@@ -11,12 +11,11 @@ from typing import List
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from awslabs.terraform_mcp_server.impl.resources import (
-    terraform_aws_provider_resources_listing_impl,
+    terraform_aws_provider_assets_listing_impl,
     terraform_awscc_provider_resources_listing_impl,
 )
 from awslabs.terraform_mcp_server.impl.tools import (
     execute_terraform_command_impl,
-    parse_awscc_data_source_docs_impl,
     run_checkov_fix_impl,
     run_checkov_scan_impl,
     search_aws_provider_docs_impl,
@@ -260,7 +259,7 @@ async def terraform_development_workflow() -> str:
 )
 async def terraform_aws_provider_resources_listing() -> str:
     """Provides an up-to-date categorized listing of all AWS provider resources and data sources."""
-    return await terraform_aws_provider_resources_listing_impl()
+    return await terraform_aws_provider_assets_listing_impl()
 
 
 @mcp.resource(

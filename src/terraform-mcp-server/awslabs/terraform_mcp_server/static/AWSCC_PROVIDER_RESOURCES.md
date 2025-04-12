@@ -2,13 +2,9 @@
 
 AWSCC Provider Version: 1.36.0
 
-Last updated: April 08, 2025 16:47:29
+Last updated: April 11, 2025 18:07:09
 
 Found 1057 resources and 2042 data sources across 2 AWSCC service categories.
-
-## Table of Contents
-- [Data Sources](#data-sources)
-- [Resources](#resources)
 
 ## Data Sources
 
@@ -3126,4 +3122,4 @@ Found 1057 resources and 2042 data sources across 2 AWSCC service categories.
 
 ---
 *This document was generated automatically by the AWSCC Provider Resources Generator script.*
-*Generation time: 6.09 seconds*
+*Generation time: 6.29 seconds*

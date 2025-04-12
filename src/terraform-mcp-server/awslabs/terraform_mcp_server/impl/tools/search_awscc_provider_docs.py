@@ -10,6 +10,7 @@ from ...models import TerraformAWSCCProviderDocsResult
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from typing import Literal, cast
 
 # Configure logger for enhanced diagnostics with stacktraces
 logger.configure(
@@ -360,9 +361,10 @@ def parse_markdown_documentation(
                     # Do not add arguments that do not have a description
                     if arg_name is not None and arg_desc is not None:
                         schema_arguments.append({'name': arg_name, 'description': arg_desc, 'argument_section': title})
-                    logger.debug(
-                        f"[{correlation_id}] Added argument '{arg_name}': '{arg_desc[:50]}...' (truncated)"
-                    )
+                    else:
+                        logger.debug(
+                            f"[{correlation_id}] Added argument '{arg_name}': '{arg_desc[:50] if arg_desc else 'No description found'}...' (truncated)"
+                        )
 
             schema_arguments = schema_arguments if schema_arguments else None
             if schema_arguments:
@@ -506,7 +508,7 @@ async def search_awscc_provider_docs_impl(
                 description = github_result['description']
                 result = TerraformAWSCCProviderDocsResult(
                     asset_name=asset_name,
-                    asset_type=asset_type,
+                    asset_type=cast(Literal['both', 'resource', 'data_source'], asset_type),
                     description=description,
                     url=github_result['url'],
                     example_usage=github_result.get('example_snippets'),
@@ -531,7 +533,7 @@ async def search_awscc_provider_docs_impl(
         return [
             TerraformAWSCCProviderDocsResult(
                 asset_name='Not found',
-                asset_type=asset_type,
+                asset_type=cast(Literal['both', 'resource', 'data_source'], asset_type),
                 description=f"No documentation found for resource type '{asset_name}'.",
                 url=None,
                 example_usage=None,
@@ -552,7 +554,7 @@ async def search_awscc_provider_docs_impl(
         return [
             TerraformAWSCCProviderDocsResult(
                 asset_name='Error',
-                asset_type=asset_type,
+                asset_type=cast(Literal['both', 'resource', 'data_source'], asset_type),
                 description=f'Failed to search AWSCC provider documentation: {type(e).__name__}: {str(e)}',
                 url=None,
                 example_usage=None,
