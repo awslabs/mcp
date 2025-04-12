@@ -18,19 +18,18 @@ Options:
 import argparse
 import asyncio
 import os
-import sys
-import time
-import tempfile
 import re
-
-from datetime import datetime
-from pathlib import Path
-from loguru import logger
-from typing import List, Tuple, Dict, Any, Optional, cast, TypedDict, TypeVar
-
+import sys
+import tempfile
+import time
 from bs4 import BeautifulSoup, Tag
 from bs4.element import PageElement, ResultSet
 from bs4.filter import SoupStrainer
+from datetime import datetime
+from loguru import logger
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, TypeVar, cast
+
 
 ## Playwright optional import
 try:
@@ -71,17 +70,36 @@ AWS_PROVIDER_URL = 'https://registry.terraform.io/providers/hashicorp/aws/latest
 
 # Define TypedDict classes for the structures used in the script
 class ResourceItem(TypedDict):
+    """Type definition for a Terraform resource or data source item.
+
+    Attributes:
+        name: The name/identifier of the resource (e.g. 'aws_acm_certificate')
+        url: The documentation URL for the resource
+        type: The type of item - either 'resource' or 'data_source'
+    """
     name: str
     url: str
     type: str
 
 
 class CategoryData(TypedDict):
+    """Type definition for a category of Terraform resources and data sources.
+
+    Attributes:
+        resources: List of ResourceItem objects representing Terraform resources in this category
+        data_sources: List of ResourceItem objects representing Terraform data sources in this category
+    """
     resources: List[ResourceItem]
     data_sources: List[ResourceItem]
 
 
 class ProviderResult(TypedDict):
+    """Type definition for the result of fetching AWS provider data.
+
+    Attributes:
+        categories: Dictionary mapping AWS service category names to their resources and data sources
+        version: AWS provider version string (e.g. "5.91.0")
+    """
     categories: Dict[str, CategoryData]
     version: str
 

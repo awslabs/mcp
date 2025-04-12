@@ -8,8 +8,8 @@ import traceback
 from ...models import TerraformAWSCCProviderDocsResult
 from loguru import logger
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from typing import Literal, cast
+from typing import Any, Dict, List, Literal, Optional, Tuple, cast
+
 
 # Configure logger for enhanced diagnostics with stacktraces
 logger.configure(

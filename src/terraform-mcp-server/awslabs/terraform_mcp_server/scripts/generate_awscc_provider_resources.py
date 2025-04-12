@@ -18,19 +18,18 @@ Options:
 import argparse
 import asyncio
 import os
-import sys
-import time
-import tempfile
 import re
-
-from datetime import datetime
-from pathlib import Path
-from loguru import logger
-from typing import List, Tuple, Dict, Any, Optional, cast, TypedDict, TypeVar, Union
-
+import sys
+import tempfile
+import time
 from bs4 import BeautifulSoup, Tag
-from bs4.element import PageElement, ResultSet, NavigableString
+from bs4.element import PageElement, ResultSet
 from bs4.filter import SoupStrainer
+from datetime import datetime
+from loguru import logger
+from pathlib import Path
+from typing import Any, Optional, TypeVar
+
 
 # Type helpers for BeautifulSoup
 T = TypeVar('T')

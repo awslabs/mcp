@@ -4,6 +4,7 @@ import sys
 from loguru import logger
 from pathlib import Path
 
+
 # Configure logger for enhanced diagnostics with stacktraces
 logger.configure(
     handlers=[
@@ -40,12 +41,12 @@ async def terraform_aws_provider_assets_listing_impl() -> str:
             # Read the static file content
             with open(STATIC_RESOURCES_PATH, 'r') as f:
                 content = f.read()
-            logger.info(f'Successfully loaded AWS Provider asset list')
+            logger.info('Successfully loaded AWS Provider asset list')
             return content
         else:
             # Send error if static file does not exist
             logger.debug(f"Static assets list file not found at '{STATIC_RESOURCES_PATH}'")
-            raise Exception(f'Static assets list file not found')
+            raise Exception('Static assets list file not found')
     except Exception as e:
         logger.error(f'Error generating AWS provider assets listing: {e}')
         return f'# AWS Provider Assets Listing\n\nError generating listing: {str(e)}'

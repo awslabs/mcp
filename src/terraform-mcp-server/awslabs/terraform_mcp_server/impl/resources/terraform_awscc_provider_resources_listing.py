@@ -4,6 +4,7 @@ import sys
 from loguru import logger
 from pathlib import Path
 
+
 # Configure logger for enhanced diagnostics with stacktraces
 logger.configure(
     handlers=[
@@ -48,7 +49,7 @@ async def terraform_awscc_provider_resources_listing_impl() -> str:
         else:
             # Send error if static file does not exist
             logger.debug(f"Static assets list file not found at '{STATIC_RESOURCES_PATH}'")
-            raise Exception(f'Static assets list file not found')
+            raise Exception('Static assets list file not found')
     except Exception as e:
         logger.error(f'Error generating AWSCC provider resources listing: {e}')
         return f'# AWSCC Provider Resources Listing\n\nError generating listing: {str(e)}'
