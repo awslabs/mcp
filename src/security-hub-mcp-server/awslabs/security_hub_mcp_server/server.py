@@ -5,7 +5,7 @@ import boto3
 import logging
 import os
 from mcp.server.fastmcp import FastMCP
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Optional
 
 
 # Set up logging
@@ -22,20 +22,6 @@ mcp = FastMCP(
 
 profile_name = os.getenv('AWS_PROFILE', 'default')
 logger.info(f'Using AWS profile {profile_name}')
-
-
-@mcp.tool(name='ExampleTool')
-async def example_tool(
-    query: str,
-) -> str:
-    """Example tool implementation.
-
-    Replace this with your own tool implementation.
-    """
-    project_name = 'awslabs Security Hub MCP Server'
-    return (
-        f"Hello from {project_name}! Your query was {query}. Replace this with your tool's logic"
-    )
 
 
 @mcp.tool(name='get_findings')
@@ -62,46 +48,6 @@ async def get_findings(
     results = security_hub.get_findings(Filters=filters)
     logger.info(f'Found {len(results["Findings"])} findings: {results["Findings"]}')
     return results
-
-
-@mcp.tool(name='MathTool')
-async def math_tool(
-    operation: Literal['add', 'subtract', 'multiply', 'divide'],
-    a: int | float,
-    b: int | float,
-) -> int | float:
-    """Math tool implementation.
-
-    This tool supports the following operations:
-    - add
-    - subtract
-    - multiply
-    - divide
-
-    Parameters:
-        operation (Literal["add", "subtract", "multiply", "divide"]): The operation to perform.
-        a (int): The first number.
-        b (int): The second number.
-
-    Returns:
-        The result of the operation.
-    """
-    match operation:
-        case 'add':
-            return a + b
-        case 'subtract':
-            return a - b
-        case 'multiply':
-            return a * b
-        case 'divide':
-            try:
-                return a / b
-            except ZeroDivisionError:
-                raise ValueError(f'The denominator {b} cannot be zero.')
-        case _:
-            raise ValueError(
-                f'Invalid operation: {operation} (must be one of: add, subtract, multiply, divide)'
-            )
 
 
 def main():
