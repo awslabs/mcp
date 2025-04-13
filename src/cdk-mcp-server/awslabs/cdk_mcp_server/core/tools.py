@@ -202,8 +202,9 @@ def save_fallback_script_to_file(
         with open(os.open(script_path, os.O_CREAT | os.O_WRONLY, 0o600), 'w') as f:
             f.write(script_content)
 
-        # Update to executable permissions (only for the owner)
-        os.chmod(script_path, 0o700)  # rwx------ permissions (owner only)
+        # Update to executable permissions (only for the owner) 
+        # rwx------ permissions (owner only)
+        os.chmod(script_path, 0o700)  # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
 
         logger.info(f'Successfully created script at {script_path}')
         return script_path

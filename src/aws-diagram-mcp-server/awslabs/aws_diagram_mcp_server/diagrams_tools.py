@@ -110,10 +110,10 @@ async def generate_diagram(
 
         # Import necessary modules directly in the namespace
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec('import os', namespace)  # nosec
-        exec('import diagrams', namespace)  # nosec
-        exec('from diagrams import Diagram, Cluster, Edge', namespace)  # nosec
-        exec(  # nosec B102 - This exec is necessary to import all diagram modules
+        exec('import os', namespace)  # nosec # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec('import diagrams', namespace)  # nosec  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec('from diagrams import Diagram, Cluster, Edge', namespace)  # nosec  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(  # nosec B102 - This exec is necessary to import all diagram modules  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             """from diagrams.saas.crm import *
 from diagrams.saas.identity import *
 from diagrams.saas.chat import *
@@ -236,8 +236,8 @@ from diagrams.aws.satellite import *
 from diagrams.aws.enduser import *
 """,
             namespace,
-        )
-        exec('from urllib.request import urlretrieve', namespace)  # nosec
+        )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec('from urllib.request import urlretrieve', namespace)  # nosec  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
 
         # Process the code to ensure show=False and set the output path
         if 'with Diagram(' in code:
@@ -287,7 +287,7 @@ from diagrams.aws.enduser import *
 
         # Execute the code
         # nosec B102 - This exec is necessary to run user-provided diagram code in a controlled environment
-        exec(code, namespace)  # nosec
+        exec(code, namespace)  # nosec  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
 
         # Cancel the alarm
         signal.alarm(0)
@@ -611,7 +611,7 @@ def list_diagram_icons() -> DiagramIconsResponse:
                 module_path = f'diagrams.{provider_name}.{service_name}'
                 try:
                     logger.debug(f'Attempting to import module: {module_path}')
-                    service_module = importlib.import_module(module_path)
+                    service_module = importlib.import_module(module_path)  # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
 
                     # Find all classes in the module that are Node subclasses
                     icons = []
