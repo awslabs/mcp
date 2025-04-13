@@ -110,12 +110,15 @@ async def generate_diagram(
 
         # Import necessary modules directly in the namespace
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(
+        exec( # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             'import os', namespace
-        )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
-        exec('import diagrams', namespace)  # nosec  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
-        exec('from diagrams import Diagram, Cluster, Edge', namespace)  # nosec  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
-        exec(  # nosec B102 - This exec is necessary to import all diagram modules  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        )
+        # nosec B102 - These exec calls are necessary to import modules in the namespace
+        exec('import diagrams', namespace) # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        # nosec B102 - These exec calls are necessary to import modules in the namespace
+        exec('from diagrams import Diagram, Cluster, Edge', namespace)  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        # nosec B102 - These exec calls are necessary to import modules in the namespace
+        exec( # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             """from diagrams.saas.crm import *
 from diagrams.saas.identity import *
 from diagrams.saas.chat import *
@@ -238,8 +241,9 @@ from diagrams.aws.satellite import *
 from diagrams.aws.enduser import *
 """,
             namespace,
-        )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
-        exec('from urllib.request import urlretrieve', namespace)  # nosec  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        )
+        # nosec B102 - These exec calls are necessary to import modules in the namespace
+        exec('from urllib.request import urlretrieve', namespace) # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
 
         # Process the code to ensure show=False and set the output path
         if 'with Diagram(' in code:
