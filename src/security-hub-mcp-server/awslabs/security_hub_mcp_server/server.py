@@ -1,9 +1,16 @@
 """awslabs Security Hub MCP Server implementation."""
 
 import argparse
+import boto3
+import logging
+import os
 from mcp.server.fastmcp import FastMCP
-from typing import Literal
+from typing import Dict, List, Literal, Optional
 
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
     'awslabs.security-hub-mcp-server',
@@ -12,6 +19,9 @@ mcp = FastMCP(
         'pydantic',
     ],
 )
+
+profile_name = os.getenv('AWS_PROFILE', 'default')
+logger.info(f'Using AWS profile {profile_name}')
 
 
 @mcp.tool(name='ExampleTool')
@@ -26,6 +36,32 @@ async def example_tool(
     return (
         f"Hello from {project_name}! Your query was {query}. Replace this with your tool's logic"
     )
+
+
+@mcp.tool(name='get_findings')
+async def get_findings(
+    region: str,
+    aws_account_id: str,
+) -> Optional[List[Dict]]:
+    """Get findings from the Security Hub service.
+
+    Args:
+        region (str): the AWS region to in which to query the SecurityHub service
+        aws_account_id (str): the AWS account id to filter findings for
+
+    Returns:
+        List containing the Security Hub findings for the query; each finding is a dictionary.
+    """
+    security_hub = boto3.Session(profile_name=profile_name).client(
+        'securityhub', region_name=region
+    )
+    filters = {}
+    if aws_account_id:
+        filters['AwsAccountId'] = [{'Value': aws_account_id, 'Comparison': 'EQUALS'}]
+
+    results = security_hub.get_findings(Filters=filters)
+    logger.info(f'Found {len(results["Findings"])} findings: {results["Findings"]}')
+    return results
 
 
 @mcp.tool(name='MathTool')
