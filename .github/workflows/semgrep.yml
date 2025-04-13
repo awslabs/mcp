@@ -16,12 +16,17 @@ jobs:
     name: semgrep/ci
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-    env:
-      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-    container:
-      image: semgrep/semgrep
+      contents: read # for actions/checkout to fetch code
+      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
+      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
     if: (github.actor != 'dependabot[bot]')
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
-      - run: semgrep ci
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 #v5.5.0
+      - run: |
+          python -m pip install semgrep
+      - run: semgrep scan --config auto --sarif-output semgrep.sarif.json --no-error --dryrun
+      - name: Upload Semgrep scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3.28.15 #v3.28.15
+        with:
+          sarif_file: semgrep.sarif.json
