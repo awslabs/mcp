@@ -626,8 +626,9 @@ def list_diagram_icons() -> DiagramIconsResponse:
                 try:
                     logger.debug(f'Attempting to import module: {module_path}')
                     service_module = importlib.import_module(
+                        # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
                         module_path
-                    )  # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
+                    )
 
                     # Find all classes in the module that are Node subclasses
                     icons = []
