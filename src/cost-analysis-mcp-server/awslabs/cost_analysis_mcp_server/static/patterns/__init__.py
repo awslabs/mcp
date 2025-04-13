@@ -9,6 +9,7 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 from importlib import (
+    # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
     resources,
 )  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2
 

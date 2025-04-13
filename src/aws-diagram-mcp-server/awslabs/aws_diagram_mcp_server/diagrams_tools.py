@@ -116,9 +116,9 @@ async def generate_diagram(
             namespace,
         )
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(
+        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             'import diagrams', namespace
-        )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        )
         # nosec B102 - These exec calls are necessary to import modules in the namespace
         exec(
             'from diagrams import Diagram, Cluster, Edge', namespace
