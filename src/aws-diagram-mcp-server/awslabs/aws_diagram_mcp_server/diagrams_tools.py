@@ -110,15 +110,19 @@ async def generate_diagram(
 
         # Import necessary modules directly in the namespace
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec( # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             'import os', namespace
         )
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec('import diagrams', namespace) # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(
+            'import diagrams', namespace
+        )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec('from diagrams import Diagram, Cluster, Edge', namespace)  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(
+            'from diagrams import Diagram, Cluster, Edge', namespace
+        )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec( # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             """from diagrams.saas.crm import *
 from diagrams.saas.identity import *
 from diagrams.saas.chat import *
@@ -243,7 +247,9 @@ from diagrams.aws.enduser import *
             namespace,
         )
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec('from urllib.request import urlretrieve', namespace) # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(
+            'from urllib.request import urlretrieve', namespace
+        )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
 
         # Process the code to ensure show=False and set the output path
         if 'with Diagram(' in code:
@@ -293,7 +299,7 @@ from diagrams.aws.enduser import *
 
         # Execute the code
         # nosec B102 - This exec is necessary to run user-provided diagram code in a controlled environment
-        exec(code, namespace)  # nosec  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(code, namespace)  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
 
         # Cancel the alarm
         signal.alarm(0)
