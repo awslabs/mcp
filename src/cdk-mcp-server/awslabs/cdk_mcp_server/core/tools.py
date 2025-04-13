@@ -204,8 +204,8 @@ def save_fallback_script_to_file(
 
         # Update to executable permissions (only for the owner)
         # rwx------ permissions (owner only)
+        # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
         os.chmod(
-            # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
             script_path,
             0o700,
         )

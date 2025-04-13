@@ -120,7 +120,7 @@ async def generate_diagram(
             'import diagrams', namespace
         )
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(
+        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             'from diagrams import Diagram, Cluster, Edge', namespace
         )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
         # nosec B102 - These exec calls are necessary to import modules in the namespace
@@ -249,7 +249,7 @@ from diagrams.aws.enduser import *
             namespace,
         )
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(
+        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             'from urllib.request import urlretrieve', namespace
         )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
 
