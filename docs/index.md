@@ -106,7 +106,7 @@ The Diagrams MCP Server provides the following capabilities:
 3. **Customization**: Customize diagram appearance, layout, and styling
 4. **Security**: Code scanning to ensure secure diagram generation
 
-[Learn more about the Cost Analysis MCP Server](servers/aws-documentation-mcp-server.md)
+[Learn more about the AWS Diagram MCP Server](servers/aws-diagram-mcp-server.md)
 
 ## Installation and Setup
 
