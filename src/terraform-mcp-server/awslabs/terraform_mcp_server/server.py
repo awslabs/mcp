@@ -278,30 +278,6 @@ async def terraform_aws_best_practices() -> str:
     return f'{AWS_TERRAFORM_BEST_PRACTICES}'
 
 
-# Add parameter descriptions for tools
-# SearchAwsProviderDocs
-aws_docs_tool = mcp._tool_manager.get_tool('SearchAwsProviderDocs')
-if (
-    aws_docs_tool is not None
-    and hasattr(aws_docs_tool, 'parameters')
-    and aws_docs_tool.parameters is not None
-):
-    if (
-        'properties' in aws_docs_tool.parameters
-        and 'asset_name' in aws_docs_tool.parameters['properties']
-    ):
-        aws_docs_tool.parameters['properties']['asset_name']['description'] = (
-            'Name of the AWS service (asset) to look for (e.g., "aws_s3_bucket", "aws_lambda_function")'
-        )
-    if (
-        'properties' in aws_docs_tool.parameters
-        and 'asset_type' in aws_docs_tool.parameters['properties']
-    ):
-        aws_docs_tool.parameters['properties']['asset_type']['description'] = (
-            "Type of documentation to search - 'resource', 'data_source', or 'both' (default)"
-        )
-
-
 def main():
     """Run the MCP server with CLI argument support."""
     parser = argparse.ArgumentParser(description='A Model Context Protocol (MCP) server')
