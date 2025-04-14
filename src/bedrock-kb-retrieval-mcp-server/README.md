@@ -50,7 +50,8 @@ If you intend to use reranking functionality, your Bedrock Knowledge Base needs 
 
 1. Your IAM role must have permissions for both `bedrock:Rerank` and `bedrock:InvokeModel` actions
 2. The Amazon Bedrock Knowledge Bases service role must also have these permissions
-3. Reranking is only available in specific regions: us-west-2, us-east-1, ap-northeast-1, and ca-central-1
+3. Reranking is only available in specific regions. Please refer to the official [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html) for an up to date list of supported regions.
+4. Enable model access for the available reranking models in the specified region.
 
 For detailed instructions on setting up knowledge bases, see:
 
