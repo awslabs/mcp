@@ -79,9 +79,10 @@ flowchart TD
 
 1. Edit Terraform Code
     - Write or modify Terraform configuration files for AWS resources
-    - When writing code:
-        * PREFER AWSCC provider resources first (`SearchAwsccProviderDocs` tool)
-        * Fall back to traditional AWS provider (`SearchAwsProviderDocs` tool) only when necessary
+    - When writing code, follow this priority order:
+        * FIRST check for specialized AWS-IA modules (`SearchSpecificAwsIaModules` tool)
+        * If no suitable module exists, THEN use AWSCC provider resources (`SearchAwsccProviderDocs` tool)
+        * ONLY fall back to traditional AWS provider (`SearchAwsProviderDocs` tool) when the above options don't meet requirements
     - MCP Resources and tools to consult:
         - Resources
             - *terraform_development_workflow* to consult this guide and to use it to ensure you're following the development workflow correctly
@@ -89,9 +90,9 @@ flowchart TD
             - *terraform_awscc_provider_resources_listing* for available AWS Cloud Control API resources
             - *terraform_aws_provider_resources_listing* for available AWS resources
         - Tools
-            - *SearchAwsccProviderDocs* tool to look up specific Cloud Control API resources.
+            - *SearchSpecificAwsIaModules* tool to check for specialized AWS-IA modules first (Bedrock, OpenSearch Serverless, SageMaker, Streamlit)
+            - *SearchAwsccProviderDocs* tool to look up specific Cloud Control API resources
             - *SearchAwsProviderDocs* tool to look up specific resource documentation
-            - *SearchSpecificAwsIaModules* tool when working with supported AWS-IA modules
 2. Validate Code
     - Tool: *ExecuteTerraformCommand* with command="validate"
         - Checks syntax and configuration validity without accessing AWS
@@ -187,7 +188,8 @@ These security scanning commands are available through dedicated tools:
 * When to use: After code passes terraform validate but before initializing and planning.
 
 ## Key Principles
-- **Code Development**: Strongly prefer using the AWSCC provider first (Cloud Control API-based provider) before falling back to the traditional AWS provider.
+- **Module-First Approach**: Always check for specialized AWS-IA modules before building with individual resources
+- **Provider Selection**: When using individual resources, prefer the AWSCC provider (Cloud Control API-based) before falling back to the traditional AWS provider
 - **Security First**: Always implement security best practices by default
 - **Cost Optimization**: Design resources to minimize costs while meeting requirements
 - **Operational Excellence**: Implement proper monitoring, logging, and observability

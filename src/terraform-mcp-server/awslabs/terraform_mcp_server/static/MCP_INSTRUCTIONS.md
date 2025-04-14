@@ -22,19 +22,21 @@ ALWAYS begin by consulting the `terraform_aws_best_practices` resource which con
 * Backend configuration best practices
 * AWS-specific implementation guidance
 
-### Step 3: Use Provider Documentation
-When implementing specific AWS resources:
-
-* PREFER AWSCC provider resources first (`SearchAwsccProviderDocs` tool)
-* Fall back to traditional AWS provider (`SearchAwsProviderDocs` tool) only when necessary
-
-### Step 4: Leverage Specialized Module Support
-For AI/ML applications, use the `SearchSpecificAwsIaModules` tool to find AWS-IA modules for:
+### Step 3: Check for AWS-IA Specialized Modules First
+ALWAYS check for specialized AWS-IA modules first using the `SearchSpecificAwsIaModules` tool:
 
 * Amazon Bedrock (generative AI)
 * OpenSearch Serverless (vector search)
 * SageMaker endpoints
 * Serverless Streamlit applications
+
+These modules provide optimized, best-practice implementations for specific use cases and should be preferred over building from scratch with individual resources.
+
+### Step 4: Use Provider Documentation (Only if no suitable AWS-IA module exists)
+When implementing specific AWS resources (only after confirming no suitable AWS-IA module exists):
+
+* PREFER AWSCC provider resources first (`SearchAwsccProviderDocs` tool)
+* Fall back to traditional AWS provider (`SearchAwsProviderDocs` tool) only when necessary
 
 ## Available Tools and Resources
 
@@ -79,13 +81,16 @@ For AI/ML applications, use the `SearchSpecificAwsIaModules` tool to find AWS-IA
    * Identifies security and compliance issues
 
 
-## AWS Provider Recommendation
+## Resource Selection Priority
 
-ALWAYS prefer the AWSCC provider (Cloud Control API-based) before falling back to the traditional AWS provider. The AWSCC provider offers:
+1. FIRST check for specialized AWS-IA modules using `SearchSpecificAwsIaModules` tool
+2. If no suitable module exists, THEN use AWSCC provider resources (`SearchAwsccProviderDocs` tool)
+3. ONLY fall back to traditional AWS provider (`SearchAwsProviderDocs` tool) when the above options don't meet requirements
 
-Direct mapping to CloudFormation resource types
-Consistent API behavior across resources
-Better support for newer AWS services and features
+The AWSCC provider (Cloud Control API-based) offers:
+* Direct mapping to CloudFormation resource types
+* Consistent API behavior across resources
+* Better support for newer AWS services and features
 
 ## Examples
 
