@@ -110,21 +110,21 @@ async def generate_diagram(
 
         # Import necessary modules directly in the namespace
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
-            # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
+            # nosem: python.lang.security.audit.exec-detected.exec-detected
             'import os',
             namespace,
         )
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
             'import diagrams', namespace
         )
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
             'from diagrams import Diagram, Cluster, Edge', namespace
-        )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        )  # nosem: python.lang.security.audit.exec-detected.exec-detected
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
             """from diagrams.saas.crm import *
 from diagrams.saas.identity import *
 from diagrams.saas.chat import *
@@ -249,9 +249,9 @@ from diagrams.aws.enduser import *
             namespace,
         )
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
             'from urllib.request import urlretrieve', namespace
-        )  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        )  # nosem: python.lang.security.audit.exec-detected.exec-detected
 
         # Process the code to ensure show=False and set the output path
         if 'with Diagram(' in code:
@@ -301,7 +301,7 @@ from diagrams.aws.enduser import *
 
         # Execute the code
         # nosec B102 - This exec is necessary to run user-provided diagram code in a controlled environment
-        exec(code, namespace)  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
+        exec(code, namespace)  # nosem: python.lang.security.audit.exec-detected.exec-detected
 
         # Cancel the alarm
         signal.alarm(0)
@@ -625,10 +625,10 @@ def list_diagram_icons() -> DiagramIconsResponse:
                 module_path = f'diagrams.{provider_name}.{service_name}'
                 try:
                     logger.debug(f'Attempting to import module: {module_path}')
-                    service_module = importlib.import_module(  # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
-                        # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
-                        module_path  # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
-                    )  # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
+                    service_module = importlib.import_module(  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+                        # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+                        module_path  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+                    )  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
 
                     # Find all classes in the module that are Node subclasses
                     icons = []
