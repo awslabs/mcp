@@ -33,8 +33,11 @@ from typing import Any, Iterator, NewType, Protocol
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s', stream=sys.stderr)
 
 Version = NewType('Version', str)
-Patch = NewType('Patch', str)
+BuildRelease = NewType('BuildRelease', str)
 GitHash = NewType('GitHash', str)
+
+# https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+SemVerRegEx = r'^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
 
 
 class GitHashParamType(click.ParamType):
@@ -82,7 +85,7 @@ class Package(Protocol):
         """The package version."""
         ...
 
-    def update_version(self, patch: Patch) -> str:
+    def update_version(self, build_release: BuildRelease) -> str:
         """Update the package version."""
         ...
 
@@ -103,12 +106,15 @@ class NpmPackage:
         with open(self.path / 'package.json', 'r', encoding='utf-8') as f:
             return json.load(f)['version']
 
-    def update_version(self, patch: Patch) -> str:
+    def update_version(self, build_release: BuildRelease) -> str:
         """Update the package.json with a version."""
         with open(self.path / 'package.json', 'r+', encoding='utf-8') as f:
             data = json.load(f)
-            major, minor, _ = data['version'].split('.')
-            version = '.'.join([major, minor, patch])
+            matched = re.match(SemVerRegEx, data['version'])
+            patch = int(matched.group('patch')) + 1
+            if patch > sys.maxsize:
+                patch = 0
+            version = '.'.join([matched.group('major'), matched.group('minor'), str(patch)])
             data['version'] = version
             f.seek(0)
             json.dump(data, f, indent=2)
@@ -140,19 +146,20 @@ class PyPiPackage:
                 raise ValueError('No version in pyproject.toml project section')
             return str(version)
 
-    def update_version(self, patch: Patch) -> str:
+    def update_version(self, build_release: BuildRelease) -> str:
         """Update version in pyproject.toml."""
+        version_str = self.package_version()
         with open(self.path / 'pyproject.toml', encoding='utf-8') as f:
             data = tomlkit.parse(f.read())
             # Access the version safely from tomlkit document
             project_table = data.get('project')
             if project_table is None:
                 raise ValueError('No project section in pyproject.toml')
-
-            version_str = str(project_table.get('version', ''))
-            major, minor, _ = version_str.split('.')
-            logging.debug('Major version: %s', major)
-            version = '.'.join([major, minor, patch])
+            matched = re.match(SemVerRegEx, version_str)
+            patch = int(matched.group('patch')) + 1
+            if patch > sys.maxsize:
+                patch = 0
+            version = '.'.join([matched.group('major'), matched.group('minor'), str(patch)])
 
             # Update the version safely
             project_table['version'] = version
@@ -235,14 +242,14 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
 def gen_version() -> Version:
     """Generate release version based on current time."""
     now = datetime.datetime.now(datetime.UTC)
-    return Version(f'{now.year}.{now.month}.{gen_patch()}')
+    return Version(f'{now.year}.{now.month}.{gen_buildrelease()}')
 
 
-def gen_patch() -> Patch:
+def gen_buildrelease() -> BuildRelease:
     """Generate version based on current UTC timestamp."""
     now = datetime.datetime.now(datetime.UTC)
     # return Patch(f"{int(now.timestamp())}")
-    return Patch(f'{now.year:04d}{now.day:02d}{now.hour:02d}{now.minute:02d}')
+    return BuildRelease(f'{now.year:04d}{now.day:02d}{now.hour:02d}{now.minute:02d}')
 
 
 def find_changed_packages(directory: Path, git_hash: GitHash) -> Iterator[Package]:
@@ -278,11 +285,11 @@ def update_packages(directory: Path, git_hash: GitHash) -> int:
     """Updates the package version with a patch."""
     # Detect package type
     path = directory.resolve(strict=True)
-    patch = gen_patch()
+    build_release = gen_buildrelease()
 
     for package in find_changed_packages(path, git_hash):
         name = package.package_name()
-        version = package.update_version(patch)
+        version = package.update_version(build_release)
 
         click.echo(f'{name}@{version}')
 
