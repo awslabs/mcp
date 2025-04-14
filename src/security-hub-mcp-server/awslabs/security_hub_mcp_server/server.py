@@ -27,13 +27,15 @@ logger.info(f'Using AWS profile {profile_name}')
 @mcp.tool(name='get_findings')
 async def get_findings(
     region: str,
-    aws_account_id: str,
+    aws_account_id: str = None,
+    severity: str = None,
 ) -> Optional[List[Dict]]:
     """Get findings from the Security Hub service.
 
     Args:
         region (str): the AWS region to in which to query the SecurityHub service
-        aws_account_id (str): the AWS account id to filter findings for
+        aws_account_id (str): (optional) filter the findings to the specified AWS account id
+        severity (str): (optional) filter the findings to the specified finding severity
 
     Returns:
         List containing the Security Hub findings for the query; each finding is a dictionary.
@@ -44,6 +46,9 @@ async def get_findings(
     filters = {}
     if aws_account_id:
         filters['AwsAccountId'] = [{'Value': aws_account_id, 'Comparison': 'EQUALS'}]
+
+    if severity:
+        filters['SeverityLabel'] = [{'Value': severity, 'Comparison': 'EQUALS'}]
 
     results = security_hub.get_findings(Filters=filters)
     logger.info(f'Found {len(results["Findings"])} findings: {results["Findings"]}')
