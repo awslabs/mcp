@@ -1,10 +1,4 @@
-# Use importlib_resources for backward compatibility with Python < 3.7
-try:
-    # Try to use the built-in module first (Python 3.7+)
-    from importlib import resources
-except ImportError:
-    # Fall back to the backport for older Python versions
-    import importlib_resources as resources
+import importlib_resources as resources
 
 with (
     resources.files('awslabs.terraform_mcp_server.static')

@@ -41,7 +41,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 mcp = FastMCP(
     'terraform_mcp_server',
     instructions=f'{MCP_INSTRUCTIONS}',
-    dependencies=['pydantic', 'loguru', 'requests', 'beautifulsoup4', 'PyPDF2'],
+    dependencies=[
+        'pydantic',
+        'loguru',
+        'requests',
+        'beautifulsoup4',
+        'PyPDF2',
+        'importlib_resources',
+    ],
 )
 
 
