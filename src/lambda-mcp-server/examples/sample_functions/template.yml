@@ -18,6 +18,13 @@ Resources:
       Runtime: python3.13
       Architectures:
         - arm64
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: "Because this is an example, there is no requirement to run within a VPC"
+          - id: W92
+            reason: "Because this is an example, there is no requirement to reserve concurrency"
 
   CustomerIdFromEmail:
     Type: AWS::Serverless::Function
@@ -33,6 +40,13 @@ Resources:
       Runtime: python3.13
       Architectures:
         - arm64
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: "Because this is an example, there is no requirement to run within a VPC"
+          - id: W92
+            reason: "Because this is an example, there is no requirement to reserve concurrency"
 
 Outputs:
 

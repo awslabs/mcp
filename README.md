@@ -146,9 +146,7 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.nova-canvas-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.nova-canvas-mcp-server@latest"
-      ],
+      "args": ["awslabs.nova-canvas-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -221,7 +219,7 @@ Documentation for each server:
 - [AWS CDK MCP Server](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
-- [AWS Diagram MCP Server]((https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/))
+- [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
 
 Documentation includes:
 
