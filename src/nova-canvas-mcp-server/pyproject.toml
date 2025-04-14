@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.nova-canvas-mcp-server"
-version = "0.1.2025141004"
+version = "0.2.9223372036854775807"
 description = "An AWS Labs Model Context Protocol (MCP) server for Amazon Nova Canvas"
 readme = "README.md"
 requires-python = ">=3.10"
