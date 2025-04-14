@@ -171,6 +171,99 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
             raw_output=None,
         )
 
+    # Security checks for parameters
+
+    # Check framework parameter for allowed values
+    allowed_frameworks = ['terraform', 'cloudformation', 'kubernetes', 'dockerfile', 'arm', 'all']
+    if request.framework not in allowed_frameworks:
+        logger.error(f'Security violation: Invalid framework: {request.framework}')
+        return CheckovScanResult(
+            status='error',
+            working_directory=request.working_directory,
+            error_message=f"Security violation: Invalid framework '{request.framework}'. Allowed frameworks are: {', '.join(allowed_frameworks)}",
+            vulnerabilities=[],
+            summary={},
+            raw_output=None,
+        )
+
+    # Check output_format parameter for allowed values
+    allowed_output_formats = [
+        'cli',
+        'csv',
+        'cyclonedx',
+        'cyclonedx_json',
+        'spdx',
+        'json',
+        'junitxml',
+        'github_failed_only',
+        'gitlab_sast',
+        'sarif',
+    ]
+    if request.output_format not in allowed_output_formats:
+        logger.error(f'Security violation: Invalid output format: {request.output_format}')
+        return CheckovScanResult(
+            status='error',
+            working_directory=request.working_directory,
+            error_message=f"Security violation: Invalid output format '{request.output_format}'. Allowed formats are: {', '.join(allowed_output_formats)}",
+            vulnerabilities=[],
+            summary={},
+            raw_output=None,
+        )
+
+    # Check for command injection patterns in check_ids and skip_check_ids
+    dangerous_patterns = [
+        '|',
+        ';',
+        '&',
+        '&&',
+        '||',  # Command chaining
+        '>',
+        '>>',
+        '<',  # Redirection
+        '`',
+        '$(',  # Command substitution
+        '--',  # Double dash options
+        'rm',
+        'mv',
+        'cp',  # Potentially dangerous commands
+        '/bin/',
+        '/usr/bin/',  # Path references
+        '../',
+        './',  # Directory traversal
+    ]
+
+    if request.check_ids:
+        for check_id in request.check_ids:
+            for pattern in dangerous_patterns:
+                if pattern in check_id:
+                    logger.error(
+                        f"Security violation: Potentially dangerous pattern '{pattern}' in check_id: {check_id}"
+                    )
+                    return CheckovScanResult(
+                        status='error',
+                        working_directory=request.working_directory,
+                        error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in check_id",
+                        vulnerabilities=[],
+                        summary={},
+                        raw_output=None,
+                    )
+
+    if request.skip_check_ids:
+        for skip_id in request.skip_check_ids:
+            for pattern in dangerous_patterns:
+                if pattern in skip_id:
+                    logger.error(
+                        f"Security violation: Potentially dangerous pattern '{pattern}' in skip_check_id: {skip_id}"
+                    )
+                    return CheckovScanResult(
+                        status='error',
+                        working_directory=request.working_directory,
+                        error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in skip_check_id",
+                        vulnerabilities=[],
+                        summary={},
+                        raw_output=None,
+                    )
+
     # Build the command
     # Convert working_directory to absolute path if it's not already
     working_dir = request.working_directory

@@ -85,6 +85,60 @@ async def execute_terraform_command_impl(
     if request.aws_region:
         env['AWS_REGION'] = request.aws_region
 
+    # Security check for command injection
+    allowed_commands = ['init', 'plan', 'validate', 'apply', 'destroy']
+    if request.command not in allowed_commands:
+        logger.error(f'Invalid Terraform command: {request.command}')
+        return TerraformExecutionResult(
+            command=f'terraform {request.command}',
+            status='error',
+            error_message=f'Invalid Terraform command: {request.command}. Allowed commands are: {", ".join(allowed_commands)}',
+            working_directory=request.working_directory,
+            outputs=None,
+        )
+
+    # Check for potentially dangerous characters or command injection attempts
+    dangerous_patterns = [
+        '|',
+        ';',
+        '&',
+        '&&',
+        '||',  # Command chaining
+        '>',
+        '>>',
+        '<',  # Redirection
+        '`',
+        '$(',  # Command substitution
+        '--',  # Double dash options
+        'rm',
+        'mv',
+        'cp',  # Potentially dangerous commands
+        '/bin/',
+        '/usr/bin/',  # Path references
+        '../',
+        './',  # Directory traversal
+    ]
+
+    for pattern in dangerous_patterns:
+        if pattern in request.command:
+            logger.error(f'Potentially dangerous pattern detected in command: {pattern}')
+            return TerraformExecutionResult(
+                command=f'terraform {request.command}',
+                status='error',
+                error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in command",
+                working_directory=request.working_directory,
+                outputs=None,
+            )
+        if request.variables and pattern in request.variables:
+            logger.error(f'Potentially dangerous pattern detected in variables: {pattern}')
+            return TerraformExecutionResult(
+                command=f'terraform {request.command} {request.variables}',
+                status='error',
+                error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in command",
+                working_directory=request.working_directory,
+                outputs=None,
+            )
+
     # Build the command
     cmd = ['terraform', request.command]
 

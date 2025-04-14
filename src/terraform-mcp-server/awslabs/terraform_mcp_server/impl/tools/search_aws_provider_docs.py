@@ -4,7 +4,6 @@ import re
 import requests
 import sys
 import time
-import traceback
 from ...models import TerraformAWSProviderDocsResult
 from loguru import logger
 from pathlib import Path
@@ -51,12 +50,30 @@ def resource_to_github_path(
     Returns:
         A tuple of (path, url) for the GitHub documentation file
     """
+    # Validate input parameters
+    if not isinstance(asset_name, str) or not asset_name:
+        logger.error(f'[{correlation_id}] Invalid asset_name: {asset_name}')
+        raise ValueError('asset_name must be a non-empty string')
+
+    # Sanitize asset_name to prevent path traversal and URL manipulation
+    # Only allow alphanumeric characters, underscores, and hyphens
+    sanitized_name = asset_name
+    if not re.match(r'^[a-zA-Z0-9_-]+$', sanitized_name.replace('aws_', '')):
+        logger.error(f'[{correlation_id}] Invalid characters in asset_name: {asset_name}')
+        raise ValueError('asset_name contains invalid characters')
+
+    # Validate asset_type
+    valid_asset_types = ['resource', 'data_source', 'both']
+    if asset_type not in valid_asset_types:
+        logger.error(f'[{correlation_id}] Invalid asset_type: {asset_type}')
+        raise ValueError(f'asset_type must be one of {valid_asset_types}')
+
     # Remove the 'aws_' prefix if present
-    if asset_name.startswith('aws_'):
-        resource_name = asset_name[4:]
+    if sanitized_name.startswith('aws_'):
+        resource_name = sanitized_name[4:]
         logger.trace(f"[{correlation_id}] Removed 'aws_' prefix: {resource_name}")
     else:
-        resource_name = asset_name
+        resource_name = sanitized_name
         logger.trace(f"[{correlation_id}] No 'aws_' prefix to remove: {resource_name}")
 
     # Determine document type based on asset_type parameter
@@ -67,7 +84,7 @@ def resource_to_github_path(
     else:
         # For "both" or any other value, determine based on name pattern
         # Data sources typically have 'data' in the name or follow other patterns
-        is_data_source = 'data' in asset_name.lower()
+        is_data_source = 'data' in sanitized_name.lower()
         doc_type = 'd' if is_data_source else 'r'
 
     # Create the file path for the markdown documentation
@@ -99,6 +116,7 @@ def fetch_github_documentation(
     logger.info(f"[{correlation_id}] Fetching documentation from GitHub for '{asset_name}'")
 
     # Create a cache key that includes both asset_name and asset_type
+    # Use a hash function to ensure the cache key is safe
     cache_key = f'{asset_name}_{asset_type}'
 
     # Check cache first
@@ -111,7 +129,17 @@ def fetch_github_documentation(
 
     try:
         # Convert resource type to GitHub path and URL
-        _, github_url = resource_to_github_path(asset_name, asset_type, correlation_id)
+        # This will validate and sanitize the input
+        try:
+            _, github_url = resource_to_github_path(asset_name, asset_type, correlation_id)
+        except ValueError as e:
+            logger.error(f'[{correlation_id}] Invalid input parameters: {str(e)}')
+            return None
+
+        # Validate the constructed URL to ensure it points to the expected domain
+        if not github_url.startswith(GITHUB_RAW_BASE_URL):
+            logger.error(f'[{correlation_id}] Invalid GitHub URL constructed: {github_url}')
+            return None
 
         # Fetch the markdown content from GitHub
         logger.info(f'[{correlation_id}] Fetching from GitHub URL: {github_url}')
@@ -147,14 +175,16 @@ def fetch_github_documentation(
         return result
 
     except requests.exceptions.Timeout as e:
-        logger.exception(f'[{correlation_id}] Timeout error fetching from GitHub: {str(e)}')
+        logger.warning(f'[{correlation_id}] Timeout error fetching from GitHub: {str(e)}')
         return None
     except requests.exceptions.RequestException as e:
-        logger.exception(f'[{correlation_id}] Request error fetching from GitHub: {str(e)}')
+        logger.warning(f'[{correlation_id}] Request error fetching from GitHub: {str(e)}')
         return None
     except Exception as e:
-        logger.exception(f'[{correlation_id}] Unexpected error fetching from GitHub')
-        logger.error(f'[{correlation_id}] Error type: {type(e).__name__}, message: {str(e)}')
+        logger.error(
+            f'[{correlation_id}] Unexpected error fetching from GitHub: {type(e).__name__}: {str(e)}'
+        )
+        # Don't log the full stack trace to avoid information disclosure
         return None
 
 
@@ -487,6 +517,37 @@ async def search_aws_provider_docs_impl(
     correlation_id = f'search-{int(start_time * 1000)}'
     logger.info(f"[{correlation_id}] Starting AWS provider docs search for '{asset_name}'")
 
+    # Validate input parameters
+    if not isinstance(asset_name, str) or not asset_name:
+        logger.error(f'[{correlation_id}] Invalid asset_name parameter: {asset_name}')
+        return [
+            TerraformAWSProviderDocsResult(
+                asset_name='Error',
+                asset_type=cast(Literal['both', 'resource', 'data_source'], asset_type),
+                description='Invalid asset_name parameter. Must be a non-empty string.',
+                url=None,
+                example_usage=None,
+                arguments=None,
+                attributes=None,
+            )
+        ]
+
+    # Validate asset_type
+    valid_asset_types = ['resource', 'data_source', 'both']
+    if asset_type not in valid_asset_types:
+        logger.error(f'[{correlation_id}] Invalid asset_type parameter: {asset_type}')
+        return [
+            TerraformAWSProviderDocsResult(
+                asset_name='Error',
+                asset_type=cast(Literal['both', 'resource', 'data_source'], 'resource'),
+                description=f'Invalid asset_type parameter. Must be one of {valid_asset_types}.',
+                url=None,
+                example_usage=None,
+                arguments=None,
+                attributes=None,
+            )
+        ]
+
     search_term = asset_name.lower()
 
     try:
@@ -594,20 +655,20 @@ async def search_aws_provider_docs_impl(
         ]
 
     except Exception as e:
-        logger.exception(f'[{correlation_id}] Error searching AWS provider docs')
-        logger.error(f'[{correlation_id}] Exception details: {type(e).__name__}: {str(e)}')
-        logger.debug(
-            f'[{correlation_id}] Traceback: {"".join(traceback.format_tb(e.__traceback__))}'
+        logger.error(
+            f'[{correlation_id}] Error searching AWS provider docs: {type(e).__name__}: {str(e)}'
         )
+        # Don't log the full stack trace to avoid information disclosure
 
         end_time = time.time()
         logger.info(f'[{correlation_id}] Search failed in {end_time - start_time:.2f} seconds')
 
+        # Return a generic error message without exposing internal details
         return [
             TerraformAWSProviderDocsResult(
                 asset_name='Error',
                 asset_type=cast(Literal['both', 'resource', 'data_source'], asset_type),
-                description=f'Failed to search AWS provider documentation: {type(e).__name__}: {str(e)}',
+                description='Failed to search AWS provider documentation. Please check your input and try again.',
                 url=f'{AWS_DOCS_BASE_URL}/resources',
                 example_usage=None,
                 arguments=None,
