@@ -13,7 +13,6 @@ dependencies = [
     "playwright>=1.40.0",
     "PyPDF2>=3.0.0",
     "checkov>=3.2.402",
-    "importlib_resources>=5.0.0",
 ]
 
 [project.scripts]

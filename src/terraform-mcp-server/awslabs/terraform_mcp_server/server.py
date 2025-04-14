@@ -47,7 +47,6 @@ mcp = FastMCP(
         'requests',
         'beautifulsoup4',
         'PyPDF2',
-        'importlib_resources',
     ],
 )
 

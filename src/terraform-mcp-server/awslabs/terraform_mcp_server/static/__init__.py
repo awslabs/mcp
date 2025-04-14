@@ -1,4 +1,4 @@
-import importlib_resources as resources
+from importlib import resources
 
 with (
     resources.files('awslabs.terraform_mcp_server.static')
