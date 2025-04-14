@@ -11,9 +11,33 @@ dependencies = [
     "httpx>=0.27.0",
     "bs4>=0.0.2",
 ]
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE" ]
+
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 
 [project.scripts]
 "awslabs.cdk-mcp-server" = "awslabs.cdk_mcp_server.server:main"
+
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/cdk-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/cdk-mcp-server/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
