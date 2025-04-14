@@ -43,7 +43,7 @@ When using the query_knowledge_base tool, always use the kb_id parameter exactly
 try:
     bedrock_runtime = boto3.client(
         service_name='bedrock-runtime',
-        region_name=os.getenv('AWS_REGION', 'us-east-1'),
+        region_name=os.getenv('AWS_REGION', 'us-west-2'),
     )
     logger.info('Successfully initialized Bedrock client')
 except Exception as e:
@@ -114,7 +114,7 @@ async def process_query(query: str, kb_id: str) -> Dict[str, Any]:
                     'args': ['awslabs.bedrock-kb-retrieval-mcp-server@latest'],
                     'env': {
                         'AWS_PROFILE': os.getenv('AWS_PROFILE', 'default'),
-                        'AWS_REGION': os.getenv('AWS_REGION', 'us-east-1'),
+                        'AWS_REGION': os.getenv('AWS_REGION', 'us-west-2'),
                         'FASTMCP_LOG_LEVEL': 'ERROR',
                     },
                 }

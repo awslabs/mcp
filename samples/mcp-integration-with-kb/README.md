@@ -24,6 +24,8 @@ The exact MCP server code leveraged can be found in the [src/bedrock-kb-retrieva
 - A Bedrock Knowledge Base
   - For a quick reference Knowledge Base setup, check out the [e2e RAG solution via CDK](https://github.com/aws-samples/amazon-bedrock-samples/tree/main/rag/knowledge-bases/features-examples/04-infrastructure/e2e_rag_using_bedrock_kb_cdk) repo. This will set you up with everything you need - IAM roles, vector storage (either OpenSearch Serverless or Aurora PostgreSQL), and a fully configured Knowledge Base with sample data. The Knowledge Base is the only component you'll really need for this implementation.
 
+> **Note**: Reranking for Amazon Bedrock is not supported in us-east-1. For more information about supported regions and models for reranking, see [Supported Regions and models for reranking in Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html).
+
 ### Installation
 
 1. Clone the repository.
@@ -50,7 +52,6 @@ then activate the virtual environment
 ```bash
 source .venv/bin/activate
 ```
-
 4. In one of the terminals, run the FastAPI server
 
 ```bash
