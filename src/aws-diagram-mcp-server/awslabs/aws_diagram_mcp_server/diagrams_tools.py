@@ -110,7 +110,7 @@ async def generate_diagram(
 
         # Import necessary modules directly in the namespace
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec(
+        exec(  # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             # nosemgrep: python.lang.security.audit.exec-detected.exec-detected
             'import os',
             namespace,
@@ -625,10 +625,10 @@ def list_diagram_icons() -> DiagramIconsResponse:
                 module_path = f'diagrams.{provider_name}.{service_name}'
                 try:
                     logger.debug(f'Attempting to import module: {module_path}')
-                    service_module = importlib.import_module(
+                    service_module = importlib.import_module(  # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
                         # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
-                        module_path
-                    )
+                        module_path  # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
+                    )  # nosemgrep: python.lang.security.audit.non-literal-import.non-literal-import
 
                     # Find all classes in the module that are Node subclasses
                     icons = []
