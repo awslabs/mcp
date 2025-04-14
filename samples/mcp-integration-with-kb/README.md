@@ -20,7 +20,7 @@ The exact MCP server code leveraged can be found in the [src/bedrock-kb-retrieva
 ### Prerequisites
 
 - The [uv](https://docs.astral.sh/uv/getting-started/installation/) package manager
-- AWS Account with Bedrock access and proper IAM permissions
+- AWS Account with Bedrock access and proper IAM permissions - [Getting Started with Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started.html)
 - A Bedrock Knowledge Base
   - For a quick reference Knowledge Base setup, check out the [e2e RAG solution via CDK](https://github.com/aws-samples/amazon-bedrock-samples/tree/main/rag/knowledge-bases/features-examples/04-infrastructure/e2e_rag_using_bedrock_kb_cdk) repo. This will set you up with everything you need - IAM roles, vector storage (either OpenSearch Serverless or Aurora PostgreSQL), and a fully configured Knowledge Base with sample data. The Knowledge Base is the only component you'll really need for this implementation.
 
@@ -29,12 +29,13 @@ The exact MCP server code leveraged can be found in the [src/bedrock-kb-retrieva
 1. Clone the repository.
 
 ```bash
-git clone <INSERT_REPO_URL>
+git clone https://github.com/awslabs/mcp.git
 ```
 
-2. Copy the .env.example file to .env and add your AWS credentials.
+2. Navigate to the sample directory and copy the .env.example file to .env and add your AWS credentials.
 
 ```bash
+cd mcp/samples/mcp-integration-with-kb
 cp .env.example .env
 ```
 
