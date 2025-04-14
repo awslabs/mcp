@@ -1,0 +1,61 @@
+name: pull-request-lint
+
+on:
+  pull_request_target:
+    branches: [ "main" ]
+    types:
+      - labeled
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - edited
+  merge_group: {}
+
+permissions: read-all
+
+jobs:
+  validate:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
+    steps:
+      - uses: amannn/action-semantic-pull-request@0723387faaf9b38adef4775cd42cfd5155ed6017 #v5.5.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |-
+            build
+            chore
+            ci
+            docs
+            feat
+            fix
+            perf
+            refactor
+            test
+          requireScope: false
+
+  contributorStatement:
+    name: Require Contributor Statement
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    env:
+      PR_BODY: ${{ github.event.pull_request.body }}
+      EXPECTED: By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of the [project license](https://github.com/awslabs/mcp/blob/main/LICENSE).
+      HELP: Contributor statement missing from PR description. Please include the following text in the PR description
+    if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && !(github.event.pull_request.user.login == 'cdklabs-automation' || github.event.pull_request.user.login == 'dependabot[bot]')
+    steps:
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
+        with:
+          script: |-
+            const actual = process.env.PR_BODY.replace(/\r?\n/g, "\n");
+            const expected = process.env.EXPECTED.replace(/\r?\n/g, "\n");
+            if (!actual.includes(expected)) {
+                console.log("%j", actual);
+                console.log("%j", expected);
+                core.setFailed(`${process.env.HELP}: ${expected}`);
+            }
