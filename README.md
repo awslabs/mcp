@@ -208,12 +208,6 @@ See individual server READMEs for specific requirements and configuration option
 
 Ready-to-use examples of AWS MCP Servers in action are available in the [samples](samples/) directory. These samples provide working code and step-by-step guides to help you get started with each MCP server.
 
-### Available Servers
-
-#### MCP Integration with KB
-
-A client that integrates with the Amazon Bedrock Knowledge Base MCP server. Code can be found in the [samples/mcp-integration-with-kb](./samples/mcp-integration-with-kb/) folder.
-
 ## Documentation
 
 Comprehensive documentation for all servers is available on our [documentation website](https://awslabs.github.io/mcp/).
