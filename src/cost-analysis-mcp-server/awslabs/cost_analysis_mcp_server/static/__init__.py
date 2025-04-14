@@ -8,7 +8,10 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-from importlib import resources
+from importlib import (  # nosem: python.lang.compatibility.python37.python37-compatibility-importlib2
+    # nosem: python.lang.compatibility.python37.python37-compatibility-importlib2
+    resources,  # nosem: python.lang.compatibility.python37.python37-compatibility-importlib2
+)  # nosem: python.lang.compatibility.python37.python37-compatibility-importlib2
 
 with (
     resources.files('awslabs.cost_analysis_mcp_server.static')
