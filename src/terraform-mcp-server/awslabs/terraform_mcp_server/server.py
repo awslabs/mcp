@@ -31,7 +31,7 @@ from awslabs.terraform_mcp_server.static import (
 )
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
-from typing import List
+from typing import Dict, List, Literal, Optional
 
 
 # Add the parent directory to the Python path
@@ -48,7 +48,13 @@ mcp = FastMCP(
 # * Tools
 @mcp.tool(name='ExecuteTerraformCommand')
 async def execute_terraform_command(
-    request: TerraformExecutionRequest,
+    command: Literal['init', 'plan', 'validate', 'apply', 'destroy'] = Field(
+        ..., description='Terraform command to execute'
+    ),
+    working_directory: str = Field(..., description='Directory containing Terraform files'),
+    variables: Optional[Dict[str, str]] = Field(None, description='Terraform variables to pass'),
+    aws_region: Optional[str] = Field(None, description='AWS region to use'),
+    strip_ansi: bool = Field(True, description='Whether to strip ANSI color codes from output'),
 ) -> TerraformExecutionResult:
     """Execute Terraform workflow commands against an AWS account.
 
@@ -61,6 +67,13 @@ async def execute_terraform_command(
     Returns:
         A TerraformExecutionResult object containing command output and status
     """
+    request = TerraformExecutionRequest(
+        command=command,
+        working_directory=working_directory,
+        variables=variables,
+        aws_region=aws_region,
+        strip_ansi=strip_ansi,
+    )
     return await execute_terraform_command_impl(request)
 
 
@@ -210,7 +223,15 @@ async def search_specific_aws_ia_modules(
 
 
 @mcp.tool(name='RunCheckovScan')
-async def run_checkov_scan(request: CheckovScanRequest) -> CheckovScanResult:
+async def run_checkov_scan(
+    working_directory: str = Field(..., description='Directory containing Terraform files'),
+    framework: str = Field(
+        'terraform', description='Framework to scan (terraform, cloudformation, etc.)'
+    ),
+    check_ids: Optional[List[str]] = Field(None, description='Specific check IDs to run'),
+    skip_check_ids: Optional[List[str]] = Field(None, description='Check IDs to skip'),
+    output_format: str = Field('json', description='Output format (json, cli, etc.)'),
+) -> CheckovScanResult:
     """Run Checkov security scan on Terraform code.
 
     This tool runs Checkov to scan Terraform code for security and compliance issues,
@@ -230,6 +251,13 @@ async def run_checkov_scan(request: CheckovScanRequest) -> CheckovScanResult:
     Returns:
         A CheckovScanResult object containing scan results and identified vulnerabilities
     """
+    request = CheckovScanRequest(
+        working_directory=working_directory,
+        framework=framework,
+        check_ids=check_ids,
+        skip_check_ids=skip_check_ids,
+        output_format=output_format,
+    )
     return await run_checkov_scan_impl(request)
 
 
