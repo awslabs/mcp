@@ -1,3 +1,14 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
 import boto3
 import logging
 import os
@@ -102,9 +113,6 @@ async def process_query(query: str, kb_id: str) -> Dict[str, Any]:
                     'command': 'uvx',
                     'args': ['awslabs.bedrock-kb-retrieval-mcp-server@latest'],
                     'env': {
-                        'AWS_ACCESS_KEY_ID': os.getenv('AWS_ACCESS_KEY_ID'),
-                        'AWS_SECRET_ACCESS_KEY': os.getenv('AWS_SECRET_ACCESS_KEY'),
-                        'AWS_SESSION_TOKEN': os.getenv('AWS_SESSION_TOKEN'),
                         'AWS_PROFILE': os.getenv('AWS_PROFILE', 'default'),
                         'AWS_REGION': os.getenv('AWS_REGION', 'us-east-1'),
                         'FASTMCP_LOG_LEVEL': 'ERROR',
