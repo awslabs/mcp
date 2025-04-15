@@ -108,14 +108,15 @@ class TestMcpResponse:
         assert response['content'][0]['text'] == 'Test content'
         
         # Check that isError is not present
-        with pytest.raises(KeyError):
-            response['isError']
+        assert 'isError' not in response
 
     def test_mcp_response_missing_content(self):
-        """Test that an McpResponse requires content."""
-        # This is a runtime check since TypedDict is a runtime construct
-        with pytest.raises(KeyError):
-            # Missing 'content' field
-            response: McpResponse = {'isError': False}  # type: ignore
-            # Access the missing field to trigger the error
-            response['content']
+        """Test that an McpResponse can be created without content."""
+        # Since McpResponse is defined with total=False, all keys are optional
+        response: McpResponse = {'isError': False}
+        
+        # Check that isError is set correctly
+        assert response.get('isError') is False
+        
+        # Check that content is not present
+        assert 'content' not in response

@@ -48,7 +48,9 @@ class TestStatic:
     def test_prompt_understanding_file_exists(self):
         """Test that the PROMPT_UNDERSTANDING.md file exists."""
         # Check that the file exists using importlib.resources
-        assert resources.files('awslabs.core_mcp_server.static').joinpath('PROMPT_UNDERSTANDING.md').exists()
+        # Convert to Path object which has the exists() method
+        file_path = Path(resources.files('awslabs.core_mcp_server.static').joinpath('PROMPT_UNDERSTANDING.md'))
+        assert file_path.exists()
 
     def test_prompt_understanding_file_content(self):
         """Test that the PROMPT_UNDERSTANDING.md file content matches the imported constant."""
