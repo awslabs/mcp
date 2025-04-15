@@ -37,7 +37,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-core-mcp-server"
-version = "0.0.81650"
+version = "0.2.9223372036854775807"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

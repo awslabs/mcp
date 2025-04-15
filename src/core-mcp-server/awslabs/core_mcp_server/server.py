@@ -18,6 +18,38 @@ from mcp.server.fastmcp import FastMCP
 from typing import Dict, List, TypedDict
 
 
+
+class ContentItem(TypedDict):
+    """A TypedDict representing a single content item in an MCP response.
+
+    This class defines the structure for content items used in MCP server responses.
+    Each content item contains a type identifier and the actual content text.
+
+    Attributes:
+        type (str): The type identifier for the content (e.g., 'text', 'error')
+        text (str): The actual content text
+    """
+
+    type: str
+    text: str
+
+
+class McpResponse(TypedDict, total=False):
+    """A TypedDict representing an MCP server response.
+
+    This class defines the structure for responses returned by MCP server tools.
+    It supports optional fields through total=False, allowing responses to omit
+    the isError field when not needed.
+
+    Attributes:
+        content (List[ContentItem]): List of content items in the response
+        isError (bool, optional): Flag indicating if the response represents an error
+    """
+
+    content: List[ContentItem]
+    isError: bool
+
+
 # Set up logging
 logger = loguru.logger
 
