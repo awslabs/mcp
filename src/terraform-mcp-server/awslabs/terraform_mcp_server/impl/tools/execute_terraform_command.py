@@ -103,19 +103,10 @@ async def execute_terraform_command_impl(
     logger.debug(f'Checking for {len(dangerous_patterns)} dangerous patterns')
 
     for pattern in dangerous_patterns:
-        if pattern in request.command:
-            logger.error(f'Potentially dangerous pattern detected in command: {pattern}')
-            return TerraformExecutionResult(
-                command=f'terraform {request.command}',
-                status='error',
-                error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in command",
-                working_directory=request.working_directory,
-                outputs=None,
-            )
         if request.variables:
             # Check if the pattern is in any of the variable values
             for var_name, var_value in request.variables.items():
-                if pattern in str(var_value):
+                if pattern in str(var_value) or pattern in str(var_name):
                     logger.error(
                         f'Potentially dangerous pattern detected in variable {var_name}: {pattern}'
                     )
