@@ -10,8 +10,6 @@
 # and limitations under the License.
 """Tests for the main function in server.py."""
 
-import importlib
-import sys
 from unittest.mock import patch
 
 from awslabs.core_mcp_server.server import main

@@ -29,8 +29,8 @@ class TestContentItem:
         assert 'text' in type_hints
         
         # Check that the field types are correct
-        assert type_hints['type'] == str
-        assert type_hints['text'] == str
+        assert type_hints['type'] is str
+        assert type_hints['text'] is str
 
     def test_content_item_creation(self):
         """Test creating a ContentItem."""
@@ -69,7 +69,7 @@ class TestMcpResponse:
         # Check that the field types are correct
         # The type might be list[ContentItem] or typing.List[ContentItem] depending on Python version
         assert str(type_hints['content']).endswith('List[awslabs.core_mcp_server.server.ContentItem]')
-        assert type_hints['isError'] == bool
+        assert type_hints['isError'] is bool
 
     def test_mcp_response_creation(self):
         """Test creating an McpResponse."""

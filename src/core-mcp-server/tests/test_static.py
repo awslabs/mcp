@@ -10,7 +10,6 @@
 # and limitations under the License.
 """Tests for the static module."""
 
-import os
 from importlib import resources
 from pathlib import Path
 

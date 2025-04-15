@@ -8,15 +8,18 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
+
+# Standard library imports
 import argparse
-# import dotenv
-import json
-import loguru
 import sys
+from typing import List, TypedDict
+
+# Third-party imports
+import loguru
+
+# Local application imports
 from awslabs.core_mcp_server.static import PROMPT_UNDERSTANDING
 from mcp.server.fastmcp import FastMCP
-from typing import Dict, List, TypedDict
-
 
 
 class ContentItem(TypedDict):
@@ -72,7 +75,6 @@ async def get_prompt_understanding() -> str:
     ALWAYS Use this tool first to understand the user's query and translate it into AWS expert advice.
     """
     return PROMPT_UNDERSTANDING
-
 
 
 def main() -> None:
