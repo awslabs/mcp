@@ -93,7 +93,7 @@ jobs:
         working-directory: src/${{ matrix.package }}
         run: |
           if [ -d "tests" ]; then
-            uv run --frozen pytest --cov --cov-branch --cov-report=xml:${{ matrix.package }}-coverage.xml
+            uv run --frozen pytest --cov --cov-branch --cov-report=term-missing --cov-report=xml:${{ matrix.package }}-coverage.xml
           else
             echo "No tests directory found, skipping tests"
           fi
