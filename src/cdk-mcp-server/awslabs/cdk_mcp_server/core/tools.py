@@ -22,6 +22,7 @@ from awslabs.cdk_mcp_server.data.cdk_nag_parser import (
 from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
     list_available_constructs,
 )
+from awslabs.cdk_mcp_server.data.lambda_layer_parser import LambdaLayerParser
 from awslabs.cdk_mcp_server.data.schema_generator import generate_bedrock_schema_from_file
 from awslabs.cdk_mcp_server.data.solutions_constructs_parser import (
     fetch_pattern_list,
@@ -202,7 +203,12 @@ def save_fallback_script_to_file(
             f.write(script_content)
 
         # Update to executable permissions (only for the owner)
-        os.chmod(script_path, 0o700)  # rwx------ permissions (owner only)
+        # rwx------ permissions (owner only)
+        # nosem: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
+        os.chmod(
+            script_path,
+            0o700,
+        )
 
         logger.info(f'Successfully created script at {script_path}')
         return script_path
@@ -476,3 +482,55 @@ async def search_genai_cdk_constructs(
         }
     except Exception as e:
         return {'error': f'Error searching constructs: {str(e)}', 'status': 'error'}
+
+
+async def lambda_layer_documentation_provider(
+    ctx: Context,
+    layer_type: str,  # "generic" or "python"
+) -> Dict[str, Any]:
+    """Provide documentation sources for Lambda layers.
+
+    This tool returns information about where to find documentation for Lambda layers
+    and instructs the MCP Client to fetch and process this documentation.
+
+    Args:
+        ctx: MCP context
+        layer_type: Type of layer ("generic" or "python")
+
+    Returns:
+        Dictionary with documentation source information
+    """
+    if layer_type.lower() == 'python':
+        # For Python layers, use AWS Documentation MCP Server
+        return {
+            'layer_type': 'python',
+            'documentation_source': {
+                'server': 'awslabs.aws-documentation-mcp-server',
+                'tool': 'read_documentation',
+                'parameters': {'url': LambdaLayerParser.PYTHON_LAYER_URL, 'max_length': 10000},
+            },
+            'documentation_usage_guide': {
+                'when_to_fetch_full_docs': 'Fetch full documentation to view detailed property definitions, learn about optional parameters, and find additional code examples',
+                'contains_sample_code': True,
+                'contains_props_documentation': True,
+            },
+            'code_generation_guidance': {
+                'imports': [
+                    "import { PythonLayerVersion } from '@aws-cdk/aws-lambda-python-alpha'"
+                ],
+                'construct_types': {'python': 'PythonLayerVersion'},
+                'required_properties': {'python': ['entry']},
+                'sample_code': "new python.PythonLayerVersion(this, 'MyLayer', {\n  entry: '/path/to/my/layer', // point this to your library's directory\n})",
+            },
+        }
+    else:
+        # For all other layer types (including generic), use the existing parser
+        docs = await LambdaLayerParser.fetch_lambda_layer_docs()
+        layer_docs = docs['generic_layers']
+
+        return {
+            'layer_type': 'generic',
+            'code_examples': layer_docs['examples'],
+            'directory_structure': layer_docs['directory_structure'],
+            'source_url': layer_docs['url'],
+        }
