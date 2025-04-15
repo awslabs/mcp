@@ -1,0 +1,126 @@
+{"name":"Jinja2","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"Jinja2","licenses":{"name":"declared license file: LICENSE.txt"}}
+{"name":"MarkupSafe","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"MarkupSafe","licenses":{"name":"declared license file: LICENSE.txt"}}
+{"name":"MarkupSafe","licenses":{"name":"declared license of 'MarkupSafe'"}}
+{"name":"PyYAML","licenses":{"id":"MIT"}}
+{"name":"PyYAML","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"Pygments","licenses":{"id":"BSD-2-Clause"}}
+{"name":"Pygments","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"Pygments","licenses":{"name":"declared license file: AUTHORS"}}
+{"name":"Pygments","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"annotated-types","licenses":{"id":"MIT"}}
+{"name":"annotated-types","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"anyio","licenses":{"id":"MIT"}}
+{"name":"anyio","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"argcomplete","licenses":{"name":"License :: OSI Approved :: Apache Software License"}}
+{"name":"argcomplete","licenses":{"name":"declared license file: LICENSE.rst"}}
+{"name":"argcomplete","licenses":{"name":"declared license file: NOTICE"}}
+{"name":"argcomplete","licenses":{"name":"declared license of 'argcomplete'"}}
+{"name":"boto3","licenses":{"name":"License :: OSI Approved :: Apache Software License"}}
+{"name":"boto3","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"boto3","licenses":{"name":"declared license file: NOTICE"}}
+{"name":"boto3","licenses":{"name":"declared license of 'boto3'"}}
+{"name":"botocore","licenses":{"name":"License :: OSI Approved :: Apache Software License"}}
+{"name":"botocore","licenses":{"name":"declared license file: LICENSE.txt"}}
+{"name":"botocore","licenses":{"name":"declared license file: NOTICE"}}
+{"name":"botocore","licenses":{"name":"declared license of 'botocore'"}}
+{"name":"certifi","licenses":{"id":"MPL-2.0"}}
+{"name":"certifi","licenses":{"name":"License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)"}}
+{"name":"certifi","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"cfgv","licenses":{"id":"MIT"}}
+{"name":"cfgv","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"charset-normalizer","licenses":{"id":"MIT"}}
+{"name":"charset-normalizer","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"click","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"colorama","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"colorama","licenses":{"name":"declared license file: LICENSE.txt"}}
+{"name":"commitizen","licenses":{"name":"declared license of 'commitizen'"}}
+{"name":"decli","licenses":{"id":"MIT"}}
+{"name":"distlib","licenses":{"id":"PSF-2.0"}}
+{"name":"distlib","licenses":{"id":"Python-2.0"}}
+{"name":"distlib","licenses":{"name":"declared license file: LICENSE.txt"}}
+{"name":"exceptiongroup","licenses":{"id":"MIT"}}
+{"name":"filelock","licenses":{"id":"Unlicense"}}
+{"name":"filelock","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"h11","licenses":{"id":"MIT"}}
+{"name":"h11","licenses":{"name":"declared license file: LICENSE.txt"}}
+{"name":"httpcore","licenses":{"id":"BSD-3-Clause"}}
+{"name":"httpcore","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"httpx","licenses":{"id":"BSD-3-Clause"}}
+{"name":"httpx","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"httpx-sse","licenses":{"id":"MIT"}}
+{"name":"httpx-sse","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"identify","licenses":{"id":"MIT"}}
+{"name":"identify","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"idna","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"jmespath","licenses":{"id":"MIT"}}
+{"name":"loguru","licenses":{"id":"MIT"}}
+{"name":"markdown-it-py","licenses":{"id":"MIT"}}
+{"name":"mcp","licenses":{"id":"MIT"}}
+{"name":"mcp","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"mdurl","licenses":{"id":"MIT"}}
+{"name":"nodeenv","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"nodeenv","licenses":{"name":"declared license file: AUTHORS"}}
+{"name":"nodeenv","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"nodeenv","licenses":{"name":"declared license of 'nodeenv'"}}
+{"name":"packaging","licenses":{"name":"License :: OSI Approved :: Apache Software License"}}
+{"name":"packaging","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"platformdirs","licenses":{"id":"MIT"}}
+{"name":"platformdirs","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"pre_commit","licenses":{"id":"MIT"}}
+{"name":"pre_commit","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"prompt_toolkit","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"prompt_toolkit","licenses":{"name":"declared license file: AUTHORS.rst"}}
+{"name":"prompt_toolkit","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"pydantic","licenses":{"id":"MIT"}}
+{"name":"pydantic","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"pydantic-settings","licenses":{"id":"MIT"}}
+{"name":"pydantic-settings","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"pydantic_core","licenses":{"id":"MIT"}}
+{"name":"pydantic_core","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"pyright","licenses":{"id":"MIT"}}
+{"name":"pyright","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"python-dateutil","licenses":{"name":"License :: OSI Approved :: Apache Software License"}}
+{"name":"python-dateutil","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"python-dateutil","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"python-dateutil","licenses":{"name":"declared license of 'python-dateutil'"}}
+{"name":"python-dotenv","licenses":{"id":"BSD-3-Clause"}}
+{"name":"python-dotenv","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"python-dotenv","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"questionary","licenses":{"id":"MIT"}}
+{"name":"rich","licenses":{"id":"MIT"}}
+{"name":"ruff","licenses":{"id":"MIT"}}
+{"name":"ruff","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"s3transfer","licenses":{"name":"License :: OSI Approved :: Apache Software License"}}
+{"name":"s3transfer","licenses":{"name":"declared license file: LICENSE.txt"}}
+{"name":"s3transfer","licenses":{"name":"declared license file: NOTICE.txt"}}
+{"name":"s3transfer","licenses":{"name":"declared license of 's3transfer'"}}
+{"name":"shellingham","licenses":{"id":"ISC"}}
+{"name":"shellingham","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"shellingham","licenses":{"name":"declared license of 'shellingham'"}}
+{"name":"six","licenses":{"id":"MIT"}}
+{"name":"six","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"sse-starlette","licenses":{"id":"BSD-3-Clause"}}
+{"name":"sse-starlette","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"sse-starlette","licenses":{"name":"declared license file: AUTHORS"}}
+{"name":"sse-starlette","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"starlette","licenses":{"id":"BSD-3-Clause"}}
+{"name":"starlette","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"starlette","licenses":{"name":"declared license file: LICENSE.md"}}
+{"name":"termcolor","licenses":{"id":"MIT"}}
+{"name":"termcolor","licenses":{"name":"declared license file: COPYING.txt"}}
+{"name":"tomlkit","licenses":{"id":"MIT"}}
+{"name":"typer","licenses":{"id":"MIT"}}
+{"name":"typing-inspection","licenses":{"id":"MIT"}}
+{"name":"typing-inspection","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"typing_extensions","licenses":{"id":"PSF-2.0"}}
+{"name":"typing_extensions","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"urllib3","licenses":{"id":"MIT"}}
+{"name":"urllib3","licenses":{"name":"declared license file: LICENSE.txt"}}
+{"name":"uvicorn","licenses":{"id":"BSD-3-Clause"}}
+{"name":"uvicorn","licenses":{"name":"License :: OSI Approved :: BSD License"}}
+{"name":"virtualenv","licenses":{"id":"MIT"}}
+{"name":"virtualenv","licenses":{"name":"declared license file: LICENSE"}}
+{"name":"wcwidth","licenses":{"id":"MIT"}}
+{"name":"wcwidth","licenses":{"name":"declared license file: LICENSE"}}

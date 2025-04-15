@@ -48,7 +48,9 @@ class TestStatic:
         """Test that the PROMPT_UNDERSTANDING.md file exists."""
         # Check that the file exists using importlib.resources
         # Use resources.files().joinpath() to get the resource, then convert to string for Path
-        resource = resources.files('awslabs.core_mcp_server.static').joinpath('PROMPT_UNDERSTANDING.md')
+        resource = resources.files('awslabs.core_mcp_server.static').joinpath(
+            'PROMPT_UNDERSTANDING.md'
+        )
         file_path = Path(str(resource))
         assert file_path.exists()
 
@@ -58,7 +60,9 @@ class TestStatic:
         from awslabs.core_mcp_server.static import PROMPT_UNDERSTANDING
 
         # Read the file content directly
-        resource = resources.files('awslabs.core_mcp_server.static').joinpath('PROMPT_UNDERSTANDING.md')
+        resource = resources.files('awslabs.core_mcp_server.static').joinpath(
+            'PROMPT_UNDERSTANDING.md'
+        )
         with resource.open('r', encoding='utf-8') as f:
             file_content = f.read()
 

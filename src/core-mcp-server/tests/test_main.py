@@ -41,6 +41,7 @@ class TestMain:
 
         # Check that the port was set correctly
         from awslabs.core_mcp_server.server import mcp
+
         assert mcp.settings.port == 9999
 
     def test_module_execution(self):
@@ -57,7 +58,7 @@ class TestMain:
 
         # Check that the module has the if __name__ == '__main__': block
         assert "if __name__ == '__main__':" in source
-        assert "main()" in source
+        assert 'main()' in source
 
         # This test doesn't actually execute the code, but it ensures
         # that the coverage report includes the if __name__ == '__main__': line
