@@ -49,4 +49,4 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 
 The server exposes the following tools through the MCP interface:
 
-- `prompt_understanding` - Helps to provide clear plan for building AWS Solutions for the given prompt
+- `prompt_understanding` - Helps to provide guidance and planning support when building AWS Solutions for the given prompt
