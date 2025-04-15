@@ -121,9 +121,11 @@ jobs:
           path: src/${{ matrix.package }}/dist/
 
       - name: Generate Software Bill of Materials (SBOM)
+        working-directory: src/${{ matrix.package }}
         run:
-          uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject src/${{ matrix.package }}/pyproject.toml --mc-type library --output-format XML > src/${{ matrix.package }}/sbom.cyclondx.xml
+          uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format XML > sbom.xml
       - name: Display SBOM
+        working-directory: src/${{ matrix.package }}
         run: |
           cat <<EOT |
           import re
@@ -199,7 +201,7 @@ jobs:
 
 
           def main():
-              bom_file = 'src/${{ matrix.package }}/sbom.cyclondx.xml'  # Replace with your BOM file path
+              bom_file = 'sbom.xml'  # Replace with your BOM file path
               components = parse_bom(bom_file)
 
               for component in components:
@@ -220,4 +222,4 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sbom-${{ matrix.package }}
-          path: src/${{ matrix.package }}/sbom.cyclondx.xml
+          path: src/${{ matrix.package }}/sbom.xml
