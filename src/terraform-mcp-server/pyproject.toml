@@ -1,48 +1,29 @@
 [project]
-name = "awslabs.lambda-mcp-server"
-version = "0.1.0"
-description = "An AWS Labs Model Context Protocol (MCP) server for AWS Lambda"
+name = "awslabs.terraform-mcp-server"
+version = "0.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for terraform"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.37.27",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-]
-license = {text = "Apache-2.0"}
-license-files = ["LICENSE", "NOTICE" ]
-
-authors = [
-    {name = "Amazon Web Services"},
-    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-]
-classifiers = [
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "loguru>=0.7.0",
+    "playwright>=1.40.0",
+    "PyPDF2>=3.0.0",
+    "checkov>=3.2.402",
 ]
 
 [project.scripts]
-"awslabs.lambda-mcp-server" = "awslabs.lambda_mcp_server.server:main"
-
-[project.urls]
-Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/lambda-mcp-server/"
-Source = "https://github.com/awslabs/mcp.git"
-"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/lambda-mcp-server/CHANGELOG.md"
+"awslabs.terraform-mcp-server" = "awslabs.terraform_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
     "commitizen>=4.2.2",
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
-    "pyright>=1.1.398",
+    "pyright>=1.1.399",
 ]
 
 [build-system]
@@ -96,7 +77,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/lambda_mcp_server/__init__.py:__version__"
+    "awslabs/terraform_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
