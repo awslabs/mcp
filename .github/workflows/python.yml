@@ -126,12 +126,14 @@ jobs:
           source .venv/bin/activate
           echo "Attempt to convert to proper UTF-8 files https://github.com/CycloneDX/cyclonedx-python/issues/868"
           find .venv -type f -print0 | xargs -0 -I{} grep -axv '.*' -l {} > .venv/UTF8
+          cat .venv/UTF8
           while IFS= read -r line; do
+            echo "illegal utf-8 characters in $line...";
             if [[ $line == *".dist-info/"* ]]; then
               echo "HACK: Converting $line";
               iconv -f $(file -b --mime-encoding $line) -t utf-8 $line > $line.utf8;
               mv $line.utf8 $line;
-            fi
+            fi;
           done < .venv/UTF8;
           uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format XML > sbom.xml
       - name: Display SBOM
