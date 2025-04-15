@@ -70,13 +70,8 @@ def test_search_items_with_terms():
     def get_name_parts_fn(item):
         return [item['name']]
 
-    results = search_utils.search_items_with_terms(
-        items,
-        ['test'],
-        get_text_fn,
-        get_name_parts_fn
-    )
+    results = search_utils.search_items_with_terms(items, ['test'], get_text_fn, get_name_parts_fn)
 
     assert len(results) == 2
     assert results[0]['score'] >= results[1]['score']
-    assert 'test' in results[0]['matched_terms'] 
+    assert 'test' in results[0]['matched_terms']
