@@ -122,7 +122,8 @@ jobs:
 
       - name: Generate Software Bill of Materials (SBOM)
         working-directory: src/${{ matrix.package }}
-        run:
+        run: |
+          source .venv/bin/activate
           uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format XML > sbom.xml
       - name: Display SBOM
         working-directory: src/${{ matrix.package }}
