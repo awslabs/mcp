@@ -108,6 +108,23 @@ The Diagrams MCP Server provides the following capabilities:
 
 [Learn more about the AWS Diagram MCP Server](servers/aws-diagram-mcp-server.md)
 
+### AWS Terraform MCP Server
+
+The Terraform MCP Server enables AWS best practices, infrastructure as code patterns, and security compliance with Checkov.
+
+**Features:**
+
+The Terraform MCP Server provides the following capabilities:
+
+- Terraform Best Practices
+- Security-First Development Workflow
+- Checkov Integration
+- AWS and AWSCC Provider Documentation
+- AWS-IA GenAI Modules
+- Terraform Workflow Execution
+
+[Learn more about the AWS Terraform MCP Server](servers/terrafrom-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.

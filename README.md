@@ -108,6 +108,20 @@ An server to select and run AWS Lambda function as MCP tools without code change
 
 [Learn more](src/lambda-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/lambda-mcp-server/)
 
+### AWS Terraform MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.terraform-mcp-server.svg)](https://pypi.org/project/awslabs.terraform-mcp-server/)
+
+A server for AWS Terraform best practices.
+
+- Security-First Development Workflow
+- Checkov Integration
+- AWS and AWSCC Provider Documentation
+- AWS-IA GenAI Modules
+- Terraform Workflow Execution
+
+[Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
+
 ## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
 
 > The Model Context Protocol (MCP) is an open protocol that enables seamless integration between LLM applications and external data sources and tools. Whether you're building an AI-powered IDE, enhancing a chat interface, or creating custom AI workflows, MCP provides a standardized way to connect LLMs with the context they need.
