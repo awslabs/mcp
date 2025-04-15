@@ -21,13 +21,13 @@ class TestInit:
         """Test that __version__ is defined and follows semantic versioning."""
         # Import the module
         import awslabs.core_mcp_server
-        
+
         # Check that __version__ is defined
         assert hasattr(awslabs.core_mcp_server, '__version__')
-        
+
         # Check that __version__ is a string
         assert isinstance(awslabs.core_mcp_server.__version__, str)
-        
+
         # Check that __version__ follows semantic versioning (major.minor.patch)
         version_pattern = r'^\d+\.\d+\.\d+$'
         assert re.match(version_pattern, awslabs.core_mcp_server.__version__), (
@@ -38,12 +38,12 @@ class TestInit:
         """Test that the module can be reloaded."""
         # Import the module
         import awslabs.core_mcp_server
-        
+
         # Store the original version
         original_version = awslabs.core_mcp_server.__version__
-        
+
         # Reload the module
         importlib.reload(awslabs.core_mcp_server)
-        
+
         # Check that the version is still the same
         assert awslabs.core_mcp_server.__version__ == original_version

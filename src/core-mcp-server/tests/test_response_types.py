@@ -11,9 +11,8 @@
 """Tests for the response type classes in server.py."""
 
 import pytest
-from typing import get_type_hints
-
 from awslabs.core_mcp_server.server import ContentItem, McpResponse
+from typing import get_type_hints
 
 
 class TestContentItem:
@@ -23,11 +22,11 @@ class TestContentItem:
         """Test that ContentItem has the expected structure."""
         # Get the type hints for ContentItem
         type_hints = get_type_hints(ContentItem)
-        
+
         # Check that the expected fields are present
         assert 'type' in type_hints
         assert 'text' in type_hints
-        
+
         # Check that the field types are correct
         assert type_hints['type'] is str
         assert type_hints['text'] is str
@@ -39,7 +38,7 @@ class TestContentItem:
             'type': 'text',
             'text': 'Test content'
         }
-        
+
         # Check that the fields are set correctly
         assert content_item['type'] == 'text'
         assert content_item['text'] == 'Test content'
@@ -61,11 +60,11 @@ class TestMcpResponse:
         """Test that McpResponse has the expected structure."""
         # Get the type hints for McpResponse
         type_hints = get_type_hints(McpResponse)
-        
+
         # Check that the expected fields are present
         assert 'content' in type_hints
         assert 'isError' in type_hints
-        
+
         # Check that the field types are correct
         # The type might be list[ContentItem] or typing.List[ContentItem] depending on Python version
         assert str(type_hints['content']).endswith('List[awslabs.core_mcp_server.server.ContentItem]')
@@ -83,7 +82,7 @@ class TestMcpResponse:
             ],
             'isError': False
         }
-        
+
         # Check that the fields are set correctly
         assert len(response['content']) == 1
         assert response['content'][0]['type'] == 'text'
@@ -101,12 +100,12 @@ class TestMcpResponse:
                 }
             ]
         }
-        
+
         # Check that the fields are set correctly
         assert len(response['content']) == 1
         assert response['content'][0]['type'] == 'text'
         assert response['content'][0]['text'] == 'Test content'
-        
+
         # Check that isError is not present
         assert 'isError' not in response
 
@@ -114,9 +113,9 @@ class TestMcpResponse:
         """Test that an McpResponse can be created without content."""
         # Since McpResponse is defined with total=False, all keys are optional
         response: McpResponse = {'isError': False}
-        
+
         # Check that isError is set correctly
         assert response.get('isError') is False
-        
+
         # Check that content is not present
         assert 'content' not in response

@@ -21,13 +21,13 @@ class TestStatic:
         """Test that PROMPT_UNDERSTANDING is imported correctly."""
         # Import the module
         from awslabs.core_mcp_server.static import PROMPT_UNDERSTANDING
-        
+
         # Check that PROMPT_UNDERSTANDING is defined
         assert PROMPT_UNDERSTANDING is not None
-        
+
         # Check that PROMPT_UNDERSTANDING is a string
         assert isinstance(PROMPT_UNDERSTANDING, str)
-        
+
         # Check that PROMPT_UNDERSTANDING is not empty
         assert len(PROMPT_UNDERSTANDING) > 0
 
@@ -35,7 +35,7 @@ class TestStatic:
         """Test that PROMPT_UNDERSTANDING contains expected content."""
         # Import the module
         from awslabs.core_mcp_server.static import PROMPT_UNDERSTANDING
-        
+
         # Check that PROMPT_UNDERSTANDING contains expected sections
         assert '# AWSLABS.CORE-MCP-SERVER' in PROMPT_UNDERSTANDING
         assert 'Initial Query Analysis' in PROMPT_UNDERSTANDING
@@ -56,11 +56,11 @@ class TestStatic:
         """Test that the PROMPT_UNDERSTANDING.md file content matches the imported constant."""
         # Import the module
         from awslabs.core_mcp_server.static import PROMPT_UNDERSTANDING
-        
+
         # Read the file content directly
         resource = resources.files('awslabs.core_mcp_server.static').joinpath('PROMPT_UNDERSTANDING.md')
         with resource.open('r', encoding='utf-8') as f:
             file_content = f.read()
-        
+
         # Check that the file content matches the imported constant
         assert file_content == PROMPT_UNDERSTANDING
