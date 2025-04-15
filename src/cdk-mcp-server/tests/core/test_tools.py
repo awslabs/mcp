@@ -138,8 +138,8 @@ async def test_lambda_layer_documentation_provider_python(mock_context):
         result['documentation_usage_guide']['when_to_fetch_full_docs']
         == 'Fetch full documentation to view detailed property definitions, learn about optional parameters, and find additional code examples'
     )
-    assert result['documentation_usage_guide']['contains_sample_code'] == True
-    assert result['documentation_usage_guide']['contains_props_documentation'] == True
+    assert result['documentation_usage_guide']['contains_sample_code'] == True  # noqa: E712
+    assert result['documentation_usage_guide']['contains_props_documentation'] == True  # noqa: E712
     assert result['code_generation_guidance']['imports'] == [
         "import { PythonLayerVersion } from '@aws-cdk/aws-lambda-python-alpha'"
     ]
