@@ -58,23 +58,14 @@ def print_aws_provider_results(results):
         # Handle example usage
         if result.example_usage:
             logger.info(f'  Example Usage: {len(result.example_usage)} found')
-            # for j, snippet in enumerate(result.example_usage):
-            #     title = snippet.get('title', 'Example')
-            #     code = snippet.get('code', '')
-            #     code_preview = code[:100] + '...' if len(code) > 100 else code
-            #     logger.info(f'    Snippet {j + 1} - {title}: {code_preview}')
 
         # Handle arguments
         if result.arguments:
             logger.info(f'  Arguments: {len(result.arguments)} found')
-            # for j, argument in enumerate(result.arguments):
-            #     logger.info(f'    Argument {j + 1}: {argument}')
 
         # Handle attributes
         if result.attributes:
             logger.info(f'  Attributes: {len(result.attributes)} found')
-            # for j, attribute in enumerate(result.attributes):
-            #     logger.info(f'    Attribute {j + 1}: {attribute}')
 
 
 def print_awscc_provider_results(results):
@@ -106,17 +97,10 @@ def print_awscc_provider_results(results):
         # Handle example usage
         if result.example_usage:
             logger.info(f'  Example Usage: {len(result.example_usage)} found')
-            # for j, snippet in enumerate(result.example_usage):
-            #     title = snippet.get('title', 'Example')
-            #     code = snippet.get('code', '')
-            #     code_preview = code[:100] + '...' if len(code) > 100 else code
-            #     logger.info(f'    Snippet {j + 1} - {title}: {code_preview}')
 
         # Handle schema arguments
         if result.schema_arguments:
             logger.info(f'  Schema arguments: {len(result.schema_arguments)} found')
-            # for j, schema_argument in enumerate(result.schema_arguments):
-            #     logger.info(f'    Schema Argument {j + 1}: {schema_argument}')
 
 
 async def test_search_aws_provider_docs():
@@ -317,10 +301,6 @@ async def main():
     try:
         await test_search_aws_provider_docs()
         await test_search_awscc_provider_docs()
-        # await test_search_specific_aws_ia_modules()
-        # Commented out as they require terraform configurations
-        # await test_execute_terraform_command()
-        # await test_run_checkov_scan()
     except Exception as e:
         logger.exception(f'Error running tests: {e}')
 

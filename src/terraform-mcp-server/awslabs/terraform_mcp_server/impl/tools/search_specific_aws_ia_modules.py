@@ -5,7 +5,6 @@ import re
 import requests
 import time
 import traceback
-from ...models import ModuleSearchResult, SubmoduleInfo
 from .utils import (
     clean_description,
     extract_outputs_from_readme,
@@ -13,6 +12,7 @@ from .utils import (
     get_submodules,
     get_variables_tf,
 )
+from awslabs.terraform_mcp_server.models import ModuleSearchResult, SubmoduleInfo
 from loguru import logger
 from typing import Dict, List, Optional
 
@@ -309,7 +309,7 @@ async def get_specific_module_info(module_info: Dict[str, str]) -> Optional[Modu
 
             # Add variables information if available
             if 'variables' in details and details['variables']:
-                from ...models import TerraformVariable
+                from awslabs.terraform_mcp_server.models import TerraformVariable
 
                 variables = [TerraformVariable(**var_data) for var_data in details['variables']]
                 result.variables = variables
@@ -320,7 +320,7 @@ async def get_specific_module_info(module_info: Dict[str, str]) -> Optional[Modu
 
             # Add outputs from README if available
             if 'outputs' in details and details['outputs']:
-                from ...models import TerraformOutput
+                from awslabs.terraform_mcp_server.models import TerraformOutput
 
                 outputs = [
                     TerraformOutput(name=output['name'], description=output.get('description'))

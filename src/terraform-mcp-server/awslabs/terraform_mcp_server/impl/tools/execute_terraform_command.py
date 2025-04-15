@@ -4,7 +4,8 @@ import json
 import os
 import re
 import subprocess
-from ...models import TerraformExecutionRequest, TerraformExecutionResult
+from awslabs.terraform_mcp_server.impl.tools.utils import get_dangerous_patterns
+from awslabs.terraform_mcp_server.models import TerraformExecutionRequest, TerraformExecutionResult
 from loguru import logger
 
 
@@ -98,26 +99,8 @@ async def execute_terraform_command_impl(
         )
 
     # Check for potentially dangerous characters or command injection attempts
-    dangerous_patterns = [
-        '|',
-        ';',
-        '&',
-        '&&',
-        '||',  # Command chaining
-        '>',
-        '>>',
-        '<',  # Redirection
-        '`',
-        '$(',  # Command substitution
-        '--',  # Double dash options
-        'rm',
-        'mv',
-        'cp',  # Potentially dangerous commands
-        '/bin/',
-        '/usr/bin/',  # Path references
-        '../',
-        './',  # Directory traversal
-    ]
+    dangerous_patterns = get_dangerous_patterns()
+    logger.debug(f'Checking for {len(dangerous_patterns)} dangerous patterns')
 
     for pattern in dangerous_patterns:
         if pattern in request.command:
@@ -129,15 +112,20 @@ async def execute_terraform_command_impl(
                 working_directory=request.working_directory,
                 outputs=None,
             )
-        if request.variables and pattern in request.variables:
-            logger.error(f'Potentially dangerous pattern detected in variables: {pattern}')
-            return TerraformExecutionResult(
-                command=f'terraform {request.command} {request.variables}',
-                status='error',
-                error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in command",
-                working_directory=request.working_directory,
-                outputs=None,
-            )
+        if request.variables:
+            # Check if the pattern is in any of the variable values
+            for var_name, var_value in request.variables.items():
+                if pattern in str(var_value):
+                    logger.error(
+                        f'Potentially dangerous pattern detected in variable {var_name}: {pattern}'
+                    )
+                    return TerraformExecutionResult(
+                        command=f'terraform {request.command}',
+                        status='error',
+                        error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in variable '{var_name}'",
+                        working_directory=request.working_directory,
+                        outputs=None,
+                    )
 
     # Build the command
     cmd = ['terraform', request.command]

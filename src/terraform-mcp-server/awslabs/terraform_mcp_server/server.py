@@ -2,8 +2,6 @@
 """terraform MCP server implementation."""
 
 import argparse
-import os
-import sys
 from awslabs.terraform_mcp_server.impl.resources import (
     terraform_aws_provider_assets_listing_impl,
     terraform_awscc_provider_resources_listing_impl,
@@ -32,10 +30,6 @@ from awslabs.terraform_mcp_server.static import (
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Dict, List, Literal, Optional
-
-
-# Add the parent directory to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 
 mcp = FastMCP(

@@ -4,7 +4,7 @@ import re
 import requests
 import sys
 import time
-from ...models import TerraformAWSProviderDocsResult
+from awslabs.terraform_mcp_server.models import TerraformAWSProviderDocsResult
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple, cast

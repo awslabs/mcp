@@ -4,7 +4,8 @@ import json
 import os
 import re
 import subprocess
-from ...models import (
+from awslabs.terraform_mcp_server.impl.tools.utils import get_dangerous_patterns
+from awslabs.terraform_mcp_server.models import (
     CheckovScanRequest,
     CheckovScanResult,
     CheckovVulnerability,
@@ -211,26 +212,8 @@ async def run_checkov_scan_impl(request: CheckovScanRequest) -> CheckovScanResul
         )
 
     # Check for command injection patterns in check_ids and skip_check_ids
-    dangerous_patterns = [
-        '|',
-        ';',
-        '&',
-        '&&',
-        '||',  # Command chaining
-        '>',
-        '>>',
-        '<',  # Redirection
-        '`',
-        '$(',  # Command substitution
-        '--',  # Double dash options
-        'rm',
-        'mv',
-        'cp',  # Potentially dangerous commands
-        '/bin/',
-        '/usr/bin/',  # Path references
-        '../',
-        './',  # Directory traversal
-    ]
+    dangerous_patterns = get_dangerous_patterns()
+    logger.debug(f'Checking for {len(dangerous_patterns)} dangerous patterns')
 
     if request.check_ids:
         for check_id in request.check_ids:

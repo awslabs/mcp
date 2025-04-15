@@ -5,7 +5,7 @@ import re
 import requests
 import time
 import traceback
-from ...models import SubmoduleInfo, TerraformVariable
+from awslabs.terraform_mcp_server.models import SubmoduleInfo, TerraformVariable
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -487,3 +487,72 @@ def parse_variables_tf(content: str) -> List[TerraformVariable]:
         variables.append(variable)
 
     return variables
+
+
+# Security-related constants and utilities
+# These are used to prevent command injection and other security issues
+
+
+def get_dangerous_patterns() -> List[str]:
+    """Get a list of dangerous patterns for command injection detection.
+
+    Returns:
+        List of dangerous patterns to check for
+    """
+    # Dangerous patterns that could indicate command injection attempts
+    # Separated by platform for better organization and maintainability
+    patterns = [
+        '|',
+        ';',
+        '&',
+        '&&',
+        '||',  # Command chaining
+        '>',
+        '>>',
+        '<',  # Redirection
+        '`',
+        '$(',  # Command substitution
+        '--',  # Double dash options
+        'rm',
+        'mv',
+        'cp',  # Potentially dangerous commands
+        '/bin/',
+        '/usr/bin/',  # Path references
+        '../',
+        './',  # Directory traversal
+        # Unix/Linux specific dangerous patterns
+        'sudo',  # Privilege escalation
+        'chmod',
+        'chown',  # File permission changes
+        'su',  # Switch user
+        'bash',
+        'sh',
+        'zsh',  # Shell execution
+        'curl',
+        'wget',  # Network access
+        'ssh',
+        'scp',  # Remote access
+        'eval',  # Command evaluation
+        'exec',  # Command execution
+        'source',  # Script sourcing
+        # Windows specific dangerous patterns
+        'cmd',
+        'powershell',
+        'pwsh',  # Command shells
+        'net',  # Network commands
+        'reg',  # Registry access
+        'runas',  # Privilege escalation
+        'del',
+        'rmdir',  # File deletion
+        'start',  # Process execution
+        'taskkill',  # Process termination
+        'sc',  # Service control
+        'schtasks',  # Scheduled tasks
+        'wmic',  # WMI commands
+        '%SYSTEMROOT%',
+        '%WINDIR%',  # System directories
+        '.bat',
+        '.cmd',
+        '.ps1',  # Script files
+    ]
+    return patterns
