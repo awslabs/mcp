@@ -114,8 +114,125 @@ jobs:
         working-directory: src/${{ matrix.package }}
         run: uv build
 
-      - name: Upload artifacts
+      - name: Upload distribution
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dist-${{ matrix.package }}
           path: src/${{ matrix.package }}/dist/
+
+      - name: Generate Software Bill of Materials (SBOM)
+        working-directory: src/${{ matrix.package }}
+        run: |
+          source .venv/bin/activate
+          echo "Attempt to convert to proper UTF-8 files https://github.com/CycloneDX/cyclonedx-python/issues/868"
+          find .venv -type f -path '*/*.dist-info/*' > .venv/FILES
+          # because grep with xargs returns 123 have to do this the long and hard way...
+          while IFS= read -r line; do
+            (grep -s -q -axv '.*' $line &&
+              if [[ "$(file -b --mime-encoding $line)" != "binary" ]]; then
+                echo "illegal utf-8 characters in $line...converting...";
+                iconv -f $(file -b --mime-encoding $line) -t utf-8 $line > $line.utf8;
+                mv $line.utf8 $line;
+              fi;
+            ) || echo "good $line"
+          done < .venv/FILES;
+          uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format XML > sbom.xml
+      - name: Display SBOM
+        working-directory: src/${{ matrix.package }}
+        run: |
+          cat <<EOT |
+          import re
+          import xml.etree.ElementTree as ET
+          import importlib.metadata as metadata
+
+          def parse_bom(xml_file):
+              # Parse the XML file
+              tree = ET.parse(xml_file)
+              root = tree.getroot()
+
+              # Get the latest namespace
+              find_namespace = re.match(r'\{.*\}', root.tag)
+
+              # Define the namespace
+              ns = {'cyclonedx': find_namespace.group(0)[1:-1] if find_namespace else 'http://cyclonedx.org/schema/bom/1.6'}
+
+              # Extract components
+              components = []
+              for component in root.findall('.//cyclonedx:component', ns):
+                  comp_info = {}
+
+                  # Get name, version, description, and purl
+                  comp_info['name'] = component.find('cyclonedx:name', ns).text
+                  comp_info['version'] = component.find('cyclonedx:version', ns).text
+                  comp_info['description'] = component.find('cyclonedx:description', ns).text if component.find('cyclonedx:description', ns) is not None else "No description"
+                  comp_info['purl'] = component.find('cyclonedx:purl', ns).text if component.find('cyclonedx:purl', ns) is not None else "No PURL"
+
+                  # Get licenses
+                  licenses = component.findall('.//cyclonedx:license/cyclonedx:id', ns)
+                  if licenses:
+                      comp_info['licenses'] = [license.text for license in licenses]
+                  else:
+                      comp_info['licenses'] = ["No licenses"]
+
+                  # Extract additional information (copyright, etc.)
+                  copyright_info = extract_copyright_from_metadata(comp_info['name'])
+                  comp_info['copyright'] = copyright_info if copyright_info else "No copyright information"
+
+                  components.append(comp_info)
+
+              return components
+
+          def extract_copyright_from_metadata(package_name):
+              try:
+                  # Use importlib.metadata to retrieve metadata from the installed package
+                  dist = metadata.distribution(package_name)
+                  metadata_info = dist.metadata
+
+                  # Extract relevant metadata
+                  copyright_info = []
+                  author = metadata_info.get('Author')
+                  author_email = metadata_info.get('Author-email')
+                  license_info = metadata_info.get('License')
+
+                  if author:
+                      copyright_info.append(f"Author: {author}")
+                  if author_email:
+                      copyright_info.append(f"Author Email: {author_email}")
+                  if license_info:
+                      copyright_info.append(f"License: {license_info}")
+
+                  # Check for classifiers or any extra metadata fields
+                  if 'Classifier' in metadata_info:
+                      for classifier in metadata_info.get_all('Classifier'):
+                          if 'copyright' in classifier.lower():
+                              copyright_info.append(classifier)
+
+                  return ', '.join(copyright_info) if copyright_info else None
+
+              except metadata.PackageNotFoundError:
+                  return None
+
+
+          def main():
+              bom_file = 'sbom.xml'  # Replace with your BOM file path
+              components = parse_bom(bom_file)
+
+              for component in components:
+                  print(f"Name: {component['name']}")
+                  print(f"Version: {component['version']}")
+                  print(f"Description: {component['description']}")
+                  print(f"PURL: {component['purl']}")
+                  print(f"Licenses: {', '.join(component['licenses'])}")
+                  print(f"Copyright: {component['copyright']}")
+                  print("-" * 40)
+
+          if __name__ == "__main__":
+              main()
+          EOT
+           python -
+
+      - name: Upload Software Bill of Materials
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom-${{ matrix.package }}
+          path: src/${{ matrix.package }}/sbom.xml
