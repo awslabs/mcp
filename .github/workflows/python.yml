@@ -93,10 +93,16 @@ jobs:
         working-directory: src/${{ matrix.package }}
         run: |
           if [ -d "tests" ]; then
-            uv run --frozen pytest
+            uv run --frozen pytest --cov --cov-branch --cov-report=xml:${{ matrix.package }}-coverage.xml
           else
             echo "No tests directory found, skipping tests"
           fi
+      
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d #v5.4.2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ matrix.package }}-coverage.xml
 
       - name: Run pyright
         working-directory: src/${{ matrix.package }}
