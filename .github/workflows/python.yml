@@ -124,6 +124,15 @@ jobs:
         working-directory: src/${{ matrix.package }}
         run: |
           source .venv/bin/activate
+          # START HACK https://github.com/CycloneDX/cyclonedx-python/issues/868
+          # beautifulsoup https://bugs.launchpad.net/beautifulsoup/+bug/2107405
+          find .venv/**/*.dist-info -type f -print0 | xargs -0 -I{} grep -axv '.*' -l {} > .venv/UTF8
+          while IFS= read -r line; do
+              echo "HACK: Converting $line";
+              iconv -f $(file -b --mime-encoding $line) -t utf-8 $line > $line.utf8;
+              mv $line.utf8 $line;
+          done < .venv/UTF8;
+          # END HACK
           uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format XML > sbom.xml
       - name: Display SBOM
         working-directory: src/${{ matrix.package }}
