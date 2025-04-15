@@ -122,7 +122,7 @@ jobs:
 
       - name: Generate Software Bill of Materials (SBOM)
         run:
-          uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format XML > src/${{ matrix.package }}/sbom.cyclondx.xml
+          uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject src/${{ matrix.package }}/pyproject.toml --mc-type library --output-format XML > src/${{ matrix.package }}/sbom.cyclondx.xml
       - name: Display SBOM
         run: |
           cat <<EOT |
