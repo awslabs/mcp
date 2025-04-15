@@ -129,9 +129,8 @@ jobs:
           # because grep with xargs returns 123 have to do this the long and hard way...
           while IFS= read -r line; do
             (grep -s -q -axv '.*' $line &&
-              echo "illegal utf-8 characters in $line...";
-              if [[ $line == *".dist-info/"* ]]; then
-                echo "HACK: Converting $line";
+              if [[ "$(file -b --mime-encoding $line)" != "binary" ]]; then
+                echo "illegal utf-8 characters in $line...converting...";
                 iconv -f $(file -b --mime-encoding $line) -t utf-8 $line > $line.utf8;
                 mv $line.utf8 $line;
               fi;
