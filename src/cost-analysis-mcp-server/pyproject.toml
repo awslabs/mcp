@@ -106,3 +106,6 @@ packages = ["awslabs"]
 
 [tool.bandit]
 exclude_dirs = ["venv","tests"]
+
+[tool.coverage.run]
+source = ["awslabs"]

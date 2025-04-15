@@ -102,3 +102,6 @@ update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
+
+[tool.coverage.run]
+source = ["awslabs"]

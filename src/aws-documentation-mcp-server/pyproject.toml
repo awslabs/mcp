@@ -120,3 +120,6 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.bandit]
 exclude_dirs = ["venv","tests"]
+
+[tool.coverage.run]
+source = ["awslabs"]

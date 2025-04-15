@@ -121,3 +121,6 @@ addopts = "--cov=awslabs.core_mcp_server --cov-report=term-missing"
 markers = [
     "live: mark test as making live API calls",
 ]
+
+[tool.coverage.run]
+source = ["awslabs"]
