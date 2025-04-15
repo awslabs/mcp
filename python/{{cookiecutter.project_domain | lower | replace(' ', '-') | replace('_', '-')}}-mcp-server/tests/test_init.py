@@ -20,13 +20,13 @@ class TestInit:
     def test_version(self):
         """Test that __version__ is defined and follows semantic versioning."""
         # Import the module
-        import awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-') | replace('-', '_')}}_mcp_server_mcp_server
+        import awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-') | replace('-', '_')}}_mcp_server
 
         # Check that __version__ is defined
-        assert hasattr(awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-') | replace('-', '_')}}_mcp_server_mcp_server, '__version__')
+        assert hasattr(awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-') | replace('-', '_')}}_mcp_server, '__version__')
 
         # Check that __version__ is a string
-        assert isinstance(awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-') | replace('-', '_')}}_mcp_server_mcp_server.__version__, str)
+        assert isinstance(awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-') | replace('-', '_')}}_mcp_server.__version__, str)
 
         # Check that __version__ follows semantic versioning (major.minor.patch)
         version_pattern = r'^\d+\.\d+\.\d+$'
