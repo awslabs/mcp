@@ -29,6 +29,7 @@ async def get_findings(
     region: str,
     aws_account_id: str = None,
     severity: str = None,
+    max_results: int = 100,
 ) -> Optional[List[Dict]]:
     """Get findings from the Security Hub service.
 
@@ -36,6 +37,8 @@ async def get_findings(
         region (str): the AWS region to in which to query the SecurityHub service
         aws_account_id (str): (optional) filter the findings to the specified AWS account id
         severity (str): (optional) filter the findings to the specified finding severity
+        max_results (int): (optional) the maximum number of finding results to return; note the maximum
+        number of results supported by the SecurityHub service is 100
 
     Returns:
         List containing the Security Hub findings for the query; each finding is a dictionary.
@@ -50,9 +53,19 @@ async def get_findings(
     if severity:
         filters['SeverityLabel'] = [{'Value': severity, 'Comparison': 'EQUALS'}]
 
-    results = security_hub.get_findings(Filters=filters)
-    logger.info(f'Found {len(results["Findings"])} findings: {results["Findings"]}')
-    return results
+    findings = []
+    paginator = security_hub.get_paginator('get_findings')
+    query_params = {
+        'Filters': filters,
+        'MaxResults': min(max_results, 100),
+    }
+    response_iterator = paginator.paginate(**query_params)
+    for page in response_iterator:
+        if 'Findings' in page:
+            findings.extend(page['Findings'])
+
+    logger.info(f'Found {len(findings)} findings: {findings}')
+    return {'Findings': findings}
 
 
 def main():

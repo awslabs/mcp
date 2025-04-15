@@ -27,7 +27,7 @@ For utility, this includes:
 
 * support filtering issues by date created/updated/observed or criticality
 * see if we can open up querying with user-supplied filters, because the [set of supported Security Hub issue filters is massive](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/securityhub/client/get_findings.html)
-* support pagination and limits on maximum number of issues retrieved
+* ✅ support pagination and limits on maximum number of issues retrieved
 
 For reliablity, this may include:
 
