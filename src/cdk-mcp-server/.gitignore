@@ -57,3 +57,6 @@ target/
 
 # PyPI
 .pypirc
+
+# auto generated files
+scripts/generate_schema_*.py
