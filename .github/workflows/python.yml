@@ -97,7 +97,7 @@ jobs:
           else
             echo "No tests directory found, skipping tests"
           fi
-      
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@ad3126e916f78f00edff4ed0317cf185271ccc2d #v5.4.2
         with:
