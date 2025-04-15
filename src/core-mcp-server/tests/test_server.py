@@ -20,5 +20,6 @@ class TestPromptUnderstanding:
     def test_get_prompt_understanding(self):
         """Test that get_prompt_understanding returns the correct content."""
         import asyncio
+
         result = asyncio.run(get_prompt_understanding())
         assert result == PROMPT_UNDERSTANDING

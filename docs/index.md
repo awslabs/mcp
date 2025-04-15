@@ -1,6 +1,6 @@
 # Welcome to AWS MCP Servers
 
-A suite of specialized MCP servers that bring AWS best practices directly to your development workflow.
+A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
 ## Available MCP Servers
 
@@ -79,9 +79,59 @@ The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS se
 
 [Learn more about the Cost Analysis MCP Server](servers/cost-analysis-mcp-server.md)
 
+### AWS Lambda MCP Server
+
+The AWS Lambda MCP Server enables AI assistants to select and run AWS Lambda functions as MCP tools.
+
+**Features:**
+
+- Select and run AWS Lambda functions as MCP tools
+- Tool names and descriptions are taken from the AWS Lambda function configuration
+- Filter functions by name, tag, or both
+- Use AWS credentials to invoke the Lambda functions
+
+[Learn more about the AWS Lambda MCP Server](servers/lambda-mcp-server.md)
+
+
+### AWS Diagram MCP Server
+
+This MCP server that seamlessly creates [diagrams](https://diagrams.mingrammer.com/) using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
+
+**Features:**
+
+The Diagrams MCP Server provides the following capabilities:
+
+1. **Generate Diagrams**: Create professional diagrams using Python code
+2. **Multiple Diagram Types**: Support for AWS architecture, sequence diagrams, flow charts, class diagrams, and more
+3. **Customization**: Customize diagram appearance, layout, and styling
+4. **Security**: Code scanning to ensure secure diagram generation
+
+[Learn more about the AWS Diagram MCP Server](servers/aws-diagram-mcp-server.md)
+
+### AWS Terraform MCP Server
+
+The Terraform MCP Server enables AWS best practices, infrastructure as code patterns, and security compliance with Checkov.
+
+**Features:**
+
+The Terraform MCP Server provides the following capabilities:
+
+- Terraform Best Practices
+- Security-First Development Workflow
+- Checkov Integration
+- AWS and AWSCC Provider Documentation
+- AWS-IA GenAI Modules
+- Terraform Workflow Execution
+
+[Learn more about the AWS Terraform MCP Server](servers/terrafrom-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
+
+## Samples
+
+Please refer to the [samples](samples/index.md) directory for examples of how to use the MCP Servers.
 
 ## Contributing
 

@@ -34,10 +34,7 @@ class TestContentItem:
     def test_content_item_creation(self):
         """Test creating a ContentItem."""
         # Create a ContentItem
-        content_item: ContentItem = {
-            'type': 'text',
-            'text': 'Test content'
-        }
+        content_item: ContentItem = {'type': 'text', 'text': 'Test content'}
 
         # Check that the fields are set correctly
         assert content_item['type'] == 'text'
@@ -67,20 +64,17 @@ class TestMcpResponse:
 
         # Check that the field types are correct
         # The type might be list[ContentItem] or typing.List[ContentItem] depending on Python version
-        assert str(type_hints['content']).endswith('List[awslabs.core_mcp_server.server.ContentItem]')
+        assert str(type_hints['content']).endswith(
+            'List[awslabs.core_mcp_server.server.ContentItem]'
+        )
         assert type_hints['isError'] is bool
 
     def test_mcp_response_creation(self):
         """Test creating an McpResponse."""
         # Create an McpResponse
         response: McpResponse = {
-            'content': [
-                {
-                    'type': 'text',
-                    'text': 'Test content'
-                }
-            ],
-            'isError': False
+            'content': [{'type': 'text', 'text': 'Test content'}],
+            'isError': False,
         }
 
         # Check that the fields are set correctly
@@ -92,14 +86,7 @@ class TestMcpResponse:
     def test_mcp_response_without_is_error(self):
         """Test creating an McpResponse without isError."""
         # Create an McpResponse without isError
-        response: McpResponse = {
-            'content': [
-                {
-                    'type': 'text',
-                    'text': 'Test content'
-                }
-            ]
-        }
+        response: McpResponse = {'content': [{'type': 'text', 'text': 'Test content'}]}
 
         # Check that the fields are set correctly
         assert len(response['content']) == 1
