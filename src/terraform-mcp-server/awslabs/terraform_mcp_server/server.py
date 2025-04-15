@@ -62,7 +62,11 @@ async def execute_terraform_command(
     specified working directory, with optional variables and region settings.
 
     Parameters:
-        request: Details about the Terraform command to execute
+        command: Terraform command to execute
+        working_directory: Directory containing Terraform files
+        variables: Terraform variables to pass
+        aws_region: AWS region to use
+        strip_ansi: Whether to strip ANSI color codes from output
 
     Returns:
         A TerraformExecutionResult object containing command output and status
@@ -241,12 +245,11 @@ async def run_checkov_scan(
     can detect hundreds of security and compliance issues in infrastructure-as-code.
 
     Parameters:
-        request: Details about the Checkov scan to execute, including:
-            - working_directory: Directory containing Terraform files to scan
-            - framework: Framework to scan (default: terraform)
-            - check_ids: Optional list of specific check IDs to run
-            - skip_check_ids: Optional list of check IDs to skip
-            - output_format: Format for scan results (default: json)
+        working_directory: Directory containing Terraform files to scan
+        framework: Framework to scan (default: terraform)
+        check_ids: Optional list of specific check IDs to run
+        skip_check_ids: Optional list of check IDs to skip
+        output_format: Format for scan results (default: json)
 
     Returns:
         A CheckovScanResult object containing scan results and identified vulnerabilities
