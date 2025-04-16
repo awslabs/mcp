@@ -89,7 +89,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Run server with appropriate transport
     logger.trace('A trace message.')
     logger.debug('A debug message.')
     logger.info('An info message.')
@@ -97,6 +96,8 @@ def main():
     logger.warning('A warning message.')
     logger.error('An error message.')
     logger.critical('A critical message.')
+
+    # Run server with appropriate transport
     if args.sse:
         mcp.settings.port = args.port
         mcp.run(transport='sse')
