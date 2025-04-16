@@ -11,8 +11,11 @@
 
 """Tests for the models module of the bedrock-kb-retrieval-mcp-server."""
 
-import pytest
-from awslabs.bedrock_kb_retrieval_mcp_server.models import DataSource, KnowledgeBase, KnowledgeBaseMapping
+from awslabs.bedrock_kb_retrieval_mcp_server.models import (
+    DataSource,
+    KnowledgeBase,
+    KnowledgeBaseMapping,
+)
 
 
 class TestDataSource:
@@ -20,10 +23,10 @@ class TestDataSource:
 
     def test_data_source_creation(self):
         """Test creating a DataSource."""
-        data_source = DataSource(id="ds-12345", name="Test Data Source")
-        
-        assert data_source["id"] == "ds-12345"
-        assert data_source["name"] == "Test Data Source"
+        data_source = DataSource(id='ds-12345', name='Test Data Source')
+
+        assert data_source['id'] == 'ds-12345'
+        assert data_source['name'] == 'Test Data Source'
 
 
 class TestKnowledgeBase:
@@ -32,18 +35,18 @@ class TestKnowledgeBase:
     def test_knowledge_base_creation(self):
         """Test creating a KnowledgeBase."""
         data_sources = [
-            DataSource(id="ds-12345", name="Test Data Source"),
-            DataSource(id="ds-67890", name="Another Data Source")
+            DataSource(id='ds-12345', name='Test Data Source'),
+            DataSource(id='ds-67890', name='Another Data Source'),
         ]
-        
-        knowledge_base = KnowledgeBase(name="Test Knowledge Base", data_sources=data_sources)
-        
-        assert knowledge_base["name"] == "Test Knowledge Base"
-        assert len(knowledge_base["data_sources"]) == 2
-        assert knowledge_base["data_sources"][0]["id"] == "ds-12345"
-        assert knowledge_base["data_sources"][0]["name"] == "Test Data Source"
-        assert knowledge_base["data_sources"][1]["id"] == "ds-67890"
-        assert knowledge_base["data_sources"][1]["name"] == "Another Data Source"
+
+        knowledge_base = KnowledgeBase(name='Test Knowledge Base', data_sources=data_sources)
+
+        assert knowledge_base['name'] == 'Test Knowledge Base'
+        assert len(knowledge_base['data_sources']) == 2
+        assert knowledge_base['data_sources'][0]['id'] == 'ds-12345'
+        assert knowledge_base['data_sources'][0]['name'] == 'Test Data Source'
+        assert knowledge_base['data_sources'][1]['id'] == 'ds-67890'
+        assert knowledge_base['data_sources'][1]['name'] == 'Another Data Source'
 
 
 class TestKnowledgeBaseMapping:
@@ -51,19 +54,16 @@ class TestKnowledgeBaseMapping:
 
     def test_knowledge_base_mapping(self):
         """Test creating a KnowledgeBaseMapping."""
-        data_sources1 = [DataSource(id="ds-12345", name="Test Data Source")]
-        data_sources2 = [DataSource(id="ds-67890", name="Another Data Source")]
-        
-        kb1 = KnowledgeBase(name="Test Knowledge Base", data_sources=data_sources1)
-        kb2 = KnowledgeBase(name="Another Knowledge Base", data_sources=data_sources2)
-        
-        kb_mapping: KnowledgeBaseMapping = {
-            "kb-12345": kb1,
-            "kb-67890": kb2
-        }
-        
+        data_sources1 = [DataSource(id='ds-12345', name='Test Data Source')]
+        data_sources2 = [DataSource(id='ds-67890', name='Another Data Source')]
+
+        kb1 = KnowledgeBase(name='Test Knowledge Base', data_sources=data_sources1)
+        kb2 = KnowledgeBase(name='Another Knowledge Base', data_sources=data_sources2)
+
+        kb_mapping: KnowledgeBaseMapping = {'kb-12345': kb1, 'kb-67890': kb2}
+
         assert len(kb_mapping) == 2
-        assert kb_mapping["kb-12345"]["name"] == "Test Knowledge Base"
-        assert kb_mapping["kb-67890"]["name"] == "Another Knowledge Base"
-        assert kb_mapping["kb-12345"]["data_sources"][0]["id"] == "ds-12345"
-        assert kb_mapping["kb-67890"]["data_sources"][0]["id"] == "ds-67890"
+        assert kb_mapping['kb-12345']['name'] == 'Test Knowledge Base'
+        assert kb_mapping['kb-67890']['name'] == 'Another Knowledge Base'
+        assert kb_mapping['kb-12345']['data_sources'][0]['id'] == 'ds-12345'
+        assert kb_mapping['kb-67890']['data_sources'][0]['id'] == 'ds-67890'

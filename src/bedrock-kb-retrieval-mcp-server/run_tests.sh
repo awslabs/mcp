@@ -51,7 +51,7 @@ fi
 
 if [ $COVERAGE -eq 1 ]; then
   CMD="$CMD --cov=awslabs.bedrock_kb_retrieval_mcp_server"
-  
+
   if [ $REPORT -eq 1 ]; then
     CMD="$CMD --cov-report=html"
   fi
