@@ -126,3 +126,6 @@ filterwarnings = [
     "ignore::UserWarning",
 ]
 asyncio_mode = "auto"
+
+[tool.pyright]
+ignore = ["scripts/generate_schema_*.py"]

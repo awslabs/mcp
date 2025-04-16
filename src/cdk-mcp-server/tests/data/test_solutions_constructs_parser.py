@@ -1,17 +1,18 @@
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
 from awslabs.cdk_mcp_server.data.solutions_constructs_parser import (
-    extract_services_from_pattern_name,
-    extract_description,
-    extract_props,
-    extract_properties,
     extract_default_settings,
+    extract_description,
+    extract_properties,
+    extract_props,
+    extract_services_from_pattern_name,
     extract_use_cases,
-    parse_readme_content,
     fetch_pattern_list,
     get_pattern_info,
+    parse_readme_content,
     search_patterns,
 )
+from unittest.mock import AsyncMock, MagicMock, patch
+
 
 # Test data
 SAMPLE_README = """
@@ -49,6 +50,7 @@ This pattern creates a Lambda function that is triggered by API Gateway and writ
 * Implementing REST APIs with persistent storage
 """
 
+
 @pytest.mark.asyncio
 async def test_fetch_pattern_list():
     """Test fetching pattern list."""
@@ -60,27 +62,29 @@ async def test_fetch_pattern_list():
         {'name': 'aws-apigateway-lambda', 'type': 'dir'},
         {'name': 'core', 'type': 'dir'},  # Should be filtered out
     ]
-    
+
     # Create a mock client context manager
     mock_client = AsyncMock()
     mock_client.__aenter__.return_value = mock_client
     mock_client.get.return_value = mock_response
-    
+
     # Mock the httpx.AsyncClient constructor
     with patch('httpx.AsyncClient', return_value=mock_client):
         # Reset the cache to ensure we're not using cached data
         from awslabs.cdk_mcp_server.data.solutions_constructs_parser import _pattern_list_cache
+
         _pattern_list_cache['timestamp'] = None
         _pattern_list_cache['data'] = []
-        
+
         # Call the function
         patterns = await fetch_pattern_list()
-        
+
         # Verify the results
         assert len(patterns) == 2
         assert 'aws-lambda-dynamodb' in patterns
         assert 'aws-apigateway-lambda' in patterns
         assert 'core' not in patterns
+
 
 @pytest.mark.asyncio
 async def test_get_pattern_info():
@@ -99,6 +103,7 @@ async def test_get_pattern_info():
         assert 'description' in info
         assert 'use_cases' in info
 
+
 def test_extract_services_from_pattern_name():
     """Test extracting services from pattern name."""
     services = extract_services_from_pattern_name('aws-lambda-dynamodb')
@@ -110,11 +115,13 @@ def test_extract_services_from_pattern_name():
     services = extract_services_from_pattern_name('aws-s3-lambda')
     assert services == ['S3', 'Lambda']
 
+
 def test_extract_description():
     """Test extracting description from README content."""
     description = extract_description(SAMPLE_README)
-    assert "creates a Lambda function" in description
-    assert "triggered by API Gateway" in description
+    assert 'creates a Lambda function' in description
+    assert 'triggered by API Gateway' in description
+
 
 def test_extract_props():
     """Test extracting props from README content."""
@@ -125,6 +132,7 @@ def test_extract_props():
     assert props['dynamoTableProps']['required'] is True
     assert props['apiGatewayProps']['required'] is False
 
+
 def test_extract_properties():
     """Test extracting properties from README content."""
     properties = extract_properties(SAMPLE_README)
@@ -133,19 +141,22 @@ def test_extract_properties():
     assert 'apiGateway' in properties
     assert properties['lambdaFunction']['access_method'] == 'pattern.lambdaFunction'
 
+
 def test_extract_default_settings():
     """Test extracting default settings from README content."""
     defaults = extract_default_settings(SAMPLE_README)
     assert len(defaults) == 3
-    assert "Lambda function with Node.js 18 runtime" in defaults
-    assert "DynamoDB table with on-demand capacity" in defaults
+    assert 'Lambda function with Node.js 18 runtime' in defaults
+    assert 'DynamoDB table with on-demand capacity' in defaults
+
 
 def test_extract_use_cases():
     """Test extracting use cases from README content."""
     use_cases = extract_use_cases(SAMPLE_README)
     assert len(use_cases) == 3
-    assert "Building serverless APIs with DynamoDB backend" in use_cases
-    assert "Creating data processing pipelines" in use_cases
+    assert 'Building serverless APIs with DynamoDB backend' in use_cases
+    assert 'Creating data processing pipelines' in use_cases
+
 
 def test_parse_readme_content():
     """Test parsing complete README content."""
@@ -159,26 +170,31 @@ def test_parse_readme_content():
     assert 'default_settings' in result
     assert 'use_cases' in result
 
+
 @pytest.mark.asyncio
 async def test_search_patterns():
     """Test searching patterns by services."""
     # Mock the search_utils.search_items_with_terms function to control the search results
-    with patch('awslabs.cdk_mcp_server.data.solutions_constructs_parser.search_utils.search_items_with_terms') as mock_search:
+    with patch(
+        'awslabs.cdk_mcp_server.data.solutions_constructs_parser.search_utils.search_items_with_terms'
+    ) as mock_search:
         # Set up the mock to return only one matching pattern
         mock_search.return_value = [
             {'item': 'aws-lambda-dynamodb', 'matched_terms': ['lambda', 'dynamodb']}
         ]
-        
+
         # Mock get_pattern_info to return consistent data
-        with patch('awslabs.cdk_mcp_server.data.solutions_constructs_parser.get_pattern_info') as mock_get_info:
+        with patch(
+            'awslabs.cdk_mcp_server.data.solutions_constructs_parser.get_pattern_info'
+        ) as mock_get_info:
             mock_get_info.return_value = {
                 'pattern_name': 'aws-lambda-dynamodb',
                 'services': ['Lambda', 'DynamoDB'],
-                'description': 'Test description'
+                'description': 'Test description',
             }
-            
+
             results = await search_patterns(['lambda', 'dynamodb'])
             assert len(results) == 1
             assert results[0]['pattern_name'] == 'aws-lambda-dynamodb'
             assert 'Lambda' in results[0]['services']
-            assert 'DynamoDB' in results[0]['services'] 
+            assert 'DynamoDB' in results[0]['services']
