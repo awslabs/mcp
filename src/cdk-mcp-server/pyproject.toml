@@ -129,3 +129,6 @@ asyncio_mode = "auto"
 
 [tool.pyright]
 ignore = ["scripts/generate_schema_*.py"]
+
+[tool.coverage.run]
+source = ["awslabs"]
