@@ -1,0 +1,8 @@
+coverage:
+  status:
+    project:
+      default:   # default is the status check's name, not default settings
+        threshold: 0
+
+comment:
+  require_changes: "coverage_drop"
