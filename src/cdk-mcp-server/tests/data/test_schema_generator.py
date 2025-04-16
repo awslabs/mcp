@@ -22,10 +22,10 @@ class UserInput(BaseModel):
 @app.post("/users")
 def create_user(user: UserInput):
     """Create a new user.
-    
+
     Args:
         user: User information
-        
+
     Returns:
         dict: Created user information
     """
@@ -46,10 +46,10 @@ class DataInput(BaseModel):
 @app.post("/analyze")
 def analyze_data(data: DataInput):
     """Analyze the input data.
-    
+
     Args:
         data: Input data to analyze
-        
+
     Returns:
         dict: Analysis results
     """
