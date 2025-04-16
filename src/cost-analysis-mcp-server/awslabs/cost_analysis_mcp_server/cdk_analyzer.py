@@ -128,6 +128,24 @@ class CDKAnalyzer:
             Dictionary containing identified services and their configurations
         """
         logger.info('Starting project analysis')
+
+        # Check if project path exists
+        if not self.project_path.exists():
+            logger.error(f'Project path does not exist: {self.project_path}')
+            error_msg = f'Error: Project path does not exist: {self.project_path}'
+            logger.error(error_msg)
+            return {
+                'status': 'error',
+                'services': [],
+                'message': error_msg,
+                'details': {
+                    'services': [],
+                    'project_path': str(self.project_path),
+                    'analysis_type': 'cdk',
+                    'error': 'Path not found',
+                },
+            }
+
         all_services = []
 
         # Get all Python and TypeScript files in the project

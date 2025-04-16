@@ -47,6 +47,7 @@ dev = [
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.1",
     "pytest-asyncio>=0.26.0",
 ]
@@ -119,3 +120,6 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.bandit]
 exclude_dirs = ["venv","tests"]
+
+[tool.coverage.run]
+source = ["awslabs"]

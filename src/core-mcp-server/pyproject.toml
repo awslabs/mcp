@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.core-mcp-server"
-version = "0.1.0"
+version = "0.2.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for aswlabs Core MCP Server"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -46,6 +46,9 @@ dev = [
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
 ]
 
 [build-system]
@@ -108,3 +111,16 @@ packages = ["awslabs"]
 
 [tool.bandit]
 exclude_dirs = ["venv","tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "--cov=awslabs.core_mcp_server --cov-report=term-missing"
+markers = [
+    "live: mark test as making live API calls",
+]
+
+[tool.coverage.run]
+source = ["awslabs"]

@@ -20,26 +20,50 @@ When a user presents a query, follow these steps to break it down:
 ## 2. AWS Service Mapping
 
 ### 2.1 Available Tools for Analysis
-- Use `awslabs.cdk-mcp-server` for infrastructure patterns
-  - AmazonWebServicesCDKGuidance: tool for retrieving prescriptive guidance for buidling AWS resources using CDK
-- Use `awslabs.core-mcp-server` tools for:
-  - get_prompt_understanding: Initial query analysis
-  - get_plan: Generate implementation strategy
-- Use `awslabs.bedrock-kb-retrieval-mcp-server` to query user defined KB
-- Use `awslabs.nova-canvas-expert-mcp-server` to help create images
-  - get_imagegenerate_image: Generate an image for the UI
-  - generate_image_with_colors: Generate images using color pallet
 
--Use `awslabs.cost-analasys-mcp-server`  for analyzing AWS service costs
+#### Core MCP Server
+- Use `awslabs.core-mcp-server` tools for:
+  - prompt_understanding: Initial query analysis and guidance on using MCP servers
+
+#### CDK MCP Server
+- Use `awslabs.cdk-mcp-server` for infrastructure patterns and CDK guidance:
+  - CDKGeneralGuidance: Get prescriptive CDK advice for building applications on AWS
+  - ExplainCDKNagRule: Explain a specific CDK Nag rule with AWS Well-Architected guidance
+  - CheckCDKNagSuppressions: Check if CDK code contains Nag suppressions that require human review
+  - GenerateBedrockAgentSchema: Generate OpenAPI schema for Bedrock Agent Action Groups
+  - GetAwsSolutionsConstructPattern: Search and discover AWS Solutions Constructs patterns
+  - SearchGenAICDKConstructs: Search for GenAI CDK constructs by name or type
+  - LambdaLayerDocumentationProvider: Provide documentation sources for Lambda layers
+
+#### Bedrock KB Retrieval MCP Server
+- Use `awslabs.bedrock-kb-retrieval-mcp-server` to query user-defined knowledge bases:
+  - QueryKnowledgeBases: Query an Amazon Bedrock Knowledge Base using natural language
+
+#### Nova Canvas MCP Server
+- Use `awslabs.nova-canvas-mcp-server` to generate images:
+  - generate_image: Generate an image using Amazon Nova Canvas with text prompt
+  - generate_image_with_colors: Generate an image using Amazon Nova Canvas with color guidance
+
+#### Cost Analysis MCP Server
+- Use `awslabs.cost-analysis-mcp-server` for analyzing AWS service costs:
+  - analyze_cdk_project: Analyze a CDK project to identify AWS services used
   - get_pricing_from_web: Get pricing information from AWS pricing webpage
   - get_pricing_from_api: Get pricing information from AWS Price List API
+  - get_bedrock_patterns: Get architecture patterns for Amazon Bedrock applications
   - generate_cost_report: Generate a detailed cost analysis report based on pricing data
 
--Use `awslabs.aws-documentation-mcp-server` for requesting specific AWS documentation
-    - Use `search_documentation` when: You need to find documentation about a specific AWS service or feature
-    - Use `read_documentation` when: You have a specific documentation URL and need its content
-    - Use `recommend` when: You want to find related content to a documentation page you're already viewing or need to find newly released information
-    - Use `recommend` as a fallback when: Multiple searches have not yielded the specific information needed
+#### AWS Documentation MCP Server
+- Use `awslabs.aws-documentation-mcp-server` for requesting specific AWS documentation:
+  - read_documentation: Fetch and convert an AWS documentation page to markdown format
+  - search_documentation: Search AWS documentation using the official AWS Documentation Search API
+  - recommend: Get content recommendations for an AWS documentation page
+
+#### AWS Diagram MCP Server
+- Use `awslabs.aws-diagram-mcp-server` fir creating diagrams to support the solution:
+  - generate_diagram: Generate a diagram from Python code using the diagrams package.
+  - get_diagram_examples: Get example code for different types of diagrams.
+  - list_icons: This tool dynamically inspects the diagrams package to find all available
+    providers, services, and icons that can be used in diagrams
 
 ### 2.2 Modern AWS Service Categories
 
@@ -153,9 +177,8 @@ Analysis:
 - Chat: Amplify Gen2 AI Conversation data model
 - Authentication: Cognito user pools
 
-1. Implementation Approach:
-- Use ui-expert.BaseUserInterfaceWebApp for frontend structure
-- Use cdk-expert for infrastructure setup
+3. Implementation Approach:
+- Use CDK for infrastructure setup
 - Set up Amplify Gen2 AI Conversation data model for chat capabilities
 
 ## 4. Best Practices
@@ -180,13 +203,16 @@ Analysis:
 # Understanding the user's requirements
 <use_mcp_tool>
 <server_name>awslabs.core-mcp-server</server_name>
-<tool_name>get_prompt_understanding</tool_name>
+<tool_name>prompt_understanding</tool_name>
+<arguments>
+{}
+</arguments>
 </use_mcp_tool>
 ```
 
 2. Domain Research:
 ```md
-# Getting  Domain guidance
+# Getting domain guidance
 <use_mcp_tool>
 <server_name>awslabs.bedrock-kb-retrieval-mcp-server</server_name>
 <tool_name>QueryKnowledgeBases</tool_name>
@@ -194,9 +220,7 @@ Analysis:
 {
   "query": "what services are allowed internally on aws",
   "knowledge_base_id": "KBID",
-  "number_of_results": "10",
-
-
+  "number_of_results": 10
 }
 </arguments>
 </use_mcp_tool>
@@ -207,20 +231,18 @@ Analysis:
 # Getting CDK infrastructure guidance
 <use_mcp_tool>
 <server_name>awslabs.cdk-mcp-server</server_name>
-<tool_name>AmazonWebServicesCDKGuidance</tool_name>
+<tool_name>CDKGeneralGuidance</tool_name>
 <arguments>
-{
-  "query": "infrastructure patterns for specific requirements"
-}
+{}
 </arguments>
 </use_mcp_tool>
 ```
 
-## 5. Additional MCP Server Tools
+## 6. Additional MCP Server Tools Examples
 
-### 5.1 NovaCanvas Expert
+### 6.1 Nova Canvas MCP Server
 
-Generate images for for use in UI or solution architecture diagrams:
+Generate images for UI or solution architecture diagrams:
 
 ```md
 # Generating architecture visualization
@@ -233,36 +255,53 @@ Generate images for for use in UI or solution architecture diagrams:
   "negative_prompt": "text labels, blurry, distorted",
   "width": 1024,
   "height": 1024,
-  "quality": "premium"
+  "quality": "premium",
+  "workspace_dir": "/path/to/workspace"
 }
 </arguments>
 </use_mcp_tool>
 ```
 
-### 5.2 AWS Cost Analysis Expert
+### 6.2 AWS Cost Analysis MCP Server
 
-Generate images for for use in UI or solution architecture diagrams:
+Get pricing information for AWS services:
 
 ```md
-# Generating architecture visualization
+# Getting pricing information
 <use_mcp_tool>
 <server_name>awslabs.cost-analysis-mcp-server</server_name>
 <tool_name>get_pricing_from_web</tool_name>
 <arguments>
 {
-  "service_code": "3D isometric view of AWS cloud architecture with Lambda functions, API Gateway, and DynamoDB tables, professional technical
+  "service_code": "lambda"
 }
 </arguments>
 </use_mcp_tool>
 ```
 
+### 6.3 AWS Documentation MCP Server
 
+Search for AWS documentation:
+
+```md
+# Searching AWS documentation
+<use_mcp_tool>
+<server_name>awslabs.aws-documentation-mcp-server</server_name>
+<tool_name>search_documentation</tool_name>
+<arguments>
+{
+  "search_phrase": "Lambda function URLs",
+  "limit": 5
+}
+</arguments>
+</use_mcp_tool>
+```
 
 Example Workflow:
-1. Research industry basics using brave search
+1. Research industry basics using AWS documentation search
 2. Identify common patterns and requirements
 3. Search AWS docs for specific solutions
-4. Use get_pages to deep dive into relevant documentation
+4. Use read_documentation to deep dive into relevant documentation
 5. Map findings to AWS services and patterns
 
 Key Research Areas:
@@ -274,4 +313,4 @@ Key Research Areas:
 - Cost sensitivity
 - Integration requirements
 
-Remember: The goal is to translate general application requirements into specific, modern AWS services and patterns while considering scalability, security, and cost-effectiveness.
+Remember: The goal is to translate general application requirements into specific, modern AWS services and patterns while considering scalability, security, and cost-effectiveness. if any MCP server referenced here is not avalaible, ask the user if they would like to install it
