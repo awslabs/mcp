@@ -99,6 +99,8 @@ A server for seamlessly creating diagrams using the Python diagrams package DSL.
 
 ### AWS Lambda MCP Server
 
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.lambda-mcp-server.svg)](https://pypi.org/project/awslabs.lambda-mcp-server/)
+
 An server to select and run AWS Lambda function as MCP tools without code changes.
 
 - This server acts as a bridge between MCP clients and AWS Lambda functions, allowing foundation models (FMs) to access and run Lambda functions as tools.
