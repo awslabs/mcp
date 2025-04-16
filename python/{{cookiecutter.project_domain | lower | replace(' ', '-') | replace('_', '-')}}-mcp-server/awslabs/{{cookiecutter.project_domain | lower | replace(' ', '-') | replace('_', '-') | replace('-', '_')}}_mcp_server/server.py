@@ -21,6 +21,7 @@ mcp = FastMCP(
     instructions='{{cookiecutter.instructions}}',
     dependencies=[
         'pydantic',
+        'loguru',
     ],
 )
 
