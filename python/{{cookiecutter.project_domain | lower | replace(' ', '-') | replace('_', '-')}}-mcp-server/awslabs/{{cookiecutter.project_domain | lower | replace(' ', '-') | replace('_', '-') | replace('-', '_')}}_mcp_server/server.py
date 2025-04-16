@@ -12,6 +12,7 @@
 """awslabs {{cookiecutter.project_domain}} MCP Server implementation."""
 
 import argparse
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from typing import Literal
 
@@ -89,6 +90,13 @@ def main():
     args = parser.parse_args()
 
     # Run server with appropriate transport
+    logger.trace('A trace message.')
+    logger.debug('A debug message.')
+    logger.info('An info message.')
+    logger.success('A success message.')
+    logger.warning('A warning message.')
+    logger.error('An error message.')
+    logger.critical('A critical message.')
     if args.sse:
         mcp.settings.port = args.port
         mcp.run(transport='sse')
