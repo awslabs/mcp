@@ -11,8 +11,6 @@
 """Tests for the models module of the nova-canvas-mcp-server."""
 
 import pytest
-import random
-from pydantic import ValidationError
 from awslabs.nova_canvas_mcp_server.models import (
     ColorGuidedGenerationParams,
     ColorGuidedRequest,
@@ -24,6 +22,7 @@ from awslabs.nova_canvas_mcp_server.models import (
     TextImageRequest,
     TextToImageParams,
 )
+from pydantic import ValidationError
 
 
 class TestEnums:
@@ -61,7 +60,7 @@ class TestImageGenerationConfig:
             quality=Quality.PREMIUM,
             cfgScale=8.0,
             seed=12345,
-            numberOfImages=3
+            numberOfImages=3,
         )
         assert config.width == 512
         assert config.height == 768
@@ -74,11 +73,11 @@ class TestImageGenerationConfig:
         """Test that width and height must be divisible by 16."""
         # Valid values
         ImageGenerationConfig(width=512, height=768)
-        
+
         # Invalid width
         with pytest.raises(ValidationError):
             ImageGenerationConfig(width=513, height=768)
-        
+
         # Invalid height
         with pytest.raises(ValidationError):
             ImageGenerationConfig(width=512, height=769)
@@ -88,18 +87,18 @@ class TestImageGenerationConfig:
         # Valid values
         ImageGenerationConfig(width=320, height=320)
         ImageGenerationConfig(width=2000, height=2000)  # Just under the 4,194,304 pixel limit
-        
+
         # Below minimum
         with pytest.raises(ValidationError):
             ImageGenerationConfig(width=304, height=320)
-        
+
         with pytest.raises(ValidationError):
             ImageGenerationConfig(width=320, height=304)
-        
+
         # Above maximum
         with pytest.raises(ValidationError):
             ImageGenerationConfig(width=4112, height=320)
-        
+
         with pytest.raises(ValidationError):
             ImageGenerationConfig(width=320, height=4112)
 
@@ -108,11 +107,11 @@ class TestImageGenerationConfig:
         # Valid values
         ImageGenerationConfig(cfgScale=1.1)
         ImageGenerationConfig(cfgScale=10.0)
-        
+
         # Below minimum
         with pytest.raises(ValidationError):
             ImageGenerationConfig(cfgScale=1.0)
-        
+
         # Above maximum
         with pytest.raises(ValidationError):
             ImageGenerationConfig(cfgScale=10.1)
@@ -122,11 +121,11 @@ class TestImageGenerationConfig:
         # Valid values
         ImageGenerationConfig(seed=0)
         ImageGenerationConfig(seed=858993459)
-        
+
         # Below minimum
         with pytest.raises(ValidationError):
             ImageGenerationConfig(seed=-1)
-        
+
         # Above maximum
         with pytest.raises(ValidationError):
             ImageGenerationConfig(seed=858993460)
@@ -136,11 +135,11 @@ class TestImageGenerationConfig:
         # Valid values
         ImageGenerationConfig(numberOfImages=1)
         ImageGenerationConfig(numberOfImages=5)
-        
+
         # Below minimum
         with pytest.raises(ValidationError):
             ImageGenerationConfig(numberOfImages=0)
-        
+
         # Above maximum
         with pytest.raises(ValidationError):
             ImageGenerationConfig(numberOfImages=6)
@@ -149,13 +148,13 @@ class TestImageGenerationConfig:
         """Test that aspect ratio must be between 1:4 and 4:1."""
         # Valid aspect ratios
         ImageGenerationConfig(width=1024, height=1024)  # 1:1
-        ImageGenerationConfig(width=512, height=2048)   # 1:4
-        ImageGenerationConfig(width=2048, height=512)   # 4:1
-        
+        ImageGenerationConfig(width=512, height=2048)  # 1:4
+        ImageGenerationConfig(width=2048, height=512)  # 4:1
+
         # Invalid aspect ratios
         with pytest.raises(ValidationError):
             ImageGenerationConfig(width=320, height=1600)  # > 1:4
-        
+
         with pytest.raises(ValidationError):
             ImageGenerationConfig(width=1600, height=320)  # > 4:1
 
@@ -163,7 +162,7 @@ class TestImageGenerationConfig:
         """Test that total pixel count must be less than 4,194,304."""
         # Valid pixel count
         ImageGenerationConfig(width=2000, height=2000)  # 4,000,000 pixels
-        
+
         # Invalid pixel count
         with pytest.raises(ValidationError):
             ImageGenerationConfig(width=2048, height=2048)  # 4,194,304 pixels (equal to limit)
@@ -174,46 +173,37 @@ class TestTextToImageParams:
 
     def test_valid_params(self):
         """Test that valid parameters are accepted."""
-        params = TextToImageParams(
-            text="A beautiful mountain landscape"
-        )
-        assert params.text == "A beautiful mountain landscape"
+        params = TextToImageParams(text='A beautiful mountain landscape')
+        assert params.text == 'A beautiful mountain landscape'
         assert params.negativeText is None
 
     def test_with_negative_text(self):
         """Test with negative text parameter."""
         params = TextToImageParams(
-            text="A beautiful mountain landscape",
-            negativeText="people, clouds"
+            text='A beautiful mountain landscape', negativeText='people, clouds'
         )
-        assert params.text == "A beautiful mountain landscape"
-        assert params.negativeText == "people, clouds"
+        assert params.text == 'A beautiful mountain landscape'
+        assert params.negativeText == 'people, clouds'
 
     def test_text_length_validation(self):
         """Test that text length is validated."""
         # Empty text
         with pytest.raises(ValidationError):
-            TextToImageParams(text="")
-        
+            TextToImageParams(text='')
+
         # Text too long (> 1024 characters)
         with pytest.raises(ValidationError):
-            TextToImageParams(text="a" * 1025)
+            TextToImageParams(text='a' * 1025)
 
     def test_negative_text_length_validation(self):
         """Test that negative text length is validated."""
         # Empty negative text
         with pytest.raises(ValidationError):
-            TextToImageParams(
-                text="A beautiful mountain landscape",
-                negativeText=""
-            )
-        
+            TextToImageParams(text='A beautiful mountain landscape', negativeText='')
+
         # Negative text too long (> 1024 characters)
         with pytest.raises(ValidationError):
-            TextToImageParams(
-                text="A beautiful mountain landscape",
-                negativeText="a" * 1025
-            )
+            TextToImageParams(text='A beautiful mountain landscape', negativeText='a' * 1025)
 
 
 class TestColorGuidedGenerationParams:
@@ -222,64 +212,58 @@ class TestColorGuidedGenerationParams:
     def test_valid_params(self):
         """Test that valid parameters are accepted."""
         params = ColorGuidedGenerationParams(
-            text="A beautiful mountain landscape",
-            colors=["#FF5733", "#33FF57", "#3357FF"]
+            text='A beautiful mountain landscape', colors=['#FF5733', '#33FF57', '#3357FF']
         )
-        assert params.text == "A beautiful mountain landscape"
-        assert params.colors == ["#FF5733", "#33FF57", "#3357FF"]
+        assert params.text == 'A beautiful mountain landscape'
+        assert params.colors == ['#FF5733', '#33FF57', '#3357FF']
         assert params.negativeText is None
 
     def test_with_negative_text(self):
         """Test with negative text parameter."""
         params = ColorGuidedGenerationParams(
-            text="A beautiful mountain landscape",
-            colors=["#FF5733", "#33FF57", "#3357FF"],
-            negativeText="people, clouds"
+            text='A beautiful mountain landscape',
+            colors=['#FF5733', '#33FF57', '#3357FF'],
+            negativeText='people, clouds',
         )
-        assert params.text == "A beautiful mountain landscape"
-        assert params.colors == ["#FF5733", "#33FF57", "#3357FF"]
-        assert params.negativeText == "people, clouds"
+        assert params.text == 'A beautiful mountain landscape'
+        assert params.colors == ['#FF5733', '#33FF57', '#3357FF']
+        assert params.negativeText == 'people, clouds'
 
     def test_hex_color_validation(self):
         """Test that hex colors are validated."""
         # Valid hex colors
         ColorGuidedGenerationParams(
-            text="A beautiful mountain landscape",
-            colors=["#FF5733", "#33FF57", "#3357FF"]
+            text='A beautiful mountain landscape', colors=['#FF5733', '#33FF57', '#3357FF']
         )
-        
+
         # Invalid hex colors
         with pytest.raises(ValidationError):
             ColorGuidedGenerationParams(
-                text="A beautiful mountain landscape",
-                colors=["FF5733", "#33FF57", "#3357FF"]  # Missing #
+                text='A beautiful mountain landscape',
+                colors=['FF5733', '#33FF57', '#3357FF'],  # Missing #
             )
-        
+
         with pytest.raises(ValidationError):
             ColorGuidedGenerationParams(
-                text="A beautiful mountain landscape",
-                colors=["#FF573", "#33FF57", "#3357FF"]  # Too short
+                text='A beautiful mountain landscape',
+                colors=['#FF573', '#33FF57', '#3357FF'],  # Too short
             )
-        
+
         with pytest.raises(ValidationError):
             ColorGuidedGenerationParams(
-                text="A beautiful mountain landscape",
-                colors=["#FF5733", "#33FF57G", "#3357FF"]  # Invalid character
+                text='A beautiful mountain landscape',
+                colors=['#FF5733', '#33FF57G', '#3357FF'],  # Invalid character
             )
 
     def test_colors_max_length(self):
         """Test that colors list has a maximum length of 10."""
         # Valid length
-        ColorGuidedGenerationParams(
-            text="A beautiful mountain landscape",
-            colors=["#FF5733"] * 10
-        )
-        
+        ColorGuidedGenerationParams(text='A beautiful mountain landscape', colors=['#FF5733'] * 10)
+
         # Invalid length
         with pytest.raises(ValidationError):
             ColorGuidedGenerationParams(
-                text="A beautiful mountain landscape",
-                colors=["#FF5733"] * 11
+                text='A beautiful mountain landscape', colors=['#FF5733'] * 11
             )
 
 
@@ -289,12 +273,10 @@ class TestTextImageRequest:
     def test_default_values(self):
         """Test that default values are set correctly."""
         request = TextImageRequest(
-            textToImageParams=TextToImageParams(
-                text="A beautiful mountain landscape"
-            )
+            textToImageParams=TextToImageParams(text='A beautiful mountain landscape')
         )
         assert request.taskType == TaskType.TEXT_IMAGE
-        assert request.textToImageParams.text == "A beautiful mountain landscape"
+        assert request.textToImageParams.text == 'A beautiful mountain landscape'
         assert request.textToImageParams.negativeText is None
         assert isinstance(request.imageGenerationConfig, ImageGenerationConfig)
 
@@ -302,8 +284,7 @@ class TestTextImageRequest:
         """Test that custom values are accepted."""
         request = TextImageRequest(
             textToImageParams=TextToImageParams(
-                text="A beautiful mountain landscape",
-                negativeText="people, clouds"
+                text='A beautiful mountain landscape', negativeText='people, clouds'
             ),
             imageGenerationConfig=ImageGenerationConfig(
                 width=512,
@@ -311,12 +292,12 @@ class TestTextImageRequest:
                 quality=Quality.PREMIUM,
                 cfgScale=8.0,
                 seed=12345,
-                numberOfImages=3
-            )
+                numberOfImages=3,
+            ),
         )
         assert request.taskType == TaskType.TEXT_IMAGE
-        assert request.textToImageParams.text == "A beautiful mountain landscape"
-        assert request.textToImageParams.negativeText == "people, clouds"
+        assert request.textToImageParams.text == 'A beautiful mountain landscape'
+        assert request.textToImageParams.negativeText == 'people, clouds'
         assert request.imageGenerationConfig.width == 512
         assert request.imageGenerationConfig.height == 768
         assert request.imageGenerationConfig.quality == Quality.PREMIUM
@@ -328,27 +309,24 @@ class TestTextImageRequest:
         """Test the to_api_dict method."""
         # Without negative text
         request = TextImageRequest(
-            textToImageParams=TextToImageParams(
-                text="A beautiful mountain landscape"
-            )
+            textToImageParams=TextToImageParams(text='A beautiful mountain landscape')
         )
         api_dict = request.to_api_dict()
         assert api_dict['taskType'] == TaskType.TEXT_IMAGE
-        assert api_dict['textToImageParams']['text'] == "A beautiful mountain landscape"
+        assert api_dict['textToImageParams']['text'] == 'A beautiful mountain landscape'
         assert 'negativeText' not in api_dict['textToImageParams']
         assert api_dict['imageGenerationConfig'] is not None
-        
+
         # With negative text
         request = TextImageRequest(
             textToImageParams=TextToImageParams(
-                text="A beautiful mountain landscape",
-                negativeText="people, clouds"
+                text='A beautiful mountain landscape', negativeText='people, clouds'
             )
         )
         api_dict = request.to_api_dict()
         assert api_dict['taskType'] == TaskType.TEXT_IMAGE
-        assert api_dict['textToImageParams']['text'] == "A beautiful mountain landscape"
-        assert api_dict['textToImageParams']['negativeText'] == "people, clouds"
+        assert api_dict['textToImageParams']['text'] == 'A beautiful mountain landscape'
+        assert api_dict['textToImageParams']['negativeText'] == 'people, clouds'
         assert api_dict['imageGenerationConfig'] is not None
 
 
@@ -359,13 +337,12 @@ class TestColorGuidedRequest:
         """Test that default values are set correctly."""
         request = ColorGuidedRequest(
             colorGuidedGenerationParams=ColorGuidedGenerationParams(
-                text="A beautiful mountain landscape",
-                colors=["#FF5733", "#33FF57", "#3357FF"]
+                text='A beautiful mountain landscape', colors=['#FF5733', '#33FF57', '#3357FF']
             )
         )
         assert request.taskType == TaskType.COLOR_GUIDED_GENERATION
-        assert request.colorGuidedGenerationParams.text == "A beautiful mountain landscape"
-        assert request.colorGuidedGenerationParams.colors == ["#FF5733", "#33FF57", "#3357FF"]
+        assert request.colorGuidedGenerationParams.text == 'A beautiful mountain landscape'
+        assert request.colorGuidedGenerationParams.colors == ['#FF5733', '#33FF57', '#3357FF']
         assert request.colorGuidedGenerationParams.negativeText is None
         assert isinstance(request.imageGenerationConfig, ImageGenerationConfig)
 
@@ -373,9 +350,9 @@ class TestColorGuidedRequest:
         """Test that custom values are accepted."""
         request = ColorGuidedRequest(
             colorGuidedGenerationParams=ColorGuidedGenerationParams(
-                text="A beautiful mountain landscape",
-                colors=["#FF5733", "#33FF57", "#3357FF"],
-                negativeText="people, clouds"
+                text='A beautiful mountain landscape',
+                colors=['#FF5733', '#33FF57', '#3357FF'],
+                negativeText='people, clouds',
             ),
             imageGenerationConfig=ImageGenerationConfig(
                 width=512,
@@ -383,13 +360,13 @@ class TestColorGuidedRequest:
                 quality=Quality.PREMIUM,
                 cfgScale=8.0,
                 seed=12345,
-                numberOfImages=3
-            )
+                numberOfImages=3,
+            ),
         )
         assert request.taskType == TaskType.COLOR_GUIDED_GENERATION
-        assert request.colorGuidedGenerationParams.text == "A beautiful mountain landscape"
-        assert request.colorGuidedGenerationParams.colors == ["#FF5733", "#33FF57", "#3357FF"]
-        assert request.colorGuidedGenerationParams.negativeText == "people, clouds"
+        assert request.colorGuidedGenerationParams.text == 'A beautiful mountain landscape'
+        assert request.colorGuidedGenerationParams.colors == ['#FF5733', '#33FF57', '#3357FF']
+        assert request.colorGuidedGenerationParams.negativeText == 'people, clouds'
         assert request.imageGenerationConfig.width == 512
         assert request.imageGenerationConfig.height == 768
         assert request.imageGenerationConfig.quality == Quality.PREMIUM
@@ -402,30 +379,37 @@ class TestColorGuidedRequest:
         # Without negative text
         request = ColorGuidedRequest(
             colorGuidedGenerationParams=ColorGuidedGenerationParams(
-                text="A beautiful mountain landscape",
-                colors=["#FF5733", "#33FF57", "#3357FF"]
+                text='A beautiful mountain landscape', colors=['#FF5733', '#33FF57', '#3357FF']
             )
         )
         api_dict = request.to_api_dict()
         assert api_dict['taskType'] == TaskType.COLOR_GUIDED_GENERATION
-        assert api_dict['colorGuidedGenerationParams']['text'] == "A beautiful mountain landscape"
-        assert api_dict['colorGuidedGenerationParams']['colors'] == ["#FF5733", "#33FF57", "#3357FF"]
+        assert api_dict['colorGuidedGenerationParams']['text'] == 'A beautiful mountain landscape'
+        assert api_dict['colorGuidedGenerationParams']['colors'] == [
+            '#FF5733',
+            '#33FF57',
+            '#3357FF',
+        ]
         assert 'negativeText' not in api_dict['colorGuidedGenerationParams']
         assert api_dict['imageGenerationConfig'] is not None
-        
+
         # With negative text
         request = ColorGuidedRequest(
             colorGuidedGenerationParams=ColorGuidedGenerationParams(
-                text="A beautiful mountain landscape",
-                colors=["#FF5733", "#33FF57", "#3357FF"],
-                negativeText="people, clouds"
+                text='A beautiful mountain landscape',
+                colors=['#FF5733', '#33FF57', '#3357FF'],
+                negativeText='people, clouds',
             )
         )
         api_dict = request.to_api_dict()
         assert api_dict['taskType'] == TaskType.COLOR_GUIDED_GENERATION
-        assert api_dict['colorGuidedGenerationParams']['text'] == "A beautiful mountain landscape"
-        assert api_dict['colorGuidedGenerationParams']['colors'] == ["#FF5733", "#33FF57", "#3357FF"]
-        assert api_dict['colorGuidedGenerationParams']['negativeText'] == "people, clouds"
+        assert api_dict['colorGuidedGenerationParams']['text'] == 'A beautiful mountain landscape'
+        assert api_dict['colorGuidedGenerationParams']['colors'] == [
+            '#FF5733',
+            '#33FF57',
+            '#3357FF',
+        ]
+        assert api_dict['colorGuidedGenerationParams']['negativeText'] == 'people, clouds'
         assert api_dict['imageGenerationConfig'] is not None
 
 
@@ -435,11 +419,10 @@ class TestMcpImageGenerationResponse:
     def test_success_response(self):
         """Test that a success response is created correctly."""
         response = McpImageGenerationResponse(
-            status="success",
-            paths=["file:///path/to/image1.png", "file:///path/to/image2.png"]
+            status='success', paths=['file:///path/to/image1.png', 'file:///path/to/image2.png']
         )
-        assert response.status == "success"
-        assert response.paths == ["file:///path/to/image1.png", "file:///path/to/image2.png"]
+        assert response.status == 'success'
+        assert response.paths == ['file:///path/to/image1.png', 'file:///path/to/image2.png']
 
 
 class TestImageGenerationResponse:
@@ -448,63 +431,63 @@ class TestImageGenerationResponse:
     def test_success_response(self):
         """Test that a success response is created correctly."""
         response = ImageGenerationResponse(
-            status="success",
-            message="Generated 2 image(s)",
-            paths=["/path/to/image1.png", "/path/to/image2.png"],
-            prompt="A beautiful mountain landscape"
+            status='success',
+            message='Generated 2 image(s)',
+            paths=['/path/to/image1.png', '/path/to/image2.png'],
+            prompt='A beautiful mountain landscape',
         )
-        assert response.status == "success"
-        assert response.message == "Generated 2 image(s)"
-        assert response.paths == ["/path/to/image1.png", "/path/to/image2.png"]
-        assert response.prompt == "A beautiful mountain landscape"
+        assert response.status == 'success'
+        assert response.message == 'Generated 2 image(s)'
+        assert response.paths == ['/path/to/image1.png', '/path/to/image2.png']
+        assert response.prompt == 'A beautiful mountain landscape'
         assert response.negative_prompt is None
         assert response.colors is None
 
     def test_error_response(self):
         """Test that an error response is created correctly."""
         response = ImageGenerationResponse(
-            status="error",
-            message="An error occurred during image generation",
+            status='error',
+            message='An error occurred during image generation',
             paths=[],
-            prompt="A beautiful mountain landscape"
+            prompt='A beautiful mountain landscape',
         )
-        assert response.status == "error"
-        assert response.message == "An error occurred during image generation"
+        assert response.status == 'error'
+        assert response.message == 'An error occurred during image generation'
         assert response.paths == []
-        assert response.prompt == "A beautiful mountain landscape"
+        assert response.prompt == 'A beautiful mountain landscape'
         assert response.negative_prompt is None
         assert response.colors is None
 
     def test_with_optional_fields(self):
         """Test with optional fields."""
         response = ImageGenerationResponse(
-            status="success",
-            message="Generated 2 image(s)",
-            paths=["/path/to/image1.png", "/path/to/image2.png"],
-            prompt="A beautiful mountain landscape",
-            negative_prompt="people, clouds",
-            colors=["#FF5733", "#33FF57", "#3357FF"]
+            status='success',
+            message='Generated 2 image(s)',
+            paths=['/path/to/image1.png', '/path/to/image2.png'],
+            prompt='A beautiful mountain landscape',
+            negative_prompt='people, clouds',
+            colors=['#FF5733', '#33FF57', '#3357FF'],
         )
-        assert response.status == "success"
-        assert response.message == "Generated 2 image(s)"
-        assert response.paths == ["/path/to/image1.png", "/path/to/image2.png"]
-        assert response.prompt == "A beautiful mountain landscape"
-        assert response.negative_prompt == "people, clouds"
-        assert response.colors == ["#FF5733", "#33FF57", "#3357FF"]
+        assert response.status == 'success'
+        assert response.message == 'Generated 2 image(s)'
+        assert response.paths == ['/path/to/image1.png', '/path/to/image2.png']
+        assert response.prompt == 'A beautiful mountain landscape'
+        assert response.negative_prompt == 'people, clouds'
+        assert response.colors == ['#FF5733', '#33FF57', '#3357FF']
 
     def test_dictionary_access(self):
         """Test dictionary-style access."""
         response = ImageGenerationResponse(
-            status="success",
-            message="Generated 2 image(s)",
-            paths=["/path/to/image1.png", "/path/to/image2.png"],
-            prompt="A beautiful mountain landscape"
+            status='success',
+            message='Generated 2 image(s)',
+            paths=['/path/to/image1.png', '/path/to/image2.png'],
+            prompt='A beautiful mountain landscape',
         )
-        assert response["status"] == "success"
-        assert response["message"] == "Generated 2 image(s)"
-        assert response["paths"] == ["/path/to/image1.png", "/path/to/image2.png"]
-        assert response["prompt"] == "A beautiful mountain landscape"
-        
+        assert response['status'] == 'success'
+        assert response['message'] == 'Generated 2 image(s)'
+        assert response['paths'] == ['/path/to/image1.png', '/path/to/image2.png']
+        assert response['prompt'] == 'A beautiful mountain landscape'
+
         # Test accessing non-existent key
         with pytest.raises(KeyError):
-            response["non_existent_key"]
+            response['non_existent_key']

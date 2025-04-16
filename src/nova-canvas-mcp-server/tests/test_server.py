@@ -10,15 +10,12 @@
 # and limitations under the License.
 """Tests for the server module of the nova-canvas-mcp-server."""
 
-import os
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from awslabs.nova_canvas_mcp_server.models import McpImageGenerationResponse
 from awslabs.nova_canvas_mcp_server.server import (
     mcp_generate_image,
     mcp_generate_image_with_colors,
-    bedrock_runtime_client as server_bedrock_client,
 )
+from unittest.mock import MagicMock, patch
 
 
 class TestMcpGenerateImage:
@@ -34,33 +31,33 @@ class TestMcpGenerateImage:
         mock_generate_image.return_value = MagicMock(
             status='success',
             paths=['/path/to/image1.png', '/path/to/image2.png'],
-            message='Generated 2 image(s)'
+            message='Generated 2 image(s)',
         )
 
         # Call the function
         result = await mcp_generate_image(
             ctx=mock_context,
             prompt=sample_text_prompt,
-            negative_prompt="people, clouds",
-            filename="test_image",
+            negative_prompt='people, clouds',
+            filename='test_image',
             width=512,
             height=768,
-            quality="premium",
+            quality='premium',
             cfg_scale=8.0,
             seed=12345,
             number_of_images=2,
-            workspace_dir=temp_workspace_dir
+            workspace_dir=temp_workspace_dir,
         )
 
         # Check that generate_image_with_text was called with the correct parameters
         mock_generate_image.assert_called_once()
         call_args = mock_generate_image.call_args[1]
         assert call_args['prompt'] == sample_text_prompt
-        assert call_args['negative_prompt'] == "people, clouds"
-        assert call_args['filename'] == "test_image"
+        assert call_args['negative_prompt'] == 'people, clouds'
+        assert call_args['filename'] == 'test_image'
         assert call_args['width'] == 512
         assert call_args['height'] == 768
-        assert call_args['quality'] == "premium"
+        assert call_args['quality'] == 'premium'
         assert call_args['cfg_scale'] == 8.0
         assert call_args['seed'] == 12345
         assert call_args['number_of_images'] == 2
@@ -83,17 +80,12 @@ class TestMcpGenerateImage:
         """Test error handling in image generation."""
         # Set up the mock to return an error
         mock_generate_image.return_value = MagicMock(
-            status='error',
-            message='Failed to generate image: API error',
-            paths=[]
+            status='error', message='Failed to generate image: API error', paths=[]
         )
 
         # Call the function and check that it raises an exception
         with pytest.raises(Exception, match='Failed to generate image: API error'):
-            await mcp_generate_image(
-                ctx=mock_context,
-                prompt=sample_text_prompt
-            )
+            await mcp_generate_image(ctx=mock_context, prompt=sample_text_prompt)
 
         # Check that ctx.error was called with the expected error message
         assert mock_context.error.call_count == 2
@@ -107,16 +99,11 @@ class TestMcpGenerateImage:
         """Test image generation with default parameters."""
         # Set up the mock
         mock_generate_image.return_value = MagicMock(
-            status='success',
-            paths=['/path/to/image.png'],
-            message='Generated 1 image(s)'
+            status='success', paths=['/path/to/image.png'], message='Generated 1 image(s)'
         )
 
         # Call the function with minimal parameters
-        result = await mcp_generate_image(
-            ctx=mock_context,
-            prompt=sample_text_prompt
-        )
+        result = await mcp_generate_image(ctx=mock_context, prompt=sample_text_prompt)
 
         # Check that generate_image_with_text was called with the correct parameters
         mock_generate_image.assert_called_once()
@@ -124,7 +111,10 @@ class TestMcpGenerateImage:
         assert call_args['prompt'] == sample_text_prompt
         assert 'negative_prompt' in call_args
         assert hasattr(call_args['filename'], 'default') and call_args['filename'].default is None
-        assert hasattr(call_args['workspace_dir'], 'default') and call_args['workspace_dir'].default is None
+        assert (
+            hasattr(call_args['workspace_dir'], 'default')
+            and call_args['workspace_dir'].default is None
+        )
 
         # Check that the result is correct
         assert result.status == 'success'
@@ -137,14 +127,11 @@ class TestMcpGenerateImage:
     ):
         """Test handling of exceptions during image generation."""
         # Set up the mock to raise an exception
-        mock_generate_image.side_effect = Exception("Unexpected error")
+        mock_generate_image.side_effect = Exception('Unexpected error')
 
         # Call the function and check that it raises an exception
         with pytest.raises(Exception, match='Unexpected error'):
-            await mcp_generate_image(
-                ctx=mock_context,
-                prompt=sample_text_prompt
-            )
+            await mcp_generate_image(ctx=mock_context, prompt=sample_text_prompt)
 
         # Check that ctx.error was called with the expected error message
         assert mock_context.error.call_count == 1
@@ -157,14 +144,19 @@ class TestMcpGenerateImageWithColors:
     @pytest.mark.asyncio
     @patch('awslabs.nova_canvas_mcp_server.server.generate_image_with_colors')
     async def test_generate_image_with_colors_success(
-        self, mock_generate_image, mock_context, sample_text_prompt, sample_colors, temp_workspace_dir
+        self,
+        mock_generate_image,
+        mock_context,
+        sample_text_prompt,
+        sample_colors,
+        temp_workspace_dir,
     ):
         """Test successful image generation with colors."""
         # Set up the mock
         mock_generate_image.return_value = MagicMock(
             status='success',
             paths=['/path/to/image1.png', '/path/to/image2.png'],
-            message='Generated 2 image(s)'
+            message='Generated 2 image(s)',
         )
 
         # Call the function
@@ -172,15 +164,15 @@ class TestMcpGenerateImageWithColors:
             ctx=mock_context,
             prompt=sample_text_prompt,
             colors=sample_colors,
-            negative_prompt="people, clouds",
-            filename="test_image",
+            negative_prompt='people, clouds',
+            filename='test_image',
             width=512,
             height=768,
-            quality="premium",
+            quality='premium',
             cfg_scale=8.0,
             seed=12345,
             number_of_images=2,
-            workspace_dir=temp_workspace_dir
+            workspace_dir=temp_workspace_dir,
         )
 
         # Check that generate_image_with_colors was called with the correct parameters
@@ -188,11 +180,11 @@ class TestMcpGenerateImageWithColors:
         call_args = mock_generate_image.call_args[1]
         assert call_args['prompt'] == sample_text_prompt
         assert call_args['colors'] == sample_colors
-        assert call_args['negative_prompt'] == "people, clouds"
-        assert call_args['filename'] == "test_image"
+        assert call_args['negative_prompt'] == 'people, clouds'
+        assert call_args['filename'] == 'test_image'
         assert call_args['width'] == 512
         assert call_args['height'] == 768
-        assert call_args['quality'] == "premium"
+        assert call_args['quality'] == 'premium'
         assert call_args['cfg_scale'] == 8.0
         assert call_args['seed'] == 12345
         assert call_args['number_of_images'] == 2
@@ -215,22 +207,20 @@ class TestMcpGenerateImageWithColors:
         """Test error handling in image generation with colors."""
         # Set up the mock to return an error
         mock_generate_image.return_value = MagicMock(
-            status='error',
-            message='Failed to generate color-guided image: API error',
-            paths=[]
+            status='error', message='Failed to generate color-guided image: API error', paths=[]
         )
 
         # Call the function and check that it raises an exception
         with pytest.raises(Exception, match='Failed to generate color-guided image: API error'):
             await mcp_generate_image_with_colors(
-                ctx=mock_context,
-                prompt=sample_text_prompt,
-                colors=sample_colors
+                ctx=mock_context, prompt=sample_text_prompt, colors=sample_colors
             )
 
         # Check that ctx.error was called with the expected error message
         assert mock_context.error.call_count == 2
-        assert 'Failed to generate color-guided image: API error' in str(mock_context.error.call_args_list)
+        assert 'Failed to generate color-guided image: API error' in str(
+            mock_context.error.call_args_list
+        )
 
     @pytest.mark.asyncio
     @patch('awslabs.nova_canvas_mcp_server.server.generate_image_with_colors')
@@ -240,16 +230,12 @@ class TestMcpGenerateImageWithColors:
         """Test image generation with colors using default parameters."""
         # Set up the mock
         mock_generate_image.return_value = MagicMock(
-            status='success',
-            paths=['/path/to/image.png'],
-            message='Generated 1 image(s)'
+            status='success', paths=['/path/to/image.png'], message='Generated 1 image(s)'
         )
 
         # Call the function with minimal parameters
         result = await mcp_generate_image_with_colors(
-            ctx=mock_context,
-            prompt=sample_text_prompt,
-            colors=sample_colors
+            ctx=mock_context, prompt=sample_text_prompt, colors=sample_colors
         )
 
         # Check that generate_image_with_colors was called with the correct parameters
@@ -259,7 +245,10 @@ class TestMcpGenerateImageWithColors:
         assert call_args['colors'] == sample_colors
         assert 'negative_prompt' in call_args
         assert hasattr(call_args['filename'], 'default') and call_args['filename'].default is None
-        assert hasattr(call_args['workspace_dir'], 'default') and call_args['workspace_dir'].default is None
+        assert (
+            hasattr(call_args['workspace_dir'], 'default')
+            and call_args['workspace_dir'].default is None
+        )
 
         # Check that the result is correct
         assert result.status == 'success'
@@ -272,19 +261,19 @@ class TestMcpGenerateImageWithColors:
     ):
         """Test handling of exceptions during image generation with colors."""
         # Set up the mock to raise an exception
-        mock_generate_image.side_effect = Exception("Unexpected error")
+        mock_generate_image.side_effect = Exception('Unexpected error')
 
         # Call the function and check that it raises an exception
         with pytest.raises(Exception, match='Unexpected error'):
             await mcp_generate_image_with_colors(
-                ctx=mock_context,
-                prompt=sample_text_prompt,
-                colors=sample_colors
+                ctx=mock_context, prompt=sample_text_prompt, colors=sample_colors
             )
 
         # Check that ctx.error was called with the expected error message
         assert mock_context.error.call_count == 1
-        assert 'Error generating color-guided image: Unexpected error' in str(mock_context.error.call_args_list)
+        assert 'Error generating color-guided image: Unexpected error' in str(
+            mock_context.error.call_args_list
+        )
 
 
 class TestServerIntegration:
@@ -299,9 +288,11 @@ class TestServerIntegration:
         # Check that the functions have the correct docstrings
         assert (
             mcp_generate_image.__doc__ is not None
-            and 'Generate an image using Amazon Nova Canvas with text prompt' in mcp_generate_image.__doc__
+            and 'Generate an image using Amazon Nova Canvas with text prompt'
+            in mcp_generate_image.__doc__
         )
         assert (
             mcp_generate_image_with_colors.__doc__ is not None
-            and 'Generate an image using Amazon Nova Canvas with color guidance' in mcp_generate_image_with_colors.__doc__
+            and 'Generate an image using Amazon Nova Canvas with color guidance'
+            in mcp_generate_image_with_colors.__doc__
         )
