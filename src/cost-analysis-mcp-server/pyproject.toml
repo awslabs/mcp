@@ -9,6 +9,9 @@ dependencies = [
     "pydantic>=2.10.6",
     "boto3>=1.36.20",
     "bs4>=0.0.2",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "typing-extensions>=4.8.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -44,6 +47,8 @@ dev = [
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
 ]
 
 [build-system]
