@@ -20,7 +20,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 def generate_fallback_script(lambda_code_path: str, output_path: str) -> str:
     """Generate a standalone script for schema generation."""
-    return f'''#!/usr/bin/env python3
+    return f'''# pyright: ignore
+#!/usr/bin/env python3
 """
 Schema Generator for Bedrock Agent Action Groups
 
