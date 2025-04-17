@@ -155,7 +155,7 @@ if __name__ == '__main__':
    __version__ = "0.1.0"
    ```
 
-3. **Version Synchronization**: Keep version consistent between:
+3. **Version Synchronization**: Our monorepo `release.py` bumps the patch version upon changes in:
    - `pyproject.toml`
    - `__init__.py` in the package
    - Configure `commitizen` in `pyproject.toml` to update versions automatically
