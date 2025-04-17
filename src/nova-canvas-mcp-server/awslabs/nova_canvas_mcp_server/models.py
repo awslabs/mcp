@@ -198,7 +198,7 @@ class TextImageRequest(BaseModel):
             'textToImageParams': text_to_image_params,
             'imageGenerationConfig': self.imageGenerationConfig.model_dump()
             if self.imageGenerationConfig
-            else None,
+            else ImageGenerationConfig().model_dump(),  # Return default config instead of None
         }
 
 
@@ -237,7 +237,7 @@ class ColorGuidedRequest(BaseModel):
             'colorGuidedGenerationParams': color_guided_params,
             'imageGenerationConfig': self.imageGenerationConfig.model_dump()
             if self.imageGenerationConfig
-            else None,
+            else ImageGenerationConfig().model_dump(),  # Return default config instead of None
         }
 
 

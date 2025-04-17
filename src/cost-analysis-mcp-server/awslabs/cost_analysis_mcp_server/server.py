@@ -478,7 +478,6 @@ async def generate_cost_report_wrapper(
         elif 'recommendations' not in detailed_cost_data:
             # Create a default prompt based on the services and context
             architecture_patterns_str = 'Available' if architecture_patterns else 'Not provided'
-
             prompt = DEFAULT_RECOMMENDATION_PROMPT.format(
                 services=services,
                 architecture_patterns=architecture_patterns_str,

@@ -300,6 +300,20 @@ class TestReportGenerator:
         assert _format_value('name', 'test') == 'test'
         assert _format_value('details', {'key': 'value'}) == 'See nested table below'
 
+    def test_format_value_edge_cases(self):
+        """Test formatting edge cases and invalid inputs."""
+        # Test with None key (converted to empty string)
+        assert _format_value('', 100) == '100'
+
+        # Test with boolean key (converted to string)
+        assert _format_value('true', 100) == '100'
+
+        # Test with None value
+        assert _format_value('key', None) == 'None'
+
+        # Test with numeric key (converted to string)
+        assert _format_value('123', 100) == '100'
+
     def test_process_custom_sections(self):
         """Test processing custom sections."""
         custom_data = {
