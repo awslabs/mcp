@@ -11,7 +11,6 @@
 """Tests for the models module of the nova-canvas-mcp-server."""
 
 import pytest
-from typing import Any, Dict, cast
 from awslabs.nova_canvas_mcp_server.models import (
     ColorGuidedGenerationParams,
     ColorGuidedRequest,
