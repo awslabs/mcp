@@ -58,7 +58,7 @@ mcp-server-project/
 ├── CHANGELOG.md            # Version history and changes
 ├── LICENSE                 # License information
 ├── NOTICE                  # Additional copyright notices
-├── pyproject.toml          # Project configuration 
+├── pyproject.toml          # Project configuration
 ├── .gitignore              # Git ignore patterns
 ├── .pre-commit-config.yaml # Pre-commit hooks
 ├── awslabs/                # Source code directory
@@ -134,24 +134,24 @@ if __name__ == '__main__':
    - Namespace: `awslabs`
    - Package name: lowercase with hyphens (in pyproject.toml)
    - Python module: lowercase with underscores
-   
+
    Example:
    ```toml
    # In pyproject.toml
    name = "awslabs.nova-canvas-mcp-server"
    ```
-   
+
    ```python
    # In Python imports
    from awslabs.nova_canvas_mcp_server import models
    ```
 
 2. **Versioning**: Store version information in `__init__.py`:
-   
+
    ```python
    # awslabs/your_mcp_server/__init__.py
    """awslabs Your MCP Server."""
-   
+
    __version__ = "0.1.0"
    ```
 
@@ -338,7 +338,7 @@ async def query_knowledge_bases_tool(
     ## Usage Requirements
     - You MUST first use the `resource://knowledgebases` resource to get valid knowledge base IDs
     - You can query different knowledge bases or make multiple queries to the same knowledge base
-    
+
     [Detailed function documentation...]
     """
 ```
@@ -399,7 +399,7 @@ When writing parameter descriptions that contain instructions for AI models:
 async def process_document(
     ctx: Context,
     document_text: str = Field(
-        ..., 
+        ...,
         description='The text content of the document to process'
     ),
     output_format: Literal["markdown", "html", "text"] = Field(
@@ -408,7 +408,7 @@ async def process_document(
     ),
     workspace_dir: Optional[str] = Field(
         default=None,
-        description="""Directory where output files will be saved. 
+        description="""Directory where output files will be saved.
         CRITICAL: Assistant must always provide the current IDE workspace directory."""
     ),
 ) -> str:
@@ -481,7 +481,7 @@ async def mcp_generate_image(
     # ... other parameters
 ) -> McpImageGenerationResponse:
     """Generate an image using Amazon Nova Canvas with text prompt."""
-    
+
     # ... implementation
 ```
 
@@ -509,7 +509,7 @@ import asyncio
 @mcp.tool(name='parallel_operations')
 async def perform_parallel_operations(ctx: Context, query: str = Field(...)) -> str:
     """Performs multiple operations concurrently."""
-    
+
     # Execute operations concurrently
     results = await asyncio.gather(
         operation1(query),
@@ -517,10 +517,10 @@ async def perform_parallel_operations(ctx: Context, query: str = Field(...)) -> 
         operation3(query),
         return_exceptions=True
     )
-    
+
     # Process results
     valid_results = [r for r in results if not isinstance(r, Exception)]
-    
+
     return json.dumps(valid_results)
 ```
 
@@ -539,7 +539,7 @@ class McpImageGenerationResponse(BaseModel):
     """Response from image generation API."""
     status: str
     paths: List[str]
-    
+
 @mcp.tool(name='generate_image')
 async def mcp_generate_image(...) -> McpImageGenerationResponse:
     # ... implementation
@@ -572,7 +572,7 @@ async def scan_python_code(code: str) -> CodeScanResult:
 
     # Check security
     security_issues = await check_security(code)
-    
+
     # Check for dangerous functions explicitly
     dangerous_functions = check_dangerous_functions(code)
     if dangerous_functions:
@@ -718,7 +718,7 @@ signal.alarm(timeout)
 try:
     # Long-running operation
     result = operation()
-    
+
     # Cancel the alarm
     signal.alarm(0)
     return result
@@ -760,14 +760,14 @@ def is_import_allowed(module_name, function_name=None):
     """Check if a module or function import is allowed."""
     if module_name not in ALLOWED_MODULES:
         return False
-        
+
     if function_name is None:
         return True  # The module itself is allowed
-        
+
     allowed_functions = ALLOWED_MODULES[module_name]
     if '*' in allowed_functions:
         return True  # All functions from this module are allowed
-        
+
     return function_name in allowed_functions
 ```
 
@@ -884,7 +884,7 @@ async def mcp_generate_image(
     # ... other parameters
 ) -> McpImageGenerationResponse:
     """Generate an image using Amazon Nova Canvas with text prompt."""
-    
+
     try:
         logger.info(f'Generating image with text prompt, quality: {quality}')
         response = await generate_image_with_text(
