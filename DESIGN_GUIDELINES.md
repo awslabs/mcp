@@ -170,8 +170,6 @@ if __name__ == '__main__':
        "awslabs/your_mcp_server/__init__.py:__version__"
    ]
    update_changelog_on_bump = true
-   ```
-
 ## License and Copyright Headers
 
 Include standard license headers at the top of each source file:
