@@ -22,7 +22,7 @@
     title: {{cookiecutter.project_domain}} MCP Server
     ---
     
-    {%include "../../src/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server/README.md"%}
+    %include "../../src/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server/README.md"%
     ```
   
 * Reference within the "../../doc/index.md" like this:
