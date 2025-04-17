@@ -21,8 +21,8 @@
     ---
     title: {{cookiecutter.project_domain}} MCP Server
     ---
-    
-    \{%include "../../src/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server/README.md"%\}
+
+    {% raw %}{% include{% endraw %} "../../src/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server/README.md" {% raw %}%}{% endraw %}
     ```
   
 * Reference within the "../../doc/index.md" like this:
