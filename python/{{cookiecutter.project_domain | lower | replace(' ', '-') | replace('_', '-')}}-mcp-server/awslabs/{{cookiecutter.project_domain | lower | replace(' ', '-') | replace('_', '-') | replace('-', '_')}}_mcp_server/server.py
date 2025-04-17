@@ -19,7 +19,7 @@ from typing import Literal
 
 mcp = FastMCP(
     "awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server",
-    instructions='{{cookiecutter.instructions}}',
+    instructions='{{cookiecutter.instructions | replace('''', '''''')}}',
     dependencies=[
         'pydantic',
         'loguru',
