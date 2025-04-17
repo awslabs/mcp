@@ -10,6 +10,8 @@ The tests are organized as follows:
 - `test_models.py`: Tests for the data models
 - `test_server.py`: Tests for the MCP server functionality
 - `test_command_impl.py`: Tests for the Terraform command execution implementation
+- `test_execute_terraform_command.py`: Dedicated tests for the execute_terraform_command implementation
+- `test_run_checkov_scan.py`: Dedicated tests for the run_checkov_scan implementation
 - `test_resources.py`: Tests for the resource implementations
 - `test_tool_implementations.py`: Tests for the tool implementations
 - `test_utils.py` and `test_utils_additional.py`: Tests for utility functions
@@ -133,4 +135,25 @@ Tests for the tool implementations, including:
 - AWS provider documentation search
 - AWSCC provider documentation search
 - AWS-IA modules search
-- Checkov scan execution
+
+### test_execute_terraform_command.py
+
+Dedicated tests for the execute_terraform_command implementation, including:
+
+- Testing the clean_output_text helper function
+- Testing AWS region environment variable setting
+- Testing exception handling
+- Testing output error handling
+- Testing JSON parsing error handling
+- Testing complex output structures with nested values
+
+### test_run_checkov_scan.py
+
+Dedicated tests for the run_checkov_scan implementation, including:
+
+- Testing the _clean_output_text function
+- Testing JSON output parsing
+- Testing with absolute and relative paths
+- Testing security checks for dangerous patterns
+- Testing CLI output parsing
+- Testing error handling and exception handling
