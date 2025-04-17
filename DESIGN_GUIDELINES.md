@@ -52,7 +52,7 @@ This document outlines the design guidelines and best practices for developing M
 
 MCP servers should follow this basic structure:
 
-```
+```python
 mcp-server-project/
 ├── README.md               # Project description, setup instructions
 ├── CHANGELOG.md            # Version history and changes
