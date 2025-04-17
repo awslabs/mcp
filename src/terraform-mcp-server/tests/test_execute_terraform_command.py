@@ -13,12 +13,13 @@ pytestmark = pytest.mark.asyncio
 
 
 @pytest.mark.asyncio
-async def test_clean_output_text_helper():
+async def test_clean_output_text_helper(temp_terraform_dir):
     """Test the clean_output_text helper function indirectly."""
     # Create a mock request with all required parameters
+    # Use a temporary directory fixture instead of hardcoded /tmp for security
     request = TerraformExecutionRequest(
         command='init',
-        working_directory='/tmp',
+        working_directory=temp_terraform_dir,
         variables={},
         aws_region='us-west-2',
         strip_ansi=True,
