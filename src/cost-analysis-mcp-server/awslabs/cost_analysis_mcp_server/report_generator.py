@@ -494,24 +494,32 @@ def _process_recommendations(
     return immediate_actions, best_practices
 
 
-def _format_value(key: str, value: Any) -> str:
+def _format_value(key: Any, value: Any) -> str:
     """Format a value based on its type and key name."""
-    if isinstance(value, (int, float)):
-        # Check if the field name suggests it's a monetary value
-        is_monetary = key.lower() == 'total' or any(
-            term in key.lower() for term in MONETARY_FIELDS
-        )
+    try:
+        # Ensure key is a string and handle None case
+        key_str = str(key).lower() if key is not None else ''
 
-        if key.lower() == 'total':
-            return f'**${value}**'
-        elif is_monetary:
-            return f'${value}'
+        if isinstance(value, (int, float)):
+            # Check if the field name suggests it's a monetary value
+            is_total = key_str == 'total'
+            is_monetary = is_total or any(
+                term in key_str for term in MONETARY_FIELDS if isinstance(term, str)
+            )
+
+            if is_total:
+                return f'**${value}**'
+            elif is_monetary:
+                return f'${value}'
+            return str(value)
+
+        elif isinstance(value, dict):
+            return 'See nested table below'
+
         return str(value)
-
-    elif isinstance(value, dict):
-        return 'See nested table below'
-
-    return str(value)
+    except Exception:
+        # Fallback to safe string conversion if any error occurs
+        return str(value)
 
 
 def _process_custom_sections(custom_cost_data: Dict) -> str:
@@ -634,24 +642,28 @@ async def _generate_custom_data_report(
     )
 
     # Add assumptions section
-    assumptions = custom_cost_data.get(
-        'assumptions',
-        [
-            'Standard configuration for all services',
-            'Default usage patterns based on typical workloads',
-            'No reserved instances or savings plans applied',
-        ],
-    )
+    default_assumptions = [
+        'Standard configuration for all services',
+        'Default usage patterns based on typical workloads',
+        'No reserved instances or savings plans applied',
+    ]
+
+    assumptions = custom_cost_data.get('assumptions', default_assumptions)
     assumptions_list = []
+
+    if assumptions is None:
+        assumptions = default_assumptions
+
     if isinstance(assumptions, str):
         # Handle case where assumptions is a string
         for line in assumptions.split('\n'):
-            if line.strip():
+            if line and line.strip():
                 assumptions_list.append(f'- {line.strip()}')
     elif isinstance(assumptions, list):
         # Handle case where assumptions is a list
         for assumption in assumptions:
-            assumptions_list.append(f'- {assumption}')
+            if assumption is not None:
+                assumptions_list.append(f'- {str(assumption).strip()}')
     report = report.replace('{assumptions_section}', '\n'.join(assumptions_list))
 
     # Add limitations and exclusions section
