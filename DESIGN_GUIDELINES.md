@@ -164,7 +164,7 @@ if __name__ == '__main__':
    [tool.commitizen]
    name = "cz_conventional_commits"
    version = "0.0.0"
-   tag_format = "v$version"
+   tag_format = "$version"
    version_files = [
        "pyproject.toml:version",
        "awslabs/your_mcp_server/__init__.py:__version__"
