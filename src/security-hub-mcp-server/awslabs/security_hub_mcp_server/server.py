@@ -8,13 +8,12 @@ from mcp.server.fastmcp import FastMCP
 from typing import Dict, List, Optional
 
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
     'awslabs.security-hub-mcp-server',
-    instructions="Instructions for using this MCP server. This can be used by clients to improve the LLM's understanding of available tools, resources, etc. It can be thought of like a 'hint' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.",
+    instructions="""Use this server to analyze findings in AWS Security Hub.""",
     dependencies=[
         'pydantic',
     ],
