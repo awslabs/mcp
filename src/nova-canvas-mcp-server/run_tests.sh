@@ -143,7 +143,7 @@ if [ -d "tests" ]; then
     # Run tests with coverage
     echo "Running tests with coverage..."
     $PYTEST_CMD --cov --cov-branch --cov-report=term-missing tests/
-    
+
     # For GitHub Actions, provide an alternative command that uses python -m pytest
     if [ -n "$GITHUB_ACTIONS" ]; then
         echo "Running tests with python -m pytest for GitHub Actions..."
