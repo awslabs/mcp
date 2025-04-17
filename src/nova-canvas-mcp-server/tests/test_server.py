@@ -11,12 +11,11 @@
 """Tests for the server module of the nova-canvas-mcp-server."""
 
 import pytest
+from unittest.mock import MagicMock, patch
 from awslabs.nova_canvas_mcp_server.server import (
     mcp_generate_image,
     mcp_generate_image_with_colors,
 )
-from unittest.mock import MagicMock, patch
-
 
 class TestMcpGenerateImage:
     """Tests for the mcp_generate_image function."""

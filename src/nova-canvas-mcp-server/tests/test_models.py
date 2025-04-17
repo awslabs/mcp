@@ -11,6 +11,7 @@
 """Tests for the models module of the nova-canvas-mcp-server."""
 
 import pytest
+from typing import Any, Dict, cast
 from awslabs.nova_canvas_mcp_server.models import (
     ColorGuidedGenerationParams,
     ColorGuidedRequest,
@@ -312,10 +313,20 @@ class TestTextImageRequest:
             textToImageParams=TextToImageParams(text='A beautiful mountain landscape')
         )
         api_dict = request.to_api_dict()
+        
+        # Test basic properties
         assert api_dict['taskType'] == TaskType.TEXT_IMAGE
         assert api_dict['textToImageParams']['text'] == 'A beautiful mountain landscape'
         assert 'negativeText' not in api_dict['textToImageParams']
+        
+        # Just verify imageGenerationConfig exists without accessing its attributes
+        assert 'imageGenerationConfig' in api_dict
         assert api_dict['imageGenerationConfig'] is not None
+        
+        # Verify it has the expected keys without accessing values
+        config_dict = api_dict['imageGenerationConfig']
+        expected_keys = {'width', 'height', 'quality', 'cfgScale', 'seed', 'numberOfImages'}
+        assert set(config_dict.keys()).issuperset(expected_keys)
 
         # With negative text
         request = TextImageRequest(
@@ -327,6 +338,9 @@ class TestTextImageRequest:
         assert api_dict['taskType'] == TaskType.TEXT_IMAGE
         assert api_dict['textToImageParams']['text'] == 'A beautiful mountain landscape'
         assert api_dict['textToImageParams']['negativeText'] == 'people, clouds'
+        
+        # Just verify imageGenerationConfig exists without accessing its attributes
+        assert 'imageGenerationConfig' in api_dict
         assert api_dict['imageGenerationConfig'] is not None
 
 
@@ -391,7 +405,15 @@ class TestColorGuidedRequest:
             '#3357FF',
         ]
         assert 'negativeText' not in api_dict['colorGuidedGenerationParams']
+        
+        # Just verify imageGenerationConfig exists without accessing its attributes
+        assert 'imageGenerationConfig' in api_dict
         assert api_dict['imageGenerationConfig'] is not None
+        
+        # Verify it has the expected keys without accessing values
+        config_dict = api_dict['imageGenerationConfig']
+        expected_keys = {'width', 'height', 'quality', 'cfgScale', 'seed', 'numberOfImages'}
+        assert set(config_dict.keys()).issuperset(expected_keys)
 
         # With negative text
         request = ColorGuidedRequest(
@@ -410,6 +432,9 @@ class TestColorGuidedRequest:
             '#3357FF',
         ]
         assert api_dict['colorGuidedGenerationParams']['negativeText'] == 'people, clouds'
+        
+        # Just verify imageGenerationConfig exists without accessing its attributes
+        assert 'imageGenerationConfig' in api_dict
         assert api_dict['imageGenerationConfig'] is not None
 
 
