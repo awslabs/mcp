@@ -72,6 +72,7 @@ This is another paragraph.
 This is another paragraph.
 """
         result = extract_description_from_readme(readme)
+        assert result is not None
         assert len(result) <= 200
         assert result.endswith('...')
         assert result.startswith('This is a very long paragraph.')
@@ -90,7 +91,7 @@ This is another paragraph.
         """Test extracting a description from an empty README."""
         result = extract_description_from_readme('')
         assert result is None
-        result = extract_description_from_readme(None)
+        result = extract_description_from_readme(None)  # type: ignore
         assert result is None
 
 
@@ -159,7 +160,7 @@ This is a paragraph.
         """Test extracting outputs from an empty README."""
         result = extract_outputs_from_readme('')
         assert len(result) == 0
-        result = extract_outputs_from_readme(None)
+        result = extract_outputs_from_readme(None)  # type: ignore
         assert len(result) == 0
 
 
@@ -221,7 +222,7 @@ variable "instance_type" {
         """Test parsing variables.tf without variables."""
         result = parse_variables_tf('')
         assert len(result) == 0
-        result = parse_variables_tf(None)
+        result = parse_variables_tf(None)  # type: ignore
         assert len(result) == 0
 
     def test_parse_variables_tf_with_complex_types(self):

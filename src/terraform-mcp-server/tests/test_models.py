@@ -48,7 +48,11 @@ class TestTerraformExecutionRequest:
     def test_terraform_execution_request_defaults(self):
         """Test TerraformExecutionRequest with default values."""
         request = TerraformExecutionRequest(
-            command='init', working_directory='/tmp/terraform_test'
+            command='init',
+            working_directory='/tmp/terraform_test',
+            variables=None,
+            aws_region=None,
+            strip_ansi=True,
         )
 
         assert request.command == 'init'
@@ -92,6 +96,7 @@ class TestTerraformExecutionResult:
             command='terraform init',
             working_directory='/tmp/terraform_test',
             error_message='Failed to initialize Terraform',
+            outputs=None,
         )
 
         assert result.status == 'error'
@@ -125,7 +130,13 @@ class TestCheckovScanRequest:
 
     def test_checkov_scan_request_defaults(self):
         """Test CheckovScanRequest with default values."""
-        request = CheckovScanRequest(working_directory='/tmp/terraform_test')
+        request = CheckovScanRequest(
+            working_directory='/tmp/terraform_test',
+            framework='terraform',
+            check_ids=None,
+            skip_check_ids=None,
+            output_format='json',
+        )
 
         assert request.working_directory == '/tmp/terraform_test'
         assert request.framework == 'terraform'
@@ -148,6 +159,8 @@ class TestCheckovVulnerability:
             line=5,
             guideline='https://docs.bridgecrew.io/docs/s3-encryption',
             severity='HIGH',
+            fixed=False,
+            fix_details=None,
         )
 
         assert vulnerability.id == 'CKV_AWS_1'
@@ -174,6 +187,9 @@ class TestCheckovScanResult:
             file_path='/tmp/terraform_test/main.tf',
             line=5,
             guideline='https://docs.bridgecrew.io/docs/s3-encryption',
+            severity='MEDIUM',
+            fixed=False,
+            fix_details=None,
         )
 
         result = CheckovScanResult(
@@ -197,7 +213,10 @@ class TestCheckovScanResult:
         assert result.vulnerabilities[0].id == 'CKV_AWS_1'
         assert result.summary['passed'] == 0
         assert result.summary['failed'] == 1
-        assert 'Ensure S3 bucket has encryption enabled' in result.raw_output
+        assert (
+            result.raw_output is not None
+            and 'Ensure S3 bucket has encryption enabled' in result.raw_output
+        )
         assert result.error_message is None
 
     def test_checkov_scan_result_error(self):
@@ -208,6 +227,8 @@ class TestCheckovScanResult:
             working_directory='/tmp/terraform_test',
             error_message='Failed to run Checkov',
             raw_output='Error: Failed to run Checkov',
+            vulnerabilities=[],
+            summary={},
         )
 
         assert result.status == 'error'
@@ -247,15 +268,24 @@ class TestTerraformAWSProviderDocsResult:
             asset.url
             == 'https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket'
         )
-        assert len(asset.example_usage) == 1
-        assert 'bucket = "my-bucket"' in asset.example_usage[0]['code']
-        assert len(asset.arguments) == 1
-        assert asset.arguments[0]['name'] == 'bucket'
-        assert asset.arguments[0]['description'] == 'The name of the bucket.'
-        assert asset.arguments[0]['required'] == 'false'
-        assert len(asset.attributes) == 1
-        assert asset.attributes[0]['name'] == 'id'
-        assert asset.attributes[0]['description'] == 'The name of the bucket.'
+        assert asset.example_usage is not None and len(asset.example_usage) == 1
+        assert (
+            asset.example_usage is not None
+            and 'bucket = "my-bucket"' in asset.example_usage[0]['code']
+        )
+        assert asset.arguments is not None and len(asset.arguments) == 1
+        assert asset.arguments is not None and asset.arguments[0]['name'] == 'bucket'
+        assert (
+            asset.arguments is not None
+            and asset.arguments[0]['description'] == 'The name of the bucket.'
+        )
+        assert asset.arguments is not None and asset.arguments[0]['required'] == 'false'
+        assert asset.attributes is not None and len(asset.attributes) == 1
+        assert asset.attributes is not None and asset.attributes[0]['name'] == 'id'
+        assert (
+            asset.attributes is not None
+            and asset.attributes[0]['description'] == 'The name of the bucket.'
+        )
 
 
 class TestTerraformAWSCCProviderDocsResult:
@@ -286,12 +316,21 @@ class TestTerraformAWSCCProviderDocsResult:
             asset.url
             == 'https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/resources/s3_bucket'
         )
-        assert len(asset.example_usage) == 1
-        assert 'bucket_name = "my-bucket"' in asset.example_usage[0]['code']
-        assert len(asset.schema_arguments) == 1
-        assert asset.schema_arguments[0]['name'] == 'bucket_name'
-        assert asset.schema_arguments[0]['description'] == 'The name of the bucket.'
-        assert asset.schema_arguments[0]['required'] is True
+        assert asset.example_usage is not None and len(asset.example_usage) == 1
+        assert (
+            asset.example_usage is not None
+            and 'bucket_name = "my-bucket"' in asset.example_usage[0]['code']
+        )
+        assert asset.schema_arguments is not None and len(asset.schema_arguments) == 1
+        assert (
+            asset.schema_arguments is not None
+            and asset.schema_arguments[0]['name'] == 'bucket_name'
+        )
+        assert (
+            asset.schema_arguments is not None
+            and asset.schema_arguments[0]['description'] == 'The name of the bucket.'
+        )
+        assert asset.schema_arguments is not None and asset.schema_arguments[0]['required'] is True
 
 
 class TestModuleSearchResult:
@@ -335,22 +374,34 @@ class TestModuleSearchResult:
         assert module.version == '1.0.0'
         assert module.description == 'Amazon Bedrock module for generative AI applications'
         assert module.url == 'https://registry.terraform.io/modules/aws-ia/bedrock/aws/latest'
-        assert 'AWS Bedrock Terraform Module' in module.readme_content
+        assert (
+            module.readme_content is not None
+            and 'AWS Bedrock Terraform Module' in module.readme_content
+        )
         assert module.input_count == 2
         assert module.output_count == 2
         assert module.has_submodules is True
-        assert len(module.submodules) == 1
-        assert module.submodules[0].name == 'agent'
-        assert module.submodules[0].path == 'modules/agent'
-        assert module.submodules[0].description == 'Bedrock agent submodule'
-        assert len(module.variables) == 1
-        assert module.variables[0].name == 'name'
-        assert module.variables[0].type == 'string'
-        assert module.variables[0].description == 'Name to use for resources'
-        assert module.variables[0].default == 'bedrock-module'
-        assert len(module.outputs) == 1
-        assert module.outputs[0].name == 'bedrock_endpoint_url'
-        assert module.outputs[0].description == 'URL of the Bedrock endpoint'
+        assert module.submodules is not None and len(module.submodules) == 1
+        assert module.submodules is not None and module.submodules[0].name == 'agent'
+        assert module.submodules is not None and module.submodules[0].path == 'modules/agent'
+        assert (
+            module.submodules is not None
+            and module.submodules[0].description == 'Bedrock agent submodule'
+        )
+        assert module.variables is not None and len(module.variables) == 1
+        assert module.variables is not None and module.variables[0].name == 'name'
+        assert module.variables is not None and module.variables[0].type == 'string'
+        assert (
+            module.variables is not None
+            and module.variables[0].description == 'Name to use for resources'
+        )
+        assert module.variables is not None and module.variables[0].default == 'bedrock-module'
+        assert module.outputs is not None and len(module.outputs) == 1
+        assert module.outputs is not None and module.outputs[0].name == 'bedrock_endpoint_url'
+        assert (
+            module.outputs is not None
+            and module.outputs[0].description == 'URL of the Bedrock endpoint'
+        )
 
 
 class TestSubmoduleInfo:

@@ -51,7 +51,10 @@ async def test_execute_terraform_command_success():
                     assert result is not None
                     assert result.status == 'success'
                     assert result.return_code == 0
-                    assert 'Terraform initialized successfully!' in result.stdout
+                    assert (
+                        result.stdout is not None
+                        and 'Terraform initialized successfully!' in result.stdout
+                    )
                     assert result.stderr == ''
                     assert result.command == 'terraform init'
                     assert result.working_directory == '/tmp/terraform_test'
@@ -90,7 +93,7 @@ async def test_execute_terraform_command_error():
                     assert result is not None
                     assert result.status == 'error'
                     assert result.return_code == 1
-                    assert 'Error: Invalid command' in result.stdout
+                    assert result.stdout is not None and 'Error: Invalid command' in result.stdout
                     assert 'terraform: command not found' in result.stderr
 
 
@@ -137,7 +140,11 @@ async def test_run_checkov_scan_success():
 
     # Create the request
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test', framework='terraform', output_format='json'
+        working_directory='/tmp/terraform_test',
+        framework='terraform',
+        output_format='json',
+        check_ids=None,
+        skip_check_ids=None,
     )
 
     # Mock subprocess.run
@@ -205,8 +212,11 @@ async def test_execute_terraform_command_dangerous_patterns():
     # Check the result
     assert result is not None
     assert result.status == 'error'
-    assert 'Security violation' in result.error_message
-    assert 'Potentially dangerous pattern' in result.error_message
+    assert result.error_message is not None and 'Security violation' in result.error_message
+    assert (
+        result.error_message is not None
+        and 'Potentially dangerous pattern' in result.error_message
+    )
 
 
 @pytest.mark.asyncio
@@ -271,6 +281,8 @@ async def test_run_checkov_scan_invalid_framework():
         working_directory='/tmp/terraform_test',
         framework='invalid_framework',  # Invalid framework
         output_format='json',
+        check_ids=None,
+        skip_check_ids=None,
     )
 
     # Call the function
@@ -279,8 +291,8 @@ async def test_run_checkov_scan_invalid_framework():
     # Check the result
     assert result is not None
     assert result.status == 'error'
-    assert 'Security violation' in result.error_message
-    assert 'Invalid framework' in result.error_message
+    assert result.error_message is not None and 'Security violation' in result.error_message
+    assert result.error_message is not None and 'Invalid framework' in result.error_message
 
 
 @pytest.mark.asyncio
@@ -291,6 +303,8 @@ async def test_run_checkov_scan_invalid_output_format():
         working_directory='/tmp/terraform_test',
         framework='terraform',
         output_format='invalid_format',  # Invalid output format
+        check_ids=None,
+        skip_check_ids=None,
     )
 
     # Call the function
@@ -299,8 +313,8 @@ async def test_run_checkov_scan_invalid_output_format():
     # Check the result
     assert result is not None
     assert result.status == 'error'
-    assert 'Security violation' in result.error_message
-    assert 'Invalid output format' in result.error_message
+    assert result.error_message is not None and 'Security violation' in result.error_message
+    assert result.error_message is not None and 'Invalid output format' in result.error_message
 
 
 @pytest.mark.asyncio
@@ -312,6 +326,7 @@ async def test_run_checkov_scan_dangerous_patterns():
         framework='terraform',
         output_format='json',
         check_ids=['CKV_AWS_1; rm -rf /'],  # Dangerous pattern
+        skip_check_ids=None,
     )
 
     # Call the function
@@ -320,8 +335,11 @@ async def test_run_checkov_scan_dangerous_patterns():
     # Check the result
     assert result is not None
     assert result.status == 'error'
-    assert 'Security violation' in result.error_message
-    assert 'Potentially dangerous pattern' in result.error_message
+    assert result.error_message is not None and 'Security violation' in result.error_message
+    assert (
+        result.error_message is not None
+        and 'Potentially dangerous pattern' in result.error_message
+    )
 
 
 @pytest.mark.asyncio
@@ -347,7 +365,11 @@ async def test_run_checkov_scan_cli_output():
 
     # Create the request
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test', framework='terraform', output_format='cli'
+        working_directory='/tmp/terraform_test',
+        framework='terraform',
+        output_format='cli',
+        check_ids=None,
+        skip_check_ids=None,
     )
 
     # Mock subprocess.run
@@ -384,7 +406,11 @@ async def test_run_checkov_scan_error():
 
     # Create the request
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test', framework='terraform', output_format='json'
+        working_directory='/tmp/terraform_test',
+        framework='terraform',
+        output_format='json',
+        check_ids=None,
+        skip_check_ids=None,
     )
 
     # Mock subprocess.run
@@ -411,7 +437,11 @@ async def test_run_checkov_scan_checkov_not_installed():
     """Test the Checkov scan function when Checkov is not installed."""
     # Create the request
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test', framework='terraform', output_format='json'
+        working_directory='/tmp/terraform_test',
+        framework='terraform',
+        output_format='json',
+        check_ids=None,
+        skip_check_ids=None,
     )
 
     # Mock _ensure_checkov_installed to return False
@@ -425,4 +455,7 @@ async def test_run_checkov_scan_checkov_not_installed():
         # Check the result
         assert result is not None
         assert result.status == 'error'
-        assert 'Failed to install Checkov' in result.error_message
+        assert (
+            result.error_message is not None
+            and 'Failed to install Checkov' in result.error_message
+        )

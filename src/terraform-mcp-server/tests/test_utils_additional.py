@@ -218,7 +218,10 @@ module "submodule1" {
             assert len(result) == 2
             assert result[0].name == 'submodule1'
             assert result[0].path == 'modules/submodule1'
-            assert 'This is a description of submodule 1.' in result[0].readme_content
+            assert (
+                result[0].readme_content is not None
+                and 'This is a description of submodule 1.' in result[0].readme_content
+            )
             assert result[1].name == 'submodule2'
             assert result[1].path == 'modules/submodule2'
 
@@ -339,6 +342,7 @@ variable "instance_type" {
 
                 # Check the result
                 assert content == mock_response.text
+                assert variables is not None
                 assert len(variables) == 2
                 assert variables[0].name == 'region'
                 assert variables[0].type == 'string'
@@ -452,6 +456,7 @@ variable "region" {
 
                 # Check the result
                 assert content == mock_master_response.text
+                assert variables is not None
                 assert len(variables) == 1
                 assert variables[0].name == 'region'
                 assert variables[0].type == 'string'

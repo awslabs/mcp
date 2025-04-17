@@ -27,7 +27,7 @@ class TestMCPServer:
     def test_mcp_initialization(self):
         """Test that the MCP server is initialized correctly."""
         assert mcp.name == 'terraform_mcp_server'
-        assert 'AWS-IA modules' in mcp.instructions
+        assert mcp.instructions is not None and 'AWS-IA modules' in mcp.instructions
         assert 'pydantic' in mcp.dependencies
         assert 'loguru' in mcp.dependencies
         assert 'requests' in mcp.dependencies
@@ -117,7 +117,10 @@ class TestResources:
         assert resource_info is not None
         assert resource_info.name == 'terraform_development_workflow'
         assert str(resource_info.uri) == 'terraform://development_workflow'
-        assert 'Terraform Development Workflow Guide' in resource_info.description
+        assert (
+            resource_info.description is not None
+            and 'Terraform Development Workflow Guide' in resource_info.description
+        )
         assert resource_info.mime_type == 'text/markdown'
 
         # Test terraform_aws_provider_resources_listing resource
@@ -127,7 +130,10 @@ class TestResources:
         assert resource_info is not None
         assert resource_info.name == 'terraform_aws_provider_resources_listing'
         assert str(resource_info.uri) == 'terraform://aws_provider_resources_listing'
-        assert 'Comprehensive listing of AWS provider resources' in resource_info.description
+        assert (
+            resource_info.description is not None
+            and 'Comprehensive listing of AWS provider resources' in resource_info.description
+        )
         assert resource_info.mime_type == 'text/markdown'
 
         # Test terraform_awscc_provider_resources_listing resource
@@ -137,7 +143,10 @@ class TestResources:
         assert resource_info is not None
         assert resource_info.name == 'terraform_awscc_provider_resources_listing'
         assert str(resource_info.uri) == 'terraform://awscc_provider_resources_listing'
-        assert 'Comprehensive listing of AWSCC provider resources' in resource_info.description
+        assert (
+            resource_info.description is not None
+            and 'Comprehensive listing of AWSCC provider resources' in resource_info.description
+        )
         assert resource_info.mime_type == 'text/markdown'
 
         # Test terraform_aws_best_practices resource
@@ -145,7 +154,10 @@ class TestResources:
         assert resource_info is not None
         assert resource_info.name == 'terraform_aws_best_practices'
         assert str(resource_info.uri) == 'terraform://aws_best_practices'
-        assert 'AWS Terraform Provider Best Practices' in resource_info.description
+        assert (
+            resource_info.description is not None
+            and 'AWS Terraform Provider Best Practices' in resource_info.description
+        )
         assert resource_info.mime_type == 'text/markdown'
 
     def test_terraform_development_workflow_resource(self):
@@ -155,7 +167,10 @@ class TestResources:
         assert resource_info is not None
         assert resource_info.name == 'terraform_development_workflow'
         assert str(resource_info.uri) == 'terraform://development_workflow'
-        assert 'Terraform Development Workflow Guide' in resource_info.description
+        assert (
+            resource_info.description is not None
+            and 'Terraform Development Workflow Guide' in resource_info.description
+        )
         assert resource_info.mime_type == 'text/markdown'
 
     @pytest.mark.asyncio
@@ -185,7 +200,10 @@ class TestResources:
         assert resource_info is not None
         assert resource_info.name == 'terraform_aws_best_practices'
         assert str(resource_info.uri) == 'terraform://aws_best_practices'
-        assert 'AWS Terraform Provider Best Practices' in resource_info.description
+        assert (
+            resource_info.description is not None
+            and 'AWS Terraform Provider Best Practices' in resource_info.description
+        )
         assert resource_info.mime_type == 'text/markdown'
 
 
