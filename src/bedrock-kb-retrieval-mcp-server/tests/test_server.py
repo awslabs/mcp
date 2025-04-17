@@ -29,7 +29,10 @@ class TestMCPServer:
     def test_mcp_initialization(self):
         """Test that the MCP server is initialized correctly."""
         assert mcp.name == 'awslabs.bedrock-kb-retrieval-mcp-server'
-        assert 'AWS Labs Bedrock Knowledge Bases Retrieval MCP Server' in mcp.instructions
+        assert (
+            mcp.instructions is not None
+            and 'AWS Labs Bedrock Knowledge Bases Retrieval MCP Server' in mcp.instructions
+        )
         assert 'boto3' in mcp.dependencies
 
 
