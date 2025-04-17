@@ -17,6 +17,7 @@ from awslabs.nova_canvas_mcp_server.server import (
     mcp_generate_image_with_colors,
 )
 
+
 class TestMcpGenerateImage:
     """Tests for the mcp_generate_image function."""
 
