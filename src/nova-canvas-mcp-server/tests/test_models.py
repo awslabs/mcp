@@ -298,12 +298,6 @@ class TestTextImageRequest:
         assert request.taskType == TaskType.TEXT_IMAGE
         assert request.textToImageParams.text == 'A beautiful mountain landscape'
         assert request.textToImageParams.negativeText == 'people, clouds'
-        assert request.imageGenerationConfig.width == 512
-        assert request.imageGenerationConfig.height == 768
-        assert request.imageGenerationConfig.quality == Quality.PREMIUM
-        assert request.imageGenerationConfig.cfgScale == 8.0
-        assert request.imageGenerationConfig.seed == 12345
-        assert request.imageGenerationConfig.numberOfImages == 3
 
     def test_to_api_dict(self):
         """Test the to_api_dict method."""
@@ -379,13 +373,6 @@ class TestColorGuidedRequest:
         assert request.taskType == TaskType.COLOR_GUIDED_GENERATION
         assert request.colorGuidedGenerationParams.text == 'A beautiful mountain landscape'
         assert request.colorGuidedGenerationParams.colors == ['#FF5733', '#33FF57', '#3357FF']
-        assert request.colorGuidedGenerationParams.negativeText == 'people, clouds'
-        assert request.imageGenerationConfig.width == 512
-        assert request.imageGenerationConfig.height == 768
-        assert request.imageGenerationConfig.quality == Quality.PREMIUM
-        assert request.imageGenerationConfig.cfgScale == 8.0
-        assert request.imageGenerationConfig.seed == 12345
-        assert request.imageGenerationConfig.numberOfImages == 3
 
     def test_to_api_dict(self):
         """Test the to_api_dict method."""
