@@ -39,6 +39,12 @@ if [ $? -ne 0 ]; then
     MISSING_PACKAGES+=("bandit")
 fi
 
+# Check for mcp package
+python -c "import mcp" 2>/dev/null
+if [ $? -ne 0 ]; then
+    MISSING_PACKAGES+=("mcp")
+fi
+
 # Check for pydantic package
 python -c "import pydantic" 2>/dev/null
 if [ $? -ne 0 ]; then
