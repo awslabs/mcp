@@ -143,6 +143,12 @@ if [ -d "tests" ]; then
     # Run tests with coverage
     echo "Running tests with coverage..."
     $PYTEST_CMD --cov --cov-branch --cov-report=term-missing tests/
+    
+    # For GitHub Actions, provide an alternative command that uses python -m pytest
+    if [ -n "$GITHUB_ACTIONS" ]; then
+        echo "Running tests with python -m pytest for GitHub Actions..."
+        python -m pytest --cov --cov-branch --cov-report=term-missing --cov-report=xml:nova-canvas-mcp-server-coverage.xml tests/
+    fi
 else
     echo "No tests directory found, skipping tests"
 fi
