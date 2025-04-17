@@ -1,6 +1,6 @@
 # MCP Server Design Guidelines
 
-This document outlines the design guidelines and best practices for developing MCP (Multimodal Code Platform) servers. These guidelines are based on the patterns used in examples like `bedrock-kb-retrieval-mcp-server` and `nova-canvas-mcp-server`.
+This document outlines the design guidelines and best practices for developing MCP (Model Context Protocol) servers. These guidelines are based on the patterns used in examples like `bedrock-kb-retrieval-mcp-server` and `nova-canvas-mcp-server`.
 
 ## Table of Contents
 
