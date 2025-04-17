@@ -94,6 +94,10 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "0.0.0"
@@ -108,7 +112,7 @@ update_changelog_on_bump = true
 packages = ["awslabs"]
 
 [tool.bandit]
-exclude_dirs = [".venv", "tests"]
+exclude_dirs = ["venv", ".venv", "tests"]
 
 [tool.pytest.ini_options]
 python_files = "test_*.py"
@@ -116,6 +120,11 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = [ "tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
+]
 
 [tool.coverage.report]
 exclude_also = [
