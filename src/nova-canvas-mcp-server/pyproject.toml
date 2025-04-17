@@ -9,6 +9,9 @@ dependencies = [
     "loguru>=0.7.3",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.11.1",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
