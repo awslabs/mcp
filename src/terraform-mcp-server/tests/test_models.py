@@ -11,6 +11,7 @@
 
 """Tests for the models module of the terraform-mcp-server."""
 
+import os
 from awslabs.terraform_mcp_server.models import (
     CheckovScanRequest,
     CheckovScanResult,
@@ -29,34 +30,34 @@ from awslabs.terraform_mcp_server.models import (
 class TestTerraformExecutionRequest:
     """Tests for the TerraformExecutionRequest model."""
 
-    def test_terraform_execution_request_creation(self):
+    def test_terraform_execution_request_creation(self, temp_terraform_dir):
         """Test creating a TerraformExecutionRequest."""
         request = TerraformExecutionRequest(
             command='init',
-            working_directory='/tmp/terraform_test',
+            working_directory=temp_terraform_dir,
             variables={'environment': 'test'},
             aws_region='us-west-2',
             strip_ansi=True,
         )
 
         assert request.command == 'init'
-        assert request.working_directory == '/tmp/terraform_test'
+        assert request.working_directory == temp_terraform_dir
         assert request.variables == {'environment': 'test'}
         assert request.aws_region == 'us-west-2'
         assert request.strip_ansi is True
 
-    def test_terraform_execution_request_defaults(self):
+    def test_terraform_execution_request_defaults(self, temp_terraform_dir):
         """Test TerraformExecutionRequest with default values."""
         request = TerraformExecutionRequest(
             command='init',
-            working_directory='/tmp/terraform_test',
+            working_directory=temp_terraform_dir,
             variables=None,
             aws_region=None,
             strip_ansi=True,
         )
 
         assert request.command == 'init'
-        assert request.working_directory == '/tmp/terraform_test'
+        assert request.working_directory == temp_terraform_dir
         assert request.variables is None
         assert request.aws_region is None
         assert request.strip_ansi is True
@@ -65,7 +66,7 @@ class TestTerraformExecutionRequest:
 class TestTerraformExecutionResult:
     """Tests for the TerraformExecutionResult model."""
 
-    def test_terraform_execution_result_success(self):
+    def test_terraform_execution_result_success(self, temp_terraform_dir):
         """Test creating a successful TerraformExecutionResult."""
         result = TerraformExecutionResult(
             status='success',
@@ -73,7 +74,7 @@ class TestTerraformExecutionResult:
             stdout='Terraform initialized successfully!',
             stderr='',
             command='terraform init',
-            working_directory='/tmp/terraform_test',
+            working_directory=temp_terraform_dir,
             outputs={'instance_id': 'i-1234567890abcdef0'},
         )
 
@@ -82,11 +83,11 @@ class TestTerraformExecutionResult:
         assert result.stdout == 'Terraform initialized successfully!'
         assert result.stderr == ''
         assert result.command == 'terraform init'
-        assert result.working_directory == '/tmp/terraform_test'
+        assert result.working_directory == temp_terraform_dir
         assert result.outputs == {'instance_id': 'i-1234567890abcdef0'}
         assert result.error_message is None
 
-    def test_terraform_execution_result_error(self):
+    def test_terraform_execution_result_error(self, temp_terraform_dir):
         """Test creating an error TerraformExecutionResult."""
         result = TerraformExecutionResult(
             status='error',
@@ -94,7 +95,7 @@ class TestTerraformExecutionResult:
             stdout='',
             stderr='Error: Could not load plugin',
             command='terraform init',
-            working_directory='/tmp/terraform_test',
+            working_directory=temp_terraform_dir,
             error_message='Failed to initialize Terraform',
             outputs=None,
         )
@@ -104,7 +105,7 @@ class TestTerraformExecutionResult:
         assert result.stdout == ''
         assert result.stderr == 'Error: Could not load plugin'
         assert result.command == 'terraform init'
-        assert result.working_directory == '/tmp/terraform_test'
+        assert result.working_directory == temp_terraform_dir
         assert result.outputs is None
         assert result.error_message == 'Failed to initialize Terraform'
 
@@ -112,33 +113,33 @@ class TestTerraformExecutionResult:
 class TestCheckovScanRequest:
     """Tests for the CheckovScanRequest model."""
 
-    def test_checkov_scan_request_creation(self):
+    def test_checkov_scan_request_creation(self, temp_terraform_dir):
         """Test creating a CheckovScanRequest."""
         request = CheckovScanRequest(
-            working_directory='/tmp/terraform_test',
+            working_directory=temp_terraform_dir,
             framework='terraform',
             check_ids=['CKV_AWS_1', 'CKV_AWS_2'],
             skip_check_ids=['CKV_AWS_3'],
             output_format='json',
         )
 
-        assert request.working_directory == '/tmp/terraform_test'
+        assert request.working_directory == temp_terraform_dir
         assert request.framework == 'terraform'
         assert request.check_ids == ['CKV_AWS_1', 'CKV_AWS_2']
         assert request.skip_check_ids == ['CKV_AWS_3']
         assert request.output_format == 'json'
 
-    def test_checkov_scan_request_defaults(self):
+    def test_checkov_scan_request_defaults(self, temp_terraform_dir):
         """Test CheckovScanRequest with default values."""
         request = CheckovScanRequest(
-            working_directory='/tmp/terraform_test',
+            working_directory=temp_terraform_dir,
             framework='terraform',
             check_ids=None,
             skip_check_ids=None,
             output_format='json',
         )
 
-        assert request.working_directory == '/tmp/terraform_test'
+        assert request.working_directory == temp_terraform_dir
         assert request.framework == 'terraform'
         assert request.check_ids is None
         assert request.skip_check_ids is None
@@ -148,14 +149,17 @@ class TestCheckovScanRequest:
 class TestCheckovVulnerability:
     """Tests for the CheckovVulnerability model."""
 
-    def test_checkov_vulnerability_creation(self):
+    def test_checkov_vulnerability_creation(self, temp_terraform_dir):
         """Test creating a CheckovVulnerability."""
+        # Create main.tf path
+        main_tf_path = os.path.join(temp_terraform_dir, 'main.tf')
+
         vulnerability = CheckovVulnerability(
             id='CKV_AWS_1',
             type='terraform_aws',
             description='Ensure S3 bucket has encryption enabled',
             resource='aws_s3_bucket.my_bucket',
-            file_path='/tmp/terraform_test/main.tf',
+            file_path=main_tf_path,
             line=5,
             guideline='https://docs.bridgecrew.io/docs/s3-encryption',
             severity='HIGH',
@@ -167,7 +171,7 @@ class TestCheckovVulnerability:
         assert vulnerability.type == 'terraform_aws'
         assert vulnerability.description == 'Ensure S3 bucket has encryption enabled'
         assert vulnerability.resource == 'aws_s3_bucket.my_bucket'
-        assert vulnerability.file_path == '/tmp/terraform_test/main.tf'
+        assert vulnerability.file_path == main_tf_path
         assert vulnerability.line == 5
         assert vulnerability.guideline == 'https://docs.bridgecrew.io/docs/s3-encryption'
         assert vulnerability.severity == 'HIGH'
@@ -177,14 +181,17 @@ class TestCheckovVulnerability:
 class TestCheckovScanResult:
     """Tests for the CheckovScanResult model."""
 
-    def test_checkov_scan_result_success(self):
+    def test_checkov_scan_result_success(self, temp_terraform_dir):
         """Test creating a successful CheckovScanResult."""
+        # Create main.tf path
+        main_tf_path = os.path.join(temp_terraform_dir, 'main.tf')
+
         vulnerability = CheckovVulnerability(
             id='CKV_AWS_1',
             type='terraform_aws',
             description='Ensure S3 bucket has encryption enabled',
             resource='aws_s3_bucket.my_bucket',
-            file_path='/tmp/terraform_test/main.tf',
+            file_path=main_tf_path,
             line=5,
             guideline='https://docs.bridgecrew.io/docs/s3-encryption',
             severity='MEDIUM',
@@ -195,7 +202,7 @@ class TestCheckovScanResult:
         result = CheckovScanResult(
             status='success',
             return_code=1,  # Checkov returns 1 when vulnerabilities are found
-            working_directory='/tmp/terraform_test',
+            working_directory=temp_terraform_dir,
             vulnerabilities=[vulnerability],
             summary={
                 'passed': 0,
@@ -219,12 +226,12 @@ class TestCheckovScanResult:
         )
         assert result.error_message is None
 
-    def test_checkov_scan_result_error(self):
+    def test_checkov_scan_result_error(self, temp_terraform_dir):
         """Test creating an error CheckovScanResult."""
         result = CheckovScanResult(
             status='error',
             return_code=2,
-            working_directory='/tmp/terraform_test',
+            working_directory=temp_terraform_dir,
             error_message='Failed to run Checkov',
             raw_output='Error: Failed to run Checkov',
             vulnerabilities=[],

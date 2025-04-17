@@ -1,6 +1,7 @@
 """Tests for the Terraform MCP server tools."""
 
 import json
+import os
 import pytest
 from awslabs.terraform_mcp_server.impl.tools.execute_terraform_command import (
     execute_terraform_command_impl,
@@ -19,7 +20,7 @@ pytestmark = pytest.mark.asyncio
 
 
 @pytest.mark.asyncio
-async def test_execute_terraform_command_success():
+async def test_execute_terraform_command_success(temp_terraform_dir):
     """Test the Terraform command execution function with successful mocks."""
     # Create a mock subprocess.run result
     mock_result = MagicMock()
@@ -30,7 +31,7 @@ async def test_execute_terraform_command_success():
     # Create the request
     request = TerraformExecutionRequest(
         command='init',
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         variables={'environment': 'test'},
         aws_region='us-west-2',
         strip_ansi=True,
@@ -47,21 +48,18 @@ async def test_execute_terraform_command_success():
                     # Call the function
                     result = await execute_terraform_command_impl(request)
 
-                    # Check the result
-                    assert result is not None
-                    assert result.status == 'success'
-                    assert result.return_code == 0
-                    assert (
-                        result.stdout is not None
-                        and 'Terraform initialized successfully!' in result.stdout
-                    )
-                    assert result.stderr == ''
-                    assert result.command == 'terraform init'
-                    assert result.working_directory == '/tmp/terraform_test'
+    # Check the result
+    assert result is not None
+    assert result.status == 'success'
+    assert result.return_code == 0
+    assert result.stdout is not None and 'Terraform initialized successfully!' in result.stdout
+    assert result.stderr == ''
+    assert result.command == 'terraform init'
+    assert result.working_directory == temp_terraform_dir
 
 
 @pytest.mark.asyncio
-async def test_execute_terraform_command_error():
+async def test_execute_terraform_command_error(temp_terraform_dir):
     """Test the Terraform command execution function with error mocks."""
     # Create a mock subprocess.run result
     mock_result = MagicMock()
@@ -72,7 +70,7 @@ async def test_execute_terraform_command_error():
     # Create the request
     request = TerraformExecutionRequest(
         command='init',
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         variables={'environment': 'test'},
         aws_region='us-west-2',
         strip_ansi=True,
@@ -98,11 +96,14 @@ async def test_execute_terraform_command_error():
 
 
 @pytest.mark.asyncio
-async def test_run_checkov_scan_success():
+async def test_run_checkov_scan_success(temp_terraform_dir):
     """Test the Checkov scan function with successful mocks."""
     # Create a mock subprocess.run result
     mock_result = MagicMock()
     mock_result.returncode = 0
+
+    # Create main.tf path
+    main_tf_path = os.path.join(temp_terraform_dir, 'main.tf')
 
     # Create valid JSON output
     checkov_output = {
@@ -115,7 +116,7 @@ async def test_run_checkov_scan_success():
                         'result': 'FAILED',
                         'evaluated_keys': ['server_side_encryption_configuration'],
                     },
-                    'file_path': '/tmp/terraform_test/main.tf',
+                    'file_path': main_tf_path,
                     'file_line_range': [1, 10],
                     'resource': 'aws_s3_bucket.my_bucket',
                     'check_class': 'checkov.terraform.checks.resource.aws.S3Encryption',
@@ -140,7 +141,7 @@ async def test_run_checkov_scan_success():
 
     # Create the request
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         framework='terraform',
         output_format='json',
         check_ids=None,
@@ -195,12 +196,12 @@ async def test_execute_terraform_command_invalid_command():
 
 
 @pytest.mark.asyncio
-async def test_execute_terraform_command_dangerous_patterns():
+async def test_execute_terraform_command_dangerous_patterns(temp_terraform_dir):
     """Test the Terraform command execution function with dangerous patterns in variables."""
     # Create the request with a dangerous pattern in variables
     request = TerraformExecutionRequest(
         command='apply',
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         variables={'environment': 'test; rm -rf /'},  # Dangerous pattern
         aws_region='us-west-2',
         strip_ansi=True,
@@ -220,7 +221,7 @@ async def test_execute_terraform_command_dangerous_patterns():
 
 
 @pytest.mark.asyncio
-async def test_execute_terraform_command_with_outputs():
+async def test_execute_terraform_command_with_outputs(temp_terraform_dir):
     """Test the Terraform command execution function with outputs."""
     # Create mock subprocess.run results for apply and output commands
     mock_apply_result = MagicMock()
@@ -241,7 +242,7 @@ async def test_execute_terraform_command_with_outputs():
     # Create the request
     request = TerraformExecutionRequest(
         command='apply',
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         variables={'environment': 'test'},
         aws_region='us-west-2',
         strip_ansi=True,
@@ -274,11 +275,11 @@ async def test_execute_terraform_command_with_outputs():
 
 
 @pytest.mark.asyncio
-async def test_run_checkov_scan_invalid_framework():
+async def test_run_checkov_scan_invalid_framework(temp_terraform_dir):
     """Test the Checkov scan function with an invalid framework."""
     # Create the request with an invalid framework
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         framework='invalid_framework',  # Invalid framework
         output_format='json',
         check_ids=None,
@@ -296,11 +297,11 @@ async def test_run_checkov_scan_invalid_framework():
 
 
 @pytest.mark.asyncio
-async def test_run_checkov_scan_invalid_output_format():
+async def test_run_checkov_scan_invalid_output_format(temp_terraform_dir):
     """Test the Checkov scan function with an invalid output format."""
     # Create the request with an invalid output format
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         framework='terraform',
         output_format='invalid_format',  # Invalid output format
         check_ids=None,
@@ -318,11 +319,11 @@ async def test_run_checkov_scan_invalid_output_format():
 
 
 @pytest.mark.asyncio
-async def test_run_checkov_scan_dangerous_patterns():
+async def test_run_checkov_scan_dangerous_patterns(temp_terraform_dir):
     """Test the Checkov scan function with dangerous patterns in check_ids."""
     # Create the request with a dangerous pattern in check_ids
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         framework='terraform',
         output_format='json',
         check_ids=['CKV_AWS_1; rm -rf /'],  # Dangerous pattern
@@ -343,19 +344,23 @@ async def test_run_checkov_scan_dangerous_patterns():
 
 
 @pytest.mark.asyncio
-async def test_run_checkov_scan_cli_output():
+async def test_run_checkov_scan_cli_output(temp_terraform_dir):
     """Test the Checkov scan function with CLI output format."""
     # Create a mock subprocess.run result with CLI output
     mock_result = MagicMock()
     mock_result.returncode = 1  # Vulnerabilities found
-    mock_result.stdout = """
+
+    # Create main.tf path
+    main_tf_path = os.path.join(temp_terraform_dir, 'main.tf')
+
+    mock_result.stdout = f"""
     Check: CKV_AWS_1: "Ensure S3 bucket has encryption enabled"
     FAILED for resource: aws_s3_bucket.my_bucket
-    File: /tmp/terraform_test/main.tf:1-10
+    File: {main_tf_path}:1-10
 
     Check: CKV_AWS_2: "Ensure S3 bucket has versioning enabled"
     FAILED for resource: aws_s3_bucket.my_bucket
-    File: /tmp/terraform_test/main.tf:1-10
+    File: {main_tf_path}:1-10
 
     Passed checks: 0
     Failed checks: 2
@@ -365,7 +370,7 @@ async def test_run_checkov_scan_cli_output():
 
     # Create the request
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         framework='terraform',
         output_format='cli',
         check_ids=None,
@@ -396,7 +401,7 @@ async def test_run_checkov_scan_cli_output():
 
 
 @pytest.mark.asyncio
-async def test_run_checkov_scan_error():
+async def test_run_checkov_scan_error(temp_terraform_dir):
     """Test the Checkov scan function with error mocks."""
     # Create a mock subprocess.run result
     mock_result = MagicMock()
@@ -406,7 +411,7 @@ async def test_run_checkov_scan_error():
 
     # Create the request
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         framework='terraform',
         output_format='json',
         check_ids=None,
@@ -433,11 +438,11 @@ async def test_run_checkov_scan_error():
 
 
 @pytest.mark.asyncio
-async def test_run_checkov_scan_checkov_not_installed():
+async def test_run_checkov_scan_checkov_not_installed(temp_terraform_dir):
     """Test the Checkov scan function when Checkov is not installed."""
     # Create the request
     request = CheckovScanRequest(
-        working_directory='/tmp/terraform_test',
+        working_directory=temp_terraform_dir,
         framework='terraform',
         output_format='json',
         check_ids=None,

@@ -12,8 +12,23 @@
 """Test fixtures for the terraform-mcp-server tests."""
 
 import json
+import os
 import pytest
+import tempfile
 from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture
+def temp_terraform_dir():
+    """Create a secure temporary directory for Terraform tests."""
+    # Create a secure temporary directory
+    temp_dir = tempfile.mkdtemp(prefix='terraform_test_')
+    yield temp_dir
+    # Clean up the directory after tests
+    if os.path.exists(temp_dir):
+        import shutil
+
+        shutil.rmtree(temp_dir)
 
 
 @pytest.fixture
@@ -81,8 +96,9 @@ def mock_terraform_command_output():
 
 
 @pytest.fixture
-def mock_checkov_output():
+def mock_checkov_output(temp_terraform_dir):
     """Create mock output for Checkov scans."""
+    main_tf_path = os.path.join(temp_terraform_dir, 'main.tf')
     json_output = {
         'results': {
             'failed_checks': [
@@ -93,7 +109,7 @@ def mock_checkov_output():
                         'result': 'FAILED',
                         'evaluated_keys': ['server_side_encryption_configuration'],
                     },
-                    'file_path': '/tmp/terraform_test/main.tf',
+                    'file_path': main_tf_path,
                     'file_line_range': [1, 10],
                     'resource': 'aws_s3_bucket.my_bucket',
                     'check_class': 'checkov.terraform.checks.resource.aws.S3Encryption',
@@ -103,7 +119,7 @@ def mock_checkov_output():
                     'check_id': 'CKV_AWS_18',
                     'check_name': 'Ensure the S3 bucket has access logging enabled',
                     'check_result': {'result': 'FAILED', 'evaluated_keys': ['logging']},
-                    'file_path': '/tmp/terraform_test/main.tf',
+                    'file_path': main_tf_path,
                     'file_line_range': [1, 10],
                     'resource': 'aws_s3_bucket.my_bucket',
                     'check_class': 'checkov.terraform.checks.resource.aws.S3AccessLogs',
@@ -115,7 +131,7 @@ def mock_checkov_output():
                     'check_id': 'CKV_AWS_21',
                     'check_name': 'Ensure S3 bucket has versioning enabled',
                     'check_result': {'result': 'PASSED', 'evaluated_keys': ['versioning']},
-                    'file_path': '/tmp/terraform_test/main.tf',
+                    'file_path': main_tf_path,
                     'file_line_range': [1, 10],
                     'resource': 'aws_s3_bucket.my_bucket',
                     'check_class': 'checkov.terraform.checks.resource.aws.S3Versioning',
@@ -133,18 +149,18 @@ def mock_checkov_output():
         },
     }
 
-    cli_output = """
+    cli_output = f"""
     Check: CKV_AWS_1: "Ensure S3 bucket has encryption enabled"
     FAILED for resource: aws_s3_bucket.my_bucket
-    File: /tmp/terraform_test/main.tf:1-10
+    File: {main_tf_path}:1-10
 
     Check: CKV_AWS_18: "Ensure the S3 bucket has access logging enabled"
     FAILED for resource: aws_s3_bucket.my_bucket
-    File: /tmp/terraform_test/main.tf:1-10
+    File: {main_tf_path}:1-10
 
     Check: CKV_AWS_21: "Ensure S3 bucket has versioning enabled"
     PASSED for resource: aws_s3_bucket.my_bucket
-    File: /tmp/terraform_test/main.tf:1-10
+    File: {main_tf_path}:1-10
 
     Passed checks: 1, Failed checks: 2, Skipped checks: 0
     """
