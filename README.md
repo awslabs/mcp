@@ -5,6 +5,31 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 [![GitHub](https://img.shields.io/badge/github-awslabs/mcp-blue.svg?style=flat&logo=github)](https://github.com/awslabs/mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen)](LICENSE)
 
+## Table of Contents
+
+- [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
+  - [Why MCP Servers?](#why-mcp-servers)
+- [Available Servers](#available-servers)
+  - [Core MCP Server](#core-mcp-server)
+  - [AWS Documentation MCP Server](#aws-documentation-mcp-server)
+  - [Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)
+  - [AWS CDK MCP Server](#aws-cdk-mcp-server)
+  - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
+  - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
+  - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
+  - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
+  - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
+  - [Use Cases for the Servers](#use-cases-for-the-servers)
+- [Installation and Setup](#installation-and-setup)
+- [Samples](#samples)
+- [Documentation](#documentation)
+- [Additional Resources](#additional-resources)
+- [Security](#security)
+- [Contributing](#contributing)
+- [Developer guide](#developer-guide)
+- [License](#license)
+- [Disclaimer](#disclaimer)
+
 ## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
 
 > The Model Context Protocol (MCP) is an open protocol that enables seamless integration between LLM applications and external data sources and tools. Whether you're building an AI-powered IDE, enhancing a chat interface, or creating custom AI workflows, MCP provides a standardized way to connect LLMs with the context they need.
