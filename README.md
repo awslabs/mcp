@@ -258,7 +258,16 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
         "FUNCTION_TAG_KEY": "your-tag-key",
         "FUNCTION_TAG_VALUE": "your-tag-value"
       }
-    }
+    },
+    "awslabs.terraform-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
   }
 }
 ```
@@ -383,15 +392,17 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 <details>
 <summary>Getting Started with Cursor</summary>
 
-You can place MCP configuration in two locations, depending on your use case:
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
 
-1. **Project Configuration**
-   - For tools specific to a project, create a `.cursor/mcp.json` file in your project directory.
-   - This allows you to define MCP servers that are only available within that specific project.
+2. You can place MCP configuration in two locations, depending on your use case:
 
-2. **Global Configuration**
-   - For tools that you want to use across all projects, create a `~/.cursor/mcp.json` file in your home directory.
-   - This makes MCP servers available in all your Cursor workspaces.
+  A. **Project Configuration**
+    - For tools specific to a project, create a `.cursor/mcp.json` file in your project directory.
+    - This allows you to define MCP servers that are only available within that specific project.
+
+  B. **Global Configuration**
+    - For tools that you want to use across all projects, create a `~/.cursor/mcp.json` file in your home directory.
+    - This makes MCP servers available in all your Cursor workspaces.
 
 #### `.cursor/mcp.json`
  ```json
@@ -427,33 +438,28 @@ You can place MCP configuration in two locations, depending on your use case:
   }
  ```
 
-The `env` field allows you to specify environment variables that will be available to your MCP server process, which is particularly useful for managing API keys and other sensitive configuration.
+3. **Using MCP in Chat** The Composer Agent will automatically use any MCP tools that are listed under Available Tools on the MCP settings page if it determines them to be relevant. To prompt tool usage intentionally, please prompt Cursor to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
 
-#### Using MCP in Chat
+4. **Tool Approval** By default, when Agent wants to use an MCP tool, it will display a message asking for your approval. You can use the arrow next to the tool name to expand the message and see what arguments the Agent is calling the tool with.
 
-The Composer Agent will automatically use any MCP tools that are listed under Available Tools on the MCP settings page if it determines them to be relevant. To prompt tool usage intentionally, simply tell the agent to use the tool, referring to it either by name or by description.
-
-#### Tool Approval
-
-By default, when Agent wants to use an MCP tool, it will display a message asking for your approval. You can use the arrow next to the tool name to expand the message and see what arguments the Agent is calling the tool with.
-
-You can enable auto-run to allow Agent to automatically run MCP tools without requiring approval, similar to how terminal commands are executed.
 </details>
 
 ### Getting Started with Windsurf
 <details>
 <summary>Getting Started with Windsurf</summary>
 
-1. **Access MCP Settings**
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
+
+2. **Access MCP Settings**
    - Navigate to Windsurf - Settings > Advanced Settings or use the Command Palette > Open Windsurf Settings Page
    - Look for the "Model Context Protocol (MCP) Servers" section
 
-2. **Add MCP Servers**
+3. **Add MCP Servers**
    - Click "Add Server" to add a new MCP server
    - You can choose from available templates like GitHub, Puppeteer, PostgreSQL, etc.
    - Alternatively, click "Add custom server" to configure your own server
 
-3. **Manual Configuration**
+4. **Manual Configuration**
    - You can also manually edit the MCP configuration file located at `~/.codeium/windsurf/mcp_config.json`
 
 #### `~/.codeium/windsurf/mcp_config.json`
