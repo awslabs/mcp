@@ -1,5 +1,18 @@
 #!/bin/bash
-# Script to run the diagrams-mcp-server tests
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
+# Script to run tests for the Terraform MCP Server
+
+set -e
 
 # Set the Python path to include the current directory and the parent directory
 export PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/..
@@ -8,47 +21,50 @@ export PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/..
 if [ -z "$VIRTUAL_ENV" ]; then
     echo "Warning: You are not running in a virtual environment."
     echo "It's recommended to create and activate a virtual environment before running tests."
-    echo "You can create one with: python -m venv venv"
-    echo "And activate it with: source venv/bin/activate (Linux/Mac) or venv\\Scripts\\activate (Windows)"
+    echo "You can create one with: python -m venv .venv"
+    echo "And activate it with: source .venv/bin/activate (Linux/Mac) or .venv\\Scripts\\activate (Windows)"
     echo "Continuing without a virtual environment..."
     echo ""
 fi
-
-# Always use python -m pytest to ensure we use the correct pytest
-PYTEST_CMD="python -m pytest"
 
 # Check if pytest and other dependencies are installed
 echo "Checking for required packages..."
 MISSING_PACKAGES=()
 
-# Check for pytest
+# Check for pytest and related packages
 python -c "import pytest" 2>/dev/null
 if [ $? -ne 0 ]; then
     MISSING_PACKAGES+=("pytest pytest-asyncio pytest-cov")
-fi
-
-# Check for diagrams package
-python -c "import diagrams" 2>/dev/null
-if [ $? -ne 0 ]; then
-    MISSING_PACKAGES+=("diagrams")
-fi
-
-# Check for bandit package
-python -c "import bandit" 2>/dev/null
-if [ $? -ne 0 ]; then
-    MISSING_PACKAGES+=("bandit")
-fi
-
-# Check for mcp package
-python -c "import mcp" 2>/dev/null
-if [ $? -ne 0 ]; then
-    MISSING_PACKAGES+=("mcp")
 fi
 
 # Check for pydantic package
 python -c "import pydantic" 2>/dev/null
 if [ $? -ne 0 ]; then
     MISSING_PACKAGES+=("pydantic")
+fi
+
+# Check for requests package
+python -c "import requests" 2>/dev/null
+if [ $? -ne 0 ]; then
+    MISSING_PACKAGES+=("requests")
+fi
+
+# Check for loguru package
+python -c "import loguru" 2>/dev/null
+if [ $? -ne 0 ]; then
+    MISSING_PACKAGES+=("loguru")
+fi
+
+# Check for beautifulsoup4 package
+python -c "import bs4" 2>/dev/null
+if [ $? -ne 0 ]; then
+    MISSING_PACKAGES+=("beautifulsoup4")
+fi
+
+# Check for checkov package
+python -c "import checkov" 2>/dev/null
+if [ $? -ne 0 ]; then
+    MISSING_PACKAGES+=("checkov")
 fi
 
 # Install missing packages
@@ -74,9 +90,9 @@ if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
 
     # Verify installation with more verbose output
     echo "Verifying package installations..."
-    for pkg in "pytest" "diagrams" "bandit" "pydantic"; do
+    for pkg in "pytest" "pydantic" "requests" "loguru" "bs4" "checkov"; do
         echo "Checking for $pkg..."
-        python -c "import $pkg; print(f'$pkg version: {$pkg.__version__}')" 2>/dev/null
+        python -c "import $pkg; print(f'$pkg installed successfully')" 2>/dev/null
         if [ $? -ne 0 ]; then
             echo "Failed to install $pkg. Trying to install it individually..."
             pip install $pkg -v || pip3 install $pkg -v || echo "Failed to install $pkg. Please install it manually."
@@ -100,11 +116,11 @@ echo "Current directory: $(pwd)"
 echo "Python executable: $(which python)"
 echo "Pytest module location: $(python -c "import pytest; print(pytest.__file__)" 2>/dev/null || echo "Not found")"
 
-# Check if aws_diagram_mcp_server module can be imported
-echo "Checking if aws_diagram_mcp_server module can be imported..."
-python -c "import awslabs.aws_diagram_mcp_server; print(f'aws_diagram_mcp_server module found at: {awslabs.aws_diagram_mcp_server.__file__}')" 2>/dev/null
+# Check if terraform_mcp_server module can be imported
+echo "Checking if terraform_mcp_server module can be imported..."
+python -c "import awslabs.terraform_mcp_server; print('terraform_mcp_server module found')" 2>/dev/null
 if [ $? -ne 0 ]; then
-    echo "Warning: aws_diagram_mcp_server module cannot be imported. This may cause test failures."
+    echo "Warning: terraform_mcp_server module cannot be imported. This may cause test failures."
     echo "Installing the package in development mode..."
 
     # Check if uv is available
@@ -116,13 +132,13 @@ if [ $? -ne 0 ]; then
     else
         echo "Neither uv nor pip is available. Creating a symbolic link instead..."
         # Create a symbolic link to the module in the current directory
-        ln -sf $(pwd)/awslabs/aws_diagram_mcp_server $(pwd)/aws_diagram_mcp_server 2>/dev/null
+        ln -sf $(pwd)/awslabs/terraform_mcp_server $(pwd)/terraform_mcp_server 2>/dev/null
     fi
 
     echo "Trying again..."
-    python -c "import awslabs.aws_diagram_mcp_server; print(f'aws_diagram_mcp_server module found at: {awslabs.aws_diagram_mcp_server.__file__}')" 2>/dev/null
+    python -c "import awslabs.terraform_mcp_server; print('terraform_mcp_server module found')" 2>/dev/null
     if [ $? -ne 0 ]; then
-        echo "Still cannot import aws_diagram_mcp_server module. Tests may fail."
+        echo "Still cannot import terraform_mcp_server module. Tests may fail."
         echo "Directory structure:"
         ls -la
         echo "awslabs directory:"
@@ -130,35 +146,61 @@ if [ $? -ne 0 ]; then
     fi
 fi
 
-# Check if tests directory exists and is not empty
-if [ ! -d "tests" ]; then
-    echo "Error: tests directory not found. Make sure you are running this script from the root of the project."
-    exit 1
+# Parse command line arguments
+COVERAGE=0
+REPORT=0
+VERBOSE=0
+SPECIFIC_TEST=""
+
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+    --coverage)
+      COVERAGE=1
+      shift
+      ;;
+    --report)
+      REPORT=1
+      shift
+      ;;
+    --verbose)
+      VERBOSE=1
+      shift
+      ;;
+    *)
+      SPECIFIC_TEST="$1"
+      shift
+      ;;
+  esac
+done
+
+# Set up the command
+CMD="python -m pytest"
+
+if [ $VERBOSE -eq 1 ]; then
+  CMD="$CMD -v"
 fi
 
-if [ -z "$(ls -A tests)" ]; then
-    echo "Error: tests directory is empty. No tests to run."
-    exit 1
+if [ $COVERAGE -eq 1 ]; then
+  CMD="$CMD --cov=awslabs.terraform_mcp_server"
+
+  if [ $REPORT -eq 1 ]; then
+    CMD="$CMD --cov-report=html"
+  fi
 fi
 
-# List test files
-echo "Test files found:"
-find tests -name "test_*.py" | sort
+if [ -n "$SPECIFIC_TEST" ]; then
+  CMD="$CMD $SPECIFIC_TEST"
+else
+  CMD="$CMD tests/"
+fi
 
 # Run the tests
-echo "Running tests..."
-$PYTEST_CMD -xvs tests/
+echo "Running: $CMD"
+$CMD
 
-# If pytest fails, try using unittest as a fallback
-if [ $? -ne 0 ]; then
-    echo "Pytest failed. Trying to run tests with unittest as a fallback..."
-    python -m unittest discover -s tests
+# If coverage report was generated, print the path
+if [ $COVERAGE -eq 1 ] && [ $REPORT -eq 1 ]; then
+  echo "Coverage report generated in htmlcov/ directory"
+  echo "Open htmlcov/index.html in your browser to view the report"
 fi
-
-# If you want to run with coverage, uncomment the following line
-# $PYTEST_CMD --cov=aws_diagram_mcp_server --cov-report=term-missing tests/
-
-# If you want to run with coverage and generate an HTML report, uncomment the following line
-# $PYTEST_CMD --cov=aws_diagram_mcp_server --cov-report=html tests/
-
-echo "Test run completed."
