@@ -272,7 +272,7 @@ See individual server READMEs for specific requirements and configuration option
 **IMPORTANT:** Following these instructions may incur costs and are subject to the [Amazon Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/). You are responsible for any associated costs. In addition to selecting the desired model in the Cline settings, ensure you have your selected model (e.g. `anthropic.claude-3-7-sonnet`) also enabled in Amazon Bedrock. For more information on this, see [these AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-modify.html) on enabling model access to Amazon Bedrock Foundation Models (FMs).
 
 
-1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral], install Python, and configure AWS credentials with the required services.
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
 
 2. If using Visual Studio Code, install the [Cline VS Code Extension](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev) (or equivalent extension for your preferred IDE). Once installed, click the extension to open it. When prompted, select the tier that you wish. In this case, we will be using Amazon Bedrock, so the free tier of Cline is fine as we will be sending requests using the Amazon Bedrock API instead of the Cline API.
 
@@ -293,9 +293,9 @@ See individual server READMEs for specific requirements and configuration option
    <img src="./docs/images/root-readme/configure-mcp-servers.png" width="500" height="800"  />
  <p>
 
- 5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use all of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
+ 5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use some of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
 
- ### `cline_mcp_settings.json`
+ #### `cline_mcp_settings.json`
  ```json
  {
    "mcpServers": {
@@ -393,7 +393,7 @@ You can place MCP configuration in two locations, depending on your use case:
    - For tools that you want to use across all projects, create a `~/.cursor/mcp.json` file in your home directory.
    - This makes MCP servers available in all your Cursor workspaces.
 
-### `.cursor/mcp.json`
+#### `.cursor/mcp.json`
  ```json
  {
    "mcpServers": {
@@ -456,7 +456,7 @@ You can enable auto-run to allow Agent to automatically run MCP tools without re
 3. **Manual Configuration**
    - You can also manually edit the MCP configuration file located at `~/.codeium/windsurf/mcp_config.json`
 
-### `~/.codeium/windsurf/mcp_config.json`
+#### `~/.codeium/windsurf/mcp_config.json`
  ```json
  {
    "mcpServers": {
