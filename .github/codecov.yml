@@ -3,6 +3,9 @@ coverage:
     project:
       default:   # default is the status check's name, not default settings
         threshold: 0
+  ignore:
+    - "tests/**/*"
+    - "**/tests/**/*"
 
 comment:
   require_changes: "coverage_drop"
