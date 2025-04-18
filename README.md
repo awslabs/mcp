@@ -265,10 +265,10 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 
 See individual server READMEs for specific requirements and configuration options.
 
+### Getting Started with Cline and Amazon Bedrock
 <details>
 <summary>Getting Started with Cline and Amazon Bedrock</summary>
 
-### Getting Started with Cline and Amazon Bedrock
 **IMPORTANT:** Following these instructions may incur costs and are subject to the [Amazon Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/). You are responsible for any associated costs. In addition to selecting the desired model in the Cline settings, ensure you have your selected model (e.g. `anthropic.claude-3-7-sonnet`) also enabled in Amazon Bedrock. For more information on this, see [these AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-modify.html) on enabling model access to Amazon Bedrock Foundation Models (FMs).
 
 
@@ -379,10 +379,9 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 **Note:** For the best results, please prompt Cline to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
 </details>
 
+### Getting Started with Cursor
 <details>
 <summary>Getting Started with Cursor</summary>
-
-### Getting Started with Cursor
 
 You can place MCP configuration in two locations, depending on your use case:
 
@@ -441,10 +440,9 @@ By default, when Agent wants to use an MCP tool, it will display a message askin
 You can enable auto-run to allow Agent to automatically run MCP tools without requiring approval, similar to how terminal commands are executed.
 </details>
 
+### Getting Started with Windsurf
 <details>
 <summary>Getting Started with Windsurf</summary>
-
-### Getting Started with Windsurf
 
 1. **Access MCP Settings**
    - Navigate to Windsurf - Settings > Advanced Settings or use the Command Palette > Open Windsurf Settings Page
