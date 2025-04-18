@@ -32,10 +32,12 @@ def get_bedrock_agent_runtime_client(
         profile_name (str | None): The profile name
     """
     if profile_name:
-        return boto3.Session(profile_name=profile_name).client(
+        client = boto3.Session(profile_name=profile_name).client(
             'bedrock-agent-runtime', region_name=region_name or 'us-west-2'
         )
-    return boto3.client('bedrock-agent-runtime', region_name=region_name or 'us-west-2')
+        return client  # type: ignore
+    client = boto3.client('bedrock-agent-runtime', region_name=region_name or 'us-west-2')
+    return client  # type: ignore
 
 
 def get_bedrock_agent_client(
@@ -50,7 +52,9 @@ def get_bedrock_agent_client(
         profile_name (str | None): The profile name
     """
     if profile_name:
-        return boto3.Session(profile_name=profile_name).client(
+        client = boto3.Session(profile_name=profile_name).client(
             'bedrock-agent', region_name=region_name or 'us-west-2'
         )
-    return boto3.client('bedrock-agent', region_name=region_name or 'us-west-2')
+        return client  # type: ignore
+    client = boto3.client('bedrock-agent', region_name=region_name or 'us-west-2')
+    return client  # type: ignore

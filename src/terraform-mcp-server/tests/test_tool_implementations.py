@@ -1,7 +1,8 @@
-"""Test script for Terraform MCP server implementation functions."""
+"""Tests for the tool implementations of the terraform-mcp-server."""
 
 import asyncio
 import json
+import pytest
 import sys
 from awslabs.terraform_mcp_server.impl.tools.search_aws_provider_docs import (
     search_aws_provider_docs_impl,
@@ -14,6 +15,9 @@ from awslabs.terraform_mcp_server.impl.tools.search_specific_aws_ia_modules impo
 )
 from loguru import logger
 from typing import Any
+
+
+pytestmark = pytest.mark.asyncio
 
 
 # Configure logger for enhanced diagnostics with stacktraces
@@ -216,71 +220,6 @@ async def test_search_specific_aws_ia_modules():
             if result.description
             else '  No description'
         )
-
-
-async def test_execute_terraform_command():
-    """Test the Terraform command execution function.
-
-    Note: This test requires a valid Terraform configuration in a temporary directory.
-    Skip this test if you don't have a valid Terraform configuration to test with.
-    """
-    logger.info('\n=== Testing execute_terraform_command_impl ===')
-    logger.info('Skipping actual execution as it requires a valid Terraform configuration.')
-    logger.info('To test this function, you would need to:')
-    logger.info('1. Create a temporary directory with valid Terraform files')
-    logger.info('2. Run terraform init, plan, etc. on those files')
-
-    # Example of how you would call it (commented out)
-    """
-    request = TerraformExecutionRequest(
-        command="validate",
-        working_directory="/path/to/terraform/config",
-        variables={"environment": "test"},
-        aws_region="us-west-2",
-        strip_ansi=True
-    )
-
-    result = await execute_terraform_command_impl(request)
-    logger.info(f"Command: {result.command}")
-    logger.info(f"Status: {result.status}")
-    logger.info(f"Return Code: {result.return_code}")
-    if result.stdout:
-        logger.info(f"Stdout: {result.stdout[:100]}...")
-    if result.stderr:
-        logger.info(f"Stderr: {result.stderr[:100]}...")
-    """
-
-
-async def test_run_checkov_scan():
-    """Test the Checkov scan function.
-
-    Note: This test requires a valid Terraform configuration in a temporary directory.
-    Skip this test if you don't have a valid Terraform configuration to test with.
-    """
-    logger.info('\n=== Testing run_checkov_scan_impl ===')
-    logger.info('Skipping actual execution as it requires a valid Terraform configuration.')
-    logger.info('To test this function, you would need to:')
-    logger.info('1. Create a temporary directory with valid Terraform files')
-    logger.info('2. Run Checkov on those files')
-
-    # Example of how you would call it (commented out)
-    """
-    request = CheckovScanRequest(
-        working_directory="/path/to/terraform/config",
-        framework="terraform",
-        output_format="json"
-    )
-
-    result = await run_checkov_scan_impl(request)
-    logger.info(f"Status: {result.status}")
-    logger.info(f"Return Code: {result.return_code}")
-    logger.info(f"Found {len(result.vulnerabilities)} vulnerabilities")
-    for i, vuln in enumerate(result.vulnerabilities[:3]):  # Show first 3 only
-        logger.info(f"\nVulnerability {i+1}:")
-        logger.info(f"  ID: {vuln.id}")
-        logger.info(f"  Resource: {vuln.resource}")
-        logger.info(f"  Description: {vuln.description[:100]}..." if vuln.description else "  No description")
-    """
 
 
 def format_json(obj: Any) -> str:

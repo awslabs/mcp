@@ -30,7 +30,7 @@ The samples in this directory provide:
 
 ### MCP Integration with KB
 
-A client that integrates with the Amazon Bedrock Knowledge Base MCP server. Code can be found in the [mcp-integration-with-kb](./mcp-integration-with-kb/) folder.
+A client that integrates with the Amazon Bedrock Knowledge Base MCP server. Code can be found in the [mcp-integration-with-kb](https://github.com/awslabs/mcp/tree/main/samples/mcp-integration-with-kb) folder.
 
 ### Coming Soon
 
