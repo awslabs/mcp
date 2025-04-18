@@ -136,6 +136,7 @@ if __name__ == '__main__':
    - Python module: lowercase with underscores
 
    Example:
+
    ```toml
    # In pyproject.toml
    name = "awslabs.nova-canvas-mcp-server"
@@ -170,6 +171,11 @@ if __name__ == '__main__':
        "awslabs/your_mcp_server/__init__.py:__version__"
    ]
    update_changelog_on_bump = true
+   ```
+
+   _NOTE: This monorepo does not support individual package remote tagging, so `cz bump` may not work as expected. Please see [#167](https://github.com/awslabs/mcp/issues/167) for further details_
+
+## License and Copyright Headers
 
 Include standard license headers at the top of each source file:
 
