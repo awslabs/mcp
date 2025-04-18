@@ -489,6 +489,7 @@ You can enable auto-run to allow Agent to automatically run MCP tools without re
     }
   }
  ```
+</details>
 
 ## Samples
 
