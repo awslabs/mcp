@@ -243,7 +243,7 @@ See individual server READMEs for specific requirements and configuration option
 4. In the search box, enter AWS and then select **install** for the available AWS MCP servers.
 
 <p align="center">
-  <img src="./docs/images/root-readme/mcp-servers-installation.png" width="500" height="800"  />
+  <img src="./docs/images/root-readme/mcp-server-installation.png" width="500" height="800"  />
 <p>
 
 5. Once installed, you should see a list of your MCP Servers, and they should have a green slider to show that they are enabled. See the following for an example with two of the possible AWS MCP Servers. Click **Done** when finished. You should now see the Cline chat interface.
