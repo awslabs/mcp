@@ -161,12 +161,14 @@ async def test_repository_indexing(test_context, test_git_repo, tmp_path, monkey
     """Test indexing a local repository."""
     # Mock the Bedrock embeddings to avoid actual API calls
     from unittest.mock import MagicMock, patch
-    
+
     # Use a unique name for the repository
     repo_name = f'{os.path.basename(test_git_repo)}'
 
     # Create a mock for BedrockEmbeddings
-    with patch('awslabs.git_repo_research_mcp_server.embeddings.BedrockEmbeddings') as mock_bedrock:
+    with patch(
+        'awslabs.git_repo_research_mcp_server.embeddings.BedrockEmbeddings'
+    ) as mock_bedrock:
         # Configure the mock
         mock_embeddings = MagicMock()
         mock_embeddings.embed_query.return_value = [0.1] * 1536
@@ -257,65 +259,77 @@ async def test_repository_indexing(test_context, test_git_repo, tmp_path, monkey
             )
 
             # Verify the indexing result
-            assert result['status'] == 'success', f"Indexing failed with message: {result.get('message', '')}"
-            assert result['repository_name'] == repo_name, "Repository name doesn't match expected value"
-            assert 'index_path' in result, "Index path missing from result"
-            assert result['file_count'] > 0, "No files were indexed"
-            assert result['chunk_count'] > 0, "No chunks were created"
-            assert 'embedding_model' in result, "Embedding model info missing from result"
-            assert result['embedding_model'] == 'amazon.titan-embed-text-v2:0', "Wrong embedding model used"
+            assert result['status'] == 'success', (
+                f'Indexing failed with message: {result.get("message", "")}'
+            )
+            assert result['repository_name'] == repo_name, (
+                "Repository name doesn't match expected value"
+            )
+            assert 'index_path' in result, 'Index path missing from result'
+            assert result['file_count'] > 0, 'No files were indexed'
+            assert result['chunk_count'] > 0, 'No chunks were created'
+            assert 'embedding_model' in result, 'Embedding model info missing from result'
+            assert result['embedding_model'] == 'amazon.titan-embed-text-v2:0', (
+                'Wrong embedding model used'
+            )
 
             # Test repository listing
             list_result = await list_repositories()
-            assert 'repositories' in list_result, "No repositories field in list result"
-            assert len(list_result['repositories']) > 0, "No repositories found in list"
-            
+            assert 'repositories' in list_result, 'No repositories field in list result'
+            assert len(list_result['repositories']) > 0, 'No repositories found in list'
+
             # Find our repository in the list
             repo_found = False
             for repo in list_result['repositories']:
                 if repo['repository_name'] == repo_name:
                     repo_found = True
-                    assert repo['file_count'] > 0, "Repository has no files"
-                    assert repo['chunk_count'] > 0, "Repository has no chunks"
+                    assert repo['file_count'] > 0, 'Repository has no files'
+                    assert repo['chunk_count'] > 0, 'Repository has no chunks'
                     break
-            assert repo_found, f"Repository {repo_name} not found in list"
+            assert repo_found, f'Repository {repo_name} not found in list'
 
             # Test repository summary
             summary_result = await repository_summary(repository_name=repo_name)
-            assert summary_result['status'] == 'success', "Repository summary failed"
-            assert summary_result['repository_name'] == repo_name, "Wrong repository in summary"
-            assert 'tree' in summary_result, "No tree structure in summary"
-            assert 'helpful_files' in summary_result, "No helpful files in summary"
-            
+            assert summary_result['status'] == 'success', 'Repository summary failed'
+            assert summary_result['repository_name'] == repo_name, 'Wrong repository in summary'
+            assert 'tree' in summary_result, 'No tree structure in summary'
+            assert 'helpful_files' in summary_result, 'No helpful files in summary'
+
             # Test repository search
             search_result = await mcp_search_repository(
                 test_context, index_path=repo_name, query='MCP', limit=1, threshold=0.0
             )
-            assert search_result['status'] == 'success', "Search failed"
-            assert 'results' in search_result, "No results field in search response"
-            assert 'execution_time_ms' in search_result, "No execution time in search response"
-            
+            assert search_result['status'] == 'success', 'Search failed'
+            assert 'results' in search_result, 'No results field in search response'
+            assert 'execution_time_ms' in search_result, 'No execution time in search response'
+
             # Test file access
             file_result = await mcp_access_file(
                 ctx=test_context, filepath=f'{repo_name}/repository/README.md'
             )
-            assert file_result['status'] == 'success', "File access failed"
-            assert file_result['type'] == 'text', "Wrong file type returned"
-            assert 'content' in file_result, "No content in file access result"
-            assert "Test Repository" in file_result['content'], "Expected content not found in README"
-            assert "Semantic search" in file_result['content'], "Expected content not found in README"
+            assert file_result['status'] == 'success', 'File access failed'
+            assert file_result['type'] == 'text', 'Wrong file type returned'
+            assert 'content' in file_result, 'No content in file access result'
+            assert 'Test Repository' in file_result['content'], (
+                'Expected content not found in README'
+            )
+            assert 'Semantic search' in file_result['content'], (
+                'Expected content not found in README'
+            )
 
             # Test repository deletion
             delete_result = await mcp_delete_repository(
                 test_context, repository_name_or_path=repo_name, index_directory=None
             )
-            assert delete_result['status'] == 'success', "Repository deletion failed"
-            assert delete_result['repository_name'] == repo_name, "Wrong repository deleted"
-            
+            assert delete_result['status'] == 'success', 'Repository deletion failed'
+            assert delete_result['repository_name'] == repo_name, 'Wrong repository deleted'
+
             # Verify repository was actually deleted
             list_result_after = await list_repositories()
             for repo in list_result_after.get('repositories', []):
-                assert repo['repository_name'] != repo_name, f"Repository {repo_name} still exists after deletion"
+                assert repo['repository_name'] != repo_name, (
+                    f'Repository {repo_name} still exists after deletion'
+                )
 
         except Exception as e:
             # Test failed but we're only verifying we could attempt to index a local repo

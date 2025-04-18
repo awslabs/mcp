@@ -58,7 +58,7 @@ async def test_repository_indexing(test_context, remote_git_repo, tmp_path, monk
     """Test indexing a remote repository."""
     # Mock the Bedrock embeddings to avoid actual API calls
     from unittest.mock import MagicMock, patch
-    
+
     # Use a consistent name for the repository
     repo_name = 'awslabs_mcp'
 
@@ -67,7 +67,9 @@ async def test_repository_indexing(test_context, remote_git_repo, tmp_path, monk
         pytest.skip('Skipping in CI environment')
 
     # Create a mock for BedrockEmbeddings
-    with patch('awslabs.git_repo_research_mcp_server.embeddings.BedrockEmbeddings') as mock_bedrock:
+    with patch(
+        'awslabs.git_repo_research_mcp_server.embeddings.BedrockEmbeddings'
+    ) as mock_bedrock:
         # Configure the mock
         mock_embeddings = MagicMock()
         mock_embeddings.embed_query.return_value = [0.1] * 1536
@@ -160,86 +162,100 @@ async def test_repository_indexing(test_context, remote_git_repo, tmp_path, monk
             # We'll accept either success (if it worked) or just check that it attempted to index
             if result['status'] == 'success':
                 # Verify the indexing result
-                assert result['repository_name'] == repo_name, "Repository name doesn't match expected value"
-                assert 'index_path' in result, "Index path missing from result"
-                assert result['file_count'] > 0, "No files were indexed"
-                assert result['chunk_count'] > 0, "No chunks were created"
-                assert 'embedding_model' in result, "Embedding model info missing from result"
-                assert result['embedding_model'] == 'amazon.titan-embed-text-v2:0', "Wrong embedding model used"
+                assert result['repository_name'] == repo_name, (
+                    "Repository name doesn't match expected value"
+                )
+                assert 'index_path' in result, 'Index path missing from result'
+                assert result['file_count'] > 0, 'No files were indexed'
+                assert result['chunk_count'] > 0, 'No chunks were created'
+                assert 'embedding_model' in result, 'Embedding model info missing from result'
+                assert result['embedding_model'] == 'amazon.titan-embed-text-v2:0', (
+                    'Wrong embedding model used'
+                )
 
                 # Test repository listing
                 list_result = await list_repositories()
-                assert 'repositories' in list_result, "No repositories field in list result"
-                assert len(list_result['repositories']) > 0, "No repositories found in list"
-                
+                assert 'repositories' in list_result, 'No repositories field in list result'
+                assert len(list_result['repositories']) > 0, 'No repositories found in list'
+
                 # Find our repository in the list
                 repo_found = False
                 for repo in list_result['repositories']:
                     if repo['repository_name'] == repo_name:
                         repo_found = True
-                        assert repo['file_count'] > 0, "Repository has no files"
-                        assert repo['chunk_count'] > 0, "Repository has no chunks"
+                        assert repo['file_count'] > 0, 'Repository has no files'
+                        assert repo['chunk_count'] > 0, 'Repository has no chunks'
                         break
-                assert repo_found, f"Repository {repo_name} not found in list"
+                assert repo_found, f'Repository {repo_name} not found in list'
 
                 # Test repository summary
                 summary_result = await repository_summary(repository_name=repo_name)
-                assert summary_result['status'] == 'success', "Repository summary failed"
-                assert summary_result['repository_name'] == repo_name, "Wrong repository in summary"
-                assert 'tree' in summary_result, "No tree structure in summary"
-                
+                assert summary_result['status'] == 'success', 'Repository summary failed'
+                assert summary_result['repository_name'] == repo_name, (
+                    'Wrong repository in summary'
+                )
+                assert 'tree' in summary_result, 'No tree structure in summary'
+
                 # Test repository search
                 search_result = await mcp_search_repository(
                     test_context, index_path=repo_name, query='MCP', limit=1, threshold=0.0
                 )
-                assert search_result['status'] == 'success', "Search failed"
-                assert 'results' in search_result, "No results field in search response"
-                assert 'execution_time_ms' in search_result, "No execution time in search response"
-                
+                assert search_result['status'] == 'success', 'Search failed'
+                assert 'results' in search_result, 'No results field in search response'
+                assert 'execution_time_ms' in search_result, 'No execution time in search response'
+
                 # Test file access - README.md should exist in any repository
                 file_result = await mcp_access_file(
                     ctx=test_context, filepath=f'{repo_name}/repository/README.md'
                 )
-                assert file_result['status'] == 'success', "File access failed"
-                assert file_result['type'] == 'text', "Wrong file type returned"
-                assert 'content' in file_result, "No content in file access result"
-                assert len(file_result['content']) > 0, "README content is empty"
+                assert file_result['status'] == 'success', 'File access failed'
+                assert file_result['type'] == 'text', 'Wrong file type returned'
+                assert 'content' in file_result, 'No content in file access result'
+                assert len(file_result['content']) > 0, 'README content is empty'
 
                 # Test repository deletion
                 delete_result = await mcp_delete_repository(
                     test_context, repository_name_or_path=repo_name, index_directory=None
                 )
-                assert delete_result['status'] == 'success', "Repository deletion failed"
-                assert delete_result['repository_name'] == repo_name, "Wrong repository deleted"
-                
+                assert delete_result['status'] == 'success', 'Repository deletion failed'
+                assert delete_result['repository_name'] == repo_name, 'Wrong repository deleted'
+
                 # Verify repository was actually deleted
                 list_result_after = await list_repositories()
                 for repo in list_result_after.get('repositories', []):
-                    assert repo['repository_name'] != repo_name, f"Repository {repo_name} still exists after deletion"
+                    assert repo['repository_name'] != repo_name, (
+                        f'Repository {repo_name} still exists after deletion'
+                    )
             else:
                 # Even if it fails, we just need to confirm it attempted to run with the GitHub URL
-                assert 'Indexing repository' in result.get('message', ''), "No indication of indexing attempt in error message"
+                assert 'Indexing repository' in result.get('message', ''), (
+                    'No indication of indexing attempt in error message'
+                )
 
         except Exception as e:
             # Test failed but we're only verifying we could attempt to index a GitHub repo
-            assert 'Error indexing repository' in str(e), f"Unexpected error: {str(e)}"
+            assert 'Error indexing repository' in str(e), f'Unexpected error: {str(e)}'
 
 
 @pytest.mark.asyncio
-async def test_repository_indexing_with_different_output_path(test_context, remote_git_repo, tmp_path, monkeypatch):
+async def test_repository_indexing_with_different_output_path(
+    test_context, remote_git_repo, tmp_path, monkeypatch
+):
     """Test indexing a remote repository with a custom output path."""
     # Mock the Bedrock embeddings to avoid actual API calls
     from unittest.mock import MagicMock, patch
-    
+
     # Use a custom output path
-    custom_output_path = "custom_output_repo"
+    custom_output_path = 'custom_output_repo'
 
     # Skip in CI environment
     if os.environ.get('CI') == 'true':
         pytest.skip('Skipping in CI environment')
 
     # Create a mock for BedrockEmbeddings
-    with patch('awslabs.git_repo_research_mcp_server.embeddings.BedrockEmbeddings') as mock_bedrock:
+    with patch(
+        'awslabs.git_repo_research_mcp_server.embeddings.BedrockEmbeddings'
+    ) as mock_bedrock:
         # Configure the mock
         mock_embeddings = MagicMock()
         mock_embeddings.embed_query.return_value = [0.1] * 1536
@@ -262,16 +278,20 @@ async def test_repository_indexing_with_different_output_path(test_context, remo
             # We'll accept either success (if it worked) or just check that it attempted to index
             if result['status'] == 'success':
                 # Verify the custom output path was used
-                assert result['repository_name'] == custom_output_path, "Custom output path not used as repository name"
-                
+                assert result['repository_name'] == custom_output_path, (
+                    'Custom output path not used as repository name'
+                )
+
                 # Clean up after the test
                 await mcp_delete_repository(
                     test_context, repository_name_or_path=custom_output_path, index_directory=None
                 )
             else:
                 # Even if it fails, we just need to confirm it attempted to run with the custom output path
-                assert 'Indexing repository' in result.get('message', ''), "No indication of indexing attempt in error message"
+                assert 'Indexing repository' in result.get('message', ''), (
+                    'No indication of indexing attempt in error message'
+                )
 
         except Exception as e:
             # Test failed but we're only verifying we could attempt to index with custom output path
-            assert 'Error indexing repository' in str(e), f"Unexpected error: {str(e)}"
+            assert 'Error indexing repository' in str(e), f'Unexpected error: {str(e)}'
