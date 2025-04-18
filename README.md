@@ -228,15 +228,23 @@ See individual server READMEs for specific requirements and configuration option
 
 2. If using Visual Studio Code, install the [Cline VS Code Extension](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev) (or equivalent extension for your preferred IDE). Once installed, click the extension to open it. When prompted, select the tier that you wish. In this case, we will be using Amazon Bedrock, so the free tier of Cline is fine as we will be sending requests using the Amazon Bedrock API instead of the Cline API.
 
-![install cline extension](./docs/images/root-readme/install-cline-extension.png)
+<p align="center">
+  <img src="./docs/images/root-readme/install-cline-extension.png" width="800" height="400"  />
+<p>
+
+
 
 3. Select the **MCP Servers** button.
 
-![select-mcp-servers](./docs/images/root-readme/select-mcp-servers.png)
+<p align="center">
+  <img src="./docs/images/root-readme/select-mcp-servers.png" width="500" height="800"  />
+<p>
 
 4. Select the **Installed** tab, then click **Configure MCP Servers** to open the `cline_mcp_settings.json` file.
 
-![configure-mcp-servers](./docs/images/root-readme/configure-mcp-servers.png)
+<p align="center">
+  <img src="./docs/images/root-readme/configure-mcp-servers.png" width="500" height="800"  />
+<p>
 
 5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use all of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
 
@@ -321,20 +329,35 @@ See individual server READMEs for specific requirements and configuration option
 
 6. Once installed, you should see a list of your MCP Servers, and they should have a green slider to show that they are enabled. See the following for an example with two of the possible AWS MCP Servers. Click **Done** when finished. You should now see the Cline chat interface.
 
-![mcp-servers-installed](./docs/images/root-readme/mcp-servers-installed.png)
-![cline-chat-interface](./docs/images/root-readme/cline-chat-interface.png)
+<p align="center">
+  <img src="./docs/images/root-readme/mcp-servers-installed.png" width="500" height="800"  />
+<p>
+
+<p align="center">
+  <img src="./docs/images/root-readme/cline-chat-interface.png" width="500" height="800"  />
+<p>
+
 
 7. By default, Cline will be set as the API provider, which has limits for the free tier. Next, let’s update the API provider to be AWS Bedrock, so we can use the LLMs through Bedrock, which would have billing go through your connected AWS account.
 
 
 8. Click the settings gear to open up the Cline settings. Then under **API Provider**, switch this from `Cline` to `AWS Bedrock` and select `AWS Profile` for the authentication type. As a note, the `AWS Credentials` option works as well, however it uses a static credentials (Access Key ID and Secret Access Key) instead of temporary credentials that are automatically redistributed when the token expires, so the temporary credentials with an AWS Profile is the more secure and recommended method.
 
-![cline-select-bedrock](./docs/images/root-readme/cline-select-bedrock.png)
+<p align="center">
+  <img src="./docs/images/root-readme/cline-select-bedrock.png" width="500" height="800"  />
+<p>
+
 
 9. Fill out the configuration based on the existing AWS Profile you wish to use, select the desired AWS Region, and enable cross-region inference.
 
-![cline-select-aws-profile](./docs/images/root-readme/cline-select-aws-profile.png)
-![cline-api-provider-filled](./docs/images/root-readme/cline-api-provider-filled.png)
+<p align="center">
+  <img src="./docs/images/root-readme/cline-select-aws-profile.png" width="500" height="800"  />
+<p>
+
+
+<p align="center">
+  <img src="./docs/images/root-readme/cline-api-provider-filled.png" width="500" height="800"  />
+<p>
 
 10. Next, scroll down on the settings page until you reach the text box that says Custom Instructions. Paste in the following snippet to ensure the `mcp-core` server is used as the starting point for every prompt:
 
@@ -342,7 +365,10 @@ See individual server READMEs for specific requirements and configuration option
 For every new project, always look at your MCP servers and use mcp-core as the starting point every time. Also after a task completion include the list of MCP servers used in the operation.
 ```
 
-![cline-custom-instructions](./docs/images/root-readme/cline-custom-instructions.png)
+<p align="center">
+  <img src="./docs/images/root-readme/cline-custom-instructions.png" width="500" height="800"  />
+<p>
+
 
 11. Once the custom prompt is pasted in, click **Done** to return to the chat interface.
 
