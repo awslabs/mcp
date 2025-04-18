@@ -5,6 +5,57 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 [![GitHub](https://img.shields.io/badge/github-awslabs/mcp-blue.svg?style=flat&logo=github)](https://github.com/awslabs/mcp)
 [![License](https://img.shields.io/badge/license-Apache--2.0-brightgreen)](LICENSE)
 
+## Table of Contents
+
+- [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
+  - [Why MCP Servers?](#why-mcp-servers)
+- [Available Servers](#available-servers)
+  - [Core MCP Server](#core-mcp-server)
+  - [AWS Documentation MCP Server](#aws-documentation-mcp-server)
+  - [Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)
+  - [AWS CDK MCP Server](#aws-cdk-mcp-server)
+  - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
+  - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
+  - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
+  - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
+  - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
+  - [Use Cases for the Servers](#use-cases-for-the-servers)
+- [Installation and Setup](#installation-and-setup)
+- [Samples](#samples)
+- [Documentation](#documentation)
+- [Additional Resources](#additional-resources)
+- [Security](#security)
+- [Contributing](#contributing)
+- [Developer guide](#developer-guide)
+- [License](#license)
+- [Disclaimer](#disclaimer)
+
+## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
+
+> The Model Context Protocol (MCP) is an open protocol that enables seamless integration between LLM applications and external data sources and tools. Whether you're building an AI-powered IDE, enhancing a chat interface, or creating custom AI workflows, MCP provides a standardized way to connect LLMs with the context they need.
+>
+> &mdash; [Model Context Protocol README](https://github.com/modelcontextprotocol#:~:text=The%20Model%20Context,context%20they%20need.)
+
+An MCP Server is a lightweight program that exposes specific capabilities through the standardized Model Context Protocol. Host applications (such as chatbots, IDEs, and other AI tools) have MCP clients that maintain 1:1 connections with MCP servers. Common MCP clients includ agentic AI coding assistants (like Q Developer, Cline, Cursor, Windsurf) as well as chatbot applications like Claude Desktop, with more clients coming soon. MCP servers can access local data sources and remote services to provide additional context that improves the generated outputs from the models.
+
+AWS MCP Servers use this protocol to provide AI applications access to AWS documentation, contextual guidance, and best practices. Through the standardized MCP client-server architecture, AWS capabilities become an intelligent extension of your development environment or AI application.
+
+AWS MCP servers enable enhanced cloud-native development, infrastructure management, and development workflows—making AI-assisted cloud computing more accessible and efficient.
+
+The Model Context Protocol is an open source project run by Anthropic, PBC. and open to contributions from the entire community. For more information on MCP, you can find further documentation [here](https://modelcontextprotocol.io/introduction)
+
+### Why MCP Servers?
+
+MCP servers enhance the capabilities of foundation models (FMs) in several key ways:
+
+- **Improved Output Quality**: By providing relevant information directly in the model's context, MCP servers significantly improve model responses for specialized domains like AWS services. This approach reduces hallucinations, provides more accurate technical details, enables more precise code generation, and ensures recommendations align with current AWS best practices and service capabilities.
+
+- **Access to Latest Documentation**: FMs may not have knowledge of recent releases, APIs, or SDKs. MCP servers bridge this gap by pulling in up-to-date documentation, ensuring your AI assistant always works with the latest AWS capabilities.
+
+- **Workflow Automation**: MCP servers convert common workflows into tools that foundation models can use directly. Whether it's CDK, Terraform, or other AWS-specific workflows, these tools enable AI assistants to perform complex tasks with greater accuracy and efficiency.
+
+- **Specialized Domain Knowledge**: MCP servers provide deep, contextual knowledge about AWS services that might not be fully represented in foundation models' training data, enabling more accurate and helpful responses for cloud development tasks.
+
 ## Available Servers
 
 This monorepo contains the following MCP servers:
@@ -124,19 +175,9 @@ A server for AWS Terraform best practices.
 
 [Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
 
-## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
+### Use Cases for the Servers
 
-> The Model Context Protocol (MCP) is an open protocol that enables seamless integration between LLM applications and external data sources and tools. Whether you're building an AI-powered IDE, enhancing a chat interface, or creating custom AI workflows, MCP provides a standardized way to connect LLMs with the context they need.
->
-> &mdash; [Model Context Protocol README](https://github.com/modelcontextprotocol#:~:text=The%20Model%20Context,context%20they%20need.)
-
-AWS MCP Servers use this protocol to provide AI applications access to AWS documentation, contextual guidance, and best practices. Through the standardized MCP client-server architecture, AWS capabilities become an intelligent extension of your development environment or AI application.
-
-For example, you can use the **AWS Documentation MCP Serve**r to help your AI assistant research and generate code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest AWS CDK APIs and follow AWS best practices.
-
-AWS MCP servers enable enhanced cloud-native development, infrastructure management, and development workflows—making AI-assisted cloud computing more accessible and efficient.
-
-The Model Context Protocol is an open source project run by Anthropic, PBC. and open to contributions from the entire community.
+For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What are my top 3 AWS services by cost last month?" or "How can I reduce my EC2 costs?" and receive detailed insights and actionable recommendations.
 
 ## Installation and Setup
 
@@ -319,6 +360,11 @@ Documentation includes:
 - API references
 - Usage examples
 
+## Additional Resources
+
+- [Introducing AWS MCP Servers for code assistants](https://aws.amazon.com/blogs/machine-learning/introducing-aws-mcp-servers-for-code-assistants-part-1/)
+- [Vibe coding with AWS MCP Servers | AWS Show & Tell](https://www.youtube.com/watch?v=qXGQQRMrcz0)
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
@@ -333,7 +379,7 @@ Contributions of all kinds are welcome! Check out our [contributor guide](CONTRI
 
 ## Developer guide
 
-If you want to add a new MCP Server to the library, check out our [development guide](DEVELOPER_GUIDE.md)
+If you want to add a new MCP Server to the library, check out our [development guide](DEVELOPER_GUIDE.md) and be sure to follow our [design guidelines](DESIGN_GUIDELINES.md).
 
 ## License
 
