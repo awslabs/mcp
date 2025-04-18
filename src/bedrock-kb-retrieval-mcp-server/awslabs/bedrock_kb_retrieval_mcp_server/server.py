@@ -19,6 +19,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.clients import (
     get_bedrock_agent_runtime_client,
 )
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.discovery import (
+    DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY,
     discover_knowledge_bases,
 )
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.runtime import (
@@ -50,6 +51,7 @@ except Exception as e:
     logger.error(f'Error getting bedrock agent client: {e}')
     raise e
 
+kb_inclusion_tag_key = os.getenv('KB_INCLUSION_TAG_KEY', DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY)
 
 mcp = FastMCP(
     'awslabs.bedrock-kb-retrieval-mcp-server',
@@ -105,7 +107,7 @@ async def knowledgebases_resource() -> str:
     2. Note the data source IDs if you want to filter queries to specific data sources
     3. Use the names to determine which knowledge base and data source(s) are most relevant to the user's query
     """
-    return json.dumps(await discover_knowledge_bases(kb_agent_mgmt_client))
+    return json.dumps(await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key))
 
 
 @mcp.tool(name='QueryKnowledgeBases')
