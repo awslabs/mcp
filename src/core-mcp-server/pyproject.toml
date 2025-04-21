@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.core-mcp-server"
-version = "0.2.0"
+version = "0.2.2"
 description = "An AWS Labs Model Context Protocol (MCP) server for aswlabs Core MCP Server"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -121,3 +121,6 @@ addopts = "--cov=awslabs.core_mcp_server --cov-report=term-missing"
 markers = [
     "live: mark test as making live API calls",
 ]
+
+[tool.coverage.run]
+source = ["awslabs"]
