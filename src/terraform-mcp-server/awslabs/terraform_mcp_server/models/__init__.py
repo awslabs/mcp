@@ -10,6 +10,8 @@ from .models import (
     CheckovScanResult,
     TerraformVariable,
     TerraformOutput,
+    SearchUserProvidedModuleRequest,
+    SearchUserProvidedModuleResult,
 )
 
 __all__ = [
@@ -24,4 +26,6 @@ __all__ = [
     'CheckovScanResult',
     'TerraformVariable',
     'TerraformOutput',
+    'SearchUserProvidedModuleRequest',
+    'SearchUserProvidedModuleResult',
 ]

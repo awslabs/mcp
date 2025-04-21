@@ -258,3 +258,47 @@ class CheckovScanResult(BaseModel):
     )
     summary: Dict[str, Any] = Field({}, description='Summary of scan results')
     raw_output: Optional[str] = Field(None, description='Raw output from Checkov')
+
+
+class SearchUserProvidedModuleRequest(BaseModel):
+    """Request model for searching user-provided Terraform modules.
+
+    Attributes:
+        module_url: URL of the Terraform module in the registry (e.g., 'hashicorp/consul/aws').
+        version: Optional specific version of the module to analyze.
+        variables: Optional dictionary of variables to use when analyzing the module.
+    """
+
+    module_url: str = Field(
+        ..., description='URL or identifier of the Terraform module (e.g., "hashicorp/consul/aws")'
+    )
+    version: Optional[str] = Field(None, description='Specific version of the module to analyze')
+    variables: Optional[Dict[str, Any]] = Field(
+        None, description='Variables to use when analyzing the module'
+    )
+
+
+class SearchUserProvidedModuleResult(BaseModel):
+    """Result model for searching user-provided Terraform modules.
+
+    Attributes:
+        status: Execution status (success/error).
+        module_name: Name of the analyzed module.
+        module_url: URL of the module in the registry.
+        module_version: Version of the module that was analyzed.
+        module_description: Description of the module.
+        variables: List of variables defined by the module.
+        outputs: List of outputs provided by the module.
+        readme_content: The README content of the module.
+        error_message: Optional error message if execution failed.
+    """
+
+    status: Literal['success', 'error']
+    module_name: str
+    module_url: str
+    module_version: str
+    module_description: str
+    variables: List[TerraformVariable] = Field([], description='Variables defined by the module')
+    outputs: List[TerraformOutput] = Field([], description='Outputs provided by the module')
+    readme_content: Optional[str] = Field(None, description='README content of the module')
+    error_message: Optional[str] = Field(None, description='Error message if execution failed')
