@@ -21,6 +21,10 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
   - [Use Cases for the Servers](#use-cases-for-the-servers)
 - [Installation and Setup](#installation-and-setup)
+  - [Getting Started with Cline and Amazon Bedrock](#getting-started-with-cline-and-amazon-bedrock)
+  - [Getting Started with Cursor](#getting-started-with-cursor)
+  - [Getting Started with Windsurf](#getting-started-with-windsurf)
+  - Getting Started with Q Developer - Coming Soon
 - [Samples](#samples)
 - [Documentation](#documentation)
 - [Additional Resources](#additional-resources)
@@ -254,12 +258,244 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
         "FUNCTION_TAG_KEY": "your-tag-key",
         "FUNCTION_TAG_VALUE": "your-tag-value"
       }
-    }
+    },
+    "awslabs.terraform-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
   }
 }
 ```
 
 See individual server READMEs for specific requirements and configuration options.
+
+### Getting Started with Cline and Amazon Bedrock
+<details>
+<summary>Getting Started with Cline and Amazon Bedrock</summary>
+
+**IMPORTANT:** Following these instructions may incur costs and are subject to the [Amazon Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/). You are responsible for any associated costs. In addition to selecting the desired model in the Cline settings, ensure you have your selected model (e.g. `anthropic.claude-3-7-sonnet`) also enabled in Amazon Bedrock. For more information on this, see [these AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-modify.html) on enabling model access to Amazon Bedrock Foundation Models (FMs).
+
+
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
+
+2. If using Visual Studio Code, install the [Cline VS Code Extension](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev) (or equivalent extension for your preferred IDE). Once installed, click the extension to open it. When prompted, select the tier that you wish. In this case, we will be using Amazon Bedrock, so the free tier of Cline is fine as we will be sending requests using the Amazon Bedrock API instead of the Cline API.
+
+<p align="center">
+  <img src="./docs/images/root-readme/install-cline-extension.png" width="800" height="400"  />
+<p>
+
+
+3. Select the **MCP Servers** button.
+
+<p align="center">
+  <img src="./docs/images/root-readme/select-mcp-servers.png" width="500" height="800"  />
+<p>
+
+4. Select the **Installed** tab, then click **Configure MCP Servers** to open the `cline_mcp_settings.json` file.
+
+ <p align="center">
+   <img src="./docs/images/root-readme/configure-mcp-servers.png" width="500" height="800"  />
+ <p>
+
+ 5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use some of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
+
+ #### `cline_mcp_settings.json`
+ ```json
+ {
+   "mcpServers": {
+     "awslabs.core-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.core-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR",
+         "MCP_SETTINGS_PATH": "path to your mcp settings file"
+       }
+     },
+     "awslabs.nova-canvas-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "env": {
+         "AWS_PROFILE": "your-aws-profile",
+         "AWS_REGION": "us-east-1",
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       }
+     },
+     "awslabs.terraform-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
+    }
+  }
+ ```
+
+6. Once installed, you should see a list of your MCP Servers under the MCP Server Installed tab, and they should have a green slider to show that they are enabled. See the following for an example with two of the possible AWS MCP Servers. Click **Done** when finished. You should now see the Cline chat interface.
+
+<p align="center">
+  <img src="./docs/images/root-readme/mcp-servers-installed.png" width="500" height="800"  />
+<p>
+
+<p align="center">
+  <img src="./docs/images/root-readme/cline-chat-interface.png" width="500" height="800"  />
+<p>
+
+
+7. By default, Cline will be set as the API provider, which has limits for the free tier. Next, let’s update the API provider to be AWS Bedrock, so we can use the LLMs through Bedrock, which would have billing go through your connected AWS account.
+
+
+8. Click the settings gear to open up the Cline settings. Then under **API Provider**, switch this from `Cline` to `AWS Bedrock` and select `AWS Profile` for the authentication type. As a note, the `AWS Credentials` option works as well, however it uses a static credentials (Access Key ID and Secret Access Key) instead of temporary credentials that are automatically redistributed when the token expires, so the temporary credentials with an AWS Profile is the more secure and recommended method.
+
+<p align="center">
+  <img src="./docs/images/root-readme/cline-select-bedrock.png" width="500" height="800"  />
+<p>
+
+
+9. Fill out the configuration based on the existing AWS Profile you wish to use, select the desired AWS Region, and enable cross-region inference.
+
+<p align="center">
+  <img src="./docs/images/root-readme/cline-select-aws-profile.png" width="500" height="800"  />
+<p>
+
+
+<p align="center">
+  <img src="./docs/images/root-readme/cline-api-provider-filled.png" width="500" height="800"  />
+<p>
+
+10. Next, scroll down on the settings page until you reach the text box that says Custom Instructions. Paste in the following snippet to ensure the `mcp-core` server is used as the starting point for every prompt:
+
+```
+For every new project, always look at your MCP servers and use mcp-core as the starting point every time. Also after a task completion include the list of MCP servers used in the operation.
+```
+
+<p align="center">
+  <img src="./docs/images/root-readme/cline-custom-instructions.png" width="500" height="800"  />
+<p>
+
+
+11. Once the custom prompt is pasted in, click **Done** to return to the chat interface.
+
+12. Now you can begin asking questions and testing out the functionality of your installed AWS MCP Servers. The default option in the chat interface is is `Plan` which will provide the output for you to take manual action on (e.g. providing you a sample configuration that you copy and paste into a file). However, you can optionally toggle this to `Act` which will allow Cline to act on your behalf (e.g. searching for content using a web browser, cloning a repository, executing code, etc). You can optionally toggle on the “Auto-approve” section to avoid having to click to approve the suggestions, however we recommend leaving this off during testing, especially if you have the Act toggle selected.
+
+**Note:** For the best results, please prompt Cline to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
+</details>
+
+### Getting Started with Cursor
+<details>
+<summary>Getting Started with Cursor</summary>
+
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
+
+2. You can place MCP configuration in two locations, depending on your use case:
+
+  A. **Project Configuration**
+    - For tools specific to a project, create a `.cursor/mcp.json` file in your project directory.
+    - This allows you to define MCP servers that are only available within that specific project.
+
+  B. **Global Configuration**
+    - For tools that you want to use across all projects, create a `~/.cursor/mcp.json` file in your home directory.
+    - This makes MCP servers available in all your Cursor workspaces.
+
+#### `.cursor/mcp.json`
+ ```json
+ {
+   "mcpServers": {
+     "awslabs.core-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.core-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR",
+         "MCP_SETTINGS_PATH": "path to your mcp settings file"
+       }
+     },
+     "awslabs.nova-canvas-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "env": {
+         "AWS_PROFILE": "your-aws-profile",
+         "AWS_REGION": "us-east-1",
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       }
+     },
+     "awslabs.terraform-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
+    }
+  }
+ ```
+
+3. **Using MCP in Chat** The Composer Agent will automatically use any MCP tools that are listed under Available Tools on the MCP settings page if it determines them to be relevant. To prompt tool usage intentionally, please prompt Cursor to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
+
+4. **Tool Approval** By default, when Agent wants to use an MCP tool, it will display a message asking for your approval. You can use the arrow next to the tool name to expand the message and see what arguments the Agent is calling the tool with.
+
+</details>
+
+### Getting Started with Windsurf
+<details>
+<summary>Getting Started with Windsurf</summary>
+
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
+
+2. **Access MCP Settings**
+   - Navigate to Windsurf - Settings > Advanced Settings or use the Command Palette > Open Windsurf Settings Page
+   - Look for the "Model Context Protocol (MCP) Servers" section
+
+3. **Add MCP Servers**
+   - Click "Add Server" to add a new MCP server
+   - You can choose from available templates like GitHub, Puppeteer, PostgreSQL, etc.
+   - Alternatively, click "Add custom server" to configure your own server
+
+4. **Manual Configuration**
+   - You can also manually edit the MCP configuration file located at `~/.codeium/windsurf/mcp_config.json`
+
+#### `~/.codeium/windsurf/mcp_config.json`
+ ```json
+ {
+   "mcpServers": {
+     "awslabs.core-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.core-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR",
+         "MCP_SETTINGS_PATH": "path to your mcp settings file"
+       }
+     },
+     "awslabs.nova-canvas-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "env": {
+         "AWS_PROFILE": "your-aws-profile",
+         "AWS_REGION": "us-east-1",
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       }
+     },
+     "awslabs.terraform-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
+    }
+  }
+ ```
+</details>
 
 ## Samples
 

@@ -13,7 +13,7 @@ The exact MCP server code leveraged can be found in the [src/bedrock-kb-retrieva
 
 ### Architecture
 
-![Architecture](./assets/simplified-mcp-flow-diagram.png)
+![Architecture](https://github.com/awslabs/mcp/blob/main/samples/mcp-integration-with-kb/assets/simplified-mcp-flow-diagram.png?raw=true)
 
 ## Setup
 

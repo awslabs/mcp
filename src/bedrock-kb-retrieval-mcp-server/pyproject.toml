@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.bedrock-kb-retrieval-mcp-server"
-version = "0.1.1"
+version = "0.1.5"
 description = "An AWS Labs Model Context Protocol (MCP) server for Bedrock Knowledge Base Retrieval"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -45,6 +45,9 @@ dev = [
     "pre-commit>=4.2.0",
     "pyright>=1.1.398",
     "ruff>=0.11.2",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
 ]
 
 [build-system]
@@ -107,6 +110,14 @@ packages = ["awslabs"]
 
 [tool.bandit]
 exclude_dirs = ["venv","tests"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["awslabs"]
