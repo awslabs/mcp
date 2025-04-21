@@ -1,5 +1,10 @@
 site_name: AWS MCP Servers
 site_url: https://awslabs.github.io/mcp
+
+repo_name: 'awslabs/mcp'
+repo_url: 'https://github.com/awslabs/mcp'
+copyright: '&copy; Amazon Web Services, Inc. or its affiliates. All rights reserved.'
+
 theme:
   name: material
   logo: images/logo.png
@@ -7,6 +12,17 @@ theme:
     - search.suggest
     - search.highlight
     - navigation.instant
+  palette:
+    # Palette toggle for light mode
+    - scheme: dracula
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
 plugins:
   - search
   - include-markdown
@@ -21,7 +37,13 @@ nav:
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
     - AWS Lambda MCP Server: servers/lambda-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
-    - AWS Terraform MCP Server: servers/aws-terraform-mcp-server.md
-    - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
+    - AWS Terraform MCP Server: servers/terraform-mcp-server.md
   - Samples:
     - Home: samples/index.md
+    - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format

@@ -44,7 +44,9 @@ dev = [
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
 ]
 
 [build-system]
@@ -104,6 +106,25 @@ update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--cov=awslabs.lambda_mcp_server --cov-report=term-missing"
+markers = [
+    "live: mark test as making live API calls",
+    "asyncio: mark a test as an asyncio coroutine",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:\n    main()',
+]
 
 [tool.coverage.run]
 source = ["awslabs"]

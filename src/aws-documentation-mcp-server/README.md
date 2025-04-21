@@ -42,7 +42,7 @@ Example:
  - "look up documentation on S3 bucket naming rule. cite your sources"
  - "recommend content for page https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html"
 
-![AWS Documentation MCP Demo](basic-usage.gif)
+![AWS Documentation MCP Demo](https://github.com/awslabs/mcp/blob/main/src/aws-documentation-mcp-server/basic-usage.gif?raw=true)
 
 
 

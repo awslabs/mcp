@@ -123,7 +123,7 @@ The Terraform MCP Server provides the following capabilities:
 - AWS-IA GenAI Modules
 - Terraform Workflow Execution
 
-[Learn more about the AWS Terraform MCP Server](servers/terrafrom-mcp-server.md)
+[Learn more about the AWS Terraform MCP Server](servers/terraform-mcp-server.md)
 
 ## Installation and Setup
 
