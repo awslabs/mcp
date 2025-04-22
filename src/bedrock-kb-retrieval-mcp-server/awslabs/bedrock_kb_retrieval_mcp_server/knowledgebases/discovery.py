@@ -19,12 +19,12 @@ else:
     AgentsforBedrockClient = object
 
 
-KNOWLEDGE_BASE_TAG_INCLUSION_KEY = 'mcp-multirag-kb'
+DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY = 'mcp-multirag-kb'
 
 
 async def discover_knowledge_bases(
     agent_client: AgentsforBedrockClient,
-    tag_key: str = KNOWLEDGE_BASE_TAG_INCLUSION_KEY,
+    tag_key: str = DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY,
 ) -> KnowledgeBaseMapping:
     """Discover knowledge bases.
 

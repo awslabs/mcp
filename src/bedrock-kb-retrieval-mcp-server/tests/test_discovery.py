@@ -46,11 +46,13 @@ class TestDiscoverKnowledgeBases:
 
         # Check that the client methods were called correctly
         mock_bedrock_agent_client.get_paginator.assert_any_call('list_knowledge_bases')
-        mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId='kb-12345')
-        mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId='kb-67890')
-        mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
-            resourceArn='arn:aws:bedrock:us-west-2:123456789012:knowledge-base/kb-12345'
-        )
+
+        for kb_id in ['kb-12345', 'kb-67890', 'kb-95008']:
+            mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId=kb_id)
+            mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
+                resourceArn=f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{kb_id}'
+            )
+
         mock_bedrock_agent_client.get_paginator.assert_any_call('list_data_sources')
 
     @pytest.mark.asyncio
@@ -60,27 +62,33 @@ class TestDiscoverKnowledgeBases:
         result = await discover_knowledge_bases(mock_bedrock_agent_client, tag_key='custom-tag')
 
         # Check that the result is correct
-        assert len(result) == 0
+        assert len(result) == 1
+        assert 'kb-95008' in result
+        assert result['kb-95008']['name'] == 'Yet another Knowledge Base'
+        assert len(result['kb-95008']['data_sources']) == 2
+        assert result['kb-95008']['data_sources'][0]['id'] == 'ds-12345'
+        assert result['kb-95008']['data_sources'][0]['name'] == 'Test Data Source'
+        assert result['kb-95008']['data_sources'][1]['id'] == 'ds-67890'
+        assert result['kb-95008']['data_sources'][1]['name'] == 'Another Data Source'
 
         # Check that the client methods were called correctly
         mock_bedrock_agent_client.get_paginator.assert_any_call('list_knowledge_bases')
-        mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId='kb-12345')
-        mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId='kb-67890')
-        mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
-            resourceArn='arn:aws:bedrock:us-west-2:123456789012:knowledge-base/kb-12345'
-        )
 
-        # The data sources paginator should not be called because no knowledge bases match the tag
-        assert not any(
-            call[0][0] == 'list_data_sources'
-            for call in mock_bedrock_agent_client.get_paginator.call_args_list
-        )
+        for kb_id in ['kb-12345', 'kb-67890', 'kb-95008']:
+            mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId=kb_id)
+            mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
+                resourceArn=f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{kb_id}'
+            )
+
+        mock_bedrock_agent_client.get_paginator.assert_any_call('list_data_sources')
 
     @pytest.mark.asyncio
     async def test_discover_knowledge_bases_no_matching_tags(self, mock_bedrock_agent_client):
         """Test discovering knowledge bases with no matching tags."""
         # Modify the mock to return no matching tags
-        mock_bedrock_agent_client.list_tags_for_resource.return_value = {'tags': {}}
+        mock_bedrock_agent_client.list_tags_for_resource.side_effect = lambda resourceArn: {
+            'tags': {}
+        }
 
         # Call the function
         result = await discover_knowledge_bases(mock_bedrock_agent_client)
@@ -90,11 +98,11 @@ class TestDiscoverKnowledgeBases:
 
         # Check that the client methods were called correctly
         mock_bedrock_agent_client.get_paginator.assert_any_call('list_knowledge_bases')
-        mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId='kb-12345')
-        mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId='kb-67890')
-        mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
-            resourceArn='arn:aws:bedrock:us-west-2:123456789012:knowledge-base/kb-12345'
-        )
+        for kb_id in ['kb-12345', 'kb-67890', 'kb-95008']:
+            mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId=kb_id)
+            mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
+                resourceArn=f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{kb_id}'
+            )
 
         # The data sources paginator should not be called because no knowledge bases match the tag
         assert not any(

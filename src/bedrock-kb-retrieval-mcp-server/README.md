@@ -72,7 +72,8 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
       "env": {
         "AWS_PROFILE": "your-profile-name",
         "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR"
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "KB_INCLUSION_TAG_KEY: "optional-tag-key-to-filter-kbs"
       },
       "disabled": false,
       "autoApprove": []
