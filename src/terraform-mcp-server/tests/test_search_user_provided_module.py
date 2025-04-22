@@ -17,6 +17,7 @@ from awslabs.terraform_mcp_server.models import (
 from loguru import logger
 from typing import Any
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 
 pytestmark = pytest.mark.asyncio
@@ -316,9 +317,13 @@ async def test_get_module_details_success(
     with patch('requests.get') as mock_requests_get:
         # Setup the mock to return different responses based on the URL
         def mock_get_side_effect(url):
-            if 'registry.terraform.io' in url:
+            # Use proper URL parsing for secure validation
+            parsed_url = urlparse(url)
+            hostname = parsed_url.netloc
+
+            if hostname == 'registry.terraform.io':
                 return MockResponse(200, json_data=registry_response)
-            elif 'raw.githubusercontent.com' in url:
+            elif hostname == 'raw.githubusercontent.com':
                 return MockResponse(200, text=mock_github_readme)
             else:
                 return MockResponse(404)
