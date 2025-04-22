@@ -11,7 +11,9 @@
 
 """Tests for the server module of the terraform-mcp-server."""
 
+import os
 import pytest
+import tempfile
 from awslabs.terraform_mcp_server.models import (
     CheckovScanResult,
     CheckovVulnerability,
@@ -75,6 +77,9 @@ class TestTools:
         """Test the execute_terraform_command function."""
         from awslabs.terraform_mcp_server.server import execute_terraform_command
 
+        # Use a secure temporary directory path instead of hardcoded /tmp
+        temp_dir = os.path.join(tempfile.gettempdir(), 'terraform_test_dir')
+
         # Setup mock
         mock_result = TerraformExecutionResult(
             command='init',
@@ -82,7 +87,7 @@ class TestTools:
             return_code=0,
             stdout='Terraform initialized',
             stderr='',
-            working_directory='/tmp/terraform',
+            working_directory=temp_dir,
             error_message=None,
             outputs=None,
         )
@@ -91,7 +96,7 @@ class TestTools:
         # Call the function
         result = await execute_terraform_command(
             command='init',
-            working_directory='/tmp/terraform',
+            working_directory=temp_dir,
             variables={'foo': 'bar'},
             aws_region='us-west-2',
             strip_ansi=True,
@@ -105,7 +110,7 @@ class TestTools:
         args, _ = mock_execute_terraform_command_impl.call_args
         request = args[0]
         assert request.command == 'init'
-        assert request.working_directory == '/tmp/terraform'
+        assert request.working_directory == temp_dir
         assert request.variables == {'foo': 'bar'}
         assert request.aws_region == 'us-west-2'
         assert request.strip_ansi is True
@@ -255,17 +260,21 @@ class TestTools:
         """Test the run_checkov_scan function."""
         from awslabs.terraform_mcp_server.server import run_checkov_scan
 
+        # Use a secure temporary directory path instead of hardcoded /tmp
+        temp_dir = os.path.join(tempfile.gettempdir(), 'terraform_test_dir')
+        test_file = os.path.join(temp_dir, 'main.tf')
+
         # Setup mock
         mock_result = CheckovScanResult(
             status='success',
             return_code=0,
-            working_directory='/tmp/terraform',
+            working_directory=temp_dir,
             vulnerabilities=[
                 CheckovVulnerability(
                     id='CKV_AWS_1',
                     type='terraform_aws',
                     resource='aws_s3_bucket.example',
-                    file_path='/tmp/terraform/main.tf',
+                    file_path=test_file,
                     line=10,
                     description='Ensure S3 bucket has encryption enabled',
                     severity='HIGH',
@@ -281,7 +290,7 @@ class TestTools:
 
         # Call the function
         result = await run_checkov_scan(
-            working_directory='/tmp/terraform',
+            working_directory=temp_dir,
             framework='terraform',
             check_ids=['CKV_AWS_1'],
             skip_check_ids=['CKV_AWS_2'],
@@ -295,7 +304,7 @@ class TestTools:
         mock_run_checkov_scan_impl.assert_called_once()
         args, _ = mock_run_checkov_scan_impl.call_args
         request = args[0]
-        assert request.working_directory == '/tmp/terraform'
+        assert request.working_directory == temp_dir
         assert request.framework == 'terraform'
         assert request.check_ids == ['CKV_AWS_1']
         assert request.skip_check_ids == ['CKV_AWS_2']
