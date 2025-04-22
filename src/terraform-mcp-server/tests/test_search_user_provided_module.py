@@ -714,7 +714,12 @@ async def test_get_module_details_with_github_source(mock_requests_get):
 
     # Setup mocks for different API calls
     def mock_get_side_effect(url):
-        if 'registry.terraform.io' in url:
+        # Parse the URL to safely check components
+        parsed_url = urlparse(url)
+        hostname = parsed_url.netloc
+        path = parsed_url.path
+
+        if hostname == 'registry.terraform.io':
             return MockResponse(
                 200,
                 json_data={
@@ -728,7 +733,7 @@ async def test_get_module_details_with_github_source(mock_requests_get):
                     'published_at': '2023-01-01T00:00:00Z',
                 },
             )
-        elif 'raw.githubusercontent.com' in url and 'README.md' in url:
+        elif hostname == 'raw.githubusercontent.com' and '/README.md' in path:
             return MockResponse(
                 200, text='# Consul AWS Module\n\nThis module deploys Consul on AWS.'
             )
