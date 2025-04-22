@@ -106,6 +106,18 @@ class TestTools:
         assert tool.name == 'RunCheckovScan'
         assert 'Run Checkov security scan' in tool.description
 
+    def test_search_user_provided_module_registration(self):
+        """Test that the search_user_provided_module tool is registered correctly."""
+        tool = mcp._tool_manager.get_tool('SearchUserProvidedModule')
+        assert tool is not None
+        assert tool.name == 'SearchUserProvidedModule'
+        assert 'Search for a user-provided Terraform registry module' in tool.description
+
+        # Verify the tool exists
+        assert tool is not None
+        assert tool.name == 'SearchUserProvidedModule'
+        assert 'Search for a user-provided Terraform registry module' in tool.description
+
 
 class TestResources:
     """Tests for the MCP resources."""
