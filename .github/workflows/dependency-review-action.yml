@@ -13,65 +13,6 @@ jobs:
       - name: 'Dependency Review'
         uses: actions/dependency-review-action@ce3cf9537a52e8119d91fd484ab5b8a807627bf8 #v4.6.0
         with:
-          ## Amazon Software License
-          ## Apache License v2.0 with LLVM Exceptions​
-          ## AppleJavaExtensions
-          ## Carnegie Mellon Dictionary license
-          ## Indiana University Extreme! Lab Software License v 1.1.1
-          ## JPEG License​
-          ## Java HTML - JTidy License
-          ## JiBX
-          ## jmock
-          ## Jython
-          ## MX4J License
-          ## NSIS (Nullsoft Scriptable Install System) (except for the lzma compression module for NSIS)
-          ## OpenLDAP Public License
-          ## Python Imaging Library (PIL)
-          ## Scala License
-          ## SLF4J
-          ## SQLite
-          ## WordNet 3.0 license
-          allow-licenses: |
-            AFL-2.1,
-            AFL-3.0,
-            ANTLR-PD,
-            Apache-1.1,
-            Apache-2.0,
-            Artistic-1.0,
-            Artistic-1.0-Perl,
-            BSL-1.0,BSD-1-Clause,BSD-2-Clause,BSD-3-Clause,BSD-4-Clause,BSD-2-Clause-Patent,
-            CPOL-1.02,
-            CC-BY-2.0,CC-BY-2.5,CC-BY-3.0,CC-BY-4.0,
-            curl,
-            EFL-2.0,
-            FTL,
-            HPND-sell-variant,
-            ImageMagick,
-            ISC,
-            JSON,
-            libtiff,
-            MS-PL,
-            MIT,MIT-0,ICU,
-            MulanPSL-2.0,
-            OpenSSL,
-            PDDL-1.0,
-            PHP-3.0,PHP-3.01,
-            PostgreSQL,
-            PSF-2.0,
-            Python-2.0,Python-2.0.1,
-            Ruby,
-            OFL-1.0,OFL-1.1,
-            SMLNJ,
-            TCL,
-            NCSA,
-            Unlicense,
-            Vim,
-            W3C,W3C-19980720,W3C-20150513,
-            WTFPL,
-            zlib-acknowledgement,
-            ZPL-2.1
-
-          ## Honest Public License (HPL) 1.0
           deny-licenses: |
             AGPL-1.0,AGPL-1.0-only,AGPL-1.0-or-later,AGPL-3.0,AGPL-3.0-only,AGPL-3.0-or-later,
             AML,
@@ -86,4 +27,5 @@ jobs:
             OSL-3.0,
             Parity-7.0.0,
             RPSL-1.0,
-            SSPL-1.0
+            SSPL-1.0,
+          ## Honest Public License (HPL) 1.0
