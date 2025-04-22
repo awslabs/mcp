@@ -1,8 +1,5 @@
 """Implementation of user provided module from the Terraform registry search tool."""
 
-
-import json
-import os
 import re
 import requests
 import traceback
@@ -11,7 +8,6 @@ from awslabs.terraform_mcp_server.impl.tools.utils import (
     extract_outputs_from_readme,
     get_github_release_details,
     get_variables_tf,
-    parse_variables_tf,
 )
 from awslabs.terraform_mcp_server.models import (
     SearchUserProvidedModuleRequest,
@@ -20,7 +16,7 @@ from awslabs.terraform_mcp_server.models import (
     TerraformVariable,
 )
 from loguru import logger
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 async def search_user_provided_module_impl(
@@ -38,7 +34,7 @@ async def search_user_provided_module_impl(
     Returns:
         A SearchUserProvidedModuleResult object containing module information
     """
-    logger.info(f"Analyzing Terraform module: {request.module_url}")
+    logger.info(f'Analyzing Terraform module: {request.module_url}')
 
     try:
         # Parse the module URL to extract namespace, name, and provider
@@ -84,9 +80,7 @@ async def search_user_provided_module_impl(
 
         # Extract variables from module details
         if 'variables' in module_details and module_details['variables']:
-            variables = [
-                TerraformVariable(**var_data) for var_data in module_details['variables']
-            ]
+            variables = [TerraformVariable(**var_data) for var_data in module_details['variables']]
         elif 'root' in module_details and 'inputs' in module_details['root']:
             # Extract from registry API format
             for var_name, var_data in module_details['root']['inputs'].items():
@@ -144,7 +138,9 @@ async def search_user_provided_module_impl(
         logger.debug(f'Stack trace: {traceback.format_exc()}')
         return SearchUserProvidedModuleResult(
             status='error',
-            module_name=request.module_url.split('/')[-2] if '/' in request.module_url else 'unknown',
+            module_name=request.module_url.split('/')[-2]
+            if '/' in request.module_url
+            else 'unknown',
             module_url=request.module_url,
             module_version=request.version or 'latest',
             module_description='',
@@ -166,7 +162,7 @@ def parse_module_url(module_url: str) -> Optional[Tuple[str, str, str]]:
     """
     # Remove registry prefix if present
     if module_url.startswith('registry.terraform.io/'):
-        module_url = module_url[len('registry.terraform.io/'):]
+        module_url = module_url[len('registry.terraform.io/') :]
 
     # Split by slashes
     parts = module_url.split('/')
@@ -290,13 +286,13 @@ async def get_module_details(
         # Add readme_content to details if available
         if readme_content:
             logger.info(f'Successfully extracted README content ({len(readme_content)} chars)')
-            
+
             # Extract outputs from README content
             outputs = extract_outputs_from_readme(readme_content)
             if outputs:
                 logger.info(f'Extracted {len(outputs)} outputs from README')
                 details['outputs'] = outputs
-            
+
             # Trim if too large
             if len(readme_content) > 8000:
                 logger.debug(
