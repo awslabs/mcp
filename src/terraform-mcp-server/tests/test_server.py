@@ -12,6 +12,17 @@
 """Tests for the server module of the terraform-mcp-server."""
 
 import pytest
+from awslabs.terraform_mcp_server.models import (
+    CheckovScanResult,
+    CheckovVulnerability,
+    ModuleSearchResult,
+    SearchUserProvidedModuleResult,
+    TerraformAWSCCProviderDocsResult,
+    TerraformAWSProviderDocsResult,
+    TerraformExecutionResult,
+    TerraformOutput,
+    TerraformVariable,
+)
 from awslabs.terraform_mcp_server.server import (
     main,
     mcp,
@@ -58,6 +69,47 @@ class TestTools:
         assert tool.name == 'ExecuteTerraformCommand'
         assert 'Execute Terraform workflow commands' in tool.description
 
+    @pytest.mark.asyncio
+    @patch('awslabs.terraform_mcp_server.server.execute_terraform_command_impl')
+    async def test_execute_terraform_command(self, mock_execute_terraform_command_impl):
+        """Test the execute_terraform_command function."""
+        from awslabs.terraform_mcp_server.server import execute_terraform_command
+
+        # Setup mock
+        mock_result = TerraformExecutionResult(
+            command='init',
+            status='success',
+            return_code=0,
+            stdout='Terraform initialized',
+            stderr='',
+            working_directory='/tmp/terraform',
+            error_message=None,
+            outputs=None,
+        )
+        mock_execute_terraform_command_impl.return_value = mock_result
+
+        # Call the function
+        result = await execute_terraform_command(
+            command='init',
+            working_directory='/tmp/terraform',
+            variables={'foo': 'bar'},
+            aws_region='us-west-2',
+            strip_ansi=True,
+        )
+
+        # Verify the result
+        assert result == mock_result
+
+        # Verify the mock was called with the correct arguments
+        mock_execute_terraform_command_impl.assert_called_once()
+        args, _ = mock_execute_terraform_command_impl.call_args
+        request = args[0]
+        assert request.command == 'init'
+        assert request.working_directory == '/tmp/terraform'
+        assert request.variables == {'foo': 'bar'}
+        assert request.aws_region == 'us-west-2'
+        assert request.strip_ansi is True
+
     def test_search_aws_provider_docs_registration(self):
         """Test that the search_aws_provider_docs tool is registered correctly."""
         tool = mcp._tool_manager.get_tool('SearchAwsProviderDocs')
@@ -69,6 +121,38 @@ class TestTools:
         assert tool is not None
         assert tool.name == 'SearchAwsProviderDocs'
         assert 'Search AWS provider documentation' in tool.description
+
+    @pytest.mark.asyncio
+    @patch('awslabs.terraform_mcp_server.server.search_aws_provider_docs_impl')
+    async def test_search_aws_provider_docs(self, mock_search_aws_provider_docs_impl):
+        """Test the search_aws_provider_docs function."""
+        from awslabs.terraform_mcp_server.server import search_aws_provider_docs
+
+        # Setup mock
+        mock_result = [
+            TerraformAWSProviderDocsResult(
+                asset_name='aws_s3_bucket',
+                asset_type='resource',
+                description='Provides an S3 bucket resource',
+                url='https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket',
+                example_usage=[],
+                arguments=[],
+                attributes=[],
+            )
+        ]
+        mock_search_aws_provider_docs_impl.return_value = mock_result
+
+        # Call the function
+        result = await search_aws_provider_docs(
+            asset_name='aws_s3_bucket',
+            asset_type='resource',
+        )
+
+        # Verify the result
+        assert result == mock_result
+
+        # Verify the mock was called with the correct arguments
+        mock_search_aws_provider_docs_impl.assert_called_once_with('aws_s3_bucket', 'resource')
 
     def test_search_awscc_provider_docs_registration(self):
         """Test that the search_awscc_provider_docs tool is registered correctly."""
@@ -82,6 +166,37 @@ class TestTools:
         assert tool.name == 'SearchAwsccProviderDocs'
         assert 'Search AWSCC provider documentation' in tool.description
 
+    @pytest.mark.asyncio
+    @patch('awslabs.terraform_mcp_server.server.search_awscc_provider_docs_impl')
+    async def test_search_awscc_provider_docs(self, mock_search_awscc_provider_docs_impl):
+        """Test the search_awscc_provider_docs function."""
+        from awslabs.terraform_mcp_server.server import search_awscc_provider_docs
+
+        # Setup mock
+        mock_result = [
+            TerraformAWSCCProviderDocsResult(
+                asset_name='awscc_s3_bucket',
+                asset_type='resource',
+                description='Provides an S3 bucket resource using Cloud Control API',
+                url='https://registry.terraform.io/providers/hashicorp/awscc/latest/docs/resources/s3_bucket',
+                example_usage=[],
+                schema_arguments=[],
+            )
+        ]
+        mock_search_awscc_provider_docs_impl.return_value = mock_result
+
+        # Call the function
+        result = await search_awscc_provider_docs(
+            asset_name='awscc_s3_bucket',
+            asset_type='resource',
+        )
+
+        # Verify the result
+        assert result == mock_result
+
+        # Verify the mock was called with the correct arguments
+        mock_search_awscc_provider_docs_impl.assert_called_once_with('awscc_s3_bucket', 'resource')
+
     def test_search_specific_aws_ia_modules_registration(self):
         """Test that the search_specific_aws_ia_modules tool is registered correctly."""
         tool = mcp._tool_manager.get_tool('SearchSpecificAwsIaModules')
@@ -93,6 +208,34 @@ class TestTools:
         assert tool is not None
         assert tool.name == 'SearchSpecificAwsIaModules'
         assert 'Search for specific AWS-IA Terraform modules' in tool.description
+
+    @pytest.mark.asyncio
+    @patch('awslabs.terraform_mcp_server.server.search_specific_aws_ia_modules_impl')
+    async def test_search_specific_aws_ia_modules(self, mock_search_specific_aws_ia_modules_impl):
+        """Test the search_specific_aws_ia_modules function."""
+        from awslabs.terraform_mcp_server.server import search_specific_aws_ia_modules
+
+        # Setup mock
+        mock_result = [
+            ModuleSearchResult(
+                name='bedrock',
+                namespace='aws-ia',
+                provider='aws',
+                version='1.0.0',
+                url='https://registry.terraform.io/modules/aws-ia/bedrock/aws',
+                description='Amazon Bedrock module for generative AI applications',
+            )
+        ]
+        mock_search_specific_aws_ia_modules_impl.return_value = mock_result
+
+        # Call the function
+        result = await search_specific_aws_ia_modules(query='bedrock')
+
+        # Verify the result
+        assert result == mock_result
+
+        # Verify the mock was called with the correct arguments
+        mock_search_specific_aws_ia_modules_impl.assert_called_once_with('bedrock')
 
     def test_run_checkov_scan_registration(self):
         """Test that the run_checkov_scan tool is registered correctly."""
@@ -106,6 +249,58 @@ class TestTools:
         assert tool.name == 'RunCheckovScan'
         assert 'Run Checkov security scan' in tool.description
 
+    @pytest.mark.asyncio
+    @patch('awslabs.terraform_mcp_server.server.run_checkov_scan_impl')
+    async def test_run_checkov_scan(self, mock_run_checkov_scan_impl):
+        """Test the run_checkov_scan function."""
+        from awslabs.terraform_mcp_server.server import run_checkov_scan
+
+        # Setup mock
+        mock_result = CheckovScanResult(
+            status='success',
+            return_code=0,
+            working_directory='/tmp/terraform',
+            vulnerabilities=[
+                CheckovVulnerability(
+                    id='CKV_AWS_1',
+                    type='terraform_aws',
+                    resource='aws_s3_bucket.example',
+                    file_path='/tmp/terraform/main.tf',
+                    line=10,
+                    description='Ensure S3 bucket has encryption enabled',
+                    severity='HIGH',
+                    guideline='Enable encryption for S3 buckets',
+                    fixed=False,
+                    fix_details=None,
+                )
+            ],
+            summary={'passed': 5, 'failed': 1, 'skipped': 0},
+            raw_output='',
+        )
+        mock_run_checkov_scan_impl.return_value = mock_result
+
+        # Call the function
+        result = await run_checkov_scan(
+            working_directory='/tmp/terraform',
+            framework='terraform',
+            check_ids=['CKV_AWS_1'],
+            skip_check_ids=['CKV_AWS_2'],
+            output_format='json',
+        )
+
+        # Verify the result
+        assert result == mock_result
+
+        # Verify the mock was called with the correct arguments
+        mock_run_checkov_scan_impl.assert_called_once()
+        args, _ = mock_run_checkov_scan_impl.call_args
+        request = args[0]
+        assert request.working_directory == '/tmp/terraform'
+        assert request.framework == 'terraform'
+        assert request.check_ids == ['CKV_AWS_1']
+        assert request.skip_check_ids == ['CKV_AWS_2']
+        assert request.output_format == 'json'
+
     def test_search_user_provided_module_registration(self):
         """Test that the search_user_provided_module tool is registered correctly."""
         tool = mcp._tool_manager.get_tool('SearchUserProvidedModule')
@@ -117,6 +312,56 @@ class TestTools:
         assert tool is not None
         assert tool.name == 'SearchUserProvidedModule'
         assert 'Search for a user-provided Terraform registry module' in tool.description
+
+    @pytest.mark.asyncio
+    @patch('awslabs.terraform_mcp_server.server.search_user_provided_module_impl')
+    async def test_search_user_provided_module(self, mock_search_user_provided_module_impl):
+        """Test the search_user_provided_module function."""
+        from awslabs.terraform_mcp_server.server import search_user_provided_module
+
+        # Setup mock
+        mock_result = SearchUserProvidedModuleResult(
+            status='success',
+            module_name='vpc',
+            module_url='terraform-aws-modules/vpc/aws',
+            module_version='3.14.0',
+            module_description='Terraform module which creates VPC resources on AWS',
+            variables=[
+                TerraformVariable(
+                    name='name',
+                    type='string',
+                    description='Name to be used on all the resources as identifier',
+                    required=True,
+                )
+            ],
+            outputs=[
+                TerraformOutput(
+                    name='vpc_id',
+                    description='The ID of the VPC',
+                )
+            ],
+            readme_content='# VPC Module\n\nA Terraform module to create an AWS VPC.',
+            error_message=None,
+        )
+        mock_search_user_provided_module_impl.return_value = mock_result
+
+        # Call the function
+        result = await search_user_provided_module(
+            module_url='terraform-aws-modules/vpc/aws',
+            version='3.14.0',
+            variables={'name': 'my-vpc'},
+        )
+
+        # Verify the result
+        assert result == mock_result
+
+        # Verify the mock was called with the correct arguments
+        mock_search_user_provided_module_impl.assert_called_once()
+        args, _ = mock_search_user_provided_module_impl.call_args
+        request = args[0]
+        assert request.module_url == 'terraform-aws-modules/vpc/aws'
+        assert request.version == '3.14.0'
+        assert request.variables == {'name': 'my-vpc'}
 
 
 class TestResources:
@@ -186,6 +431,18 @@ class TestResources:
         assert resource_info.mime_type == 'text/markdown'
 
     @pytest.mark.asyncio
+    @patch('awslabs.terraform_mcp_server.server.TERRAFORM_WORKFLOW_GUIDE', 'Test workflow guide')
+    async def test_terraform_development_workflow_content(self):
+        """Test the terraform_development_workflow resource content."""
+        from awslabs.terraform_mcp_server.server import terraform_development_workflow
+
+        # Call the function
+        result = await terraform_development_workflow()
+
+        # Verify the result
+        assert result == 'Test workflow guide'
+
+    @pytest.mark.asyncio
     async def test_terraform_aws_provider_resources_listing_resource(self):
         """Test the terraform_aws_provider_resources_listing resource."""
         # Call the function
@@ -217,6 +474,20 @@ class TestResources:
             and 'AWS Terraform Provider Best Practices' in resource_info.description
         )
         assert resource_info.mime_type == 'text/markdown'
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.terraform_mcp_server.server.AWS_TERRAFORM_BEST_PRACTICES', 'Test best practices'
+    )
+    async def test_terraform_aws_best_practices_content(self):
+        """Test the terraform_aws_best_practices resource content."""
+        from awslabs.terraform_mcp_server.server import terraform_aws_best_practices
+
+        # Call the function
+        result = await terraform_aws_best_practices()
+
+        # Verify the result
+        assert result == 'Test best practices'
 
 
 class TestMain:
