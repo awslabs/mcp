@@ -17,6 +17,7 @@ from awslabs.terraform_mcp_server.models import (
 )
 from loguru import logger
 from typing import Any, Dict, Optional, Tuple
+from urllib.parse import urlparse
 
 
 async def search_user_provided_module_impl(
@@ -160,12 +161,32 @@ def parse_module_url(module_url: str) -> Optional[Tuple[str, str, str]]:
     Returns:
         Tuple containing (namespace, name, provider) or None if invalid format
     """
-    # Remove registry prefix if present
-    if module_url.startswith('registry.terraform.io/'):
-        module_url = module_url[len('registry.terraform.io/') :]
+    # Handle URLs with scheme (http://, https://)
+    if '://' in module_url:
+        parsed_url = urlparse(module_url)
+        if parsed_url.netloc == 'registry.terraform.io':
+            # Extract path and remove leading slash
+            path = parsed_url.path.lstrip('/')
+            parts = path.split('/')
+        else:
+            # Not a registry URL format
+            return None
+    # Handle registry prefix without scheme
+    elif module_url.startswith('registry.terraform.io/'):
+        # Create a proper URL and parse it
+        parsed_url = urlparse(f'https://{module_url}')
+        if parsed_url.netloc == 'registry.terraform.io':
+            # Extract path and remove leading slash
+            path = parsed_url.path.lstrip('/')
+            parts = path.split('/')
+        else:
+            # Should not happen with the startswith check
+            return None
+    else:
+        # Simple module path format (namespace/name/provider)
+        parts = module_url.split('/')
 
-    # Split by slashes
-    parts = module_url.split('/')
+    # Ensure we have at least namespace/name/provider
     if len(parts) < 3:
         return None
 
