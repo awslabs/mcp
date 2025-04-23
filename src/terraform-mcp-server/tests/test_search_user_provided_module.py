@@ -834,6 +834,235 @@ async def test_get_module_details_with_api_error(mock_requests_get):
     assert result == {}
 
 
+@patch('requests.get')
+async def test_get_module_details_no_readme_content(mock_requests_get):
+    """Test get_module_details when no README content is found through any method."""
+    # Setup mock for registry API response without README
+    registry_response = MockResponse(
+        200,
+        json_data={
+            'id': 'hashicorp/consul/aws/0.11.0',
+            'name': 'consul',
+            'namespace': 'hashicorp',
+            'provider': 'aws',
+            'version': '0.11.0',
+            'description': 'Terraform module which can be used to deploy a Consul cluster on AWS',
+            'source': 'https://github.com/hashicorp/terraform-aws-consul',
+            'published_at': '2023-01-01T00:00:00Z',
+            # No readme field
+        },
+    )
+
+    # Setup mock for GitHub README requests to return 404
+    github_readme_response = MockResponse(404)
+
+    def mock_get_side_effect(url):
+        if 'registry.terraform.io' in url:
+            return registry_response
+        elif 'raw.githubusercontent.com' in url and 'README.md' in url:
+            return github_readme_response
+        else:
+            return MockResponse(404)
+
+    mock_requests_get.side_effect = mock_get_side_effect
+
+    # Mock GitHub release details and variables.tf to return empty values
+    with patch(
+        'awslabs.terraform_mcp_server.impl.tools.utils.get_github_release_details'
+    ) as mock_release:
+        with patch(
+            'awslabs.terraform_mcp_server.impl.tools.utils.get_variables_tf'
+        ) as mock_variables:
+            mock_release.return_value = {'details': {}, 'version': None}
+            mock_variables.return_value = (None, [])
+
+            # Call the function
+            result = await get_module_details('hashicorp', 'consul', 'aws', '0.11.0')
+
+            # Verify the result doesn't have readme_content
+            assert result is not None
+            assert 'readme_content' not in result
+
+
+@patch('requests.get')
+async def test_get_module_details_with_variables_content(mock_requests_get):
+    """Test get_module_details when variables are found in variables.tf."""
+    # Setup mock for registry API response with GitHub source URL
+    registry_response = MockResponse(
+        200,
+        json_data={
+            'id': 'hashicorp/consul/aws/0.11.0',
+            'name': 'consul',
+            'namespace': 'hashicorp',
+            'provider': 'aws',
+            'version': '0.11.0',
+            'description': 'Terraform module which can be used to deploy a Consul cluster on AWS',
+            'source': 'https://github.com/hashicorp/terraform-aws-consul',
+            'published_at': '2023-01-01T00:00:00Z',
+        },
+    )
+
+    # Setup mock for GitHub requests
+    def mock_get_side_effect(url, **kwargs):  # Accept any keyword arguments
+        if 'registry.terraform.io' in url:
+            return registry_response
+        elif 'raw.githubusercontent.com' in url and 'README.md' in url:
+            return MockResponse(404)  # No README found
+        elif 'raw.githubusercontent.com' in url and 'variables.tf' in url:
+            if '/main/' in url:
+                # Return variables.tf for main branch
+                return MockResponse(
+                    200,
+                    text="""
+variable "cluster_name" {
+  description = "What to name the Consul cluster"
+  type        = string
+}
+
+variable "num_servers" {
+  description = "The number of Consul server nodes to deploy"
+  type        = number
+  default     = 3
+}
+""",
+                )
+            else:
+                return MockResponse(404)
+        else:
+            return MockResponse(404)
+
+    mock_requests_get.side_effect = mock_get_side_effect
+
+    # Skip mocking get_variables_tf and directly use the implementation
+    # This will ensure the variables_content is processed correctly
+
+    # Call the function
+    result = await get_module_details('hashicorp', 'consul', 'aws', '0.11.0')
+
+    # Verify the variables were added to the result
+    assert result is not None
+    assert 'variables' in result
+    assert len(result['variables']) == 2
+    assert result['variables'][0]['name'] == 'cluster_name'
+    assert result['variables'][0]['type'] == 'string'
+    assert result['variables'][0]['required'] is True
+    assert result['variables'][1]['name'] == 'num_servers'
+    assert result['variables'][1]['type'] == 'number'
+    assert result['variables'][1]['required'] is False
+    assert result['variables'][1]['default'] == '3'
+
+
+@patch('requests.get')
+async def test_get_module_details_with_variables_in_master_branch(mock_requests_get):
+    """Test get_module_details when variables are found in master branch (fallback)."""
+    # Setup mock for registry API response with GitHub source URL
+    registry_response = MockResponse(
+        200,
+        json_data={
+            'id': 'hashicorp/consul/aws/0.11.0',
+            'name': 'consul',
+            'namespace': 'hashicorp',
+            'provider': 'aws',
+            'version': '0.11.0',
+            'description': 'Terraform module which can be used to deploy a Consul cluster on AWS',
+            'source': 'https://github.com/hashicorp/terraform-aws-consul',
+            'published_at': '2023-01-01T00:00:00Z',
+        },
+    )
+
+    # Setup mock for GitHub requests
+    def mock_get_side_effect(url, **kwargs):  # Accept any keyword arguments
+        if 'registry.terraform.io' in url:
+            return registry_response
+        elif 'raw.githubusercontent.com' in url and 'README.md' in url:
+            return MockResponse(404)  # No README found
+        elif 'raw.githubusercontent.com' in url and 'variables.tf' in url:
+            if '/main/' in url:
+                return MockResponse(404)  # No variables.tf in main branch
+            elif '/master/' in url:
+                # Return variables.tf for master branch
+                return MockResponse(
+                    200,
+                    text="""
+variable "cluster_name" {
+  description = "What to name the Consul cluster (master branch)"
+  type        = string
+}
+""",
+                )
+            else:
+                return MockResponse(404)
+        else:
+            return MockResponse(404)
+
+    mock_requests_get.side_effect = mock_get_side_effect
+
+    # Call the function
+    result = await get_module_details('hashicorp', 'consul', 'aws', '0.11.0')
+
+    # Verify the variables from master branch were added to the result
+    assert result is not None
+    assert 'variables' in result
+    assert len(result['variables']) == 1
+    assert result['variables'][0]['name'] == 'cluster_name'
+    assert (
+        result['variables'][0]['description'] == 'What to name the Consul cluster (master branch)'
+    )
+    assert result['variables'][0]['required'] is True
+
+
+@patch('requests.get')
+async def test_get_module_details_with_version_from_github(mock_requests_get):
+    """Test get_module_details when version is found from GitHub and no module version is set."""
+    # Setup mock for registry API response with GitHub source URL but no version
+    registry_response = MockResponse(
+        200,
+        json_data={
+            'id': 'hashicorp/consul/aws',
+            'name': 'consul',
+            'namespace': 'hashicorp',
+            'provider': 'aws',
+            # No version field
+            'description': 'Terraform module which can be used to deploy a Consul cluster on AWS',
+            'source': 'https://github.com/hashicorp/terraform-aws-consul',
+            'published_at': '2023-01-01T00:00:00Z',
+        },
+    )
+
+    # Setup mock for GitHub requests
+    def mock_get_side_effect(url, **kwargs):  # Accept any keyword arguments
+        if 'registry.terraform.io' in url:
+            return registry_response
+        elif 'raw.githubusercontent.com' in url and 'README.md' in url:
+            return MockResponse(404)  # No README found
+        elif 'api.github.com' in url:
+            # Mock GitHub API responses
+            if '/releases/latest' in url:
+                return MockResponse(
+                    200,
+                    json_data={
+                        'tag_name': 'v1.2.3',
+                        'published_at': '2023-01-01T00:00:00Z',
+                    },
+                )
+            elif '/tags' in url:
+                return MockResponse(
+                    200, json_data=[{'name': 'v1.2.3', 'commit': {'sha': '123456'}}]
+                )
+        return MockResponse(404)
+
+    mock_requests_get.side_effect = mock_get_side_effect
+
+    # Call the function directly without mocking get_github_release_details
+    # This will test the actual code path that sets the version from GitHub
+    result = await get_module_details('hashicorp', 'consul', 'aws', None)
+
+    # Verify the version from GitHub was used
+    assert result is not None
+    assert 'version' in result
+    assert result['version'] == '1.2.3'  # Should be set from GitHub version
+
+
 @patch('awslabs.terraform_mcp_server.impl.tools.search_user_provided_module.get_module_details')
 async def test_search_user_provided_module_impl_with_variables_from_root(mock_get_module_details):
     """Test search_user_provided_module_impl with variables from root."""
@@ -916,6 +1145,56 @@ async def test_search_user_provided_module_impl_with_outputs_from_root(mock_get_
     assert result.outputs[0].description == 'The ID of the VPC'
     assert result.outputs[1].name == 'vpc_arn'
     assert result.outputs[1].description == 'The ARN of the VPC'
+
+
+@patch('awslabs.terraform_mcp_server.impl.tools.search_user_provided_module.get_module_details')
+async def test_search_user_provided_module_impl_no_readme_content(mock_get_module_details):
+    """Test search_user_provided_module_impl when no README content is found."""
+    # Setup mock with module details but no readme_content
+    mock_get_module_details.return_value = {
+        'name': 'vpc',
+        'namespace': 'terraform-aws-modules',
+        'provider': 'aws',
+        'version': '3.14.0',
+        'description': 'Terraform module which creates VPC resources on AWS',
+        # No readme_content key
+        'variables': [
+            {
+                'name': 'name',
+                'type': 'string',
+                'description': 'Name to be used on all the resources as identifier',
+                'default': None,
+                'required': True,
+            }
+        ],
+        'outputs': [
+            {
+                'name': 'vpc_id',
+                'description': 'The ID of the VPC',
+            }
+        ],
+    }
+
+    # Create request
+    request = SearchUserProvidedModuleRequest(
+        module_url='terraform-aws-modules/vpc/aws', version=None, variables=None
+    )
+
+    # Call the function
+    result = await search_user_provided_module_impl(request)
+
+    # Verify the result
+    assert result.status == 'success'
+    assert result.module_name == 'vpc'
+    assert result.module_url == 'terraform-aws-modules/vpc/aws'
+    assert result.module_version == '3.14.0'
+    assert result.module_description == 'Terraform module which creates VPC resources on AWS'
+    assert len(result.variables) == 1
+    assert result.variables[0].name == 'name'
+    assert len(result.outputs) == 1
+    assert result.outputs[0].name == 'vpc_id'
+    assert result.readme_content == ''  # Should be empty string, not None
+    assert result.error_message is None
 
 
 def format_json(obj: Any) -> str:

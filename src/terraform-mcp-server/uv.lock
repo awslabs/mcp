@@ -179,7 +179,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-terraform-mcp-server"
-version = "0.0.6"
+version = "0.0.7"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
