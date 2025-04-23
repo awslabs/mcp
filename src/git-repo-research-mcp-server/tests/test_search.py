@@ -293,7 +293,6 @@ def test_search_with_repository_name():
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
         patch('time.time') as mock_time,
-        patch('loguru.logger.info') as mock_logger_info,
     ):
         # Configure the mocks
         mock_time.side_effect = [1000.0, 1001.0]  # Start and end times
@@ -363,7 +362,6 @@ def test_search_with_directory_path():
         patch('os.path.isdir') as mock_isdir,
         patch('os.path.basename') as mock_basename,
         patch('time.time') as mock_time,
-        patch('loguru.logger.info') as mock_logger_info,
     ):
         # Configure the mocks
         mock_time.side_effect = [1000.0, 1001.0]  # Start and end times
@@ -421,7 +419,6 @@ def test_search_with_similarity_search_with_score_fallback():
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
         patch('time.time') as mock_time,
-        patch('loguru.logger.info') as mock_logger_info,
         patch('loguru.logger.error') as mock_logger_error,
     ):
         # Configure the mocks
@@ -487,8 +484,6 @@ def test_search_with_both_search_methods_failing():
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
         patch('time.time') as mock_time,
-        patch('loguru.logger.info') as mock_logger_info,
-        patch('loguru.logger.error') as mock_logger_error,
     ):
         # Configure the mocks
         mock_time.side_effect = [1000.0, 1001.0]  # Start and end times
