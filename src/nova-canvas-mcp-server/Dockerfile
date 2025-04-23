@@ -24,13 +24,19 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:3.12-slim-bookworm
 
-WORKDIR /app
+RUN addgroup app && adduser --system --home /app --ingroup app --no-create-home --disabled-password --disabled-login app
 
-COPY --from=uv /root/.local /root/.local
+COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
+
+# So non-root can access /root/.local
+RUN chmod o+x /root
+
+# Run as non-root
+USER app
 
 # when running the container, add --db-path and a bind mount to the host's db file
 ENTRYPOINT ["awslabs.nova-canvas-mcp-server"]

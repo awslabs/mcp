@@ -27,16 +27,19 @@ RUN apt-get update && apt-get install -y graphviz && rm -rf /var/lib/apt/lists/*
 
 FROM python:3.12-slim-bookworm
 
-WORKDIR /app
+RUN addgroup app && adduser --system --home /app --ingroup app --no-create-home --disabled-password --disabled-login app
 
-# Install GraphViz which is required by the diagrams package
-RUN apt-get update && apt-get install -y graphviz && rm -rf /var/lib/apt/lists/*
-
-COPY --from=uv /root/.local /root/.local
+COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Place executables in the environment at the front of the path
 ENV PATH="/app/.venv/bin:$PATH"
+
+# So non-root can access /root/.local
+RUN chmod o+x /root
+
+# Run as non-root
+USER app
 
 # when running the container, add --db-path and a bind mount to the host's db file
 ENTRYPOINT ["awslabs.aws-diagram-mcp-server"]
