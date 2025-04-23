@@ -31,7 +31,7 @@ WORKDIR /app
 
 # Install GraphViz which is required by the diagrams package
 RUN apt-get update && apt-get install -y graphviz && rm -rf /var/lib/apt/lists/*
- 
+
 COPY --from=uv /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
