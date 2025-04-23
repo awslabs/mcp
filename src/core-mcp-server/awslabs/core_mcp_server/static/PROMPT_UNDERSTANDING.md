@@ -65,6 +65,15 @@ When a user presents a query, follow these steps to break it down:
   - list_icons: This tool dynamically inspects the diagrams package to find all available
     providers, services, and icons that can be used in diagrams
 
+#### Terraform MCP Server
+- Use `awslabs.terraform-mcp-server` for Terraform infrastructure management and analysis:
+  - ExecuteTerraformCommand: Execute Terraform workflow commands (init, plan, validate, apply, destroy) against an AWS account
+  - SearchAwsProviderDocs: Search AWS provider documentation for resources and attributes
+  - SearchAwsccProviderDocs: Search AWSCC provider documentation for resources and attributes
+  - SearchSpecificAwsIaModules: Search for specific AWS-IA Terraform modules (Bedrock, OpenSearch Serverless, SageMaker, Streamlit)
+  - RunCheckovScan: Run Checkov security scan on Terraform code to identify vulnerabilities and misconfigurations
+  - SearchUserProvidedModule: Search for a user-provided Terraform registry module and understand its inputs, outputs, and usage
+
 ### 2.2 Modern AWS Service Categories
 
 Map user requirements to these AWS categories:
@@ -292,6 +301,56 @@ Search for AWS documentation:
 {
   "search_phrase": "Lambda function URLs",
   "limit": 5
+}
+</arguments>
+</use_mcp_tool>
+```
+
+### 6.4 Terraform MCP Server
+
+Execute Terraform commands and search for infrastructure documentation:
+
+```md
+# Execute Terraform commands
+<use_mcp_tool>
+<server_name>awslabs.terraform-mcp-server</server_name>
+<tool_name>ExecuteTerraformCommand</tool_name>
+<arguments>
+{
+  "command": "plan",
+  "working_directory": "/path/to/terraform/project",
+  "variables": {
+    "environment": "dev",
+    "region": "us-west-2"
+  }
+}
+</arguments>
+</use_mcp_tool>
+```
+
+```md
+# Search AWSCC provider documentation
+<use_mcp_tool>
+<server_name>awslabs.terraform-mcp-server</server_name>
+<tool_name>SearchAwsccProviderDocs</tool_name>
+<arguments>
+{
+  "asset_name": "awscc_lambda_function",
+  "asset_type": "resource"
+}
+</arguments>
+</use_mcp_tool>
+```
+
+```md
+# Search for user-provided Terraform modules
+<use_mcp_tool>
+<server_name>awslabs.terraform-mcp-server</server_name>
+<tool_name>SearchUserProvidedModule</tool_name>
+<arguments>
+{
+  "module_url": "terraform-aws-modules/vpc/aws",
+  "version": "5.0.0"
 }
 </arguments>
 </use_mcp_tool>
