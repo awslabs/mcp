@@ -857,9 +857,12 @@ async def test_get_module_details_no_readme_content(mock_requests_get):
     github_readme_response = MockResponse(404)
 
     def mock_get_side_effect(url):
-        if 'registry.terraform.io' in url:
+        parsed_url = urlparse(url)
+        hostname = parsed_url.netloc
+
+        if hostname == 'registry.terraform.io':
             return registry_response
-        elif 'raw.githubusercontent.com' in url and 'README.md' in url:
+        elif hostname == 'raw.githubusercontent.com' and 'README.md' in parsed_url.path:
             return github_readme_response
         else:
             return MockResponse(404)
@@ -904,12 +907,16 @@ async def test_get_module_details_with_variables_content(mock_requests_get):
 
     # Setup mock for GitHub requests
     def mock_get_side_effect(url, **kwargs):  # Accept any keyword arguments
-        if 'registry.terraform.io' in url:
+        parsed_url = urlparse(url)
+        hostname = parsed_url.netloc
+        path = parsed_url.path
+
+        if hostname == 'registry.terraform.io':
             return registry_response
-        elif 'raw.githubusercontent.com' in url and 'README.md' in url:
+        elif hostname == 'raw.githubusercontent.com' and 'README.md' in path:
             return MockResponse(404)  # No README found
-        elif 'raw.githubusercontent.com' in url and 'variables.tf' in url:
-            if '/main/' in url:
+        elif hostname == 'raw.githubusercontent.com' and 'variables.tf' in path:
+            if '/main/' in path:
                 # Return variables.tf for main branch
                 return MockResponse(
                     200,
@@ -972,14 +979,18 @@ async def test_get_module_details_with_variables_in_master_branch(mock_requests_
 
     # Setup mock for GitHub requests
     def mock_get_side_effect(url, **kwargs):  # Accept any keyword arguments
-        if 'registry.terraform.io' in url:
+        parsed_url = urlparse(url)
+        hostname = parsed_url.netloc
+        path = parsed_url.path
+
+        if hostname == 'registry.terraform.io':
             return registry_response
-        elif 'raw.githubusercontent.com' in url and 'README.md' in url:
+        elif hostname == 'raw.githubusercontent.com' and 'README.md' in path:
             return MockResponse(404)  # No README found
-        elif 'raw.githubusercontent.com' in url and 'variables.tf' in url:
-            if '/main/' in url:
+        elif hostname == 'raw.githubusercontent.com' and 'variables.tf' in path:
+            if '/main/' in path:
                 return MockResponse(404)  # No variables.tf in main branch
-            elif '/master/' in url:
+            elif '/master/' in path:
                 # Return variables.tf for master branch
                 return MockResponse(
                     200,
@@ -1031,13 +1042,17 @@ async def test_get_module_details_with_version_from_github(mock_requests_get):
 
     # Setup mock for GitHub requests
     def mock_get_side_effect(url, **kwargs):  # Accept any keyword arguments
-        if 'registry.terraform.io' in url:
+        parsed_url = urlparse(url)
+        hostname = parsed_url.netloc
+        path = parsed_url.path
+
+        if hostname == 'registry.terraform.io':
             return registry_response
-        elif 'raw.githubusercontent.com' in url and 'README.md' in url:
+        elif hostname == 'raw.githubusercontent.com' and 'README.md' in path:
             return MockResponse(404)  # No README found
-        elif 'api.github.com' in url:
+        elif hostname == 'api.github.com':
             # Mock GitHub API responses
-            if '/releases/latest' in url:
+            if '/releases/latest' in path:
                 return MockResponse(
                     200,
                     json_data={
@@ -1045,7 +1060,7 @@ async def test_get_module_details_with_version_from_github(mock_requests_get):
                         'published_at': '2023-01-01T00:00:00Z',
                     },
                 )
-            elif '/tags' in url:
+            elif '/tags' in path:
                 return MockResponse(
                     200, json_data=[{'name': 'v1.2.3', 'commit': {'sha': '123456'}}]
                 )
