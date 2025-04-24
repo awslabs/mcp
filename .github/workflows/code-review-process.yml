@@ -1,10 +1,15 @@
-name: Code Review Process
+name: Automated Code Reviewer
 on:
   repository_dispatch:
     types: [code-review]
+permissions: read-all
 jobs:
-  myEvent:
+  code-review:
+    name: Automated Code Review
     runs-on: ubuntu-latest
+    permissions:
+      checks: write   # Permission to create a Check Run
+    #   contents: write # Permission to write a repository_dispatch requests
     steps:
       ####################################################
       # Update the status to show that the queued message
@@ -18,7 +23,7 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             -f 'status=in_progress' \
             -f 'output[title]=Automated Code Review 🤖' \
-            -f 'output[summary]=A *fancy* summary using ${{ github.event.client_payload.tool }}' \
+            -f 'output[summary]=A *fancy* summary' \
             /repos/${{ github.repository }}/check-runs/${{ github.event.client_payload.checkRunId }}
 
       ####################################################
@@ -47,7 +52,7 @@ jobs:
               "details_url": "https://aws.amazon.com",
               "output": {
                 "title": "Automated Code Review 🚀",
-                "summary": "**Summary**: The run completed using ${{ github.event.inputs.tool }}.",
+                "summary": "**Summary**: The run completed.",
                 "text": "# Automated Code Review\n\n* Markdown of the code review.\n| Syntax      | Description |\n| ----------- | ----------- |\n| Header      | Title       |\n| Paragraph   | Text        |\n"
                }
             }
