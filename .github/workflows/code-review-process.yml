@@ -3,13 +3,14 @@ on:
   repository_dispatch:
     types: [code-review]
 permissions: read-all
+env:
+  IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME != '' }}
 jobs:
-  code-review:
-    name: Automated Code Review
+  code-review-acknowledgement:
+    name: Automated Code Review Acknowledgement
     runs-on: ubuntu-latest
     permissions:
       checks: write   # Permission to create a Check Run
-    #   contents: write # Permission to write a repository_dispatch requests
     steps:
       ####################################################
       # Update the status to show that the queued message
@@ -19,41 +20,81 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          echo "${{ env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME }}"
           gh api -X PATCH -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             -f 'status=in_progress' \
-            -f 'output[title]=Automated Code Review 🤖' \
+            -f 'output[title]=Automated Code Review 🤖 (beep bop)' \
             -f 'output[summary]=A *fancy* summary' \
             /repos/${{ github.repository }}/check-runs/${{ github.event.client_payload.checkRunId }}
 
+  code-review-processing:
+    name: Automated Code Review Processing
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write   # Permission to create a Check Run
+    needs: [code-review-acknowledgement]
+    outputs:
+      result: ${{ steps.report.outputs.result }}
+    # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/accessing-contextual-information-about-workflow-runs#env-context
+    # `if` cannot access env at the job level
+    steps:
       ####################################################
       # Actually, we'll just sleep to simulate some work
       ####################################################
-      - name: Processing
-        run: sleep 10
+      - name: Setup AWS credentials
+        id: setup-aws-credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        if: ${{ env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME == 'true' && vars.AWS_REGION }}
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-duration-seconds: 7200
+          mask-aws-account-id: true
 
       #####################################################
-      # Send a final message to complete the run and
-      # provide any final updates. Doing this one in JSON
-      # to make it more readable. This approach can also
-      # be used to get total control over the serialized
-      # data types (for example, integers).
+      # Replace with long-running process
       #####################################################
-      - name: Complete Check
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Processing
+        id: processor
+        if: success()
+        timeout-minutes: 120  # match the credentials token
+        run: |
+          sleep 10
+          exit 99
+  
+      - name: Report Result
+        id: report
+        if: always()
+        # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/evaluate-expressions-in-workflows-and-actions#cancelled
+        # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/evaluate-expressions-in-workflows-and-actions#operators
+        run: |
+          echo "steps.processor.conclusion: ${{ steps.processor.conclusion }}"
+          echo "result=${{ steps.processor.conclusion }}" >> $GITHUB_OUTPUT
+          
+  code-review-completion:
+    name: Automated Code Review Completion
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    permissions:
+      checks: write
+    needs: [code-review-acknowledgement, code-review-processing]
+    if: always()
+    steps:
+      - name: Report Processing
         run: |
           gh api -X PATCH -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             /repos/${{ github.repository }}/check-runs/${{ github.event.client_payload.checkRunId }} \
             --input - <<- EOF
             {
-              "conclusion": "success",
+              "conclusion": "${{ needs.code-review-processing.outputs.result != '' && needs.code-review-processing.outputs.result || needs.code-review-processing.result }}",
               "details_url": "https://aws.amazon.com",
               "output": {
-                "title": "Automated Code Review 🚀",
-                "summary": "**Summary**: The run completed.",
-                "text": "# Automated Code Review\n\n* Markdown of the code review.\n| Syntax      | Description |\n| ----------- | ----------- |\n| Header      | Title       |\n| Paragraph   | Text        |\n"
+                "title": "Automated Code Review 🤖 (woop wap)",
+                "summary": "**Summary**: The run completed ${{ needs.code-review-processing.outputs.result }}.",
+                "text": "# Automated Code Review\n\n* Markdown of the code review.\n\n| Syntax      | Description |\n| ----------- | ----------- |\n| Header      | Title       |\n| Paragraph   | Text        |\n"
                }
             }
           EOF
