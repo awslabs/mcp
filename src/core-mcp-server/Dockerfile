@@ -43,7 +43,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 # So non-root can access /root/.local
 RUN chmod o+x /root
 
-COPY ../../docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+# Copy the healthcheck script
+COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 
 # Run as non-root
 USER app
@@ -52,6 +53,4 @@ USER app
 ENTRYPOINT ["awslabs.core-mcp-server"]
 
 # Run a healthcheck
-# HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "if [ "$(lsof +c 0 -p 1 +E | grep -e "^awslabs\..*\s1\s.*\s.*\sunix\s.*type=STREAM" | wc -l)" -ne "2" ]; then echo "streams"; exit 0; else echo "missing"; exit 1; fi;" ]
-# HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "if [ "2" -ne "0" ]; then echo "true"; exit 1; else echo "false"; exit 0; fi;" ]
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
