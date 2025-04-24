@@ -61,7 +61,8 @@ jobs:
         timeout-minutes: 120  # match the credentials token
         run: |
           sleep 10
-          exit 99
+          # Uncomment to test failure
+          # exit 99
   
       - name: Report Result
         id: report
