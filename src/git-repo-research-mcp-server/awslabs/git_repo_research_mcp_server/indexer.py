@@ -220,53 +220,6 @@ def save_index_without_pickle(vector_store, index_path):
         json.dump(mapping, f)
 
 
-def load_index_without_pickle(index_path, embedding_function):
-    """Load FAISS index without using pickle.
-
-    Args:
-        index_path: Path to the index
-        embedding_function: Embedding function to use
-
-    Returns:
-        FAISS vector store
-
-    This function loads a FAISS index using FAISS's native methods and JSON
-    instead of pickle for serialization.
-    """
-    # 1. Load FAISS index using faiss's native methods
-    faiss_path = os.path.join(index_path, 'index.faiss')
-    index = faiss.read_index(faiss_path)
-
-    # 2. Load docstore from JSON
-    docstore_path = os.path.join(index_path, 'docstore.json')
-    with open(docstore_path, 'r') as f:
-        docstore_data = json.load(f)
-
-    # Reconstruct the document store
-    docstore = InMemoryDocstore({})
-    for doc_id, doc_data in docstore_data.items():
-        dict_obj = ensure_docstore_dict(docstore)
-        dict_obj[doc_id] = Document(
-            page_content=doc_data['page_content'], metadata=doc_data['metadata']
-        )
-
-    # 3. Load index_to_docstore_id mapping from JSON
-    mapping_path = os.path.join(index_path, 'index_mapping.json')
-    with open(mapping_path, 'r') as f:
-        mapping_data = json.load(f)
-
-    # Convert string keys back to integers for the mapping
-    index_to_docstore_id = {int(k): v for k, v in mapping_data.items()}
-
-    # 4. Create and return the FAISS vector store
-    return FAISS(
-        embedding_function=embedding_function,
-        index=index,
-        docstore=docstore,
-        index_to_docstore_id=index_to_docstore_id,
-    )
-
-
 def save_chunk_map_without_pickle(chunk_map, index_path):
     """Save chunk map without using pickle.
 
@@ -813,7 +766,7 @@ class RepositoryIndexer:
             # Verify the saved index
             logger.info('Verifying saved index')
             try:
-                test_store = load_index_without_pickle(index_path, self.embedding_generator)
+                test_store = self.load_index_without_pickle(index_path)
                 logger.info(
                     f'Loaded index contains {get_docstore_dict_size(test_store.docstore)} documents'
                 )
@@ -888,6 +841,52 @@ class RepositoryIndexer:
             # Clean up temporary directory if it was created
             if temp_dir:
                 cleanup_repository(temp_dir)
+
+    def load_index_without_pickle(self, index_path):
+        """Load FAISS index without using pickle.
+
+        Args:
+            index_path: Path to the index
+            embedding_function: Embedding function to use
+
+        Returns:
+            FAISS vector store
+
+        This function loads a FAISS index using FAISS's native methods and JSON
+        instead of pickle for serialization.
+        """
+        # 1. Load FAISS index using faiss's native methods
+        faiss_path = os.path.join(index_path, 'index.faiss')
+        index = faiss.read_index(faiss_path)
+
+        # 2. Load docstore from JSON
+        docstore_path = os.path.join(index_path, 'docstore.json')
+        with open(docstore_path, 'r') as f:
+            docstore_data = json.load(f)
+
+        # Reconstruct the document store
+        docstore = InMemoryDocstore({})
+        for doc_id, doc_data in docstore_data.items():
+            dict_obj = ensure_docstore_dict(docstore)
+            dict_obj[doc_id] = Document(
+                page_content=doc_data['page_content'], metadata=doc_data['metadata']
+            )
+
+        # 3. Load index_to_docstore_id mapping from JSON
+        mapping_path = os.path.join(index_path, 'index_mapping.json')
+        with open(mapping_path, 'r') as f:
+            mapping_data = json.load(f)
+
+        # Convert string keys back to integers for the mapping
+        index_to_docstore_id = {int(k): v for k, v in mapping_data.items()}
+
+        # 4. Create and return the FAISS vector store
+        return FAISS(
+            embedding_function=self.embedding_generator,
+            index=index,
+            docstore=docstore,
+            index_to_docstore_id=index_to_docstore_id,
+        )
 
 
 def get_repository_indexer(config: IndexConfig) -> RepositoryIndexer:

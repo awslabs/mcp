@@ -18,7 +18,11 @@ import os
 import time
 from awslabs.git_repo_research_mcp_server.defaults import Constants
 from awslabs.git_repo_research_mcp_server.embeddings import get_embedding_generator
-from awslabs.git_repo_research_mcp_server.indexer import IndexConfig, get_repository_indexer
+from awslabs.git_repo_research_mcp_server.indexer import (
+    IndexConfig,
+    get_docstore_dict_size,
+    get_repository_indexer,
+)
 from awslabs.git_repo_research_mcp_server.models import (
     EmbeddingModel,
     SearchResponse,
@@ -206,8 +210,8 @@ class RepositorySearcher:
                 index_path = self.repository_indexer._get_index_path(repository_name)
 
             # Load the index and chunk map
-            vector_store, chunk_map = self.repository_indexer.load_index(repository_name)
-            if vector_store is None or chunk_map is None:
+            vector_store = self.repository_indexer.load_index_without_pickle(repository_name)
+            if vector_store is None:
                 logger.error(f'Index or chunk map not found for repository {repository_name}')
                 # Set repository_directory even if index is not found
                 repo_files_path = os.path.join(index_path, 'repository')
@@ -226,7 +230,9 @@ class RepositorySearcher:
 
             # Debug: Print vector store info
             logger.info(f'Vector store type: {type(vector_store)}')
-            logger.info(f'Vector store docstore size: {len(vector_store.docstore._dict)}')
+            logger.info(
+                f'Vector store docstore size: {get_docstore_dict_size(vector_store.docstore)}'
+            )
 
             # Use the same approach as in the test script
             try:

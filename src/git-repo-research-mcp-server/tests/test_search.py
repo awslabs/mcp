@@ -271,9 +271,8 @@ def test_search_with_repository_name():
         mock_indexer = MagicMock()
         mock_indexer._get_index_path.return_value = '/tmp/index/test_repo'
 
-        # Create mock vector store and chunk map
+        # Create mock vector store
         mock_vector_store = MagicMock()
-        mock_chunk_map = {}
 
         # Configure the mock vector store to return search results
         mock_doc1 = MagicMock()
@@ -287,7 +286,7 @@ def test_search_with_repository_name():
         mock_vector_store.similarity_search.return_value = [mock_doc1, mock_doc2]
         mock_vector_store.docstore._dict = {1: mock_doc1, 2: mock_doc2}
 
-        mock_indexer.load_index.return_value = (mock_vector_store, mock_chunk_map)
+        mock_indexer.load_index_without_pickle.return_value = mock_vector_store
 
         # Create a RepositorySearcher instance with the mock indexer
         searcher = RepositorySearcher()
@@ -295,6 +294,8 @@ def test_search_with_repository_name():
 
         # Call the method
         result = searcher.search('test_repo', 'test query', limit=10, threshold=0.0)
+
+        print(result)
 
         # Verify the result
         assert isinstance(result, SearchResponse)
@@ -329,7 +330,7 @@ def test_search_with_repository_name():
 
         # Verify the mock calls
         mock_indexer._get_index_path.assert_called_once_with('test_repo')
-        mock_indexer.load_index.assert_called_once_with('test_repo')
+        mock_indexer.load_index_without_pickle.assert_called_once_with('test_repo')
         mock_vector_store.similarity_search.assert_called_once_with('test query', k=10)
 
 
@@ -351,9 +352,8 @@ def test_search_with_directory_path():
 
         mock_indexer = MagicMock()
 
-        # Create mock vector store and chunk map
+        # Create mock vector store
         mock_vector_store = MagicMock()
-        mock_chunk_map = {}
 
         # Configure the mock vector store to return search results
         mock_doc1 = MagicMock()
@@ -363,7 +363,7 @@ def test_search_with_directory_path():
         mock_vector_store.similarity_search.return_value = [mock_doc1]
         mock_vector_store.docstore._dict = {1: mock_doc1}
 
-        mock_indexer.load_index.return_value = (mock_vector_store, mock_chunk_map)
+        mock_indexer.load_index_without_pickle.return_value = mock_vector_store
 
         # Create a RepositorySearcher instance with the mock indexer
         searcher = RepositorySearcher()
@@ -387,7 +387,7 @@ def test_search_with_directory_path():
         assert result.results[0].score == 1.0
 
         # Verify the mock calls
-        mock_indexer.load_index.assert_called_once_with('test_repo')
+        mock_indexer.load_index_without_pickle.assert_called_once_with('test_repo')
 
 
 def test_search_with_similarity_search_with_score_fallback():
@@ -408,9 +408,8 @@ def test_search_with_similarity_search_with_score_fallback():
         mock_indexer = MagicMock()
         mock_indexer._get_index_path.return_value = '/tmp/index/test_repo'
 
-        # Create mock vector store and chunk map
+        # Create mock vector store
         mock_vector_store = MagicMock()
-        mock_chunk_map = {}
 
         # Configure the mock vector store to fail with similarity_search but succeed with similarity_search_with_score
         mock_vector_store.similarity_search.side_effect = Exception('Test exception')
@@ -422,7 +421,7 @@ def test_search_with_similarity_search_with_score_fallback():
         mock_vector_store.similarity_search_with_score.return_value = [(mock_doc1, 0.5)]
         mock_vector_store.docstore._dict = {1: mock_doc1}
 
-        mock_indexer.load_index.return_value = (mock_vector_store, mock_chunk_map)
+        mock_indexer.load_index_without_pickle.return_value = mock_vector_store
 
         # Create a RepositorySearcher instance with the mock indexer
         searcher = RepositorySearcher()
@@ -447,7 +446,7 @@ def test_search_with_similarity_search_with_score_fallback():
 
         # Verify the mock calls
         mock_indexer._get_index_path.assert_called_once_with('test_repo')
-        mock_indexer.load_index.assert_called_once_with('test_repo')
+        mock_indexer.load_index_without_pickle.assert_called_once_with('test_repo')
         mock_vector_store.similarity_search.assert_called_once_with('test query', k=10)
         mock_vector_store.similarity_search_with_score.assert_called_once_with('test query', k=10)
         mock_logger_error.assert_called_once()
@@ -470,16 +469,15 @@ def test_search_with_both_search_methods_failing():
         mock_indexer = MagicMock()
         mock_indexer._get_index_path.return_value = '/tmp/index/test_repo'
 
-        # Create mock vector store and chunk map
+        # Create mock vector store
         mock_vector_store = MagicMock()
-        mock_chunk_map = {}
 
         # Configure the mock vector store to fail with both search methods
         mock_vector_store.similarity_search.side_effect = Exception('Test exception 1')
         mock_vector_store.similarity_search_with_score.side_effect = Exception('Test exception 2')
         mock_vector_store.docstore._dict = {1: MagicMock()}
 
-        mock_indexer.load_index.return_value = (mock_vector_store, mock_chunk_map)
+        mock_indexer.load_index_without_pickle.return_value = mock_vector_store
 
         # Create a RepositorySearcher instance with the mock indexer
         searcher = RepositorySearcher()
