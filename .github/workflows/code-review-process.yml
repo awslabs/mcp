@@ -63,7 +63,7 @@ jobs:
           sleep 10
           # Uncomment to test failure
           # exit 99
-  
+
       - name: Report Result
         id: report
         if: always()
@@ -72,7 +72,7 @@ jobs:
         run: |
           echo "steps.processor.conclusion: ${{ steps.processor.conclusion }}"
           echo "result=${{ steps.processor.conclusion }}" >> $GITHUB_OUTPUT
-          
+
   code-review-completion:
     name: Automated Code Review Completion
     runs-on: ubuntu-latest
