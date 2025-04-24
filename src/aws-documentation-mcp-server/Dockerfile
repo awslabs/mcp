@@ -29,6 +29,9 @@ RUN mkdir -p /root/.local
 # python:3.13-slim-bookworm
 FROM python@sha256:21e39cf1815802d4c6f89a0d3a166cc67ce58f95b6d1639e68a394c99310d2e5
 
+# Install lsof for the healthcheck
+RUN apt-get update && apt-get install -y lsof && rm -rf /var/lib/apt/lists/*
+
 RUN addgroup app && adduser --system --home /app --ingroup app --no-create-home --disabled-password --disabled-login app
 
 COPY --from=uv --chown=app:app /root/.local /root/.local
@@ -40,6 +43,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 # So non-root can access /root/.local
 RUN chmod o+x /root
 
+# Copy the healthcheck script
+COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+
 # Run as non-root
 USER app
 
@@ -47,4 +53,4 @@ USER app
 ENTRYPOINT ["awslabs.aws-documentation-mcp-server"]
 
 # Run a healthcheck
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "/bin/true" ]
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
