@@ -1,0 +1,54 @@
+name: Code Review Process
+on:
+  repository_dispatch:
+    types: [code-review]
+jobs:
+  myEvent:
+    runs-on: ubuntu-latest
+    steps:
+      ####################################################
+      # Update the status to show that the queued message
+      # was received and is being processed
+      ####################################################
+      - name: Acknowledge Request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PATCH -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -f 'status=in_progress' \
+            -f 'output[title]=Automated Code Review 🤖' \
+            -f 'output[summary]=A *fancy* summary using ${{ github.event.client_payload.tool }}' \
+            /repos/${{ github.repository }}/check-runs/${{ github.event.client_payload.checkRunId }}
+
+      ####################################################
+      # Actually, we'll just sleep to simulate some work
+      ####################################################
+      - name: Processing
+        run: sleep 10
+
+      #####################################################
+      # Send a final message to complete the run and
+      # provide any final updates. Doing this one in JSON
+      # to make it more readable. This approach can also
+      # be used to get total control over the serialized
+      # data types (for example, integers).
+      #####################################################
+      - name: Complete Check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PATCH -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/${{ github.repository }}/check-runs/${{ github.event.client_payload.checkRunId }} \
+            --input - <<- EOF
+            {
+              "conclusion": "success",
+              "details_url": "https://aws.amazon.com",
+              "output": {
+                "title": "Automated Code Review 🚀",
+                "summary": "**Summary**: The run completed using ${{ github.event.inputs.tool }}.",
+                "text": "# Automated Code Review\n\n* Markdown of the code review.\n| Syntax      | Description |\n| ----------- | ----------- |\n| Header      | Title       |\n| Paragraph   | Text        |\n"
+               }
+            }
+          EOF
