@@ -141,8 +141,7 @@ class IndexConfig(BaseModel):
         Returns:
             Validated AWS region string.
         """
-        if aws_region_string and not aws_region_string.startswith('us-'):  # Example validation
-            raise ValueError("AWS region must start with 'us-'")
+        # Allow any region format or None
         return aws_region_string
 
 
