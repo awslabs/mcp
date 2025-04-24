@@ -1,5 +1,6 @@
 # Use a Python image with uv pre-installed
-FROM ghcr.io/astral-sh/uv@sha256:fb32044d3e57206d3f990641d496032bb0cfbf48ef9dbcb4d32eba307d9790a5 as uv #python3.12-bookworm-slim
+# python3.12-bookworm-slim
+FROM ghcr.io/astral-sh/uv@sha256:fb32044d3e57206d3f990641d496032bb0cfbf48ef9dbcb4d32eba307d9790a5 as uv
 
 # Install the project into `/app`
 WORKDIR /app
