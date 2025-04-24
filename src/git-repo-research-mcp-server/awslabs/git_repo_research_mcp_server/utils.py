@@ -16,8 +16,8 @@ This module provides utility functions for the Git Repository Research MCP Serve
 import json
 import os
 import shutil
+from awslabs.git_repo_research_mcp_server.defaults import Constants
 from awslabs.git_repo_research_mcp_server.models import (
-    Constants,
     DetailedIndexedRepositoriesResponse,
     DetailedIndexedRepositoryInfo,
     IndexedRepositoriesResponse,

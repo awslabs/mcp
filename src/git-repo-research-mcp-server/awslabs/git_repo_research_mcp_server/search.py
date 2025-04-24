@@ -16,10 +16,10 @@ using LangChain's FAISS implementation.
 
 import os
 import time
+from awslabs.git_repo_research_mcp_server.defaults import Constants
 from awslabs.git_repo_research_mcp_server.embeddings import get_embedding_generator
 from awslabs.git_repo_research_mcp_server.indexer import IndexConfig, get_repository_indexer
 from awslabs.git_repo_research_mcp_server.models import (
-    Constants,
     EmbeddingModel,
     SearchResponse,
     SearchResult,

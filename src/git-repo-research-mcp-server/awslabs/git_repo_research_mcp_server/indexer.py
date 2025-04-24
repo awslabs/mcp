@@ -888,3 +888,15 @@ class RepositoryIndexer:
             # Clean up temporary directory if it was created
             if temp_dir:
                 cleanup_repository(temp_dir)
+
+
+def get_repository_indexer(config: IndexConfig) -> RepositoryIndexer:
+    """Get a repository indexer.
+
+    Args:
+        config: IndexConfig object with indexer configuration
+
+    Returns:
+        RepositoryIndexer instance
+    """
+    return RepositoryIndexer(config)

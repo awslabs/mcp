@@ -12,8 +12,8 @@
 
 import json
 import pytest
+from awslabs.git_repo_research_mcp_server.defaults import Constants
 from awslabs.git_repo_research_mcp_server.models import (
-    Constants,
     IndexMetadata,
 )
 from awslabs.git_repo_research_mcp_server.utils import (
