@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
-ADD . /app
+COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
@@ -40,3 +40,6 @@ USER app
 
 # when running the container, add --db-path and a bind mount to the host's db file
 ENTRYPOINT ["awslabs.nova-canvas-mcp-server"]
+
+# Run a healthcheck
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "/bin/true" ]
