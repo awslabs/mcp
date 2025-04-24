@@ -10,6 +10,7 @@
 # and limitations under the License.
 """Tests for Git Repository Research MCP Server with a local repository."""
 
+import json
 import os
 import pytest
 import subprocess
@@ -157,124 +158,188 @@ Calculates the sum of two numbers.
 
 
 @pytest.mark.asyncio
-# @patch('awslabs.git_repo_research_mcp_server.embeddings.BedrockEmbeddings')
-async def test_repository_indexing(test_context, test_git_repo, tmp_path):
+async def test_repository_indexing(test_context, test_git_repo, tmp_path, monkeypatch):
     """Test indexing a local repository."""
-    # Set up the mocks
-    # mock_embeddings = MagicMock()
-    # mock_embeddings.embed_query.return_value = [0.1] * 1536
-    # mock_embeddings.embed_documents.return_value = [[0.1] * 1536] * 10
-    # mock_bedrock.return_value = mock_embeddings
+    # Mock the Bedrock embeddings to avoid actual API calls
+    from unittest.mock import MagicMock, patch
 
     # Use a unique name for the repository
     repo_name = f'{os.path.basename(test_git_repo)}'
 
-    try:
-        # Index the repository with mock embeddings
-        result = await mcp_index_repository(
-            test_context,
-            repository_path=test_git_repo,
-            output_path=None,  # Pass output_path explicitly to avoid FieldInfo error
-            embedding_model='amazon.titan-embed-text-v2:0',
-            include_patterns=[
-                '**/*.md',
-            ],
-            exclude_patterns=[
-                '**/.git/**',
-                '**/.github/**',
-                '**/.svn/**',
-                '**/.hg/**',
-                '**/.bzr/**',
-                '**/node_modules/**',
-                '**/venv/**',
-                '**/.venv/**',
-                '**/env/**',
-                '**/.env/**',
-                '**/__pycache__/**',
-                '**/.pytest_cache/**',
-                '**/.coverage/**',
-                '**/coverage/**',
-                '**/dist/**',
-                '**/build/**',
-                '**/.DS_Store',
-                '**/*.pyc',
-                '**/*.pyo',
-                '**/*.pyd',
-                '**/*.so',
-                '**/*.dll',
-                '**/*.exe',
-                '**/*.bin',
-                '**/*.obj',
-                '**/*.o',
-                '**/*.a',
-                '**/*.lib',
-                '**/*.dylib',
-                '**/*.ncb',
-                '**/*.sdf',
-                '**/*.suo',
-                '**/*.pdb',
-                '**/*.idb',
-                '**/*.jpg',
-                '**/*.jpeg',
-                '**/*.png',
-                '**/*.gif',
-                '**/*.svg',
-                '**/*.ico',
-                '**/*.mp4',
-                '**/*.mov',
-                '**/*.wmv',
-                '**/*.flv',
-                '**/*.avi',
-                '**/*.mkv',
-                '**/*.mp3',
-                '**/*.wav',
-                '**/*.flac',
-                '**/*.zip',
-                '**/*.tar.gz',
-                '**/*.tar',
-                '**/*.rar',
-                '**/*.7z',
-                '**/*.pdf',
-                '**/*.docx',
-                '**/*.xlsx',
-                '**/*.pptx',
-                '**/logs/**',
-                '**/log/**',
-                '**/.idea/**',
-                '**/.vscode/**',
-                '**/.classpath',
-                '**/.project',
-                '**/.settings/**',
-                '**/.gradle/**',
-                '**/target/**',
-            ],
-            chunk_size=1000,
-            chunk_overlap=200,
-        )
+    # Create a mock for BedrockEmbeddings
+    with patch(
+        'awslabs.git_repo_research_mcp_server.embeddings.BedrockEmbeddings'
+    ) as mock_bedrock:
+        # Configure the mock
+        mock_embeddings = MagicMock()
+        mock_embeddings.embed_query.return_value = [0.1] * 1536
+        # Make the mock return embeddings dynamically based on input length
+        mock_embeddings.embed_documents.side_effect = lambda docs: [[0.1] * 1536 for _ in docs]
+        mock_bedrock.return_value = mock_embeddings
 
-        # We'll accept either success (if it worked) or just check that it attempted to index
-        if result['status'] == 'success':
-            assert result['repository_name'] == repo_name
-            assert 'index_path' in result
-            assert result['file_count'] > 0
+        try:
+            # Index the repository with mock embeddings
+            result = await mcp_index_repository(
+                test_context,
+                repository_path=test_git_repo,
+                output_path=None,  # Pass output_path explicitly to avoid FieldInfo error
+                embedding_model='amazon.titan-embed-text-v2:0',
+                include_patterns=[
+                    '**/*.md',
+                ],
+                exclude_patterns=[
+                    '**/.git/**',
+                    '**/.github/**',
+                    '**/.svn/**',
+                    '**/.hg/**',
+                    '**/.bzr/**',
+                    '**/node_modules/**',
+                    '**/venv/**',
+                    '**/.venv/**',
+                    '**/env/**',
+                    '**/.env/**',
+                    '**/__pycache__/**',
+                    '**/.pytest_cache/**',
+                    '**/.coverage/**',
+                    '**/coverage/**',
+                    '**/dist/**',
+                    '**/build/**',
+                    '**/.DS_Store',
+                    '**/*.pyc',
+                    '**/*.pyo',
+                    '**/*.pyd',
+                    '**/*.so',
+                    '**/*.dll',
+                    '**/*.exe',
+                    '**/*.bin',
+                    '**/*.obj',
+                    '**/*.o',
+                    '**/*.a',
+                    '**/*.lib',
+                    '**/*.dylib',
+                    '**/*.ncb',
+                    '**/*.sdf',
+                    '**/*.suo',
+                    '**/*.pdb',
+                    '**/*.idb',
+                    '**/*.jpg',
+                    '**/*.jpeg',
+                    '**/*.png',
+                    '**/*.gif',
+                    '**/*.svg',
+                    '**/*.ico',
+                    '**/*.mp4',
+                    '**/*.mov',
+                    '**/*.wmv',
+                    '**/*.flv',
+                    '**/*.avi',
+                    '**/*.mkv',
+                    '**/*.mp3',
+                    '**/*.wav',
+                    '**/*.flac',
+                    '**/*.zip',
+                    '**/*.tar.gz',
+                    '**/*.tar',
+                    '**/*.rar',
+                    '**/*.7z',
+                    '**/*.pdf',
+                    '**/*.docx',
+                    '**/*.xlsx',
+                    '**/*.pptx',
+                    '**/logs/**',
+                    '**/log/**',
+                    '**/.idea/**',
+                    '**/.vscode/**',
+                    '**/.classpath',
+                    '**/.project',
+                    '**/.settings/**',
+                    '**/.gradle/**',
+                    '**/target/**',
+                ],
+                chunk_size=1000,
+                chunk_overlap=200,
+            )
 
-            result = await list_repositories()
-            result = await repository_summary(repository_name=repo_name)
-            result = await mcp_search_repository(
+            # Verify the indexing result
+            assert result['status'] == 'success', (
+                f'Indexing failed with message: {result.get("message", "")}'
+            )
+            assert result['repository_name'] == repo_name, (
+                "Repository name doesn't match expected value"
+            )
+            assert 'index_path' in result, 'Index path missing from result'
+            assert result['file_count'] > 0, 'No files were indexed'
+            assert result['chunk_count'] > 0, 'No chunks were created'
+            assert 'embedding_model' in result, 'Embedding model info missing from result'
+            assert result['embedding_model'] == 'amazon.titan-embed-text-v2:0', (
+                'Wrong embedding model used'
+            )
+
+            # Test repository listing
+            list_result = await list_repositories()
+            list_data = json.loads(list_result)
+            assert 'repositories' in list_data, 'No repositories field in list result'
+            assert len(list_data['repositories']) > 0, 'No repositories found in list'
+
+            # Find our repository in the list
+            repo_found = False
+            for repo in list_data['repositories']:
+                if repo['repository_name'] == repo_name:
+                    repo_found = True
+                    assert repo['file_count'] > 0, 'Repository has no files'
+                    assert repo['chunk_count'] > 0, 'Repository has no chunks'
+                    break
+            assert repo_found, f'Repository {repo_name} not found in list'
+
+            # Test repository summary
+            summary_result = await repository_summary(repository_name=repo_name)
+            summary_data = json.loads(summary_result)
+            assert summary_data['status'] == 'success', 'Repository summary failed'
+            assert summary_data['repository_name'] == repo_name, 'Wrong repository in summary'
+            assert 'tree' in summary_data, 'No tree structure in summary'
+            assert 'helpful_files' in summary_data, 'No helpful files in summary'
+
+            # Test repository search
+            search_result = await mcp_search_repository(
                 test_context, index_path=repo_name, query='MCP', limit=1, threshold=0.0
             )
-            result = await mcp_access_file(
+            # Add a status field if it doesn't exist (for backward compatibility)
+            if 'status' not in search_result:
+                search_result['status'] = 'success' if 'results' in search_result else 'error'
+
+            assert search_result['status'] == 'success', 'Search failed'
+            assert 'results' in search_result, 'No results field in search response'
+            assert 'execution_time_ms' in search_result, 'No execution time in search response'
+
+            # Test file access
+            file_result = await mcp_access_file(
                 ctx=test_context, filepath=f'{repo_name}/repository/README.md'
             )
+            assert file_result['status'] == 'success', 'File access failed'
+            assert file_result['type'] == 'text', 'Wrong file type returned'
+            assert 'content' in file_result, 'No content in file access result'
+            assert 'Test Repository' in file_result['content'], (
+                'Expected content not found in README'
+            )
+            assert 'Semantic search' in file_result['content'], (
+                'Expected content not found in README'
+            )
 
-            # Clean up after the test
-            await mcp_delete_repository(
+            # Test repository deletion
+            delete_result = await mcp_delete_repository(
                 test_context, repository_name_or_path=repo_name, index_directory=None
             )
-        else:
-            # Even if it fails, we just need to confirm it attempted to run with the local repo
-            assert 'Indexing repository' in result.get('message', '')
+            assert delete_result['status'] == 'success', 'Repository deletion failed'
+            assert delete_result['repository_name'] == repo_name, 'Wrong repository deleted'
 
-    except Exception as e:
-        # Test failed but we're only verifying we could attempt to index a local repo
-        assert 'Error indexing repository' in str(e)
+            # Verify repository was actually deleted
+            list_result_after = await list_repositories()
+            list_data_after = json.loads(list_result_after)
+            for repo in list_data_after.get('repositories', []):
+                assert repo['repository_name'] != repo_name, (
+                    f'Repository {repo_name} still exists after deletion'
+                )
+
+        except Exception as e:
+            # Test failed but we're only verifying we could attempt to index a local repo
+            assert 'Error indexing repository' in str(e)

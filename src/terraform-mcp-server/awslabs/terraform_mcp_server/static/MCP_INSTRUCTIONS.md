@@ -70,6 +70,10 @@ When implementing specific AWS resources (only after confirming no suitable AWS-
 3. `SearchSpecificAwsIaModules`
    * Use for specialized AI/ML infrastructure needs
    * Returns details for supported AWS-IA modules
+4. `SearchUserProvidedModule`
+   * Analyze any Terraform Registry module by URL or identifier
+   * Extract input variables, output variables, and README content
+   * Understand module usage and configuration options
 
 ### Command Execution Tools
 
@@ -108,6 +112,9 @@ The AWSCC provider (Cloud Control API-based) offers:
 - "Is this VPC configuration secure? Let's scan it with Checkov."
 - "Find documentation for awscc_lambda_function to ensure we're using the preferred provider."
 - "We need a Bedrock implementation for RAG. Let's search for AWS-IA modules that can help."
+- "Use the terraform-aws-modules/vpc/aws module to implement a VPC"
+- "Search for the hashicorp/consul/aws module and explain how to use it"
+- "What variables are required for the terraform-aws-modules/eks/aws module?"
 
 ## Best Practices
 

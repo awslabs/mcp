@@ -23,7 +23,7 @@ jobs:
       id: detect-secrets
       run: | # pragma: allowlist secret
         detect-secrets scan --baseline .secrets.baseline
-        cat .secrets.baseline | jq '[.results|to_entries|.[].value[]|{ "filename": .filename, "is_secret": .is_secret } | if .is_secret == null or .is_secret == false then .filename else empty end]|unique|if length>0 then error("potential secrets in: \(.)") else empty end'
+        cat .secrets.baseline | jq '[.results|to_entries|.[].value[]|{ "filename": .filename, "is_secret": .is_secret } | if .is_secret == null or .is_secret == true then .filename else empty end]|unique|if length>0 then error("potential secrets in: \(.)") else empty end'
 
 #   - name: Run PSScriptAnalyzer
 #   uses: microsoft/psscriptanalyzer-action@v1.0

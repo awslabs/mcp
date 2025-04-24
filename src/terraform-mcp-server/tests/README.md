@@ -12,6 +12,7 @@ The tests are organized as follows:
 - `test_command_impl.py`: Tests for the Terraform command execution implementation
 - `test_execute_terraform_command.py`: Dedicated tests for the execute_terraform_command implementation
 - `test_run_checkov_scan.py`: Dedicated tests for the run_checkov_scan implementation
+- `test_search_user_provided_module.py`: Dedicated tests for the search_user_provided_module implementation
 - `test_resources.py`: Tests for the resource implementations
 - `test_tool_implementations.py`: Tests for the tool implementations
 - `test_utils.py` and `test_utils_additional.py`: Tests for utility functions
@@ -157,3 +158,18 @@ Dedicated tests for the run_checkov_scan implementation, including:
 - Testing security checks for dangerous patterns
 - Testing CLI output parsing
 - Testing error handling and exception handling
+
+### test_search_user_provided_module.py
+
+Dedicated tests for the search_user_provided_module implementation, including:
+
+- Testing the parse_module_url function for different URL formats
+- Testing the get_module_details function with successful responses
+- Testing the get_module_details function with error responses
+- Testing the search_user_provided_module_impl function with successful responses
+- Testing the search_user_provided_module_impl function with registry prefix in URL
+- Testing the search_user_provided_module_impl function with invalid URL
+- Testing the search_user_provided_module_impl function when module is not found
+- Testing the search_user_provided_module_impl function when an exception occurs
+- Testing the extraction of outputs from README when not available in module details
+- Testing the format_json helper function for serializing objects

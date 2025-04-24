@@ -1,3 +1,13 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
 """Search functionality for Git Repository Research MCP Server.
 
 This module provides functionality for searching within indexed Git repositories
@@ -7,7 +17,7 @@ using LangChain's FAISS implementation.
 import os
 import time
 from awslabs.git_repo_research_mcp_server.embeddings import get_embedding_generator
-from awslabs.git_repo_research_mcp_server.indexer import get_repository_indexer
+from awslabs.git_repo_research_mcp_server.indexer import IndexConfig, get_repository_indexer
 from awslabs.git_repo_research_mcp_server.models import (
     Constants,
     EmbeddingModel,
@@ -44,6 +54,13 @@ class RepositorySearcher:
         self.aws_profile = aws_profile
         self.index_dir = index_dir or os.path.expanduser(f'~/{Constants.DEFAULT_INDEX_DIR}')
 
+        self.config = IndexConfig(
+            embedding_model=embedding_model,
+            aws_region=aws_region,
+            aws_profile=aws_profile,
+            index_dir=index_dir or os.path.expanduser(f'~/{Constants.DEFAULT_INDEX_DIR}'),
+        )
+
         # Initialize the embedding generator
         self.embedding_generator = get_embedding_generator(
             model_id=embedding_model,
@@ -52,12 +69,7 @@ class RepositorySearcher:
         )
 
         # Initialize the repository indexer
-        self.repository_indexer = get_repository_indexer(
-            embedding_model=embedding_model,
-            aws_region=aws_region,
-            aws_profile=aws_profile,
-            index_dir=index_dir,
-        )
+        self.repository_indexer = get_repository_indexer(self.config)
 
     def list_repository_files(self, repository_name: str) -> Optional[str]:
         """Generate a directory tree structure of the repository files.

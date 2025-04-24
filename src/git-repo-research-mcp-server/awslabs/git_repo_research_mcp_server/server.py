@@ -1,3 +1,13 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
 """awslabs git-repo-research MCP Server implementation."""
 
 import argparse
@@ -5,10 +15,15 @@ import json
 import mimetypes
 import os
 import sys
+from awslabs.git_repo_research_mcp_server.defaults import Constants
 from awslabs.git_repo_research_mcp_server.github_search import (
     github_repo_search_wrapper,
 )
-from awslabs.git_repo_research_mcp_server.indexer import get_repository_indexer
+from awslabs.git_repo_research_mcp_server.indexer import (
+    IndexConfig,
+    RepositoryConfig,
+    get_repository_indexer,
+)
 from awslabs.git_repo_research_mcp_server.models import (
     DeleteRepositoryResponse,
     EmbeddingModel,
@@ -165,137 +180,11 @@ async def mcp_index_repository(
         description='Which AWS embedding model to use',
     ),
     include_patterns: Optional[List[str]] = Field(
-        default=[
-            '**/*.py',
-            '**/*.js',
-            '**/*.ts',
-            '**/*.java',
-            '**/*.go',
-            '**/*.rs',
-            '**/*.c',
-            '**/*.cpp',
-            '**/*.h',
-            '**/*.hpp',
-            '**/*.cs',
-            '**/*.rb',
-            '**/*.php',
-            '**/*.scala',
-            '**/*.swift',
-            '**/*.kt',
-            '**/*.groovy',
-            '**/*.sh',
-            '**/*.bash',
-            '**/*.ps1',
-            '**/*.md',
-            '**/*.rst',
-            '**/*.txt',
-            '**/*.html',
-            '**/*.css',
-            '**/*.scss',
-            '**/*.sass',
-            '**/*.less',
-            '**/*.json',
-            '**/*.yml',
-            '**/*.yaml',
-            '**/*.xml',
-            '**/*.toml',
-            '**/*.ini',
-            '**/*.cfg',
-            '**/*.conf',
-            '**/*.properties',
-            '**/*.tf',
-            '**/*.tfvars',
-            '**/*.cdk.ts',
-            '**/*.jsx',
-            '**/*.tsx',
-            '**/*.vue',
-            '**/*.sql',
-            '**/*.graphql',
-            '**/*.proto',
-            '**/*.dockerfile',
-            'Dockerfile',
-            'docker-compose.yml',
-            'Makefile',
-            'CMakeLists.txt',
-            '**/*.gradle',
-            'LICENSE',
-            'README*',
-            'CHANGELOG*',
-            'CONTRIBUTING*',
-            'CODE_OF_CONDUCT*',
-        ],
+        default=Constants.DEFAULT_INCLUDE_PATTERNS,
         description='Glob patterns for files to include (optional). Defaults to common source code and documentation files.',
     ),
     exclude_patterns: Optional[List[str]] = Field(
-        default=[
-            '**/.git/**',
-            '**/.github/**',
-            '**/.svn/**',
-            '**/.hg/**',
-            '**/.bzr/**',
-            '**/node_modules/**',
-            '**/venv/**',
-            '**/.venv/**',
-            '**/env/**',
-            '**/.env/**',
-            '**/__pycache__/**',
-            '**/.pytest_cache/**',
-            '**/.coverage/**',
-            '**/coverage/**',
-            '**/dist/**',
-            '**/build/**',
-            '**/.DS_Store',
-            '**/*.pyc',
-            '**/*.pyo',
-            '**/*.pyd',
-            '**/*.so',
-            '**/*.dll',
-            '**/*.exe',
-            '**/*.bin',
-            '**/*.obj',
-            '**/*.o',
-            '**/*.a',
-            '**/*.lib',
-            '**/*.dylib',
-            '**/*.ncb',
-            '**/*.sdf',
-            '**/*.suo',
-            '**/*.pdb',
-            '**/*.idb',
-            '**/*.jpg',
-            '**/*.jpeg',
-            '**/*.png',
-            '**/*.gif',
-            '**/*.svg',
-            '**/*.ico',
-            '**/*.mp4',
-            '**/*.mov',
-            '**/*.wmv',
-            '**/*.flv',
-            '**/*.avi',
-            '**/*.mkv',
-            '**/*.mp3',
-            '**/*.wav',
-            '**/*.flac',
-            '**/*.zip',
-            '**/*.tar.gz',
-            '**/*.tar',
-            '**/*.rar',
-            '**/*.7z',
-            '**/*.pdf',
-            '**/*.docx',
-            '**/*.xlsx',
-            '**/*.pptx',
-            '**/logs/**',
-            '**/log/**',
-            '**/.idea/**',
-            '**/.vscode/**',
-            '**/.classpath',
-            '**/.project',
-            '**/.settings/**',
-            '**/.gradle/**',
-            '**/target/**',
-        ],
+        default=Constants.DEFAULT_EXCLUDE_PATTERNS,
         description='Glob patterns for files to exclude (optional). Defaults to common binary files, build artifacts, and VCS directories.',
     ),
     chunk_size: int = Field(
@@ -309,7 +198,7 @@ async def mcp_index_repository(
 ) -> Dict:
     """Build a FAISS index for a Git repository.
 
-    This tool indexes a Git repository (local or remote) using FAISS and AWS Bedrock embeddings.
+    This tool indexes a Git repository (local or remote) using FAISS and Amazon Bedrock embeddings.
     The index can then be used for semantic search within the repository.
 
     Args:
@@ -337,21 +226,25 @@ async def mcp_index_repository(
         aws_region = os.environ.get('AWS_REGION')
         aws_profile = os.environ.get('AWS_PROFILE')
 
-        # Get the repository indexer
-        indexer = get_repository_indexer(
-            embedding_model=embedding_model,
-            aws_region=aws_region,
-            aws_profile=aws_profile,
+        index_config = IndexConfig(
+            embedding_model=embedding_model, aws_region=aws_region, aws_profile=aws_profile
         )
 
-        # Index the repository
-        response = indexer.index_repository(
+        repository_config = RepositoryConfig(
             repository_path=repository_path,
             output_path=output_path,
             include_patterns=include_patterns,
             exclude_patterns=exclude_patterns,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+        )
+
+        # Get the repository indexer
+        indexer = get_repository_indexer(config=index_config)
+
+        # Index the repository
+        response = await indexer.index_repository(
+            config=repository_config,
             ctx=ctx,  # Pass the context for progress tracking
         )
 
@@ -397,7 +290,7 @@ async def repository_summary(repository_name: str) -> str:
                 return o.isoformat()
             return super().default(o)
 
-    # Use repository_name as is
+    # Use repository_name as is for the response
     full_repository_name = repository_name
     logger.info(f'Listing files for repository: {full_repository_name}')
 
@@ -733,7 +626,7 @@ async def mcp_search_repository(
 ) -> Dict:
     """Perform semantic search within an indexed repository.
 
-    This tool searches an indexed repository using semantic search with AWS Bedrock embeddings.
+    This tool searches an indexed repository using semantic search with Amazon Bedrock embeddings.
     It returns results ranked by relevance to the query.
 
     Args:
@@ -749,7 +642,7 @@ async def mcp_search_repository(
     logger.info(f'Searching repository: {index_path} for query: {query}')
 
     # Convert repository name with slashes to underscores for file path compatibility
-    normalized_index_path = index_path.replace('/', '_')
+    normalized_index_path = str(index_path).replace('/', '_')
     if normalized_index_path != index_path:
         logger.info(f'Normalized index path: {normalized_index_path}')
 
@@ -936,12 +829,10 @@ async def mcp_access_file(
                 'message': f'Unknown result type: {type(result)}',
             }
     except Exception as e:
-        logger.error(f'Error accessing file or directory: {e}')
+        # Ensure exceptions are properly raised for the test case
+        logger.error(f'Error in mcp_access_file: {e}')
         await ctx.error(f'Error accessing file or directory: {str(e)}')
-        return {
-            'status': 'error',
-            'message': f'Error accessing file or directory: {str(e)}',
-        }
+        raise Exception(f'Error accessing file: {str(e)}')
 
 
 @mcp.tool(name='delete_research_repository')
@@ -971,17 +862,23 @@ async def mcp_delete_repository(
     logger.info(f'Deleting repository: {repository_name_or_path}')
 
     # Convert repository name with slashes to underscores for file path compatibility
-    normalized_repo_name = repository_name_or_path.replace('/', '_')
+    normalized_repo_name = str(repository_name_or_path).replace('/', '_')
     logger.info(f'Normalized repository name: {normalized_repo_name}')
+
+    # Properly await the info call
+    await ctx.info(f'Deleting repository: {normalized_repo_name}')
+
+    # Ensure index_directory is None or a string, not a Field
+    index_dir = None if index_directory is None else str(index_directory)
 
     try:
         # Record start time
         start_time = datetime.now()
 
         # Delete the repository
-        result = delete_indexed_repository(
+        result = await delete_indexed_repository(
             repository_name_or_path=normalized_repo_name,
-            index_dir=index_directory,
+            index_dir=index_dir,
         )
 
         # Calculate execution time

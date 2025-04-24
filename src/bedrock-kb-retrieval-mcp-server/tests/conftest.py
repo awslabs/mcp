@@ -53,6 +53,7 @@ def mock_bedrock_agent_client():
             'knowledgeBaseSummaries': [
                 {'knowledgeBaseId': 'kb-12345', 'name': 'Test Knowledge Base'},
                 {'knowledgeBaseId': 'kb-67890', 'name': 'Another Knowledge Base'},
+                {'knowledgeBaseId': 'kb-95008', 'name': 'Yet another Knowledge Base'},
             ]
         }
     ]
@@ -69,14 +70,22 @@ def mock_bedrock_agent_client():
     ]
 
     # Mock the get_knowledge_base method
-    client.get_knowledge_base.return_value = {
+    client.get_knowledge_base.side_effect = lambda knowledgeBaseId: {
         'knowledgeBase': {
-            'knowledgeBaseArn': 'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/kb-12345'
+            'knowledgeBaseArn': f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{knowledgeBaseId}'
         }
     }
 
+    def list_tags_for_resource_side_effect(resourceArn: str):
+        kb_id = resourceArn.split('/')[-1]
+
+        if kb_id == 'kb-95008':
+            return {'tags': {'custom-tag': 'true'}}
+
+        return {'tags': {'mcp-multirag-kb': 'true'}}
+
     # Mock the list_tags_for_resource method
-    client.list_tags_for_resource.return_value = {'tags': {'mcp-multirag-kb': 'true'}}
+    client.list_tags_for_resource.side_effect = list_tags_for_resource_side_effect
 
     # Set up the paginator returns
     client.get_paginator.side_effect = lambda operation_name: {

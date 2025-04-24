@@ -30,6 +30,12 @@ MCP server for Terraform on AWS best practices, infrastructure as code patterns,
   - SageMaker endpoint deployment for ML model hosting
   - Serverless Streamlit application deployment for AI interfaces
 
+- **Terraform Registry Module Analysis** - Analyze Terraform Registry modules
+  - Search for modules by URL or identifier
+  - Extract input variables, output variables, and README content
+  - Understand module usage and configuration options
+  - Analyze module structure and dependencies
+
 - **Terraform Workflow Execution** - Run Terraform commands directly
   - Initialize, plan, validate, apply, and destroy operations
   - Pass variables and specify AWS regions
