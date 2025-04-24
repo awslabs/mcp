@@ -1,6 +1,6 @@
 # Use a Python image with uv pre-installed
 # 0.6.16-python3.10-bookworm-slim
-FROM ghcr.io/astral-sh/uv@sha256:6d4d180306b85d5b222be0a5ab8ca2a0112583ebf47eeab485e4f792c129496e as uv
+FROM ghcr.io/astral-sh/uv@sha256:6d4d180306b85d5b222be0a5ab8ca2a0112583ebf47eeab485e4f792c129496e AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -22,6 +22,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
+
+# Make the directory just in case it doesn't exist
+RUN mkdir -p /root/.local
 
 # python:3.10-slim-bookworm
 FROM python@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96
