@@ -56,7 +56,7 @@ jobs:
           ####################################################
           # Sleep to simulate some work
           ####################################################
-          sleep 5    #  
+          sleep 5    # simulate a bit of work
           # sleep 60 # simulate timeout
           # exit 99  # simulate a process failure
           exit 0
