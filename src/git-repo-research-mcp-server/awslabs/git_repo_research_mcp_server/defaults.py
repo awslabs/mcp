@@ -10,12 +10,13 @@
 # and limitations under the License.
 """Default constants for Git Repository Research MCP Server."""
 
+
 class Constants:
     """Constants used throughout the Git Repository Research MCP Server."""
 
     # Default directory for storing indices
     DEFAULT_INDEX_DIR = '.git_repo_research'
-    
+
     # Default patterns for file inclusion
     DEFAULT_INCLUDE_PATTERNS = [
         '**/*.md',
@@ -77,7 +78,7 @@ class Constants:
         'CONTRIBUTING*',
         'CODE_OF_CONDUCT*',
     ]
-    
+
     # Default patterns for file exclusion
     DEFAULT_EXCLUDE_PATTERNS = [
         '**/.git/**',

@@ -29,7 +29,6 @@ class GitHubConfig(BaseModel):
     )
 
 
-
 class IndexMetadata(BaseModel):
     """Metadata for a repository index.
 

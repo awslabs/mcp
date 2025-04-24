@@ -19,8 +19,8 @@ import json
 import os
 import shutil
 import time
-from awslabs.git_repo_research_mcp_server.embeddings import get_embedding_generator
 from awslabs.git_repo_research_mcp_server.defaults import Constants
+from awslabs.git_repo_research_mcp_server.embeddings import get_embedding_generator
 from awslabs.git_repo_research_mcp_server.models import (
     EmbeddingModel,
     IndexMetadata,
@@ -392,16 +392,14 @@ class RepositoryIndexer:
         return os.path.join(index_path, 'chunk_map.json')
 
     async def _prepare_repository(
-        self, 
-        repository_path: str, 
-        ctx: Optional[Any] = None
+        self, repository_path: str, ctx: Optional[Any] = None
     ) -> Tuple[str, str, Optional[str]]:
         """Prepare the repository for indexing.
-        
+
         Args:
             repository_path: Path or URL to the repository
             ctx: Context object for progress tracking (optional)
-            
+
         Returns:
             Tuple containing:
             - Path to the repository
@@ -418,28 +416,25 @@ class RepositoryIndexer:
             repo_path = temp_dir
         else:
             repo_path = repository_path
-            
+
         # Get the repository name
         repository_name = get_repository_name(repository_path)
         logger.info(f'Indexing repository: {repository_name}')
         if ctx:
             await ctx.info(f'Indexing repository: {repository_name}')
-            
+
         return repo_path, repository_name, temp_dir
-    
+
     async def _process_repository_chunks(
-        self,
-        repo_path: str,
-        config: RepositoryConfig,
-        ctx: Optional[Any] = None
+        self, repo_path: str, config: RepositoryConfig, ctx: Optional[Any] = None
     ) -> Tuple[List[str], Dict[str, str], Dict[str, int]]:
         """Process repository files to get text chunks.
-        
+
         Args:
             repo_path: Path to the repository
             config: Repository configuration
             ctx: Context object for progress tracking (optional)
-            
+
         Returns:
             Tuple containing:
             - List of text chunks
@@ -449,7 +444,7 @@ class RepositoryIndexer:
         if ctx:
             await ctx.info('Processing repository files...')
             await ctx.report_progress(10, 100)
-            
+
         chunks, chunk_to_file, extension_stats = process_repository(
             repo_path,
             include_patterns=config.include_patterns,
@@ -457,32 +452,29 @@ class RepositoryIndexer:
             chunk_size=config.chunk_size,
             chunk_overlap=config.chunk_overlap,
         )
-        
+
         if ctx:
             await ctx.report_progress(30, 100)
-            
+
         return chunks, chunk_to_file, extension_stats
-    
+
     async def _create_documents(
-        self,
-        chunks: List[str],
-        chunk_to_file: Dict[str, str],
-        ctx: Optional[Any] = None
+        self, chunks: List[str], chunk_to_file: Dict[str, str], ctx: Optional[Any] = None
     ) -> List[Document]:
         """Convert chunks to LangChain Document objects.
-        
+
         Args:
             chunks: List of text chunks
             chunk_to_file: Mapping of chunks to file paths
             ctx: Context object for progress tracking (optional)
-            
+
         Returns:
             List of LangChain Document objects
         """
         if ctx:
             await ctx.info(f'Converting {len(chunks)} chunks to Document objects...')
             await ctx.report_progress(40, 100)
-            
+
         documents = []
         for i, chunk in enumerate(chunks):
             file_path = chunk_to_file.get(chunk, 'unknown')
@@ -492,23 +484,20 @@ class RepositoryIndexer:
                     metadata={'source': file_path, 'chunk_id': i},
                 )
             )
-            
+
         logger.debug(f'Number of documents to embed: {len(documents)}')
         return documents
-    
+
     async def _copy_repository_files(
-        self,
-        repo_path: str,
-        repo_files_path: str,
-        ctx: Optional[Any] = None
+        self, repo_path: str, repo_files_path: str, ctx: Optional[Any] = None
     ) -> int:
         """Copy all files from the repository to the target directory.
-        
+
         Args:
             repo_path: Source repository path
             repo_files_path: Target path for copied files
             ctx: Context object for progress tracking (optional)
-            
+
         Returns:
             Number of copied files
         """
@@ -516,30 +505,30 @@ class RepositoryIndexer:
         if ctx:
             await ctx.info('Copying repository files...')
             await ctx.report_progress(60, 100)
-            
+
         # First, ensure the target directory is empty
         if os.path.exists(repo_files_path):
             shutil.rmtree(repo_files_path)
         os.makedirs(repo_files_path, exist_ok=True)
-        
+
         # Track copied files for logging
         copied_files = 0
-        
+
         # Walk through the repository and copy all files
         for root, dirs, files in os.walk(repo_path):
             # Skip .git directory
             if '.git' in root.split(os.sep):
                 continue
-                
+
             # Get the relative path from the repository root
             rel_path = os.path.relpath(root, repo_path)
             if rel_path == '.':
                 rel_path = ''
-                
+
             # Create the corresponding directory in the target
             target_dir = os.path.join(repo_files_path, rel_path)
             os.makedirs(target_dir, exist_ok=True)
-            
+
             # Copy all files in this directory
             for file in files:
                 source_file = os.path.join(root, file)
@@ -549,21 +538,19 @@ class RepositoryIndexer:
                     copied_files += 1
                 except Exception as e:
                     logger.warning(f'Error copying file {source_file}: {e}')
-                    
+
         logger.info(f'Copied {copied_files} files to {repo_files_path}')
         return copied_files
-    
+
     async def _create_vector_store(
-        self,
-        documents: List[Document],
-        ctx: Optional[Any] = None
+        self, documents: List[Document], ctx: Optional[Any] = None
     ) -> FAISS:
         """Create a FAISS vector store from documents.
-        
+
         Args:
             documents: List of LangChain Document objects
             ctx: Context object for progress tracking (optional)
-            
+
         Returns:
             FAISS vector store
         """
@@ -571,10 +558,10 @@ class RepositoryIndexer:
         if ctx:
             await ctx.info('Creating FAISS index...')
             await ctx.report_progress(70, 100)
-            
+
         embedding_function = self.embedding_generator
         logger.debug(f'Using embedding function: {embedding_function}')
-        
+
         # Test the embedding function
         try:
             logger.info('Testing embedding function on sample document...')
@@ -586,13 +573,13 @@ class RepositoryIndexer:
         except Exception as e:
             logger.error(f'Embedding function test failed: {e}')
             raise
-            
+
         if ctx:
             await ctx.info('Generating embeddings and creating vector store...')
             await ctx.report_progress(75, 100)
-            
+
         logger.debug(f'Number of documents: {len(documents)}')
-        
+
         # Create the FAISS vector store with error handling
         try:
             vector_store = FAISS.from_documents(
@@ -609,27 +596,24 @@ class RepositoryIndexer:
                 f'First document content: {documents[0].page_content[:100] if documents else "None"}'
             )
             raise
-    
+
     async def _get_repository_commit_id(
-        self, 
-        repo_path: str, 
-        repository_name: str, 
-        repository_path: str
+        self, repo_path: str, repository_name: str, repository_path: str
     ) -> str:
         """Get the last commit ID for a repository.
-        
+
         Args:
             repo_path: Path to the repository
             repository_name: Name of the repository
             repository_path: Original path/URL to the repository
-            
+
         Returns:
             Last commit ID, or 'unknown' if not available
         """
         last_commit_id = None
         if is_git_url(repository_path) or is_git_repo(repo_path):
             logger.info(f'Attempting to get last commit ID for {repository_name}')
-            
+
             # Check if .git directory exists
             git_dir = os.path.join(repo_path, '.git')
             if os.path.exists(git_dir):
@@ -649,14 +633,14 @@ class RepositoryIndexer:
                 logger.warning(f'.git directory not found at {git_dir}')
                 # List the contents of the directory to debug
                 logger.info(f'Contents of {repo_path}: {os.listdir(repo_path)}')
-                
+
         # If we couldn't get the last commit ID, use a placeholder value
         if last_commit_id is None:
             last_commit_id = 'unknown'
             logger.info(f'Using placeholder commit ID: {last_commit_id}')
-            
+
         return last_commit_id
-    
+
     async def _create_and_save_metadata(
         self,
         repository_name: str,
@@ -667,10 +651,10 @@ class RepositoryIndexer:
         chunk_to_file: Dict[str, str],
         extension_stats: Dict[str, int],
         last_commit_id: str,
-        ctx: Optional[Any] = None
+        ctx: Optional[Any] = None,
     ) -> IndexMetadata:
         """Create and save metadata for the indexed repository.
-        
+
         Args:
             repository_name: Name of the repository
             config: Repository configuration
@@ -681,23 +665,23 @@ class RepositoryIndexer:
             extension_stats: Statistics about file extensions
             last_commit_id: Last commit ID
             ctx: Context object for progress tracking (optional)
-            
+
         Returns:
             Created IndexMetadata object
         """
         if ctx:
             await ctx.info('Finalizing index metadata...')
             await ctx.report_progress(90, 100)
-            
+
         # Get index size by summing up the sizes of all files in the index directory
         index_size = 0
         for root, _, files in os.walk(index_path):
             for file in files:
                 index_size += os.path.getsize(os.path.join(root, file))
-                
+
         # Use output_path as repository_name if provided
         final_repo_name = config.output_path if config.output_path else repository_name
-        
+
         metadata = IndexMetadata(
             repository_name=final_repo_name,
             repository_path=config.repository_path,
@@ -713,27 +697,27 @@ class RepositoryIndexer:
             last_commit_id=last_commit_id,
             repository_directory=repo_files_path,
         )
-        
+
         logger.info(f'Created metadata with last_commit_id: {metadata.last_commit_id}')
-        
+
         # Debug: Print all fields in the metadata object
         logger.info(f'Metadata object fields: {metadata.model_dump()}')
         logger.info(f'Last commit ID in metadata: {metadata.last_commit_id}')
-        
+
         metadata_path = self._get_metadata_path(repository_name)
         metadata_json = metadata.model_dump_json(indent=2)
         logger.info(f'Metadata JSON: {metadata_json}')
-        
+
         # Check if last_commit_id is in the JSON string
         if '"last_commit_id":' in metadata_json:
             logger.info('last_commit_id field is present in the JSON string')
         else:
             logger.warning('last_commit_id field is NOT present in the JSON string')
-            
+
         # Write the metadata to the file
         with open(metadata_path, 'w') as f:
             f.write(metadata_json)
-            
+
         # Verify the file was written correctly
         with open(metadata_path, 'r') as f:
             file_content = f.read()
@@ -742,7 +726,7 @@ class RepositoryIndexer:
                 logger.info('last_commit_id field is present in the file')
             else:
                 logger.warning('last_commit_id field is NOT present in the file')
-                
+
         return metadata
 
     async def index_repository(
@@ -770,15 +754,15 @@ class RepositoryIndexer:
             repo_path, repository_name, temp_dir = await self._prepare_repository(
                 config.repository_path, ctx
             )
-            
+
             if ctx:
                 await ctx.report_progress(0, 100)  # Start progress at 0%
-            
+
             # Step 2: Process repository to get chunks
             chunks, chunk_to_file, extension_stats = await self._process_repository_chunks(
                 repo_path, config, ctx
             )
-            
+
             if not chunks:
                 logger.warning('No text chunks found in repository')
                 if ctx:
@@ -796,36 +780,36 @@ class RepositoryIndexer:
                     execution_time_ms=int((time.time() - start_time) * 1000),
                     message='No text chunks found in repository',
                 )
-                
+
             # Step 3: Convert chunks to documents
             documents = await self._create_documents(chunks, chunk_to_file, ctx)
             logger.debug(f'Embedding function type: {type(self.embedding_generator)}')
-            
+
             # Step 4: Determine the output path
             if config.output_path:
                 index_path = self._get_index_path(config.output_path)
                 os.makedirs(index_path, exist_ok=True)
             else:
                 index_path = self._get_index_path(repository_name)
-                
+
             # Step 5: Create repository files directory
             repo_files_path = os.path.join(index_path, 'repository')
             os.makedirs(repo_files_path, exist_ok=True)
-            
+
             # Step 6: Copy repository files
             copied_files = await self._copy_repository_files(repo_path, repo_files_path, ctx)
-            
+
             # Step 7: Create vector store
             vector_store = await self._create_vector_store(documents, ctx)
-            
+
             # Step 8: Save the index
             logger.info(f'Saving index to {index_path}')
             if ctx:
                 await ctx.info(f'Saving index to {index_path}')
                 await ctx.report_progress(85, 100)
-                
+
             save_index_without_pickle(vector_store, index_path)
-            
+
             # Verify the saved index
             logger.info('Verifying saved index')
             try:
@@ -835,19 +819,19 @@ class RepositoryIndexer:
                 )
             except Exception as e:
                 logger.error(f'Error verifying saved index: {e}')
-                
+
             # Save the chunk map
             chunk_map_data = {
                 'chunks': chunks,
                 'chunk_to_file': chunk_to_file,
             }
             save_chunk_map_without_pickle(chunk_map_data, index_path)
-            
+
             # Step 9: Get repository commit ID
             last_commit_id = await self._get_repository_commit_id(
                 repo_path, repository_name, config.repository_path
             )
-            
+
             # Step 10: Create and save metadata
             metadata = await self._create_and_save_metadata(
                 repository_name,
@@ -858,9 +842,9 @@ class RepositoryIndexer:
                 chunk_to_file,
                 extension_stats,
                 last_commit_id,
-                ctx
+                ctx,
             )
-            
+
             execution_time_ms = int((time.time() - start_time) * 1000)
             logger.info(f'Indexing completed in {execution_time_ms}ms')
 
