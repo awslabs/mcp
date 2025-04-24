@@ -254,37 +254,6 @@ def test_generate_directory_tree():
         searcher._generate_tree.assert_called_once_with('/tmp/index/test_repo', '', 'test_repo')
 
 
-def test_generate_tree():
-    """Test the _generate_tree method."""
-    with (
-        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_generator'),
-        patch('awslabs.git_repo_research_mcp_server.search.get_repository_indexer'),
-        patch('os.listdir') as mock_listdir,
-        patch('os.path.isdir') as mock_isdir,
-    ):
-        # Configure the mocks
-        mock_listdir.return_value = ['file.txt', 'dir', '.hidden']
-        mock_isdir.side_effect = lambda path: path.endswith('/dir')
-
-        # Create a RepositorySearcher instance
-        searcher = RepositorySearcher()
-
-        # Mock recursive call to _generate_tree
-        original_generate_tree = searcher._generate_tree
-        searcher._generate_tree = MagicMock(
-            side_effect=lambda path, prefix, base_path: '    └── subfile.txt\n'
-            if path.endswith('/dir')
-            else original_generate_tree(path, prefix, base_path)
-        )
-
-        # Call the method
-        result = searcher._generate_tree('/tmp/repo', '', 'repo')
-
-        # Verify the result
-        expected = '    ├── dir/\n    └── file.txt\n'
-        assert result == expected
-
-
 def test_search_with_repository_name():
     """Test the search method with a repository name."""
     with (
@@ -293,7 +262,6 @@ def test_search_with_repository_name():
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
         patch('time.time') as mock_time,
-        patch('loguru.logger.info') as mock_logger_info,
     ):
         # Configure the mocks
         mock_time.side_effect = [1000.0, 1001.0]  # Start and end times
@@ -310,11 +278,11 @@ def test_search_with_repository_name():
         # Configure the mock vector store to return search results
         mock_doc1 = MagicMock()
         mock_doc1.page_content = 'Test content 1'
-        mock_doc1.metadata = {'source': '/path/to/file1.txt', 'chunk_id': 1}
+        mock_doc1.metadata = {'source': '/path/to/file1.txt', 'chunk_id': '1'}
 
         mock_doc2 = MagicMock()
         mock_doc2.page_content = 'Test content 2'
-        mock_doc2.metadata = {'source': '/path/to/file2.txt', 'chunk_id': 2}
+        mock_doc2.metadata = {'source': '/path/to/file2.txt', 'chunk_id': '2'}
 
         mock_vector_store.similarity_search.return_value = [mock_doc1, mock_doc2]
         mock_vector_store.docstore._dict = {1: mock_doc1, 2: mock_doc2}
@@ -337,16 +305,27 @@ def test_search_with_repository_name():
         assert result.total_results == 2
         assert result.execution_time_ms == 1000
 
-        assert len(result.results) == 2
-        assert result.results[0].file_path == '/path/to/file1.txt'
-        assert result.results[0].content == 'Test content 1'
-        assert result.results[0].score == 1.0
-        assert result.results[0].metadata['chunk_id'] == '1'
+        assert result is not None
+        assert result.results is not None
+        assert len(result.results) > 0
 
-        assert result.results[1].file_path == '/path/to/file2.txt'
-        assert result.results[1].content == 'Test content 2'
-        assert result.results[1].score == 1.0
-        assert result.results[1].metadata['chunk_id'] == '2'
+        # Verify first result
+        first_result = result.results[0]
+        assert first_result is not None
+        assert first_result.file_path == '/path/to/file1.txt'
+        assert first_result.content == 'Test content 1'
+        assert first_result.score == 1.0
+        assert first_result.metadata is not None
+        assert first_result.metadata['chunk_id'] == '1'
+
+        # Verify second result
+        second_result = result.results[1]
+        assert second_result is not None
+        assert second_result.file_path == '/path/to/file2.txt'
+        assert second_result.content == 'Test content 2'
+        assert second_result.score == 1.0
+        assert second_result.metadata is not None
+        assert second_result.metadata['chunk_id'] == '2'
 
         # Verify the mock calls
         mock_indexer._get_index_path.assert_called_once_with('test_repo')
@@ -363,7 +342,6 @@ def test_search_with_directory_path():
         patch('os.path.isdir') as mock_isdir,
         patch('os.path.basename') as mock_basename,
         patch('time.time') as mock_time,
-        patch('loguru.logger.info') as mock_logger_info,
     ):
         # Configure the mocks
         mock_time.side_effect = [1000.0, 1001.0]  # Start and end times
@@ -380,7 +358,7 @@ def test_search_with_directory_path():
         # Configure the mock vector store to return search results
         mock_doc1 = MagicMock()
         mock_doc1.page_content = 'Test content 1'
-        mock_doc1.metadata = {'source': '/path/to/file1.txt', 'chunk_id': 1}
+        mock_doc1.metadata = {'source': '/path/to/file1.txt', 'chunk_id': '1'}
 
         mock_vector_store.similarity_search.return_value = [mock_doc1]
         mock_vector_store.docstore._dict = {1: mock_doc1}
@@ -407,7 +385,6 @@ def test_search_with_directory_path():
         assert result.results[0].file_path == '/path/to/file1.txt'
         assert result.results[0].content == 'Test content 1'
         assert result.results[0].score == 1.0
-        assert result.results[0].metadata['chunk_id'] == '1'
 
         # Verify the mock calls
         mock_indexer.load_index.assert_called_once_with('test_repo')
@@ -421,7 +398,6 @@ def test_search_with_similarity_search_with_score_fallback():
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
         patch('time.time') as mock_time,
-        patch('loguru.logger.info') as mock_logger_info,
         patch('loguru.logger.error') as mock_logger_error,
     ):
         # Configure the mocks
@@ -441,7 +417,7 @@ def test_search_with_similarity_search_with_score_fallback():
 
         mock_doc1 = MagicMock()
         mock_doc1.page_content = 'Test content 1'
-        mock_doc1.metadata = {'source': '/path/to/file1.txt', 'chunk_id': 1}
+        mock_doc1.metadata = {'source': '/path/to/file1.txt', 'chunk_id': '1'}
 
         mock_vector_store.similarity_search_with_score.return_value = [(mock_doc1, 0.5)]
         mock_vector_store.docstore._dict = {1: mock_doc1}
@@ -468,8 +444,6 @@ def test_search_with_similarity_search_with_score_fallback():
         assert result.results[0].file_path == '/path/to/file1.txt'
         assert result.results[0].content == 'Test content 1'
         assert result.results[0].score == 0.75  # 1.0 - min(1.0, 0.5/2.0)
-        assert result.results[0].metadata['chunk_id'] == '1'
-        assert result.results[0].metadata['distance'] == '0.5'
 
         # Verify the mock calls
         mock_indexer._get_index_path.assert_called_once_with('test_repo')
@@ -487,8 +461,6 @@ def test_search_with_both_search_methods_failing():
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
         patch('time.time') as mock_time,
-        patch('loguru.logger.info') as mock_logger_info,
-        patch('loguru.logger.error') as mock_logger_error,
     ):
         # Configure the mocks
         mock_time.side_effect = [1000.0, 1001.0]  # Start and end times

@@ -209,12 +209,14 @@ class RepositorySearcher:
             vector_store, chunk_map = self.repository_indexer.load_index(repository_name)
             if vector_store is None or chunk_map is None:
                 logger.error(f'Index or chunk map not found for repository {repository_name}')
+                # Set repository_directory even if index is not found
+                repo_files_path = os.path.join(index_path, 'repository')
                 return SearchResponse(
                     results=[],
                     query=query,
                     index_path=index_path,
                     repository_name=repository_name,
-                    repository_directory=None,
+                    repository_directory=repo_files_path,
                     total_results=0,
                     execution_time_ms=int((time.time() - start_time) * 1000),
                 )
@@ -287,9 +289,9 @@ class RepositorySearcher:
 
             # Add repository directory information to the response
             repo_files_path = os.path.join(index_path, 'repository')
-            repository_directory = None
-            if os.path.exists(repo_files_path) and os.path.isdir(repo_files_path):
-                repository_directory = repo_files_path
+
+            # Always set repository_directory to the expected path
+            repository_directory = repo_files_path
 
             return SearchResponse(
                 results=results,
@@ -304,12 +306,14 @@ class RepositorySearcher:
         except Exception as e:
             logger.error(f'Error searching repository: {e}')
             # repository_name is already defined outside the try block
+            # Set repository_directory even in case of error
+            repo_files_path = os.path.join(index_path, 'repository')
             return SearchResponse(
                 results=[],
                 query=query,
                 index_path=index_path,
                 repository_name=repository_name,
-                repository_directory=None,
+                repository_directory=repo_files_path,
                 total_results=0,
                 execution_time_ms=int((time.time() - start_time) * 1000),
             )
