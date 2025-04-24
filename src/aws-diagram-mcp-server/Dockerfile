@@ -26,7 +26,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Install GraphViz which is required by the diagrams package
 RUN apt-get update && apt-get install -y graphviz && rm -rf /var/lib/apt/lists/*
 
-FROM python:3.12-slim-bookworm
+# python:3.10-slim-bookworm
+FROM python@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96
 
 RUN addgroup app && adduser --system --home /app --ingroup app --no-create-home --disabled-password --disabled-login app
 

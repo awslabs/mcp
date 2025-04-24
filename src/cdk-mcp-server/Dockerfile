@@ -23,7 +23,8 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
-FROM python:3.12-slim-bookworm
+# python:3.10-slim-bookworm
+FROM python@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96
 
 RUN addgroup app && adduser --system --home /app --ingroup app --no-create-home --disabled-password --disabled-login app
 
