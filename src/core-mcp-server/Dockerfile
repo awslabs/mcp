@@ -42,13 +42,17 @@ RUN mkdir -p /root/.local
 # TODO: find on ERC
 #FROM python@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96
 #FROM public.ecr.aws/docker/library/python:3.10-slim-bookworm
-FROM public.ecr.aws/docker/library/python@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96
+#FROM public.ecr.aws/docker/library/python@sha256:65c843653048a3ba22c8d5083a022f44aef774974f0f7f70cbf8cee4e931ac96
+FROM public.ecr.aws/sam/build-python3.10@sha256:04cdbe84bec08d17d621192bc3f0a9e4a85a83f2ac99aa9241659dfac0d845ea
 
-
+RUN yum update -y && yum install -y lsof
 # Install lsof for the healthcheck
-RUN apt-get update && apt-get install -y lsof && rm -rf /var/lib/apt/lists/*
+#RUN apt-get update && apt-get install -y lsof && rm -rf /var/lib/apt/lists/*
 
-RUN addgroup app && adduser --system --home /app --ingroup app --no-create-home --disabled-password --disabled-login app
+ENV PATH="$PATH:/usr/sbin"
+
+#RUN addgroup app && adduser --system --home /app --ingroup app --no-create-home --disabled-password --disabled-login app
+RUN /usr/sbin/groupadd --force --system app && /usr/sbin/useradd app -g app -d /app
 
 COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
