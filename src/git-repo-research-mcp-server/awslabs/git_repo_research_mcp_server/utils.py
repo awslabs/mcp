@@ -24,6 +24,7 @@ from awslabs.git_repo_research_mcp_server.models import (
     IndexedRepositoryInfo,
     IndexMetadata,
 )
+from datetime import datetime
 from loguru import logger
 from typing import Dict, List, Optional, Union
 
@@ -158,6 +159,26 @@ def list_indexed_repositories(
             total_count=len(repositories),
             index_directory=index_dir,
         )
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle datetime objects.
+
+    This encoder converts datetime objects to ISO format strings during JSON serialization.
+    """
+
+    def default(self, o):
+        """Convert datetime objects to ISO format strings.
+
+        Args:
+            o: Object to convert
+
+        Returns:
+            ISO format string if object is a datetime, otherwise default serialization
+        """
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return super().default(o)
 
 
 def format_size(size_bytes: int) -> str:

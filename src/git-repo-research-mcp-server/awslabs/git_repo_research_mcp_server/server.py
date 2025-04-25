@@ -32,6 +32,7 @@ from awslabs.git_repo_research_mcp_server.models import (
 )
 from awslabs.git_repo_research_mcp_server.search import get_repository_searcher
 from awslabs.git_repo_research_mcp_server.utils import (
+    DateTimeEncoder,
     delete_indexed_repository,
     list_indexed_repositories,
 )
@@ -280,16 +281,6 @@ async def repository_summary(repository_name: str) -> str:
     Returns:
         Repository summary if repository is found, error message otherwise
     """
-    import json
-    from datetime import datetime
-
-    # Custom JSON encoder to handle datetime objects
-    class DateTimeEncoder(json.JSONEncoder):
-        def default(self, o):
-            if isinstance(o, datetime):
-                return o.isoformat()
-            return super().default(o)
-
     # Use repository_name as is for the response
     full_repository_name = repository_name
     logger.info(f'Listing files for repository: {full_repository_name}')
@@ -434,16 +425,6 @@ async def list_repositories() -> str:
     Returns:
         List of indexed repositories with detailed information
     """
-    import json
-    from datetime import datetime
-
-    # Custom JSON encoder to handle datetime objects
-    class DateTimeEncoder(json.JSONEncoder):
-        def default(self, o):
-            if isinstance(o, datetime):
-                return o.isoformat()
-            return super().default(o)
-
     logger.info('Listing indexed repositories')
 
     try:
