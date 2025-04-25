@@ -4,7 +4,7 @@ name: Automated Code Review Request
 on:
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch:
+    types: [ "labeled" ]
 
 permissions: read-all
 
@@ -14,6 +14,7 @@ jobs:
     permissions:
       checks: write   # Permission to create a Check Run
       contents: write # Permission to write a repository_dispatch requests
+    if: ${{ github.event.label.name == 'code-review' }}
     steps:
       - name: Create Check
         id: checkrun                    # An ID to allow the step to be referenced
