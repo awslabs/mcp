@@ -1,6 +1,5 @@
-# Use a Python image with uv pre-installed
-# 0.6.16-python3.13-bookworm-slim
-FROM ghcr.io/astral-sh/uv@sha256:61f9b961f6fd782bdf4ce6e29a643aee2b7ef742149585903de371070c09f4b3 AS uv
+#FROM public.ecr.aws/sam/build-python3.13:1.137.1-20250411084548
+FROM public.ecr.aws/sam/build-python3.13@sha256:06115a411095d035cb10ddc720c9f41ae54c11350e6594fd4ed3b9677ca30ab4 AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -11,10 +10,17 @@ ENV UV_COMPILE_BYTECODE=1
 # Copy from the cache instead of linking since it's a mounted volume
 ENV UV_LINK_MODE=copy
 
+# Prefer the system python
+ENV UV_PYTHON_PREFERENCE=only-system
+
+# Run without updating the uv.lock file like running with `--frozen`
+ENV UV_FROZEN=true
+
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    pip install uv && \
     uv sync --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
@@ -26,31 +32,32 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-# python:3.13-slim-bookworm
-FROM python@sha256:21e39cf1815802d4c6f89a0d3a166cc67ce58f95b6d1639e68a394c99310d2e5
+FROM public.ecr.aws/sam/build-python3.13@sha256:06115a411095d035cb10ddc720c9f41ae54c11350e6594fd4ed3b9677ca30ab4
+
+# Place executables in the environment at the front of the path and include other binaries
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
 
 # Install lsof for the healthcheck
-RUN apt-get update && apt-get install -y lsof && rm -rf /var/lib/apt/lists/*
+# Install other tools as needed for the MCP server
+# Add non-root user and ability to change directory into /root
+RUN dnf update -y && \
+    dnf install -y lsof && \
+    dnf clean all -y && \
+    rm -rf /var/cache/dnf && \
+    groupadd --force --system app && \
+    useradd app -g app -d /app && \
+    chmod o+x /root
 
-RUN addgroup app && adduser --system --home /app --ingroup app --no-create-home --disabled-password --disabled-login app
-
+# Get the project from the uv layer
 COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
-# Place executables in the environment at the front of the path
-ENV PATH="/app/.venv/bin:$PATH"
-
-# So non-root can access /root/.local
-RUN chmod o+x /root
-
-# Copy the healthcheck script
+# Copy and set the healthcheck script
 COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
 
 # Run as non-root
 USER app
 
-# when running the container, add --db-path and a bind mount to the host's db file
+# When running the container, add --db-path and a bind mount to the host's db file
 ENTRYPOINT ["awslabs.aws-documentation-mcp-server"]
-
-# Run a healthcheck
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
