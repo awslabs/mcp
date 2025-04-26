@@ -32,6 +32,29 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
+or docker after a succesful `docker build -t awslabs/aws-diagram-mcp-server .`:
+
+```json
+  {
+    "mcpServers": {
+      "awslabs.aws-diagram-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env",
+          "FASTMCP_LOG_LEVEL=ERROR",
+          "awslabs/aws-diagram-mcp-server:latest"
+        ],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+      }
+    }
+  }
+```
+
 ## Features
 
 The Diagrams MCP Server provides the following capabilities:
