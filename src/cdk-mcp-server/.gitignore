@@ -40,6 +40,7 @@ ENV/
 .coverage.*
 htmlcov/
 .pytest_cache/
+test_*
 
 # Ruff
 .ruff_cache/
