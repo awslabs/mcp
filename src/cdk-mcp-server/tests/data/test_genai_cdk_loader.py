@@ -1,4 +1,5 @@
-from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
+# Update the imports from genai_cdk_github_loader
+from awslabs.cdk_mcp_server.data.genai_cdk_github_loader import (
     ConstructType,
     get_construct_map,
     get_construct_types,
@@ -6,10 +7,14 @@ from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
     get_genai_cdk_construct_section,
     get_genai_cdk_overview,
     list_available_constructs,
-    list_available_sections,
-    process_directory_files,
+    list_sections,
+    fetch_readme,
+    fetch_repo_structure,
+    fetch_bedrock_subdirectories,
+    extract_sections,
 )
-from unittest.mock import mock_open, patch
+from unittest.mock import mock_open, patch, AsyncMock, MagicMock
+import pytest
 
 
 def test_get_construct_types():
@@ -101,62 +106,61 @@ def test_get_genai_cdk_overview_invalid_construct_type():
         assert construct_map[construct_type] in content
 
 
-@patch('os.path.dirname')
-@patch('os.path.join')
-@patch('os.path.exists')
-@patch('os.walk')
-def test_list_available_sections_success(mock_walk, mock_exists, mock_join, mock_dirname):
-    """Test listing available sections successfully."""
-    # Mock the directory path
-    mock_dirname.return_value = '/mock/path'
-    mock_join.return_value = '/mock/path/static/genai_cdk/bedrock/agent'
-    mock_exists.return_value = True
-
-    # Mock directory walk to return some files
-    mock_walk.return_value = [
-        (
-            '/mock/path/static/genai_cdk/bedrock/agent',
-            [],
-            ['overview.md', 'usage.md', 'configuration.md'],
-        ),
-        (
-            '/mock/path/static/genai_cdk/bedrock/agent/actiongroups',
-            [],
-            ['overview.md', 'usage.md'],
-        ),
-    ]
-
-    # Test listing sections
-    sections = list_available_sections('bedrock', 'agent')
-
-    # Check that the correct sections are returned
-    assert 'usage' in sections
-    assert 'configuration' in sections
-
-    # Print the actual sections for debugging
-    print('Actual sections:', sections)
-
-    # Skip the actiongroups check for now, as it seems the implementation
-    # might handle nested paths differently than expected
-    # We'll just verify that we got at least some sections back
-    assert len(sections) > 0, 'No sections found'
+@pytest.mark.asyncio
+async def test_list_sections_success():
+    """Test listing available sections successfully with GitHub-based approach."""
+    # Mock fetch_readme function
+    with patch('awslabs.cdk_mcp_server.data.genai_cdk_github_loader.fetch_readme', 
+               new=AsyncMock()) as mock_fetch_readme:
+        # Setup the mock return value
+        mock_fetch_readme.return_value = {
+            'content': """# Test README
+            
+            Introduction text
+            
+            ## Section One
+            Content for section one
+            
+            ## Section Two
+            Content for section two
+            
+            ## Section Three
+            Content for section three
+            """,
+            'status': 'success'
+        }
+        
+        # Test listing sections
+        result = await list_sections('bedrock', 'agent')
+        
+        # Check that mock was called with correct arguments
+        mock_fetch_readme.assert_called_with('bedrock', 'agent')
+        
+        # Check result
+        assert result['status'] == 'success'
+        assert 'Section One' in result['sections']
+        assert 'Section Two' in result['sections']
+        assert 'Section Three' in result['sections']
+        assert len(result['sections']) == 3
 
 
-@patch('os.path.dirname')
-@patch('os.path.join')
-@patch('os.path.exists')
-def test_list_available_sections_directory_not_found(mock_exists, mock_join, mock_dirname):
-    """Test listing available sections when directory is not found."""
-    # Mock the directory path
-    mock_dirname.return_value = '/mock/path'
-    mock_join.return_value = '/mock/path/static/genai_cdk/bedrock/agent'
-    mock_exists.return_value = False
-
-    # Test listing sections
-    sections = list_available_sections('bedrock', 'agent')
-
-    # Check that an empty list is returned
-    assert sections == []
+@pytest.mark.asyncio
+async def test_list_sections_error():
+    """Test listing sections when README fetch fails."""
+    # Mock fetch_readme function
+    with patch('awslabs.cdk_mcp_server.data.genai_cdk_github_loader.fetch_readme', 
+               new=AsyncMock()) as mock_fetch_readme:
+        # Setup the mock return value for error case
+        mock_fetch_readme.return_value = {
+            'error': 'Test error message',
+            'status': 'error'
+        }
+        
+        # Test listing sections
+        result = await list_sections('bedrock', 'agent')
+        
+        # Check result passes through the error
+        assert 'error' in result
 
 
 @patch('os.path.dirname')
@@ -320,26 +324,44 @@ def test_list_available_constructs_invalid_construct_type():
     assert constructs == []
 
 
-@patch('os.listdir')
-@patch('os.path.isdir')
-@patch('os.path.join')
-@patch('builtins.open', new_callable=mock_open, read_data='# Test Description\n\nContent')
-def test_process_directory_files_success(mock_file, mock_join, mock_isdir, mock_listdir):
-    """Test processing directory files successfully."""
-    # Mock directory listing to return some files
-    mock_listdir.return_value = ['agent.md', 'knowledgebase.md', 'overview.md', 'directory']
-    mock_isdir.side_effect = lambda path: path.endswith('directory')
-    mock_join.side_effect = lambda *args: '/'.join(args)
+# Add tests for GitHub-based functions
+@pytest.mark.asyncio
+async def test_extract_sections():
+    """Test extracting sections from README content."""
+    content = """# Main Title
 
-    # Test processing files
-    constructs = []
-    process_directory_files('/mock/path', 'bedrock', constructs)
+Introduction paragraph
 
-    # Check that the correct constructs are added
-    assert len(constructs) == 2  # agent, knowledgebase (overview.md and directory are excluded)
-    assert any(c['name'] == 'Agent' and c['type'] == 'bedrock' for c in constructs)
-    assert any(c['name'] == 'Knowledgebase' and c['type'] == 'bedrock' for c in constructs)
+## Section One
+Content for section one
+More content
 
-    # Check that descriptions are extracted from the first line
-    for construct in constructs:
-        assert construct['description'] == 'Test Description'
+## Section Two
+Content for section two
+
+### Subsection
+This is a subsection that shouldn't be captured as a top-level section
+
+## Section Three
+Final section content
+"""
+
+    sections = extract_sections(content)
+    
+    # Check that we got the expected sections
+    assert len(sections) == 3
+    assert "Section One" in sections
+    assert "Section Two" in sections
+    assert "Section Three" in sections
+    
+    # Check that section content is extracted correctly
+    assert "Content for section one" in sections["Section One"]
+    assert "Content for section two" in sections["Section Two"]
+    assert "Final section content" in sections["Section Three"]
+    
+    # Ensure section headers are included in content
+    assert "## Section One" in sections["Section One"]
+    
+    # Check subsection handling
+    assert "### Subsection" in sections["Section Two"]
+    assert "This is a subsection" in sections["Section Two"]
