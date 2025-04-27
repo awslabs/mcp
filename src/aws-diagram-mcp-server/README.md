@@ -64,6 +64,22 @@ The Diagrams MCP Server provides the following capabilities:
 3. **Customization**: Customize diagram appearance, layout, and styling
 4. **Security**: Code scanning to ensure secure diagram generation
 
+## Quick Example
+
+```python
+from diagrams import Diagram
+from diagrams.aws.compute import Lambda
+from diagrams.aws.database import DynamoDB
+from diagrams.aws.network import APIGateway
+
+with Diagram("Serverless Application", show=False):
+    api = APIGateway("API Gateway")
+    function = Lambda("Function")
+    database = DynamoDB("DynamoDB")
+
+    api >> function >> database
+```
+
 ## Development
 
 ### Testing
