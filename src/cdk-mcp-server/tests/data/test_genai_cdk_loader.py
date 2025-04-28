@@ -1,5 +1,5 @@
-# Update the imports from genai_cdk_github_loader
-from awslabs.cdk_mcp_server.data.genai_cdk_github_loader import (
+# Update the imports from genai_cdk_loader
+from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
     ConstructType,
     get_construct_map,
     get_construct_types,
@@ -110,7 +110,7 @@ def test_get_genai_cdk_overview_invalid_construct_type():
 async def test_list_sections_success():
     """Test listing available sections successfully with GitHub-based approach."""
     # Mock fetch_readme function
-    with patch('awslabs.cdk_mcp_server.data.genai_cdk_github_loader.fetch_readme', 
+    with patch('awslabs.cdk_mcp_server.data.genai_cdk_loader.fetch_readme', 
                new=AsyncMock()) as mock_fetch_readme:
         # Setup the mock return value
         mock_fetch_readme.return_value = {
@@ -148,7 +148,7 @@ async def test_list_sections_success():
 async def test_list_sections_error():
     """Test listing sections when README fetch fails."""
     # Mock fetch_readme function
-    with patch('awslabs.cdk_mcp_server.data.genai_cdk_github_loader.fetch_readme', 
+    with patch('awslabs.cdk_mcp_server.data.genai_cdk_loader.fetch_readme', 
                new=AsyncMock()) as mock_fetch_readme:
         # Setup the mock return value for error case
         mock_fetch_readme.return_value = {

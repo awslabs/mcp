@@ -13,7 +13,7 @@
 
 import logging
 from awslabs.cdk_mcp_server.data.cdk_nag_parser import get_errors, get_rule_pack, get_warnings
-from awslabs.cdk_mcp_server.data.genai_cdk_github_loader import (
+from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
     get_section,
     list_sections,
     fetch_readme,
@@ -290,7 +290,7 @@ async def get_genai_cdk_construct_resource(construct_type: str, construct_name: 
     Returns:
         String containing formatted properties and code examples in markdown
     """
-    from awslabs.cdk_mcp_server.data.genai_cdk_github_loader import fetch_readme as get_readme
+    from awslabs.cdk_mcp_server.data.genai_cdk_loader import fetch_readme as get_readme
     
     # Handle search result format (e.g., "Amazon Bedrock Knowledge BasesVectorKnowledgeBase")
     if construct_name.startswith("Amazon Bedrock Knowledge Bases"):
@@ -350,7 +350,7 @@ async def get_genai_cdk_overview_resource(construct_type: str) -> str:
     Returns:
         String containing overview documentation in markdown
     """
-    from awslabs.cdk_mcp_server.data.genai_cdk_github_loader import fetch_readme as get_readme
+    from awslabs.cdk_mcp_server.data.genai_cdk_loader import fetch_readme as get_readme
     
     # Fetch README from GitHub
     result = await get_readme(construct_type)

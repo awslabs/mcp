@@ -19,7 +19,7 @@ from awslabs.cdk_mcp_server.data.cdk_nag_parser import (
     check_cdk_nag_suppressions,
     get_rule,
 )
-from awslabs.cdk_mcp_server.data.genai_cdk_github_loader import (
+from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
     list_available_constructs,
 )
 from awslabs.cdk_mcp_server.data.lambda_layer_parser import LambdaLayerParser
