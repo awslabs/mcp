@@ -196,8 +196,12 @@ async def get_genai_cdk_construct_section_resource(
     # Fetch section from GitHub
     result = await get_section(construct_type, construct_name, section)
     
-    if 'error' in result:
-        return f"Error fetching section from GitHub: {result['error']}"
+    # Check for error
+    if result.get('status') == 'error' or result.get('status') == 'not_found':
+        if 'error' in result:
+            return f"Error fetching section from GitHub: {result['error']}"
+        else:
+            return f"Error: Section '{section}' not found in {construct_type}/{construct_name}"
         
     return result['content']
 
@@ -224,15 +228,20 @@ async def get_genai_cdk_construct_nested_section_resource(
     section = f'{parent}/{child}'
     result = await get_section(construct_type, construct_name, section)
     
-    if 'error' not in result:
+    # Check if the first attempt succeeded
+    if result.get('status') == 'success':
         return result['content']
         
     # If that fails, try as a combined section name
     section = f'{parent} {child}'
     result = await get_section(construct_type, construct_name, section)
     
-    if 'error' in result:
-        return f"Error fetching nested section from GitHub: {result['error']}"
+    # Check for errors in both attempts
+    if result.get('status') == 'error' or result.get('status') == 'not_found':
+        if 'error' in result:
+            return f"Error fetching nested section from GitHub: {result['error']}"
+        else:
+            return f"Error: Section '{parent}/{child}' not found in {construct_type}/{construct_name}"
         
     return result['content']
 

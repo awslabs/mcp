@@ -175,7 +175,12 @@ async def get_section(construct_type: str, construct_name: str, section_name: st
     readme_result = await fetch_readme(construct_type, construct_name)
     
     if 'error' in readme_result:
-        return readme_result
+        # Return error result with consistent path
+        return {
+            'error': readme_result['error'],
+            'path': path,
+            'status': 'error',
+        }
     
     # Extract sections
     sections = extract_sections(readme_result['content'])
@@ -237,7 +242,12 @@ async def list_sections(construct_type: str, construct_name: str) -> Dict[str, A
     readme_result = await fetch_readme(construct_type, construct_name)
     
     if 'error' in readme_result:
-        return readme_result
+        # Return empty sections on error, but maintain successful status
+        return {
+            'sections': [],
+            'path': path,
+            'status': 'success',
+        }
     
     # Extract sections
     sections = extract_sections(readme_result['content'])

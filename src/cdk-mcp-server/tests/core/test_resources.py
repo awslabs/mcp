@@ -13,7 +13,7 @@ from awslabs.cdk_mcp_server.core.resources import (
     get_lambda_powertools_index,
     get_solutions_construct_pattern_resource,
 )
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 
 @pytest.mark.asyncio
@@ -120,46 +120,89 @@ async def test_get_solutions_construct_pattern_resource():
 @pytest.mark.asyncio
 async def test_get_genai_cdk_construct_section_resource():
     """Test getting GenAI CDK construct section resource."""
-    with patch(
-        'awslabs.cdk_mcp_server.core.resources.get_genai_cdk_construct_section'
-    ) as mock_get_section:
-        mock_get_section.return_value = 'Test section content'
-
+    # Create a mock result
+    mock_result = {
+        'content': 'Test section content',
+        'status': 'success'
+    }
+    
+    # Import the module directly where the function is defined
+    with patch('awslabs.cdk_mcp_server.core.resources.get_section', 
+              return_value=mock_result) as mock_get_section:
+        
+        # Call the function we're testing
         result = await get_genai_cdk_construct_section_resource('bedrock', 'agent', 'actiongroups')
+        
+        # Verify the result matches the mocked content
         assert result == 'Test section content'
+        
+        # Verify correct parameters were passed
         mock_get_section.assert_called_once_with('bedrock', 'agent', 'actiongroups')
 
 
 @pytest.mark.asyncio
 async def test_get_genai_cdk_construct_nested_section_resource():
     """Test getting GenAI CDK construct nested section resource."""
-    with patch(
-        'awslabs.cdk_mcp_server.core.resources.get_genai_cdk_construct_section'
-    ) as mock_get_section:
-        mock_get_section.return_value = 'Test nested section content'
-
+    # Create mock results for the first and second attempts
+    mock_result_error = {
+        'error': 'Section not found',
+        'status': 'not_found'
+    }
+    
+    mock_result_success = {
+        'content': 'Test nested section content',
+        'status': 'success'
+    }
+    
+    # Use MagicMock to create a side_effect function for get_section
+    mock_get_section = AsyncMock()
+    # First call returns error, second call returns success
+    mock_get_section.side_effect = [mock_result_error, mock_result_success]
+    
+    # Patch at the resources module level
+    with patch('awslabs.cdk_mcp_server.core.resources.get_section', mock_get_section):
+        # Call the function we're testing
         result = await get_genai_cdk_construct_nested_section_resource(
             'bedrock', 'knowledgebases', 'vector', 'opensearch'
         )
+        
+        # Verify the result matches the mocked content
         assert result == 'Test nested section content'
-        mock_get_section.assert_called_once_with('bedrock', 'knowledgebases', 'vector/opensearch')
+        
+        # Verify both parameters were tried
+        assert mock_get_section.call_count == 2
+        mock_get_section.assert_any_call('bedrock', 'knowledgebases', 'vector/opensearch')
+        mock_get_section.assert_any_call('bedrock', 'knowledgebases', 'vector opensearch')
 
 
 @pytest.mark.asyncio
 async def test_get_available_sections_resource():
     """Test getting available sections resource."""
-    with patch(
-        'awslabs.cdk_mcp_server.core.resources.list_available_sections'
-    ) as mock_list_sections:
-        # Test with sections available
-        mock_list_sections.return_value = ['section1', 'section2']
+    # Create mock result data
+    mock_sections_result = {
+        'sections': ['section1', 'section2'],
+        'path': 'bedrock/agents',  # Note: implementation converts agent -> agents
+        'status': 'success'
+    }
+    
+    # Apply the mock at the local module level
+    with patch('awslabs.cdk_mcp_server.core.resources.list_sections', 
+               return_value=mock_sections_result) as mock_list_sections:
+        
+        # Call the function
         result = await get_available_sections_resource('bedrock', 'agent')
-        assert 'Available Sections for Agent in Bedrock' in result
+        
+        # Verify "Agents" appears in the result (capitalized plural form)
+        assert 'Available Sections for Agents in Bedrock' in result
         assert 'section1' in result
         assert 'section2' in result
-
+        
         # Test with no sections
-        mock_list_sections.return_value = []
+        mock_list_sections.return_value = {
+            'sections': [],
+            'path': 'bedrock/agents',
+            'status': 'success'
+        }
         result = await get_available_sections_resource('bedrock', 'agent')
         assert 'No sections found' in result
 
@@ -168,23 +211,29 @@ async def test_get_available_sections_resource():
 async def test_get_genai_cdk_construct_resource():
     """Test getting GenAI CDK construct resource."""
     with patch(
-        'awslabs.cdk_mcp_server.core.resources.get_genai_cdk_construct'
-    ) as mock_get_construct:
-        mock_get_construct.return_value = 'Test construct content'
+        'awslabs.cdk_mcp_server.data.genai_cdk_loader.fetch_readme'
+    ) as mock_fetch_readme:
+        mock_fetch_readme.return_value = {
+            'content': 'Test construct content',
+            'status': 'success'
+        }
 
         result = await get_genai_cdk_construct_resource('bedrock', 'Agent')
         assert result == 'Test construct content'
-        mock_get_construct.assert_called_once_with('bedrock', 'Agent')
+        mock_fetch_readme.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_get_genai_cdk_overview_resource():
     """Test getting GenAI CDK overview resource."""
     with patch(
-        'awslabs.cdk_mcp_server.core.resources.get_genai_cdk_overview'
-    ) as mock_get_overview:
-        mock_get_overview.return_value = 'Test overview content'
+        'awslabs.cdk_mcp_server.data.genai_cdk_loader.fetch_readme'
+    ) as mock_fetch_readme:
+        mock_fetch_readme.return_value = {
+            'content': 'Test overview content',
+            'status': 'success'
+        }
 
         result = await get_genai_cdk_overview_resource('bedrock')
         assert result == 'Test overview content'
-        mock_get_overview.assert_called_once_with('bedrock')
+        mock_fetch_readme.assert_called_once_with('bedrock')
