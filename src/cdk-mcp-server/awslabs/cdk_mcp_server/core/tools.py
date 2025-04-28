@@ -399,12 +399,12 @@ async def search_genai_cdk_constructs(
     Content is fetched dynamically from GitHub to ensure the most up-to-date documentation.
 
     Examples:
-    - "bedrock agent" - Returns all agent-related constructs 
+    - "bedrock agent" - Returns all agent-related constructs
     - "knowledgebase vector" - Returns knowledge base constructs related to vector stores
     - "agent actiongroups" - Returns action groups for agents
     - "opensearch vector" - Returns OpenSearch vector constructs
 
-    The search supports subdirectory content (like knowledge bases and their sections) 
+    The search supports subdirectory content (like knowledge bases and their sections)
     and will find matches across all available content.
 
     Args:
