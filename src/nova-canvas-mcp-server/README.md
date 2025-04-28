@@ -58,6 +58,42 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
+or docker after a succesful `docker build -t awslabs/nova-canvas-mcp-server .`:
+
+```file
+# ficticious `.env` file with AWS temporary credentials
+AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+```
+
+```json
+  {
+    "mcpServers": {
+      "awslabs.nova-canvas-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env",
+          "AWS_REGION=us-east-1",
+          "--env",
+          "FASTMCP_LOG_LEVEL=ERROR",
+          "--env-file",
+          "/full/path/to/file/above/.env",
+          "awslabs/nova-canvas-mcp-server:latest"
+        ],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+      }
+    }
+  }
+```
+
+NOTE: Your credentials will need to be kept refreshed from your host
+
 ### Installing via Smithery
 
 To install Amazon Nova Canvas MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@awslabs/nova-canvas-mcp-server):

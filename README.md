@@ -275,6 +275,53 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 
 See individual server READMEs for specific requirements and configuration options.
 
+### Running MCP servers in containers
+
+_This example uses docker with the "awslabs.nova-canvas-mcp-server and can be repeated for each MCP server_
+
+- Build and tag the image
+
+  ```base
+  cd src/nova-canvas-mcp-server
+  docker build -t awslabs/nova-canvas-mcp-server .
+  ```
+
+- Optionally save sensitive environmental variables in a file:
+
+  ```.env
+  # contents of a .env file with ficticious AWS temporary credentials
+  AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
+  AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+  AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+  ```
+
+- Use the docker options: `--env`, `--env-file`, and `--volume` as needed because the `"env": {}` are not available within the container.
+
+  ```json
+  {
+    "mcpServers": {
+      "awslabs.nova-canvas-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env",
+          "FASTMCP_LOG_LEVEL=ERROR",
+          "--env",
+          "AWS_REGION=us-east-1",
+          "--env-file",
+          "/full/path/to/.env",
+          "--volume",
+          "/full/path/to/.aws:/app/.aws",
+          "awslabs/nova-canvas-mcp-server:latest"
+        ],
+        "env": {}
+      }
+    }
+  }
+  ```
+
 ### Getting Started with Cline and Amazon Bedrock
 <details>
 <summary>Getting Started with Cline and Amazon Bedrock</summary>
