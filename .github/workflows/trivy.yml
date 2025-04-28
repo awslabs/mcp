@@ -53,15 +53,13 @@ jobs:
           docker build -t docker.io/${{ matrix.dockerfile }}:${{ github.sha }} .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 #v0.30.0
         with:
           image-ref: 'docker.io/${{ matrix.dockerfile }}:${{ github.sha }}'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
+          format: 'sarif'
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3.28.15 #v3.28.15
+        uses: github/codeql-action/upload-sarif@v3.28.16 #v3.28.15
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'

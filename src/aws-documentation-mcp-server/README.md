@@ -37,6 +37,29 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
+or docker after a succesful `docker build -t awslabs/aws-documentation-mcp-server .`:
+
+```json
+  {
+    "mcpServers": {
+      "awslabs.aws-documentation-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env",
+          "FASTMCP_LOG_LEVEL=ERROR",
+          "awslabs/aws-documentation-mcp-server:latest"
+        ],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+      }
+    }
+  }
+```
+
 ## Basic Usage
 Example:
  - "look up documentation on S3 bucket naming rule. cite your sources"

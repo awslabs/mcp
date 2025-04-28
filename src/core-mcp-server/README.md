@@ -45,6 +45,29 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
+or docker after a succesful `docker build -t awslabs/core-mcp-server .`:
+
+```json
+  {
+    "mcpServers": {
+      "awslabs.core-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env",
+          "FASTMCP_LOG_LEVEL=ERROR",
+          "awslabs/core-mcp-server:latest"
+        ],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+      }
+    }
+  }
+```
+
 ## Tools and Resources
 
 The server exposes the following tools through the MCP interface:

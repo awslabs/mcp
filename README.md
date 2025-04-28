@@ -156,7 +156,7 @@ A server for seamlessly creating diagrams using the Python diagrams package DSL.
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.lambda-mcp-server.svg)](https://pypi.org/project/awslabs.lambda-mcp-server/)
 
-An server to select and run AWS Lambda function as MCP tools without code changes.
+A server to select and run AWS Lambda function as MCP tools without code changes.
 
 - This server acts as a bridge between MCP clients and AWS Lambda functions, allowing foundation models (FMs) to access and run Lambda functions as tools.
 - This can be used, for example, to access private resources such as internal applications and databases without the need to provide public network access.
@@ -273,6 +273,53 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 ```
 
 See individual server READMEs for specific requirements and configuration options.
+
+### Running MCP servers in containers
+
+_This example uses docker with the "awslabs.nova-canvas-mcp-server and can be repeated for each MCP server_
+
+- Build and tag the image
+
+  ```base
+  cd src/nova-canvas-mcp-server
+  docker build -t awslabs/nova-canvas-mcp-server .
+  ```
+
+- Optionally save sensitive environmental variables in a file:
+
+  ```.env
+  # contents of a .env file with ficticious AWS temporary credentials
+  AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
+  AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+  AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+  ```
+
+- Use the docker options: `--env`, `--env-file`, and `--volume` as needed because the `"env": {}` are not available within the container.
+
+  ```json
+  {
+    "mcpServers": {
+      "awslabs.nova-canvas-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env",
+          "FASTMCP_LOG_LEVEL=ERROR",
+          "--env",
+          "AWS_REGION=us-east-1",
+          "--env-file",
+          "/full/path/to/.env",
+          "--volume",
+          "/full/path/to/.aws:/app/.aws",
+          "awslabs/nova-canvas-mcp-server:latest"
+        ],
+        "env": {}
+      }
+    }
+  }
+  ```
 
 ### Getting Started with Cline and Amazon Bedrock
 <details>

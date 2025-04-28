@@ -32,6 +32,29 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
+or docker after a succesful `docker build -t awslabs/aws-diagram-mcp-server .`:
+
+```json
+  {
+    "mcpServers": {
+      "awslabs.aws-diagram-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env",
+          "FASTMCP_LOG_LEVEL=ERROR",
+          "awslabs/aws-diagram-mcp-server:latest"
+        ],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+      }
+    }
+  }
+```
+
 ## Features
 
 The Diagrams MCP Server provides the following capabilities:
@@ -40,6 +63,22 @@ The Diagrams MCP Server provides the following capabilities:
 2. **Multiple Diagram Types**: Support for AWS architecture, sequence diagrams, flow charts, class diagrams, and more
 3. **Customization**: Customize diagram appearance, layout, and styling
 4. **Security**: Code scanning to ensure secure diagram generation
+
+## Quick Example
+
+```python
+from diagrams import Diagram
+from diagrams.aws.compute import Lambda
+from diagrams.aws.database import DynamoDB
+from diagrams.aws.network import APIGateway
+
+with Diagram("Serverless Application", show=False):
+    api = APIGateway("API Gateway")
+    function = Lambda("Function")
+    database = DynamoDB("DynamoDB")
+
+    api >> function >> database
+```
 
 ## Development
 

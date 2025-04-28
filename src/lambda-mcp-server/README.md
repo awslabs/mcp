@@ -54,6 +54,48 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
+or docker after a succesful `docker build -t awslabs/bedrock-kb-retrieval-mcp-server .`:
+
+```file
+# ficticious `.env` file with AWS temporary credentials
+AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+```
+
+```json
+  {
+    "mcpServers": {
+      "awslabs.lambda-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env",
+          "AWS_REGION=us-east-1",
+          "--env",
+          "FUNCTION_PREFIX=your-function-prefix",
+          "--env",
+          "FUNCTION_LIST=your-first-function,your-second-function",
+          "--env",
+          "FUNCTION_TAG_KEY=your-tag-key",
+          "--env",
+          "FUNCTION_TAG_VALUE=your-tag-value",
+          "--env-file",
+          "/full/path/to/file/above/.env",
+          "awslabs/lambda-mcp-server:latest"
+        ],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+      }
+    }
+  }
+```
+
+NOTE: Your credentials will need to be kept refreshed from your host
+
 The `AWS_PROFILE` and the `AWS_REGION` are optional, their defualt values are `default` and `us-east-1`.
 
 You can specify `FUNCTION_PREFIX`, `FUNCTION_LIST`, or both. If both are empty, all functions pass the name check.
