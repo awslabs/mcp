@@ -179,7 +179,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-terraform-mcp-server"
-version = "0.0.7"
+version = "0.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -482,7 +482,7 @@ wheels = [
 
 [[package]]
 name = "checkov"
-version = "3.2.407"
+version = "3.2.408"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiodns" },
@@ -529,9 +529,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "yarl" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/07/25/5eb6b544c96f1ffe2f05203d2964380665a6c4485d28de114579e5315f84/checkov-3.2.407.tar.gz", hash = "sha256:f1beb464fd90f79620ef69b17cec529d1b42b5e8c91512ead527c58aaea216b5", size = 978297 }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/f4/5bbd14da357dabbb32b9a1e52df7fb05946cde2098947f9d24fbd42671e7/checkov-3.2.408.tar.gz", hash = "sha256:952e7c069bf94df3f1178ee73c05305bdc8dee1a4c32b725f47c78cbd2b2a500", size = 977385 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7b/24/d04cac226e1be6b8c0443c8ef3087187d5e032ce7d93c578c51a911c885b/checkov-3.2.407-py3-none-any.whl", hash = "sha256:56feb41274a7d17a42599189d7c916c8fcd820b3ba7130015c0500f739052f74", size = 2280993 },
+    { url = "https://files.pythonhosted.org/packages/b6/dd/6e8db31da67b5c49a08553d1977468201a4f731d54b4e047f08214b1cc98/checkov-3.2.408-py3-none-any.whl", hash = "sha256:f6df07a44e38655a273e17e029932fe299a79efc2fa9c64e706564852dbc9631", size = 2282126 },
 ]
 
 [[package]]
