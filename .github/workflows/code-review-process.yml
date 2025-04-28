@@ -38,7 +38,7 @@ jobs:
     steps:
       - name: Setup AWS credentials
         id: setup-aws-credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722
         # secrets.AWS_ROLE_ARN_TO_ASSUME cannot used in `if` when undefined.
         # env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME not available at the `if` for job
         if: ${{ env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME == 'true' && vars.AWS_REGION }}
