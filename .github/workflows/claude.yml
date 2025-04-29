@@ -52,8 +52,9 @@ jobs:
       - run: |
           npm install -g @anthropic-ai/claude-code --force --no-os-check
           claude --version
+          claude config set hasTrustDialogAccepted true
           claude mcp add-json --scope "project" "github" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ secrets.GITHUB_TOKEN }}"}}'
           claude config list --global
           claude config list
           claude mcp list
-          echo "Please use the 'github' MCP server to list the open PRs for the awslabs/mcp repository that are ready for review" | claude --print --verbose --debug --output-format text
+          echo "Please use the 'github' MCP server to list the open PRs for the awslabs/mcp repository that are ready for review" | claude --allowedTools "mcp__github__list_pull_requests" --print --debug --output-format text
