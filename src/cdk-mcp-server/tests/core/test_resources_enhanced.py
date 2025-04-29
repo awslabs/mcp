@@ -168,7 +168,7 @@ async def test_get_genai_cdk_construct_resource_all_errors():
         assert 'Not found' in result
 
         # Verify mock was called correctly
-        mock_get_readme.assert_called_with('bedrock')
+        mock_get_readme.assert_called_with('bedrock', 'unknown')
 
 
 @pytest.mark.asyncio
