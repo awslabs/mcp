@@ -35,24 +35,24 @@ jobs:
           role-duration-seconds: 7200
           role-session-name: GitHubActions${{ github.run_id }}
           mask-aws-account-id: true
-      - run: |
-          which npm
-          cat <<EOT |
-          {
-            "name": "automated-code-review",
-            "version": "0.0.0"
-          }
-          EOT
-            > package.json
-          cat <<EOT |
-          {
-            "name": "automated-code-review",
-            "version": "0.0.0",
-            "lockfileVersion": 3,
-            "packages": {}
-          }
-          EOT
-            > package-lock.json
+      # - run: |
+      #     which npm
+      #     cat <<EOT |
+      #     {
+      #       "name": "automated-code-review",
+      #       "version": "0.0.0"
+      #     }
+      #     EOT
+      #       > package.json
+      #     cat <<EOT |
+      #     {
+      #       "name": "automated-code-review",
+      #       "version": "0.0.0",
+      #       "lockfileVersion": 3,
+      #       "packages": {}
+      #     }
+      #     EOT
+      #       > package-lock.json
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.x"
