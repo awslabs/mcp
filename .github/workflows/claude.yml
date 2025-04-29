@@ -55,7 +55,7 @@ jobs:
           claude --version
           echo "Claude Setup"
           claude config set hasTrustDialogAccepted true
-          claude mcp add-json --scope "project" "github" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ secrets.GITHUB_TOKEN }}"}}'
+          claude mcp add-json --scope "project" "github" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ github.token }}"}}'
           echo "Claude Project MCP"
           cat .mcp.json
           echo "Claude Global Configuration"
