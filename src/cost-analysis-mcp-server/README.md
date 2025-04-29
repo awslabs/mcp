@@ -49,7 +49,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
-or docker after a succesful `docker build -t awslabs/bedrock-kb-retrieval-mcp-server .`:
+or docker after a succesful `docker build -t awslabs/cost-analysis-mcp-server .`:
 
 ```file
 # ficticious `.env` file with AWS temporary credentials
