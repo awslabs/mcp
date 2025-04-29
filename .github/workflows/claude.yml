@@ -35,14 +35,6 @@ jobs:
           role-duration-seconds: 7200
           role-session-name: GitHubActions${{ github.run_id }}
           mask-aws-account-id: true
-      #     which npm
-      #     cat <<EOT |
-      #     {
-      #       "name": "automated-code-review",
-      #       "version": "0.0.0"
-      #     }
-      #     EOT
-      #       > package.json
       - run: |
           cat <<EOT |
           {
@@ -60,3 +52,4 @@ jobs:
       - run: |
           npm install -g @anthropic-ai/claude-code --force --no-os-check
           claude --version
+          echo "what is the meaning of life?" | claude --print --output-format text
