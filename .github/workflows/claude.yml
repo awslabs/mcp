@@ -1,5 +1,9 @@
 name: Claude
 on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["feat/claude-code-review"]
   workflow_dispatch:
 permissions: {}
 env:
@@ -8,6 +12,7 @@ jobs:
   claude:
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
     env:
       GH_TOKEN: ${{ github.token }}
@@ -17,6 +22,10 @@ jobs:
       ANTHROPIC_MODEL: us.anthropic.claude-3-7-sonnet-20250219-v1:0
       DISABLE_PROMPT_CACHING: 1
     steps:
+      - name: Debug OIDC Claims
+        uses: github/actions-oidc-debugger@9ccea9c81a54e227c2671097a854c51adf03e3a8 #v1
+        with:
+          audience: '${{ github.server_url }}/${{ github.repository_owner }}'
       - id: setup-aws-credentials
         uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722
         if: ${{ env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME == 'true' && env.AWS_REGION }}
@@ -24,6 +33,7 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: 7200
+          role-session-name: GitHubActions${{ github.run_id }}
           mask-aws-account-id: true
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
