@@ -13,7 +13,6 @@
 - [Documentation](#documentation)
 - [Limitations](#limitations)
 - [Version Control](#version-control)
-- [Computer Science Basics](#computer-science-basics)
 
 ## Vibe coding
 
