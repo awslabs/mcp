@@ -55,11 +55,6 @@ jobs:
           claude --version
           echo "Claude Setup"
           claude config set hasTrustDialogAccepted true
-          claude config add allowedTools Bash
-          claude config add allowedTools Read
-          claude config add allowedTools Write
-          claude config add allowedTools Edit
-          claude config add allowedTools Create
           claude config add allowedTools mcp__GitHub__list_pull_requests
           claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ github.token }}"}}'
           echo "Claude Project MCP"
@@ -71,4 +66,4 @@ jobs:
           echo "Claude MCP List"
           claude mcp list
           echo "Go Claude Go!"
-          echo "Please use the GitHub MCP server to list the open PRs for the awslabs/mcp repository that are ready for review" | claude --allowedTools "Bash,Read,Write,Edit,Create,mcp__GitHub__list_pull_requests" --mcp-debug --mcp-config .mcp.json --print --debug --output-format text
+          echo "Please use the GitHub MCP server to list the open PRs for the awslabs/mcp repository that are ready for review" | claude --allowedTools "mcp__GitHub__list_pull_requests" --mcp-debug --mcp-config .mcp.json --print --debug --output-format text
