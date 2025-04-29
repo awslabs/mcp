@@ -22,7 +22,7 @@ As described [here](https://en.wikipedia.org/wiki/Vibe_coding), vibe coding is a
 Vibe coding involves several key components working together:
 
 - **Prompt**: The initial instructions and context provided to guide the coding process
-- **Client**: The interface through which users interact with the coding system. For instance, [Amazon Q Developer](https://aws.amazon.com/q/developer/)
+- **Client**: The interface through which users interact with the coding system. For instance, [Amazon Q Developer](https://aws.amazon.com/q/developer/) or [Cline](https://cline.bot/)
 - **Additional context**: You can enhance the agent's capabilities by providing additional context, such as AWS MCP servers
 
 > Warning
@@ -102,11 +102,3 @@ Follow these version control best practices:
 - Commit changes frequently with meaningful messages
 - Use feature branches for new development
 - Maintain a clean and organized repository structure
-
-## Computer Science Basics
-
-A solid foundation in computer science is essential:
-
-- Understanding core computer science concepts improves collaboration with AI assistants
-- Deep comprehension of generated code is necessary for proper implementation and maintenance
-- Knowledge of algorithms, data structures, and design patterns enhances code quality
