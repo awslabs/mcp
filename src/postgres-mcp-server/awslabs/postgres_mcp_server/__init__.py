@@ -11,4 +11,8 @@
 
 """awslabs.postgres-mcp-server"""
 
+<<<<<<< HEAD
 __version__ = '0.0.3'
+=======
+__version__ = '0.1.0'
+>>>>>>> 725dba2 (create the v1 of postgres-mcp-server which supports NL2SQL)

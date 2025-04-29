@@ -11,6 +11,7 @@
 
 import re
 
+<<<<<<< HEAD
 
 MUTATING_KEYWORDS = {
     # DML
@@ -91,3 +92,76 @@ def check_sql_injection_risk(sql: str) -> list[dict]:
             )
             break
     return issues
+=======
+MUTATING_KEYWORDS = {
+    # DML
+    "INSERT", "UPDATE", "DELETE", "MERGE", "TRUNCATE",
+
+    # DDL
+    "CREATE", "DROP", "ALTER", "RENAME",
+
+    # Permissions
+    "GRANT", "REVOKE",
+
+    # Metadata changes
+    "COMMENT ON", "SECURITY LABEL",
+
+    # Extensions and functions
+    "CREATE EXTENSION", "CREATE FUNCTION", "INSTALL",
+
+    # Storage-level
+    "CLUSTER", "REINDEX", "VACUUM", "ANALYZE",
+}
+
+SUSPICIOUS_PATTERNS = [
+    r"(?i)'.*?--",
+    r"(?i)'.*?or\s+1=1",
+    r"(?i)\bunion\b.*\bselect\b",
+    r"(?i)\bdrop\b",
+    r"(?i)\btruncate\b",
+    r"(?i)\bgrant\b|\brevoke\b",
+    r"(?i);",
+    r"(?i)or\s+['\"]?\d+=\d+",
+]
+
+# Compile regex pattern
+MUTATING_PATTERN = re.compile(
+    r"(?i)\b(" + "|".join(re.escape(k) for k in MUTATING_KEYWORDS) + r")\b"
+)
+
+def remove_comments(sql: str) -> str:
+    sql = re.sub(r'--.*?$', '', sql, flags=re.MULTILINE)
+    sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
+    return sql
+
+def remove_strings(sql: str) -> str:
+    # Remove single-quoted and double-quoted string literals
+    return re.sub(r"('([^']|'')*')|(\"([^\"]|\"\")*\")", '', sql)
+
+def detect_mutating_keywords(sql_text: str) -> list[str]:
+    """
+    Return a list of mutating keywords found in the SQL (excluding comments).
+    """
+    cleaned_sql = remove_comments(sql_text)
+    cleaned_sql = remove_strings(cleaned_sql)
+    matches = MUTATING_PATTERN.findall(cleaned_sql)
+    return list(set(m.upper() for m in matches))  # Deduplicated and normalized to uppercase
+
+def check_sql_injection_risk(parameters: list[dict] | None) -> list[dict]:
+    issues = []
+
+    if parameters is not None:
+        for param in parameters:
+            value = next(iter(param['value'].values()))
+            for pattern in SUSPICIOUS_PATTERNS:
+                if re.search(pattern, str(value)):
+                    issues.append({
+                        "type": "parameter",
+                        "parameter_name": param['name'],
+                        "message": f"Suspicious pattern in value: {value}",
+                        "severity": "high"
+                    })
+                    break
+
+    return issues
+>>>>>>> 725dba2 (create the v1 of postgres-mcp-server which supports NL2SQL)

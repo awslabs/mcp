@@ -5,6 +5,7 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora Postgres
 ## Features
 
 ### Natural language to Postgres SQL query
+<<<<<<< HEAD
 
 - Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora Postgres database.
 
@@ -17,11 +18,23 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora Postgres
 5. This MCP server can only be run locally on the same host as your LLM client.
 6. Docker runtime
 7. Set up AWS credentials with access to AWS services
+=======
+- Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora Postgres database
+
+## Prerequisites
+
+1. Aurora Postgres Cluster with Postgres username and password stored in AWS Secrets Manager
+2. Enable RDS Data API for your Aurora Postgres Cluster, see [instructions here](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html)
+3. This MCP server can only be run locally on the same host as your LLM client.
+4. Docker runtime
+5. Set up AWS credentials with access to AWS services
+>>>>>>> 725dba2 (create the v1 of postgres-mcp-server which supports NL2SQL)
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
 
 ## Installation
 
+<<<<<<< HEAD
 Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
@@ -49,6 +62,8 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
+=======
+>>>>>>> 725dba2 (create the v1 of postgres-mcp-server which supports NL2SQL)
 ### Build and install docker image locally on the same host of your LLM client
 
 1. 'git clone https://github.com/awslabs/mcp.git'
@@ -56,23 +71,40 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 3. Run 'docker build -t awslabs/postgres-mcp-server:latest .'
 
 ### Add or update your LLM client's config with following:
+<<<<<<< HEAD
 <pre><code>
+=======
+<pre><code> 
+>>>>>>> 725dba2 (create the v1 of postgres-mcp-server which supports NL2SQL)
 {
   "mcpServers": {
     "awslabs.postgres-mcp-server": {
       "command": "docker",
       "args": [
+<<<<<<< HEAD
         "run",
         "-i",
+=======
+        "run", 
+        "-i", 
+>>>>>>> 725dba2 (create the v1 of postgres-mcp-server which supports NL2SQL)
         "--rm",
         "-e", "AWS_ACCESS_KEY_ID=[your data]",
         "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
         "-e", "AWS_REGION=[your data]",
+<<<<<<< HEAD
         "awslabs/postgres-mcp-server:latest",
         "--resource_arn", "[your data]",
         "--secret_arn", "[your data]",
         "--database", "[your data]",
         "--region", "[your data]",
+=======
+        "awslabs/postgres-mcp-server:latest", 
+        "--resource_arn", "[your data]",
+        "--secret_arn", "[your data]",
+        "--database", "[your data]",
+        "--region", "[your data]"
+>>>>>>> 725dba2 (create the v1 of postgres-mcp-server which supports NL2SQL)
         "--readonly", "True"
       ]
     }
@@ -92,4 +124,8 @@ The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment v
 }
 ```
 
+<<<<<<< HEAD
 Make sure the AWS profile has permissions to access the [RDS data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html#data-api.access), and the secret from AWS Secrets Manager. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+=======
+Make sure the AWS profile has permissions to access the AWS Pricing API. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+>>>>>>> 725dba2 (create the v1 of postgres-mcp-server which supports NL2SQL)

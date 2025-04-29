@@ -1,6 +1,10 @@
 [project]
 name = "awslabs.postgres-mcp-server"
+<<<<<<< HEAD
 version = "0.0.4"
+=======
+version = "0.0.0"
+>>>>>>> 725dba2 (create the v1 of postgres-mcp-server which supports NL2SQL)
 description = "An AWS Labs Model Context Protocol (MCP) server for postgres"
 readme = "README.md"
 requires-python = ">=3.10"
