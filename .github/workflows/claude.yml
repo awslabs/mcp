@@ -66,4 +66,13 @@ jobs:
           echo "Claude MCP List"
           claude mcp list
           echo "Go Claude Go!"
-          echo "Please use the GitHub MCP server to list the open PRs for the awslabs/mcp repository that are ready for review" | claude --allowedTools "mcp__GitHub__list_pull_requests" --mcp-debug --mcp-config .mcp.json --print --debug --output-format text
+          #### Adding --mcp-debug --debug --verbose are useful when there are issues, BUT "tool_result" are too long...
+          cat <<EOT |
+          Please use the GitHub MCP server to list the open PRs for the awslabs/mcp repository that are ready for review.
+          If you are unsuccessful, please explicitely state why.
+          Always respond with 'SUCCESS' or 'FAILURE' at the very end of the result.
+          EOT
+            claude \
+              --allowedTools "mcp__GitHub__list_pull_requests" \
+              --mcp-config .mcp.json \
+              --print --output-format json | tee output.json;
