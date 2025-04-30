@@ -27,6 +27,7 @@ jobs:
       CLAUDE_CODE_USE_BEDROCK: 1
       ANTHROPIC_MODEL: us.anthropic.claude-3-7-sonnet-20250219-v1:0
       DISABLE_PROMPT_CACHING: 1
+    environment: claude
     steps:
       - name: Checkout repository
         id: checkout-repository
@@ -94,7 +95,7 @@ jobs:
         id: run-claude-pull-request-review
         if: github.event_name == 'pull_request'
         run: |
-          #### Adding --mcp-debug --debug --verbose are useful when troubleshooting BUT "tool_result" values are too long and create invalid JSON...
+          # Pipe the prompt into claude
           cat <<EOT |
           Please use the GitHub MCP server to make add the pull request review comment 'automated-code-review' for PR #${{ github.event.pull_request.number }} in the ${{ github.repository }}.
           DO be explicit about why you cannot perform the task with a prioritized instructional details on how to resolve issues with your task.
@@ -104,3 +105,4 @@ jobs:
               --mcp-config .mcp.json \
               --print --output-format json | tee output.json
           cat output.json | jq '.'
+          #### Adding --mcp-debug --debug --verbose are useful when troubleshooting BUT "tool_result" values are too long and create invalid JSON...
