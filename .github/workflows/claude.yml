@@ -22,6 +22,8 @@ jobs:
       ANTHROPIC_MODEL: us.anthropic.claude-3-7-sonnet-20250219-v1:0
       DISABLE_PROMPT_CACHING: 1
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       # - name: Debug OIDC Claims
       #   uses: github/actions-oidc-debugger@9ccea9c81a54e227c2671097a854c51adf03e3a8 #v1
       #   with:
@@ -70,7 +72,7 @@ jobs:
           echo "Go Claude Go!"
           #### Adding --mcp-debug --debug --verbose are useful when troubleshooting BUT "tool_result" values are too long and create invalid JSON...
           cat <<EOT |
-          Please use the GitHub MCP server to make the specific comment 'automated-code-review' for the latest commit pushed to branch of this repository.
+          Please use the GitHub MCP server to make the specific comment 'automated-code-review' for current commit hash in the checked out repository.
           EOT
             claude \
               --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review" \
