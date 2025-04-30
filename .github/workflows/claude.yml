@@ -77,5 +77,5 @@ jobs:
             claude \
               --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review" \
               --mcp-config .mcp.json \
-              --print --output-format json | tee output.json;
+              --print --output-format json | tee output.json
           cat output.json | jq '.'
