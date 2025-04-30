@@ -84,7 +84,7 @@ jobs:
           claude config add allowedTools Write
           claude config add allowedTools Edit
           claude config add allowedTools Create
-          claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","--env","GITHUB_DYNAMIC_TOOLSETS","--env","GITHUB_TOOLSETS","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ env.GITHUB_PERSONAL_ACCESS_TOKEN }}"}}'
+          claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","--env","GITHUB_DYNAMIC_TOOLSETS","--env","GITHUB_TOOLSETS","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ env.GITHUB_PERSONAL_ACCESS_TOKEN }}","GITHUB_TOOLSETS":"${{ env.GITHUB_TOOLSETS }}","GITHUB_DYNAMIC_TOOLSETS":"${{ env.GITHUB_DYNAMIC_TOOLSETS }}"}}'
           echo "Claude Project MCP"
           cat .mcp.json
           echo "Claude Global Configuration"
@@ -95,8 +95,10 @@ jobs:
           claude mcp list
       - name: Test GH Command
         id: test-gh-command
+        if: github.event_name == 'pull_request'
         run: |
           gh auth status
+          gh pr review awslabs/mcp#${{ github.event.pull_request.number }} --comment "automated-code-review ${{ github.run_id }} testing..."
       - name: Run Claude Pull Request Review
         id: run-claude-pull-request-review
         if: github.event_name == 'pull_request'
@@ -105,7 +107,7 @@ jobs:
           claude mcp list
           # Pipe the prompt into claude
           cat <<EOT |
-          Please use the GitHub MCP server to make add the pull request review comment 'automated-code-review' for PR #${{ github.event.pull_request.number }} in the ${{ github.repository }}.
+          Please use the GitHub MCP server to make add the pull request review comment 'automated-code-review ${{ github.run_id }} starting...' for PR #${{ github.event.pull_request.number }} in the ${{ github.repository }}.
           DO be explicit about why you cannot perform the task with a prioritized instructional details on how to resolve issues with your task.
           EOT
             claude \
