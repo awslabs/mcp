@@ -84,6 +84,7 @@ jobs:
           claude config add allowedTools Write
           claude config add allowedTools Edit
           claude config add allowedTools Create
+          claude config add allowedTools gh
           claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","--env","GITHUB_DYNAMIC_TOOLSETS","--env","GITHUB_TOOLSETS","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ env.GITHUB_PERSONAL_ACCESS_TOKEN }}","GITHUB_TOOLSETS":"${{ env.GITHUB_TOOLSETS }}","GITHUB_DYNAMIC_TOOLSETS":"${{ env.GITHUB_DYNAMIC_TOOLSETS }}"}}'
           echo "Claude Project MCP"
           cat .mcp.json
@@ -111,7 +112,7 @@ jobs:
           DO be explicit about why you cannot perform the task with a prioritized instructional details on how to resolve issues with your task.
           EOT
             claude \
-              --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,Bash,Read,Write,Edit,Create" \
+              --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,Bash,Read,Write,Edit,Create,gh" \
               --mcp-config .mcp.json \
               --print --output-format json | tee output.json
           cat output.json | jq '.'
