@@ -2,9 +2,6 @@ name: Claude
 on:
   pull_request:
     branches: ["main"]
-  push:
-    branches: ["feat/claude-code-review"]
-  workflow_dispatch:
 permissions: {}
 env:
   IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME != '' }}
@@ -99,7 +96,7 @@ jobs:
         run: |
           #### Adding --mcp-debug --debug --verbose are useful when troubleshooting BUT "tool_result" values are too long and create invalid JSON...
           cat <<EOT |
-          Please use the GitHub MCP server to make the specific pull request review comment 'automated-code-review' for the current PR.
+          Please use the GitHub MCP server to make add the pull request review comment 'automated-code-review' for PR #${{ github.event.pull_request.number }} in the ${{ github.repository }}.
           DO be explicit about why you cannot perform the task with a prioritized instructional details on how to resolve issues with your task.
           EOT
             claude \
