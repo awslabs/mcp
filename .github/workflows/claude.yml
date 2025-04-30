@@ -20,7 +20,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
       GITHUB_PERSONAL_ACCESS_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
       GITHUB_DYNAMIC_TOOLSETS: 1
-      GITHUB_TOOLSETS: "repos,issues,pull_requests,code_security,experiments"
+      GITHUB_TOOLSETS: "all"
       AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
       ACTIONS_RUNNER_DEBUG: ${{ vars.ACTIONS_RUNNER_DEBUG || 'false' }}
       ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG || 'false' }}
