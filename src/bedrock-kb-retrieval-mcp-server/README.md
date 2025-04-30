@@ -53,6 +53,17 @@ If you intend to use reranking functionality, your Bedrock Knowledge Base needs 
 3. Reranking is only available in specific regions. Please refer to the official [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html) for an up to date list of supported regions.
 4. Enable model access for the available reranking models in the specified region.
 
+### Controlling Reranking
+
+Reranking can now be globally enabled or disabled using the `BEDROCK_KB_RERANKING_ENABLED` environment variable:
+
+- Set to `true` (default): Enables reranking for all queries unless explicitly disabled
+- Set to `false`: Disables reranking for all queries unless explicitly enabled
+
+The environment variable accepts various formats for specifying false: 'false', '0', 'no', or 'off' (case-insensitive).
+
+This setting provides a global default, while individual API calls can still override it by explicitly setting the `reranking` parameter.
+
 For detailed instructions on setting up knowledge bases, see:
 
 - [Create a knowledge base](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-create.html)
@@ -73,7 +84,8 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
         "AWS_PROFILE": "your-profile-name",
         "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "KB_INCLUSION_TAG_KEY": "optional-tag-key-to-filter-kbs"
+        "KB_INCLUSION_TAG_KEY": "optional-tag-key-to-filter-kbs",
+        "BEDROCK_KB_RERANKING_ENABLED": "true"
       },
       "disabled": false,
       "autoApprove": []
@@ -104,6 +116,8 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
           "FASTMCP_LOG_LEVEL=ERROR",
           "--env",
           "KB_INCLUSION_TAG_KEY=optional-tag-key-to-filter-kbs",
+          "--env",
+          "BEDROCK_KB_RERANKING_ENABLED=true",
           "--env",
           "AWS_REGION=us-east-1",
           "--env-file",

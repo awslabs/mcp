@@ -39,7 +39,7 @@ async def query_knowledge_base(
         knowledge_base_id (str): The knowledge base ID to query.
         kb_agent_client (AgentsforBedrockRuntimeClient): The Bedrock agent client.
         number_of_results (int): The number of results to return.
-        reranking (bool): Whether to rerank the results.
+        reranking (bool): Whether to rerank the results. Can be globally configured using the BEDROCK_KB_RERANKING_ENABLED environment variable.
         reranking_model_name (Literal['COHERE', 'AMAZON']): The name of the reranking model to use.
         data_source_ids (list[str] | None): The data source IDs to filter the knowledge base by.
 
@@ -98,12 +98,10 @@ async def query_knowledge_base(
             logger.warning('Images are not supported at this time. Skipping...')
             continue
         else:
-            documents.append(
-                {
-                    'content': result['content'],
-                    'location': result.get('location', ''),
-                    'score': result.get('score', ''),
-                }
-            )
+            documents.append({
+                'content': result['content'],
+                'location': result.get('location', ''),
+                'score': result.get('score', ''),
+            })
 
     return '\n\n'.join([json.dumps(document) for document in documents])
