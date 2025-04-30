@@ -25,10 +25,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      # - name: Debug OIDC Claims
-      #   uses: github/actions-oidc-debugger@9ccea9c81a54e227c2671097a854c51adf03e3a8 #v1
-      #   with:
-      #     audience: '${{ github.server_url }}/${{ github.repository_owner }}'
+      - name: Debug OIDC Claims
+        uses: github/actions-oidc-debugger@9ccea9c81a54e227c2671097a854c51adf03e3a8 #v1
+        with:
+          audience: '${{ github.server_url }}/${{ github.repository_owner }}'
       - id: setup-aws-credentials
         uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722
         if: ${{ env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME == 'true' && env.AWS_REGION }}
