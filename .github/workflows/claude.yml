@@ -97,6 +97,8 @@ jobs:
         id: run-claude-pull-request-review
         if: github.event_name == 'pull_request'
         run: |
+          echo "Is the MCP server still there????"
+          claude mcp list
           # Pipe the prompt into claude
           cat <<EOT |
           Please use the GitHub MCP server to make add the pull request review comment 'automated-code-review' for PR #${{ github.event.pull_request.number }} in the ${{ github.repository }}.
