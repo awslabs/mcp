@@ -53,6 +53,17 @@ except Exception as e:
 
 kb_inclusion_tag_key = os.getenv('KB_INCLUSION_TAG_KEY', DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY)
 
+# Parse reranking enabled environment variable
+kb_reranking_enabled_raw = os.getenv('BEDROCK_KB_RERANKING_ENABLED')
+kb_reranking_enabled = True  # Default value
+if kb_reranking_enabled_raw is not None:
+    kb_reranking_enabled_raw = kb_reranking_enabled_raw.strip().lower()
+    if kb_reranking_enabled_raw in ('false', '0', 'no', 'off'):
+        kb_reranking_enabled = False
+logger.info(
+    f'Default reranking enabled: {kb_reranking_enabled} (from BEDROCK_KB_RERANKING_ENABLED)'
+)
+
 mcp = FastMCP(
     'awslabs.bedrock-kb-retrieval-mcp-server',
     instructions="""
@@ -124,8 +135,8 @@ async def query_knowledge_bases_tool(
         description='The number of results to return. Use smaller values for focused results and larger values for broader coverage.',
     ),
     reranking: bool = Field(
-        True,
-        description='Whether to rerank the results. Useful for improving relevance and sorting.',
+        kb_reranking_enabled,
+        description='Whether to rerank the results. Useful for improving relevance and sorting. Can be globally configured with BEDROCK_KB_RERANKING_ENABLED environment variable.',
     ),
     reranking_model_name: Literal['COHERE', 'AMAZON'] = Field(
         'AMAZON',
