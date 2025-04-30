@@ -99,7 +99,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           gh auth status
-          gh pr review awslabs/mcp#${{ github.event.pull_request.number }} --comment "automated-code-review ${{ github.run_id }} testing..."
+          gh --repo ${{ github.repository }} pr review ${{ github.event.pull_request.number }} --comment --body "automated-code-review ${{ github.run_id }} testing..."
       - name: Run Claude Pull Request Review
         id: run-claude-pull-request-review
         if: github.event_name == 'pull_request'
