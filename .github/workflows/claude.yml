@@ -38,7 +38,7 @@ jobs:
           role-session-name: GitHubActions${{ github.run_id }}
           mask-aws-account-id: true
       - run: |
-          cat <<EOT |
+          cat <<EOT > package-lock.json
           {
             "name": "automated-code-review",
             "version": "0.0.0",
@@ -46,7 +46,6 @@ jobs:
             "packages": {}
           }
           EOT
-            > package-lock.json
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.x"
