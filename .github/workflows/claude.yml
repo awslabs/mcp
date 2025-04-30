@@ -51,17 +51,23 @@ jobs:
         with:
           node-version: "22.x"
           cache: npm
-      - run: |
+      - name: Setup Claude
+        run: |
           npm install -g @anthropic-ai/claude-code --force --no-os-check
           echo "Claude Version"
           claude --version
           echo "Claude Setup"
-          claude config set hasTrustDialogAccepted true
+          claude config set hasTrustDialogAccepted true          
           claude config add allowedTools mcp__GitHub__
-          claude config add allowedTools mcp__GitHub__list_pull_requests
-          claude config add allowedTools mcp__GitHub__create_pull_request_review
           claude config add allowedTools mcp__GitHub__add_pull_request_review_comment
+          claude config add allowedTools mcp__GitHub__create_pull_request_review
+          claude config add allowedTools mcp__GitHub__get_pull_request_comments
+          claude config add allowedTools mcp__GitHub__list_pull_requests
           claude config add allowedTools Bash
+          claude config add allowedTools Read
+          claude config add allowedTools Write
+          claude config add allowedTools Edit
+          claude config add allowedTools Create
           claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","--env","GITHUB_DYNAMIC_TOOLSETS","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ github.token }}"}}'
           echo "Claude Project MCP"
           cat .mcp.json
@@ -71,13 +77,15 @@ jobs:
           claude config list
           echo "Claude MCP List"
           claude mcp list
-          echo "Go Claude Go!"
+      - name: Run Claude
+        run: |
           #### Adding --mcp-debug --debug --verbose are useful when troubleshooting BUT "tool_result" values are too long and create invalid JSON...
           cat <<EOT |
           Please use the GitHub MCP server to make the specific pull request review comment 'automated-code-review' for PR #239 in the checked out repository.
           EOT
             claude \
-              --allowedTools "mcp__GitHub__,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,Bash" \
+              --mcp-debug --debug --verbose 
+              --allowedTools "mcp__GitHub__,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,Bash,Read,Write,Edit,Create" \
               --mcp-config .mcp.json \
               --print --output-format json | tee output.json
           cat output.json | jq '.'
