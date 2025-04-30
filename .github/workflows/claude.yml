@@ -112,7 +112,9 @@ jobs:
           claude mcp list
           # Pipe the prompt into claude
           cat <<EOT |
-          Please use the GitHub MCP server to make add the pull request review comment 'automated-code-review ${{ github.run_id }} starting...' for PR #${{ github.event.pull_request.number }} in the ${{ github.repository }}.
+          Please add the pull request review comment 'automated-code-review ${{ github.run_id }} starting...' for PR #${{ github.event.pull_request.number }} in the ${{ github.repository }} GitHub repository.
+          Your GH_TOKEN, GITHUB_TOKEN, and GITHUB_PERSONAL_ACCESS_TOKEN are all available to use with sufficient credentials.
+          DO use the "GitHub" MCP server and report if there are any tools that you are lacking permissions for use.
           DO be explicit about why you cannot perform the task with a prioritized instructional details on how to resolve issues with your task.
           EOT
             claude \
