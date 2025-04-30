@@ -24,6 +24,8 @@ jobs:
       GITHUB_DYNAMIC_TOOLSETS: 1
       GITHUB_TOOLSETS: "repos,issues,pull_requests,code_security,experiments"
       AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+      ACTIONS_RUNNER_DEBUG: ${{ vars.ACTIONS_RUNNER_DEBUG || 'false' }}
+      ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG || 'false' }}
       CLAUDE_CODE_USE_BEDROCK: 1
       ANTHROPIC_MODEL: us.anthropic.claude-3-7-sonnet-20250219-v1:0
       DISABLE_PROMPT_CACHING: 1
