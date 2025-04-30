@@ -8,6 +8,7 @@ on:
 permissions: {}
 env:
   IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME != '' }}
+  IS_THERE_A_BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN != '' }}
 jobs:
   claude:
     runs-on: ubuntu-latest
@@ -15,21 +16,27 @@ jobs:
       id-token: write
       contents: read
     env:
-      GH_TOKEN: ${{ github.token }}
-      GITHUB_PERSONAL_ACCESS_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
       GITHUB_DYNAMIC_TOOLSETS: 1
+      GITHUB_TOOLSETS: "repos,issues,pull_requests,code_security,experiments"
       AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
       CLAUDE_CODE_USE_BEDROCK: 1
       ANTHROPIC_MODEL: us.anthropic.claude-3-7-sonnet-20250219-v1:0
       DISABLE_PROMPT_CACHING: 1
     steps:
       - name: Checkout repository
+        id: checkout-repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Debug OIDC Claims
+        id: debug-oidc-claims
+        if: ${{ env.ACTIONS_RUNNER_DEBUG == 'true' && env.ACTIONS_STEP_DEBUG == 'true' }}
         uses: github/actions-oidc-debugger@0ac6a1f7fefa4229fabe4ce05f17d9ad03a5b328 #main
         with:
           audience: '${{ github.server_url }}/${{ github.repository_owner }}'
-      - id: setup-aws-credentials
+      - name: Setup AWS Credentials
+        id: setup-aws-credentials
         uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722
         if: ${{ env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME == 'true' && env.AWS_REGION }}
         with:
@@ -38,7 +45,9 @@ jobs:
           role-duration-seconds: 7200
           role-session-name: GitHubActions${{ github.run_id }}
           mask-aws-account-id: true
-      - run: |
+      - name: Create NPM Package Lock
+        id: create-package-lock
+        run: |
           cat <<EOT > package-lock.json
           {
             "name": "automated-code-review",
@@ -47,11 +56,14 @@ jobs:
             "packages": {}
           }
           EOT
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - name: Setup Node
+        id: setup-node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.x"
           cache: npm
       - name: Setup Claude
+        id: setup-claude
         run: |
           npm install -g @anthropic-ai/claude-code --force --no-os-check
           echo "Claude Version"
@@ -67,7 +79,7 @@ jobs:
           claude config add allowedTools Write
           claude config add allowedTools Edit
           claude config add allowedTools Create
-          claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","--env","GITHUB_DYNAMIC_TOOLSETS","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ github.token }}"}}'
+          claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","--env","GITHUB_DYNAMIC_TOOLSETS","--env","GITHUB_TOOLSETS","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ env.GITHUB_PERSONAL_ACCESS_TOKEN }}"}}'
           echo "Claude Project MCP"
           cat .mcp.json
           echo "Claude Global Configuration"
@@ -76,14 +88,18 @@ jobs:
           claude config list
           echo "Claude MCP List"
           claude mcp list
-      - name: Run Claude
+      - name: Run Claude Pull Request Review
+        id: run-claude-pull-request-review
+        if: github.event_name == 'pull_request'
         run: |
           #### Adding --mcp-debug --debug --verbose are useful when troubleshooting BUT "tool_result" values are too long and create invalid JSON...
           cat <<EOT |
-          Please use the GitHub MCP server to make the specific pull request review comment 'automated-code-review' for PR #239 in the checked out repository.
+          Please use the GitHub MCP server to make the specific pull request review comment 'automated-code-review' for the current PR.
+          DO be explicit about why you cannot perform the task with a prioritized instructional details on how to resolve issues with your task.
           EOT
             claude \
               --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,Bash,Read,Write,Edit,Create" \
               --mcp-config .mcp.json \
               --print --output-format json | tee output.json
           cat output.json | jq '.'
+
