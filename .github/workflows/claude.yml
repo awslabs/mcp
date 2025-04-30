@@ -84,7 +84,6 @@ jobs:
           Please use the GitHub MCP server to make the specific pull request review comment 'automated-code-review' for PR #239 in the checked out repository.
           EOT
             claude \
-              --mcp-debug --debug --verbose 
               --allowedTools "mcp__GitHub__,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,Bash,Read,Write,Edit,Create" \
               --mcp-config .mcp.json \
               --print --output-format json | tee output.json
