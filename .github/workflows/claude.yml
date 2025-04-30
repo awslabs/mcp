@@ -24,7 +24,7 @@ jobs:
       DISABLE_PROMPT_CACHING: 1
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@0ac6a1f7fefa4229fabe4ce05f17d9ad03a5b328 # main
       - name: Debug OIDC Claims
         uses: github/actions-oidc-debugger@9ccea9c81a54e227c2671097a854c51adf03e3a8 #v1
         with:
