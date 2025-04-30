@@ -56,6 +56,7 @@ jobs:
           claude --version
           echo "Claude Setup"
           claude config set hasTrustDialogAccepted true
+          claude config add allowedTools mcp__GitHub__
           claude config add allowedTools mcp__GitHub__list_pull_requests
           claude config add allowedTools mcp__GitHub__create_pull_request_review
           claude config add allowedTools mcp__GitHub__add_pull_request_review_comment
@@ -75,7 +76,7 @@ jobs:
           Please use the GitHub MCP server to make the specific comment 'automated-code-review' for current commit hash in the checked out repository.
           EOT
             claude \
-              --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,Bash" \
+              --allowedTools "mcp__GitHub__,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,Bash" \
               --mcp-config .mcp.json \
               --mcp-debug --debug --verbose \
               --print --output-format json | tee output.json
