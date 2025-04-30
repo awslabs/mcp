@@ -15,6 +15,11 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      pull-requests: write
+      checks: read
+      issues: read
+      security-events: read
+      statuses: read
     env:
       GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
@@ -102,4 +107,3 @@ jobs:
               --mcp-config .mcp.json \
               --print --output-format json | tee output.json
           cat output.json | jq '.'
-
