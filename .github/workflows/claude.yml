@@ -3,9 +3,6 @@ on:
   pull_request:
     branches: ["main"]
 permissions: {}
-env:
-  IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME != '' }}
-  IS_THERE_A_BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN != '' }}
 jobs:
   claude:
     runs-on: ubuntu-latest
@@ -17,6 +14,7 @@ jobs:
       issues: read
       security-events: read
       statuses: read
+    environment: claude
     env:
       GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
@@ -29,7 +27,10 @@ jobs:
       CLAUDE_CODE_USE_BEDROCK: 1
       ANTHROPIC_MODEL: us.anthropic.claude-3-7-sonnet-20250219-v1:0
       DISABLE_PROMPT_CACHING: 1
-    environment: claude
+      IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME != '' }}
+      IS_THERE_A_BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN != '' }}
+    timeout-minutes: 20
+    cancel-timeout-minutes: 5
     steps:
       - name: Checkout repository
         id: checkout-repository
@@ -107,6 +108,7 @@ jobs:
       - name: Run Claude Pull Request Review
         id: run-claude-pull-request-review
         if: github.event_name == 'pull_request'
+        timeout-minutes: 10
         run: |
           echo "Is the MCP server still there????"
           claude mcp list
