@@ -93,6 +93,10 @@ jobs:
           claude config list
           echo "Claude MCP List"
           claude mcp list
+      - name: Test GH Command
+        id: test-gh-command
+        run: |
+          gh auth status
       - name: Run Claude Pull Request Review
         id: run-claude-pull-request-review
         if: github.event_name == 'pull_request'
