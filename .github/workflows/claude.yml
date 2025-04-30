@@ -56,6 +56,8 @@ jobs:
           echo "Claude Setup"
           claude config set hasTrustDialogAccepted true
           claude config add allowedTools mcp__GitHub__list_pull_requests
+          claude config add allowedTools mcp__GitHub__create_pull_request_review
+          claude config add allowedTools mcp__GitHub__add_pull_request_review_comment
           claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ github.token }}"}}'
           echo "Claude Project MCP"
           cat .mcp.json
@@ -66,13 +68,12 @@ jobs:
           echo "Claude MCP List"
           claude mcp list
           echo "Go Claude Go!"
-          #### Adding --mcp-debug --debug --verbose are useful when there are issues, BUT "tool_result" are too long...
+          #### Adding --mcp-debug --debug --verbose are useful when troubleshooting BUT "tool_result" values are too long and create invalid JSON...
           cat <<EOT |
-          Please use the GitHub MCP server to list the open PRs for the awslabs/mcp repository that are ready for review.
-          If you are unsuccessful, please explicitely state why.
-          Always respond with 'SUCCESS' or 'FAILURE' at the very end of the result.
+          Please use the GitHub MCP server to make the specific comment 'automated-code-review' for the latest commit pushed to branch of this repository.
           EOT
             claude \
-              --allowedTools "mcp__GitHub__list_pull_requests" \
+              --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__list_pull_requests,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request_comments,mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review" \
               --mcp-config .mcp.json \
               --print --output-format json | tee output.json;
+          cat output.json | jq '.'
