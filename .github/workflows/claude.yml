@@ -86,6 +86,7 @@ jobs:
           claude config add allowedTools mcp__GitHub__get_pull_request_status
           claude config add allowedTools mcp__GitHub__get_pull_request_reviews
           claude config add allowedTools mcp__GitHub__get_pull_request_comments
+          claude config add allowedTools mcp__GitHub__get_toolset_tools
           claude config add allowedTools mcp__GitHub__list_available_toolsets
           claude config add allowedTools mcp__GitHub__list_pull_requests
           claude config add allowedTools Bash
@@ -129,7 +130,7 @@ jobs:
           * <WORKFLOW> = ${{ github.workflow }}
           EOF
             cat;) | claude \
-              --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,mcp__GitHub__enable_toolset,mcp__GitHub__get_pull_request,mcp__GitHub__get_pull_request_files,mcp__GitHub__get_pull_request_status,mcp__GitHub__get_pull_request_reviews,mcp__GitHub__get_pull_request_comments,mcp__GitHub__list_available_toolsets,mcp__GitHub__list_pull_requests,Bash,Read,Write,Edit,Create,gh" \
+              --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,mcp__GitHub__enable_toolset,mcp__GitHub__get_pull_request,mcp__GitHub__get_pull_request_files,mcp__GitHub__get_pull_request_status,mcp__GitHub__get_pull_request_reviews,mcp__GitHub__get_pull_request_comments,mcp__GitHub__get_toolset_tools,mcp__GitHub__list_available_toolsets,mcp__GitHub__list_pull_requests,Bash,Read,Write,Edit,Create,gh" \
               --mcp-debug \
               --verbose --debug \
               --mcp-config .mcp.json \
