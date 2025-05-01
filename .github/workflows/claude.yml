@@ -2,6 +2,7 @@ name: Claude
 on:
   pull_request:
     branches: ["main"]
+    types: [ "labeled" ]
 permissions: {}
 jobs:
   claude:
@@ -32,6 +33,7 @@ jobs:
       IS_THERE_A_BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN != '' }}
     timeout-minutes: 20
     cancel-timeout-minutes: 5
+    if: contains(github.event.pull_request.labels.*.name, 'code-review')
     steps:
       - name: Checkout repository
         id: checkout-repository
@@ -84,6 +86,7 @@ jobs:
           claude config add allowedTools mcp__GitHub__get_pull_request_status
           claude config add allowedTools mcp__GitHub__get_pull_request_reviews
           claude config add allowedTools mcp__GitHub__get_pull_request_comments
+          claude config add allowedTools mcp__GitHub__list_available_toolsets
           claude config add allowedTools mcp__GitHub__list_pull_requests
           claude config add allowedTools Bash
           claude config add allowedTools Read
@@ -112,51 +115,23 @@ jobs:
         if: github.event_name == 'pull_request'
         timeout-minutes: 10
         run: |
-          echo "Is the MCP server still there????"
-          claude mcp list
           # Pipe the prompt into claude
-          cat <<EOT |
-          # Code Review Instructions
+          (cat .github/workflows/CLAUDE_PR_REVIEW_GUIDE.md; cat <<EOF |
 
-          Create a pull request review for PR #${{ github.event.pull_request.number }} in the ${{ github.repository }} GitHub respository with one of two choices:
 
-          * APPROVE
-          * REQUEST_CHANGES
+          ## **!!IMPORTANT**
 
-          HINT: Use "GitHub" MCP server's "create_pull_request_review" tool using the "event" argument.
+          The placeholder values above are:
 
-          ## Review Each File in the Pull Request
-
-          One by one, review each file thorougly by understanding the repositories "README.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "DESIGN_GUIDELINES.md", and "DEVELOPER_GUIDE.md" files.
-          Make kind, considerate, thoughtful, and concise pull request review comments with suggested changes (or example fixes) citing references.
-          If there unresolved pull request comments, post a reply with either:
-
-          * "Appears to have been resolved\n_('run_id'=${{ github.run_id }})_"
-          * "Code checked, and still seems unresolved still\n_('run_id'=${{ github.run_id }})_"
-
-          HINT: The "GitHub" MCP server's "get_pull_request_reviews", "get_pull_request_comments", "get_pull_request_files", and "add_pull_request_review_comment" can be used.
-
-          ## Ensure Required Checks Passed
-
-          Look over the results of pull request status and attempt to suggest a fix by adding a pull request review comment especially if there is a failure.
-          When a check is required, the pull request review should be "REQUEST_CHANGES".
-
-          HINT: The "GitHub" MCP server's "get_pull_request_status" can get a summary of checks and the "gh" command line tool's "gh pr checks --required --watch --fail-fast" may be used to wait for required checks to complete.
-
-          NOTE: Your GH_TOKEN, GITHUB_TOKEN, and GITHUB_PERSONAL_ACCESS_TOKEN are all available to use with sufficient credentials.
-
-          DO prioritize the use of the "GitHub" MCP server over the "gh" command line tool.
-          DO use pagination ("perPage" = 1 or "--paginate") for consumable chunks in responses.
-          DO always create a pull request review decision with "APPROVE" or "REQUEST_CHANGES"
-          DO use "gh" tool as a fallback when the "GitHub" MCP server is unable to process your task
-          DO be very explicit about why you cannot perform tasks with the prioritized instructional details on how to resolve issues with your task.
-          DO verify that proper markdown is supplied, pay attention that proper line feeds are used (for example the '\n' should represent a white space not the literal backslash and letter N)
-
-          DO NOT include or wait for the required "claude" pull request check to finish
-          EOT
-            claude \
-              --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request,mcp__GitHub__get_pull_request_files,mcp__GitHub__get_pull_request_status,mcp__GitHub__get_pull_request_reviews,mcp__GitHub__get_pull_request_comments,mcp__GitHub__list_pull_requests,Bash,Read,Write,Edit,Create,gh" \
+          * <PR-NUMBER> = ${{ github.event.pull_request.number }}
+          * <REPOSITORY-OWNER>/<REPOSITORY-REPO> = ${{ github.repository }}
+          * <RUN-ID> = ${{ github.run_id }}
+          * <WORKFLOW> = ${{ github.workflow }}
+          EOF
+            cat;) | claude \
+              --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request,mcp__GitHub__get_pull_request_files,mcp__GitHub__get_pull_request_status,mcp__GitHub__get_pull_request_reviews,mcp__GitHub__get_pull_request_comments,mcp__GitHub__list_available_toolsets,mcp__GitHub__list_pull_requests,Bash,Read,Write,Edit,Create,gh" \
               --mcp-debug \
+              --verbose --debug \
               --mcp-config .mcp.json \
               --print --output-format json | tee output.json
           cat output.json | jq '.'
