@@ -19,11 +19,11 @@ This document outlines a systematic approach for using Claude to review GitHub P
 
 Read and understand the repository's "README.md".
 
-Look for refernces to contributing guidelines ("CONTRIBUTING.md"), specific code of conduct ("CODE_OF_CONDUCT.md"), design guidelines ("DESIGN_GUIDELINES.md"), security ("SECURITY"), general developer guidance ("DEVELOPER_GUIDE.md"), and other instructional files to evaluate the changes within the pull request.
+Look for references to contributing guidelines ("CONTRIBUTING.md"), specific code of conduct ("CODE_OF_CONDUCT.md"), design guidelines ("DESIGN_GUIDELINES.md"), security ("SECURITY"), general developer guidance ("DEVELOPER_GUIDE.md"), and other instructional files to evaluate the changes within the pull request.
 
 ```tool
 Read(file_path="README.md")
-Read(file_path="<path-to-other-referenced-files>)
+Read(file_path="<path-to-other-referenced-files>")
 ```
 
 ### 1. Initial PR Assessment
