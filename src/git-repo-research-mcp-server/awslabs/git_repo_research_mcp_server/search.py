@@ -17,7 +17,7 @@ using LangChain's FAISS implementation.
 import os
 import time
 from awslabs.git_repo_research_mcp_server.defaults import Constants
-from awslabs.git_repo_research_mcp_server.embeddings import get_embedding_generator
+from awslabs.git_repo_research_mcp_server.embeddings import get_embedding_model
 from awslabs.git_repo_research_mcp_server.indexer import (
     IndexConfig,
     get_docstore_dict_size,
@@ -66,7 +66,7 @@ class RepositorySearcher:
         )
 
         # Initialize the embedding generator
-        self.embedding_generator = get_embedding_generator(
+        self.embedding_generator = get_embedding_model(
             model_id=embedding_model,
             aws_region=aws_region,
             aws_profile=aws_profile,
@@ -331,7 +331,7 @@ def get_repository_searcher(
     aws_profile: Optional[str] = None,
     index_dir: Optional[str] = None,
 ) -> RepositorySearcher:
-    """Get a repository searcher.
+    """Factory method to return a repository searcher.
 
     Args:
         embedding_model: ID of the embedding model to use

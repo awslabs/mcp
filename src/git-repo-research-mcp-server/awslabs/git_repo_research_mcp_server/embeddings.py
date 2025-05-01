@@ -17,6 +17,7 @@ using Amazon Bedrock models via LangChain.
 import os
 from awslabs.git_repo_research_mcp_server.models import EmbeddingModel
 from langchain_aws import BedrockEmbeddings
+from langchain_core.embeddings.embeddings import Embeddings
 from loguru import logger
 from typing import Optional
 
@@ -25,7 +26,7 @@ def create_bedrock_embeddings(
     model_id: str = EmbeddingModel.AMAZON_TITAN_EMBED_TEXT_V2,
     aws_region: Optional[str] = None,
     aws_profile: Optional[str] = None,
-) -> BedrockEmbeddings:
+) -> Embeddings:
     """Create and return an instance of BedrockEmbeddings.
 
     Args:
@@ -47,12 +48,12 @@ def create_bedrock_embeddings(
     return bedrock_embeddings
 
 
-def get_embedding_generator(
+def get_embedding_model(
     model_id: str = EmbeddingModel.AMAZON_TITAN_EMBED_TEXT_V2,
     aws_region: Optional[str] = None,
     aws_profile: Optional[str] = None,
-) -> BedrockEmbeddings:
-    """Get an embedding generator.
+) -> Embeddings:
+    """Factory method to return a LangChain embedding model.
 
     Args:
         model_id: ID of the embedding model to use
@@ -60,6 +61,6 @@ def get_embedding_generator(
         aws_profile: AWS profile to use (optional, uses default if not provided)
 
     Returns:
-        EmbeddingGenerator instance
+        Embeddings instance
     """
     return create_bedrock_embeddings(model_id, aws_region, aws_profile)

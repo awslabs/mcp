@@ -20,7 +20,7 @@ import os
 import shutil
 import time
 from awslabs.git_repo_research_mcp_server.defaults import Constants
-from awslabs.git_repo_research_mcp_server.embeddings import get_embedding_generator
+from awslabs.git_repo_research_mcp_server.embeddings import get_embedding_model
 from awslabs.git_repo_research_mcp_server.models import (
     EmbeddingModel,
     IndexMetadata,
@@ -299,7 +299,7 @@ class RepositoryIndexer:
         os.makedirs(self.index_dir, exist_ok=True)
 
         # Initialize the embedding generator
-        self.embedding_generator = get_embedding_generator(
+        self.embedding_generator = get_embedding_model(
             model_id=self.embedding_model,
             aws_region=self.aws_region,
             aws_profile=self.aws_profile,
@@ -890,7 +890,7 @@ class RepositoryIndexer:
 
 
 def get_repository_indexer(config: IndexConfig) -> RepositoryIndexer:
-    """Get a repository indexer.
+    """Factory method to return a repository indexer.
 
     Args:
         config: IndexConfig object with indexer configuration

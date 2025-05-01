@@ -214,7 +214,7 @@ async def test_mcp_index_repository(
         mock_bedrock.return_value = mock_embeddings
 
         with patch(
-            'awslabs.git_repo_research_mcp_server.indexer.get_embedding_generator'
+            'awslabs.git_repo_research_mcp_server.indexer.get_embedding_model'
         ) as mock_get_embedding:
             mock_get_embedding.return_value = mock_generator
 
@@ -325,7 +325,7 @@ async def test_repository_summary(test_context, test_git_repo, monkeypatch, mock
         mock_bedrock.return_value = mock_embeddings
 
         with patch(
-            'awslabs.git_repo_research_mcp_server.indexer.get_embedding_generator'
+            'awslabs.git_repo_research_mcp_server.indexer.get_embedding_model'
         ) as mock_get_embedding:
             mock_get_embedding.return_value = mock_generator
 
@@ -480,7 +480,7 @@ async def test_access_file_or_directory(
         mock_bedrock.return_value = mock_embeddings
 
         with patch(
-            'awslabs.git_repo_research_mcp_server.indexer.get_embedding_generator'
+            'awslabs.git_repo_research_mcp_server.indexer.get_embedding_model'
         ) as mock_get_embedding:
             mock_get_embedding.return_value = mock_generator
 
@@ -551,7 +551,7 @@ async def test_mcp_delete_repository(
         mock_bedrock.return_value = mock_embeddings
 
         with patch(
-            'awslabs.git_repo_research_mcp_server.indexer.get_embedding_generator'
+            'awslabs.git_repo_research_mcp_server.indexer.get_embedding_model'
         ) as mock_get_embedding:
             mock_get_embedding.return_value = mock_generator
 

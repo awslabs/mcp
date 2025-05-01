@@ -88,7 +88,7 @@ def test_repository_searcher_init():
     """Test the RepositorySearcher initialization."""
     with (
         patch(
-            'awslabs.git_repo_research_mcp_server.search.get_embedding_generator'
+            'awslabs.git_repo_research_mcp_server.search.get_embedding_model'
         ) as mock_get_embedding,
         patch(
             'awslabs.git_repo_research_mcp_server.search.get_repository_indexer'
@@ -133,7 +133,7 @@ def test_repository_searcher_init():
 def test_list_repository_files_success():
     """Test the list_repository_files method with a successful case."""
     with (
-        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_generator'),
+        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_model'),
         patch('awslabs.git_repo_research_mcp_server.search.get_repository_indexer'),
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
@@ -173,7 +173,7 @@ def test_list_repository_files_success():
 def test_list_repository_files_not_found():
     """Test the list_repository_files method when the repository is not found."""
     with (
-        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_generator'),
+        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_model'),
         patch('awslabs.git_repo_research_mcp_server.search.get_repository_indexer'),
         patch('os.path.exists') as mock_exists,
         patch('loguru.logger.warning') as mock_logger_warning,
@@ -200,7 +200,7 @@ def test_list_repository_files_not_found():
 def test_list_repository_files_exception():
     """Test the list_repository_files method when an exception occurs."""
     with (
-        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_generator'),
+        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_model'),
         patch('awslabs.git_repo_research_mcp_server.search.get_repository_indexer'),
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
@@ -232,7 +232,7 @@ def test_list_repository_files_exception():
 def test_generate_directory_tree():
     """Test the _generate_directory_tree method."""
     with (
-        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_generator'),
+        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_model'),
         patch('awslabs.git_repo_research_mcp_server.search.get_repository_indexer'),
         patch('os.path.basename') as mock_basename,
     ):
@@ -257,7 +257,7 @@ def test_generate_directory_tree():
 def test_search_with_repository_name():
     """Test the search method with a repository name."""
     with (
-        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_generator'),
+        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_model'),
         patch('awslabs.git_repo_research_mcp_server.search.get_repository_indexer'),
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
@@ -337,7 +337,7 @@ def test_search_with_repository_name():
 def test_search_with_directory_path():
     """Test the search method with a directory path."""
     with (
-        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_generator'),
+        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_model'),
         patch('awslabs.git_repo_research_mcp_server.search.get_repository_indexer'),
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
@@ -393,7 +393,7 @@ def test_search_with_directory_path():
 def test_search_with_similarity_search_with_score_fallback():
     """Test the search method with similarity_search_with_score fallback."""
     with (
-        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_generator'),
+        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_model'),
         patch('awslabs.git_repo_research_mcp_server.search.get_repository_indexer'),
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
@@ -455,7 +455,7 @@ def test_search_with_similarity_search_with_score_fallback():
 def test_search_with_both_search_methods_failing():
     """Test the search method when both similarity search methods fail."""
     with (
-        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_generator'),
+        patch('awslabs.git_repo_research_mcp_server.search.get_embedding_model'),
         patch('awslabs.git_repo_research_mcp_server.search.get_repository_indexer'),
         patch('os.path.exists') as mock_exists,
         patch('os.path.isdir') as mock_isdir,
