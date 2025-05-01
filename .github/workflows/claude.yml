@@ -1,5 +1,6 @@
 name: Claude
 on:
+  workflow_dispatch:
   pull_request:
     branches: ["main"]
     types: [ "labeled" ]
@@ -103,13 +104,13 @@ jobs:
           claude config list
           echo "Claude MCP List"
           claude mcp list
-      - name: Test GH Command
-        id: test-gh-command
-        if: github.event_name == 'pull_request'
-        run: |
-          git log -3
-          gh auth status
-          gh --repo ${{ github.repository }} pr review ${{ github.event.pull_request.number }} --comment --body "automated-code-review ${{ github.run_id }} testing..."
+      # - name: Test GH Command
+      #   id: test-gh-command
+      #   if: github.event_name == 'pull_request'
+      #   run: |
+      #     git log -3
+      #     gh auth status
+      #     gh --repo ${{ github.repository }} pr review ${{ github.event.pull_request.number }} --comment --body "automated-code-review ${{ github.run_id }} testing..."
       - name: Run Claude Pull Request Review
         id: run-claude-pull-request-review
         if: github.event_name == 'pull_request'
