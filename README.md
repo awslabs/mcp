@@ -29,6 +29,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - Getting Started with Q Developer - Coming Soon
 - [Samples](#samples)
 - [Documentation](#documentation)
+- [Vibe coding](#vibe-coding)
 - [Additional Resources](#additional-resources)
 - [Security](#security)
 - [Contributing](#contributing)
@@ -569,6 +570,10 @@ Documentation includes:
 - Installation and configuration instructions
 - API references
 - Usage examples
+
+## Vibe coding
+
+You can use these MCP servers with your AI coding assistant to [vibe code](https://en.wikipedia.org/wiki/Vibe_coding). For tips and tricks on how to improve your vibe coding experience, please refer to our [guide](./VIBE_CODING_TIPS_TRICKS.md).
 
 ## Additional Resources
 
