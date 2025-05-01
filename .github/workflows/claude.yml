@@ -150,7 +150,9 @@ jobs:
           DO always create a pull request review decision with "APPROVE" or "REQUEST_CHANGES"
           DO use "gh" tool as a fallback when the "GitHub" MCP server is unable to process your task
           DO be very explicit about why you cannot perform tasks with the prioritized instructional details on how to resolve issues with your task.
+          DO verify that proper markdown is supplied, pay attention that proper line feeds are used (for example the '\n' should represent a white space not the literal backslash and letter N)
 
+          DO NOT include or wait for the required "claude" pull request check to finish
           EOT
             claude \
               --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,mcp__GitHub__get_pull_request,mcp__GitHub__get_pull_request_files,mcp__GitHub__get_pull_request_status,mcp__GitHub__get_pull_request_reviews,mcp__GitHub__get_pull_request_comments,mcp__GitHub__list_pull_requests,Bash,Read,Write,Edit,Create,gh" \
