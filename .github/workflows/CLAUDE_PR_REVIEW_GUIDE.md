@@ -5,20 +5,15 @@ DO use pagination ("perPage" = 1 or "--paginate") for consumable chunks in respo
 DO always create a final pull request review decision with an "APPROVE" or a "REQUEST_CHANGES" assessment.
 DO use "gh" tool as a fallback when the "GitHub" MCP server is unable to process your task.
 DO be very explicit about why you cannot perform tasks with the detailed instructions on how to resolve issues with your task.
-DO verify that proper markdown is supplied, pay attention that proper line feeds are used (for example the '\n' should represent a white space not the literal backslash and letter N)
+DO verify that proper markdown is supplied to the "body", paying extra special attention that proper line feeds are used so it is rendered properly.
 
-DO NOT include or wait for the required <WORKFLOW> pull request check to finish
+DO NOT include or wait for the required <WORKFLOW> pull request check to finish.
 
 ## Overview
 
 This document outlines a systematic approach for using Claude to review GitHub Pull Requests (PRs), focusing specifically on GitHub repository context.
 
 ## Step-by-Step Review Process
-
-The <PR-NUMBER> is ${{ github.event.pull_request.number }}
-The <REPOSITORY-OWNER>/<REPOSITORY-REPO> is ${{ github.repository }}
-The <RUN-ID> is ${{ github.run_id }}
-The <WORKFLOW> is ${{ github.workflow }}
 
 ### 0. Prerequisites
 
@@ -122,7 +117,7 @@ mcp__GitHub__create_pull_request_review(
     repo="<REPOSITORY-REPO>",
     pullNumber="<PR-NUMBER>",
     event="COMMENT",
-    body="Overall assessment with summary of findings include the workflow's as a reference <RUN-ID>"
+    body="Overall assessment with summary of findings to include the workflow's reference <RUN-ID>"
 )
 ```
 
