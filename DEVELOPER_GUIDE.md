@@ -92,12 +92,14 @@ Inspector will run your server on locahost (for instance: http://127.0.0.1:6274)
 
 ### Unit tests
 
-Each MCP server is expected to have a `tests` folder containing unit tests. For instance, you can refer to an existing server like [AWS Documentation Server](src/aws-documentation-mcp-server/tests/).
+![Codecov](https://img.shields.io/codecov/c/github/awslabs/mcp?link=https%3A%2F%2Fapp.codecov.io%2Fgh%2Fawslabs%2Fmcp)
+
+Each MCP server is expected to have a `tests` folder containing unit tests that should meet or exceed merged our reported test coverage (see our "coverage" badge above). For instance, you can refer to an existing server like [AWS Documentation Server](src/aws-documentation-mcp-server/tests/).
 
 | Action            | Explanation                                |
 | :------------------ | :------------------------------------------- |
 | `cd src/example-mcp-server` | This is the directory containing your server files. |
-| `uv run --frozen pytest` | This will run all unit tests for the server. |
+| `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing` | This will run all unit tests for the server and display code coverage. |
 
 ## Opening your Pull Request
 

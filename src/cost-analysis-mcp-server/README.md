@@ -1,6 +1,8 @@
 # Cost Analysis MCP Server
 
-MCP server for analyzing AWS service costs and generating cost reports
+MCP server for generating upfront AWS service cost estimates and providing cost insights
+
+**Important Note**: This server provides estimated pricing based on AWS pricing APIs and web pages. These estimates are for pre-deployment planning purposes and do not reflect the actual expenses of deployed cloud services.
 
 ## Features
 
@@ -8,16 +10,19 @@ MCP server for analyzing AWS service costs and generating cost reports
 
 - Get detailed breakdown of your AWS costs by service, region and tier
 - Understand how costs are distributed across various services
+- Provide pre-deployment cost estimates for infrastructure planning
 
 ### Query cost data with natural language
 
 - Ask questions about your AWS costs in plain English, no complex query languages required
 - Get instant answers fetched from pricing webpage and AWS Pricing API, for questions related to AWS services
+- Retrieve estimated pricing information before actual cloud service deployment
 
 ### Generate cost reports and insights
 
-- Generate comprehensive cost reports based on your IaC implementation
-- Get cost optimization recommendations
+- Generate comprehensive cost estimates based on your IaC implementation
+- Get cost optimization recommendations for potential cloud infrastructure
+- Provide upfront pricing analysis to support informed decision-making
 
 ## Prerequisites
 
@@ -49,7 +54,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
-or docker after a succesful `docker build -t awslabs/bedrock-kb-retrieval-mcp-server .`:
+or docker after a succesful `docker build -t awslabs/cost-analysis-mcp-server .`:
 
 ```file
 # ficticious `.env` file with AWS temporary credentials
