@@ -109,7 +109,7 @@ Each MCP server is expected to have a `tests` folder containing unit tests that 
 | Fix issues | Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation. |
 | Merge ! | Once your PR is merged, the changes will be available on the main branch. If you created a new MCP server, the team will take care of the necessary steps to publish the server to the correct package manager. |
 
-### Remediating `detect-secrets`
+### Remediating Detected Secrets
 
 Running `pre-commit run --all-files` at the top-level may show "Failed" when secrets are detected.
 Run the scanner against the baseline and then audit the findings and commit `.secrets.baseline`.
