@@ -1,3 +1,4 @@
+# This workflow runs an automated pull request code review when labeled
 name: Claude
 on:
   pull_request:
@@ -23,17 +24,19 @@ jobs:
       # The GitHub MCP server has some variables
       GITHUB_DYNAMIC_TOOLSETS: 1
       GITHUB_TOOLSETS: "all"
-
+      # Give a default region if one isn't given for AWS credentials
       AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+      # Determination to run debugging details
       ACTIONS_RUNNER_DEBUG: ${{ vars.ACTIONS_RUNNER_DEBUG || 'false' }}
       ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG || 'false' }}
+      # Claude specific environmental variables
       CLAUDE_CODE_USE_BEDROCK: 1
       ANTHROPIC_MODEL: us.anthropic.claude-3-7-sonnet-20250219-v1:0
       DISABLE_PROMPT_CACHING: 1
+      # Secrets aren't available for step `if` statements.
       IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME != '' }}
       IS_THERE_A_BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN != '' }}
     timeout-minutes: 20
-    cancel-timeout-minutes: 5
     if: contains(github.event.pull_request.labels.*.name, 'code-review')
     steps:
       - name: Checkout repository
@@ -106,19 +109,12 @@ jobs:
           claude config list
           echo "Claude MCP List"
           claude mcp list
-      # - name: Test GH Command
-      #   id: test-gh-command
-      #   if: github.event_name == 'pull_request'
-      #   run: |
-      #     git log -3
-      #     gh auth status
-      #     gh --repo ${{ github.repository }} pr review ${{ github.event.pull_request.number }} --comment --body "automated-code-review ${{ github.run_id }} testing..."
       - name: Run Claude Pull Request Review
         id: run-claude-pull-request-review
         if: github.event_name == 'pull_request'
         timeout-minutes: 10
         run: |
-          # Pipe the prompt into claude
+          # Pipe the prompt guide into claude with placeholder values
           (cat .github/workflows/CLAUDE_PR_REVIEW_GUIDE.md; cat <<EOF |
 
 
