@@ -108,3 +108,13 @@ Each MCP server is expected to have a `tests` folder containing unit tests that 
 | [Open your Pull Request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) | Once all your local tests and branch CI passes, send us a pull request with a conventional semantic title, and answer any default questions in the pull request interface. |
 | Fix issues | Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation. |
 | Merge ! | Once your PR is merged, the changes will be available on the main branch. If you created a new MCP server, the team will take care of the necessary steps to publish the server to the correct package manager. |
+
+### Remediating `detect-secrets`
+
+Running `pre-commit run --all-files` at the top-level may show "Failed" when secrets are detected.
+Run the scanner against the baseline and then audit the findings and commit `.secrets.baseline`.
+
+```shell
+% detect-secrets scan --baseline .secrets.baseline # which might add detected secrets to the baseline.
+% detect-secrets audit .secrets.baseline # to remediate updates in the baseline.
+```
