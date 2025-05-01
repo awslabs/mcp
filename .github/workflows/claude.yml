@@ -20,7 +20,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
       GITHUB_PERSONAL_ACCESS_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
       GITHUB_DYNAMIC_TOOLSETS: 1
-      GITHUB_TOOLSETS: "repos,issues,pull_requests,code_security"
+      # GITHUB_TOOLSETS: "repos,issues,pull_requests,code_security"
+      GITHUB_TOOLSETS: "all"
       AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
       ACTIONS_RUNNER_DEBUG: ${{ vars.ACTIONS_RUNNER_DEBUG || 'false' }}
       ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG || 'false' }}
@@ -103,6 +104,7 @@ jobs:
         id: test-gh-command
         if: github.event_name == 'pull_request'
         run: |
+          git log -3
           gh auth status
           gh --repo ${{ github.repository }} pr review ${{ github.event.pull_request.number }} --comment --body "automated-code-review ${{ github.run_id }} testing..."
       - name: Run Claude Pull Request Review
@@ -121,30 +123,30 @@ jobs:
           * APPROVE
           * REQUEST_CHANGES
 
-          HINT: Use "GitHub" MCP server's `create_pull_request_review` tool using the `event`.
+          HINT: Use "GitHub" MCP server's "create_pull_request_review" tool using the "event" argument.
 
           ## Review Each File in the Pull Request
 
-          One by one, review each file thorougly by understanding the repositories `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `DESIGN_GUIDELINES.md`, and `DEVELOPER_GUIDE.md` files.
+          One by one, review each file thorougly by understanding the repositories "README.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "DESIGN_GUIDELINES.md", and "DEVELOPER_GUIDE.md" files.
           Make kind, considerate, thoughtful, and concise pull request review comments with suggested changes (or example fixes) citing references.
           If there unresolved pull request comments, post a reply with either:
 
           * "Appears to have been resolved\n_('run_id'=${{ github.run_id }})_"
           * "Code checked, and still seems unresolved still\n_('run_id'=${{ github.run_id }})_"
 
-          HINT: The "GitHub" MCP server's `get_pull_request_reviews`, `get_pull_request_comments`, `get_pull_request_files`, and `add_pull_request_review_comment` can be used.
+          HINT: The "GitHub" MCP server's "get_pull_request_reviews", "get_pull_request_comments", "get_pull_request_files", and "add_pull_request_review_comment" can be used.
 
           ## Ensure Required Checks Passed
 
           Look over the results of pull request status and attempt to suggest a fix by adding a pull request review comment especially if there is a failure.
           When a check is required, the pull request review should be "REQUEST_CHANGES".
 
-          HINT: The "GitHub" MCP server's `get_pull_request_status` can get a summary of checks and the "gh" command line tool's `gh pr checks --required --watch --fail-fast` may be used to wait for required checks to complete.
+          HINT: The "GitHub" MCP server's "get_pull_request_status" can get a summary of checks and the "gh" command line tool's "gh pr checks --required --watch --fail-fast" may be used to wait for required checks to complete.
 
           NOTE: Your GH_TOKEN, GITHUB_TOKEN, and GITHUB_PERSONAL_ACCESS_TOKEN are all available to use with sufficient credentials.
 
           DO prioritize the use of the "GitHub" MCP server over the "gh" command line tool.
-          DO use pagination (`perPage` = 1 or `--paginate`) for consumable chunks in responses.
+          DO use pagination ("perPage" = 1 or "--paginate") for consumable chunks in responses.
           DO always create a pull request review decision with "APPROVE" or "REQUEST_CHANGES"
           DO use "gh" tool as a fallback when the "GitHub" MCP server is unable to process your task
           DO be very explicit about why you cannot perform tasks with the prioritized instructional details on how to resolve issues with your task.
