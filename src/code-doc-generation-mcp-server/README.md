@@ -111,9 +111,12 @@ Returns a list of GeneratedDocument objects for you to fill with content.
 
 This MCP server is designed to work seamlessly with:
 
-- **AWS Diagram MCP Server**: For generating AWS architecture diagrams
+- **AWS Diagram MCP Server**: For generating AWS architecture diagrams (RECOMMENDED)
+- **Cost Analysis MCP Server**: For generating cost estimates and analysis (RECOMMENDED)
 - **AWS CDK MCP Server**: For documenting CDK infrastructure code
 - **AWS Documentation MCP Server**: For incorporating AWS best practices
+
+The AWS Diagram MCP Server and Cost Analysis MCP Server are particularly recommended as companion servers that enhance the documentation with visual diagrams and cost analysis. While not required, they significantly improve the quality and completeness of generated documentation.
 
 # Code Documentation Generation MCP Server
 

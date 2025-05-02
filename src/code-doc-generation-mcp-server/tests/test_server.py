@@ -157,14 +157,14 @@ async def test_plan_documentation(mock_create_doc, mock_get_template):
     """Test the plan_documentation function creates the right plan based on analysis."""
     # Arrange
     from awslabs.code_doc_generation_mcp_server.utils.models import DocumentSection, DocumentSpec
-    
+
     # Create proper DocumentSpec objects instead of MagicMock
     mock_get_template.side_effect = lambda name: name.upper().replace('.MD', '')
     mock_create_doc.side_effect = lambda template, name: DocumentSpec(
         name=name,
         type=template,
         template=template,
-        sections=[DocumentSection(title=f"{template} Section", content="", level=1)]
+        sections=[DocumentSection(title=f'{template} Section', content='', level=1)],
     )
 
     ctx = MagicMock()
@@ -172,15 +172,17 @@ async def test_plan_documentation(mock_create_doc, mock_get_template):
         project_name='test-project',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
-            analysis_result=ProjectAnalysis(
-                project_type='Web Application',
-                features=['Feature 1', 'Feature 2'],
-                file_structure={'root': ['/path/to/repo'], 'backend': ['src/api']},
-                dependencies={'react': '^18.2.0'},
-                primary_languages=['JavaScript', 'TypeScript'],
-                backend={'framework': 'Express'},
-                apis={'endpoints': {'paths': ['/api/users']}},  # Fixed: apis should be Dict[str, Dict[str, Any]]
-            ),
+        analysis_result=ProjectAnalysis(
+            project_type='Web Application',
+            features=['Feature 1', 'Feature 2'],
+            file_structure={'root': ['/path/to/repo'], 'backend': ['src/api']},
+            dependencies={'react': '^18.2.0'},
+            primary_languages=['JavaScript', 'TypeScript'],
+            backend={'framework': 'Express'},
+            apis={
+                'endpoints': {'paths': ['/api/users']}
+            },  # Fixed: apis should be Dict[str, Dict[str, Any]]
+        ),
     )
 
     # Act
@@ -210,7 +212,7 @@ async def test_generate_documentation(mock_doc_generator_class):
 
     # Create proper DocumentSpec objects instead of MagicMock
     from awslabs.code_doc_generation_mcp_server.utils.models import DocumentSection, DocumentSpec
-    
+
     plan = DocumentationPlan(
         structure=DocStructure(
             root_doc='README.md', doc_tree={'root': ['README.md', 'BACKEND.md']}
@@ -220,14 +222,14 @@ async def test_generate_documentation(mock_doc_generator_class):
                 name='README.md',
                 type='README',
                 template='README',
-                sections=[DocumentSection(title='Overview', content='', level=1)]
+                sections=[DocumentSection(title='Overview', content='', level=1)],
             ),
             DocumentSpec(
                 name='BACKEND.md',
                 type='BACKEND',
                 template='BACKEND',
-                sections=[DocumentSection(title='Backend', content='', level=1)]
-            )
+                sections=[DocumentSection(title='Backend', content='', level=1)],
+            ),
         ],
     )
 

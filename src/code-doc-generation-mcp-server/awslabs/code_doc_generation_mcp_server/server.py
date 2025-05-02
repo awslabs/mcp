@@ -136,7 +136,13 @@ IMPORTANT:
   2. Include code examples and explanations
   3. Fill in ALL empty sections
   4. Ensure comprehensive coverage
-  5. Use your analysis to create accurate content""",
+  5. Use your analysis to create accurate content
+
+RECOMMENDED COMPANION MCP SERVERS:
+- awslabs.aws-diagram-mcp-server: For generating architecture diagrams
+- awslabs.cost-analysis-mcp-server: For generating cost estimates
+
+These companion servers are not required but will enhance the documentation with visual diagrams and cost analysis.""",
     dependencies=['pydantic', 'loguru', 'repomix'],
 )
 
@@ -146,7 +152,7 @@ async def prepare_repository(
     project_root: str = Field(..., description='Path to the code repository'),
     ctx: Context = None,
 ) -> ProjectAnalysis:
-    """Prepare repository for Cline's analysis.
+    """Prepare repository for the MCP client's analysis.
 
     This tool:
     1. Extracts directory structure from the repository
@@ -176,19 +182,19 @@ async def prepare_repository(
         repomix_output = await _analyze_project_structure(raw_analysis, output_path, ctx)
         logger.info('Retrieved project structure for analysis')
 
-        # Return ProjectAnalysis with directory structure for Cline to analyze
+        # Return ProjectAnalysis with directory structure for MCP client to analyze
         return ProjectAnalysis(
-            project_type='',  # Cline will fill this
-            features=[],  # Cline will fill this
+            project_type='',  # The MCP client will fill this
+            features=[],  # The MCP client will fill this
             file_structure={  # Basic structure to start
                 'root': [project_root],
                 'directory_structure': repomix_output.get('directory_structure'),
             },
-            dependencies={},  # Cline will fill this
-            primary_languages=[],  # Cline will fill this
-            apis=None,  # Optional - Cline will fill if found
-            backend=None,  # Optional - Cline will fill if found
-            frontend=None,  # Optional - Cline will fill if found
+            dependencies={},  # The MCP client will fill this
+            primary_languages=[],  # The MCP client will fill this
+            apis=None,  # Optional - The MCP client will fill if found
+            backend=None,  # Optional - The MCP client will fill if found
+            frontend=None,  # Optional - The MCP client will fill if found
         )
 
     except subprocess.CalledProcessError as e:
@@ -212,7 +218,7 @@ async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Co
     3. Returns a dict containing the directory structure and metadata
 
     The directory_structure will be included in ProjectAnalysis.file_structure["directory_structure"]
-    for Cline to understand the project organization and identify important files.
+    for the MCP client to understand the project organization and identify important files.
 
     Note: This is an internal function not intended for direct client use.
     """
@@ -369,17 +375,45 @@ async def generate_documentation(
         # Generate documentation files with diagrams
         generated_files = await generator.generate_docs(plan, doc_context)
 
-        # Return minimal document objects for Cline to fill
+        # Return document objects with messages for the MCP client
         generated_docs = []
         for file_path in generated_files:
             path = Path(file_path)
             doc_type = 'docs' if path.name != 'README.md' else 'readme'
+            message = f'Please fill the {path.name} with comprehensive content based on the project analysis. Include detailed explanations and code examples where appropriate.'
+
+            # Add specialized messages based on file type
+            if path.name == 'README.md':
+                message = "Create a comprehensive README with installation instructions, usage examples, and a concise overview of the project's purpose and capabilities."
+            elif path.name == 'API.md':
+                message = 'Document all API endpoints, request/response formats, and provide usage examples. Include authentication requirements if applicable.'
+            elif path.name == 'BACKEND.md':
+                message = 'Explain the backend architecture, database schema, and key components. Include diagrams where appropriate.'
+            elif path.name == 'FRONTEND.md':
+                message = 'Document the frontend structure, components, and state management approach. Include screenshots of key UI elements if available.'
+
+            # Add suggestions for companion MCP servers
+            if 'architecture' in str(path).lower():
+                message += '\n\nTo add architecture diagrams, consider using the AWS Diagram MCP Server (awslabs.aws-diagram-mcp-server).'
+            if 'cost' in str(path).lower() or path.name == 'REQUIREMENTS.md':
+                message += '\n\nTo add cost analysis, consider using the Cost Analysis MCP Server (awslabs.cost-analysis-mcp-server).'
+
             doc = GeneratedDocument(
                 path=str(path),
-                content='',  # Empty content for Cline to fill
+                content='',  # Empty content for the MCP client to fill
                 type=doc_type,
+                message=message,
             )
             generated_docs.append(doc)
+
+        # Add notification about recommended MCP servers
+        ctx.info(
+            'Documentation structure generated successfully. '
+            'For enhanced documentation with architecture diagrams and cost analysis, '
+            "it's recommended to also use the following MCP servers:\n"
+            '- awslabs.aws-diagram-mcp-server: For generating architecture diagrams\n'
+            '- awslabs.cost-analysis-mcp-server: For generating cost estimates'
+        )
 
         # Update context status
         doc_context.status = 'structure_ready'

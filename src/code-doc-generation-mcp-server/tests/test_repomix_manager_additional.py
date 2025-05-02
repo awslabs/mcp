@@ -11,11 +11,8 @@
 """Additional tests for the repomix manager module to improve coverage."""
 
 import pytest
-import logging
-import subprocess
 from awslabs.code_doc_generation_mcp_server.utils.repomix_manager import RepomixManager
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 
 def test_logger_setup():
@@ -24,10 +21,10 @@ def test_logger_setup():
     with patch('logging.getLogger') as mock_get_logger:
         mock_logger = MagicMock()
         mock_get_logger.return_value = mock_logger
-        
+
         # Act
         manager = RepomixManager()
-        
+
         # Assert
         assert manager.logger is mock_logger
 
@@ -44,19 +41,21 @@ async def test_prepare_repository_output_dir_error(
     """Test prepare_repository handles output directory errors."""
     # Arrange
     manager = RepomixManager()
-    
+
     # Set up the mocks
     mock_exists.return_value = True
     mock_is_dir.return_value = True
-    
+
     # Make the mkdir operation raise an exception
-    mock_mkdir.side_effect = OSError("Permission denied")
-    
+    mock_mkdir.side_effect = OSError('Permission denied')
+
     ctx = MagicMock()
-    
+
     # Act & Assert
     # The ValueError is caught inside the function and wrapped in a RuntimeError
-    with pytest.raises(RuntimeError, match="Unexpected error during preparation: Output directory is not writable"):
+    with pytest.raises(
+        RuntimeError, match='Unexpected error during preparation: Output directory is not writable'
+    ):
         await manager.prepare_repository('/path/to/project', '/path/to/output', ctx)
 
 
@@ -74,38 +73,38 @@ async def test_prepare_repository_repomix_warning(
     """Test prepare_repository logs warnings from repomix."""
     # Arrange
     manager = RepomixManager()
-    
+
     # Set up the mocks
     mock_exists.return_value = True
     mock_is_dir.return_value = True
-    
+
     # Create a mock process result with warnings
     process_mock = MagicMock()
     process_mock.stdout = 'stdout content'
     process_mock.stderr = 'Warning: some files were skipped'
     mock_run.return_value = process_mock
-    
+
     # Mock file read
-    mock_read_text.return_value = "# Directory Structure\n```\n.\n└── src\n```"
-    
+    mock_read_text.return_value = '# Directory Structure\n```\n.\n└── src\n```'
+
     # Create a mock context
     ctx = MagicMock()
-    
+
     # Mock the parse_output method
     with patch.object(manager, 'parse_output') as mock_parse_output:
         mock_parse_output.return_value = {
             'top_files': [],
             'security': {'status': 'passed'},
-            'summary': {'total_files': 1, 'total_chars': 100, 'total_tokens': 50}
+            'summary': {'total_files': 1, 'total_chars': 100, 'total_tokens': 50},
         }
-        
+
         # Mock the extract_directory_structure method
         with patch.object(manager, 'extract_directory_structure') as mock_extract:
-            mock_extract.return_value = "# Directory Structure\n```\n.\n└── src\n```"
-            
+            mock_extract.return_value = '# Directory Structure\n```\n.\n└── src\n```'
+
             # Act
             result = await manager.prepare_repository('/path/to/project', '/path/to/output', ctx)
-            
+
             # Assert
             ctx.warning.assert_called_once()
             assert 'stderr' in result
@@ -126,40 +125,42 @@ async def test_prepare_repository_missing_directory_structure(
     """Test prepare_repository handles missing directory structure."""
     # Arrange
     manager = RepomixManager()
-    
+
     # Set up the mocks
     mock_exists.return_value = True
     mock_is_dir.return_value = True
-    
+
     # Create a mock process result
     process_mock = MagicMock()
     process_mock.stdout = 'stdout content'
     process_mock.stderr = ''
     mock_run.return_value = process_mock
-    
+
     # Mock file read without directory structure
-    mock_read_text.return_value = "# Project Info\nName: Test Project\n\n# Code Analysis"
-    
+    mock_read_text.return_value = '# Project Info\nName: Test Project\n\n# Code Analysis'
+
     # Create a mock context
     ctx = MagicMock()
-    
+
     # Mock the parse_output method
     with patch.object(manager, 'parse_output') as mock_parse_output:
         mock_parse_output.return_value = {
             'top_files': [],
             'security': {'status': 'passed'},
-            'summary': {'total_files': 1, 'total_chars': 100, 'total_tokens': 50}
+            'summary': {'total_files': 1, 'total_chars': 100, 'total_tokens': 50},
         }
-        
+
         # Mock the extract_directory_structure method to return None
         with patch.object(manager, 'extract_directory_structure') as mock_extract:
             mock_extract.return_value = None
-            
+
             # Act
             result = await manager.prepare_repository('/path/to/project', '/path/to/output', ctx)
-            
+
             # Assert
-            ctx.warning.assert_called_with('Failed to extract directory structure from repomix output')
+            ctx.warning.assert_called_with(
+                'Failed to extract directory structure from repomix output'
+            )
             assert result['directory_structure'] is None
 
 
@@ -170,14 +171,16 @@ async def test_prepare_repository_not_directory(mock_is_dir, mock_exists):
     """Test prepare_repository raises error when project path is not a directory."""
     # Arrange
     manager = RepomixManager()
-    
+
     # Set up the mocks
     mock_exists.return_value = True
     mock_is_dir.return_value = False
-    
+
     # Act & Assert
     # The ValueError is caught inside the function and wrapped in a RuntimeError
-    with pytest.raises(RuntimeError, match="Unexpected error during preparation: Project path is not a directory"):
+    with pytest.raises(
+        RuntimeError, match='Unexpected error during preparation: Project path is not a directory'
+    ):
         await manager.prepare_repository('/path/to/file.txt', '/path/to/output')
 
 
@@ -185,29 +188,29 @@ def test_parse_output_top_files_section():
     """Test parse_output correctly parses the top files section."""
     # Arrange
     manager = RepomixManager()
-    
+
     # Instead of testing the implementation directly, return a result directly
     # This avoids needing to duplicate the regex parsing logic
     def custom_parse_output(stdout):
         return {
             'top_files': [
                 {'path': 'src/index.js', 'chars': 1234, 'tokens': 567},
-                {'path': 'src/App.jsx', 'chars': 987, 'tokens': 456}
+                {'path': 'src/App.jsx', 'chars': 987, 'tokens': 456},
             ],
             'security': {'status': 'passed'},
-            'summary': {'total_files': 10, 'total_chars': 5000, 'total_tokens': 2000}
+            'summary': {'total_files': 10, 'total_chars': 5000, 'total_tokens': 2000},
         }
-    
+
     # Replace the method with our custom implementation
     original_parse_output = manager.parse_output
     manager.parse_output = custom_parse_output
-    
+
     # Act
-    result = manager.parse_output("dummy stdout")
-    
+    result = manager.parse_output('dummy stdout')
+
     # Restore original method
     manager.parse_output = original_parse_output
-    
+
     # Assert
     assert len(result['top_files']) == 2
     assert result['top_files'][0]['path'] == 'src/index.js'
@@ -229,10 +232,10 @@ def test_parse_output_security_section():
 📊 Pack Summary
   Total Files: 10
 """
-    
+
     # Act
     result = manager.parse_output(stdout)
-    
+
     # Assert
     assert result['security']['status'] == 'passed'
     assert 'No security issues found' in result['security']['message']
@@ -248,10 +251,10 @@ def test_parse_output_summary_section():
   Total Chars: 5000
   Total Tokens: 2000
 """
-    
+
     # Act
     result = manager.parse_output(stdout)
-    
+
     # Assert
     assert result['summary']['total_files'] == 10
     assert result['summary']['total_chars'] == 5000

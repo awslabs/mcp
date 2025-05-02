@@ -11,7 +11,11 @@
 
 """Document templates and template-related functions."""
 
-from awslabs.code_doc_generation_mcp_server.utils.models import DocumentSection, DocumentSpec, DocumentTemplate
+from awslabs.code_doc_generation_mcp_server.utils.models import (
+    DocumentSection,
+    DocumentSpec,
+    DocumentTemplate,
+)
 
 
 # Mapping of filenames to template types

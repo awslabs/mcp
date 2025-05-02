@@ -104,28 +104,28 @@ def test_parse_output():
     """Test parse_output correctly parses repomix stdout."""
     # Arrange
     manager = RepomixManager()
-    
+
     # Create a custom implementation that returns the expected structure
     def mock_implementation(stdout):
         return {
             'top_files': [
                 {'path': 'src/index.js', 'chars': 1234, 'tokens': 567},
-                {'path': 'src/App.jsx', 'chars': 987, 'tokens': 456}
+                {'path': 'src/App.jsx', 'chars': 987, 'tokens': 456},
             ],
             'security': {'status': 'passed'},
-            'summary': {'total_files': 10, 'total_chars': 5000, 'total_tokens': 2000}
+            'summary': {'total_files': 10, 'total_chars': 5000, 'total_tokens': 2000},
         }
-    
+
     # Replace the method with our mock implementation
     original_method = manager.parse_output
     manager.parse_output = mock_implementation
-    
+
     # Act
-    result = manager.parse_output("dummy stdout")
-    
+    result = manager.parse_output('dummy stdout')
+
     # Restore the original method
     manager.parse_output = original_method
-    
+
     # Assert
     assert len(result['top_files']) == 2
     assert result['top_files'][0]['path'] == 'src/index.js'
@@ -214,18 +214,18 @@ async def test_prepare_repository_invalid_path():
     """Test prepare_repository validates project path."""
     # Arrange
     manager = RepomixManager()
-    
+
     # Create a patched version of the function that raises the expected exception
     async def mock_prepare_repository(project_root, output_path, ctx=None):
         raise ValueError(f'Project path does not exist: {project_root}')
-    
+
     # Replace the method with our mock implementation
     original_method = manager.prepare_repository
     manager.prepare_repository = mock_prepare_repository
-    
+
     # Act & Assert
     with pytest.raises(ValueError, match='Project path does not exist'):
         await manager.prepare_repository('/path/to/project', '/path/to/output')
-    
+
     # Restore the original method
     manager.prepare_repository = original_method

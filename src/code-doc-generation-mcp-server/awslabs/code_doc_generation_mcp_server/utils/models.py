@@ -24,6 +24,9 @@ class DocumentSection(BaseModel):
     subsections: Optional[List['DocumentSection']] = Field(
         default=None, description='Nested sections'
     )
+    message: Optional[str] = Field(
+        None, description='Message for the MCP client about this section'
+    )
 
 
 DocumentSection.model_rebuild()  # Required for recursive type definition
@@ -46,11 +49,11 @@ class DocumentSpec(BaseModel):
 
 
 class ProjectAnalysis(BaseModel):
-    """Analysis results that YOU (Cline) must determine from reading repomix output."""
+    """Analysis results that the MCP client must determine from reading repository structure."""
 
     project_type: str = Field(
         ...,
-        description='Type of project - Cline will analyze from code. Example: "Web Application", "CLI Tool", "AWS CDK Application"',
+        description='Type of project - to be analyzed from code. Example: "Web Application", "CLI Tool", "AWS CDK Application"',
     )
     features: List[str] = Field(
         ...,
@@ -114,7 +117,8 @@ class DocumentationContext(BaseModel):
     status: str = Field('initialized', description='Current status of documentation process')
     current_step: str = Field('analysis', description='Current step in the documentation process')
     analysis_result: Optional[ProjectAnalysis] = Field(
-        None, description='Analysis results from Cline - will be populated during planning'
+        None,
+        description='Analysis results from the MCP client - will be populated during planning',
     )
 
 
@@ -127,17 +131,17 @@ class DocumentationPlan(BaseModel):
     """
 
     structure: DocStructure = Field(
-        ..., description='Overall documentation structure - Cline will determine this'
+        ..., description='Overall documentation structure - The MCP client will determine this'
     )
     docs_outline: List[DocumentSpec] = Field(
-        ..., description='Individual document sections - Cline will determine this'
+        ..., description='Individual document sections - The MCP client will determine this'
     )
 
 
 class GeneratedDocument(BaseModel):
-    """Generated document structure that Cline must fill with content.
+    """Generated document structure that the MCP client must fill with content.
 
-    When you (Cline) receive a GeneratedDocument:
+    When you (the MCP client) receive a GeneratedDocument:
     1. The content field will be empty - YOU must fill it
     2. Write comprehensive content for each section
     3. Include code examples and explanations
@@ -146,5 +150,6 @@ class GeneratedDocument(BaseModel):
     """
 
     path: str = Field(..., description='Full path to generated file')
-    content: str = Field(..., description='Document content - YOU (Cline) must fill this')
+    content: str = Field(..., description='Document content - The MCP client must fill this')
     type: str = Field(..., description='Document type')
+    message: str = Field('', description='Message for the MCP client with instructions')

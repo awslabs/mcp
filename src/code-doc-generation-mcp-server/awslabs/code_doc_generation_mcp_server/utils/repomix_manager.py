@@ -14,6 +14,7 @@
 import logging
 import re
 import subprocess
+import tempfile
 from mcp.server.fastmcp import Context
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -178,41 +179,48 @@ class RepomixManager:
                 ctx.info(f'Running repomix on {project_path}')
 
             try:
-                # Save repomix output to a file
-                repomix_output_file = output_dir / 'repomix_output.md'
+                # Create a temporary directory for repomix output
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    # Save repomix output to a temporary file
+                    repomix_output_file = Path(temp_dir) / 'repomix_output.md'
 
-                ignore_patterns = (
-                    '**/*.svg,**/*.drawio,**/.*,**/.*/**, **/cdk.out, **/cdk.out/**, **/**/cdk.out/**, '
-                    'packages/cdk_infra/cdk.out,packages/cdk_infra/cdk.out/**, **/__init__.py,**/test/**,'
-                    '**/__snapshots__/**,**/*.test.ts,**/dist/**,**/node_modules/**,**/.projen/**,'
-                    '**/.husky/**,**/.nx/**,**/cdk.out/**,**/*.d.ts,**/*.js.map,**/*.tsbuildinfo,'
-                    '**/coverage/**,**/*.pyc,**/__pycache__/**,**/venv/**,**/.venv/**,**/build/**,'
-                    '**/out/**,**/.git/**,**/.github/**,**/*.min.js,**/*.min.css,**/generated-docs/**'
-                )
+                    ignore_patterns = (
+                        '**/*.svg,**/*.drawio,**/.*,**/.*/**, **/cdk.out, **/cdk.out/**, **/**/cdk.out/**, '
+                        'packages/cdk_infra/cdk.out,packages/cdk_infra/cdk.out/**, **/__init__.py,**/test/**,'
+                        '**/__snapshots__/**,**/*.test.ts,**/dist/**,**/node_modules/**,**/.projen/**,'
+                        '**/.husky/**,**/.nx/**,**/cdk.out/**,**/*.d.ts,**/*.js.map,**/*.tsbuildinfo,'
+                        '**/coverage/**,**/*.pyc,**/__pycache__/**,**/venv/**,**/.venv/**,**/build/**,'
+                        '**/out/**,**/.git/**,**/.github/**,**/*.min.js,**/*.min.css,**/generated-docs/**'
+                    )
 
-                result = subprocess.run(
-                    [
-                        'repomix',
-                        str(project_path),
-                        '--style',
-                        'markdown',
-                        '--output',
-                        str(repomix_output_file),
-                        '--ignore',
-                        ignore_patterns,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
+                    result = subprocess.run(
+                        [
+                            'repomix',
+                            str(project_path),
+                            '--style',
+                            'markdown',
+                            '--output',
+                            str(repomix_output_file),
+                            '--ignore',
+                            ignore_patterns,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
 
-                if result.stderr:
-                    self.logger.warning(f'Repomix warnings: {result.stderr}')
-                    if ctx:
-                        ctx.warning(f'Repomix warnings: {result.stderr}')
+                    if result.stderr:
+                        self.logger.warning(f'Repomix warnings: {result.stderr}')
+                        if ctx:
+                            ctx.warning(f'Repomix warnings: {result.stderr}')
 
-                # Read the repomix output from the file
-                repomix_output = repomix_output_file.read_text()
+                    # Read the repomix output from the temporary file
+                    repomix_output = repomix_output_file.read_text()
+
+                    # Log that we're using a temporary file
+                    self.logger.info(
+                        f'Stored repomix output in temporary file: {repomix_output_file}'
+                    )
 
                 # Parse metadata and handle content
                 metadata = self.parse_output(result.stdout)
