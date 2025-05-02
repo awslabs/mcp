@@ -12,7 +12,6 @@
 """Tests for the Terraform project analyzer."""
 
 import pytest
-from pathlib import Path
 from awslabs.cost_analysis_mcp_server.terraform_analyzer import (
     TerraformAnalyzer,
     analyze_terraform_project,
@@ -28,7 +27,7 @@ def sample_terraform_project(tmp_path):
     # Create a main.tf file with some AWS resources
     main_tf = project_dir / 'main.tf'
     main_tf.write_text(
-        '''
+        """
 provider "aws" {
   region = "us-west-2"
 }
@@ -54,18 +53,18 @@ resource "aws_dynamodb_table" "example" {
 data "aws_s3_bucket" "existing" {
   bucket = "my-bucket"
 }
-'''
+"""
     )
 
     # Create a variables.tf file
     variables_tf = project_dir / 'variables.tf'
     variables_tf.write_text(
-        '''
+        """
 variable "environment" {
   type    = string
   default = "dev"
 }
-'''
+"""
     )
 
     return project_dir
