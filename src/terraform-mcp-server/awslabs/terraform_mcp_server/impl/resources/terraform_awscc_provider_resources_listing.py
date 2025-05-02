@@ -39,7 +39,7 @@ async def terraform_awscc_provider_resources_listing_impl() -> str:
         # Check if the static file exists
         if STATIC_RESOURCES_PATH.exists():
             # Read the static file content
-            with open(STATIC_RESOURCES_PATH, 'r') as f:
+            with open(STATIC_RESOURCES_PATH, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             logger.info(
