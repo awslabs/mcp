@@ -9,429 +9,588 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-"""GenAI CDK constructs static content loader."""
+"""GitHub-based GenAI CDK constructs content loader."""
 
+import httpx
 import logging
-import os
-from awslabs.cdk_mcp_server.data.construct_descriptions import get_construct_descriptions
-from enum import Enum
+import re
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
+# Constants
+GITHUB_API_URL = 'https://api.github.com'
+GITHUB_RAW_CONTENT_URL = 'https://raw.githubusercontent.com'
+REPO_OWNER = 'awslabs'
+REPO_NAME = 'generative-ai-cdk-constructs'
+BASE_PATH = 'src/cdk-lib'
+CACHE_TTL = timedelta(hours=24)  # Cache for 24 hours
 
-class ConstructType(str, Enum):
-    """GenAI CDK construct types."""
-
-    BEDROCK = 'bedrock'
-    OPENSEARCH_SERVERLESS = 'opensearchserverless'
-    OPENSEARCH_VECTOR_INDEX = 'opensearch-vectorindex'
-
-
-def get_construct_types() -> List[str]:
-    """Get a list of available construct types."""
-    return [ct.value for ct in ConstructType]
-
-
-def get_construct_map() -> Dict[str, str]:
-    """Get a dictionary mapping construct types to their descriptions."""
-    return {
-        'bedrock': 'Amazon Bedrock constructs for agents, knowledge bases, and more',
-        'opensearchserverless': 'Amazon OpenSearch Serverless constructs for vector search',
-        'opensearch-vectorindex': 'Amazon OpenSearch vector index constructs',
-    }
+# Simple caches
+_readme_cache = {}  # Cache for README.md content, keyed by path
+_sections_cache = {}  # Cache for extracted sections, keyed by path
+_constructs_cache = {}  # Cache for constructs list
+_last_constructs_fetch = None  # Last time constructs were fetched
 
 
-def get_genai_cdk_overview(construct_type: str = '') -> str:
-    """Get an overview of GenAI CDK constructs.
+async def fetch_readme(
+    construct_type: str, construct_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """Fetch README.md content directly from GitHub.
 
     Args:
-        construct_type: Optional construct type to get overview for.
-                       If empty, returns the best practices.
+        construct_type: Top-level directory (e.g., 'bedrock')
+        construct_name: Optional subdirectory (e.g., 'agents')
 
     Returns:
-        The overview content as a string.
+        Dictionary with README content and metadata
     """
-    # Normalize construct type
-    construct_type = construct_type.lower()
+    # Build the path
+    path_parts = [construct_type]
+    if construct_name:
+        path_parts.append(construct_name)
 
-    # Validate construct type
-    if construct_type not in get_construct_types():
-        construct_list = '\n'.join([f'- {t}: {desc}' for t, desc in get_construct_map().items()])
-        return f"# GenAI CDK Constructs\n\nConstruct type '{construct_type}' not found. Available types:\n\n{construct_list}"
+    path = '/'.join(path_parts)
+    cache_key = f'{construct_type}/{construct_name}' if construct_name else construct_type
 
-    # Get overview file
-    file_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),  # Fix path to use parent directory
-        'static',
-        'genai_cdk',
-        construct_type,
-        'overview.md',
+    # Check cache first
+    if (
+        cache_key in _readme_cache
+        and datetime.now() - _readme_cache[cache_key]['timestamp'] < CACHE_TTL
+    ):
+        logger.debug(f'Using cached README for {path}')
+        return _readme_cache[cache_key]['data']
+
+    # Fetch from GitHub
+    readme_url = (
+        f'{GITHUB_RAW_CONTENT_URL}/{REPO_OWNER}/{REPO_NAME}/main/{BASE_PATH}/{path}/README.md'
     )
+    logger.info(f'Fetching README from {readme_url}')
+
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        return f"Error: Overview file for '{construct_type}' not found."
+        async with httpx.AsyncClient() as client:
+            response = await client.get(readme_url)
+
+            if response.status_code != 200:
+                logger.warning(f'Failed to fetch README for {path}: HTTP {response.status_code}')
+                return {
+                    'error': f'Failed to fetch README for {path}: HTTP {response.status_code}',
+                    'status_code': response.status_code,
+                }
+
+            content = response.text
+
+            # Update cache
+            result = {
+                'content': content,
+                'path': path,
+                'url': readme_url,
+                'status': 'success',
+            }
+
+            _readme_cache[cache_key] = {
+                'timestamp': datetime.now(),
+                'data': result,
+            }
+
+            return result
+    except Exception as e:
+        logger.error(f'Error fetching README for {path}: {str(e)}')
+        return {
+            'error': f'Error fetching README: {str(e)}',
+            'status': 'error',
+        }
 
 
-def list_available_sections(construct_type: str, construct_name: str) -> List[str]:
-    """List available sections for a specific construct.
+def extract_sections(content: str) -> Dict[str, str]:
+    """Extract sections from README.md content based on level 2 headings (##) only.
 
-    Args:
-        construct_type: The construct type (e.g., 'bedrock')
-        construct_name: The name of the construct (e.g., 'agent', 'knowledgebases')
-
-    Returns:
-        List of available sections.
+    Returns a dictionary mapping section names to their content.
+    Uses URL encoding for section names to handle special characters.
     """
-    sections = []
-    base_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),  # Fix path to use parent directory
-        'static',
-        'genai_cdk',
-        construct_type,
-        construct_name,
-    )
+    # Find all level 2 headings (## Heading)
+    headings = re.finditer(r'^##\s+(.+?)$', content, re.MULTILINE)
 
-    if not os.path.exists(base_path):
-        return sections
+    sections = {}
+    section_starts = []
 
-    # Walk through the directory structure
-    for root, dirs, files in os.walk(base_path):
-        rel_path = os.path.relpath(root, base_path)
+    # Import here to avoid circular imports
 
-        for file in files:
-            if file.endswith('.md') and file != 'overview.md':
-                section_name = file[:-3]  # Remove .md extension
+    # Collect all level 2 headings with their positions
+    for match in headings:
+        heading_text = match.group(1).strip()
+        # Store URL-safe version for proper matching later
+        section_starts.append((match.start(), heading_text))
 
-                # For files in the base directory
-                if rel_path == '.':
-                    sections.append(section_name)
-                else:
-                    # For files in subdirectories
-                    if rel_path != '.':
-                        section_path = os.path.join(rel_path, section_name)
-                        # Replace backslashes with forward slashes for consistency
-                        section_path = section_path.replace('\\', '/')
-                        sections.append(section_path)
+    # Sort by position
+    section_starts.sort()
+
+    # Extract content between headings
+    for i, (start_pos, heading) in enumerate(section_starts):
+        # Find the end of this section (start of next level 2 heading or end of file)
+        end_pos = section_starts[i + 1][0] if i < len(section_starts) - 1 else len(content)
+
+        # Extract the section content including the heading
+        section_content = content[start_pos:end_pos].strip()
+
+        # Use the heading text as the key
+        sections[heading] = section_content
 
     return sections
 
 
-def get_genai_cdk_construct_section(construct_type: str, construct_name: str, section: str) -> str:
-    """Get a specific section of documentation for a GenAI CDK construct.
+async def get_section(
+    construct_type: str, construct_name: str, section_name: str
+) -> Dict[str, Any]:
+    """Get a specific section from a README.md file.
 
     Args:
-        construct_type: The construct type (e.g., 'bedrock')
-        construct_name: The name of the construct (e.g., 'agent', 'knowledgebases')
-        section: The section name (e.g., 'actiongroups', 'vector/opensearch')
+        construct_type: Top-level directory (e.g., 'bedrock')
+        construct_name: Subdirectory (e.g., 'agents')
+        section_name: Name of the section to extract
 
     Returns:
-        The section documentation as a string.
+        Dictionary with section content and metadata
     """
-    # Normalize inputs
-    construct_type = construct_type.lower()
-    construct_name_lower = construct_name.lower()
+    # Build cache key
+    path = f'{construct_type}/{construct_name}'
+    cache_key = path
 
-    # Special handling for Agent_* and Knowledgebases_* constructs
-    if construct_name_lower.startswith('agent_'):
-        # Convert Agent_actiongroups to agent/actiongroups
-        construct_name_lower = 'agent'
-        section = construct_name_lower.split('_', 1)[1]
-    elif construct_name_lower.startswith('knowledgebases_'):
-        # Convert Knowledgebases_vector_opensearch to knowledgebases/vector/opensearch
-        parts = construct_name_lower.split('_', 1)
-        if len(parts) > 1:
-            construct_name_lower = parts[0]
-            # Handle nested paths with underscores (e.g., vector_opensearch -> vector/opensearch)
-            section_parts = parts[1].split('_')
-            if len(section_parts) > 1 and section_parts[0] == 'vector':
-                # Special case for vector/* sections which are in a nested directory
-                section = f'vector/{section_parts[1]}'
-            else:
-                section = parts[1]
+    # Check if sections are already cached
+    if (
+        cache_key in _sections_cache
+        and datetime.now() - _sections_cache[cache_key]['timestamp'] < CACHE_TTL
+    ):
+        sections = _sections_cache[cache_key]['data']
 
-    # Validate construct type
-    if construct_type not in get_construct_types():
-        return f"Error: Construct type '{construct_type}' not found."
+        # Find the section (case-insensitive)
+        for heading, content in sections.items():
+            if heading.lower() == section_name.lower():
+                return {
+                    'content': content,
+                    'section': heading,
+                    'path': path,
+                    'status': 'success',
+                }
 
-    # Handle nested sections (e.g., vector/opensearch)
-    if '/' in section:
-        section_parts = section.split('/')
-        file_path = (
-            os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),  # Fix path to use parent directory
-                'static',
-                'genai_cdk',
-                construct_type,
-                construct_name_lower,
-                *section_parts,
-            )
-            + '.md'
-        )
-    else:
-        # Regular section
-        file_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),  # Fix path to use parent directory
-            'static',
-            'genai_cdk',
-            construct_type,
-            construct_name_lower,
-            f'{section}.md',
-        )
+        # Section not found in cache
+        return {
+            'error': f"Section '{section_name}' not found in {path}",
+            'status': 'not_found',
+        }
 
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        return (
-            f"Error: Section '{section}' for '{construct_name}' in '{construct_type}' not found."
-        )
+    # Fetch the README
+    readme_result = await fetch_readme(construct_type, construct_name)
 
+    if 'error' in readme_result:
+        # Return error result with consistent path
+        return {
+            'error': readme_result['error'],
+            'path': path,
+            'status': 'error',
+        }
 
-def get_genai_cdk_construct(construct_type: str, construct_name: str) -> str:
-    """Get documentation for a specific GenAI CDK construct.
+    # Extract sections
+    sections = extract_sections(readme_result['content'])
 
-    Args:
-        construct_type: The construct type (e.g., 'bedrock')
-        construct_name: The name of the construct (e.g., 'Agent')
-
-    Returns:
-        The construct documentation as a string.
-    """
-    # Normalize inputs
-    construct_type = construct_type.lower()
-    construct_name_lower = construct_name.lower()
-
-    # Special handling for Agent_* and Knowledgebases_* constructs
-    if construct_name_lower.startswith('agent_'):
-        # For Agent_actiongroups, redirect to agent/actiongroups section
-        parent = 'agent'
-        child = construct_name_lower.split('_', 1)[1]
-        return get_genai_cdk_construct_section(construct_type, parent, child)
-    elif construct_name_lower.startswith('knowledgebases_'):
-        # For Knowledgebases_vector_opensearch, redirect to knowledgebases/vector/opensearch section
-        parts = construct_name_lower.split('_', 1)
-        if len(parts) > 1:
-            parent = parts[0]
-            # Handle nested paths with underscores (e.g., vector_opensearch -> vector/opensearch)
-            section_parts = parts[1].split('_')
-            if len(section_parts) > 1 and section_parts[0] == 'vector':
-                # Special case for vector/* sections which are in a nested directory
-                child = f'vector/{section_parts[1]}'
-            else:
-                child = parts[1]
-            return get_genai_cdk_construct_section(construct_type, parent, child)
-
-    # Special handling for agent and knowledgebases
-    if construct_name_lower in ['agent', 'knowledgebases']:
-        # For these special cases, return an overview or index of available sections
-        base_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),  # Fix path to use parent directory
-            'static',
-            'genai_cdk',
-            construct_type,
-            construct_name_lower,
-        )
-
-        # Check if directory exists
-        if not os.path.exists(base_path):
-            return f"Error: Documentation for '{construct_name}' in '{construct_type}' not found."
-
-        # List files in directory
-        sections = []
-        for file_name in os.listdir(base_path):
-            if file_name.endswith('.md') and file_name != 'overview.md':
-                sections.append(file_name[:-3])  # Remove .md extension
-
-        # Also check subdirectories
-        for root, dirs, files in os.walk(base_path):
-            if root != base_path:  # Skip the base directory
-                rel_path = os.path.relpath(root, base_path)
-                for file_name in files:
-                    if file_name.endswith('.md'):
-                        section_path = os.path.join(rel_path, file_name[:-3])
-                        section_path = section_path.replace('\\', '/')
-                        sections.append(section_path)
-
-        result = f'# {construct_name.capitalize()} Documentation\n\n'
-        result += 'This documentation is split into sections for easier consumption.\n\n'
-        result += '## Available Sections\n\n'
-
-        for section in sorted(sections):
-            result += f'- [{section}](genai-cdk-constructs://{construct_type}/{construct_name_lower}/{section})\n'
-
-        return result
-
-    # Special handling for key constructs
-    key_construct_mapping = {
-        'agent': 'agent',
-        'agents': 'agent',
-        'knowledgebase': 'knowledgebases',
-        'knowledgebases': 'knowledgebases',
-        'knowledge-base': 'knowledgebases',
-        'knowledge-bases': 'knowledgebases',
-        'agentactiongroup': 'agent/actiongroups',
-        'action-group': 'agent/actiongroups',
-        'actiongroup': 'agent/actiongroups',
-        'agentalias': 'agent/alias',
-        'guardrail': 'bedrockguardrails',
-        'guardrails': 'bedrockguardrails',
-        'bedrock-guardrails': 'bedrockguardrails',
+    # Cache the sections
+    _sections_cache[cache_key] = {
+        'timestamp': datetime.now(),
+        'data': sections,
     }
 
-    # Normalize construct name
-    if construct_name_lower in key_construct_mapping:
-        mapped_name = key_construct_mapping[construct_name_lower]
-        if '/' in mapped_name:
-            # Handle redirects to sections
-            parent, section = mapped_name.split('/', 1)
-            return get_genai_cdk_construct_section(construct_type, parent, section)
-        else:
-            construct_name_lower = mapped_name
+    # Find the section using URL decoding and case-insensitive comparison
+    import urllib.parse
 
-    # Validate construct type
-    if construct_type not in get_construct_types():
-        construct_list = '\n'.join([f'- {t}: {desc}' for t, desc in get_construct_map().items()])
-        return f"# GenAI CDK Constructs\n\nConstruct type '{construct_type}' not found. Available types:\n\n{construct_list}"
+    decoded_section_name = urllib.parse.unquote(section_name)
+    logger.info(f"Looking for section '{decoded_section_name}' in {path}")
+    logger.info(f'Available sections: {", ".join(sections.keys())}')
 
-    # Get construct file (flat structure)
-    file_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),  # Fix path to use parent directory
-        'static',
-        'genai_cdk',
-        construct_type,
-        f'{construct_name_lower}.md',
-    )
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        # Try to see if this is a directory with an overview.md file
-        overview_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            'static',
-            'genai_cdk',
-            construct_type,
-            construct_name_lower,
-            'overview.md',
-        )
-        try:
-            with open(overview_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        except FileNotFoundError:
-            return f"Error: Documentation for '{construct_name}' in '{construct_type}' not found."
+    # First try direct match after decoding
+    for heading, content in sections.items():
+        if heading.lower() == decoded_section_name.lower():
+            return {
+                'content': content,
+                'section': heading,
+                'path': path,
+                'status': 'success',
+            }
+
+    # Section not found
+    logger.warning(f"Section '{section_name}' not found in {path}")
+    return {
+        'error': f"Section '{section_name}' not found in {path}",
+        'status': 'not_found',
+    }
 
 
-def list_available_constructs(construct_type: Optional[str] = None) -> List[Dict[str, Any]]:
-    """List available constructs.
+async def list_sections(construct_type: str, construct_name: str) -> Dict[str, Any]:
+    """List available sections in a README.md file.
 
     Args:
-        construct_type: Optional construct type to filter by.
+        construct_type: Top-level directory (e.g., 'bedrock')
+        construct_name: Subdirectory (e.g., 'agents')
 
     Returns:
-        List of constructs with name, type, and description.
+        Dictionary with list of sections and metadata
     """
-    constructs = []
+    # Build cache key
+    path = f'{construct_type}/{construct_name}'
+    cache_key = path
 
-    # Determine which construct types to search
-    if construct_type is not None:
-        construct_types = [construct_type.lower()]
-    else:
-        construct_types = get_construct_types()
+    # Check if sections are already cached
+    if (
+        cache_key in _sections_cache
+        and datetime.now() - _sections_cache[cache_key]['timestamp'] < CACHE_TTL
+    ):
+        sections = _sections_cache[cache_key]['data']
+        return {
+            'sections': list(sections.keys()),
+            'path': path,
+            'status': 'success',
+        }
 
-    # For each construct type, list files in the directory
-    for ct in construct_types:
-        if ct not in get_construct_types():
-            continue
+    # Fetch the README
+    readme_result = await fetch_readme(construct_type, construct_name)
 
-        # Get directory path - fix path to use parent directory
-        dir_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), 'static', 'genai_cdk', ct
-        )
+    if 'error' in readme_result:
+        # Return empty sections on error, but maintain successful status
+        return {
+            'sections': [],
+            'path': path,
+            'status': 'success',
+        }
 
-        # Skip if directory doesn't exist
-        if not os.path.exists(dir_path):
-            continue
+    # Extract sections
+    sections = extract_sections(readme_result['content'])
 
-        # Process files in the main directory
-        process_directory_files(dir_path, ct, constructs)
+    # Cache the sections
+    _sections_cache[cache_key] = {
+        'timestamp': datetime.now(),
+        'data': sections,
+    }
 
-        # Process subdirectories recursively
-        for root, dirs, files in os.walk(dir_path):
-            # Skip the main directory as it's already processed
-            if root == dir_path:
-                continue
-
-            # Get the relative path from the main directory
-            rel_path = os.path.relpath(root, dir_path)
-            # Use the relative path as the parent
-            process_directory_files(root, ct, constructs, parent=rel_path.replace(os.sep, '_'))
-
-    return constructs
+    return {
+        'sections': list(sections.keys()),
+        'path': path,
+        'status': 'success',
+    }
 
 
-def process_directory_files(
-    dir_path: str,
-    construct_type: str,
-    constructs: List[Dict[str, Any]],
-    parent: Optional[str] = None,
-):
-    """Process files in a directory and add them to the constructs list.
+async def get_construct_overview(construct_type: str) -> Dict[str, Any]:
+    """Get overview documentation for a construct type.
 
     Args:
-        dir_path: Path to the directory
-        construct_type: Type of construct
-        constructs: List to add constructs to
-        parent: Optional parent directory name
+        construct_type: Top-level directory (e.g., 'bedrock')
+
+    Returns:
+        Dictionary with README content for the construct type
     """
-    # List files in directory
-    for file_name in os.listdir(dir_path):
-        # Skip overview file, directories, and non-markdown files
-        if (
-            file_name == 'overview.md'
-            or not file_name.endswith('.md')
-            or os.path.isdir(os.path.join(dir_path, file_name))
-        ):
+    return await fetch_readme(construct_type)
+
+
+async def fetch_bedrock_subdirectories() -> List[Dict[str, Any]]:
+    """Fetch subdirectories specifically for the bedrock directory.
+
+    Returns:
+        List of subdirectory information
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f'{GITHUB_API_URL}/repos/{REPO_OWNER}/{REPO_NAME}/contents/{BASE_PATH}/bedrock',
+                headers={'Accept': 'application/vnd.github.v3+json'},
+            )
+
+            if response.status_code != 200:
+                logger.warning(
+                    f'Failed to fetch bedrock subdirectories: HTTP {response.status_code}'
+                )
+                return []
+
+            contents = response.json()
+
+            # Filter directories only
+            subdirs = []
+            for item in contents:
+                if item['type'] == 'dir':
+                    subdir_name = item['name']
+
+                    # Get README for this subdirectory if available
+                    readme_result = await fetch_readme('bedrock', subdir_name)
+
+                    # Default values
+                    title = subdir_name
+                    description = f'Bedrock {subdir_name.capitalize()} constructs'
+
+                    # Extract better title/description if README exists
+                    if 'error' not in readme_result:
+                        readme_content = readme_result['content']
+
+                        # Use a safer approach to extract title - find first # heading
+                        lines = readme_content.split('\n')
+                        for line in lines:
+                            if line.startswith('# '):
+                                title = line.replace('# ', '').strip()
+                                break
+
+                        # Extract description from content after first heading and before next heading
+                        # or stability banner
+                        description_text = ''
+                        capture_description = False
+                        for line in lines:
+                            if line.startswith('# '):
+                                capture_description = True
+                                continue
+                            if capture_description and (
+                                line.startswith('#') or line.startswith('<!--BEGIN')
+                            ):
+                                break
+                            if capture_description and line.strip():
+                                description_text += line.strip() + ' '
+
+                        if description_text:
+                            # Clean up and truncate description
+                            description_text = description_text.strip()
+                            # Take first sentence or up to 150 chars
+                            description = description_text.split('.')[0][:150]
+                            if len(description) < len(description_text):
+                                description += '...'
+
+                    subdirs.append(
+                        {
+                            'name': title,
+                            'path': f'bedrock/{subdir_name}',
+                            'url': item['html_url'],
+                            'description': description,
+                        }
+                    )
+
+            return subdirs
+    except Exception as e:
+        logger.error(f'Error fetching bedrock subdirectories: {str(e)}')
+        return []
+
+
+async def fetch_repo_structure() -> Dict[str, Any]:
+    """Fetch repository structure from GitHub API.
+
+    Returns:
+        Dictionary with repository structure information
+    """
+    global _constructs_cache, _last_constructs_fetch
+
+    # Check if we've fetched recently
+    if _last_constructs_fetch and datetime.now() - _last_constructs_fetch < CACHE_TTL:
+        logger.debug('Using cached repo structure')
+        return _constructs_cache
+
+    try:
+        # Fetch top-level directories
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f'{GITHUB_API_URL}/repos/{REPO_OWNER}/{REPO_NAME}/contents/{BASE_PATH}',
+                headers={'Accept': 'application/vnd.github.v3+json'},
+            )
+
+            if response.status_code != 200:
+                logger.warning(f'Failed to fetch repo structure: HTTP {response.status_code}')
+                return {'error': 'Failed to fetch repository structure'}
+
+            contents = response.json()
+
+            # Filter directories only
+            directories = [item for item in contents if item['type'] == 'dir']
+
+            # For each directory, get its README.md if available
+            construct_types = {}
+            for dir_info in directories:
+                dir_name = dir_info['name']
+
+                # Initialize default values first
+                title = dir_name
+                description = f'AWS {dir_name.capitalize()} constructs'
+
+                # Then fetch and potentially override with better data
+                readme_result = await fetch_readme(dir_name)
+                if 'error' not in readme_result:
+                    # Try to extract title and description from README content using markdown parsing
+                    readme_content = readme_result['content']
+
+                    # Use a safer approach to extract title - find first # heading
+                    lines = readme_content.split('\n')
+                    for line in lines:
+                        if line.startswith('# '):
+                            title = line.replace('# ', '').strip()
+                            break
+
+                    # Extract description from content after first heading and before next heading
+                    # or stability banner
+                    description_text = ''
+                    capture_description = False
+                    for line in lines:
+                        if line.startswith('# '):
+                            capture_description = True
+                            continue
+                        if capture_description and (
+                            line.startswith('#') or line.startswith('<!--BEGIN')
+                        ):
+                            break
+                        if capture_description and line.strip():
+                            description_text += line.strip() + ' '
+
+                    if description_text:
+                        # Clean up and truncate description
+                        description_text = description_text.strip()
+                        # Take first sentence or up to 150 chars
+                        description = description_text.split('.')[0][:150]
+                        if len(description) < len(description_text):
+                            description += '...'
+
+                # Store in construct types
+                construct_types[dir_name] = {
+                    'name': title,
+                    'description': description,
+                    'path': dir_info['path'],
+                    'url': dir_info['html_url'],
+                }
+
+            # Special case for bedrock: fetch its subdirectories
+            if 'bedrock' in construct_types:
+                bedrock_subdirs = await fetch_bedrock_subdirectories()
+                if bedrock_subdirs:
+                    construct_types['bedrock']['subdirectories'] = bedrock_subdirs
+
+            # Update cache
+            _constructs_cache = {'construct_types': construct_types}
+            _last_constructs_fetch = datetime.now()
+
+            return _constructs_cache
+    except Exception as e:
+        logger.error(f'Error fetching repo structure: {str(e)}')
+        return {'error': f'Error fetching repository structure: {str(e)}'}
+
+
+async def list_available_constructs(construct_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    """List available constructs from GitHub.
+
+    Args:
+        construct_type: Optional construct type to filter by
+
+    Returns:
+        List of constructs with name, type, and description
+    """
+    # Get repository structure
+    repo_structure = await fetch_repo_structure()
+
+    if 'error' in repo_structure:
+        logger.error(f'Error in list_available_constructs: {repo_structure["error"]}')
+        return []
+
+    construct_types = repo_structure.get('construct_types', {})
+
+    # Get available types
+    available_types = list(construct_types.keys())
+
+    # If construct type is provided, filter by it
+    if construct_type:
+        if construct_type not in available_types:
+            logger.warning(
+                f"Construct type '{construct_type}' not found. Available types: {', '.join(available_types)}"
+            )
+            return []
+        filter_types = [construct_type]
+    else:
+        filter_types = available_types
+
+    # Prepare result list
+    constructs = []
+
+    # For each construct type
+    for ct in filter_types:
+        # Get README for this construct type
+        readme_result = await fetch_readme(ct)
+
+        if 'error' in readme_result:
             continue
 
-        # Extract construct name from file name
-        base_name = file_name[:-3]
+        # Extract sections from README
+        sections = extract_sections(readme_result['content'])
 
-        # Format the construct name
-        if parent:
-            construct_name = f'{parent}_{base_name}'
-        else:
-            construct_name = base_name
-
-        display_name = construct_name.capitalize()
-
-        # Define file_path here, before it's used
-        file_path = os.path.join(dir_path, file_name)
-
-        # Get description from fixed mapping or use default
-        descriptions = get_construct_descriptions()
-        description = descriptions.get(display_name, '')
-
-        # If no fixed description, fall back to current behavior
-        if not description:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    first_line = f.readline().strip()
-                    description = (
-                        first_line[1:].strip() if first_line.startswith('#') else display_name
-                    )
-            except Exception:
-                description = f'A {construct_type} construct.'
-
-        # Add to list
+        # Add construct types as top-level constructs
         constructs.append(
             {
-                'name': display_name,
-                'type': construct_type,
-                'description': description,
+                'name': ct.capitalize(),
+                'type': ct,
+                'description': construct_types[ct]['description'],
             }
         )
+
+        # Add sections as constructs
+        for section_name in sections:
+            # Build a construct name from section
+            name_parts = [part.capitalize() for part in section_name.split()]
+            if len(name_parts) > 1:
+                construct_name = f'{name_parts[0]}{"".join(name_parts[1:])}'
+            else:
+                construct_name = name_parts[0]
+
+            # Build description from the first line of the section
+            section_content = sections[section_name]
+            first_line = section_content.split('\n')[0].strip('# ')
+            description = first_line
+
+            # Add to constructs list
+            constructs.append(
+                {
+                    'name': construct_name,
+                    'type': ct,
+                    'description': description,
+                }
+            )
+
+        # Add bedrock subdirectories as constructs
+        if ct == 'bedrock' and 'subdirectories' in construct_types[ct]:
+            for subdir in construct_types[ct]['subdirectories']:
+                # Add the subdirectory as a construct
+                subdir_name = subdir['name']
+                constructs.append(
+                    {
+                        'name': f'{subdir_name}',
+                        'type': 'bedrock',
+                        'description': subdir['description'],
+                    }
+                )
+
+                # Also fetch README for this subdirectory to extract sections
+                subdir_raw_name = subdir['path'].split('/')[-1]  # Get the raw name from path
+                subdir_readme = await fetch_readme('bedrock', subdir_raw_name)
+                if 'error' not in subdir_readme:
+                    subdir_sections = extract_sections(subdir_readme['content'])
+
+                    # Add sections from subdirectory README
+                    for section_name in subdir_sections:
+                        # Similar logic to build construct name and description
+                        name_parts = [part.capitalize() for part in section_name.split()]
+                        if len(name_parts) > 1:
+                            section_construct_name = f'{name_parts[0]}{"".join(name_parts[1:])}'
+                        else:
+                            section_construct_name = name_parts[0]
+
+                        section_content = subdir_sections[section_name]
+                        first_line = section_content.split('\n')[0].strip('# ')
+                        description = first_line
+
+                        # Add to constructs list with special naming to indicate subdirectory
+                        constructs.append(
+                            {
+                                'name': f'{subdir_name}{section_construct_name}',
+                                'type': 'bedrock',
+                                'description': description,
+                            }
+                        )
+
+    return constructs

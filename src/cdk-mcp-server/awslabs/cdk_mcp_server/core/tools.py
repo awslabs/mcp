@@ -396,11 +396,16 @@ async def search_genai_cdk_constructs(
 
     The search is flexible and will match any of your search terms (OR logic).
     It handles common variations like singular/plural forms and terms with/without spaces.
+    Content is fetched dynamically from GitHub to ensure the most up-to-date documentation.
 
     Examples:
     - "bedrock agent" - Returns all agent-related constructs
     - "knowledgebase vector" - Returns knowledge base constructs related to vector stores
     - "agent actiongroups" - Returns action groups for agents
+    - "opensearch vector" - Returns OpenSearch vector constructs
+
+    The search supports subdirectory content (like knowledge bases and their sections)
+    and will find matches across all available content.
 
     Args:
         ctx: MCP context
@@ -412,7 +417,7 @@ async def search_genai_cdk_constructs(
     """
     try:
         # Get list of constructs
-        constructs = list_available_constructs(construct_type)
+        constructs = await list_available_constructs(construct_type)
 
         # If no query, return all constructs
         if not query:

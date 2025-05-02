@@ -14,10 +14,8 @@
 import logging
 from awslabs.cdk_mcp_server.data.cdk_nag_parser import get_errors, get_rule_pack, get_warnings
 from awslabs.cdk_mcp_server.data.genai_cdk_loader import (
-    get_genai_cdk_construct,
-    get_genai_cdk_construct_section,
-    get_genai_cdk_overview,
-    list_available_sections,
+    get_section,
+    list_sections,
 )
 from awslabs.cdk_mcp_server.data.lambda_powertools_loader import get_lambda_powertools_section
 from awslabs.cdk_mcp_server.data.solutions_constructs_parser import get_pattern_raw
@@ -182,19 +180,29 @@ async def get_genai_cdk_construct_section_resource(
     """Get a specific section of documentation for a GenAI CDK construct.
 
     Example URIs:
-    - genai-cdk-constructs://bedrock/agent/actiongroups
-    - genai-cdk-constructs://bedrock/agent/alias
+    - genai-cdk-constructs://bedrock/agents/actiongroups
+    - genai-cdk-constructs://bedrock/agents/alias
     - genai-cdk-constructs://bedrock/knowledgebases/chunking
 
     Args:
         construct_type: Type of the construct (e.g., 'bedrock')
-        construct_name: Name of the construct (e.g., 'agent', 'knowledgebases')
+        construct_name: Name of the construct (e.g., 'agents', 'knowledgebases')
         section: Section of the documentation (e.g., 'actiongroups', 'chunking')
 
     Returns:
         String containing the requested section of documentation
     """
-    return get_genai_cdk_construct_section(construct_type, construct_name, section)
+    # Fetch section from GitHub
+    result = await get_section(construct_type, construct_name, section)
+
+    # Check for error
+    if result.get('status') == 'error' or result.get('status') == 'not_found':
+        if 'error' in result:
+            return f'Error fetching section from GitHub: {result["error"]}'
+        else:
+            return f"Error: Section '{section}' not found in {construct_type}/{construct_name}"
+
+    return result['content']
 
 
 async def get_genai_cdk_construct_nested_section_resource(
@@ -215,26 +223,55 @@ async def get_genai_cdk_construct_nested_section_resource(
     Returns:
         String containing the requested nested section of documentation
     """
+    # First try to use parent as the section name and child as a subsection
     section = f'{parent}/{child}'
-    return get_genai_cdk_construct_section(construct_type, construct_name, section)
+    result = await get_section(construct_type, construct_name, section)
+
+    # Check if the first attempt succeeded
+    if result.get('status') == 'success':
+        return result['content']
+
+    # If that fails, try as a combined section name
+    section = f'{parent} {child}'
+    result = await get_section(construct_type, construct_name, section)
+
+    # Check for errors in both attempts
+    if result.get('status') == 'error' or result.get('status') == 'not_found':
+        if 'error' in result:
+            return f'Error fetching nested section from GitHub: {result["error"]}'
+        else:
+            return (
+                f"Error: Section '{parent}/{child}' not found in {construct_type}/{construct_name}"
+            )
+
+    return result['content']
 
 
 async def get_available_sections_resource(construct_type: str, construct_name: str) -> str:
     """Get available sections for a specific construct.
 
     Example URI:
-    - genai-cdk-constructs://bedrock/agent/sections
+    - genai-cdk-constructs://bedrock/agents/sections
     - genai-cdk-constructs://bedrock/knowledgebases/sections
 
     Args:
         construct_type: Type of the construct (e.g., 'bedrock')
-        construct_name: Name of the construct (e.g., 'agent', 'knowledgebases')
+        construct_name: Name of the construct (e.g., 'agents', 'knowledgebases')
 
     Returns:
         String containing available sections in markdown format
     """
-    sections = list_available_sections(construct_type, construct_name)
+    # Handle singular/plural conversion for agent
+    if construct_name.lower() == 'agent':
+        construct_name = 'agents'
 
+    # List sections from GitHub
+    result = await list_sections(construct_type, construct_name)
+
+    if 'error' in result:
+        return f'Error fetching sections from GitHub: {result["error"]}'
+
+    sections = result['sections']
     if not sections:
         return f'No sections found for {construct_name} in {construct_type}.'
 
@@ -252,8 +289,9 @@ async def get_genai_cdk_construct_resource(construct_type: str, construct_name: 
     """Get essential information about a GenAI CDK construct.
 
     Example URIs:
-    - genai-cdk-constructs://bedrock/Agent
+    - genai-cdk-constructs://bedrock/Agents
     - genai-cdk-constructs://bedrock/KnowledgeBase
+    - genai-cdk-constructs://bedrock/Amazon Bedrock Knowledge BasesVectorKnowledgeBase (from search results)
 
     Args:
         construct_type: Type of the construct (e.g., 'bedrock')
@@ -262,7 +300,50 @@ async def get_genai_cdk_construct_resource(construct_type: str, construct_name: 
     Returns:
         String containing formatted properties and code examples in markdown
     """
-    return get_genai_cdk_construct(construct_type, construct_name)
+    from awslabs.cdk_mcp_server.data.genai_cdk_loader import fetch_readme as get_readme
+
+    # Handle search result format (e.g., "Amazon Bedrock Knowledge BasesVectorKnowledgeBase")
+    if construct_name.startswith('Amazon Bedrock Knowledge Bases'):
+        # Extract the section name that comes after "Amazon Bedrock Knowledge Bases"
+        # This is for the special case of knowledge-bases subdirectory in bedrock
+        section_name = construct_name.replace('Amazon Bedrock Knowledge Bases', '').strip()
+        if section_name:
+            # Get the section from the knowledge-bases README
+            result = await get_section('bedrock', 'knowledge-bases', section_name)
+            if 'error' not in result:
+                return result['content']
+
+        # If no section specified or section not found, get the whole README
+        result = await get_readme('bedrock', 'knowledge-bases')
+        if 'error' not in result:
+            return result['content']
+
+    # Normalize construct name
+    construct_name_lower = construct_name.lower()
+
+    # If the construct is Agent, use agents for GitHub
+    if construct_name_lower == 'agent':
+        construct_name_lower = 'agents'
+
+    # If it looks like a "knowledge base" reference, try the subdirectory
+    if 'knowledge' in construct_name_lower and 'base' in construct_name_lower:
+        result = await get_readme('bedrock', 'knowledge-bases')
+        if 'error' not in result:
+            return result['content']
+
+    # Fetch the entire README from GitHub
+    result = await get_readme(construct_type)
+
+    if 'error' not in result:
+        return result['content']
+
+    # If that fails, try to fetch a specific construct README
+    result = await get_readme(construct_type, construct_name_lower)
+
+    if 'error' in result:
+        return f'Error fetching construct from GitHub: {result["error"]}'
+
+    return result['content']
 
 
 async def get_genai_cdk_overview_resource(construct_type: str) -> str:
@@ -279,4 +360,12 @@ async def get_genai_cdk_overview_resource(construct_type: str) -> str:
     Returns:
         String containing overview documentation in markdown
     """
-    return get_genai_cdk_overview(construct_type)
+    from awslabs.cdk_mcp_server.data.genai_cdk_loader import fetch_readme as get_readme
+
+    # Fetch README from GitHub
+    result = await get_readme(construct_type)
+
+    if 'error' in result:
+        return f'Error fetching overview from GitHub: {result["error"]}'
+
+    return result['content']
