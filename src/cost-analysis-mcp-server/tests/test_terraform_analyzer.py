@@ -24,11 +24,15 @@ def sample_terraform_project(tmp_path):
     project_dir = tmp_path / 'terraform_project'
     project_dir.mkdir()
 
-    # Create a main.tf file with some AWS resources
+    # Create a main.tf file with AWS and AWSCC resources
     main_tf = project_dir / 'main.tf'
     main_tf.write_text(
         """
 provider "aws" {
+  region = "us-west-2"
+}
+
+provider "awscc" {
   region = "us-west-2"
 }
 
@@ -53,6 +57,20 @@ resource "aws_dynamodb_table" "example" {
 data "aws_s3_bucket" "existing" {
   bucket = "my-bucket"
 }
+
+resource "awscc_cloudformation_stack" "example" {
+  name = "example-stack"
+  template_body = jsonencode({
+    Resources = {
+      MyBucket = {
+        Type = "AWS::S3::Bucket"
+      }
+    }
+  })
+}
+
+data "awscc_organizations_organization" "current" {
+}
 """
     )
 
@@ -76,17 +94,27 @@ async def test_analyze_terraform_project(sample_terraform_project):
     result = await analyze_terraform_project(str(sample_terraform_project))
 
     assert result['status'] == 'success'
-    assert len(result['services']) == 3
+    assert len(result['services']) == 5
 
-    # Check for expected services
-    service_names = {service['name'] for service in result['services']}
-    assert 'lambda' in service_names
-    assert 'dynamodb' in service_names
-    assert 's3' in service_names
+    # Group services by provider
+    aws_services = []
+    awscc_services = []
 
-    # Verify source is marked as terraform
     for service in result['services']:
         assert service['source'] == 'terraform'
+        if service['provider'] == 'aws':
+            aws_services.append(service['name'])
+        elif service['provider'] == 'awscc':
+            awscc_services.append(service['name'])
+
+    # Verify AWS provider services
+    assert 'lambda' in aws_services
+    assert 'dynamodb' in aws_services
+    assert 's3' in aws_services
+
+    # Verify AWSCC provider services
+    assert 'cloudformation' in awscc_services
+    assert 'organizations' in awscc_services
 
 
 @pytest.mark.asyncio
@@ -119,8 +147,24 @@ async def test_terraform_analyzer_file_analysis(sample_terraform_project):
 
     services = analyzer._analyze_file(main_tf)
 
-    assert len(services) == 3
-    service_names = {service['name'] for service in services}
-    assert 'lambda' in service_names
-    assert 'dynamodb' in service_names
-    assert 's3' in service_names
+    assert len(services) == 5
+
+    # Group services by provider
+    aws_services = []
+    awscc_services = []
+
+    for service in services:
+        assert service['source'] == 'terraform'
+        if service['provider'] == 'aws':
+            aws_services.append(service['name'])
+        elif service['provider'] == 'awscc':
+            awscc_services.append(service['name'])
+
+    # Verify AWS provider services
+    assert 'lambda' in aws_services
+    assert 'dynamodb' in aws_services
+    assert 's3' in aws_services
+
+    # Verify AWSCC provider services
+    assert 'cloudformation' in awscc_services
+    assert 'organizations' in awscc_services

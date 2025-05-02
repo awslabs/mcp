@@ -54,9 +54,8 @@ class TerraformAnalyzer:
                 content = f.read()
                 logger.info('Successfully read file content')
 
-            # Process line by line to handle resource declarations
+            # Process line by line to handle declarations
             lines = content.split('\n')
-
             for line in lines:
                 line = line.strip()
 
@@ -64,38 +63,47 @@ class TerraformAnalyzer:
                 if not line or line.startswith('#'):
                     continue
 
-                # Check for AWS provider block
-                if 'provider "aws"' in line:
-                    logger.info('Found AWS provider declaration')
+                # Check for provider blocks
+                if 'provider "aws"' in line or 'provider "awscc"' in line:
+                    provider_type = 'aws' if 'provider "aws"' in line else 'awscc'
+                    logger.info(f'Found {provider_type.upper()} provider declaration')
                     continue
 
                 # Check for resource declarations
-                resource_match = re.match(r'resource\s+"aws_(\w+)"', line)
+                resource_match = re.match(r'resource\s+"(aws_|awscc_)(\w+)"', line)
                 if resource_match:
-                    service_name = resource_match.group(1)
+                    provider = resource_match.group(1).rstrip('_')
+                    service_name = resource_match.group(2)
                     # Extract the main service name (e.g., 'lambda' from 'lambda_function')
                     main_service = service_name.split('_')[0]
-                    logger.info(f'Found AWS service in resource declaration: {main_service}')
+                    logger.info(
+                        f'Found {provider.upper()} service in resource declaration: {main_service}'
+                    )
                     services.append(
                         {
                             'name': main_service,
                             'source': 'terraform',
+                            'provider': provider,
                             'configurations': [],
                         }
                     )
                     continue
 
                 # Check for data source declarations
-                data_match = re.match(r'data\s+"aws_(\w+)"', line)
+                data_match = re.match(r'data\s+"(aws_|awscc_)(\w+)"', line)
                 if data_match:
-                    service_name = data_match.group(1)
+                    provider = data_match.group(1).rstrip('_')
+                    service_name = data_match.group(2)
                     # Extract the main service name
                     main_service = service_name.split('_')[0]
-                    logger.info(f'Found AWS service in data source declaration: {main_service}')
+                    logger.info(
+                        f'Found {provider.upper()} service in data source declaration: {main_service}'
+                    )
                     services.append(
                         {
                             'name': main_service,
                             'source': 'terraform',
+                            'provider': provider,
                             'configurations': [],
                         }
                     )
