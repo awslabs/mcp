@@ -137,6 +137,19 @@ The Frontend MCP Server provides specialized tools for modern web application de
 
 [Learn more about the Frontend MCP Server](servers/frontend-mcp-server.md)
 
+### Code Documentation Generation MCP Server
+
+The Code Documentation Generation MCP Server automatically generates comprehensive documentation for code repositories.
+
+**Features:**
+
+- Automated documentation generation based on repository analysis
+- AWS architecture diagram integration
+- Multiple document types (README, API, Backend, Frontend)
+- Interactive documentation creation workflow
+
+[Learn more about the Code Documentation Generation MCP Server](servers/code-doc-generation-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
