@@ -140,6 +140,8 @@ async def execute_terragrunt_command(
         terragrunt_config=terragrunt_config,
     )
     return await execute_terragrunt_command_impl(request)
+
+
 @mcp.tool(name='SearchAwsProviderDocs')
 async def search_aws_provider_docs(
     asset_name: str = Field(
