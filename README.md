@@ -29,6 +29,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - Getting Started with Q Developer - Coming Soon
 - [Samples](#samples)
 - [Documentation](#documentation)
+- [Vibe coding](#vibe-coding)
 - [Additional Resources](#additional-resources)
 - [Security](#security)
 - [Contributing](#contributing)
@@ -183,7 +184,7 @@ A server for AWS Terraform best practices.
 
 ### Use Cases for the Servers
 
-For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What are my top 3 AWS services by cost last month?" or "How can I reduce my EC2 costs?" and receive detailed insights and actionable recommendations.
+For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What would be the estimated monthly cost for this CDK project before I deploy it?" or "Can you help me understand the potential AWS service expenses for this infrastructure design?" and receive detailed cost estimations and budget planning insights.
 
 ## Installation and Setup
 
@@ -569,6 +570,10 @@ Documentation includes:
 - Installation and configuration instructions
 - API references
 - Usage examples
+
+## Vibe coding
+
+You can use these MCP servers with your AI coding assistant to [vibe code](https://en.wikipedia.org/wiki/Vibe_coding). For tips and tricks on how to improve your vibe coding experience, please refer to our [guide](./VIBE_CODING_TIPS_TRICKS.md).
 
 ## Additional Resources
 
