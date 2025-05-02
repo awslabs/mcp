@@ -166,7 +166,7 @@ async def test_generate_content_standard_document(mock_context):
     assert '<!--' in content  # Should include a header comment
     assert '# API Reference' in content
     assert '## Endpoints' in content
-    assert 'IMPORTANT: Cline, you must fill in the content' in content
+    assert 'IMPORTANT: The MCP client must fill in the content' in content
 
 
 @pytest.mark.asyncio
@@ -190,7 +190,7 @@ async def test_generate_content_readme_with_arch_diagram(mock_context):
     # Assert
     assert '# Overview' in content
     assert '## Architecture' in content
-    assert 'Generate an AWS architecture diagram using ai3-diagrams-expert MCP server' in content
+    assert 'Generate an AWS architecture diagram using AWS Diagram MCP Server' in content
     assert 'AWS Architecture' in content  # Should include the placeholder diagram
 
 
@@ -215,7 +215,7 @@ async def test_generate_content_backend_with_dataflow(mock_context):
     # Assert
     assert '# Backend Architecture' in content
     assert '## Data Flow' in content
-    assert 'Generate a data flow diagram using ai3-diagrams-expert MCP server' in content
+    assert 'Generate a data flow diagram using AWS Diagram MCP Server' in content
     assert 'Data Flow Diagram' in content  # Should include the placeholder diagram
 
 
@@ -293,11 +293,11 @@ def test_generate_diagram_placeholder():
     # Assert
     assert '## AWS Architecture' in arch_placeholder
     assert 'PLACEHOLDER' in arch_placeholder
-    assert 'ai3-diagrams-expert' in arch_placeholder
+    assert 'awslabs.aws-diagram-mcp-server' in arch_placeholder
 
     assert '## System Architecture' in overview_placeholder
     assert f'Project Type: {analysis.project_type}' in overview_placeholder
     assert 'Key Components: Frontend, Backend' in overview_placeholder
 
     assert '## Data Flow Diagram' in dataflow_placeholder
-    assert 'ai3-diagrams-expert' in dataflow_placeholder
+    assert 'awslabs.aws-diagram-mcp-server' in dataflow_placeholder

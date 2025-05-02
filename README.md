@@ -240,7 +240,7 @@ A server for researching Git repositories using semantic search.
 A server that automatically generates comprehensive documentation for code repositories.
 
 - Automated documentation generation based on repository analysis
-- AWS architecture diagram integration with ai3-diagrams-expert
+- AWS architecture diagram integration with AWS Diagrams MCP Server
 - Multiple document types (README, API, Backend, Frontend)
 - Interactive documentation creation workflow for AI assistants
 

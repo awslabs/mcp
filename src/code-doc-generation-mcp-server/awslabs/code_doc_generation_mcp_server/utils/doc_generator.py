@@ -108,46 +108,46 @@ class DocumentGenerator:
         return components
 
     def _generate_diagram_placeholder(self, diagram_type: str, analysis: ProjectAnalysis) -> str:
-        """Generate a placeholder for diagrams that will be created with ai3-diagrams-expert.
+        """Generate a placeholder for diagrams that will be created with AWS Diagram MCP Server.
 
-        This method creates a simple placeholder with instructions for Cline to replace it
-        with a proper diagram generated using the ai3-diagrams-expert MCP server.
+        This method creates a simple placeholder with instructions for the MCP client to replace it
+        with a proper diagram generated using the AWS Diagram MCP Server.
 
         Args:
             diagram_type: Type of diagram to generate ('architecture', 'overview', or 'dataflow')
             analysis: Project analysis data
 
         Returns:
-            Markdown placeholder with instructions for using ai3-diagrams-expert
+            Markdown placeholder with instructions for using AWS Diagram MCP Server
         """
         if diagram_type == 'architecture':
             return (
-                '<!-- PLACEHOLDER: Replace this with an AWS architecture diagram generated using ai3-diagrams-expert -->\n'
+                '<!-- PLACEHOLDER: Replace this with an AWS architecture diagram generated using AWS Diagram MCP Server -->\n'
                 '## AWS Architecture\n\n'
                 '```\n'
                 'This is a placeholder for the AWS architecture diagram.\n'
-                'Use the ai3-diagrams-expert MCP server to generate a proper AWS diagram showing:\n'
+                'Use the awslabs.aws-diagram-mcp-server to generate a proper AWS diagram showing:\n'
                 + self._get_component_summary(analysis)
                 + '```'
             )
         elif diagram_type == 'dataflow':
             return (
-                '<!-- PLACEHOLDER: Replace this with a data flow diagram generated using ai3-diagrams-expert -->\n'
+                '<!-- PLACEHOLDER: Replace this with a data flow diagram generated using AWS Diagram MCP Server -->\n'
                 '## Data Flow Diagram\n\n'
                 '```\n'
                 'This is a placeholder for the data flow diagram.\n'
-                'Use the ai3-diagrams-expert MCP server to generate a proper data flow diagram showing how data moves through the system.\n'
+                'Use the awslabs.aws-diagram-mcp-server to generate a proper data flow diagram showing how data moves through the system.\n'
                 + self._get_component_summary(analysis)
                 + '```'
             )
         else:  # overview
             return (
-                '<!-- PLACEHOLDER: Replace this with an AWS architecture diagram generated using ai3-diagrams-expert -->\n'
+                '<!-- PLACEHOLDER: Replace this with an AWS architecture diagram generated using AWS Diagram MCP Server -->\n'
                 '## System Architecture\n\n'
                 '```\n'
                 f'Project Type: {analysis.project_type}\n'
                 'Key Components: ' + ', '.join(self._get_key_components(analysis)) + '\n'
-                'Generate an AWS architecture diagram using ai3-diagrams-expert MCP server to visualize this structure.\n'
+                'Generate an AWS architecture diagram using awslabs.aws-diagram-mcp-server to visualize this structure.\n'
                 '```'
             )
 
@@ -168,25 +168,27 @@ class DocumentGenerator:
             if section.content:
                 content.append(f'{section.content}\n')
             else:
-                # Add prompt for Cline to fill this section
-                content.append('<!-- Cline: Write concise content for this section -->\n')
+                # Add prompt for MCP client to fill this section
+                content.append('<!-- MCP Client: Write concise content for this section -->\n')
 
             # Add subsections
             if section.subsections:
                 for subsection in section.subsections:
                     add_section(subsection, level + 1)
 
-        # Add header comment to remind Cline to fill content
+        # Add header comment to remind the MCP client to fill content
         content.append('<!--')
-        content.append('IMPORTANT: Cline, you must fill in the content for each section below!')
+        content.append(
+            'IMPORTANT: The MCP client must fill in the content for each section below!'
+        )
         content.append('1. Write concise content for each section')
         content.append('2. Do not leave any sections empty')
         content.append('3. Use your analysis to create accurate content')
         content.append(
-            '4. If relevant, use ai3-diagrams-expert to generate AWS architecture diagram in README.md'
+            '4. If relevant, use AWS Diagram MCP Server to generate AWS architecture diagram in README.md'
         )
         content.append(
-            '5. If relevant, use ai3-diagrams-expert to generate data flow chart in BACKEND.md'
+            '5. If relevant, use AWS Diagram MCP Server to generate data flow chart in BACKEND.md'
         )
         content.append('-->\n')
 
@@ -196,9 +198,9 @@ class DocumentGenerator:
             if doc_spec.name == 'README.md' and 'Architecture' in [
                 section.title for section in doc_spec.sections
             ]:
-                # Add detailed instructions for Cline to use ai3-diagrams-expert MCP server
+                # Add detailed instructions for MCP client to use AWS Diagram MCP Server
                 content.append(
-                    '<!-- Cline: Generate an AWS architecture diagram using ai3-diagrams-expert MCP server'
+                    '<!-- MCP Client: Generate an AWS architecture diagram using AWS Diagram MCP Server'
                 )
                 content.append(
                     'This should be an AWS architecture diagram showing the components and their relationships.'
@@ -220,7 +222,7 @@ class DocumentGenerator:
                 content.append('bedrock = Bedrock("Amazon Bedrock")')
                 content.append('')
                 content.append('# Get the current workspace directory')
-                content.append('workspace_dir = "/Users/jimini/Documents/PACE/ai3"')
+                content.append('workspace_dir = "project_directory"')
                 content.append('')
                 content.append('# Create an AWS architecture diagram')
                 content.append(
@@ -287,7 +289,7 @@ class DocumentGenerator:
                 content.append('    ui >> auth')
                 content.append('')
                 content.append(
-                    'After generating the AWS architecture diagram with the ai3-diagrams-expert MCP server, replace the image reference below with the path to the generated diagram.'
+                    'After generating the AWS architecture diagram with the AWS Diagram MCP Server, replace the image reference below with the path to the generated diagram.'
                 )
                 content.append('-->')
 
@@ -323,15 +325,15 @@ class DocumentGenerator:
                     heading = '#' * doc_spec.sections[data_flow_index].level
                     content.append(f'{heading} {doc_spec.sections[data_flow_index].title}\n')
 
-                    # Add detailed instructions for Cline to use ai3-diagrams-expert MCP server for data flow diagram
+                    # Add detailed instructions for MCP client to use AWS Diagram MCP Server for data flow diagram
                     content.append(
-                        '<!-- Cline: Generate a data flow diagram using ai3-diagrams-expert MCP server'
+                        '<!-- MCP Client: Generate a data flow diagram using AWS Diagram MCP Server'
                     )
                     content.append(
                         'This should be a diagram showing how data flows through the system components.'
                     )
                     content.append('# Get the current workspace directory')
-                    content.append('workspace_dir = "/Users/jimini/Documents/PACE/ai3"')
+                    content.append('workspace_dir = "project_directory"')
                     content.append('')
                     content.append('# Create a data flow diagram')
                     content.append(
@@ -384,7 +386,7 @@ class DocumentGenerator:
                     content.append('```')
                     content.append('')
                     content.append(
-                        'After generating the data flow diagram with the ai3-diagrams-expert MCP server, replace the image reference below with the path to the generated diagram.'
+                        'After generating the data flow diagram with the AWS Diagram MCP Server, replace the image reference below with the path to the generated diagram.'
                     )
                     content.append('-->')
 

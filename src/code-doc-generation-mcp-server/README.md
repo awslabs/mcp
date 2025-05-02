@@ -7,7 +7,7 @@ A Model Context Protocol (MCP) server that automatically generates comprehensive
 ## Features
 
 - **Automated Documentation Generation**: Creates comprehensive documentation based on repository analysis
-- **AWS Architecture Diagram Integration**: Automatically generates AWS architecture diagrams using ai3-diagrams-expert MCP server
+- **AWS Architecture Diagram Integration**: Automatically generates AWS architecture diagrams using AWS Diagrams MCP server
 - **Multiple Document Types**: Generates README, API, Backend, Frontend, and other specialized documentation
 - **Project Analysis**: Identifies project type, architecture, and key features
 - **Interactive Documentation Creation**: Guides AI assistants through repository analysis and documentation creation
@@ -131,7 +131,7 @@ The Code Documentation Generation MCP Server automates the creation of high-qual
 - **Repository Analysis**: Automatically analyzes project structure using repomix to understand code organization
 - **Project Context Creation**: Creates a documentation context that captures the essence of the project
 - **Documentation Planning**: Intelligently determines which documentation files are needed based on project type
-- **Documentation Generation**: Generates documentation templates with appropriate sections for Cline to fill with content
+- **Documentation Generation**: Generates documentation templates with appropriate sections for MCP Client to fill with content
 - **Architecture Diagram Integration**: Includes placeholders for architecture diagrams that can be visualized using the AWS Diagram MCP Server
 
 ## Tools
@@ -149,7 +149,7 @@ async def prepare_repository(
 
 This tool:
 1. Extracts directory structure from the repository
-2. Returns an EMPTY ProjectAnalysis for Cline to fill out
+2. Returns an EMPTY ProjectAnalysis for LLM to fill out
 3. Provides directory structure in file_structure["directory_structure"]
 
 ### Create Context
@@ -209,57 +209,8 @@ plan = await plan_documentation(doc_context=doc_context)
 documents = await generate_documentation(plan=plan, doc_context=doc_context)
 
 # Fill documentation with content
-# (Cline does this part based on the repository analysis)
+# (MCP Client does this part based on the repository analysis)
 ```
-
-## Requirements
-
-- Python 3.10+
-- repomix tool for repository analysis
-
-## TODOs (REMOVE AFTER COMPLETING)
-
-* [ ] Optionally add an ["RFC issue"](https://github.com/awslabs/mcp/issues) for the community to review
-* [x] Generate a `uv.lock` file with `uv sync` -> See [Getting Started](https://docs.astral.sh/uv/getting-started/)
-* [x] Remove the example tools in `./awslabs/code_doc_generation_mcp_server/server.py`
-* [x] Add your own tool(s) following the [DESIGN_GUIDELINES.md](https://github.com/awslabs/mcp/blob/main/DESIGN_GUIDELINES.md)
-* [x] Keep test coverage at or above the `main` branch - NOTE: GitHub Actions run this command for CodeCov metrics `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
-* [x] Document the MCP Server in this "README.md"
-* [x] Add a section for this code-doc-generation MCP Server at the top level of this repository "../../README.md"
-* [x] Create the "../../doc/servers/code-doc-generation-mcp-server.md" file with these contents:
-
-    ```markdown
-    ---
-    title: code-doc-generation MCP Server
-    ---
-
-    {% include "../../src/code-doc-generation-mcp-server/README.md" %}
-    ```
-  
-* [x] Reference within the "../../doc/index.md" like this:
-
-    ```markdown
-    ### code-doc-generation MCP Server
-    
-    An AWS Labs Model Context Protocol (MCP) server for code-doc-generation
-    
-    **Features:**
-    
-    - Repository analysis and structure extraction
-    - Documentation planning based on project type
-    - Documentation generation with appropriate templates
-    - Architecture diagram integration
-
-    The Code Documentation Generation MCP server helps Cline analyze code repositories and generate comprehensive documentation following best practices.
-    
-    [Learn more about the code-doc-generation MCP Server](servers/code-doc-generation-mcp-server.md)
-    ```
-
-* [ ] Submit a PR and pass all the checks
-
-## Contributing
-
-Contributions to the Code Documentation Generation MCP Server are welcome. Please follow the [contributing guidelines](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) in the main MCP repository.
 
 ## License
 

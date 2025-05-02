@@ -341,7 +341,7 @@ async def generate_documentation(
 
     Using your analysis and documentation plan:
     1. Generate document structures with empty sections
-    2. YOU (Cline) MUST then:
+    2. YOU (MCP Client) MUST then:
        - Write detailed content for each section
        - Include relevant code examples and explanations
        - Fill in ALL empty sections with comprehensive content
