@@ -26,44 +26,38 @@ if [ -z "$VIRTUAL_ENV" ]; then
     echo "Continuing without a virtual environment..."
     echo ""
 fi
-
+echo "Python executable: $(which python)"
 # Check if pytest and other dependencies are installed
 echo "Checking for required packages..."
 MISSING_PACKAGES=()
 
 # Check for pytest and related packages
-python -c "import pytest" 2>/dev/null
-if [ $? -ne 0 ]; then
+if ! python -c "import pytest" 2>/dev/null; then
     MISSING_PACKAGES+=("pytest pytest-asyncio pytest-cov")
 fi
 
 # Check for pydantic package
-python -c "import pydantic" 2>/dev/null
-if [ $? -ne 0 ]; then
+if ! python -c "import pydantic" 2>/dev/null; then
     MISSING_PACKAGES+=("pydantic")
 fi
 
 # Check for requests package
-python -c "import requests" 2>/dev/null
-if [ $? -ne 0 ]; then
+if ! python -c "import requests" 2>/dev/null; then
     MISSING_PACKAGES+=("requests")
 fi
 
 # Check for loguru package
-python -c "import loguru" 2>/dev/null
-if [ $? -ne 0 ]; then
+if ! python -c "import loguru" 2>/dev/null; then
     MISSING_PACKAGES+=("loguru")
 fi
 
 # Check for beautifulsoup4 package
-python -c "import bs4" 2>/dev/null
-if [ $? -ne 0 ]; then
+if ! python -c "import bs4" 2>/dev/null; then
     MISSING_PACKAGES+=("beautifulsoup4")
 fi
 
 # Check for checkov package
-python -c "import checkov" 2>/dev/null
-if [ $? -ne 0 ]; then
+if ! python -c "import checkov" 2>/dev/null; then
     MISSING_PACKAGES+=("checkov")
 fi
 
@@ -92,14 +86,12 @@ if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
     echo "Verifying package installations..."
     for pkg in "pytest" "pydantic" "requests" "loguru" "bs4" "checkov"; do
         echo "Checking for $pkg..."
-        python -c "import $pkg; print(f'$pkg installed successfully')" 2>/dev/null
-        if [ $? -ne 0 ]; then
+        if ! python -c "import $pkg; print(f'$pkg installed successfully')"; then
             echo "Failed to install $pkg. Trying to install it individually..."
             pip install $pkg -v || pip3 install $pkg -v || echo "Failed to install $pkg. Please install it manually."
 
             # Check again
-            python -c "import $pkg" 2>/dev/null
-            if [ $? -ne 0 ]; then
+            if ! python -c "import $pkg" 2>/dev/null; then
                 echo "Still failed to install $pkg. Please install it manually."
                 echo "You can try: pip install $pkg"
                 exit 1

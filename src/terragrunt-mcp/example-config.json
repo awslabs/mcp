@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "terragrunt-mcp": {
+      "command": "/Users/oferv/wix/mcp-servers/packages/terragrunt-mcp/.venv/bin/python",
+      "args": [
+        "/Users/oferv/wix/mcp-servers/packages/terragrunt-mcp/terragrunt-mcp.py"
+      ]
+    }
+  }
+}

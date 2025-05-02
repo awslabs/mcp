@@ -24,6 +24,7 @@ from awslabs.terraform_mcp_server.models import (
     TerraformExecutionResult,
     TerraformOutput,
     TerraformVariable,
+    TerragruntExecutionResult,
 )
 from awslabs.terraform_mcp_server.server import (
     main,
@@ -32,7 +33,6 @@ from awslabs.terraform_mcp_server.server import (
     terraform_awscc_provider_resources_listing,
 )
 from unittest.mock import MagicMock, patch
-
 
 class TestMCPServer:
     """Tests for the MCP server."""
@@ -371,6 +371,71 @@ class TestTools:
         assert request.module_url == 'terraform-aws-modules/vpc/aws'
         assert request.version == '3.14.0'
         assert request.variables == {'name': 'my-vpc'}
+
+    def test_execute_terragrunt_command_registration(self):
+        """Test that the execute_terragrunt_command tool is registered correctly."""
+        tool = mcp._tool_manager.get_tool('ExecuteTerragruntCommand')
+        assert tool is not None
+        assert tool.name == 'ExecuteTerragruntCommand'
+        assert 'Execute Terragrunt workflow commands' in tool.description
+
+        # Verify the tool exists
+        assert tool is not None
+        assert tool.name == 'ExecuteTerragruntCommand'
+        assert 'Execute Terragrunt workflow commands' in tool.description
+
+    @pytest.mark.asyncio
+    @patch('awslabs.terraform_mcp_server.server.execute_terragrunt_command_impl')
+    async def test_execute_terragrunt_command(self, mock_execute_terragrunt_command_impl):
+        """Test the execute_terragrunt_command function."""
+        from awslabs.terraform_mcp_server.server import execute_terragrunt_command
+
+        # Use a secure temporary directory path instead of hardcoded /tmp
+        temp_dir = os.path.join(tempfile.gettempdir(), 'terragrunt_test_dir')
+
+        # Setup mock
+        mock_result = TerragruntExecutionResult(
+            command='init',
+            status='success',
+            return_code=0,
+            stdout='Terragrunt initialized',
+            stderr='',
+            working_directory=temp_dir,
+            error_message=None,
+            outputs=None,
+            affected_dirs=None,
+        )
+        mock_execute_terragrunt_command_impl.return_value = mock_result
+
+        # Call the function
+        result = await execute_terragrunt_command(
+            command='init',
+            working_directory=temp_dir,
+            variables={'foo': 'bar'},
+            aws_region='us-west-2',
+            strip_ansi=True,
+            include_dirs=['/path/to/module1'],
+            exclude_dirs=['/path/to/excluded'],
+            run_all=False,
+            terragrunt_config='custom-terragrunt.hcl',
+        )
+
+        # Verify the result
+        assert result == mock_result
+
+        # Verify the mock was called with the correct arguments
+        mock_execute_terragrunt_command_impl.assert_called_once()
+        args, _ = mock_execute_terragrunt_command_impl.call_args
+        request = args[0]
+        assert request.command == 'init'
+        assert request.working_directory == temp_dir
+        assert request.variables == {'foo': 'bar'}
+        assert request.aws_region == 'us-west-2'
+        assert request.strip_ansi is True
+        assert request.include_dirs == ['/path/to/module1']
+        assert request.exclude_dirs == ['/path/to/excluded']
+        assert request.run_all is False
+        assert request.terragrunt_config == 'custom-terragrunt.hcl'
 
 
 class TestResources:

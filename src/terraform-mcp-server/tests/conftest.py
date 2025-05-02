@@ -368,3 +368,84 @@ def mock_aws_ia_modules():
             'submodules': [],
         },
     ]
+
+
+@pytest.fixture
+def mock_terragrunt_command_output():
+    """Create mock output for Terragrunt commands."""
+    return {
+        'init': {
+            'success': {
+                'returncode': 0,
+                'stdout': 'Terragrunt has been successfully initialized!',
+                'stderr': '',
+            },
+            'error': {'returncode': 1, 'stdout': '', 'stderr': 'Error: Could not load plugin'},
+        },
+        'plan': {
+            'success': {
+                'returncode': 0,
+                'stdout': 'Plan: 3 to add, 1 to change, 2 to destroy.',
+                'stderr': '',
+            },
+            'error': {
+                'returncode': 1,
+                'stdout': '',
+                'stderr': 'Error: No configuration files found!',
+            },
+        },
+        'apply': {
+            'success': {
+                'returncode': 0,
+                'stdout': 'Apply complete! Resources: 3 added, 1 changed, 2 destroyed.',
+                'stderr': '',
+            },
+            'error': {'returncode': 1, 'stdout': '', 'stderr': 'Error: Could not load backend'},
+        },
+        'destroy': {
+            'success': {
+                'returncode': 0,
+                'stdout': 'Destroy complete! Resources: 6 destroyed.',
+                'stderr': '',
+            },
+            'error': {'returncode': 1, 'stdout': '', 'stderr': 'Error: Could not read state file'},
+        },
+        'validate': {
+            'success': {
+                'returncode': 0,
+                'stdout': 'Success! The configuration is valid.',
+                'stderr': '',
+            },
+            'error': {'returncode': 1, 'stdout': '', 'stderr': 'Error: Invalid resource name'},
+        },
+        'output': {
+            'success': {
+                'returncode': 0,
+                'stdout': json.dumps(
+                    {
+                        'instance_id': {'value': 'i-1234567890abcdef0', 'type': 'string'},
+                        'vpc_id': {'value': 'vpc-1234567890abcdef0', 'type': 'string'},
+                    }
+                ),
+                'stderr': '',
+            },
+            'error': {'returncode': 1, 'stdout': '', 'stderr': 'Error: No outputs found'},
+        },
+        'run-all': {
+            'success': {
+                'returncode': 0,
+                'stdout': 'Terragrunt will run the following modules:\n'
+                'Module at "/path/to/module1"\n'
+                'Module at "/path/to/module2"\n\n'
+                'Are you sure you want to run \'terragrunt apply\' in each module? (y/n)\n'
+                'Running \'terragrunt apply\' in Module at "/path/to/module1"...\n'
+                'Running \'terragrunt apply\' in Module at "/path/to/module2"...\n',
+                'stderr': '',
+            },
+            'error': {
+                'returncode': 1,
+                'stdout': '',
+                'stderr': 'Error: No terragrunt.hcl files found',
+            },
+        },
+    }

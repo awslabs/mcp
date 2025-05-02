@@ -16,6 +16,13 @@ from awslabs.terraform_mcp_server.models import (
 from unittest.mock import MagicMock, patch
 
 
+from awslabs.terraform_mcp_server.impl.tools.execute_terragrunt_command import (
+    execute_terragrunt_command_impl,
+)
+from awslabs.terraform_mcp_server.models import (
+    TerragruntExecutionRequest,
+    TerragruntExecutionResult,
+)
 pytestmark = pytest.mark.asyncio
 
 
@@ -464,3 +471,67 @@ async def test_run_checkov_scan_checkov_not_installed(temp_terraform_dir):
             result.error_message is not None
             and 'Failed to install Checkov' in result.error_message
         )
+
+
+@pytest.mark.asyncio
+async def test_execute_terragrunt_command_success(temp_terraform_dir):
+    """Test the Terragrunt command execution function with successful mocks."""
+    # Create a mock subprocess.run result
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = 'Terragrunt initialized successfully!'
+    mock_result.stderr = ''
+
+    # Create the request
+    request = TerragruntExecutionRequest(
+        command='init',
+        working_directory=temp_terraform_dir,
+        variables={'environment': 'test'},
+        aws_region='us-west-2',
+        strip_ansi=True,
+    )
+
+    # Mock subprocess.run
+    with patch('subprocess.run', return_value=mock_result):
+        # Call the function
+        result = await execute_terragrunt_command_impl(request)
+
+    # Check the result
+    assert result is not None
+    assert result.status == 'success'
+    assert result.return_code == 0
+    assert result.stdout is not None and 'Terragrunt initialized successfully!' in result.stdout
+    assert result.stderr == ''
+    assert result.command == 'terragrunt init'
+    assert result.working_directory == temp_terraform_dir
+
+
+@pytest.mark.asyncio
+async def test_execute_terragrunt_command_error(temp_terraform_dir):
+    """Test the Terragrunt command execution function with error mocks."""
+    # Create a mock subprocess.run result
+    mock_result = MagicMock()
+    mock_result.returncode = 1
+    mock_result.stdout = 'Error running terragrunt'
+    mock_result.stderr = 'Failed to initialize terragrunt'
+
+    # Create the request
+    request = TerragruntExecutionRequest(
+        command='init',
+        working_directory=temp_terraform_dir,
+        variables={'environment': 'test'},
+        aws_region='us-west-2',
+        strip_ansi=True,
+    )
+
+    # Mock subprocess.run
+    with patch('subprocess.run', return_value=mock_result):
+        # Call the function
+        result = await execute_terragrunt_command_impl(request)
+
+    # Check the result
+    assert result is not None
+    assert result.status == 'error'
+    assert result.return_code == 1
+    assert result.stdout is not None and 'Error running terragrunt' in result.stdout
+    assert 'Failed to initialize terragrunt' in result.stderr

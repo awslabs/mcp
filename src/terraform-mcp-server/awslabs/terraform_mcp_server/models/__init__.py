@@ -5,6 +5,8 @@ from .models import (
     SubmoduleInfo,
     TerraformExecutionRequest,
     TerraformExecutionResult,
+    TerragruntExecutionRequest,
+    TerragruntExecutionResult,
     CheckovVulnerability,
     CheckovScanRequest,
     CheckovScanResult,
@@ -13,7 +15,6 @@ from .models import (
     SearchUserProvidedModuleRequest,
     SearchUserProvidedModuleResult,
 )
-
 __all__ = [
     'ModuleSearchResult',
     'TerraformAWSProviderDocsResult',
@@ -21,6 +22,8 @@ __all__ = [
     'SubmoduleInfo',
     'TerraformExecutionRequest',
     'TerraformExecutionResult',
+    'TerragruntExecutionRequest',
+    'TerragruntExecutionResult',
     'CheckovVulnerability',
     'CheckovScanRequest',
     'CheckovScanResult',

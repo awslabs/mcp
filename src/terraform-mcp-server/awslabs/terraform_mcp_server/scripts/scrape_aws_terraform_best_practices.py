@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 # URL to the PDF
-PDF_URL = 'https://docs.aws.amazon.com/pdfs/prescriptive-guidance/latest/terraform-aws-provider-best-practices/terraform-aws-provider-best-practices.pdf'
+PDF_URL = 'https://docs.aws.amazon.com/pdf      s/prescriptive-guidance/latest/terraform-aws-provider-best-practices/terraform-aws-provider-best-practices.pdf'
 
 # Output file path
 OUTPUT_DIR = Path(__file__).parent.parent / 'static'
