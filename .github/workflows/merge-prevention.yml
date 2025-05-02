@@ -1,0 +1,27 @@
+---
+# This workflow is to prevent unintentional merges that cannot be accomplished by rulesets.
+name: Merge Prevention
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - labeled
+      - unlabeled
+
+permissions: {}
+
+env:
+  DO_NOT_MERGE_LABEL: "hold-merging"
+
+jobs:
+  fail-by-label:
+    if: contains(github.event.pull_request.labels.*.name, '${{ env.DO_NOT_MERGE_LABEL }}')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if PR is labeled with "${{ env.DO_NOT_MERGE_LABEL }}"
+        run: |
+          echo "The label \"${{ env.DO_NOT_MERGE_LABEL }}\" is used to prevent merging. When removed, this job should succeeding."
+          exit 1
