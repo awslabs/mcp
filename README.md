@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/awslabs-nova-canvas-mcp-server-badge.png)](https://mseep.ai/app/awslabs-nova-canvas-mcp-server)
+
 # AWS MCP Servers
 
 A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
