@@ -25,6 +25,7 @@ jobs:
         id: fail-by-label
         if: contains(github.event.pull_request.labels.*.name, '${{ env.DO_NOT_MERGE_LABEL }}')
         run: |
-          echo "${{ toJson(github.event.pull_request.labels) }}"
+          echo "${{ toJson(github.event.pull_request.labels.*.name) }}"
+          echo "${{ contains(github.event.pull_request.labels.*.name, '${{ env.DO_NOT_MERGE_LABEL }}') }}"
           echo "The label \"${{ env.DO_NOT_MERGE_LABEL }}\" is used to prevent merging. When removed, this step will be skipped."
           exit 1
