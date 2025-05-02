@@ -317,7 +317,11 @@ async def fetch_awscc_provider_page():
 
             # Save HTML for debugging using tempfile for security
             with tempfile.NamedTemporaryFile(
-                prefix='terraform_awscc_debug_playwright_', suffix='.html', mode='w', delete=False
+                prefix='terraform_awscc_debug_playwright_',
+                suffix='.html',
+                mode='w',
+                encoding='utf-8',
+                delete=False,
             ) as temp_file:
                 temp_file.write(content)
                 debug_file_path = temp_file.name
@@ -1004,7 +1008,7 @@ async def main():
         args.output.parent.mkdir(parents=True, exist_ok=True)
 
         # Write markdown to output file
-        with open(args.output, 'w') as f:
+        with open(args.output, 'w', encoding='utf-8') as f:
             f.write('\n'.join(markdown))
 
         print(f'Successfully generated markdown file at: {args.output}')

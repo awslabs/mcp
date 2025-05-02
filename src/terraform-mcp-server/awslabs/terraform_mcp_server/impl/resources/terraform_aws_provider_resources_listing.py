@@ -39,7 +39,7 @@ async def terraform_aws_provider_assets_listing_impl() -> str:
         # Check if the static file exists
         if STATIC_RESOURCES_PATH.exists():
             # Read the static file content
-            with open(STATIC_RESOURCES_PATH, 'r') as f:
+            with open(STATIC_RESOURCES_PATH, 'r', encoding='utf-8') as f:
                 content = f.read()
             logger.info('Successfully loaded AWS Provider asset list')
             return content
