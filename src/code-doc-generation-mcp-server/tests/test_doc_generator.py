@@ -256,7 +256,7 @@ def test_get_key_components():
         primary_languages=[],
         frontend={'framework': 'React'},
         backend={'framework': 'Express'},
-        apis={'type': 'REST'},
+        apis={'type': {'name': 'REST'}}  # Fixed: apis should be Dict[str, Dict[str, Any]]
     )
 
     # Act

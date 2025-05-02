@@ -115,16 +115,115 @@ This MCP server is designed to work seamlessly with:
 - **AWS CDK MCP Server**: For documenting CDK infrastructure code
 - **AWS Documentation MCP Server**: For incorporating AWS best practices
 
-## TODO (REMOVE AFTER COMPLETING)
+# Code Documentation Generation MCP Server
+
+An AWS Labs Model Context Protocol (MCP) server that helps generate comprehensive documentation for code repositories.
+
+## Overview
+
+The Code Documentation Generation MCP Server automates the creation of high-quality technical documentation for software projects. It analyzes repository structure, code organization, and key components to produce well-structured documentation that follows best practices.
+
+## Features
+
+- **Repository Analysis**: Automatically analyzes project structure using repomix to understand code organization
+- **Project Context Creation**: Creates a documentation context that captures the essence of the project
+- **Documentation Planning**: Intelligently determines which documentation files are needed based on project type
+- **Documentation Generation**: Generates documentation templates with appropriate sections for Cline to fill with content
+- **Architecture Diagram Integration**: Includes placeholders for architecture diagrams that can be visualized using the AWS Diagram MCP Server
+
+## Tools
+
+### Prepare Repository
+
+Prepares the repository for documentation by extracting directory structure:
+
+```python
+async def prepare_repository(
+    project_root: str = Field(..., description='Path to the code repository'),
+    ctx: Context = None,
+) -> ProjectAnalysis
+```
+
+This tool:
+1. Extracts directory structure from the repository
+2. Returns an EMPTY ProjectAnalysis for Cline to fill out
+3. Provides directory structure in file_structure["directory_structure"]
+
+### Create Context
+
+Creates a documentation context from project analysis:
+
+```python
+async def create_context(
+    project_root: str = Field(..., description='Path to the code repository'),
+    analysis_result: ProjectAnalysis = Field(..., description='Analysis result from prepare_repository'),
+    ctx: Context = None,
+) -> DocumentationContext
+```
+
+This creates a DocumentationContext object with project information and analysis results.
+
+### Plan Documentation
+
+Creates a documentation plan based on analysis:
+
+```python
+async def plan_documentation(
+    doc_context: DocumentationContext,
+    ctx: Context,
+) -> DocumentationPlan
+```
+
+Using the analysis, this determines what documentation types are needed and creates an appropriate documentation structure.
+
+### Generate Documentation
+
+Generates documentation content based on the plan:
+
+```python
+async def generate_documentation(
+    plan: DocumentationPlan,
+    doc_context: DocumentationContext,
+    ctx: Context,
+) -> List[GeneratedDocument]
+```
+
+This generates document structures with empty sections for Cline to fill with content.
+
+## Usage
+
+```python
+# Prepare the repository
+analysis = await prepare_repository(project_root='/path/to/repository')
+
+# Create documentation context
+doc_context = await create_context(project_root='/path/to/repository', analysis_result=analysis)
+
+# Plan documentation
+plan = await plan_documentation(doc_context=doc_context)
+
+# Generate documentation
+documents = await generate_documentation(plan=plan, doc_context=doc_context)
+
+# Fill documentation with content
+# (Cline does this part based on the repository analysis)
+```
+
+## Requirements
+
+- Python 3.10+
+- repomix tool for repository analysis
+
+## TODOs (REMOVE AFTER COMPLETING)
 
 * [ ] Optionally add an ["RFC issue"](https://github.com/awslabs/mcp/issues) for the community to review
-* [ ] Generate a `uv.lock` file with `uv sync` -> See [Getting Started](https://docs.astral.sh/uv/getting-started/)
-* [ ] Remove the example tools in `./awslabs/code_doc_generation_mcp_server/server.py`
-* [ ] Add your own tool(s) following the [DESIGN_GUIDELINES.md](https://github.com/awslabs/mcp/blob/main/DESIGN_GUIDELINES.md)
-* [ ] Keep test coverage at or above the `main` branch - NOTE: GitHub Actions run this command for CodeCov metrics `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
-* [ ] Document the MCP Server in this "README.md"
-* [ ] Add a section for this code-doc-generation MCP Server at the top level of this repository "../../README.md"
-* [ ] Create the "../../doc/servers/code-doc-generation-mcp-server.md" file with these contents:
+* [x] Generate a `uv.lock` file with `uv sync` -> See [Getting Started](https://docs.astral.sh/uv/getting-started/)
+* [x] Remove the example tools in `./awslabs/code_doc_generation_mcp_server/server.py`
+* [x] Add your own tool(s) following the [DESIGN_GUIDELINES.md](https://github.com/awslabs/mcp/blob/main/DESIGN_GUIDELINES.md)
+* [x] Keep test coverage at or above the `main` branch - NOTE: GitHub Actions run this command for CodeCov metrics `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
+* [x] Document the MCP Server in this "README.md"
+* [x] Add a section for this code-doc-generation MCP Server at the top level of this repository "../../README.md"
+* [x] Create the "../../doc/servers/code-doc-generation-mcp-server.md" file with these contents:
 
     ```markdown
     ---
@@ -133,23 +232,32 @@ This MCP server is designed to work seamlessly with:
 
     {% include "../../src/code-doc-generation-mcp-server/README.md" %}
     ```
-
-* [ ] Reference within the "../../doc/index.md" like this:
+  
+* [x] Reference within the "../../doc/index.md" like this:
 
     ```markdown
     ### code-doc-generation MCP Server
-
+    
     An AWS Labs Model Context Protocol (MCP) server for code-doc-generation
-
+    
     **Features:**
+    
+    - Repository analysis and structure extraction
+    - Documentation planning based on project type
+    - Documentation generation with appropriate templates
+    - Architecture diagram integration
 
-    - Feature one
-    - Feature two
-    - ...
-
-    Instructions for using this code-doc-generation MCP server. This can be used by clients to improve the LLM's understanding of available tools, resources, etc. It can be thought of like a 'hint' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.
-
+    The Code Documentation Generation MCP server helps Cline analyze code repositories and generate comprehensive documentation following best practices.
+    
     [Learn more about the code-doc-generation MCP Server](servers/code-doc-generation-mcp-server.md)
     ```
 
 * [ ] Submit a PR and pass all the checks
+
+## Contributing
+
+Contributions to the Code Documentation Generation MCP Server are welcome. Please follow the [contributing guidelines](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) in the main MCP repository.
+
+## License
+
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.

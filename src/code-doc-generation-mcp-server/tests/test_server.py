@@ -36,10 +36,13 @@ async def test_prepare_repository(mock_repomix_manager):
     """Test the prepare_repository function correctly processes the repository and returns a ProjectAnalysis."""
     # Arrange
     mock_instance = mock_repomix_manager.return_value
-    mock_instance.prepare_repository.return_value = {
+    # Create an async mock that can be awaited
+    mock_prepare = AsyncMock()
+    mock_prepare.return_value = {
         'project_info': {'name': 'test-project', 'path': '/path/to/repo'},
         'directory_structure': '# Project Structure\n- file1.py\n- file2.py',
     }
+    mock_instance.prepare_repository = mock_prepare
 
     mock_analyze = AsyncMock()
     mock_analyze.return_value = {
@@ -65,7 +68,8 @@ async def test_prepare_repository(mock_repomix_manager):
             result.file_structure['directory_structure']
             == '# Project Structure\n- file1.py\n- file2.py'
         )
-        assert mock_instance.prepare_repository.called_once_with(
+        # Fix warning by using assert_called_once_with instead of called_once_with
+        mock_instance.prepare_repository.assert_called_once_with(
             test_project_path, Path(test_project_path) / 'generated-docs', ctx
         )
 
@@ -152,23 +156,31 @@ async def test_create_context():
 async def test_plan_documentation(mock_create_doc, mock_get_template):
     """Test the plan_documentation function creates the right plan based on analysis."""
     # Arrange
+    from awslabs.code_doc_generation_mcp_server.utils.models import DocumentSection, DocumentSpec
+    
+    # Create proper DocumentSpec objects instead of MagicMock
     mock_get_template.side_effect = lambda name: name.upper().replace('.MD', '')
-    mock_create_doc.side_effect = lambda template, name: MagicMock(name=name, type=template)
+    mock_create_doc.side_effect = lambda template, name: DocumentSpec(
+        name=name,
+        type=template,
+        template=template,
+        sections=[DocumentSection(title=f"{template} Section", content="", level=1)]
+    )
 
     ctx = MagicMock()
     doc_context = DocumentationContext(
         project_name='test-project',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
-        analysis_result=ProjectAnalysis(
-            project_type='Web Application',
-            features=['Feature 1', 'Feature 2'],
-            file_structure={'root': ['/path/to/repo'], 'backend': ['src/api']},
-            dependencies={'react': '^18.2.0'},
-            primary_languages=['JavaScript', 'TypeScript'],
-            backend={'framework': 'Express'},
-            apis={'endpoints': ['/api/users']},
-        ),
+            analysis_result=ProjectAnalysis(
+                project_type='Web Application',
+                features=['Feature 1', 'Feature 2'],
+                file_structure={'root': ['/path/to/repo'], 'backend': ['src/api']},
+                dependencies={'react': '^18.2.0'},
+                primary_languages=['JavaScript', 'TypeScript'],
+                backend={'framework': 'Express'},
+                apis={'endpoints': {'paths': ['/api/users']}},  # Fixed: apis should be Dict[str, Dict[str, Any]]
+            ),
     )
 
     # Act
@@ -189,16 +201,34 @@ async def test_generate_documentation(mock_doc_generator_class):
     """Test the generate_documentation function properly delegates to DocumentGenerator."""
     # Arrange
     mock_doc_generator = mock_doc_generator_class.return_value
-    mock_doc_generator.generate_docs.return_value = [
+    mock_generator_docs = AsyncMock()
+    mock_generator_docs.return_value = [
         '/path/to/repo/generated-docs/README.md',
         '/path/to/repo/generated-docs/BACKEND.md',
     ]
+    mock_doc_generator.generate_docs = mock_generator_docs
 
+    # Create proper DocumentSpec objects instead of MagicMock
+    from awslabs.code_doc_generation_mcp_server.utils.models import DocumentSection, DocumentSpec
+    
     plan = DocumentationPlan(
         structure=DocStructure(
             root_doc='README.md', doc_tree={'root': ['README.md', 'BACKEND.md']}
         ),
-        docs_outline=[MagicMock(name='README.md'), MagicMock(name='BACKEND.md')],
+        docs_outline=[
+            DocumentSpec(
+                name='README.md',
+                type='README',
+                template='README',
+                sections=[DocumentSection(title='Overview', content='', level=1)]
+            ),
+            DocumentSpec(
+                name='BACKEND.md',
+                type='BACKEND',
+                template='BACKEND',
+                sections=[DocumentSection(title='Backend', content='', level=1)]
+            )
+        ],
     )
 
     doc_context = DocumentationContext(
@@ -226,4 +256,5 @@ async def test_generate_documentation(mock_doc_generator_class):
     assert result[0].type == 'readme'
     assert result[1].path == '/path/to/repo/generated-docs/BACKEND.md'
     assert result[1].type == 'docs'
-    assert mock_doc_generator.generate_docs.called_once_with(plan, doc_context)
+    # Fix warning by using assert_called_once_with instead of called_once_with
+    mock_doc_generator.generate_docs.assert_called_once_with(plan, doc_context)
