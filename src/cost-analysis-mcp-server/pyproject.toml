@@ -110,7 +110,7 @@ update_changelog_on_bump = true
 packages = ["awslabs"]
 
 [tool.pytest.ini_options]
-addopts = "--cov=awslabs.core_mcp_server --cov-report=term-missing"
+addopts = "--cov=awslabs.cost_analysis_mcp_server --cov-report=term-missing"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]

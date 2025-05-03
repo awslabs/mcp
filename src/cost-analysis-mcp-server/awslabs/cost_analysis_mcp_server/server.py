@@ -20,6 +20,7 @@ import logging
 import os
 from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
 from awslabs.cost_analysis_mcp_server.static.patterns import BEDROCK
+from awslabs.cost_analysis_mcp_server.terraform_analyzer import analyze_terraform_project
 from bs4 import BeautifulSoup
 from httpx import AsyncClient
 from mcp.server.fastmcp import Context, FastMCP
@@ -113,6 +114,38 @@ async def analyze_cdk_project_wrapper(project_path: str, ctx: Context) -> Option
             }
     except Exception as e:
         await ctx.error(f'Failed to analyze CDK project: {e}')
+        return None
+
+
+@mcp.tool(
+    name='analyze_terraform_project',
+    description='Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
+)
+async def analyze_terraform_project_wrapper(project_path: str, ctx: Context) -> Optional[Dict]:
+    """Analyze a Terraform project to identify AWS services.
+
+    Args:
+        project_path: The path to the Terraform project
+        ctx: MCP context for logging and state management
+
+    Returns:
+        Dictionary containing the identified services and their configurations
+    """
+    try:
+        analysis_result = await analyze_terraform_project(project_path)
+        logger.info(f'Analysis result: {analysis_result}')
+        if analysis_result and 'services' in analysis_result:
+            return analysis_result
+        else:
+            logger.error(f'Invalid analysis result format: {analysis_result}')
+            return {
+                'status': 'error',
+                'services': [],
+                'message': f'Failed to analyze Terraform project at {project_path}: Invalid result format',
+                'details': {'error': 'Invalid result format'},
+            }
+    except Exception as e:
+        await ctx.error(f'Failed to analyze Terraform project: {e}')
         return None
 
 
