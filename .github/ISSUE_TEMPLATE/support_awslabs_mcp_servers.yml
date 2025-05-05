@@ -60,6 +60,16 @@ body:
           required: false
         - label: cdk-mcp-server
           required: false
+        - label: terraform-mcp-server
+          required: false
+        - label: aws-diagram-mcp-server
+          required: false
+        - label: aws-documentation-mcp-server
+          required: false
+        - label: git-repo-research-msp-server
+          required: false
+        - label: lambda-mcp-server
+          required: false
   - type: markdown
     attributes:
       value: |
