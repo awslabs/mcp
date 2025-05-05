@@ -73,16 +73,16 @@ body:
       label: Server
       multiple: true
       options:
-        - core-mcp-server
-        - nova-canvas-mcp-server
-        - bedrock-kb-retrieval-mcp-server
-        - cost-analysis-mcp-server
-        - cdk-mcp-server
-        - terraform-mcp-server
         - aws-diagram-mcp-server
         - aws-documentation-mcp-server
+        - bedrock-kb-retrieval-mcp-server
+        - cdk-mcp-server
+        - core-mcp-server
+        - cost-analysis-mcp-server
         - git-repo-research-msp-server
         - lambda-mcp-server
+        - nova-canvas-mcp-server
+        - terraform-mcp-server
     validations:
       required: true
 
