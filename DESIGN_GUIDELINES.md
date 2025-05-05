@@ -31,6 +31,7 @@ This document outlines the design guidelines and best practices for developing M
     - [Controlled Execution Environments](#controlled-execution-environments)
     - [Timeouts for Long-Running Operations](#timeouts-for-long-running-operations)
     - [Explicit Allowlists](#explicit-allowlists)
+    - [Server-Sent Events (SSE) Security Considerations](#server-sent-events-sse-security-considerations)
   - [Logging with Loguru](#logging-with-loguru)
     - [Logging Guidelines](#logging-guidelines)
   - [Authentication to AWS Services](#authentication-to-aws-services)
@@ -795,6 +796,36 @@ Allowlist implementation best practices:
    - Document allowlists in code and external documentation
    - Explain the security model to users
    - Provide examples of permissible and non-permissible operations
+
+### Server-Sent Events (SSE) Security Considerations
+
+When implementing SSE transport in MCP servers, developers must be aware of potential DNS rebinding attacks:
+
+1. **DNS Rebinding Risk**:
+   - SSE connections can be vulnerable to DNS rebinding attacks
+   - Attackers can manipulate DNS responses to redirect connections to malicious servers
+   - This can lead to unauthorized access to local services
+
+2. **Mitigation Strategies**:
+   - Implement strict CORS policies
+   - Use secure cookie settings
+   - Validate Origin headers
+   - Consider implementing additional authentication layers
+
+3. **Additional Security Measures**:
+   - Implement rate limiting for SSE connections
+   - Use secure session management
+   - Monitor for unusual connection patterns
+   - Consider implementing connection timeouts
+   - Log security-relevant events
+
+4. **Documentation Requirements**:
+   - Clearly document SSE security considerations in README
+   - Provide configuration examples for secure deployment
+   - Include security best practices for SSE usage
+   - Document any known limitations or risks
+
+More information available [here](https://modelcontextprotocol.io/docs/concepts/transports#security-warning%3A-dns-rebinding-attacks)
 
 ## Logging with Loguru
 

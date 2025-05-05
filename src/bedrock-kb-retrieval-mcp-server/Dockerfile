@@ -27,10 +27,11 @@ ENV UV_PYTHON_PREFERENCE=only-system
 # Run without updating the uv.lock file like running with `--frozen`
 ENV UV_FROZEN=true
 
+# Copy the required files first
+COPY pyproject.toml uv.lock ./
+
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     pip install uv && \
     uv sync --frozen --no-install-project --no-dev --no-editable
 

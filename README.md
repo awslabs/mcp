@@ -29,6 +29,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - Getting Started with Q Developer - Coming Soon
 - [Samples](#samples)
 - [Documentation](#documentation)
+- [Vibe coding](#vibe-coding)
 - [Additional Resources](#additional-resources)
 - [Security](#security)
 - [Contributing](#contributing)
@@ -183,7 +184,7 @@ A server for AWS Terraform best practices.
 
 ### Use Cases for the Servers
 
-For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What are my top 3 AWS services by cost last month?" or "How can I reduce my EC2 costs?" and receive detailed insights and actionable recommendations.
+For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What would be the estimated monthly cost for this CDK project before I deploy it?" or "Can you help me understand the potential AWS service expenses for this infrastructure design?" and receive detailed cost estimations and budget planning insights.
 
 ## Installation and Setup
 
@@ -275,6 +276,13 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 ```
 
 See individual server READMEs for specific requirements and configuration options.
+
+**Note about performance when using `uvx` _"@latest"_ suffix:**
+
+Using the _"@latest"_ suffix checks and downloads the latest MCP server package from pypi every time you start your MCP clients, but it comes with a cost of increased initial load times. If you want to minimize the initial load time, remove _"@latest"_ and manage your uv cache yourself using one of these approaches:
+
+ - `uv cache clean <tool>`: where {tool} is the mcp server you want to delete from cache and install again (e.g.: "awslabs.lambda-mcp-server") (remember to remove the '<>').
+ - `uvx <tool>@latest`: this will refresh the tool with the latest version and add it to the uv cache.
 
 ### Running MCP servers in containers
 
@@ -569,6 +577,10 @@ Documentation includes:
 - Installation and configuration instructions
 - API references
 - Usage examples
+
+## Vibe coding
+
+You can use these MCP servers with your AI coding assistant to [vibe code](https://en.wikipedia.org/wiki/Vibe_coding). For tips and tricks on how to improve your vibe coding experience, please refer to our [guide](./VIBE_CODING_TIPS_TRICKS.md).
 
 ## Additional Resources
 

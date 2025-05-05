@@ -41,14 +41,15 @@ mcp.resource('lambda-powertools://')(resources.get_lambda_powertools_index)
 mcp.resource('aws-solutions-constructs://{pattern_name}')(
     resources.get_solutions_construct_pattern_resource
 )
+# Fixed the ordering - more specific routes first
+mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}/sections')(
+    resources.get_available_sections_resource
+)
 mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}/{section}')(
     resources.get_genai_cdk_construct_section_resource
 )
 mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}/{parent}/{child}')(
     resources.get_genai_cdk_construct_nested_section_resource
-)
-mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}/sections')(
-    resources.get_available_sections_resource
 )
 mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}')(
     resources.get_genai_cdk_construct_resource
