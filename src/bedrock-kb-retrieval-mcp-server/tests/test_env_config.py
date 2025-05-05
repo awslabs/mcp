@@ -14,14 +14,11 @@
 import importlib
 import os
 import pytest
-from pydantic import Field
-from unittest.mock import ANY, patch
+from unittest.mock import patch
 
 
 def create_mock_query_knowledge_base(return_value='test result'):
-    """
-    Create a proper mock for query_knowledge_base that accepts Field objects.
-    """
+    """Create a proper mock for query_knowledge_base that accepts Field objects."""
 
     async def mock_function(*args, **kwargs):
         return return_value
@@ -150,7 +147,7 @@ class TestEnvironmentVariableConfig:
         from awslabs.bedrock_kb_retrieval_mcp_server.server import query_knowledge_bases_tool
 
         # Call the tool - this will use our mock function
-        result = await query_knowledge_bases_tool(
+        await query_knowledge_bases_tool(
             query='test query',
             knowledge_base_id='kb-12345',
         )
@@ -177,7 +174,7 @@ class TestEnvironmentVariableConfig:
         from awslabs.bedrock_kb_retrieval_mcp_server.server import query_knowledge_bases_tool
 
         # Call the tool again
-        result = await query_knowledge_bases_tool(
+        await query_knowledge_bases_tool(
             query='test query',
             knowledge_base_id='kb-12345',
         )
@@ -211,7 +208,7 @@ class TestEnvironmentVariableConfig:
         assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_reranking_enabled is False
 
         # Call the tool with reranking explicitly set to True
-        result = await query_knowledge_bases_tool(
+        await query_knowledge_bases_tool(
             query='test query',
             knowledge_base_id='kb-12345',
             reranking=True,  # This should override the environment setting
@@ -238,7 +235,7 @@ class TestEnvironmentVariableConfig:
         assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_reranking_enabled is True
 
         # Call the tool with reranking explicitly set to False
-        result = await query_knowledge_bases_tool(
+        await query_knowledge_bases_tool(
             query='test query',
             knowledge_base_id='kb-12345',
             reranking=False,  # This should override the environment setting

@@ -98,10 +98,12 @@ async def query_knowledge_base(
             logger.warning('Images are not supported at this time. Skipping...')
             continue
         else:
-            documents.append({
-                'content': result['content'],
-                'location': result.get('location', ''),
-                'score': result.get('score', ''),
-            })
+            documents.append(
+                {
+                    'content': result['content'],
+                    'location': result.get('location', ''),
+                    'score': result.get('score', ''),
+                }
+            )
 
     return '\n\n'.join([json.dumps(document) for document in documents])
