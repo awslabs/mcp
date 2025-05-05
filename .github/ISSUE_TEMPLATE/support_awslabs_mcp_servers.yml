@@ -50,15 +50,25 @@ body:
     attributes:
       label: What servers are you using from Awslabs MCP Servers?
       options:
-        - label: core-mcp-server
+        - label: aws-diagram-mcp-server
           required: false
-        - label: nova-canvas-mcp-server
+        - label: aws-documentation-mcp-server
           required: false
         - label: bedrock-kb-retrieval-mcp-server
           required: false
+        - label: cdk-mcp-server
+          required: false
+        - label: core-mcp-server
+          required: false
         - label: cost-analysis-mcp-server
           required: false
-        - label: cdk-mcp-server
+        - label: git-repo-research-msp-server
+          required: false
+        - label: lambda-mcp-server
+          required: false
+        - label: nova-canvas-mcp-server
+          required: false
+        - label: terraform-mcp-server
           required: false
   - type: markdown
     attributes:
