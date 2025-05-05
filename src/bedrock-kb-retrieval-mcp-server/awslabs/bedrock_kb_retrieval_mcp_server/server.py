@@ -22,7 +22,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.discovery import (
     DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY,
     discover_knowledge_bases,
 )
-from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.runtime import (
+from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import (
     query_knowledge_base,
 )
 from loguru import logger
@@ -31,7 +31,8 @@ from pydantic import Field
 from typing import List, Literal, Optional
 
 
-logger.remove(0)
+# Remove all default handlers then add our own
+logger.remove()
 logger.add(sys.stderr, level='INFO')
 
 
@@ -55,11 +56,11 @@ kb_inclusion_tag_key = os.getenv('KB_INCLUSION_TAG_KEY', DEFAULT_KNOWLEDGE_BASE_
 
 # Parse reranking enabled environment variable
 kb_reranking_enabled_raw = os.getenv('BEDROCK_KB_RERANKING_ENABLED')
-kb_reranking_enabled = True  # Default value
+kb_reranking_enabled = False  # Default value is now False (off)
 if kb_reranking_enabled_raw is not None:
     kb_reranking_enabled_raw = kb_reranking_enabled_raw.strip().lower()
-    if kb_reranking_enabled_raw in ('false', '0', 'no', 'off'):
-        kb_reranking_enabled = False
+    if kb_reranking_enabled_raw in ('true', '1', 'yes', 'on'):
+        kb_reranking_enabled = True
 logger.info(
     f'Default reranking enabled: {kb_reranking_enabled} (from BEDROCK_KB_RERANKING_ENABLED)'
 )

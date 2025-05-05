@@ -28,7 +28,7 @@ async def query_knowledge_base(
     knowledge_base_id: str,
     kb_agent_client: AgentsforBedrockRuntimeClient,
     number_of_results: int = 20,
-    reranking: bool = True,
+    reranking: bool = False,
     reranking_model_name: Literal['COHERE', 'AMAZON'] = 'AMAZON',
     data_source_ids: list[str] | None = None,
 ) -> str:
