@@ -2,7 +2,7 @@ coverage:
   status:
     project:
       default:   # default is the status check's name, not default settings
-        threshold: 0
+        threshold: 0.1 # due to an occasional codecov reporting descrapancy
 
 comment:
   require_changes: "coverage_drop"
