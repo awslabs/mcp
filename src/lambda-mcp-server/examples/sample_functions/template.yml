@@ -48,12 +48,107 @@ Resources:
           - id: W92
             reason: "Because this is an example, there is no requirement to reserve concurrency"
 
+  SchemaRegistry:
+    Type: AWS::EventSchemas::Registry
+    Properties:
+      Description: Registry for Lambda function input schemas
+
+  CustomerCreateSchema:
+    Type: AWS::EventSchemas::Schema
+    Properties:
+      RegistryName: 
+        Fn::GetAtt: [SchemaRegistry, RegistryName]
+      Description: Input schema for creating a new customer
+      Type: JSONSchemaDraft4
+      Content: |
+        {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "title": "CustomerCreateInput",
+            "description": "Input schema for creating a new customer",
+            "required": ["name", "email", "phone"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Customer's full name"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Customer's email address"
+                },
+                "phone": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9]\\d{1,14}$",
+                    "description": "Customer's phone number in E.164 format"
+                },
+                "address": {
+                    "type": "object",
+                    "description": "Customer's address (optional)",
+                    "properties": {
+                        "street": {
+                            "type": "string",
+                            "description": "Street address"
+                        },
+                        "city": {
+                            "type": "string",
+                            "description": "City name"
+                        },
+                        "state": {
+                            "type": "string",
+                            "description": "State code"
+                        },
+                        "zipCode": {
+                            "type": "string",
+                            "pattern": "^\\d{5}(-\\d{4})?$",
+                            "description": "ZIP code"
+                        }
+                    },
+                    "required": ["street", "city", "state", "zipCode"],
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        }
+
+  CustomerCreate:
+    Type: AWS::Serverless::Function
+    #checkov:skip=CKV_AWS_115:Because this is an example, there is no requirement to reserve concurrency
+    #checkov:skip=CKV_AWS_116:Because this is an example, there is no requirement for a DLQ
+    #checkov:skip=CKV_AWS_117:Because this is an example, there is no requirement to run within a VPC
+    Properties:
+      CodeUri: ./customer-create
+      Description: Create a new customer
+      MemorySize: 128
+      Timeout: 3
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+      Tags:
+        tool-input-schema-arn: 
+          Fn::GetAtt: [CustomerCreateSchema, SchemaArn]
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: "Because this is an example, there is no requirement to run within a VPC"
+          - id: W92
+            reason: "Because this is an example, there is no requirement to reserve concurrency"
+
 Outputs:
 
   CustomerInfoFromId:
     Description: "CustomerInfoFromId Function ARN"
-    Value: Fn::GetAtt CustomerInfoFromId.Arn
+    Value: 
+      Fn::GetAtt: [CustomerInfoFromId,Arn]
 
   CustomerIdFromEmail:
     Description: "CustomerIdFromEmail Function ARN"
-    Value: Fn::GetAtt CustomerIdFromEmail.Arn
+    Value: 
+      Fn::GetAtt: [CustomerIdFromEmail,Arn]
+
+  CustomerCreate:
+    Description: "CustomerCreate Function ARN"
+    Value: 
+      Fn::GetAtt: [CustomerCreate,Arn]
