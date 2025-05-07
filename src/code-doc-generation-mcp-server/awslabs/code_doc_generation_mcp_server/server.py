@@ -113,6 +113,7 @@ WORKFLOW:
 - Extracts directory structure from the repository
 - Returns empty ProjectAnalysis template
 - Provides directory structure in file_structure["directory_structure"]
+- Provides repository statistics in file_structure["statistics"]
 - You analyze the directory structure to identify key files
 
 2. Use read_file:
@@ -137,7 +138,7 @@ WORKFLOW:
 - YOU are responsible for writing all document content
 
 IMPORTANT:
-- prepare_repository provides directory structure in file_structure["directory_structure"]
+- prepare_repository provides directory structure in file_structure["directory_structure"] and statistics in file_structure["statistics"]
 - You must use read_file to examine key files you identify from the structure
 - You must analyze the files to fill out the ProjectAnalysis fields
 - Use create_context to create a DocumentationContext from your analysis
@@ -168,6 +169,7 @@ async def prepare_repository(
     1. Extracts directory structure from the repository
     2. Returns an EMPTY ProjectAnalysis for you to fill out
     3. Provides directory structure in file_structure["directory_structure"]
+    4. Provides repository statistics in file_structure["statistics"] (file count, character count, etc.)
 
     You should:
     1. Review the directory structure in file_structure["directory_structure"]
@@ -178,7 +180,7 @@ async def prepare_repository(
     6. Use the DocumentationContext with plan_documentation
 
     NOTE: This tool does NOT analyze the code - that's your job!
-    The tool only extracts the directory structure to help you identify important files.
+    The tool only extracts the directory structure and statistics to help you identify important files.
     """
     try:
         # Set up output paths
@@ -253,6 +255,11 @@ async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Co
     """
     # Get directory structure directly from raw_analysis
     directory_structure = raw_analysis.get('directory_structure')
+    
+    # Check if we should fall back to file_structure for directory structure
+    if not directory_structure and 'file_structure' in raw_analysis:
+        if isinstance(raw_analysis['file_structure'], dict) and 'directory_structure' in raw_analysis['file_structure']:
+            directory_structure = raw_analysis['file_structure']['directory_structure']
     
     # Log whether we found directory_structure
     if directory_structure:

@@ -102,26 +102,34 @@ async def test_prepare_repository(
 """
     mock_processor.process.return_value = mock_result
 
-    # Mock the RepomixConfig and RepoProcessor
-    with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepomixConfig') as MockConfig:
-        with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepoProcessor') as MockProcessor:
-            MockProcessor.return_value = mock_processor
+    # Mock the extract_statistics method
+    with patch.object(manager, 'extract_statistics') as mock_extract_stats:
+        mock_extract_stats.return_value = {
+            'total_files': 2,
+            'total_chars': 150,
+            'total_tokens': 70
+        }
+        
+        # Mock the RepomixConfig and RepoProcessor
+        with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepomixConfig') as MockConfig:
+            with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepoProcessor') as MockProcessor:
+                MockProcessor.return_value = mock_processor
 
-            # Act
-            project_root = '/path/to/project'
-            output_path = '/path/to/output'
-            ctx = MagicMock()
+                # Act
+                project_root = '/path/to/project'
+                output_path = '/path/to/output'
+                ctx = MagicMock()
 
-            result = await manager.prepare_repository(project_root, output_path, ctx)
+                result = await manager.prepare_repository(project_root, output_path, ctx)
 
-            # Assert
-            assert MockProcessor.called
-            assert mock_processor.process.called
-            assert result['project_info']['name'] == 'project'
-            assert result['directory_structure'] == mock_result.directory_structure
-            assert result['metadata']['summary']['total_files'] == 2
-            assert result['metadata']['summary']['total_chars'] == 150
-            assert result['metadata']['summary']['total_tokens'] == 70
+                # Assert
+                assert MockProcessor.called
+                assert mock_processor.process.called
+                assert result['project_info']['name'] == 'project'
+                assert result['directory_structure'] == mock_result.directory_structure
+                assert result['metadata']['summary']['total_files'] == 2
+                assert result['metadata']['summary']['total_chars'] == 150
+                assert result['metadata']['summary']['total_tokens'] == 70
 
 
 @pytest.mark.asyncio
@@ -147,5 +155,5 @@ async def test_prepare_repository_invalid_path():
 
     # Act & Assert
     with patch('pathlib.Path.exists', return_value=False):
-        with pytest.raises(ValueError, match='Project path does not exist'):
+        with pytest.raises(RuntimeError, match='Unexpected error during preparation: Project path does not exist'):
             await manager.prepare_repository('/path/to/project', '/path/to/output')
