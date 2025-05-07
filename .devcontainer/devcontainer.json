@@ -16,15 +16,15 @@
     }
   },
   "features": {
+    "ghcr.io/devcontainers-extra/features/typescript:2": {},
     "ghcr.io/devcontainers/features/python:1": {},
     "ghcr.io/devcontainers/features/ruby:1": {},
     "ghcr.io/devcontainers/features/rust:1": {},
-    "ghcr.io/devcontainers/features/terraform:1": {},
-    "ghcr.io/devcontainers-extra/features/typescript:2": {}
+    "ghcr.io/devcontainers/features/terraform:1": {}
+  },
+  "hostRequirements": {
+    "cpus": 4
   },
   "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "postCreateCommand": "pip install -y uv pre-commit detect-secrets && pre-commit run --all-files",
-    "hostRequirements": {
-        "cpus": 4
-    }
+  "postCreateCommand": "pip install -y uv pre-commit detect-secrets && pre-commit run --all-files"
 }
