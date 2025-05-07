@@ -70,14 +70,15 @@ runs:
   steps:
     - name: Docker meta
       id: meta
-      uses: docker/metadata-action@v5
+      uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+      env:
+        REGISTRY_ALIAS: 'w3i4n7u1' # either the default or custom
       with:
-        #ADD LATER
-        # public.ecr.aws/mcp/awslabs/${{ inputs.image }}
-        # ghcr.io/awslabs/mcp/awslabs/${{ inputs.image }}
+        # Each registry to match the `tags` in CSV format for the build-push-action
         images: |
           docker.io/awslabs/${{ inputs.image }}
-          public.ecr.aws/w3i4n7u1/mcp/${{ inputs.image }}
+          ghcr.io/${{ github.repository }}/${{ inputs.image }}
+          public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }}
 
         # Disable all but the raw and sha
         tags: |
@@ -118,7 +119,7 @@ runs:
 
     - name: Setup AWS Credentials
       id: setup-aws-credentials
-      uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722
+      uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
       with:
         role-to-assume: ${{ inputs.public-erc-role-to-assume }}
         aws-region: ${{ inputs.public-erc-aws-region }}
@@ -133,22 +134,26 @@ runs:
 
     - name: Set up QEMU
       id: setup-qemu
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
     - name: Set up Docker Buildx
       id: setup-buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
       with:
         buildkitd-flags: --debug
 
     - name: Build and push by digest
       id: build
-      uses: docker/build-push-action@v6
+      env:
+        REGISTRY_ALIAS: 'w3i4n7u1'
+
+      uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
       with:
-        platforms: 'linux/amd64,linux/arm64' # less effient than matrix, but actions cannot deal with it...
+        # platforms: 'linux/amd64,linux/arm64' # less effient than matrix, but actions cannot deal with it...
+        platforms: 'linux/amd64' # add more platforms after testing completed
         labels: ${{ steps.meta.outputs.labels }}
-        #tags: docker.io/${{ github.repository_owner }}/${{ inputs.image }},ghcr.io/${{ github.repository }}/${{ inputs.image }}
-        tags: docker.io/${{ github.repository_owner }}/${{ inputs.image }}
+        tags: docker.io/${{ github.repository_owner }}/${{ inputs.image }},ghcr.io/${{ github.repository }}/${{ inputs.image }},public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }}
+        #tags: docker.io/${{ github.repository_owner }}/${{ inputs.image }}
         context: ./src/${{ inputs.image }}
         file: ./src/${{ inputs.image }}/Dockerfile
         push: true
@@ -163,8 +168,9 @@ runs:
         digest="${{ steps.build.outputs.digest }}"
         touch "${{ runner.temp }}/digests/${digest#sha256:}"
       shell: bash
+
     - name: Upload digest
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: digests
         path: ${{ runner.temp }}/digests/*
@@ -173,13 +179,17 @@ runs:
 
     - name: Create manifest list and push
       working-directory: ${{ runner.temp }}/digests
+      env:
+        IMAGE: ${{ inputs.image }}
       run: |
         docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-          $(printf 'awslabs/${{ inputs.image }}@sha256:%s ' *)
+          $(printf 'awslabs/$IMAGE@sha256:%s ' *)
       shell: bash
     - name: Inspect image
+      env:
+        IMAGE: ${{ inputs.image }}
       run: |
-        docker buildx imagetools inspect awslabs/${{ inputs.image }}:${{ steps.meta.outputs.version }}
+        docker buildx imagetools inspect awslabs/$IMAGE:${{ steps.meta.outputs.version }}
       shell: bash
     - name: Get version
       id: get-version
