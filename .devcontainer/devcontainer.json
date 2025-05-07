@@ -26,5 +26,5 @@
   "postCreateCommand": "pip install -y uv pre-commit detect-secrets && pre-commit run --all-files",
     "hostRequirements": {
         "cpus": 4
-    },
+    }
 }
