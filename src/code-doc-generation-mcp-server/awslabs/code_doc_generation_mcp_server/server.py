@@ -110,6 +110,7 @@ WORKFLOW:
 - After analyzing the directory structure, use read_file to access specific files
 - Examine package.json, README.md, or other important files you identify
 - Build your understanding of the project from these key files
+- If you detect AWS CDK or Terraform code, set should_generate_cost_estimation=True
 
 3. create_context:
 - Creates a DocumentationContext from your completed ProjectAnalysis
@@ -163,8 +164,9 @@ async def prepare_repository(
     1. Review the directory structure in file_structure["directory_structure"]
     2. Use read_file to examine key files you identify from the structure
     3. Fill out the empty fields in ProjectAnalysis based on your analysis
-    4. Use create_context to create a DocumentationContext from your analysis
-    5. Use the DocumentationContext with plan_documentation
+    4. Set should_generate_cost_estimation=True if you detect CDK or Terraform code
+    5. Use create_context to create a DocumentationContext from your analysis
+    6. Use the DocumentationContext with plan_documentation
 
     NOTE: This tool does NOT analyze the code - that's your job!
     The tool only extracts the directory structure to help you identify important files.
@@ -182,19 +184,33 @@ async def prepare_repository(
         repomix_output = await _analyze_project_structure(raw_analysis, output_path, ctx)
         logger.info('Retrieved project structure for analysis')
 
+        # Extract directory structure with fallbacks
+        dir_structure = repomix_output.get('directory_structure')
+        
+        # Try fallback to raw_analysis if not found
+        if dir_structure is None and 'directory_structure' in raw_analysis:
+            dir_structure = raw_analysis['directory_structure']
+            
+        # Log basic info about structure
+        if dir_structure:
+            logger.info(f"Found directory structure ({len(dir_structure)} chars)")
+        else:
+            logger.warning("Directory structure not found in output")
+
         # Return ProjectAnalysis with directory structure for MCP client to analyze
         return ProjectAnalysis(
             project_type='',  # The MCP client will fill this
             features=[],  # The MCP client will fill this
             file_structure={  # Basic structure to start
                 'root': [project_root],
-                'directory_structure': repomix_output.get('directory_structure'),
+                'directory_structure': dir_structure,  # Use our local variable with logging
             },
             dependencies={},  # The MCP client will fill this
             primary_languages=[],  # The MCP client will fill this
             apis=None,  # Optional - The MCP client will fill if found
             backend=None,  # Optional - The MCP client will fill if found
             frontend=None,  # Optional - The MCP client will fill if found
+            should_generate_cost_estimation=False,  # The MCP client will set to True if CDK or Terraform code is detected
         )
 
     except subprocess.CalledProcessError as e:
@@ -210,10 +226,10 @@ async def prepare_repository(
 
 
 async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Context) -> dict:
-    """Prepares project structure for inclusion in ProjectAnalysis.
+    """Prepares project structure for inclusion in ProjectAnalysis with enhanced error handling.
 
     This function:
-    1. Gets the directory structure from the raw analysis
+    1. Gets the directory structure from the raw analysis with fallbacks
     2. Packages it with project info and metadata
     3. Returns a dict containing the directory structure and metadata
 
@@ -222,8 +238,48 @@ async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Co
 
     Note: This is an internal function not intended for direct client use.
     """
-    # Directory structure is already extracted in RepomixManager
+    # Extract directory structure from raw_analysis with multiple fallbacks
     directory_structure = raw_analysis.get('directory_structure')
+    
+    # Log whether we found directory_structure
+    if directory_structure:
+        logger.info(f"Directory structure found in raw_analysis (length: {len(directory_structure)})")
+    else:
+        logger.warning("Directory structure not found in raw_analysis, checking alternates")
+        
+        # Try fallbacks or alternatives
+        if 'file_structure' in raw_analysis and isinstance(raw_analysis['file_structure'], dict) and 'directory_structure' in raw_analysis['file_structure']:
+            directory_structure = raw_analysis['file_structure']['directory_structure']
+            logger.info(f"Found directory structure in file_structure (length: {len(directory_structure)})")
+    
+        # If still none, look for repomix_output_file and try to generate a structure
+        if not directory_structure and 'output_dir' in raw_analysis:
+            try:
+                # Try to extract directly from file
+                output_dir = Path(raw_analysis['output_dir'])
+                repomix_file = output_dir / 'repo_structure.xml'
+                if repomix_file.exists():
+                    from awslabs.code_doc_generation_mcp_server.utils.repomix_manager import RepomixManager
+                    manager = RepomixManager()
+                    directory_structure = manager.extract_directory_structure(str(repomix_file))
+                    if directory_structure:
+                        logger.info(f"Re-extracted directory structure from file (length: {len(directory_structure)})")
+                        
+                # If we still don't have a directory structure and we have repomix output
+                if not directory_structure and 'repomix_output' in raw_analysis:
+                    # Try to generate a minimally useful structure from repomix_output
+                    import re
+                    output = raw_analysis['repomix_output']
+                    # Find file paths or directory names in the output
+                    matches = re.findall(r'(?:^|\s)(?:\.\/)?(?:[\w\-]+\/)+[\w\-\.]+(?:\.\w+)?', output, re.MULTILINE)
+                    if matches and len(matches) > 5:  # Only if we found enough paths
+                        directory_structure = "\n".join(matches[:30])  # Take top 30 paths
+                        logger.info(f"Generated fallback directory structure from paths (length: {len(directory_structure)})")
+            except Exception as e:
+                logger.error(f"Error in fallback extraction: {str(e)}")
+                
+    if not directory_structure:
+        logger.warning("Could not find valid directory structure after all fallbacks")
 
     return {
         'project_info': raw_analysis['project_info'],
@@ -395,8 +451,6 @@ async def generate_documentation(
             # Add suggestions for companion MCP servers
             if 'architecture' in str(path).lower():
                 message += '\n\nTo add architecture diagrams, consider using the AWS Diagram MCP Server (awslabs.aws-diagram-mcp-server).'
-            if 'cost' in str(path).lower() or path.name == 'REQUIREMENTS.md':
-                message += '\n\nTo add cost analysis, consider using the Cost Analysis MCP Server (awslabs.cost-analysis-mcp-server).'
 
             doc = GeneratedDocument(
                 path=str(path),

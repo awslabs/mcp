@@ -2,15 +2,45 @@
 
 [![smithery badge](https://smithery.ai/badge/@awslabs/code-doc-generation-mcp-server)](https://smithery.ai/server/@awslabs/code-doc-generation-mcp-server)
 
-A Model Context Protocol (MCP) server that automatically generates comprehensive documentation for code repositories. This server analyzes repository structure, identifies key components, and creates appropriate documentation with AWS architecture diagrams.
+A Model Context Protocol (MCP) server that automatically analyzes repository structure and generates comprehensive documentation for code projects. This server uses repomix to extract project structure and creates tailored documentation based on project type.
+
+## Architecture
+
+### How the Server Works
+
+The code-doc-generation-mcp-server follows this workflow:
+
+1. **prepare_repository**:
+   - Uses RepomixManager to analyze a project directory
+   - Runs `repomix` to generate an XML representation of the repo
+   - Extracts directory structure from this XML
+   - Returns a ProjectAnalysis with the directory structure
+
+2. **create_context**:
+   - Creates a DocumentationContext with the ProjectAnalysis
+
+3. **plan_documentation**:
+   - Uses the directory structure from DocumentationContext
+   - Creates a DocumentationPlan with document structure and sections
+
+4. **generate_documentation**:
+   - Generates document templates based on the plan
+
+### Key Components
+
+1. **RepomixManager**: Manages the execution of repomix and parses its XML output to extract directory structure
+2. **DocumentationContext**: Central state container that tracks project info and documentation progress
+3. **ProjectAnalysis**: Data structure containing analyzed project metadata (languages, dependencies, etc.)
+4. **DocumentationPlan**: Structured plan for document generation with section outlines
+5. **DocumentGenerator**: Creates actual document templates based on the plan
 
 ## Features
 
-- **Automated Documentation Generation**: Creates comprehensive documentation based on repository analysis
-- **AWS Architecture Diagram Integration**: Automatically generates AWS architecture diagrams using AWS Diagrams MCP server
-- **Multiple Document Types**: Generates README, API, Backend, Frontend, and other specialized documentation
-- **Project Analysis**: Identifies project type, architecture, and key features
-- **Interactive Documentation Creation**: Guides AI assistants through repository analysis and documentation creation
+- **Project Structure Analysis**: Uses repomix to analyze repository structure and extract key components
+- **Content Organization**: Creates appropriately structured documentation based on project type
+- **Multiple Document Types**: Supports README, API docs, backend docs, frontend docs, and more
+- **Integration with Other MCP Servers**: Works with AWS Diagram and Cost Analysis MCP servers
+- **Custom Document Templates**: Templates for different document types with appropriate sections
 
 ## Prerequisites
 
@@ -42,103 +72,31 @@ This MCP server can be added to your AWS AI assistants via the appropriate MCP c
 
 ### DocumentationContext
 
-The `DocumentationContext` class is a central component of the document generation workflow. It maintains the state and configuration of the documentation process throughout its lifecycle.
+The `DocumentationContext` class maintains the state of the documentation process throughout its lifecycle:
 
-Key attributes:
 - `project_name`: Name of the project being documented
 - `working_dir`: Working directory for the project (source code location)
-- `repomix_path`: Path where documentation files will be generated (typically `{project_root}/generated-docs`)
-- `status`: Current status of the documentation process (e.g., 'initialized', 'ready_to_plan', 'structure_ready')
-- `current_step`: Current step in the documentation workflow (e.g., 'analysis', 'planning', 'generation')
-- `analysis_result`: Contains the ProjectAnalysis with project metadata, structure, and features
+- `repomix_path`: Path where documentation files will be generated
+- `status`: Current status of the documentation process
+- `current_step`: Current step in the documentation workflow
+- `analysis_result`: Contains the ProjectAnalysis with project metadata
 
-The DocumentationContext is created after the initial repository analysis and is passed between the different documentation tools to maintain state and configuration throughout the process.
+### ProjectAnalysis
 
-## Documentation Process
+The `ProjectAnalysis` class contains detailed information about the project:
 
-### 1. Prepare Repository
-
-First step: Extract directory structure from the repository.
-
-```python
-await prepare_repository(project_root='/path/to/project')
-```
-
-Returns a basic ProjectAnalysis that you must fill out with:
-- `project_type`: Type of project based on code analysis
-- `features`: Key capabilities and functions
-- `file_structure`: Project organization with directories
-- `dependencies`: Project dependencies and versions
-- `primary_languages`: Programming languages used
-- `apis` (optional): API interface details
+- `project_type`: Type of project (e.g., "Web Application", "CLI Tool")
+- `features`: Key capabilities and functions of the project
+- `file_structure`: Project organization with directory structure
+- `dependencies`: Project dependencies with versions
+- `primary_languages`: Programming languages used in the project
+- `apis` (optional): API endpoint details
 - `backend` (optional): Backend implementation details
 - `frontend` (optional): Frontend implementation details
 
-### 2. Create Context
-
-Second step: Create documentation context from your analysis.
-
-```python
-doc_context = await create_context(
-    project_root='/path/to/project',
-    analysis=project_analysis  # Your completed analysis
-)
-```
-
-### 3. Plan Documentation
-
-Third step: Create documentation plan based on the context.
-
-```python
-plan = await plan_documentation(doc_context=doc_context)
-```
-
-Returns a DocumentationPlan with:
-- Document structure and organization
-- Document specifications with sections
-
-### 4. Generate Documentation
-
-Final step: Generate documentation files.
-
-```python
-docs = await generate_documentation(plan=plan, doc_context=doc_context)
-```
-
-Returns a list of GeneratedDocument objects for you to fill with content.
-
-## Integration with Other MCP Servers
-
-This MCP server is designed to work seamlessly with:
-
-- **AWS Diagram MCP Server**: For generating AWS architecture diagrams (RECOMMENDED)
-- **Cost Analysis MCP Server**: For generating cost estimates and analysis (RECOMMENDED)
-- **AWS CDK MCP Server**: For documenting CDK infrastructure code
-- **AWS Documentation MCP Server**: For incorporating AWS best practices
-
-The AWS Diagram MCP Server and Cost Analysis MCP Server are particularly recommended as companion servers that enhance the documentation with visual diagrams and cost analysis. While not required, they significantly improve the quality and completeness of generated documentation.
-
-# Code Documentation Generation MCP Server
-
-An AWS Labs Model Context Protocol (MCP) server that helps generate comprehensive documentation for code repositories.
-
-## Overview
-
-The Code Documentation Generation MCP Server automates the creation of high-quality technical documentation for software projects. It analyzes repository structure, code organization, and key components to produce well-structured documentation that follows best practices.
-
-## Features
-
-- **Repository Analysis**: Automatically analyzes project structure using repomix to understand code organization
-- **Project Context Creation**: Creates a documentation context that captures the essence of the project
-- **Documentation Planning**: Intelligently determines which documentation files are needed based on project type
-- **Documentation Generation**: Generates documentation templates with appropriate sections for MCP Client to fill with content
-- **Architecture Diagram Integration**: Includes placeholders for architecture diagrams that can be visualized using the AWS Diagram MCP Server
-
 ## Tools
 
-### Prepare Repository
-
-Prepares the repository for documentation by extracting directory structure:
+### prepare_repository
 
 ```python
 async def prepare_repository(
@@ -148,27 +106,29 @@ async def prepare_repository(
 ```
 
 This tool:
-1. Extracts directory structure from the repository
-2. Returns an EMPTY ProjectAnalysis for LLM to fill out
+1. Extracts directory structure from the repository using repomix
+2. Returns a ProjectAnalysis template for the MCP client to fill
 3. Provides directory structure in file_structure["directory_structure"]
 
-### Create Context
+The MCP client then:
+1. Reviews the directory structure
+2. Uses read_file to examine key files
+3. Fills out the ProjectAnalysis fields
+4. Sets should_generate_cost_estimation=True if CDK/Terraform code is detected
 
-Creates a documentation context from project analysis:
+### create_context
 
 ```python
 async def create_context(
     project_root: str = Field(..., description='Path to the code repository'),
-    analysis_result: ProjectAnalysis = Field(..., description='Analysis result from prepare_repository'),
+    analysis: ProjectAnalysis = Field(..., description='Completed ProjectAnalysis'),
     ctx: Context = None,
 ) -> DocumentationContext
 ```
 
-This creates a DocumentationContext object with project information and analysis results.
+Creates a DocumentationContext from the completed ProjectAnalysis.
 
-### Plan Documentation
-
-Creates a documentation plan based on analysis:
+### plan_documentation
 
 ```python
 async def plan_documentation(
@@ -177,11 +137,9 @@ async def plan_documentation(
 ) -> DocumentationPlan
 ```
 
-Using the analysis, this determines what documentation types are needed and creates an appropriate documentation structure.
+Creates a documentation plan based on the project analysis, determining what document types are needed and creating appropriate document structures.
 
-### Generate Documentation
-
-Generates documentation content based on the plan:
+### generate_documentation
 
 ```python
 async def generate_documentation(
@@ -191,26 +149,15 @@ async def generate_documentation(
 ) -> List[GeneratedDocument]
 ```
 
-This generates document structures with empty sections for Cline to fill with content.
+Generates document structures with sections for the MCP client to fill with content.
 
-## Usage
+## Integration with Other MCP Servers
 
-```python
-# Prepare the repository
-analysis = await prepare_repository(project_root='/path/to/repository')
+This MCP server is designed to work with:
 
-# Create documentation context
-doc_context = await create_context(project_root='/path/to/repository', analysis_result=analysis)
-
-# Plan documentation
-plan = await plan_documentation(doc_context=doc_context)
-
-# Generate documentation
-documents = await generate_documentation(plan=plan, doc_context=doc_context)
-
-# Fill documentation with content
-# (MCP Client does this part based on the repository analysis)
-```
+- **AWS Diagram MCP Server**: For generating architecture diagrams
+- **Cost Analysis MCP Server**: For generating cost estimates and analysis
+- **AWS CDK MCP Server**: For documenting CDK infrastructure code
 
 ## License
 

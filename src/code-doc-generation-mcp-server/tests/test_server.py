@@ -40,7 +40,7 @@ async def test_prepare_repository(mock_repomix_manager):
     mock_prepare = AsyncMock()
     mock_prepare.return_value = {
         'project_info': {'name': 'test-project', 'path': '/path/to/repo'},
-        'directory_structure': '# Project Structure\n- file1.py\n- file2.py',
+        'directory_structure': 'bin/\n  app.ts\nlib/\n  stack.ts',
     }
     mock_instance.prepare_repository = mock_prepare
 
@@ -49,7 +49,7 @@ async def test_prepare_repository(mock_repomix_manager):
         'project_info': {'name': 'test-project', 'path': '/path/to/repo'},
         'metadata': {'key': 'value'},
         'output_dir': '/path/to/repo/generated-docs',
-        'directory_structure': '# Project Structure\n- file1.py\n- file2.py',
+        'directory_structure': 'bin/\n  app.ts\nlib/\n  stack.ts',
     }
 
     with patch(
@@ -66,7 +66,7 @@ async def test_prepare_repository(mock_repomix_manager):
         assert result.file_structure['root'] == [test_project_path]
         assert (
             result.file_structure['directory_structure']
-            == '# Project Structure\n- file1.py\n- file2.py'
+            == 'bin/\n  app.ts\nlib/\n  stack.ts'
         )
         # Fix warning by using assert_called_once_with instead of called_once_with
         mock_instance.prepare_repository.assert_called_once_with(
@@ -80,7 +80,7 @@ async def test_analyze_project_structure():
     # Arrange
     raw_analysis = {
         'project_info': {'name': 'test-project', 'path': '/path/to/repo'},
-        'directory_structure': '# Project Structure\n- file1.py\n- file2.py',
+        'directory_structure': 'bin/\n  app.ts\nlib/\n  stack.ts',
         'metadata': {'key': 'value'},
     }
     docs_dir = Path('/path/to/repo/generated-docs')
@@ -93,7 +93,7 @@ async def test_analyze_project_structure():
     assert result['project_info'] == {'name': 'test-project', 'path': '/path/to/repo'}
     assert result['metadata'] == {'key': 'value'}
     assert result['output_dir'] == str(docs_dir)
-    assert result['directory_structure'] == '# Project Structure\n- file1.py\n- file2.py'
+    assert result['directory_structure'] == 'bin/\n  app.ts\nlib/\n  stack.ts'
 
 
 def test_create_documentation_context():

@@ -22,54 +22,77 @@ def test_init():
     assert manager.logger is not None
 
 
-def test_extract_directory_structure():
-    """Test extract_directory_structure correctly extracts directory structure."""
+def test_extract_directory_structure_xml():
+    """Test extract_directory_structure correctly extracts directory structure from XML."""
     # Arrange
     manager = RepomixManager()
-    repomix_output = """
-# Project Info
-Name: Test Project
-
-# Directory Structure
-```
+    
+    # Create a temporary XML file
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+        tmp.write(b"""
+<repository>
+  <directory_structure>
 .
-├── src/
-│   ├── components/
-│   │   ├── Button.tsx
-│   │   └── Card.tsx
-│   └── App.tsx
-├── package.json
-└── README.md
-```
+|-- src/
+|   |-- components/
+|   |   |-- Button.tsx
+|   |   `-- Card.tsx
+|   `-- App.tsx
+|-- package.json
+`-- README.md
+  </directory_structure>
+</repository>
+""")
+        tmp_path = tmp.name
+    
+    try:
+        # Act
+        result = manager.extract_directory_structure(tmp_path)
+        
+        # Assert
+        assert result is not None
+        assert 'src/' in result
+        assert 'README.md' in result
+    finally:
+        # Clean up
+        import os
+        os.unlink(tmp_path)
 
-# Code Analysis
-"""
 
-    # Act
-    result = manager.extract_directory_structure(repomix_output)
-
-    # Assert
-    assert '```' in result
-    assert '├── src/' in result
-    assert '└── README.md' in result
-
-
-def test_extract_directory_structure_empty():
-    """Test extract_directory_structure returns None when directory structure is not found."""
+def test_extract_directory_structure_malformed_xml():
+    """Test extract_directory_structure falls back to regex for malformed XML."""
     # Arrange
     manager = RepomixManager()
-    repomix_output = """
-# Project Info
-Name: Test Project
-
-# Code Analysis
-"""
-
-    # Act
-    result = manager.extract_directory_structure(repomix_output)
-
-    # Assert
-    assert result is None
+    
+    # Create a temporary malformed XML file
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+        tmp.write(b"""
+This is not well-formed XML but contains what we need
+<directory_structure>
+.
+|-- src/
+|   `-- App.tsx
+|-- package.json
+`-- README.md
+</directory_structure>
+More invalid content
+""")
+        tmp_path = tmp.name
+    
+    try:
+        # Act
+        result = manager.extract_directory_structure(tmp_path)
+        
+        # Assert
+        assert result is not None
+        assert 'src/' in result
+        assert 'README.md' in result
+    finally:
+        # Clean up
+        import os
+        os.unlink(tmp_path)
 
 
 def test_parse_file_stats():
@@ -138,17 +161,18 @@ def test_parse_output():
 
 
 @pytest.mark.asyncio
-@patch('subprocess.run')
 @patch('pathlib.Path.mkdir')
 @patch('pathlib.Path.exists')
 @patch('pathlib.Path.is_dir')
 @patch('pathlib.Path.touch')
 @patch('pathlib.Path.unlink')
 @patch('pathlib.Path.read_text')
-async def test_prepare_repository(
-    mock_read_text, mock_unlink, mock_touch, mock_is_dir, mock_exists, mock_mkdir, mock_run
+@patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.REPOMIX_MODULE_AVAILABLE', False)
+@patch('subprocess.run')
+async def test_prepare_repository_subprocess(
+    mock_run, mock_module_available, mock_read_text, mock_unlink, mock_touch, mock_is_dir, mock_exists, mock_mkdir
 ):
-    """Test prepare_repository runs repomix and returns analysis data."""
+    """Test prepare_repository using subprocess approach."""
     # Arrange
     manager = RepomixManager()
 
@@ -197,12 +221,85 @@ async def test_prepare_repository(
 
 
 @pytest.mark.asyncio
+@patch('pathlib.Path.mkdir')
+@patch('pathlib.Path.exists')
+@patch('pathlib.Path.is_dir')
+@patch('pathlib.Path.touch')
+@patch('pathlib.Path.unlink')
+@patch('pathlib.Path.read_text')
+@patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.REPOMIX_MODULE_AVAILABLE', True)
+async def test_prepare_repository_module(
+    mock_module_available, mock_read_text, mock_unlink, mock_touch, mock_is_dir, mock_exists, mock_mkdir
+):
+    """Test prepare_repository using Python module approach."""
+    # Arrange
+    manager = RepomixManager()
+
+    # Mock file operations
+    mock_exists.return_value = True
+    mock_is_dir.return_value = True
+
+    # Create a mock RepoProcessor class
+    mock_processor = MagicMock()
+    mock_result = MagicMock()
+    mock_result.total_files = 2
+    mock_result.total_chars = 150
+    mock_result.total_tokens = 70
+    mock_result.security_check_passed = True
+    mock_result.directory_structure = """
+.
+├── src/
+│   └── App.tsx
+└── package.json
+"""
+    mock_processor.process.return_value = mock_result
+
+    # Mock file read
+    mock_read_text.return_value = mock_result.directory_structure
+
+    # Mock the RepomixConfig and RepoProcessor
+    with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepomixConfig') as MockConfig:
+        with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepoProcessor') as MockProcessor:
+            MockProcessor.return_value = mock_processor
+
+            # Act
+            project_root = '/path/to/project'
+            output_path = '/path/to/output'
+            ctx = MagicMock()
+
+            result = await manager.prepare_repository(project_root, output_path, ctx)
+
+            # Assert
+            assert MockProcessor.called
+            assert mock_processor.process.called
+            assert result['project_info']['name'] == 'project'
+            assert 'directory_structure' in result
+
+
+@pytest.mark.asyncio
+@patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.REPOMIX_MODULE_AVAILABLE', False)
 @patch('subprocess.run')
-async def test_prepare_repository_error(mock_run):
-    """Test prepare_repository handles errors correctly."""
+async def test_prepare_repository_subprocess_error(mock_run, mock_module_available):
+    """Test prepare_repository handles subprocess errors correctly."""
     # Arrange
     manager = RepomixManager()
     mock_run.side_effect = subprocess.CalledProcessError(1, 'repomix', stderr=b'Command failed')
+
+    # Act & Assert
+    with pytest.raises(RuntimeError):
+        await manager.prepare_repository('/path/to/project', '/path/to/output')
+
+
+@pytest.mark.asyncio
+@patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.REPOMIX_MODULE_AVAILABLE', True)
+@patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepoProcessor')
+async def test_prepare_repository_module_error(mock_processor, mock_module_available):
+    """Test prepare_repository handles module errors correctly."""
+    # Arrange
+    manager = RepomixManager()
+    mock_processor_instance = MagicMock()
+    mock_processor.return_value = mock_processor_instance
+    mock_processor_instance.process.side_effect = Exception("Module error occurred")
 
     # Act & Assert
     with pytest.raises(RuntimeError):

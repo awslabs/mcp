@@ -11,6 +11,8 @@
 """Additional tests for the repomix manager module to improve coverage."""
 
 import pytest
+import tempfile
+import os
 from awslabs.code_doc_generation_mcp_server.utils.repomix_manager import RepomixManager
 from unittest.mock import MagicMock, patch
 
@@ -27,6 +29,69 @@ def test_logger_setup():
 
         # Assert
         assert manager.logger is mock_logger
+
+
+def test_extract_directory_structure_empty_xml_file():
+    """Test extract_directory_structure handles empty XML files gracefully."""
+    # Arrange
+    manager = RepomixManager()
+    
+    # Create a temporary empty XML file
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+        tmp.write(b"")
+        tmp_path = tmp.name
+    
+    try:
+        # Act
+        result = manager.extract_directory_structure(tmp_path)
+        
+        # Assert
+        assert result is None
+    finally:
+        # Clean up
+        os.unlink(tmp_path)
+
+
+def test_extract_directory_structure_xml_parsing_fallbacks():
+    """Test all three XML extraction methods (iterative, direct, regex)."""
+    # Arrange
+    manager = RepomixManager()
+    
+    # Test with valid XML - should work with direct parsing
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+        tmp.write(b"""<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <directory_structure>Basic structure</directory_structure>
+</root>""")
+        valid_xml_path = tmp.name
+        
+    # Test with malformed but parseable content
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+        tmp.write(b"""
+Not real XML
+<directory_structure>Fallback structure</directory_structure>
+""")
+        malformed_xml_path = tmp.name
+    
+    try:
+        # Act - Test valid XML
+        with patch.object(manager.logger, 'info') as mock_info:
+            result1 = manager.extract_directory_structure(valid_xml_path)
+        
+        # Act - Test malformed XML
+        with patch.object(manager.logger, 'info') as mock_info:
+            result2 = manager.extract_directory_structure(malformed_xml_path)
+            
+        # Assert
+        assert result1 == "Basic structure"
+        assert result2 == "Fallback structure"
+        
+        # At least one of the methods should have been called
+        assert mock_info.called
+    finally:
+        # Clean up
+        os.unlink(valid_xml_path)
+        os.unlink(malformed_xml_path)
 
 
 @pytest.mark.asyncio
@@ -159,7 +224,7 @@ async def test_prepare_repository_missing_directory_structure(
 
             # Assert
             ctx.warning.assert_called_with(
-                'Failed to extract directory structure from repomix output'
+                'Failed to extract directory structure from repomix XML output'
             )
             assert result['directory_structure'] is None
 
