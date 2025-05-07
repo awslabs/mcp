@@ -26,5 +26,5 @@
     "cpus": 4
   },
   "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "postCreateCommand": "pip install -y uv pre-commit detect-secrets && pre-commit run --all-files"
+  "postCreateCommand": "pip install uv pre-commit detect-secrets && pre-commit run --all-files"
 }
