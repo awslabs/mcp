@@ -14,13 +14,16 @@
     "customizations": {
         "vscode": {
             "extensions": [
+                "AmazonWebServices.amazon-q-vscode",
+                "AmazonWebServices.aws-toolkit-vscode",
                 "ms-azuretools.vscode-docker",
                 "saoudrizwan.claude-dev",
-                "AmazonWebServices.amazon-q-vscode",
                 "ms-python.python",
                 "ms-python.vscode-pylance",
                 "GitHub.vscode-pull-request-github",
-                "GitHub.vscode-github-actions"
+                "GitHub.vscode-github-actions",
+                "GitHub.copilot",
+                "GitHub.copilot-chat"
             ]
         }
     }
