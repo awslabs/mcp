@@ -206,13 +206,17 @@ async def prepare_repository(
         else:
             logger.warning("Directory structure not found in output")
 
-        # Return ProjectAnalysis with directory structure for MCP client to analyze
+        # Get statistics from raw analysis
+        stats = raw_analysis.get('metadata', {}).get('summary', {})
+        
+        # Return ProjectAnalysis with directory structure and statistics for MCP client to analyze
         return ProjectAnalysis(
             project_type='',  # The MCP client will fill this
             features=[],  # The MCP client will fill this
             file_structure={  # Basic structure to start
                 'root': [project_root],
                 'directory_structure': dir_structure,  # Use our local variable with logging
+                'statistics': stats,  # Include statistics from repomix
             },
             dependencies={},  # The MCP client will fill this
             primary_languages=[],  # The MCP client will fill this

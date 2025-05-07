@@ -26,6 +26,58 @@ class RepomixManager:
         """Initialize RepomixManager with logger."""
         self.logger = logger
 
+    def extract_statistics(self, xml_path: str) -> Dict[str, Any]:
+        """Extract statistics from repomix XML output file.
+
+        Args:
+            xml_path: Path to the XML output file from repomix
+
+        Returns:
+            Dictionary containing statistics or empty dict if not found
+        """
+        import xml.etree.ElementTree as ET
+        import os
+        
+        self.logger.info(f"Extracting statistics from {xml_path}")
+        
+        try:
+            # Verify file exists
+            if not os.path.exists(xml_path):
+                self.logger.error(f"XML file does not exist: {xml_path}")
+                return {}
+
+            # Parse XML
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            
+            # Find statistics element
+            stats_elem = root.find('.//statistics')
+            if stats_elem is not None:
+                self.logger.info("Found statistics element")
+                stats = {}
+                
+                # Extract each statistic
+                for child in stats_elem:
+                    try:
+                        # Try to convert to appropriate type (int for numeric values)
+                        tag = child.tag
+                        if tag in ['total_files', 'total_chars', 'total_tokens']:
+                            stats[tag] = int(child.text) if child.text else 0
+                        else:
+                            stats[tag] = child.text
+                    except (ValueError, TypeError):
+                        # Fallback to string if conversion fails
+                        stats[child.tag] = child.text
+                
+                return stats
+            
+            self.logger.warning("Statistics element not found in XML")
+            return {}
+            
+        except Exception as e:
+            self.logger.error(f"Error extracting statistics: {str(e)}")
+            return {}
+
     def extract_directory_structure(self, xml_path: str) -> Optional[str]:
         """Extract directory structure from repomix XML output file.
         
@@ -191,11 +243,7 @@ class RepomixManager:
                         'name': project_name,
                     },
                     'metadata': {
-                        'summary': {
-                            'total_files': getattr(result_obj, 'total_files', 0),
-                            'total_chars': getattr(result_obj, 'total_chars', 0),
-                            'total_tokens': getattr(result_obj, 'total_tokens', 0),
-                        },
+                        'summary': self.extract_statistics(str(repomix_output_file)),
                     },
                     'directory_structure': directory_structure,
                 }
