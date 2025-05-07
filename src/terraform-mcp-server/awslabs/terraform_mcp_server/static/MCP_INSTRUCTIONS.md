@@ -1,4 +1,4 @@
-# Terraform and Terragrunt MCP Server
+# Terraform MCP Server Instructions
 
 MCP server specialized in AWS cloud infrastructure provided through Terraform. I help you create, understand, optimize, and execute Terraform Or Terragrunt configurations for AWS using security-focused development practices.
 

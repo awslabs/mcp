@@ -2,10 +2,10 @@
 
 ## Purpose and Usage
 
-This workflow guide provides a structured approach for developing valid, secure Terraform configurations for AWS infrastructure. As an AI coding assistant utilizing this MCP server, you should follow these steps when helping users create or modify Terraform or Terragrunt code.
+This workflow guide provides a structured approach for developing valid, secure Terraform configurations for AWS infrastructure. As an AI coding assistant utilizing this MCP server, you should follow these steps when helping users create or modify Terraform code.
 
 ## How to Use This Guide
-You have access to specialized tools and resources through this MCP server that significantly enhance your ability to assist with infrastructure-as-code (IaC) development. When working with users on Terraform or Terragrunt code:
+You have access to specialized tools and resources through this MCP server that significantly enhance your ability to assist with Terraform development. When working with users on Terraform code:
 
 1. Reference this workflow consistently throughout your interactions
 2. Leverage this MCP server's capabilities rather than relying solely on your general knowledge
