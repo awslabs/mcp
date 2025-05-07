@@ -21,6 +21,11 @@ Key capabilities:
 
 import argparse
 import subprocess
+import sys
+import time
+from typing import List, Optional
+from pathlib import Path
+from pydantic import BaseModel, Field
 from awslabs.code_doc_generation_mcp_server.utils.doc_generator import DocumentGenerator
 from awslabs.code_doc_generation_mcp_server.utils.models import (
     DocStructure,
@@ -36,9 +41,13 @@ from awslabs.code_doc_generation_mcp_server.utils.templates import (
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List, Optional
+
+# Configure loguru with more detailed debug output
+logger.remove()  # Remove default handler
+logger.configure(handlers=[
+    {"sink": sys.stderr, "level": "DEBUG"},
+    {"sink": "code-doc-mcp-server.log", "level": "DEBUG", "rotation": "10 MB"},
+])
 
 
 class _ProjectInfo(BaseModel):
@@ -226,10 +235,10 @@ async def prepare_repository(
 
 
 async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Context) -> dict:
-    """Prepares project structure for inclusion in ProjectAnalysis with enhanced error handling.
+    """Prepares project structure for inclusion in ProjectAnalysis.
 
-    This function:
-    1. Gets the directory structure from the raw analysis with fallbacks
+    This simplified function:
+    1. Gets the directory structure from the raw analysis
     2. Packages it with project info and metadata
     3. Returns a dict containing the directory structure and metadata
 
@@ -238,49 +247,16 @@ async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Co
 
     Note: This is an internal function not intended for direct client use.
     """
-    # Extract directory structure from raw_analysis with multiple fallbacks
+    # Get directory structure directly from raw_analysis
     directory_structure = raw_analysis.get('directory_structure')
     
     # Log whether we found directory_structure
     if directory_structure:
         logger.info(f"Directory structure found in raw_analysis (length: {len(directory_structure)})")
     else:
-        logger.warning("Directory structure not found in raw_analysis, checking alternates")
-        
-        # Try fallbacks or alternatives
-        if 'file_structure' in raw_analysis and isinstance(raw_analysis['file_structure'], dict) and 'directory_structure' in raw_analysis['file_structure']:
-            directory_structure = raw_analysis['file_structure']['directory_structure']
-            logger.info(f"Found directory structure in file_structure (length: {len(directory_structure)})")
-    
-        # If still none, look for repomix_output_file and try to generate a structure
-        if not directory_structure and 'output_dir' in raw_analysis:
-            try:
-                # Try to extract directly from file
-                output_dir = Path(raw_analysis['output_dir'])
-                repomix_file = output_dir / 'repo_structure.xml'
-                if repomix_file.exists():
-                    from awslabs.code_doc_generation_mcp_server.utils.repomix_manager import RepomixManager
-                    manager = RepomixManager()
-                    directory_structure = manager.extract_directory_structure(str(repomix_file))
-                    if directory_structure:
-                        logger.info(f"Re-extracted directory structure from file (length: {len(directory_structure)})")
-                        
-                # If we still don't have a directory structure and we have repomix output
-                if not directory_structure and 'repomix_output' in raw_analysis:
-                    # Try to generate a minimally useful structure from repomix_output
-                    import re
-                    output = raw_analysis['repomix_output']
-                    # Find file paths or directory names in the output
-                    matches = re.findall(r'(?:^|\s)(?:\.\/)?(?:[\w\-]+\/)+[\w\-\.]+(?:\.\w+)?', output, re.MULTILINE)
-                    if matches and len(matches) > 5:  # Only if we found enough paths
-                        directory_structure = "\n".join(matches[:30])  # Take top 30 paths
-                        logger.info(f"Generated fallback directory structure from paths (length: {len(directory_structure)})")
-            except Exception as e:
-                logger.error(f"Error in fallback extraction: {str(e)}")
+        logger.warning("Directory structure not found in raw_analysis")
                 
-    if not directory_structure:
-        logger.warning("Could not find valid directory structure after all fallbacks")
-
+    # Return simplified analysis data
     return {
         'project_info': raw_analysis['project_info'],
         'metadata': raw_analysis.get('metadata', {}),
@@ -310,7 +286,27 @@ async def create_context(
     Returns:
         A DocumentationContext ready for use with other tools
     """
-    return create_documentation_context(project_root, analysis)
+    start_time = time.time()
+    logger.debug(f"CONTEXT TIMING: Starting create_context at {start_time}")
+    
+    try:
+        # Create context object
+        doc_context = create_documentation_context(project_root, analysis)
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        logger.debug(f"CONTEXT TIMING: Finished create_context in {duration:.2f}s")
+        
+        if ctx:
+            ctx.info(f"Created documentation context in {duration:.2f}s")
+        
+        return doc_context
+    except Exception as e:
+        end_time = time.time()
+        logger.error(f"CONTEXT TIMING: Failed create_context after {end_time - start_time:.2f}s with error: {str(e)}")
+        if ctx:
+            ctx.error(f"Error creating documentation context: {str(e)}")
+        raise
 
 
 @mcp.tool(name='plan_documentation')
@@ -330,6 +326,9 @@ async def plan_documentation(
     3. Create appropriate documentation structure
     4. Return documentation plan
     """
+    start_time = time.time()
+    logger.debug(f"PLAN TIMING: Starting plan_documentation at {start_time}")
+    
     try:
         # Update context status
         doc_context.status = 'ready_to_plan'
@@ -413,6 +412,9 @@ async def generate_documentation(
     to write comprehensive content for each section. Do not leave sections empty
     or wait for further instructions - YOU must fill them in!
     """
+    start_time = time.time()
+    logger.debug(f"GENERATE TIMING: Starting generate_documentation at {start_time}")
+    
     try:
         # Update context status
         doc_context.status = 'ready_to_generate'
@@ -493,13 +495,13 @@ def main():
 
     args = parser.parse_args()
 
-    logger.trace('A trace message.')
-    logger.debug('A debug message.')
-    logger.info('An info message.')
-    logger.success('A success message.')
-    logger.warning('A warning message.')
-    logger.error('An error message.')
-    logger.critical('A critical message.')
+    # logger.trace('A trace message.')
+    # logger.debug('A debug message.')
+    # logger.info('An info message.')
+    # logger.success('A success message.')
+    # logger.warning('A warning message.')
+    # logger.error('An error message.')
+    # logger.critical('A critical message.')
 
     # Run server with appropriate transport
     if args.sse:

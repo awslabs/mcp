@@ -8,22 +8,20 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""Additional tests for the repomix manager module to improve coverage."""
+"""Additional tests for the streamlined repomix manager module."""
 
 import pytest
 import tempfile
 import os
+import xml.etree.ElementTree as ET
 from awslabs.code_doc_generation_mcp_server.utils.repomix_manager import RepomixManager
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, PropertyMock
 
 
 def test_logger_setup():
     """Test that the logger is properly set up in RepomixManager."""
     # Arrange
-    with patch('logging.getLogger') as mock_get_logger:
-        mock_logger = MagicMock()
-        mock_get_logger.return_value = mock_logger
-
+    with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.logger') as mock_logger:
         # Act
         manager = RepomixManager()
 
@@ -52,46 +50,67 @@ def test_extract_directory_structure_empty_xml_file():
         os.unlink(tmp_path)
 
 
-def test_extract_directory_structure_xml_parsing_fallbacks():
-    """Test all three XML extraction methods (iterative, direct, regex)."""
+def test_extract_directory_structure_xml_parsing():
+    """Test XML extraction with different directory_structure locations."""
     # Arrange
     manager = RepomixManager()
     
-    # Test with valid XML - should work with direct parsing
+    # Test with valid XML with standard directory_structure path
     with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
         tmp.write(b"""<?xml version="1.0" encoding="UTF-8"?>
 <root>
-  <directory_structure>Basic structure</directory_structure>
+  <directory_structure>Standard path structure</directory_structure>
 </root>""")
-        valid_xml_path = tmp.name
+        standard_path = tmp.name
         
-    # Test with malformed but parseable content
+    # Test with valid XML with nested directory_structure path
     with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
-        tmp.write(b"""
-Not real XML
-<directory_structure>Fallback structure</directory_structure>
-""")
-        malformed_xml_path = tmp.name
+        tmp.write(b"""<?xml version="1.0" encoding="UTF-8"?>
+<repo>
+  <data>
+    <directory_structure>Nested path structure</directory_structure>
+  </data>
+</repo>""")
+        nested_path = tmp.name
     
     try:
-        # Act - Test valid XML
-        with patch.object(manager.logger, 'info') as mock_info:
-            result1 = manager.extract_directory_structure(valid_xml_path)
-        
-        # Act - Test malformed XML
-        with patch.object(manager.logger, 'info') as mock_info:
-            result2 = manager.extract_directory_structure(malformed_xml_path)
+        # Act
+        result1 = manager.extract_directory_structure(standard_path)
+        result2 = manager.extract_directory_structure(nested_path)
             
         # Assert
-        assert result1 == "Basic structure"
-        assert result2 == "Fallback structure"
-        
-        # At least one of the methods should have been called
-        assert mock_info.called
+        assert result1 == "Standard path structure"
+        assert result2 == "Nested path structure"
     finally:
         # Clean up
-        os.unlink(valid_xml_path)
-        os.unlink(malformed_xml_path)
+        os.unlink(standard_path)
+        os.unlink(nested_path)
+
+
+def test_extract_directory_structure_xml_error_handling():
+    """Test extract_directory_structure handles XML parsing errors."""
+    # Arrange
+    manager = RepomixManager()
+    
+    # Create a corrupted XML file
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+        tmp.write(b"""<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <directory_structure>Broken XML file - missing closing tag
+</root>""")
+        corrupt_path = tmp.name
+    
+    try:
+        # Mock ET.parse to raise an exception
+        with patch.object(ET, 'parse', side_effect=Exception('XML parsing error')):
+            # Act
+            result = manager.extract_directory_structure(corrupt_path)
+            
+            # Assert
+            assert result is None
+    finally:
+        # Clean up
+        os.unlink(corrupt_path)
 
 
 @pytest.mark.asyncio
@@ -117,7 +136,6 @@ async def test_prepare_repository_output_dir_error(
     ctx = MagicMock()
 
     # Act & Assert
-    # The ValueError is caught inside the function and wrapped in a RuntimeError
     with pytest.raises(
         RuntimeError, match='Unexpected error during preparation: Output directory is not writable'
     ):
@@ -130,12 +148,10 @@ async def test_prepare_repository_output_dir_error(
 @patch('pathlib.Path.mkdir')
 @patch('pathlib.Path.touch')
 @patch('pathlib.Path.unlink')
-@patch('pathlib.Path.read_text')
-@patch('subprocess.run')
-async def test_prepare_repository_repomix_warning(
-    mock_run, mock_read_text, mock_unlink, mock_touch, mock_mkdir, mock_is_dir, mock_exists
+async def test_prepare_repository_fallback_extraction(
+    mock_unlink, mock_touch, mock_mkdir, mock_is_dir, mock_exists
 ):
-    """Test prepare_repository logs warnings from repomix."""
+    """Test prepare_repository falls back to extract_directory_structure when needed."""
     # Arrange
     manager = RepomixManager()
 
@@ -143,90 +159,69 @@ async def test_prepare_repository_repomix_warning(
     mock_exists.return_value = True
     mock_is_dir.return_value = True
 
-    # Create a mock process result with warnings
-    process_mock = MagicMock()
-    process_mock.stdout = 'stdout content'
-    process_mock.stderr = 'Warning: some files were skipped'
-    mock_run.return_value = process_mock
-
-    # Mock file read
-    mock_read_text.return_value = '# Directory Structure\n```\n.\n└── src\n```'
+    # Create mock processor
+    mock_processor = MagicMock()
+    mock_result = MagicMock()
+    # Direct method fails (attribute error)
+    type(mock_result).directory_structure = PropertyMock(side_effect=AttributeError("No such attribute"))
+    mock_result.total_files = 10
+    mock_result.total_chars = 1000
+    mock_result.total_tokens = 500
+    mock_processor.process.return_value = mock_result
 
     # Create a mock context
     ctx = MagicMock()
 
-    # Mock the parse_output method
-    with patch.object(manager, 'parse_output') as mock_parse_output:
-        mock_parse_output.return_value = {
-            'top_files': [],
-            'security': {'status': 'passed'},
-            'summary': {'total_files': 1, 'total_chars': 100, 'total_tokens': 50},
-        }
+    # The fallback method succeeds
+    with patch.object(manager, 'extract_directory_structure') as mock_extract:
+        mock_extract.return_value = 'Extracted directory structure'
+            
+        # Mock the RepomixConfig and RepoProcessor
+        with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepomixConfig'):
+            with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepoProcessor') as MockProcessor:
+                MockProcessor.return_value = mock_processor
+                    
+                # Act
+                result = await manager.prepare_repository('/path/to/project', '/path/to/output', ctx)
 
-        # Mock the extract_directory_structure method
-        with patch.object(manager, 'extract_directory_structure') as mock_extract:
-            mock_extract.return_value = '# Directory Structure\n```\n.\n└── src\n```'
-
-            # Act
-            result = await manager.prepare_repository('/path/to/project', '/path/to/output', ctx)
-
-            # Assert
-            ctx.warning.assert_called_once()
-            assert 'stderr' in result
-            assert result['stderr'] == 'Warning: some files were skipped'
+                # Assert
+                mock_extract.assert_called_once()
+                assert result['directory_structure'] == 'Extracted directory structure'
+                assert result['metadata']['summary']['total_files'] == 10
 
 
 @pytest.mark.asyncio
-@patch('pathlib.Path.exists')
-@patch('pathlib.Path.is_dir')
+@patch('pathlib.Path.exists', return_value=True)
+@patch('pathlib.Path.is_dir', return_value=True)
 @patch('pathlib.Path.mkdir')
 @patch('pathlib.Path.touch')
 @patch('pathlib.Path.unlink')
-@patch('pathlib.Path.read_text')
-@patch('subprocess.run')
 async def test_prepare_repository_missing_directory_structure(
-    mock_run, mock_read_text, mock_unlink, mock_touch, mock_mkdir, mock_is_dir, mock_exists
+    mock_unlink, mock_touch, mock_mkdir
 ):
     """Test prepare_repository handles missing directory structure."""
     # Arrange
     manager = RepomixManager()
-
-    # Set up the mocks
-    mock_exists.return_value = True
-    mock_is_dir.return_value = True
-
-    # Create a mock process result
-    process_mock = MagicMock()
-    process_mock.stdout = 'stdout content'
-    process_mock.stderr = ''
-    mock_run.return_value = process_mock
-
-    # Mock file read without directory structure
-    mock_read_text.return_value = '# Project Info\nName: Test Project\n\n# Code Analysis'
-
-    # Create a mock context
     ctx = MagicMock()
 
-    # Mock the parse_output method
-    with patch.object(manager, 'parse_output') as mock_parse_output:
-        mock_parse_output.return_value = {
-            'top_files': [],
-            'security': {'status': 'passed'},
-            'summary': {'total_files': 1, 'total_chars': 100, 'total_tokens': 50},
-        }
+    # Create mock processor
+    mock_processor = MagicMock()
+    mock_result = MagicMock()
+    # Neither direct nor fallback methods succeed
+    type(mock_result).directory_structure = PropertyMock(return_value=None)
+    mock_processor.process.return_value = mock_result
 
-        # Mock the extract_directory_structure method to return None
-        with patch.object(manager, 'extract_directory_structure') as mock_extract:
-            mock_extract.return_value = None
+    # Mock the extract_directory_structure method to return None
+    with patch.object(manager, 'extract_directory_structure', return_value=None):
+        # Mock the RepomixConfig and RepoProcessor
+        with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepomixConfig'):
+            with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepoProcessor', return_value=mock_processor):
+                # Act
+                result = await manager.prepare_repository('/path/to/project', '/path/to/output', ctx)
 
-            # Act
-            result = await manager.prepare_repository('/path/to/project', '/path/to/output', ctx)
-
-            # Assert
-            ctx.warning.assert_called_with(
-                'Failed to extract directory structure from repomix XML output'
-            )
-            assert result['directory_structure'] is None
+                # Assert
+                ctx.warning.assert_called_once()
+                assert result['directory_structure'] is None
 
 
 @pytest.mark.asyncio
@@ -242,85 +237,46 @@ async def test_prepare_repository_not_directory(mock_is_dir, mock_exists):
     mock_is_dir.return_value = False
 
     # Act & Assert
-    # The ValueError is caught inside the function and wrapped in a RuntimeError
     with pytest.raises(
         RuntimeError, match='Unexpected error during preparation: Project path is not a directory'
     ):
         await manager.prepare_repository('/path/to/file.txt', '/path/to/output')
 
 
-def test_parse_output_top_files_section():
-    """Test parse_output correctly parses the top files section."""
+def test_extract_directory_structure_multiple_xpath():
+    """Test extract_directory_structure tries different xpath patterns."""
     # Arrange
     manager = RepomixManager()
-
-    # Instead of testing the implementation directly, return a result directly
-    # This avoids needing to duplicate the regex parsing logic
-    def custom_parse_output(stdout):
-        return {
-            'top_files': [
-                {'path': 'src/index.js', 'chars': 1234, 'tokens': 567},
-                {'path': 'src/App.jsx', 'chars': 987, 'tokens': 456},
-            ],
-            'security': {'status': 'passed'},
-            'summary': {'total_files': 10, 'total_chars': 5000, 'total_tokens': 2000},
-        }
-
-    # Replace the method with our custom implementation
-    original_parse_output = manager.parse_output
-    manager.parse_output = custom_parse_output
-
-    # Act
-    result = manager.parse_output('dummy stdout')
-
-    # Restore original method
-    manager.parse_output = original_parse_output
-
-    # Assert
-    assert len(result['top_files']) == 2
-    assert result['top_files'][0]['path'] == 'src/index.js'
-    assert result['top_files'][0]['chars'] == 1234
-    assert result['top_files'][0]['tokens'] == 567
-    assert result['top_files'][1]['path'] == 'src/App.jsx'
-    assert result['top_files'][1]['chars'] == 987
-    assert result['top_files'][1]['tokens'] == 456
-
-
-def test_parse_output_security_section():
-    """Test parse_output correctly parses the security section."""
-    # Arrange
-    manager = RepomixManager()
-    stdout = """
-🔎 Security Check
-  ✔ No security issues found
-
-📊 Pack Summary
-  Total Files: 10
-"""
-
-    # Act
-    result = manager.parse_output(stdout)
-
-    # Assert
-    assert result['security']['status'] == 'passed'
-    assert 'No security issues found' in result['security']['message']
-
-
-def test_parse_output_summary_section():
-    """Test parse_output correctly parses the summary section."""
-    # Arrange
-    manager = RepomixManager()
-    stdout = """
-📊 Pack Summary
-  Total Files: 10
-  Total Chars: 5000
-  Total Tokens: 2000
-"""
-
-    # Act
-    result = manager.parse_output(stdout)
-
-    # Assert
-    assert result['summary']['total_files'] == 10
-    assert result['summary']['total_chars'] == 5000
-    assert result['summary']['total_tokens'] == 2000
+    
+    # Create an XML file with directory_structure at a specific xpath
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+        tmp.write(b"""<?xml version="1.0" encoding="UTF-8"?>
+<repository>
+  <data>
+    <directory_structure>Found with alternative xpath</directory_structure>
+  </data>
+</repository>""")
+        xml_path = tmp.name
+    
+    try:
+        # Mock find to return None for first xpath, then actual result for second
+        original_find = ET.Element.find
+        
+        def mock_find(self, path):
+            if path == './/directory_structure':
+                return None
+            elif path == 'directory_structure':
+                element = ET.Element('directory_structure')
+                element.text = 'Found with alternative xpath'
+                return element
+            return original_find(self, path)
+            
+        with patch('xml.etree.ElementTree.Element.find', mock_find):
+            # Act
+            result = manager.extract_directory_structure(xml_path)
+            
+            # Assert
+            assert result == 'Found with alternative xpath'
+    finally:
+        # Clean up
+        os.unlink(xml_path)

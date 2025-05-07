@@ -16,7 +16,7 @@ from awslabs.code_doc_generation_mcp_server.utils.models import (
     DocumentSpec,
     DocumentTemplate,
 )
-
+from loguru import logger
 
 # Mapping of filenames to template types
 TEMPLATE_FILE_MAPPING = {
@@ -127,6 +127,7 @@ def create_doc_from_template(template_name: str, doc_name: str) -> DocumentSpec:
     """Create a DocumentSpec from a template."""
     template = DOCUMENT_TEMPLATES.get(template_name)
     if not template:
+        logger.error(f'Template {template_name} not found')
         raise ValueError(f'Template {template_name} not found')
 
     return DocumentSpec(

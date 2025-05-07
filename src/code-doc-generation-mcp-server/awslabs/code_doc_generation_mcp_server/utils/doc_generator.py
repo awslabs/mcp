@@ -11,8 +11,7 @@
 
 """Document generation module for handling document creation workflow."""
 
-import logging
-from .models import (
+from awslabs.code_doc_generation_mcp_server.utils.models import (
     DocumentationContext,
     DocumentationPlan,
     DocumentSection,
@@ -22,14 +21,7 @@ from .models import (
 from mcp.server.fastmcp import Context
 from pathlib import Path
 from typing import List, Optional
-
-
-# Set up logging with more verbose level
-logging.basicConfig(
-    level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', force=True
-)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from loguru import logger
 
 
 class DocumentGenerator:
