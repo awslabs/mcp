@@ -16,11 +16,21 @@
     }
   },
   "features": {
-    "ghcr.io/devcontainers-extra/features/typescript:2": {},
-    "ghcr.io/devcontainers/features/python:1": {},
-    "ghcr.io/devcontainers/features/ruby:1": {},
-    "ghcr.io/devcontainers/features/rust:1": {},
-    "ghcr.io/devcontainers/features/terraform:1": {}
+    "ghcr.io/devcontainers-extra/features/typescript:2": {
+      "version": 	"2.0.15"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": 	"1.7.1"
+    },
+    "ghcr.io/devcontainers/features/ruby:1": {
+      "version": 	"1.3.1"
+    },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": 	"1.3.2"
+    },
+    "ghcr.io/devcontainers/features/terraform:1": {
+      "version": 	"1.3.10"
+    }
   },
   "hostRequirements": {
     "cpus": 4
