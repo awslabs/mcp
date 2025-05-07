@@ -127,15 +127,13 @@ The Terraform MCP Server provides the following capabilities:
 
 ### Valkey MCP Server
 
-The Valkey MCP Server provides a natural language interface to interact with Valkey datastores, enabling AI assistants to work with various data structures and perform complex data operations.
+The Amazon ElastiCache/MemoryDB Valkey MCP Server provides a natural language interface to interact with Valkey datastores, enabling AI assistants to work with various data structures and perform complex data operations.
 
 **Features:**
 
 - Support for multiple data types (Strings, Lists, Sets, Sorted Sets, Hashes, Streams, etc.)
-- Advanced features like server-side scripting and cluster support
-- Geospatial operations and bitmap manipulations
+- Advanced features like cluster support
 - JSON document storage and querying
-- Real-time pub/sub messaging capabilities
 - Secure connections with SSL/TLS support
 - Connection pooling for efficient resource management
 
