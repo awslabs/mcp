@@ -21,6 +21,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
   - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
   - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
+  - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
   - [Use Cases for the Servers](#use-cases-for-the-servers)
 - [Installation and Setup](#installation-and-setup)
   - [Getting Started with Cline and Amazon Bedrock](#getting-started-with-cline-and-amazon-bedrock)
@@ -182,6 +183,20 @@ A server for AWS Terraform best practices.
 
 [Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
 
+### Git Repo Research MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.git-repo-research-mcp-server.svg)](https://pypi.org/project/awslabs.git-repo-research-mcp-server/)
+
+A server for researching Git repositories using semantic search.
+
+- Repository Indexing with FAISS and Amazon Bedrock embeddings
+- Semantic Search within repositories
+- Repository Structure Analysis
+- GitHub Repository Search in AWS organizations
+- File Access with text and binary support
+
+[Learn more](src/git-repo-research-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
+
 ### Use Cases for the Servers
 
 For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What would be the estimated monthly cost for this CDK project before I deploy it?" or "Can you help me understand the potential AWS service expenses for this infrastructure design?" and receive detailed cost estimations and budget planning insights.
@@ -270,7 +285,19 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
        },
        "disabled": false,
        "autoApprove": []
-     }
+    },
+    "awslabs.git-repo-research-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.git-repo-research-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "GITHUB_TOKEN": "your-github-token"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
   }
 }
 ```
@@ -570,6 +597,7 @@ Documentation for each server:
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 - [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
+- [Git Repo Research MCP Server](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
 
 Documentation includes:
 
