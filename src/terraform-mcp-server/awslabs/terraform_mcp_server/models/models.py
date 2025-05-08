@@ -303,6 +303,7 @@ class SearchUserProvidedModuleResult(BaseModel):
     readme_content: Optional[str] = Field(None, description='README content of the module')
     error_message: Optional[str] = Field(None, description='Error message if execution failed')
 
+
 class TerragruntExecutionRequest(BaseModel):
     """Request model for Terragrunt command execution with parameters.
 

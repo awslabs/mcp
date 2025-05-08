@@ -6,23 +6,20 @@ import pytest
 from awslabs.terraform_mcp_server.impl.tools.execute_terraform_command import (
     execute_terraform_command_impl,
 )
+from awslabs.terraform_mcp_server.impl.tools.execute_terragrunt_command import (
+    execute_terragrunt_command_impl,
+)
 from awslabs.terraform_mcp_server.impl.tools.run_checkov_scan import (
     run_checkov_scan_impl,
 )
 from awslabs.terraform_mcp_server.models import (
     CheckovScanRequest,
     TerraformExecutionRequest,
+    TerragruntExecutionRequest,
 )
 from unittest.mock import MagicMock, patch
 
 
-from awslabs.terraform_mcp_server.impl.tools.execute_terragrunt_command import (
-    execute_terragrunt_command_impl,
-)
-from awslabs.terraform_mcp_server.models import (
-    TerragruntExecutionRequest,
-    TerragruntExecutionResult,
-)
 pytestmark = pytest.mark.asyncio
 
 

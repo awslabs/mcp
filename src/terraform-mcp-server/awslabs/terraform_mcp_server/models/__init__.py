@@ -15,6 +15,7 @@ from .models import (
     SearchUserProvidedModuleRequest,
     SearchUserProvidedModuleResult,
 )
+
 __all__ = [
     'ModuleSearchResult',
     'TerraformAWSProviderDocsResult',

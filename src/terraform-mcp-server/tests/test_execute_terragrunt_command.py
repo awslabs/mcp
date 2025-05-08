@@ -1,14 +1,13 @@
 """Tests for the execute_terragrunt_command implementation."""
 
 import json
-import os
 import pytest
-import re
 from awslabs.terraform_mcp_server.impl.tools.execute_terragrunt_command import (
     execute_terragrunt_command_impl,
 )
-from awslabs.terraform_mcp_server.models import TerragruntExecutionRequest, TerragruntExecutionResult
-from loguru import logger
+from awslabs.terraform_mcp_server.models import (
+    TerragruntExecutionRequest,
+)
 from unittest.mock import MagicMock, patch
 
 
@@ -308,7 +307,7 @@ async def test_execute_terragrunt_command_run_all(temp_terraform_dir):
     # Create mock results for the run-all command and the output command
     mock_run_all_result = MagicMock()
     mock_run_all_result.returncode = 0
-    mock_run_all_result.stdout = '''
+    mock_run_all_result.stdout = """
     Terragrunt will run the following modules:
     Module at "/path/to/module1"
     Module at "/path/to/module2"
@@ -318,7 +317,7 @@ async def test_execute_terragrunt_command_run_all(temp_terraform_dir):
     Running 'terragrunt apply' in Module at "/path/to/module1"...
     Running 'terragrunt apply' in Module at "/path/to/module2"...
     Running 'terragrunt apply' in Module at "/path/to/module3"...
-    '''
+    """
     mock_run_all_result.stderr = ''
 
     # Create a mock for the output command too
@@ -412,6 +411,7 @@ async def test_execute_terragrunt_command_with_exception(temp_terraform_dir):
         assert result.status == 'error'
         assert result.error_message == 'Command execution failed'
 
+
 @pytest.mark.asyncio
 async def test_execute_terragrunt_command_with_custom_config(temp_terraform_dir):
     """Test the Terragrunt command execution with a custom config file."""
@@ -422,7 +422,7 @@ async def test_execute_terragrunt_command_with_custom_config(temp_terraform_dir)
     mock_result.stderr = ''
 
     # Custom config path
-    custom_config = "custom-terragrunt.hcl"
+    custom_config = 'custom-terragrunt.hcl'
 
     # Create the request with a custom config file
     request = TerragruntExecutionRequest(
@@ -442,7 +442,7 @@ async def test_execute_terragrunt_command_with_custom_config(temp_terraform_dir)
         # Check the result
         assert result.status == 'success'
         assert result.stdout == 'Terragrunt initialized with custom config!'
-        
+
         # Verify the command included the custom config flag
         cmd_args = mock_run.call_args[0][0]
         assert f'--terragrunt-config={custom_config}' in cmd_args

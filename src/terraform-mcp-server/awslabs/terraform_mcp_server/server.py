@@ -37,6 +37,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
+
 mcp = FastMCP(
     'terraform_mcp_server',
     instructions=f'{MCP_INSTRUCTIONS}',
@@ -84,7 +85,6 @@ async def execute_terraform_command(
         strip_ansi=strip_ansi,
     )
     return await execute_terraform_command_impl(request)
-
 
 
 @mcp.tool(name='ExecuteTerragruntCommand')

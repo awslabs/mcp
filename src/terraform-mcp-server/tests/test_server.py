@@ -34,6 +34,7 @@ from awslabs.terraform_mcp_server.server import (
 )
 from unittest.mock import MagicMock, patch
 
+
 class TestMCPServer:
     """Tests for the MCP server."""
 

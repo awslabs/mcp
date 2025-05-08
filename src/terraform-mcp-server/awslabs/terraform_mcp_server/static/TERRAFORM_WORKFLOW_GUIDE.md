@@ -87,7 +87,7 @@ flowchart TD
         * If no suitable module exists, THEN use AWSCC provider resources (`SearchAwsccProviderDocs` tool)
         * ONLY fall back to traditional AWS provider (`SearchAwsProviderDocs` tool) when the above options don't meet requirements
     - When using Terragrunt:
-        * Ensure that the terraform block references the correct module or configuration directory 
+        * Ensure that the terraform block references the correct module or configuration directory
         * Use Terragrunt features such as locals, dependencies, generate, and inputs to manage DRY configuration
     - When a user provides a specific Terraform Registry module to use:
         * Use the `SearchUserProvidedModule` tool to analyze the module
@@ -107,13 +107,13 @@ flowchart TD
             - *SearchAwsccProviderDocs* tool to look up specific Cloud Control API resources
             - *SearchAwsProviderDocs* tool to look up specific resource documentation
 2. Validate Code
-    - Tools: 
+    - Tools:
       - *ExecuteTerraformCommand* with command="validate"
       - *ExecuteTerragruntCommand* with command="validate"
     - Purpose:
       - Checks syntax and configuration validity without accessing AWS
       - Identifies syntax errors, invalid resource configurations, and reference issues
-    - Examples: 
+    - Examples:
       - ExecuteTerraformCommand(TerraformExecutionRequest(command="validate", working_directory="./my_project"))
       - ExecuteTerragruntCommand(TerragruntExecutionRequest(command="validate", working_directory="./my_project"))
 3. Run Security Scan
@@ -125,22 +125,22 @@ flowchart TD
         - Edit the code to address security issues identified by the scan
         - Consult *terraform_aws_best_practices* resource for guidance
 5. Initialize Working Directory
-    - Tools: 
+    - Tools:
       - Terraform: *ExecuteTerraformCommand* with command="init"
       - Terragrunt: *ExecuteTerragruntCommand* with command="init"
     - Purpose:
         - Downloads provider plugins and sets up modules
-    - Example: 
+    - Example:
       - ExecuteTerraformCommand(TerraformExecutionRequest(command="init", working_directory="./my_project"))
       - ExecuteTerragruntCommand(TerragruntExecutionRequest(command="init", working_directory="./my_project"))
 6. Plan Changes
-    - Tools: 
+    - Tools:
       - *ExecuteTerraformCommand* with command="plan"
       - *ExecuteTerragruntCommand* with command="plan"
-    - Purpose: 
+    - Purpose:
         - Creates an execution plan showing what changes would be made (without applying)
         - Verifies that the configuration is deployable
-    - Examples: 
+    - Examples:
       - ExecuteTerraformCommand(TerraformExecutionRequest(command="plan", working_directory="./my_project", output_file="tfplan"))
       - ExecuteTerragruntCommand(TerragruntExecutionRequest(command="plan", working_directory="./my_project", output_file="tfplan"))
 7. Review Plan & Code Ready

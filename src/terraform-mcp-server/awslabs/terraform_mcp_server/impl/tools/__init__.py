@@ -7,6 +7,7 @@ from .search_aws_provider_docs import search_aws_provider_docs_impl
 from .search_awscc_provider_docs import search_awscc_provider_docs_impl
 from .search_specific_aws_ia_modules import search_specific_aws_ia_modules_impl
 from .run_checkov_scan import run_checkov_scan_impl
+
 __all__ = [
     'search_user_provided_module_impl',
     'execute_terraform_command_impl',

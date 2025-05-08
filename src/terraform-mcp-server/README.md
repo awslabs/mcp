@@ -44,7 +44,7 @@ MCP server for Terraform on AWS best practices, infrastructure as code patterns,
 - **Terragrunt Workflow Execution** - Run Terragrunt commands directly
   - Initialize, plan, validate, apply, run-all and destroy operations
   - Pass variables and specify AWS regions
-  - Configure terragrunt-config and and include/exclude paths flags 
+  - Configure terragrunt-config and and include/exclude paths flags
   - Get formatted command output for analysis
 
 ## Tools and Resources

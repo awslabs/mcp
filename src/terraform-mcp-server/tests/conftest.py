@@ -437,7 +437,7 @@ def mock_terragrunt_command_output():
                 'stdout': 'Terragrunt will run the following modules:\n'
                 'Module at "/path/to/module1"\n'
                 'Module at "/path/to/module2"\n\n'
-                'Are you sure you want to run \'terragrunt apply\' in each module? (y/n)\n'
+                "Are you sure you want to run 'terragrunt apply' in each module? (y/n)\n"
                 'Running \'terragrunt apply\' in Module at "/path/to/module1"...\n'
                 'Running \'terragrunt apply\' in Module at "/path/to/module2"...\n',
                 'stderr': '',

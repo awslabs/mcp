@@ -5,7 +5,10 @@ import os
 import re
 import subprocess
 from awslabs.terraform_mcp_server.impl.tools.utils import get_dangerous_patterns
-from awslabs.terraform_mcp_server.models import TerragruntExecutionRequest, TerragruntExecutionResult
+from awslabs.terraform_mcp_server.models import (
+    TerragruntExecutionRequest,
+    TerragruntExecutionResult,
+)
 from loguru import logger
 
 
@@ -100,11 +103,11 @@ async def execute_terragrunt_command_impl(
 
     # Validate that terragrunt_config is not used with run-all
     if request.terragrunt_config and request.command == 'run-all':
-        logger.error(f'terragrunt_config cannot be used with run-all command')
+        logger.error('terragrunt_config cannot be used with run-all command')
         return TerragruntExecutionResult(
             command=f'terragrunt {request.command}',
             status='error',
-            error_message=f"Invalid configuration: --terragrunt-config cannot be used with run-all command",
+            error_message='Invalid configuration: --terragrunt-config cannot be used with run-all command',
             working_directory=request.working_directory,
             outputs=None,
         )
@@ -131,9 +134,7 @@ async def execute_terragrunt_command_impl(
 
         # Check terragrunt_config for dangerous patterns
         if request.terragrunt_config and pattern in str(request.terragrunt_config):
-            logger.error(
-                f'Potentially dangerous pattern detected in terragrunt_config: {pattern}'
-            )
+            logger.error(f'Potentially dangerous pattern detected in terragrunt_config: {pattern}')
             return TerragruntExecutionResult(
                 command=f'terragrunt {request.command}',
                 status='error',
@@ -173,7 +174,7 @@ async def execute_terragrunt_command_impl(
 
     # Build the command
     base_cmd = ['terragrunt']
-    
+
     # Handle run-all command differently
     if request.command == 'run-all':
         base_cmd.append('run-all')
@@ -246,7 +247,9 @@ async def execute_terragrunt_command_impl(
         }
 
         # Get outputs if this was a successful apply or output command
-        if (request.command in ['apply', 'output'] or (request.command == 'run-all')) and process.returncode == 0:
+        if (
+            request.command in ['apply', 'output'] or (request.command == 'run-all')
+        ) and process.returncode == 0:
             try:
                 logger.info('Getting Terragrunt outputs')
                 output_process = subprocess.run(
