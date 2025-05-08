@@ -25,7 +25,7 @@
     "ghcr.io/devcontainers/features/common-utils:2.5.3": {
       "configureZshAsDefaultShell": true
     },
-    "ghcr.io/devcontainers/features/java:1": {
+    "ghcr.io/devcontainers/features/java:1.6.3": {
       "jdkDistro": "amzn"
     },
     "ghcr.io/devcontainers/features/go:1.3.2": {},
@@ -41,7 +41,7 @@
   "hostRequirements": {
     "cpus": 4
   },
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "image": "mcr.microsoft.com/devcontainers/universal:2.9.0",
   "postCreateCommand": {
     "Install Extra Python Packages": "pip install uv pre-commit detect-secrets cookiecutter pyright pytest pytest-asyncio pytest-cov pytest-mock",
     "Install Extra Node Packages": "npm install --global @anthropic-ai/claude-code",
