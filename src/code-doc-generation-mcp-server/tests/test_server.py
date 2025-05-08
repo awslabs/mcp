@@ -64,10 +64,7 @@ async def test_prepare_repository(mock_repomix_manager):
         assert result.project_type == ''  # Should be empty for Cline to fill
         assert result.features == []  # Should be empty for Cline to fill
         assert result.file_structure['root'] == [test_project_path]
-        assert (
-            result.file_structure['directory_structure']
-            == 'bin/\n  app.ts\nlib/\n  stack.ts'
-        )
+        assert result.file_structure['directory_structure'] == 'bin/\n  app.ts\nlib/\n  stack.ts'
         # Fix warning by using assert_called_once_with instead of called_once_with
         mock_instance.prepare_repository.assert_called_once_with(
             test_project_path, Path(test_project_path) / 'generated-docs', ctx

@@ -18,10 +18,10 @@ from awslabs.code_doc_generation_mcp_server.utils.models import (
     DocumentSpec,
     ProjectAnalysis,
 )
+from loguru import logger
 from mcp.server.fastmcp import Context
 from pathlib import Path
 from typing import List, Optional
-from loguru import logger
 
 
 class DocumentGenerator:
@@ -76,9 +76,12 @@ class DocumentGenerator:
                 if analysis.backend.get('framework'):
                     summary[-1] += f' ({analysis.backend["framework"]})'
                 if analysis.backend.get('database'):
-                    summary.append(
-                        f'  - Database: {analysis.backend["database"].get("type", "Unknown")}'
-                    )
+                    db_value = analysis.backend["database"]
+                    if isinstance(db_value, dict) and db_value.get("type"):
+                        summary.append(f'  - Database: {db_value.get("type")}')
+                    else:
+                        # Handle case where database is a string instead of dict
+                        summary.append(f'  - Database: {db_value}')
 
         if analysis.apis:
             summary.append('- API Layer')
@@ -255,9 +258,13 @@ class DocumentGenerator:
                     if isinstance(
                         context.analysis_result.backend, dict
                     ) and context.analysis_result.backend.get('database'):
-                        db_type = context.analysis_result.backend.get('database', {}).get(
-                            'type', 'Database'
-                        )
+                        db_value = context.analysis_result.backend.get('database')
+                        if isinstance(db_value, dict) and db_value.get('type'):
+                            db_type = db_value.get('type')
+                        else:
+                            # Handle case where database is a string
+                            db_type = str(db_value)
+                            
                         if 'dynamo' in str(db_type).lower():
                             content.append('        db = DynamoDB("DynamoDB")')
                         else:
@@ -355,9 +362,13 @@ class DocumentGenerator:
                             # Add data stores
                             content.append('    # Define data stores')
                             if context.analysis_result.backend.get('database'):
-                                db_type = context.analysis_result.backend.get('database', {}).get(
-                                    'type', 'Database'
-                                )
+                                db_value = context.analysis_result.backend.get('database')
+                                if isinstance(db_value, dict) and db_value.get('type'):
+                                    db_type = db_value.get('type')
+                                else:
+                                    # Handle case where database is a string
+                                    db_type = str(db_value)
+                                    
                                 if 'dynamo' in str(db_type).lower():
                                     content.append('    data_store = DynamoDB("DynamoDB")')
                                 else:

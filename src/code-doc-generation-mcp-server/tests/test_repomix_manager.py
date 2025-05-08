@@ -25,10 +25,11 @@ def test_extract_directory_structure_xml():
     """Test extract_directory_structure correctly extracts directory structure from XML."""
     # Arrange
     manager = RepomixManager()
-    
+
     # Create a temporary XML file
     import tempfile
-    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as tmp:
+
+    with tempfile.NamedTemporaryFile(suffix='.xml', delete=False) as tmp:
         tmp.write(b"""
 <repository>
   <directory_structure>
@@ -44,11 +45,11 @@ def test_extract_directory_structure_xml():
 </repository>
 """)
         tmp_path = tmp.name
-    
+
     try:
         # Act
         result = manager.extract_directory_structure(tmp_path)
-        
+
         # Assert
         assert result is not None
         assert 'src/' in result
@@ -56,6 +57,7 @@ def test_extract_directory_structure_xml():
     finally:
         # Clean up
         import os
+
         os.unlink(tmp_path)
 
 
@@ -63,10 +65,10 @@ def test_extract_directory_structure_file_not_found():
     """Test extract_directory_structure handles file not found scenario."""
     # Arrange
     manager = RepomixManager()
-    
+
     # Act
     result = manager.extract_directory_structure('/path/to/nonexistent/file.xml')
-    
+
     # Assert
     assert result is None
 
@@ -77,9 +79,7 @@ def test_extract_directory_structure_file_not_found():
 @patch('pathlib.Path.is_dir')
 @patch('pathlib.Path.touch')
 @patch('pathlib.Path.unlink')
-async def test_prepare_repository(
-    mock_unlink, mock_touch, mock_is_dir, mock_exists, mock_mkdir
-):
+async def test_prepare_repository(mock_unlink, mock_touch, mock_is_dir, mock_exists, mock_mkdir):
     """Test prepare_repository using Python module approach."""
     # Arrange
     manager = RepomixManager()
@@ -107,12 +107,16 @@ async def test_prepare_repository(
         mock_extract_stats.return_value = {
             'total_files': 2,
             'total_chars': 150,
-            'total_tokens': 70
+            'total_tokens': 70,
         }
-        
+
         # Mock the RepomixConfig and RepoProcessor
-        with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepomixConfig') as MockConfig:
-            with patch('awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepoProcessor') as MockProcessor:
+        with patch(
+            'awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepomixConfig'
+        ) as MockConfig:
+            with patch(
+                'awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepoProcessor'
+            ) as MockProcessor:
                 MockProcessor.return_value = mock_processor
 
                 # Act
@@ -140,7 +144,7 @@ async def test_prepare_repository_module_error(mock_processor):
     manager = RepomixManager()
     mock_processor_instance = MagicMock()
     mock_processor.return_value = mock_processor_instance
-    mock_processor_instance.process.side_effect = Exception("Module error occurred")
+    mock_processor_instance.process.side_effect = Exception('Module error occurred')
 
     # Act & Assert
     with pytest.raises(RuntimeError):
@@ -155,5 +159,7 @@ async def test_prepare_repository_invalid_path():
 
     # Act & Assert
     with patch('pathlib.Path.exists', return_value=False):
-        with pytest.raises(RuntimeError, match='Unexpected error during preparation: Project path does not exist'):
+        with pytest.raises(
+            RuntimeError, match='Unexpected error during preparation: Project path does not exist'
+        ):
             await manager.prepare_repository('/path/to/project', '/path/to/output')

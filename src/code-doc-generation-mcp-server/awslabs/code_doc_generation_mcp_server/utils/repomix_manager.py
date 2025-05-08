@@ -12,11 +12,11 @@
 """Manager for repomix operations with streamlined directory structure extraction."""
 
 import time
-from pathlib import Path
-from typing import Any, Dict, Optional
-from repomix import RepoProcessor, RepomixConfig
-from mcp.server.fastmcp import Context
 from loguru import logger
+from mcp.server.fastmcp import Context
+from pathlib import Path
+from repomix import RepomixConfig, RepoProcessor
+from typing import Any, Dict, Optional
 
 
 class RepomixManager:
@@ -35,27 +35,27 @@ class RepomixManager:
         Returns:
             Dictionary containing statistics or empty dict if not found
         """
-        import xml.etree.ElementTree as ET
         import os
-        
-        self.logger.info(f"Extracting statistics from {xml_path}")
-        
+        import xml.etree.ElementTree as ET
+
+        self.logger.info(f'Extracting statistics from {xml_path}')
+
         try:
             # Verify file exists
             if not os.path.exists(xml_path):
-                self.logger.error(f"XML file does not exist: {xml_path}")
+                self.logger.error(f'XML file does not exist: {xml_path}')
                 return {}
 
             # Parse XML
             tree = ET.parse(xml_path)
             root = tree.getroot()
-            
+
             # Find statistics element
             stats_elem = root.find('.//statistics')
             if stats_elem is not None:
-                self.logger.info("Found statistics element")
+                self.logger.info('Found statistics element')
                 stats = {}
-                
+
                 # Extract each statistic
                 for child in stats_elem:
                     try:
@@ -68,19 +68,19 @@ class RepomixManager:
                     except (ValueError, TypeError):
                         # Fallback to string if conversion fails
                         stats[child.tag] = child.text
-                
+
                 return stats
-            
-            self.logger.warning("Statistics element not found in XML")
+
+            self.logger.warning('Statistics element not found in XML')
             return {}
-            
+
         except Exception as e:
-            self.logger.error(f"Error extracting statistics: {str(e)}")
+            self.logger.error(f'Error extracting statistics: {str(e)}')
             return {}
 
     def extract_directory_structure(self, xml_path: str) -> Optional[str]:
         """Extract directory structure from repomix XML output file.
-        
+
         Supports both formats:
         1. Plain text in <directory_structure> element (for compatibility with tests)
         2. Nested <repository_structure> XML format (new repomix format)
@@ -91,48 +91,52 @@ class RepomixManager:
         Returns:
             String containing the directory structure or None if not found
         """
-        import xml.etree.ElementTree as ET
         import os
-        
-        self.logger.info(f"Extracting directory structure from {xml_path}")
-        
+        import xml.etree.ElementTree as ET
+
+        self.logger.info(f'Extracting directory structure from {xml_path}')
+
         try:
             # Verify file exists
             if not os.path.exists(xml_path):
-                self.logger.error(f"XML file does not exist: {xml_path}")
+                self.logger.error(f'XML file does not exist: {xml_path}')
                 return None
 
             # Parse XML
             tree = ET.parse(xml_path)
             root = tree.getroot()
-            
+
             # First try the old format with <directory_structure> containing plain text
-            for xpath in ['.//directory_structure', 'directory_structure', './directory_structure']:
+            for xpath in [
+                './/directory_structure',
+                'directory_structure',
+                './directory_structure',
+            ]:
                 dir_elem = root.find(xpath)
                 if dir_elem is not None and dir_elem.text:
                     directory_structure = dir_elem.text.strip()
-                    self.logger.info(f"Extracted directory structure using xpath: {xpath}")
+                    self.logger.info(f'Extracted directory structure using xpath: {xpath}')
                     return directory_structure
-            
+
             # If not found, look for nested <repository_structure> format
             repo_structure = root.find('.//repository_structure')
             if repo_structure is not None:
-                self.logger.info("Found repository_structure element, converting to text format")
+                self.logger.info('Found repository_structure element, converting to text format')
                 lines = []
                 self._convert_repository_structure(repo_structure, lines)
                 if lines:
                     return '\n'.join(lines)
-                    
-            self.logger.warning("Directory structure element not found in XML")
+
+            self.logger.warning('Directory structure element not found in XML')
             return None
-            
+
         except Exception as e:
-            self.logger.error(f"Error extracting directory structure: {str(e)}")
+            self.logger.error(f'Error extracting directory structure: {str(e)}')
             return None
-    
+
     def _convert_repository_structure(self, element, lines, indent=0):
         """Recursively convert repository_structure XML to text-based representation.
-        
+
         Args:
             element: XML element (repository_structure or a child element)
             lines: List to append text lines to
@@ -169,8 +173,8 @@ class RepomixManager:
             RuntimeError: If repomix preparation fails
         """
         start_time = time.time()
-        self.logger.info(f"Starting prepare_repository at {start_time}")
-        
+        self.logger.info(f'Starting prepare_repository at {start_time}')
+
         try:
             # Validate project path
             project_path = Path(project_root)
@@ -215,40 +219,49 @@ class RepomixManager:
                 # Configure repomix
                 config = RepomixConfig()
                 config.output.file_path = str(repomix_output_file)
-                config.output.style = "xml"
+                config.output.style = 'xml'
                 config.ignore.custom_patterns = ignore_patterns.split(',')
                 config.ignore.use_gitignore = False
-                
+
                 if ctx:
-                    ctx.info("Using repomix to generate directory structure...")
-                
+                    ctx.info('Using repomix to generate directory structure...')
+
                 # Process repository
                 processor = RepoProcessor(str(project_path), config=config)
                 result_obj = processor.process()
-                
+
                 # Try to get directory structure directly from result object
                 directory_structure = None
                 try:
                     directory_structure = getattr(result_obj, 'directory_structure', None)
                     if directory_structure:
-                        self.logger.info("Extracted directory structure directly from result object")
+                        self.logger.info(
+                            'Extracted directory structure directly from result object'
+                        )
                 except Exception as e:
-                    self.logger.warning(f"Could not access directory_structure attribute: {e}")
-                
+                    self.logger.warning(f'Could not access directory_structure attribute: {e}')
+
                 # Fall back to extracting from XML file if needed
                 if not directory_structure:
-                    directory_structure = self.extract_directory_structure(str(repomix_output_file))
-                
+                    directory_structure = self.extract_directory_structure(
+                        str(repomix_output_file)
+                    )
+
                 # Extract file structure from raw_analysis as a second fallback
                 if not directory_structure and hasattr(result_obj, 'file_structure'):
                     try:
                         file_structure = getattr(result_obj, 'file_structure', {})
-                        if isinstance(file_structure, dict) and 'directory_structure' in file_structure:
+                        if (
+                            isinstance(file_structure, dict)
+                            and 'directory_structure' in file_structure
+                        ):
                             directory_structure = file_structure['directory_structure']
-                            self.logger.info("Extracted directory structure from file_structure attribute")
+                            self.logger.info(
+                                'Extracted directory structure from file_structure attribute'
+                            )
                     except Exception as e:
-                        self.logger.warning(f"Could not access file_structure attribute: {e}")
-                
+                        self.logger.warning(f'Could not access file_structure attribute: {e}')
+
                 # Update the user on status
                 if directory_structure and ctx:
                     ctx.info('Successfully extracted directory structure')

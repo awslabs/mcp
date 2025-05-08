@@ -39,7 +39,7 @@ The code-doc-generation-mcp-server follows this workflow:
 - **Project Structure Analysis**: Uses repomix to analyze repository structure and extract key components
 - **Content Organization**: Creates appropriately structured documentation based on project type
 - **Multiple Document Types**: Supports README, API docs, backend docs, frontend docs, and more
-- **Integration with Other MCP Servers**: Works with AWS Diagram and Cost Analysis MCP servers
+- **Integration with Other MCP Servers**: Works with AWS Diagram MCP server
 - **Custom Document Templates**: Templates for different document types with appropriate sections
 
 ## Prerequisites
@@ -114,7 +114,7 @@ The MCP client then:
 1. Reviews the directory structure
 2. Uses read_file to examine key files
 3. Fills out the ProjectAnalysis fields
-4. Sets should_generate_cost_estimation=True if CDK/Terraform code is detected
+4. Sets has_infrastructure_as_code=True if CDK/Terraform code is detected
 
 ### create_context
 
@@ -156,7 +156,6 @@ Generates document structures with sections for the MCP client to fill with cont
 This MCP server is designed to work with:
 
 - **AWS Diagram MCP Server**: For generating architecture diagrams
-- **Cost Analysis MCP Server**: For generating cost estimates and analysis
 - **AWS CDK MCP Server**: For documenting CDK infrastructure code
 
 ## License

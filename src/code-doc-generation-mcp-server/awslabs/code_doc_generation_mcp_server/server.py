@@ -23,9 +23,6 @@ import argparse
 import subprocess
 import sys
 import time
-from typing import List, Optional
-from pathlib import Path
-from pydantic import BaseModel, Field
 from awslabs.code_doc_generation_mcp_server.utils.doc_generator import DocumentGenerator
 from awslabs.code_doc_generation_mcp_server.utils.models import (
     DocStructure,
@@ -41,13 +38,19 @@ from awslabs.code_doc_generation_mcp_server.utils.templates import (
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from pathlib import Path
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
 
 # Configure loguru with more detailed debug output
 logger.remove()  # Remove default handler
-logger.configure(handlers=[
-    {"sink": sys.stderr, "level": "DEBUG"},
-    {"sink": "code-doc-mcp-server.log", "level": "DEBUG", "rotation": "10 MB"},
-])
+logger.configure(
+    handlers=[
+        {'sink': sys.stderr, 'level': 'DEBUG'},
+        {'sink': 'code-doc-mcp-server.log', 'level': 'DEBUG', 'rotation': '10 MB'},
+    ]
+)
 
 
 class _ProjectInfo(BaseModel):
@@ -151,9 +154,8 @@ IMPORTANT:
 
 RECOMMENDED COMPANION MCP SERVERS:
 - awslabs.aws-diagram-mcp-server: For generating architecture diagrams
-- awslabs.cost-analysis-mcp-server: For generating cost estimates
 
-These companion servers are not required but will enhance the documentation with visual diagrams and cost analysis.""",
+This companion server is not required but will enhance the documentation with visual diagrams.""",
     dependencies=['pydantic', 'loguru', 'repomix'],
 )
 
@@ -197,20 +199,20 @@ async def prepare_repository(
 
         # Extract directory structure with fallbacks
         dir_structure = repomix_output.get('directory_structure')
-        
+
         # Try fallback to raw_analysis if not found
         if dir_structure is None and 'directory_structure' in raw_analysis:
             dir_structure = raw_analysis['directory_structure']
-            
+
         # Log basic info about structure
         if dir_structure:
-            logger.info(f"Found directory structure ({len(dir_structure)} chars)")
+            logger.info(f'Found directory structure ({len(dir_structure)} chars)')
         else:
-            logger.warning("Directory structure not found in output")
+            logger.warning('Directory structure not found in output')
 
         # Get statistics from raw analysis
         stats = raw_analysis.get('metadata', {}).get('summary', {})
-        
+
         # Return ProjectAnalysis with directory structure and statistics for MCP client to analyze
         return ProjectAnalysis(
             project_type='',  # The MCP client will fill this
@@ -255,18 +257,23 @@ async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Co
     """
     # Get directory structure directly from raw_analysis
     directory_structure = raw_analysis.get('directory_structure')
-    
+
     # Check if we should fall back to file_structure for directory structure
     if not directory_structure and 'file_structure' in raw_analysis:
-        if isinstance(raw_analysis['file_structure'], dict) and 'directory_structure' in raw_analysis['file_structure']:
+        if (
+            isinstance(raw_analysis['file_structure'], dict)
+            and 'directory_structure' in raw_analysis['file_structure']
+        ):
             directory_structure = raw_analysis['file_structure']['directory_structure']
-    
+
     # Log whether we found directory_structure
     if directory_structure:
-        logger.info(f"Directory structure found in raw_analysis (length: {len(directory_structure)})")
+        logger.info(
+            f'Directory structure found in raw_analysis (length: {len(directory_structure)})'
+        )
     else:
-        logger.warning("Directory structure not found in raw_analysis")
-                
+        logger.warning('Directory structure not found in raw_analysis')
+
     # Return simplified analysis data
     return {
         'project_info': raw_analysis['project_info'],
@@ -298,25 +305,27 @@ async def create_context(
         A DocumentationContext ready for use with other tools
     """
     start_time = time.time()
-    logger.debug(f"CONTEXT TIMING: Starting create_context at {start_time}")
-    
+    logger.debug(f'CONTEXT TIMING: Starting create_context at {start_time}')
+
     try:
         # Create context object
         doc_context = create_documentation_context(project_root, analysis)
-        
+
         end_time = time.time()
         duration = end_time - start_time
-        logger.debug(f"CONTEXT TIMING: Finished create_context in {duration:.2f}s")
-        
+        logger.debug(f'CONTEXT TIMING: Finished create_context in {duration:.2f}s')
+
         if ctx:
-            ctx.info(f"Created documentation context in {duration:.2f}s")
-        
+            ctx.info(f'Created documentation context in {duration:.2f}s')
+
         return doc_context
     except Exception as e:
         end_time = time.time()
-        logger.error(f"CONTEXT TIMING: Failed create_context after {end_time - start_time:.2f}s with error: {str(e)}")
+        logger.error(
+            f'CONTEXT TIMING: Failed create_context after {end_time - start_time:.2f}s with error: {str(e)}'
+        )
         if ctx:
-            ctx.error(f"Error creating documentation context: {str(e)}")
+            ctx.error(f'Error creating documentation context: {str(e)}')
         raise
 
 
@@ -338,8 +347,8 @@ async def plan_documentation(
     4. Return documentation plan
     """
     start_time = time.time()
-    logger.debug(f"PLAN TIMING: Starting plan_documentation at {start_time}")
-    
+    logger.debug(f'PLAN TIMING: Starting plan_documentation at {start_time}')
+
     try:
         # Update context status
         doc_context.status = 'ready_to_plan'
@@ -414,8 +423,8 @@ async def generate_documentation(
     or wait for further instructions - YOU must fill them in!
     """
     start_time = time.time()
-    logger.debug(f"GENERATE TIMING: Starting generate_documentation at {start_time}")
-    
+    logger.debug(f'GENERATE TIMING: Starting generate_documentation at {start_time}')
+
     try:
         # Update context status
         doc_context.status = 'ready_to_generate'
@@ -443,11 +452,11 @@ async def generate_documentation(
 
             # Add specialized messages based on file type
             if path.name == 'README.md':
-                message = "Create a comprehensive README with installation instructions, usage examples, and a concise overview of the project's purpose and capabilities."
+                message = "Create a comprehensive README with installation instructions, usage examples, and a concise overview of the project's purpose and capabilities. When possible, enhance the Architecture Diagram section by using the AWS Diagram MCP Server (awslabs.aws-diagram-mcp-server) to create visual representations of the system architecture."
             elif path.name == 'API.md':
                 message = 'Document all API endpoints, request/response formats, and provide usage examples. Include authentication requirements if applicable.'
             elif path.name == 'BACKEND.md':
-                message = 'Explain the backend architecture, database schema, and key components. Include diagrams where appropriate.'
+                message = 'Explain the backend architecture, database schema, and key components. The Data Flow section contains guidance for creating diagrams. When possible, enhance your documentation by using the AWS Diagram MCP Server (awslabs.aws-diagram-mcp-server) to create visual representations of data flow and component relationships.'
             elif path.name == 'FRONTEND.md':
                 message = 'Document the frontend structure, components, and state management approach. Include screenshots of key UI elements if available.'
 
@@ -466,10 +475,9 @@ async def generate_documentation(
         # Add notification about recommended MCP servers
         ctx.info(
             'Documentation structure generated successfully. '
-            'For enhanced documentation with architecture diagrams and cost analysis, '
-            "it's recommended to also use the following MCP servers:\n"
-            '- awslabs.aws-diagram-mcp-server: For generating architecture diagrams\n'
-            '- awslabs.cost-analysis-mcp-server: For generating cost estimates'
+            'For enhanced documentation with architecture diagrams, '
+            "it's recommended to also use the following MCP server:\n"
+            '- awslabs.aws-diagram-mcp-server: For generating architecture diagrams'
         )
 
         # Update context status

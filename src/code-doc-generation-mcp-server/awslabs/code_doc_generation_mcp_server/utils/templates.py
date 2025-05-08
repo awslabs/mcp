@@ -18,6 +18,7 @@ from awslabs.code_doc_generation_mcp_server.utils.models import (
 )
 from loguru import logger
 
+
 # Mapping of filenames to template types
 TEMPLATE_FILE_MAPPING = {
     'README.md': 'README',
