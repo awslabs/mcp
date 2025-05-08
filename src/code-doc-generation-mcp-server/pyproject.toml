@@ -9,6 +9,7 @@ dependencies = [
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
     "repomix>=0.2.6",
+    "defusedxml>=0.7.1",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

@@ -192,7 +192,7 @@ mv source-folder/file destination-folder/file
 ### 4. UI Development
 - Add new pages following existing patterns
 - Reuse existing pages, layouts, components where possible
-- Install or use shadcn components vs. creating custom components where possible 
+- Install or use shadcn components vs. creating custom components where possible
 - Add required shadcn components: `npx shadcn add [component-name]`
 - Keep component organization flat and simple
 - Extend routing using react-router v7 as configured

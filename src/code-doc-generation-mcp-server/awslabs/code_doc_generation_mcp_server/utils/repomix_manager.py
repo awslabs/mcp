@@ -35,8 +35,8 @@ class RepomixManager:
         Returns:
             Dictionary containing statistics or empty dict if not found
         """
+        import defusedxml.ElementTree as ET
         import os
-        import xml.etree.ElementTree as ET
 
         self.logger.info(f'Extracting statistics from {xml_path}')
 
@@ -91,8 +91,8 @@ class RepomixManager:
         Returns:
             String containing the directory structure or None if not found
         """
+        import defusedxml.ElementTree as ET
         import os
-        import xml.etree.ElementTree as ET
 
         self.logger.info(f'Extracting directory structure from {xml_path}')
 
@@ -205,22 +205,52 @@ class RepomixManager:
             # Save repomix output to a file in the output directory
             repomix_output_file = output_dir / 'repomix_output.xml'
 
-            # Define standard ignore patterns
-            ignore_patterns = (
-                '**/*.svg,**/*.drawio,**/.*,**/.*/**, **/cdk.out, **/cdk.out/**, **/**/cdk.out/**, '
-                'packages/cdk_infra/cdk.out,packages/cdk_infra/cdk.out/**, **/__init__.py,**/test/**,'
-                '**/__snapshots__/**,**/*.test.ts,**/dist/**,**/node_modules/**,**/.projen/**,'
-                '**/.husky/**,**/.nx/**,**/cdk.out/**,**/*.d.ts,**/*.js.map,**/*.tsbuildinfo,'
-                '**/coverage/**,**/*.pyc,**/__pycache__/**,**/venv/**,**/.venv/**,**/build/**,'
-                '**/.git/**,**/.github/**,**/*.min.js,**/*.min.css,**/generated-docs/**'
-            )
+            # Define standard ignore patterns - using regex patterns as needed
+            # Explicitly exclude specific hidden files/directories rather than all with dot prefix
+            ignore_patterns = [
+                # Standard file formats to ignore
+                '**/*.svg',
+                '**/*.drawio',
+                '**/*.min.js',
+                '**/*.min.css',
+                '**/*.pyc',
+                '**/*.d.ts',
+                '**/*.js.map',
+                '**/*.tsbuildinfo',
+                # Test and build directories
+                '**/test/**',
+                '**/__snapshots__/**',
+                '**/*.test.ts',
+                '**/dist/**',
+                '**/coverage/**',
+                '**/build/**',
+                '**/generated-docs/**',
+                # Node.js specific
+                '**/node_modules/**',
+                '**/.nx/**',
+                # Python specific
+                '**/__pycache__/**',
+                '**/venv/**',
+                '**/.venv/**',
+                '**/__init__.py',
+                '**/.ruff_cache/**',
+                # AWS CDK specific
+                '**/cdk.out/**',
+                '**/**/cdk.out/**',
+                'packages/cdk_infra/cdk.out',
+                'packages/cdk_infra/cdk.out/**',
+                # CI/CD and development tools
+                '**/.projen/**',
+                '**/.husky/**',
+                # Note: Deliberately NOT excluding dot files/directories like .github, .devcontainer, .python-version
+            ]
 
             try:
                 # Configure repomix
                 config = RepomixConfig()
                 config.output.file_path = str(repomix_output_file)
                 config.output.style = 'xml'
-                config.ignore.custom_patterns = ignore_patterns.split(',')
+                config.ignore.custom_patterns = ignore_patterns
                 config.ignore.use_gitignore = False
 
                 if ctx:
