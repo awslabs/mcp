@@ -34,26 +34,14 @@ inputs:
     description: 'The version to associate to the image'
     type: string
     required: false
-  docker-hub-username:
-    default: ${{ github.actor }}
-    description: 'The Docker Hub username'
-    type: string
-    required: false
-  docker-hub-password:
-    default: ${{ github.token }}
-    description: 'The Docker Hub password or token'
-    type: string
-    required: false
-  github-container-registry-token:
-    default: ${{ github.token }}
-    description: 'The GitHub Container Registry token'
-    type: string
-    required: false
   public-erc-role-to-assume:
-    default: ''
     description: 'The public ECR role to use to push the image'
     type: string
-    required: false
+    required: true
+  public-erc-registry-alias:
+    description: 'The registry alias'
+    type: string
+    required: true
   public-erc-aws-region:
     default: 'us-east-1'
     description: 'The region to login'
@@ -71,14 +59,9 @@ runs:
     - name: Docker meta
       id: meta
       uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
-      env:
-        REGISTRY_ALIAS: 'w3i4n7u1' # either the default or custom
       with:
-        ## Each registry to match the `tags` in CSV format for the build-push-action
-        # docker.io/mcp/awslabs/${{ inputs.image }}
         images: |
-          public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }}
-          ghcr.io/${{ github.repository_owner }}/mcp/${{ inputs.image }}
+          public.ecr.aws/${{ inputs.public-erc-registry-alias }}/mcp/${{ inputs.image }}
 
         # Disable all but the raw and sha
         tags: |
@@ -91,7 +74,7 @@ runs:
           type=ref,event=tag,enable=false
           type=ref,event=pr,enable=false
           type=sha,format=long,enable=true
-          type=raw,value=latest,enable=true # {{is_default_branch}} doesn't work
+          type=raw,value=latest,enable=true
           type=raw,value=${{ inputs.version || github.sha }},enable=${{ (inputs.version && true) || 'false' }}
         labels: |
           maintainer=AWSLabs MCP
@@ -101,21 +84,6 @@ runs:
           org.opencontainers.image.url=https://github.com/awslabs/mcp/tree/main/src/${{ inputs.image }}
           org.opencontainers.image.version=${{ inputs.version || github.sha }}
           org.opencontainers.image.vendor=Amazon Web Service, Inc.
-
-    # - name: Login to Docker Hub
-    #   id: login-docker-hub
-    #   uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-    #   with:
-    #     username: ${{ inputs.docker-hub-username }}
-    #     password: ${{ inputs.docker-hub-password }}
-
-    - name: Login to GitHub Container Registry
-      id: login-github-container-registry
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-      with:
-        registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ inputs.github-container-registry-token }}
 
     - name: Setup AWS Credentials
       id: setup-aws-credentials
@@ -152,7 +120,7 @@ runs:
         # platforms: 'linux/amd64,linux/arm64' # less effient than matrix, but actions cannot deal with it...
         platforms: 'linux/amd64' # add more platforms after testing completed
         labels: ${{ steps.meta.outputs.labels }}
-        tags: public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }},ghcr.io/${{ github.repository }}/mcp/${{ inputs.image }}
+        tags: public.ecr.aws/${{ inputs.public-erc-registry-alias }}/mcp/${{ inputs.image }}
         context: ./src/${{ inputs.image }}
         file: ./src/${{ inputs.image }}/Dockerfile
         push: true
@@ -178,17 +146,13 @@ runs:
 
     - name: Create manifest list and push
       working-directory: ${{ runner.temp }}/digests
-      env:
-        REGISTRY_ALIAS: 'w3i4n7u1'
       run: |
         docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-          $(printf 'public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }}@sha256:%s ' *)
+          $(printf 'public.ecr.aws/${{ inputs.public-erc-registry-alias }}/mcp/${{ inputs.image }}@sha256:%s ' *)
       shell: bash
     - name: Inspect image
-      env:
-        REGISTRY_ALIAS: 'w3i4n7u1'
       run: |
-        docker buildx imagetools inspect public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }}:${{ steps.meta.outputs.version }}
+        docker buildx imagetools inspect public.ecr.aws/${{ inputs.public-erc-registry-alias }}/mcp/${{ inputs.image }}:${{ steps.meta.outputs.version }}
       shell: bash
     - name: Get version
       id: get-version
