@@ -36,7 +36,9 @@ def lambda_handler(event: dict, context: dict) -> dict:
         if address:
             required_address_fields = ['street', 'city', 'state', 'zipCode']
             if not all(field in address for field in required_address_fields):
-                return {'error': 'Address provided is missing required fields (street, city, state, zipCode)'}
+                return {
+                    'error': 'Address provided is missing required fields (street, city, state, zipCode)'
+                }
 
         # This would normally create a record in a database
         # For demo purposes, we'll return mock data with a generated ID

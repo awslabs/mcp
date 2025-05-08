@@ -84,7 +84,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
           "--env",
           "FUNCTION_TAG_VALUE=your-tag-value",
           "--env",
-          "FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY=your-function-tag-for-input-schema",          
+          "FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY=your-function-tag-for-input-schema",
           "--env-file",
           "/full/path/to/file/above/.env",
           "awslabs/lambda-mcp-server:latest"
@@ -148,7 +148,7 @@ This provides better documentation compared to describing parameters in the func
 - Use the `FUNCTION_LIST` to specify the functions that are available as MCP tools.
 - Use the `FUNCTION_PREFIX` to specify the prefix of the functions that are available as MCP tools.
 - Use the `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE` to specify the tag key and value of the functions that are available as MCP tools.
-- AWS Lambda `Description` property: the description of the function is used as MCP tool description, so it should be very detailed to help the model understand when and how to use the function  
+- AWS Lambda `Description` property: the description of the function is used as MCP tool description, so it should be very detailed to help the model understand when and how to use the function
 - Use EventBridge Schema Registry to provide formal input validation:
   - Create JSON Schema definitions for your function inputs
   - Tag functions with their schema ARNs

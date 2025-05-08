@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
     from awslabs.lambda_mcp_server.server import (
-        get_schema_from_registry,
-        get_schema_arn_from_function_arn,
         create_lambda_tool,
+        get_schema_arn_from_function_arn,
+        get_schema_from_registry,
     )
 
 
@@ -19,12 +19,7 @@ class TestSchemaRegistry:
 
     def test_get_schema_valid_arn(self, caplog):
         """Test fetching schema with valid ARN."""
-        mock_schema_content = {
-            "type": "object",
-            "properties": {
-                "test": {"type": "string"}
-            }
-        }
+        mock_schema_content = {'type': 'object', 'properties': {'test': {'type': 'string'}}}
 
         with patch('awslabs.lambda_mcp_server.server.schemas_client') as mock_client:
             # Set up the mock
@@ -109,9 +104,7 @@ class TestSchemaArnRetrieval:
 
         with patch('awslabs.lambda_mcp_server.server.lambda_client') as mock_client:
             # Set up the mock
-            mock_client.list_tags.return_value = {
-                'Tags': {'schema-arn-tag': schema_arn}
-            }
+            mock_client.list_tags.return_value = {'Tags': {'schema-arn-tag': schema_arn}}
 
             # Call the function
             result = get_schema_arn_from_function_arn('test-function-arn')
@@ -138,12 +131,13 @@ class TestSchemaArnRetrieval:
     def test_get_schema_arn_tag_not_found(self):
         """Test when schema ARN tag is not found."""
         with patch('os.environ', {'FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY': 'schema-arn-tag'}):
-            with patch('awslabs.lambda_mcp_server.server.FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY', 'schema-arn-tag'):
+            with patch(
+                'awslabs.lambda_mcp_server.server.FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY',
+                'schema-arn-tag',
+            ):
                 with patch('awslabs.lambda_mcp_server.server.lambda_client') as mock_client:
                     # Set up the mock with different tag
-                    mock_client.list_tags.return_value = {
-                        'Tags': {'different-tag': 'value'}
-                    }
+                    mock_client.list_tags.return_value = {'Tags': {'different-tag': 'value'}}
 
                     # Call the function
                     result = get_schema_arn_from_function_arn('test-function-arn')
@@ -154,7 +148,10 @@ class TestSchemaArnRetrieval:
     def test_get_schema_arn_client_error(self, caplog):
         """Test handling of tag retrieval errors."""
         with patch('os.environ', {'FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY': 'schema-arn-tag'}):
-            with patch('awslabs.lambda_mcp_server.server.FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY', 'schema-arn-tag'):
+            with patch(
+                'awslabs.lambda_mcp_server.server.FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY',
+                'schema-arn-tag',
+            ):
                 with patch('awslabs.lambda_mcp_server.server.lambda_client') as mock_client:
                     # Set up the mock to raise an exception
                     mock_client.list_tags.side_effect = Exception('Tag retrieval error')
@@ -181,12 +178,7 @@ class TestToolCreationWithSchema:
         mock_decorator = MagicMock()
         mock_mcp.tool.return_value = mock_decorator
 
-        schema_content = {
-            "type": "object",
-            "properties": {
-                "test": {"type": "string"}
-            }
-        }
+        schema_content = {'type': 'object', 'properties': {'test': {'type': 'string'}}}
 
         with patch('awslabs.lambda_mcp_server.server.get_schema_from_registry') as mock_get_schema:
             # Set up the schema mock

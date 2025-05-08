@@ -56,7 +56,7 @@ Resources:
   CustomerCreateSchema:
     Type: AWS::EventSchemas::Schema
     Properties:
-      RegistryName: 
+      RegistryName:
         Fn::GetAtt: [SchemaRegistry, RegistryName]
       Description: Input schema for creating a new customer
       Type: JSONSchemaDraft4
@@ -126,7 +126,7 @@ Resources:
       Architectures:
         - arm64
       Tags:
-        tool-input-schema-arn: 
+        tool-input-schema-arn:
           Fn::GetAtt: [CustomerCreateSchema, SchemaArn]
     Metadata:
       cfn_nag:
@@ -140,15 +140,15 @@ Outputs:
 
   CustomerInfoFromId:
     Description: "CustomerInfoFromId Function ARN"
-    Value: 
+    Value:
       Fn::GetAtt: [CustomerInfoFromId,Arn]
 
   CustomerIdFromEmail:
     Description: "CustomerIdFromEmail Function ARN"
-    Value: 
+    Value:
       Fn::GetAtt: [CustomerIdFromEmail,Arn]
 
   CustomerCreate:
     Description: "CustomerCreate Function ARN"
-    Value: 
+    Value:
       Fn::GetAtt: [CustomerCreate,Arn]
