@@ -74,12 +74,6 @@ class NeptuneServer:
         else:
             raise ValueError("You must provide an endpoint to create a NeptuneServer")
 
-    def close(self):
-        """
-        Close the connection to the Neptune instance and clean up resources.
-        """
-        self.graph = None
-
     def status(self) -> str:
         """
         Check the current status of the Neptune instance.
@@ -91,7 +85,8 @@ class NeptuneServer:
             AttributeError: If engine type is unknown
         """
         try:
-            return self.graph.get_status()
+            self.query_opencypher("RETURN 1")
+            return "Available"
         except Exception as e:
             logger.exception("Could not get status for Neptune instance")
             return "Unavailable"
@@ -137,20 +132,5 @@ class NeptuneServer:
             ValueError: If using unsupported query language for analytics
         """
         return self.graph.query_gremlin(query)
-    
-    def query_sparql(self, query: str) -> dict:
-        """
-        Execute a SPARQL query against the Neptune instance.
-
-        Args:
-            query (str): The SPARQL query string to execute
-
-        Returns:
-            str: Query results
-
-        Raises:
-            ValueError: If using unsupported query language for analytics
-        """
-        return self.graph.query_sparql(query)
     
     

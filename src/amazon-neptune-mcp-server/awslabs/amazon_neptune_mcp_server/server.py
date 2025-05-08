@@ -93,11 +93,6 @@ def run_gremlin_query(query: str) -> dict:
     """Executes the provided Tinkerpop Gremlin against the graph"""
     return graph.query_gremlin(query)
 
-@mcp.tool(name="run_sparql_query")
-def run_sparql_query(query: str) -> dict:
-    """Executes the provided SPARQL against the graph"""
-    return graph.query_sparql(query)
-
 def main():
     """Run the MCP server with CLI argument support."""
     parser = argparse.ArgumentParser(description='An AWS Labs MCP server for interacting with Amazon Neptune')
@@ -105,14 +100,6 @@ def main():
     parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
 
     args = parser.parse_args()
-
-    logger.trace('A trace message.')
-    logger.debug('A debug message.')
-    logger.info('An info message.')
-    logger.success('A success message.')
-    logger.warning('A warning message.')
-    logger.error('An error message.')
-    logger.critical('A critical message.')
 
     # Run server with appropriate transport
     if args.sse:

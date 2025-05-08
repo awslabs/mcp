@@ -22,7 +22,7 @@ that represent both the graph structure and its contents.
 """
 
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 class Property(BaseModel):
@@ -52,7 +52,7 @@ class Node(BaseModel):
         properties (List[Property]): List of properties that can be assigned to this node type
     """
     labels: str
-    properties: List[Property]
+    properties: Optional[List[Property]]
 
 
 class Relationship(BaseModel):
@@ -67,7 +67,7 @@ class Relationship(BaseModel):
         properties (List[Property]): List of properties that can be assigned to this relationship type
     """
     type: str
-    properties: List[Property]
+    properties: Optional[List[Property]]
 
 
 class RelationshipPattern(BaseModel):

@@ -132,10 +132,3 @@ class NeptuneAnalytics(NeptuneGraph):
 
     def query_sparql(self, query:str):
         raise NotImplementedError("SPARQL queries are not supported for Neptune Analytics graphs.")
-
-    def get_status(self) -> str:
-        try:
-            self.query_opencypher("RETURN 1")
-            return "Available"
-        except Exception:
-            return "Unavailable"
