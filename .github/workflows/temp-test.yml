@@ -39,7 +39,7 @@ jobs:
           version: ${{ github.sha }}
           docker-hub-username: ${{ secrets.DOCKERHUB_USERNAME }}
           docker-hub-password: ${{ secrets.DOCKERHUB_TOKEN }}
-          github-container-registry-token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          github-container-registry-token: ${{ github.token }}
           public-erc-role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
           public-erc-aws-region: ${{ env.AWS_REGION || 'us-east-1' }}
 
