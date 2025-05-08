@@ -74,11 +74,11 @@ runs:
       env:
         REGISTRY_ALIAS: 'w3i4n7u1' # either the default or custom
       with:
-        # Each registry to match the `tags` in CSV format for the build-push-action
+        ## Each registry to match the `tags` in CSV format for the build-push-action
+        # docker.io/mcp/awslabs/${{ inputs.image }}
         images: |
-          docker.io/awslabs/${{ inputs.image }}
-          ghcr.io/${{ github.repository }}/${{ inputs.image }}
           public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }}
+          ghcr.io/${{ github.repository_owner }}/mcp/${{ inputs.image }}
 
         # Disable all but the raw and sha
         tags: |
@@ -102,12 +102,12 @@ runs:
           org.opencontainers.image.version=${{ inputs.version || github.sha }}
           org.opencontainers.image.vendor=Amazon Web Service, Inc.
 
-    - name: Login to Docker Hub
-      id: login-docker-hub
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-      with:
-        username: ${{ inputs.docker-hub-username }}
-        password: ${{ inputs.docker-hub-password }}
+    # - name: Login to Docker Hub
+    #   id: login-docker-hub
+    #   uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+    #   with:
+    #     username: ${{ inputs.docker-hub-username }}
+    #     password: ${{ inputs.docker-hub-password }}
 
     - name: Login to GitHub Container Registry
       id: login-github-container-registry
@@ -152,8 +152,7 @@ runs:
         # platforms: 'linux/amd64,linux/arm64' # less effient than matrix, but actions cannot deal with it...
         platforms: 'linux/amd64' # add more platforms after testing completed
         labels: ${{ steps.meta.outputs.labels }}
-        tags: docker.io/${{ github.repository_owner }}/${{ inputs.image }},ghcr.io/${{ github.repository }}/${{ inputs.image }},public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }}
-        #tags: docker.io/${{ github.repository_owner }}/${{ inputs.image }}
+        tags: public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }},ghcr.io/${{ github.repository }}/mcp/${{ inputs.image }}
         context: ./src/${{ inputs.image }}
         file: ./src/${{ inputs.image }}/Dockerfile
         push: true
