@@ -80,7 +80,7 @@ class _AnalysisResult(BaseModel):
 
 
 def create_documentation_context(
-    project_root: str, analysis: ProjectAnalysis = None
+    project_root: str, analysis: Optional[ProjectAnalysis] = None
 ) -> DocumentationContext:
     """Create an initial DocumentationContext from a project root path.
 
@@ -99,10 +99,10 @@ def create_documentation_context(
         project_name=project_name,
         working_dir=project_root,
         repomix_path=f'{project_root}/generated-docs',
+        status='initialized',
+        current_step='analysis',
+        analysis_result=analysis,
     )
-
-    if analysis:
-        context.analysis_result = analysis
 
     return context
 
@@ -163,7 +163,7 @@ This companion server is not required but will enhance the documentation with vi
 @mcp.tool(name='prepare_repository')
 async def prepare_repository(
     project_root: str = Field(..., description='Path to the code repository'),
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> ProjectAnalysis:
     """Prepare repository for the MCP client's analysis.
 
@@ -233,16 +233,18 @@ async def prepare_repository(
     except subprocess.CalledProcessError as e:
         error_msg = f'Repomix preparation failed: {e.stderr}'
         logger.error(error_msg)
-        ctx.error(error_msg)
+        if ctx:
+            await ctx.error(error_msg)
         raise
     except Exception as e:
         error_msg = f'Error preparing repository: {e}'
         logger.error(error_msg)
-        ctx.error(error_msg)
+        if ctx:
+            await ctx.error(error_msg)
         raise
 
 
-async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Context) -> dict:
+async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Optional[Context] = None) -> dict:
     """Prepares project structure for inclusion in ProjectAnalysis.
 
     This simplified function:
@@ -289,7 +291,7 @@ async def create_context(
     analysis: ProjectAnalysis = Field(
         ..., description='Completed ProjectAnalysis from prepare_repository'
     ),
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> DocumentationContext:
     """Create a DocumentationContext from a ProjectAnalysis.
 
@@ -316,7 +318,7 @@ async def create_context(
         logger.debug(f'CONTEXT TIMING: Finished create_context in {duration:.2f}s')
 
         if ctx:
-            ctx.info(f'Created documentation context in {duration:.2f}s')
+            await ctx.info(f'Created documentation context in {duration:.2f}s')
 
         return doc_context
     except Exception as e:
@@ -325,14 +327,14 @@ async def create_context(
             f'CONTEXT TIMING: Failed create_context after {end_time - start_time:.2f}s with error: {str(e)}'
         )
         if ctx:
-            ctx.error(f'Error creating documentation context: {str(e)}')
+            await ctx.error(f'Error creating documentation context: {str(e)}')
         raise
 
 
 @mcp.tool(name='plan_documentation')
 async def plan_documentation(
     doc_context: DocumentationContext,
-    ctx: Context,
+    ctx: Optional[Context] = None,
 ) -> DocumentationPlan:
     """Third step: Create documentation plan using analysis.
 
@@ -358,15 +360,15 @@ async def plan_documentation(
         needed_docs = ['README.md']  # Always include README
 
         # Add component-specific docs
-        if doc_context.analysis_result.backend:
+        if doc_context.analysis_result and doc_context.analysis_result.backend:
             needed_docs.append('BACKEND.md')
-        if doc_context.analysis_result.frontend:
+        if doc_context.analysis_result and doc_context.analysis_result.frontend:
             needed_docs.append('FRONTEND.md')
-        if doc_context.analysis_result.apis:
+        if doc_context.analysis_result and doc_context.analysis_result.apis:
             needed_docs.append('API.md')
 
         # Add deployment docs for projects with infrastructure as code
-        if doc_context.analysis_result.has_infrastructure_as_code:
+        if doc_context.analysis_result and doc_context.analysis_result.has_infrastructure_as_code:
             needed_docs.append('DEPLOYMENT_GUIDE.md')
 
         # Create both tree and outline from needed docs
@@ -381,9 +383,10 @@ async def plan_documentation(
             docs_outline.append(create_doc_from_template(template_type, doc_name))
 
         # Log what documentation will be generated
-        ctx.info(f'Creating documentation structure with {len(docs_outline)} documents:')
-        for doc in docs_outline:
-            ctx.info(f'- {doc.name} ({doc.type})')
+        if ctx:
+            await ctx.info(f'Creating documentation structure with {len(docs_outline)} documents:')
+            for doc in docs_outline:
+                await ctx.info(f'- {doc.name} ({doc.type})')
 
         return DocumentationPlan(
             structure=DocStructure(root_doc='README.md', doc_tree=doc_tree),
@@ -392,7 +395,8 @@ async def plan_documentation(
 
     except Exception as e:
         error_msg = f'Error in plan_documentation: {str(e)}'
-        ctx.error(error_msg)
+        if ctx:
+            await ctx.error(error_msg)
         raise RuntimeError(error_msg)
 
 
@@ -400,7 +404,7 @@ async def plan_documentation(
 async def generate_documentation(
     plan: DocumentationPlan,
     doc_context: DocumentationContext,
-    ctx: Context,
+    ctx: Optional[Context] = None,
 ) -> List[GeneratedDocument]:
     """Final step: Generate documentation content.
 
@@ -431,14 +435,16 @@ async def generate_documentation(
         doc_context.current_step = 'generation'
 
         # Log MCP context information
-        ctx.error(f'MCP context being passed: {ctx is not None}')
+        if ctx:
+            await ctx.error(f'MCP context being passed: {ctx is not None}')
 
         # Initialize document generator for file operations
         generator = DocumentGenerator()
 
         # Log generation start
-        ctx.error(f'Preparing documentation structure for {doc_context.project_name}')
-        ctx.error(f'Project type: {doc_context.analysis_result.project_type}')
+        if ctx:
+            await ctx.error(f'Preparing documentation structure for {doc_context.project_name}')
+            await ctx.error(f'Project type: {doc_context.analysis_result and doc_context.analysis_result.project_type or "unknown"}')
 
         # Generate documentation files with diagrams
         generated_files = await generator.generate_docs(plan, doc_context)
@@ -473,24 +479,27 @@ async def generate_documentation(
             generated_docs.append(doc)
 
         # Add notification about recommended MCP servers
-        ctx.info(
-            'Documentation structure generated successfully. '
-            'For enhanced documentation with architecture diagrams, '
-            "it's recommended to also use the following MCP server:\n"
-            '- awslabs.aws-diagram-mcp-server: For generating architecture diagrams'
-        )
+        if ctx:
+            await ctx.info(
+                'Documentation structure generated successfully. '
+                'For enhanced documentation with architecture diagrams, '
+                "it's recommended to also use the following MCP server:\n"
+                '- awslabs.aws-diagram-mcp-server: For generating architecture diagrams'
+            )
 
         # Update context status
         doc_context.status = 'structure_ready'
         doc_context.current_step = 'awaiting_content'
 
-        ctx.info(f'Created {len(generated_docs)} document structures')
+        if ctx:
+            await ctx.info(f'Created {len(generated_docs)} document structures')
 
         return generated_docs
 
     except Exception as e:
         error_msg = f'Error in generate_documentation: {str(e)}'
-        ctx.error(error_msg)
+        if ctx:
+            await ctx.error(error_msg)
         raise RuntimeError(error_msg)
 
 

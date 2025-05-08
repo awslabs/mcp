@@ -53,59 +53,60 @@ DOCUMENT_TEMPLATES = {
     'README': DocumentTemplate(
         type='README',
         sections=[
-            DocumentSection(title='Overview', content='', level=1),
-            DocumentSection(title='Features', content='', level=2),
+            DocumentSection(title='Overview', content='', level=1, message='Provide a concise overview of the project'),
+            DocumentSection(title='Features', content='', level=2, message='List the key features of the project'),
             DocumentSection(
                 title='Prerequisites',
                 content='',
                 level=2,
+                message='Describe what is needed to set up the project',
                 subsections=[
-                    DocumentSection(title='Required AWS Setup', content='', level=3),
-                    DocumentSection(title='Development Environment', content='', level=3),
+                    DocumentSection(title='Required AWS Setup', content='', level=3, message='AWS resources that need to be set up'),
+                    DocumentSection(title='Development Environment', content='', level=3, message='Requirements for the development environment'),
                 ],
             ),
-            DocumentSection(title='Architecture Diagram', content='', level=2),
-            DocumentSection(title='Project Components', content='', level=2),
-            DocumentSection(title='Next Steps', content='', level=2),
-            DocumentSection(title='Clean Up', content='', level=2),
-            DocumentSection(title='Troubleshooting', content='', level=2),
-            DocumentSection(title='License', content='Amazon Software License 1.0', level=2),
+            DocumentSection(title='Architecture Diagram', content='', level=2, message='Include an architecture diagram'),
+            DocumentSection(title='Project Components', content='', level=2, message='Describe the major components of the project'),
+            DocumentSection(title='Next Steps', content='', level=2, message='Provide guidance on next steps'),
+            DocumentSection(title='Clean Up', content='', level=2, message='Instructions for cleaning up resources'),
+            DocumentSection(title='Troubleshooting', content='', level=2, message='Common issues and solutions'),
+            DocumentSection(title='License', content='Amazon Software License 1.0', level=2, message='License information'),
         ],
     ),
     'API': DocumentTemplate(
         type='API',
         sections=[
-            DocumentSection(title='API Reference', content='', level=1),
-            DocumentSection(title='Endpoints', content='', level=2),
-            DocumentSection(title='Authentication', content='', level=2),
-            DocumentSection(title='Error Handling', content='', level=2),
+            DocumentSection(title='API Reference', content='', level=1, message='General API documentation'),
+            DocumentSection(title='Endpoints', content='', level=2, message='Document available API endpoints'),
+            DocumentSection(title='Authentication', content='', level=2, message='Explain authentication mechanisms'),
+            DocumentSection(title='Error Handling', content='', level=2, message='Describe error codes and handling'),
         ],
     ),
     'BACKEND': DocumentTemplate(
         type='BACKEND',
         sections=[
-            DocumentSection(title='Backend Architecture', content='', level=1),
-            DocumentSection(title='Project Structure', content='', level=2),
-            DocumentSection(title='Data Flow', content='', level=2),
-            DocumentSection(title='Core Components', content='', level=2),
+            DocumentSection(title='Backend Architecture', content='', level=1, message='Overview of the backend architecture'),
+            DocumentSection(title='Project Structure', content='', level=2, message='Explain backend project structure'),
+            DocumentSection(title='Data Flow', content='', level=2, message='Describe how data flows through the system'),
+            DocumentSection(title='Core Components', content='', level=2, message='Detail the core backend components'),
         ],
     ),
     'FRONTEND': DocumentTemplate(
         type='FRONTEND',
         sections=[
-            DocumentSection(title='Frontend Architecture', content='', level=1),
-            DocumentSection(title='Key Features', content='', level=2),
-            DocumentSection(title='Project Structure', content='', level=2),
-            DocumentSection(title='Build & Deploy', content='', level=2),
+            DocumentSection(title='Frontend Architecture', content='', level=1, message='Overview of frontend architecture'),
+            DocumentSection(title='Key Features', content='', level=2, message='Highlight key frontend features'),
+            DocumentSection(title='Project Structure', content='', level=2, message='Explain frontend project structure'),
+            DocumentSection(title='Build & Deploy', content='', level=2, message='Instructions for building and deploying'),
         ],
     ),
     'DEPLOYMENT': DocumentTemplate(
         type='DEPLOYMENT',
         sections=[
-            DocumentSection(title='Deployment Guide', content='', level=1),
-            DocumentSection(title='Prerequisites', content='', level=2),
-            DocumentSection(title='Environment Setup', content='', level=2),
-            DocumentSection(title='Deployment Steps', content='', level=2),
+            DocumentSection(title='Deployment Guide', content='', level=1, message='Comprehensive deployment guide'),
+            DocumentSection(title='Prerequisites', content='', level=2, message='List required prerequisites'),
+            DocumentSection(title='Environment Setup', content='', level=2, message='Environment setup instructions'),
+            DocumentSection(title='Deployment Steps', content='', level=2, message='Step-by-step deployment instructions'),
         ],
     ),
 }
@@ -115,7 +116,7 @@ def create_doc_from_template(template_name: str, doc_name: str) -> DocumentSpec:
     """Create a DocumentSpec from a template."""
     template = DOCUMENT_TEMPLATES.get(template_name)
     if not template:
-        logger.error(f'Template {template_name} not found')
+        logger.error(f'Template {template_name} not found', message=f'Template {template_name} not found')
         raise ValueError(f'Template {template_name} not found')
 
     return DocumentSpec(

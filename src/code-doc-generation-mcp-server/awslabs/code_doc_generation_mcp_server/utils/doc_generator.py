@@ -59,18 +59,18 @@ class DocumentGenerator:
             path.write_text(content)
             logger.info(f'Generated documentation file: {path}')
         except Exception as e:
-            logger.error(f'Error writing file {path}: {e}')
+            logger.error(f'Error writing file {path}: {e}', message=f'Error writing file {path}: {e}')
             raise
 
     def _get_component_summary(self, analysis: ProjectAnalysis) -> str:
         """Get a text summary of components for placeholder text."""
         summary = []
-        if analysis.frontend:
+        if analysis and analysis.frontend:
             summary.append('- Frontend')
             if isinstance(analysis.frontend, dict) and analysis.frontend.get('framework'):
                 summary[-1] += f' ({analysis.frontend["framework"]})'
 
-        if analysis.backend:
+        if analysis and analysis.backend:
             summary.append('- Backend')
             if isinstance(analysis.backend, dict):
                 if analysis.backend.get('framework'):
@@ -83,7 +83,7 @@ class DocumentGenerator:
                         # Handle case where database is a string instead of dict
                         summary.append(f'  - Database: {db_value}')
 
-        if analysis.apis:
+        if analysis and analysis.apis:
             summary.append('- API Layer')
             if isinstance(analysis.apis, dict):
                 api_type = analysis.apis.get('type', 'Unknown')
@@ -94,11 +94,11 @@ class DocumentGenerator:
     def _get_key_components(self, analysis: ProjectAnalysis) -> List[str]:
         """Get list of key components for overview."""
         components = []
-        if analysis.frontend:
+        if analysis and analysis.frontend:
             components.append('Frontend')
-        if analysis.backend:
+        if analysis and analysis.backend:
             components.append('Backend')
-        if analysis.apis:
+        if analysis and analysis.apis:
             components.append('API')
         return components
 
@@ -140,8 +140,8 @@ class DocumentGenerator:
                 '<!-- PLACEHOLDER: Replace this with an AWS architecture diagram generated using AWS Diagram MCP Server -->\n'
                 '## System Architecture\n\n'
                 '```\n'
-                f'Project Type: {analysis.project_type}\n'
-                'Key Components: ' + ', '.join(self._get_key_components(analysis)) + '\n'
+                f'Project Type: {analysis and analysis.project_type or "unknown"}\n'
+                'Key Components: ' + ', '.join(self._get_key_components(analysis) or []) + '\n'
                 'Generate an AWS architecture diagram using awslabs.aws-diagram-mcp-server to visualize this structure.\n'
                 '```'
             )
@@ -167,7 +167,7 @@ class DocumentGenerator:
                 content.append('<!-- MCP Client: Write concise content for this section -->\n')
 
             # Add subsections
-            if section.subsections:
+            if section.subsections is not None:
                 for subsection in section.subsections:
                     add_section(subsection, level + 1)
 
@@ -401,7 +401,7 @@ class DocumentGenerator:
                     content.append('<!-- Describe what this data flow diagram shows below -->\n')
 
                     # Add any subsections
-                    if doc_spec.sections[data_flow_index].subsections:
+                    if doc_spec.sections[data_flow_index].subsections is not None:
                         for subsection in doc_spec.sections[data_flow_index].subsections:
                             add_section(subsection, doc_spec.sections[data_flow_index].level + 1)
 

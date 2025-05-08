@@ -49,6 +49,9 @@ class RepomixManager:
             # Parse XML
             tree = ET.parse(xml_path)
             root = tree.getroot()
+            if root is None:
+                self.logger.error('Failed to get root element from XML')
+                return {}
 
             # Find statistics element
             stats_elem = root.find('.//statistics')
@@ -105,6 +108,9 @@ class RepomixManager:
             # Parse XML
             tree = ET.parse(xml_path)
             root = tree.getroot()
+            if root is None:
+                self.logger.error('Failed to get root element from XML')
+                return None
 
             # First try the old format with <directory_structure> containing plain text
             for xpath in [
@@ -119,7 +125,8 @@ class RepomixManager:
                     return directory_structure
 
             # If not found, look for nested <repository_structure> format
-            repo_structure = root.find('.//repository_structure')
+            # Handle case where root could be None
+            repo_structure = root.find('.//repository_structure') if root is not None else None
             if repo_structure is not None:
                 self.logger.info('Found repository_structure element, converting to text format')
                 lines = []
@@ -200,7 +207,7 @@ class RepomixManager:
             # Run repomix to prepare repository
             self.logger.info(f'Preparing repository: {project_path}')
             if ctx:
-                ctx.info(f'Running repomix on {project_path}')
+                await ctx.info(f'Running repomix on {project_path}')
 
             # Save repomix output to a file in the output directory
             repomix_output_file = output_dir / 'repomix_output.xml'
@@ -254,7 +261,7 @@ class RepomixManager:
                 config.ignore.use_gitignore = False
 
                 if ctx:
-                    ctx.info('Using repomix to generate directory structure...')
+                    await ctx.info('Using repomix to generate directory structure...')
 
                 # Process repository
                 processor = RepoProcessor(str(project_path), config=config)
@@ -294,9 +301,9 @@ class RepomixManager:
 
                 # Update the user on status
                 if directory_structure and ctx:
-                    ctx.info('Successfully extracted directory structure')
+                    await ctx.info('Successfully extracted directory structure')
                 elif ctx:
-                    ctx.warning('Failed to extract directory structure')
+                    await ctx.warning('Failed to extract directory structure')
 
                 # Return simplified analysis data
                 return {
@@ -315,12 +322,12 @@ class RepomixManager:
                 error_msg = f'Error running repomix: {e}'
                 self.logger.error(error_msg)
                 if ctx:
-                    ctx.error(error_msg)
+                    await ctx.error(error_msg)
                 raise RuntimeError(error_msg)
 
         except Exception as e:
             error_msg = f'Unexpected error during preparation: {e}'
             self.logger.error(error_msg)
             if ctx:
-                ctx.error(error_msg)
+                await ctx.error(error_msg)
             raise RuntimeError(error_msg)
