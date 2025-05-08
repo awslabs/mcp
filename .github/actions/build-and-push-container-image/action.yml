@@ -178,13 +178,17 @@ runs:
 
     - name: Create manifest list and push
       working-directory: ${{ runner.temp }}/digests
+      env:
+        REGISTRY_ALIAS: 'w3i4n7u1'
       run: |
         docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-          $(printf 'awslabs/${{ inputs.image }}@sha256:%s ' *)
+          $(printf 'public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }}@sha256:%s ' *)
       shell: bash
     - name: Inspect image
+      env:
+        REGISTRY_ALIAS: 'w3i4n7u1'
       run: |
-        docker buildx imagetools inspect awslabs/${{ inputs.image }}:${{ steps.meta.outputs.version }}
+        docker buildx imagetools inspect public.ecr.aws/${{ env.REGISTRY_ALIAS }}/mcp/${{ inputs.image }}:${{ steps.meta.outputs.version }}
       shell: bash
     - name: Get version
       id: get-version
