@@ -45,7 +45,9 @@
   "postCreateCommand": {
     "Install Extra Apt Packages": "sudo apt -y update && sudo apt -y install graphviz",
     "Install Extra Node Packages": "npm install --global @anthropic-ai/claude-code",
-    "Install Extra Python Packages": "pip install uv pre-commit detect-secrets cookiecutter pyright pytest pytest-asyncio pytest-cov pytest-mock",
+    "Install Extra Python Packages": "pip install uv pre-commit detect-secrets cookiecutter pyright pytest pytest-asyncio pytest-cov pytest-mock"
+  },
+  "postStartCommand": {
     "Install Pre-Commit": "pre-commit install"
   },
   "remoteEnv": {
@@ -59,6 +61,7 @@
     "CLAUDE_CODE_USE_BEDROCK": "1",
     "DISABLE_PROMPT_CACHING": "1",
     "GITHUB_DYNAMIC_TOOLSETS": "1",
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${localEnv:GITHUB_TOKEN}",
     "GITHUB_TOOLSETS": "all",
     "MY_ENV_VAR": "${containerEnv:MY_CONTAINER_VAR:default-local-here}"
   }
