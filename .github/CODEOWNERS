@@ -11,6 +11,7 @@ CONTRIBUTING.md     @awslabs/mcp-admins
 LICENSE             @awslabs/mcp-admins
 NOTICE              @awslabs/mcp-admins
 /.github/           @awslabs/mcp-admins
+/.devcontainer/     @awslabs/mcp-admins
 
 # Secure the CODEOWNERS file
 /.github/CODEOWNERS @awslabs/mcp-admins
