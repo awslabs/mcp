@@ -30,6 +30,10 @@ async def test_execute_terragrunt_command_success(temp_terraform_dir):
         variables={'environment': 'test'},
         aws_region='us-west-2',
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Mock subprocess.run
@@ -63,6 +67,10 @@ async def test_execute_terragrunt_command_error(temp_terraform_dir):
         variables={'environment': 'test'},
         aws_region='us-west-2',
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Mock subprocess.run
@@ -88,6 +96,10 @@ async def test_clean_output_text_helper(temp_terraform_dir):
         variables={},
         aws_region='us-west-2',
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Create a mock subprocess result with ANSI and special characters
@@ -127,6 +139,10 @@ async def test_execute_terragrunt_command_with_region(temp_terraform_dir):
         variables={},
         aws_region='us-east-1',
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Mock subprocess.run
@@ -154,6 +170,10 @@ async def test_execute_terragrunt_command_dangerous_patterns(temp_terraform_dir)
         variables={'environment': 'test; rm -rf /'},  # Dangerous pattern
         aws_region='us-west-2',
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Call the function directly (no need for mocking as it should fail early)
@@ -192,6 +212,10 @@ async def test_execute_terragrunt_command_with_outputs(temp_terraform_dir):
         variables={'environment': 'test'},
         aws_region='us-west-2',
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Mock subprocess.run to return different results for different commands
@@ -251,6 +275,10 @@ async def test_execute_terragrunt_command_complex_outputs(temp_terraform_dir):
         variables={},
         aws_region=None,
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Mock subprocess.run
@@ -289,6 +317,10 @@ async def test_execute_terragrunt_command_output_error_handling(temp_terraform_d
         variables={},
         aws_region=None,
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Mock subprocess.run
@@ -336,6 +368,7 @@ async def test_execute_terragrunt_command_run_all(temp_terraform_dir):
         include_dirs=['/path/to/module1', '/path/to/module2'],
         exclude_dirs=['/path/to/excluded'],
         run_all=True,
+        terragrunt_config=None,
     )
 
     # Define a side_effect function that returns different mocks for different commands
@@ -376,6 +409,10 @@ async def test_execute_terragrunt_command_invalid_command(temp_terraform_dir):
         variables={},
         aws_region=None,
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Then modify the command directly to bypass validation
@@ -386,6 +423,7 @@ async def test_execute_terragrunt_command_invalid_command(temp_terraform_dir):
 
     # Check that the function handled the invalid command properly
     assert result.status == 'error'
+    assert result.error_message is not None
     assert 'Invalid Terragrunt command' in result.error_message
     assert 'Allowed commands are:' in result.error_message
 
@@ -400,6 +438,10 @@ async def test_execute_terragrunt_command_with_exception(temp_terraform_dir):
         variables={},
         aws_region=None,
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Mock subprocess.run to raise an exception
@@ -431,6 +473,9 @@ async def test_execute_terragrunt_command_with_custom_config(temp_terraform_dir)
         variables={'environment': 'test'},
         aws_region='us-west-2',
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
         terragrunt_config=custom_config,
     )
 

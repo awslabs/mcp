@@ -99,6 +99,7 @@ async def execute_terragrunt_command_impl(
             error_message=f'Invalid Terragrunt command: {request.command}. Allowed commands are: {", ".join(allowed_commands)}',
             working_directory=request.working_directory,
             outputs=None,
+            affected_dirs=None,
         )
 
     # Validate that terragrunt_config is not used with run-all
@@ -110,6 +111,7 @@ async def execute_terragrunt_command_impl(
             error_message='Invalid configuration: --terragrunt-config cannot be used with run-all command',
             working_directory=request.working_directory,
             outputs=None,
+            affected_dirs=None,
         )
 
     # Check for potentially dangerous characters or command injection attempts
@@ -130,6 +132,7 @@ async def execute_terragrunt_command_impl(
                         error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in variable '{var_name}'",
                         working_directory=request.working_directory,
                         outputs=None,
+                        affected_dirs=None,
                     )
 
         # Check terragrunt_config for dangerous patterns
@@ -141,6 +144,7 @@ async def execute_terragrunt_command_impl(
                 error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in terragrunt_config",
                 working_directory=request.working_directory,
                 outputs=None,
+                affected_dirs=None,
             )
 
         # Also check include_dirs and exclude_dirs for dangerous patterns
@@ -156,6 +160,7 @@ async def execute_terragrunt_command_impl(
                         error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in include_dirs",
                         working_directory=request.working_directory,
                         outputs=None,
+                        affected_dirs=None,
                     )
 
         if request.exclude_dirs:
@@ -170,6 +175,7 @@ async def execute_terragrunt_command_impl(
                         error_message=f"Security violation: Potentially dangerous pattern '{pattern}' detected in exclude_dirs",
                         working_directory=request.working_directory,
                         outputs=None,
+                        affected_dirs=None,
                     )
 
     # Build the command
@@ -293,4 +299,5 @@ async def execute_terragrunt_command_impl(
             error_message=str(e),
             working_directory=request.working_directory,
             outputs=None,
+            affected_dirs=None,
         )

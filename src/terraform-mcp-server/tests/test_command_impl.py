@@ -486,6 +486,10 @@ async def test_execute_terragrunt_command_success(temp_terraform_dir):
         variables={'environment': 'test'},
         aws_region='us-west-2',
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Mock subprocess.run
@@ -519,6 +523,10 @@ async def test_execute_terragrunt_command_error(temp_terraform_dir):
         variables={'environment': 'test'},
         aws_region='us-west-2',
         strip_ansi=True,
+        include_dirs=None,
+        exclude_dirs=None,
+        run_all=False,
+        terragrunt_config=None,
     )
 
     # Mock subprocess.run
