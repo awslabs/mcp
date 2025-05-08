@@ -37,7 +37,7 @@ nav:
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
     - AWS Lambda MCP Server: servers/lambda-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
-    - AWS Terraform MCP Server: servers/aws-terraform-mcp-server.md
+    - AWS Terraform MCP Server: servers/terraform-mcp-server.md
     - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
   - Samples:
     - Home: samples/index.md
