@@ -120,7 +120,7 @@ WORKFLOW:
 - After analyzing the directory structure, use read_file to access specific files
 - Examine package.json, README.md, or other important files you identify
 - Build your understanding of the project from these key files
-- If you detect AWS CDK or Terraform code, set should_generate_cost_estimation=True
+- If you detect AWS CDK or Terraform code, set has_infrastructure_as_code=True
 
 3. create_context:
 - Creates a DocumentationContext from your completed ProjectAnalysis
@@ -175,7 +175,7 @@ async def prepare_repository(
     1. Review the directory structure in file_structure["directory_structure"]
     2. Use read_file to examine key files you identify from the structure
     3. Fill out the empty fields in ProjectAnalysis based on your analysis
-    4. Set should_generate_cost_estimation=True if you detect CDK or Terraform code
+    4. Set has_infrastructure_as_code=True if you detect CDK, Terraform, or other infrastructure as code
     5. Use create_context to create a DocumentationContext from your analysis
     6. Use the DocumentationContext with plan_documentation
 
@@ -225,7 +225,7 @@ async def prepare_repository(
             apis=None,  # Optional - The MCP client will fill if found
             backend=None,  # Optional - The MCP client will fill if found
             frontend=None,  # Optional - The MCP client will fill if found
-            should_generate_cost_estimation=False,  # The MCP client will set to True if CDK or Terraform code is detected
+            has_infrastructure_as_code=False,  # The MCP client will set to True if CDK, Terraform, or other IaC is detected
         )
 
     except subprocess.CalledProcessError as e:
@@ -356,19 +356,9 @@ async def plan_documentation(
         if doc_context.analysis_result.apis:
             needed_docs.append('API.md')
 
-        # Add business requirements for all projects
-        needed_docs.append('REQUIREMENTS.md')
-
-        # Add deployment docs for deployable projects
-        if isinstance(doc_context.analysis_result.file_structure, dict):
-            if any(
-                'infrastructure' in key
-                for key in doc_context.analysis_result.file_structure.keys()
-            ) or any(
-                'deploy' in key.lower()
-                for key in doc_context.analysis_result.file_structure.keys()
-            ):
-                needed_docs.append('PATH_TO_PRODUCTION.md')
+        # Add deployment docs for projects with infrastructure as code
+        if doc_context.analysis_result.has_infrastructure_as_code:
+            needed_docs.append('DEPLOYMENT_GUIDE.md')
 
         # Create both tree and outline from needed docs
         doc_tree = {

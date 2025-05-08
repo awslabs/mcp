@@ -83,9 +83,9 @@ class ProjectAnalysis(BaseModel):
         None,
         description='Frontend implementation details. Example: {"framework": "React", "state_management": "Redux", "styling": "Tailwind CSS"}',
     )
-    should_generate_cost_estimation: bool = Field(
+    has_infrastructure_as_code: bool = Field(
         default=False,
-        description='Whether the project would benefit from AWS cost estimation using the Cost Analysis MCP Server. Set to True for projects with CDK or Terraform code.',
+        description='Whether the project contains infrastructure as code (CDK, Terraform, CloudFormation, etc.). Set to True if detected.',
     )
 
 

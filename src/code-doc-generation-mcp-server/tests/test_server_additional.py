@@ -55,8 +55,7 @@ async def test_plan_documentation_with_minimal_info():
     # Assert
     assert isinstance(result, DocumentationPlan)
     assert "README.md" in result.structure.doc_tree["root"]
-    assert "REQUIREMENTS.md" in result.structure.doc_tree["root"]
-    assert len(result.docs_outline) >= 2  # At minimum README and REQUIREMENTS docs
+    assert len(result.docs_outline) >= 1  # At minimum README doc
     ctx.info.assert_called()
 
 
@@ -79,6 +78,7 @@ async def test_plan_documentation_with_infrastructure():
             },
             dependencies={"aws-cdk-lib": "^2.0.0"},
             primary_languages=["TypeScript"],
+            has_infrastructure_as_code=True,
         ),
     )
 
@@ -88,8 +88,8 @@ async def test_plan_documentation_with_infrastructure():
     # Assert
     assert isinstance(result, DocumentationPlan)
     assert "README.md" in result.structure.doc_tree["root"]
-    assert "PATH_TO_PRODUCTION.md" in result.structure.doc_tree["root"]
-    assert len(result.docs_outline) >= 3
+    assert "DEPLOYMENT_GUIDE.md" in result.structure.doc_tree["root"]
+    assert len(result.docs_outline) >= 2
     ctx.info.assert_called()
 
 

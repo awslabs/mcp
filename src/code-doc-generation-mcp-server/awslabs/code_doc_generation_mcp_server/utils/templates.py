@@ -24,8 +24,7 @@ TEMPLATE_FILE_MAPPING = {
     'API.md': 'API',
     'BACKEND.md': 'BACKEND',
     'FRONTEND.md': 'FRONTEND',
-    'REQUIREMENTS.md': 'BUSINESS_REQUIREMENTS',
-    'PATH_TO_PRODUCTION.md': 'PATH_TO_PRODUCTION',
+    'DEPLOYMENT_GUIDE.md': 'DEPLOYMENT',
 }
 
 
@@ -87,8 +86,7 @@ DOCUMENT_TEMPLATES = {
             DocumentSection(title='Backend Architecture', content='', level=1),
             DocumentSection(title='Project Structure', content='', level=2),
             DocumentSection(title='Data Flow', content='', level=2),
-            DocumentSection(title='CDK Stacks', content='', level=2),
-            DocumentSection(title='Deployment', content='', level=2),
+            DocumentSection(title='Core Components', content='', level=2),
         ],
     ),
     'FRONTEND': DocumentTemplate(
@@ -100,24 +98,13 @@ DOCUMENT_TEMPLATES = {
             DocumentSection(title='Build & Deploy', content='', level=2),
         ],
     ),
-    'PATH_TO_PRODUCTION': DocumentTemplate(
-        type='PATH_TO_PRODUCTION',
+    'DEPLOYMENT': DocumentTemplate(
+        type='DEPLOYMENT',
         sections=[
-            DocumentSection(title='Path to Production', content='', level=1),
-            DocumentSection(title='Overview', content='', level=2),
-            DocumentSection(title='Development Environment', content='', level=2),
-            DocumentSection(title='Deployment Pipeline', content='', level=2),
-            DocumentSection(title='Monitoring and Maintenance', content='', level=2),
-        ],
-    ),
-    'BUSINESS_REQUIREMENTS': DocumentTemplate(
-        type='BUSINESS_REQUIREMENTS',
-        sections=[
-            DocumentSection(title='Business Requirements', content='', level=1),
-            DocumentSection(title='Executive Summary', content='', level=2),
-            DocumentSection(title='Project Goals', content='', level=2),
-            DocumentSection(title='Key Features', content='', level=2),
-            DocumentSection(title='Success Criteria', content='', level=2),
+            DocumentSection(title='Deployment Guide', content='', level=1),
+            DocumentSection(title='Prerequisites', content='', level=2),
+            DocumentSection(title='Environment Setup', content='', level=2),
+            DocumentSection(title='Deployment Steps', content='', level=2),
         ],
     ),
 }
