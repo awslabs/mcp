@@ -76,8 +76,8 @@ class DocumentGenerator:
                 if analysis.backend.get('framework'):
                     summary[-1] += f' ({analysis.backend["framework"]})'
                 if analysis.backend.get('database'):
-                    db_value = analysis.backend["database"]
-                    if isinstance(db_value, dict) and db_value.get("type"):
+                    db_value = analysis.backend['database']
+                    if isinstance(db_value, dict) and db_value.get('type'):
                         summary.append(f'  - Database: {db_value.get("type")}')
                     else:
                         # Handle case where database is a string instead of dict
@@ -264,7 +264,7 @@ class DocumentGenerator:
                         else:
                             # Handle case where database is a string
                             db_type = str(db_value)
-                            
+
                         if 'dynamo' in str(db_type).lower():
                             content.append('        db = DynamoDB("DynamoDB")')
                         else:
@@ -368,7 +368,7 @@ class DocumentGenerator:
                                 else:
                                     # Handle case where database is a string
                                     db_type = str(db_value)
-                                    
+
                                 if 'dynamo' in str(db_type).lower():
                                     content.append('    data_store = DynamoDB("DynamoDB")')
                                 else:

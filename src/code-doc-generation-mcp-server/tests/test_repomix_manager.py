@@ -113,7 +113,7 @@ async def test_prepare_repository(mock_unlink, mock_touch, mock_is_dir, mock_exi
         # Mock the RepomixConfig and RepoProcessor
         with patch(
             'awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepomixConfig'
-        ) as MockConfig:
+        ) as _MockConfig:
             with patch(
                 'awslabs.code_doc_generation_mcp_server.utils.repomix_manager.RepoProcessor'
             ) as MockProcessor:
