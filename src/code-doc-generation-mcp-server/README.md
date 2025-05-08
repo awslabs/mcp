@@ -2,7 +2,7 @@
 
 [![smithery badge](https://smithery.ai/badge/@awslabs/code-doc-generation-mcp-server)](https://smithery.ai/server/@awslabs/code-doc-generation-mcp-server)
 
-A Model Context Protocol (MCP) server that automatically analyzes repository structure and generates comprehensive documentation for code projects. This server uses repomix to extract project structure and creates tailored documentation based on project type.
+A Model Context Protocol (MCP) server that automatically analyzes repository structure and generates comprehensive documentation for code projects. This server uses [repomix](https://github.com/yamadashy/repomix/tree/main) to extract project structure and creates tailored documentation based on project type.
 
 ## Architecture
 
