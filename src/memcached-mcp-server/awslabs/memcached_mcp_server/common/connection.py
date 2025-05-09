@@ -42,7 +42,10 @@ class MemcachedConnectionManager:
                 tls_context = ssl.create_default_context(
                     cafile=tls_ca_cert_path if tls_ca_cert_path else None
                 )
-                if not tls_verify:
+                if tls_verify:
+                    tls_context.check_hostname = True
+                    tls_context.verify_mode = ssl.CERT_REQUIRED
+                else:
                     tls_context.check_hostname = False
                     tls_context.verify_mode = ssl.CERT_NONE
                 if tls_cert_path and tls_key_path:
