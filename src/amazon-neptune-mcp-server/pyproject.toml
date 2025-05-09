@@ -96,7 +96,7 @@ line-ending = "auto"
 docstring-code-format = true
 
 [tool.pyright]
-include = ["awslabs", "tests"]
+include = ["awslabs"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
 
 [tool.commitizen]
