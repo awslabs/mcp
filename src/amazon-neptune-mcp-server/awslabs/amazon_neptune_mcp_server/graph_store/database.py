@@ -66,6 +66,15 @@ class NeptuneDatabase(NeptuneGraph):
             )
            
     def _get_summary(self) -> Dict:
+        """
+        Retrieves the graph summary from Neptune's property graph summary API.
+        
+        Returns:
+            Dict: A dictionary containing the graph summary information
+            
+        Raises:
+            NeptuneException: If the summary API is not available or returns an invalid response
+        """
         try:
             response = self.client.get_propertygraph_summary()
         except Exception as e:
@@ -92,13 +101,32 @@ class NeptuneDatabase(NeptuneGraph):
             return summary
 
     def _get_labels(self) -> Tuple[List[str], List[str]]:
-        """Get node and edge labels from the Neptune statistics summary"""
+        """
+        Get node and edge labels from the Neptune statistics summary.
+        
+        Returns:
+            Tuple[List[str], List[str]]: A tuple containing two lists:
+                1. List of node labels
+                2. List of edge labels
+        """
         summary = self._get_summary()
         n_labels = summary["nodeLabels"]
         e_labels = summary["edgeLabels"]
         return n_labels, e_labels
 
     def _get_triples(self, e_labels: List[str]) -> List[RelationshipPattern]:
+        """
+        Retrieves relationship patterns (triples) from the graph based on edge labels.
+        
+        This method queries the graph to find distinct patterns of node-edge-node
+        relationships for each edge label.
+        
+        Args:
+            e_labels (List[str]): List of edge labels to query for relationship patterns
+            
+        Returns:
+            List[RelationshipPattern]: List of relationship patterns found in the graph
+        """
         triple_query = """
         MATCH (a)-[e:`{e_label}`]->(b)
         WITH a,e,b LIMIT 3000
@@ -116,6 +144,19 @@ class NeptuneDatabase(NeptuneGraph):
         return triple_schema
 
     def _get_node_properties(self, n_labels: List[str], types: Dict) -> List:
+        """
+        Retrieves property information for each node label in the graph.
+        
+        This method queries the graph to find all properties associated with each
+        node label and their data types.
+        
+        Args:
+            n_labels (List[str]): List of node labels to query for properties
+            types (Dict): Dictionary mapping Python types to Neptune data types
+            
+        Returns:
+            List[Node]: List of Node objects with their properties
+        """
         node_properties_query = """
         MATCH (a:`{n_label}`)
         RETURN properties(a) AS props
@@ -142,6 +183,19 @@ class NeptuneDatabase(NeptuneGraph):
         return nodes
 
     def _get_edge_properties(self, e_labels: List[str], types: Dict[str, Any]) -> List:
+        """
+        Retrieves property information for each edge label in the graph.
+        
+        This method queries the graph to find all properties associated with each
+        edge label and their data types.
+        
+        Args:
+            e_labels (List[str]): List of edge labels to query for properties
+            types (Dict[str, Any]): Dictionary mapping Python types to Neptune data types
+            
+        Returns:
+            List[Relationship]: List of Relationship objects with their properties
+        """
         edge_properties_query = """
         MATCH ()-[e:`{e_label}`]->()
         RETURN properties(e) AS props
@@ -171,8 +225,13 @@ class NeptuneDatabase(NeptuneGraph):
     def _refresh_schema(self) -> GraphSchema:
         """
         Refreshes the Neptune graph schema information.
+        
+        This method queries the graph to build a complete schema representation
+        including nodes, relationships, and relationship patterns.
+        
+        Returns:
+            GraphSchema: Complete schema information for the graph
         """
-
         types = {
             "str": "STRING",
             "float": "DOUBLE",
@@ -193,11 +252,27 @@ class NeptuneDatabase(NeptuneGraph):
 
 
     def get_schema(self) -> GraphSchema:
+        """
+        Returns the current graph schema, refreshing it if necessary.
+        
+        Returns:
+            GraphSchema: Complete schema information for the graph
+        """
         if self.schema is None:
             self._refresh_schema()
         return self.schema if self.schema else GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
 
     def query_opencypher(self, query:str, params:Optional[dict] = None):
+        """
+        Executes an openCypher query against the Neptune database.
+        
+        Args:
+            query (str): The openCypher query string to execute
+            params (Optional[dict]): Optional parameters for the query
+            
+        Returns:
+            Any: The query results, either as a single result or a list of results
+        """
         if params:
             resp = self.client.execute_open_cypher_query(
                             openCypherQuery=query,
@@ -209,7 +284,14 @@ class NeptuneDatabase(NeptuneGraph):
         return resp["result"] if "result" in resp else resp["results"]
     
     def query_gremlin(self, query):
-        resp = self.client.execute_gremlin_query(gremlinQuery=query,
-                    serializer="application/vnd.gremlin-v1.0+json")
+        """
+        Executes a Gremlin query against the Neptune database.
+        
+        Args:
+            query (str): The Gremlin query string to execute
+            
+        Returns:
+            Any: The query results, either as a single result or a list of results
+        """
+        resp = self.client.execute_gremlin_query(gremlinQuery=query)
         return resp["result"] if "result" in resp else resp["results"]
-

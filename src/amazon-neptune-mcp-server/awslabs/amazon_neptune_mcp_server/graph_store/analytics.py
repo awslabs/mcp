@@ -61,6 +61,13 @@ class NeptuneAnalytics(NeptuneGraph):
     def _refresh_schema(self) -> GraphSchema:
         """
         Refreshes the Neptune graph schema information.
+        
+        This method queries the Neptune Analytics graph to build a complete schema
+        representation including nodes, relationships, and relationship patterns
+        using the pg_schema procedure.
+        
+        Returns:
+            GraphSchema: Complete schema information for the graph
         """
         pg_schema_query = """
         CALL neptune.graph.pg_schema()
@@ -69,7 +76,6 @@ class NeptuneAnalytics(NeptuneGraph):
         """
 
         data = self.query_opencypher(pg_schema_query)
-        print('Here')
         raw_schema = data[0]["schema"]
         graph = GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
 
@@ -104,11 +110,30 @@ class NeptuneAnalytics(NeptuneGraph):
         return graph
 
     def get_schema(self) -> GraphSchema:
+        """
+        Returns the current graph schema, refreshing it if necessary.
+        
+        Returns:
+            GraphSchema: Complete schema information for the graph
+        """
         if self.schema is None:
             self._refresh_schema()
         return self.schema if self.schema else GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
 
     def query_opencypher(self, query:str, params: Optional[dict]= None):
+        """
+        Executes an openCypher query against the Neptune Analytics graph.
+        
+        Args:
+            query (str): The openCypher query string to execute
+            params (Optional[dict]): Optional parameters for the query, defaults to None
+            
+        Returns:
+            Any: The query results as a list
+            
+        Raises:
+            NeptuneException: If an error occurs during query execution
+        """
         try:
             if params is None:
                 params = {}
@@ -128,7 +153,13 @@ class NeptuneAnalytics(NeptuneGraph):
             )
 
     def query_gremlin(self, query:str):
+        """
+        Not supported for Neptune Analytics graphs.
+        
+        Args:
+            query (str): The Gremlin query string
+            
+        Raises:
+            NotImplementedError: Always raised as Gremlin is not supported for Neptune Analytics
+        """
         raise NotImplementedError("Gremlin queries are not supported for Neptune Analytics graphs.")
-
-    def query_sparql(self, query:str):
-        raise NotImplementedError("SPARQL queries are not supported for Neptune Analytics graphs.")

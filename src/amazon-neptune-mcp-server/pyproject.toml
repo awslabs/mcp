@@ -125,6 +125,8 @@ markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"
 ]
+asyncio_default_fixture_loop_scope = "session"
+
 
 [tool.coverage.report]
 exclude_also = [

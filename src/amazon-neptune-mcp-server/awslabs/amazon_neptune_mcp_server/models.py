@@ -52,7 +52,7 @@ class Node(BaseModel):
         properties (List[Property]): List of properties that can be assigned to this node type
     """
     labels: str
-    properties: Optional[List[Property]]
+    properties: List[Property] = []
 
 
 class Relationship(BaseModel):
@@ -67,7 +67,7 @@ class Relationship(BaseModel):
         properties (List[Property]): List of properties that can be assigned to this relationship type
     """
     type: str
-    properties: Optional[List[Property]]
+    properties: List[Property] = []
 
 
 class RelationshipPattern(BaseModel):
