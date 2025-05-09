@@ -164,6 +164,31 @@ jobs:
         with:
           packages-dir: src/${{ matrix.package }}/dist
 
+      - name: Get Version from ${{ matrix.package }} Package
+        id: get-package-version
+        working-directory: src/${{ matrix.package }}
+        run: |
+          echo "version=$(uv tree 2> /dev/null | grep awslabs | sed -e 's/^.*[[:space:]]v\(.*\)/\1/g')" >> $GITHUB_OUTPUT
+
+      - name: Build and Publish ${{ matrix.package }} Container
+        id: build-and-publish
+        uses: ./.github/actions/build-and-push-container-image
+        if: hashFiles(format('./src/{0}/Dockerfile', matrix.package))
+        with:
+          image: ${{ matrix.package }}
+          version: ${{ steps.get-package-version.outputs.version || github.sha }}
+          public-erc-role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
+          public-erc-registry-alias: 'f3y8w4n0' # 'w3i4n7u1'
+          public-erc-aws-region: ${{ env.AWS_REGION || 'us-east-1' }}
+
+      - name: Display Image Version ${{ matrix.package }}
+        id: display-image-version
+        if: success() && steps.build-and-publish.outcome == 'success'
+        run: |
+          echo "version: ${VERSION}"
+        env:
+          VERSION: ${{ steps.build-and-publish.outputs.version }}
+
   publish-npm:
     if: github.repository == 'awslabs/mcp' && needs.create-metadata.outputs.npm_packages != '[]' && needs.create-metadata.outputs.npm_packages != ''
     needs: [update-packages, create-metadata]
