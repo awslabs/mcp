@@ -11,15 +11,12 @@
 """Additional tests for the code-doc-generation MCP Server to improve coverage."""
 
 import pytest
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch, call
-
 from awslabs.code_doc_generation_mcp_server.server import (
     _analyze_project_structure,
     create_context,
-    plan_documentation,
     generate_documentation,
     main,
+    plan_documentation,
 )
 from awslabs.code_doc_generation_mcp_server.utils.models import (
     DocStructure,
@@ -29,6 +26,8 @@ from awslabs.code_doc_generation_mcp_server.utils.models import (
     DocumentSpec,
     ProjectAnalysis,
 )
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 
 @pytest.mark.asyncio
@@ -39,9 +38,7 @@ async def test_analyze_project_structure_with_fallbacks():
     raw_analysis = {
         'project_info': {'name': 'test-project', 'path': '/path/to/repo'},
         'directory_structure': None,  # Not found
-        'file_structure': {
-            'directory_structure': 'bin/\n  app.ts\nlib/\n  stack.ts'
-        },
+        'file_structure': {'directory_structure': 'bin/\n  app.ts\nlib/\n  stack.ts'},
         'metadata': {'key': 'value'},
     }
     docs_dir = Path('/path/to/repo/generated-docs')
@@ -75,7 +72,7 @@ async def test_analyze_project_structure_with_fallbacks():
 async def test_create_context_with_error_logging(mock_create_doc_ctx):
     """Test create_context error handling and logging."""
     # Arrange
-    mock_create_doc_ctx.side_effect = Exception("Test exception")
+    mock_create_doc_ctx.side_effect = Exception('Test exception')
     project_root = '/path/to/repo'
     analysis = ProjectAnalysis(
         project_type='Web Application',
@@ -117,7 +114,7 @@ async def test_plan_documentation_with_infrastructure(mock_create_doc, mock_get_
     )
 
     ctx = AsyncMock()
-    
+
     # Create a context with infrastructure as code flag set to True
     doc_context = DocumentationContext(
         project_name='test-project',
@@ -144,7 +141,7 @@ async def test_plan_documentation_with_infrastructure(mock_create_doc, mock_get_
     # Assert
     assert isinstance(result, DocumentationPlan)
     assert 'DEPLOYMENT_GUIDE.md' in result.structure.doc_tree['root']
-    
+
     # Verify info logging occurred
     ctx.info.assert_called()
 
@@ -163,12 +160,14 @@ async def test_plan_documentation_error_handling():
         # Set analysis_result to None but reference it in a way that will raise an exception
         analysis_result=None,
     )
-    
+
     ctx = AsyncMock()
-    
+
     # Mock the needed_docs retrieval to force an error
-    with patch('awslabs.code_doc_generation_mcp_server.server.get_template_for_file', 
-               side_effect=Exception('Test error')):
+    with patch(
+        'awslabs.code_doc_generation_mcp_server.server.get_template_for_file',
+        side_effect=Exception('Test error'),
+    ):
         # Act & Assert
         with pytest.raises(Exception):
             await plan_documentation(doc_context, ctx)
@@ -194,25 +193,32 @@ async def test_generate_documentation_with_all_doc_types(mock_doc_generator_clas
 
     # Create proper document specs with sections
     test_section = DocumentSection(title='Test Section', content='', level=1, message=None)
-    
+
     # Create plan with proper document specs
     plan = DocumentationPlan(
         structure=DocStructure(
             root_doc='README.md',
-            doc_tree={'root': [
-                'README.md', 
-                'API.md',
-                'BACKEND.md', 
-                'FRONTEND.md', 
-                'DEPLOYMENT_GUIDE.md'
-            ]}
+            doc_tree={
+                'root': ['README.md', 'API.md', 'BACKEND.md', 'FRONTEND.md', 'DEPLOYMENT_GUIDE.md']
+            },
         ),
         docs_outline=[
-            DocumentSpec(name='README.md', type='README', template='README', sections=[test_section]),
+            DocumentSpec(
+                name='README.md', type='README', template='README', sections=[test_section]
+            ),
             DocumentSpec(name='API.md', type='API', template='API', sections=[test_section]),
-            DocumentSpec(name='BACKEND.md', type='BACKEND', template='BACKEND', sections=[test_section]),
-            DocumentSpec(name='FRONTEND.md', type='FRONTEND', template='FRONTEND', sections=[test_section]),
-            DocumentSpec(name='DEPLOYMENT_GUIDE.md', type='DEPLOYMENT', template='DEPLOYMENT', sections=[test_section]),
+            DocumentSpec(
+                name='BACKEND.md', type='BACKEND', template='BACKEND', sections=[test_section]
+            ),
+            DocumentSpec(
+                name='FRONTEND.md', type='FRONTEND', template='FRONTEND', sections=[test_section]
+            ),
+            DocumentSpec(
+                name='DEPLOYMENT_GUIDE.md',
+                type='DEPLOYMENT',
+                template='DEPLOYMENT',
+                sections=[test_section],
+            ),
         ],
     )
 
@@ -243,17 +249,17 @@ async def test_generate_documentation_with_all_doc_types(mock_doc_generator_clas
 
     # Assert
     assert len(result) == 5
-    
+
     # Find API.md and check its message
     api_doc = next((doc for doc in result if doc.path.endswith('API.md')), None)
     assert api_doc is not None
     assert 'Document all API endpoints' in api_doc.message
-    
+
     # Find FRONTEND.md and check its message
     frontend_doc = next((doc for doc in result if doc.path.endswith('FRONTEND.md')), None)
     assert frontend_doc is not None
     assert 'Document the frontend structure' in frontend_doc.message
-    
+
     # Verify info messages were logged
     ctx.info.assert_called()
 
@@ -265,7 +271,7 @@ async def test_generate_documentation_error_handling(mock_doc_generator_class):
     # Arrange
     mock_doc_generator = mock_doc_generator_class.return_value
     mock_generator_docs = AsyncMock()
-    mock_generator_docs.side_effect = Exception("Test exception")
+    mock_generator_docs.side_effect = Exception('Test exception')
     mock_doc_generator.generate_docs = mock_generator_docs
 
     # Create a simple plan
@@ -273,10 +279,12 @@ async def test_generate_documentation_error_handling(mock_doc_generator_class):
     plan = DocumentationPlan(
         structure=DocStructure(root_doc='README.md', doc_tree={'root': ['README.md']}),
         docs_outline=[
-            DocumentSpec(name='README.md', type='README', template='README', sections=[test_section]),
+            DocumentSpec(
+                name='README.md', type='README', template='README', sections=[test_section]
+            ),
         ],
     )
-    
+
     # Create a simple context
     doc_context = DocumentationContext(
         project_name='test-project',
@@ -295,7 +303,7 @@ async def test_generate_documentation_error_handling(mock_doc_generator_class):
             frontend=None,
         ),
     )
-    
+
     # Create a mock context with reset_mock() to clear previous calls
     ctx = AsyncMock()
     ctx.error.reset_mock()  # Ensure no previous calls are counted
@@ -303,10 +311,12 @@ async def test_generate_documentation_error_handling(mock_doc_generator_class):
     # Act & Assert
     with pytest.raises(Exception):
         await generate_documentation(plan, doc_context, ctx)
-    
+
     # Check that error was called with the exception message
-    assert any(call_args[0][0] == 'Error in generate_documentation: Test exception' 
-               for call_args in ctx.error.call_args_list)
+    assert any(
+        call_args[0][0] == 'Error in generate_documentation: Test exception'
+        for call_args in ctx.error.call_args_list
+    )
 
 
 @patch('awslabs.code_doc_generation_mcp_server.server.mcp')
