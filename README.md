@@ -23,6 +23,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
   - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
   - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
+  - [Postgres MCP Server](#postgres-mcp-server)
   - [Use Cases for the Servers](#use-cases-for-the-servers)
 - [Installation and Setup](#installation-and-setup)
   - [Getting Started with Cline and Amazon Bedrock](#getting-started-with-cline-and-amazon-bedrock)
@@ -213,6 +214,17 @@ A server for researching Git repositories using semantic search.
 - File Access with text and binary support
 
 [Learn more](src/git-repo-research-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
+
+### Postgres MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.postgres-mcp-server.svg)](https://pypi.org/project/awslabs.postgres-mcp-server/)
+
+A server for Aurora Postgres.
+
+- Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora Postgres database
+- Fetch table columns and comments from Postgres using RDS Data API
+
+[Learn more](src/postgres-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/postgres-mcp-server/)
 
 ### Use Cases for the Servers
 
