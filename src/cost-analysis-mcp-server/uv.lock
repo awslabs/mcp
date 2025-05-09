@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.10"
 
 [[package]]
@@ -36,7 +37,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-cost-analysis-mcp-server"
-version = "0.1.8"
+version = "0.1.9"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

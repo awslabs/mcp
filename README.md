@@ -21,6 +21,9 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
   - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
   - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
+  - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
+  - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
+  - [Postgres MCP Server](#postgres-mcp-server)
   - [Amazon Neptune MCP Server](#amazon-neptune-mcp-server)
   - [Use Cases for the Servers](#use-cases-for-the-servers)
 - [Installation and Setup](#installation-and-setup)
@@ -183,6 +186,47 @@ A server for AWS Terraform best practices.
 
 [Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
 
+### AWS Location Service MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-location-mcp-server.svg)](https://pypi.org/project/awslabs.aws-location-mcp-server/)
+
+A server for accessing AWS Location Service capabilities, focusing on place search, geographical coordinates, and route planning.
+
+- Search for places using geocoding
+- Get details for specific places by PlaceId
+- Reverse geocode coordinates to addresses
+- Search for places near a location
+- Search for places that are currently open
+- Calculate routes between locations with turn-by-turn directions
+- Optimize waypoints for efficient routing
+
+[Learn more](src/aws-location-mcp-server/README.md)
+
+### Git Repo Research MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.git-repo-research-mcp-server.svg)](https://pypi.org/project/awslabs.git-repo-research-mcp-server/)
+
+A server for researching Git repositories using semantic search.
+
+- Repository Indexing with FAISS and Amazon Bedrock embeddings
+- Semantic Search within repositories
+- Repository Structure Analysis
+- GitHub Repository Search in AWS organizations
+- File Access with text and binary support
+
+[Learn more](src/git-repo-research-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
+
+### Postgres MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.postgres-mcp-server.svg)](https://pypi.org/project/awslabs.postgres-mcp-server/)
+
+A server for Aurora Postgres.
+
+- Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora Postgres database
+- Fetch table columns and comments from Postgres using RDS Data API
+
+[Learn more](src/postgres-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/postgres-mcp-server/)
+
 ### Amazon Neptune MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-neptune-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-neptune-mcp-server/)
@@ -218,7 +262,6 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       "args": ["awslabs.core-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "MCP_SETTINGS_PATH": "path to your mcp settings file"
       }
     },
     "awslabs.nova-canvas-mcp-server": {
@@ -283,7 +326,30 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
        },
        "disabled": false,
        "autoApprove": []
-     }
+     },
+    "awslabs.aws-location-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.aws-location-mcp-server@latest"],
+       "env": {
+         "AWS_PROFILE": "your-aws-profile",
+         "AWS_REGION": "us-east-1",
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+    },
+    "awslabs.git-research": {
+      "command": "uvx",
+      "args": ["awslabs.git-repo-research-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "GITHUB_TOKEN": "your-github-token"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
   }
 }
 ```
@@ -583,6 +649,7 @@ Documentation for each server:
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 - [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
+- [Git Repo Research MCP Server](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
 
 Documentation includes:
 
