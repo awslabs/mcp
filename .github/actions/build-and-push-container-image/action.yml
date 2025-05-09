@@ -114,8 +114,7 @@ runs:
       id: build
       uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
       with:
-        # platforms: 'linux/amd64,linux/arm64' # less effient than matrix, but actions cannot deal with it...
-        platforms: 'linux/amd64' # add more platforms after testing completed
+        platforms: 'linux/amd64,linux/arm64' # add more platforms after testing completed
         labels: ${{ steps.meta.outputs.labels }}
         tags: public.ecr.aws/${{ inputs.public-erc-registry-alias }}/mcp/${{ inputs.image }}
         context: ./src/${{ inputs.image }}
