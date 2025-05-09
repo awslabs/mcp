@@ -61,7 +61,7 @@ runs:
       uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
       with:
         images: |
-          public.ecr.aws/${{ inputs.public-erc-registry-alias }}/mcp/${{ inputs.image }}
+          public.ecr.aws/${{ inputs.public-erc-registry-alias }}/${{ github.repository_owner }}/${{ inputs.image }}
 
         # Disable all but the raw and sha
         tags: |
@@ -116,7 +116,7 @@ runs:
       with:
         platforms: 'linux/amd64,linux/arm64' # add more platforms after testing completed
         labels: ${{ steps.meta.outputs.labels }}
-        tags: public.ecr.aws/${{ inputs.public-erc-registry-alias }}/mcp/${{ inputs.image }}
+        tags: public.ecr.aws/${{ inputs.public-erc-registry-alias }}/${{ github.repository_owner }}/${{ inputs.image }}
         context: ./src/${{ inputs.image }}
         file: ./src/${{ inputs.image }}/Dockerfile
         push: true
@@ -145,17 +145,19 @@ runs:
       env:
         IMAGE: ${{ inputs.image }}
         ALIAS: ${{ inputs.public-erc-registry-alias }}
+        OWNER: ${{ github.repository_owner }}
       run: |
         docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-          $(printf 'public.ecr.aws/'$ALIAS'/mcp/'$IMAGE'@sha256:%s ' *)
+          $(printf 'public.ecr.aws/'$ALIAS'/'$OWNER'/'$IMAGE'@sha256:%s ' *)
       shell: bash
     - name: Inspect image
       env:
         IMAGE: ${{ inputs.image }}
         ALIAS: ${{ inputs.public-erc-registry-alias }}
+        OWNER: ${{ github.repository_owner }}
         VERSION: ${{ steps.meta.outputs.version }}
       run: |
-        docker buildx imagetools inspect public.ecr.aws/$ALIAS/mcp/$IMAGE:$VERSION
+        docker buildx imagetools inspect public.ecr.aws/$ALIAS/$OWNER/$IMAGE:$VERSION
       shell: bash
     - name: Get version
       id: get-version
