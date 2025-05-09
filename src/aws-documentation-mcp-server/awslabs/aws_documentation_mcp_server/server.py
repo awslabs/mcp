@@ -32,8 +32,8 @@ from awslabs.aws_documentation_mcp_server.util import (
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pydantic import AnyUrl, Field
-from typing import List, Union
+from pydantic import Field
+from typing import List
 
 
 # Set up logging
@@ -80,7 +80,7 @@ mcp = FastMCP(
 @mcp.tool()
 async def read_documentation(
     ctx: Context,
-    url: Union[AnyUrl, str] = Field(description='URL of the AWS documentation page to read'),
+    url: str = Field(description='URL of the AWS documentation page to read'),
     max_length: int = Field(
         default=5000,
         description='Maximum number of characters to return.',
@@ -307,9 +307,7 @@ async def search_documentation(
 @mcp.tool()
 async def recommend(
     ctx: Context,
-    url: Union[AnyUrl, str] = Field(
-        description='URL of the AWS documentation page to get recommendations for'
-    ),
+    url: str = Field(description='URL of the AWS documentation page to get recommendations for'),
 ) -> List[RecommendationResult]:
     """Get content recommendations for an AWS documentation page.
 
