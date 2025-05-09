@@ -272,7 +272,7 @@ with pytest.MonkeyPatch().context() as CTX:
                 # Should only register functions with the prefix
                 assert mock_create_lambda_tool.call_count == 1
                 mock_create_lambda_tool.assert_called_with(
-                    'prefix-test-function-3', 'Test function 3 with prefix'
+                    'prefix-test-function-3', 'Test function 3 with prefix', None
                 )
 
         @patch('awslabs.lambda_mcp_server.server.FUNCTION_LIST', 'test-function-1,test-function-2')
@@ -310,10 +310,10 @@ with pytest.MonkeyPatch().context() as CTX:
                 # Should only register functions in the list
                 assert mock_create_lambda_tool.call_count == 2
                 mock_create_lambda_tool.assert_any_call(
-                    'test-function-1', 'Test function 1 description'
+                    'test-function-1', 'Test function 1 description', None
                 )
                 mock_create_lambda_tool.assert_any_call(
-                    'test-function-2', 'Test function 2 description'
+                    'test-function-2', 'Test function 2 description', None
                 )
                 # finally:
                 #     # Clean up environment variables
@@ -366,10 +366,10 @@ with pytest.MonkeyPatch().context() as CTX:
                 # Should only register functions with the matching tag
                 assert mock_create_lambda_tool.call_count == 2
                 mock_create_lambda_tool.assert_any_call(
-                    'test-function-1', 'Test function 1 description'
+                    'test-function-1', 'Test function 1 description', None
                 )
                 mock_create_lambda_tool.assert_any_call(
-                    'prefix-test-function-3', 'Test function 3 with prefix'
+                    'prefix-test-function-3', 'Test function 3 with prefix', None
                 )
                 # finally:
                 #     # Clean up environment variables
@@ -400,15 +400,15 @@ with pytest.MonkeyPatch().context() as CTX:
                 # Should register all functions
                 assert mock_create_lambda_tool.call_count == 4
                 mock_create_lambda_tool.assert_any_call(
-                    'test-function-1', 'Test function 1 description'
+                    'test-function-1', 'Test function 1 description', None
                 )
                 mock_create_lambda_tool.assert_any_call(
-                    'test-function-2', 'Test function 2 description'
+                    'test-function-2', 'Test function 2 description', None
                 )
                 mock_create_lambda_tool.assert_any_call(
-                    'prefix-test-function-3', 'Test function 3 with prefix'
+                    'prefix-test-function-3', 'Test function 3 with prefix', None
                 )
-                mock_create_lambda_tool.assert_any_call('other-function', '')
+                mock_create_lambda_tool.assert_any_call('other-function', '', None)
 
         @patch('awslabs.lambda_mcp_server.server.lambda_client')
         def test_register_error_handling(self, mock_lambda_client):
