@@ -178,7 +178,7 @@ jobs:
           image: ${{ matrix.package }}
           version: ${{ steps.get-package-version.outputs.version || github.sha }}
           public-erc-role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
-          public-erc-registry-alias: 'w3i4n7u1'
+          public-erc-registry-alias: 'f3y8w4n0' # 'w3i4n7u1'
           public-erc-aws-region: ${{ env.AWS_REGION || 'us-east-1' }}
 
       - name: Display Image Version ${{ matrix.package }}

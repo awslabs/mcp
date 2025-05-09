@@ -112,9 +112,6 @@ runs:
 
     - name: Build and push by digest
       id: build
-      env:
-        REGISTRY_ALIAS: 'w3i4n7u1'
-
       uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
       with:
         # platforms: 'linux/amd64,linux/arm64' # less effient than matrix, but actions cannot deal with it...
@@ -146,13 +143,20 @@ runs:
 
     - name: Create manifest list and push
       working-directory: ${{ runner.temp }}/digests
+      env:
+        IMAGE: ${{ inputs.image }}
+        ALIAS: ${{ inputs.public-erc-registry-alias }}
       run: |
         docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-          $(printf 'public.ecr.aws/${{ inputs.public-erc-registry-alias }}/mcp/${{ inputs.image }}@sha256:%s ' *)
+          $(printf 'public.ecr.aws/'$ALIAS'/mcp/'$IMAGE'@sha256:%s ' *)
       shell: bash
     - name: Inspect image
+      env:
+        IMAGE: ${{ inputs.image }}
+        ALIAS: ${{ inputs.public-erc-registry-alias }}
+        VERSION: ${{ steps.meta.outputs.version }}
       run: |
-        docker buildx imagetools inspect public.ecr.aws/${{ inputs.public-erc-registry-alias }}/mcp/${{ inputs.image }}:${{ steps.meta.outputs.version }}
+        docker buildx imagetools inspect public.ecr.aws/$ALIAS/mcp/$IMAGE:$VERSION
       shell: bash
     - name: Get version
       id: get-version
