@@ -252,7 +252,6 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       "args": ["awslabs.core-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "MCP_SETTINGS_PATH": "path to your mcp settings file"
       }
     },
     "awslabs.nova-canvas-mcp-server": {
@@ -339,7 +338,7 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
        "disabled": false,
        "autoApprove": []
     },
-    "awslabs.git-repo-research-mcp-server": {
+    "awslabs.git-research": {
       "command": "uvx",
       "args": ["awslabs.git-repo-research-mcp-server@latest"],
       "env": {
