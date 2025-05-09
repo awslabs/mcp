@@ -19,7 +19,7 @@ The Amazon Neptune MCP Server provides the following capabilities:
    - Query Amazon Neptune
 4. **Access**: The location where you are running the server must have access to the Amazon Neptune instance.  Neptune Database resides in a private VPC so access into the private VPC.  Neptune Analytics can be access either using a public endpoint, if configured, or the access will be needed to the private endpoint.
 
-Note: This server will run any query sent to it, which could include both mutating and read-only actions.  Properly configuring the permissions of the role to allow/disallow specific data plane actions as specified here: 
+Note: This server will run any query sent to it, which could include both mutating and read-only actions.  Properly configuring the permissions of the role to allow/disallow specific data plane actions as specified here:
 * [Neptune Database](https://docs.aws.amazon.com/neptune/latest/userguide/security.html)
 * [Neptune Analytics](https://docs.aws.amazon.com/neptune-analytics/latest/userguide/security.html)
 
