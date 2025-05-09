@@ -1,0 +1,167 @@
+---
+# This local action builds an image and pushes it to registries
+name: "Build and push image"
+author: "AWS Labs MCP"
+description: "Builds an image and pushes it to registries"
+
+# USAGE
+#
+# - name: Build and Push Container Image
+#   id: build-and-push-container-image
+#   uses: ./.github/actions/build-and-push-container-image
+#   with:
+#     image: "core-mcp-server"
+#     version: "0.0.0"
+# - name: Step to demonstrate how to access outputs (no need for this)
+#   id: echo-output
+#   run: |
+#     echo "version: ${VERSION}"
+#   env:
+#     VERSION: ${{ steps.build-and-push-container-image.outputs.version}}
+
+branding:
+  # https://feathericons.com/
+  icon: 'anchor' # for shipping container ¯\_(ツ)_/¯
+  color: 'purple'
+
+inputs:
+  image:
+    description: 'The image'
+    type: string
+    required: true
+  version:
+    default: ''
+    description: 'The version to associate to the image'
+    type: string
+    required: false
+  public-erc-role-to-assume:
+    description: 'The public ECR role to use to push the image'
+    type: string
+    required: true
+  public-erc-registry-alias:
+    description: 'The registry alias'
+    type: string
+    required: true
+  public-erc-aws-region:
+    default: 'us-east-1'
+    description: 'The region to login'
+    type: string
+    required: false
+
+outputs:
+  version:
+    description: 'The version uploaded'
+    value: ${{ steps.get-version.outputs.version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+      with:
+        images: |
+          public.ecr.aws/${{ inputs.public-erc-registry-alias }}/${{ github.repository_owner }}/${{ inputs.image }}
+
+        # Disable all but the raw and sha
+        tags: |
+          type=schedule,enable=false
+          type=semver,pattern={{raw}},enable=false
+          type=pep440,pattern={{raw}},enable=false
+          type=match,pattern=(.*),group=1,enable=false
+          type=edge,enable=false
+          type=ref,event=branch,enable=false
+          type=ref,event=tag,enable=false
+          type=ref,event=pr,enable=false
+          type=sha,format=long,enable=true
+          type=raw,value=latest,enable=true
+          type=raw,value=${{ inputs.version || github.sha }},enable=${{ (inputs.version && true) || 'false' }}
+        labels: |
+          maintainer=AWSLabs MCP
+          org.opencontainers.image.description=AWS Labs ${{ inputs.image }} MCP Server
+          org.opencontainers.image.source=https://github.com/awslabs/mcp/tree/main/src/${{ inputs.image }}
+          org.opencontainers.image.title=awslabs.${{ inputs.image }}
+          org.opencontainers.image.url=https://github.com/awslabs/mcp/tree/main/src/${{ inputs.image }}
+          org.opencontainers.image.version=${{ inputs.version || github.sha }}
+          org.opencontainers.image.vendor=Amazon Web Service, Inc.
+
+    - name: Setup AWS Credentials
+      id: setup-aws-credentials
+      uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+      with:
+        role-to-assume: ${{ inputs.public-erc-role-to-assume }}
+        aws-region: ${{ inputs.public-erc-aws-region }}
+        role-duration-seconds: 7200
+        role-session-name: GitHubActions${{ github.run_id }}
+        mask-aws-account-id: true
+
+    - name: Login to Public ECR
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      with:
+        registry: public.ecr.aws
+
+    - name: Set up QEMU
+      id: setup-qemu
+      uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+    - name: Set up Docker Buildx
+      id: setup-buildx
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+      with:
+        buildkitd-flags: --debug
+
+    - name: Build and push by digest
+      id: build
+      uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+      with:
+        platforms: 'linux/amd64,linux/arm64' # add more platforms after testing completed
+        labels: ${{ steps.meta.outputs.labels }}
+        tags: public.ecr.aws/${{ inputs.public-erc-registry-alias }}/${{ github.repository_owner }}/${{ inputs.image }}
+        context: ./src/${{ inputs.image }}
+        file: ./src/${{ inputs.image }}/Dockerfile
+        push: true
+        outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        github-token: ${{ inputs.github-container-registry-token }}
+
+    - name: Export digest
+      run: |
+        mkdir -p ${{ runner.temp }}/digests
+        digest="${{ steps.build.outputs.digest }}"
+        touch "${{ runner.temp }}/digests/${digest#sha256:}"
+      shell: bash
+
+    - name: Upload digest
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: digests
+        path: ${{ runner.temp }}/digests/*
+        if-no-files-found: error
+        retention-days: 1
+
+    - name: Create manifest list and push
+      working-directory: ${{ runner.temp }}/digests
+      env:
+        IMAGE: ${{ inputs.image }}
+        ALIAS: ${{ inputs.public-erc-registry-alias }}
+        OWNER: ${{ github.repository_owner }}
+      run: |
+        docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+          $(printf 'public.ecr.aws/'$ALIAS'/'$OWNER'/'$IMAGE'@sha256:%s ' *)
+      shell: bash
+    - name: Inspect image
+      env:
+        IMAGE: ${{ inputs.image }}
+        ALIAS: ${{ inputs.public-erc-registry-alias }}
+        OWNER: ${{ github.repository_owner }}
+        VERSION: ${{ steps.meta.outputs.version }}
+      run: |
+        docker buildx imagetools inspect public.ecr.aws/$ALIAS/$OWNER/$IMAGE:$VERSION
+      shell: bash
+    - name: Get version
+      id: get-version
+      working-directory: ${{ env.GITHUB_WORKSPACE }}
+      run: |
+        echo version="${{ steps.meta.outputs.version }}" >>"$GITHUB_OUTPUT"
+      shell: bash

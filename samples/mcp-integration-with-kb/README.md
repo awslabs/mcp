@@ -9,7 +9,7 @@ There are two parts to this implementation:
 1. The `user_interfaces/chat_bedrock_st.py` file, which handles the Streamlit/User Interface for the chatbot
 2. The `client_server.py` file, which handles the MCP client and server implementation
 
-The exact MCP server code leveraged can be found in the [src/bedrock-kb-retrieval-mcp-server](../../src/bedrock-kb-retrieval-mcp-server/) folder.
+The exact MCP server code used in this implementation can be found in the [src/bedrock-kb-retrieval-mcp-server](https://github.com/awslabs/mcp/tree/main/src/bedrock-kb-retrieval-mcp-server) folder.
 
 ### Architecture
 
@@ -52,6 +52,7 @@ then activate the virtual environment
 ```bash
 source .venv/bin/activate
 ```
+
 4. In one of the terminals, run the FastAPI server
 
 ```bash

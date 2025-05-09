@@ -13,7 +13,7 @@
 
 import json
 import pytest
-from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.runtime import query_knowledge_base
+from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import query_knowledge_base
 
 
 class TestQueryKnowledgeBase:
@@ -55,14 +55,6 @@ class TestQueryKnowledgeBase:
             retrievalConfiguration={
                 'vectorSearchConfiguration': {
                     'numberOfResults': 20,
-                    'rerankingConfiguration': {
-                        'type': 'BEDROCK_RERANKING_MODEL',
-                        'bedrockRerankingConfiguration': {
-                            'modelConfiguration': {
-                                'modelArn': 'arn:aws:bedrock:us-west-2::foundation-model/amazon.rerank-v1:0'
-                            }
-                        },
-                    },
                 }
             },
         )
