@@ -27,6 +27,18 @@ from awslabs.valkey_mcp_server.tools import (
     string,  # noqa: F401
 )
 from loguru import logger
+from starlette.requests import Request  # noqa: F401
+from starlette.responses import Response
+
+
+# Add a health check route directly to the MCP server
+@mcp.custom_route('/health', methods=['GET'])
+async def health_check(request):
+    """Simple health check endpoint for ALB Target Group.
+
+    Always returns 200 OK to indicate the service is running.
+    """
+    return Response(content='healthy', status_code=200, media_type='text/plain')
 
 
 class ValkeyMCPServer:
