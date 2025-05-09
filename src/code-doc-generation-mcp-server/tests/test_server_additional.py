@@ -24,24 +24,29 @@ from awslabs.code_doc_generation_mcp_server.utils.models import (
     DocumentSpec,
     ProjectAnalysis,
 )
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 
 @pytest.mark.asyncio
 async def test_plan_documentation_with_minimal_info():
     """Test the plan_documentation function with minimal project information."""
     # Arrange
-    ctx = MagicMock()
+    ctx = AsyncMock()
     doc_context = DocumentationContext(
         project_name='minimal-project',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
+        status='initialized',
+        current_step='analysis',
         analysis_result=ProjectAnalysis(
             project_type='CLI Tool',
             features=['Feature 1'],
             file_structure={'root': ['/path/to/repo']},
             dependencies={'package': '1.0.0'},
             primary_languages=['Python'],
+            apis=None,
+            backend=None,
+            frontend=None,
         ),
     )
 
@@ -59,11 +64,13 @@ async def test_plan_documentation_with_minimal_info():
 async def test_plan_documentation_with_infrastructure():
     """Test the plan_documentation function with infrastructure components."""
     # Arrange
-    ctx = MagicMock()
+    ctx = AsyncMock()
     doc_context = DocumentationContext(
         project_name='infra-project',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
+        status='initialized',
+        current_step='analysis',
         analysis_result=ProjectAnalysis(
             project_type='Infrastructure',
             features=['Feature 1'],
@@ -75,6 +82,9 @@ async def test_plan_documentation_with_infrastructure():
             dependencies={'aws-cdk-lib': '^2.0.0'},
             primary_languages=['TypeScript'],
             has_infrastructure_as_code=True,
+            apis=None,
+            backend=None,
+            frontend=None,
         ),
     )
 
@@ -106,7 +116,11 @@ async def test_generate_documentation_with_error(mock_doc_generator_class):
                 name='README.md',
                 type='README',
                 template='README',
-                sections=[DocumentSection(title='Overview', content='', level=1)],
+                sections=[
+                    DocumentSection(
+                        title='Overview', content='', level=1, message='Overview message'
+                    )
+                ],
             )
         ],
     )
@@ -115,16 +129,21 @@ async def test_generate_documentation_with_error(mock_doc_generator_class):
         project_name='test-project',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
+        status='initialized',
+        current_step='analysis',
         analysis_result=ProjectAnalysis(
             project_type='Web Application',
             features=['Feature 1'],
             file_structure={'root': ['/path/to/repo']},
             dependencies={'react': '^18.2.0'},
             primary_languages=['JavaScript'],
+            apis=None,
+            backend=None,
+            frontend=None,
         ),
     )
 
-    ctx = MagicMock()
+    ctx = AsyncMock()
 
     # Act & Assert
     with pytest.raises(RuntimeError):
@@ -139,19 +158,24 @@ async def test_generate_documentation_with_error(mock_doc_generator_class):
 async def test_plan_documentation_edge_cases(mock_doc_structure):
     """Test plan_documentation with edge case inputs."""
     # Arrange
-    ctx = MagicMock()
+    ctx = AsyncMock()
 
     # Test with empty features list
     doc_context1 = DocumentationContext(
         project_name='empty-features',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
+        status='initialized',
+        current_step='analysis',
         analysis_result=ProjectAnalysis(
             project_type='CLI Tool',
             features=[],  # Empty features list
             file_structure={'root': ['/path/to/repo']},
             dependencies={},  # Empty dependencies
             primary_languages=['Python'],
+            apis=None,
+            backend=None,
+            frontend=None,
         ),
     )
 
@@ -167,6 +191,8 @@ async def test_plan_documentation_edge_cases(mock_doc_structure):
         project_name='full-project',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
+        status='initialized',
+        current_step='analysis',
         analysis_result=ProjectAnalysis(
             project_type='Full Stack Application',
             features=['Authentication', 'Data Processing'],
@@ -218,7 +244,7 @@ async def test_prepare_repository_with_empty_structure(mock_repomix_manager):
     ):
         # Act
         test_project_path = '/path/to/repo'
-        ctx = MagicMock()
+        ctx = AsyncMock()
         result = await prepare_repository(test_project_path, ctx)
 
         # Assert

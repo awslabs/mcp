@@ -31,6 +31,8 @@ def mock_context():
         project_name='test-project',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
+        status='initialized',
+        current_step='analysis',
         analysis_result=ProjectAnalysis(
             project_type='Web Application',
             features=['Feature 1', 'Feature 2'],
@@ -39,6 +41,7 @@ def mock_context():
             primary_languages=['JavaScript', 'TypeScript'],
             frontend={'framework': 'React'},
             backend={'framework': 'Express', 'database': {'type': 'MongoDB'}},
+            apis=None,
         ),
     )
 
@@ -56,8 +59,12 @@ def mock_plan():
                 type='README',
                 template='README',
                 sections=[
-                    DocumentSection(title='Overview', content='', level=1),
-                    DocumentSection(title='Features', content='', level=2),
+                    DocumentSection(
+                        title='Overview', content='', level=1, message='Overview description'
+                    ),
+                    DocumentSection(
+                        title='Features', content='', level=2, message='Features description'
+                    ),
                 ],
             ),
             DocumentSpec(
@@ -65,8 +72,15 @@ def mock_plan():
                 type='BACKEND',
                 template='BACKEND',
                 sections=[
-                    DocumentSection(title='Backend Architecture', content='', level=1),
-                    DocumentSection(title='Data Flow', content='', level=2),
+                    DocumentSection(
+                        title='Backend Architecture',
+                        content='',
+                        level=1,
+                        message='Backend architecture description',
+                    ),
+                    DocumentSection(
+                        title='Data Flow', content='', level=2, message='Data flow description'
+                    ),
                 ],
             ),
         ],
@@ -154,8 +168,12 @@ async def test_generate_content_standard_document(mock_context):
         type='API',
         template='API',
         sections=[
-            DocumentSection(title='API Reference', content='', level=1),
-            DocumentSection(title='Endpoints', content='', level=2),
+            DocumentSection(
+                title='API Reference', content='', level=1, message='API reference description'
+            ),
+            DocumentSection(
+                title='Endpoints', content='', level=2, message='Endpoints description'
+            ),
         ],
     )
 
@@ -179,8 +197,10 @@ async def test_generate_content_readme_with_arch_diagram(mock_context):
         type='README',
         template='README',
         sections=[
-            DocumentSection(title='Overview', content='', level=1),
-            DocumentSection(title='Architecture', content='', level=2),
+            DocumentSection(title='Overview', content='', level=1, message='Overview section'),
+            DocumentSection(
+                title='Architecture', content='', level=2, message='Architecture section'
+            ),
         ],
     )
 
@@ -204,8 +224,13 @@ async def test_generate_content_backend_with_dataflow(mock_context):
         type='BACKEND',
         template='BACKEND',
         sections=[
-            DocumentSection(title='Backend Architecture', content='', level=1),
-            DocumentSection(title='Data Flow', content='', level=2),
+            DocumentSection(
+                title='Backend Architecture',
+                content='',
+                level=1,
+                message='Backend architecture section',
+            ),
+            DocumentSection(title='Data Flow', content='', level=2, message='Data flow section'),
         ],
     )
 
@@ -232,6 +257,7 @@ def test_get_component_summary():
         primary_languages=['JavaScript', 'TypeScript'],
         frontend={'framework': 'React'},
         backend={'framework': 'Express', 'database': {'type': 'MongoDB'}},
+        apis=None,
     )
 
     # Act

@@ -59,7 +59,9 @@ class DocumentGenerator:
             path.write_text(content)
             logger.info(f'Generated documentation file: {path}')
         except Exception as e:
-            logger.error(f'Error writing file {path}: {e}', message=f'Error writing file {path}: {e}')
+            logger.error(
+                f'Error writing file {path}: {e}', message=f'Error writing file {path}: {e}'
+            )
             raise
 
     def _get_component_summary(self, analysis: ProjectAnalysis) -> str:
@@ -123,7 +125,7 @@ class DocumentGenerator:
                 'This is a placeholder for the AWS architecture diagram.\n'
                 'Use the awslabs.aws-diagram-mcp-server to generate a proper AWS diagram showing:\n'
                 + self._get_component_summary(analysis)
-                + '```'
+                + '\n```\n'
             )
         elif diagram_type == 'dataflow':
             return (
@@ -133,7 +135,7 @@ class DocumentGenerator:
                 'This is a placeholder for the data flow diagram.\n'
                 'Use the awslabs.aws-diagram-mcp-server to generate a proper data flow diagram showing how data moves through the system.\n'
                 + self._get_component_summary(analysis)
-                + '```'
+                + '\n```\n'
             )
         else:  # overview
             return (
@@ -143,7 +145,7 @@ class DocumentGenerator:
                 f'Project Type: {analysis and analysis.project_type or "unknown"}\n'
                 'Key Components: ' + ', '.join(self._get_key_components(analysis) or []) + '\n'
                 'Generate an AWS architecture diagram using awslabs.aws-diagram-mcp-server to visualize this structure.\n'
-                '```'
+                '\n```\n'
             )
 
     async def _generate_content(
@@ -163,8 +165,13 @@ class DocumentGenerator:
             if section.content:
                 content.append(f'{section.content}\n')
             else:
-                # Add prompt for MCP client to fill this section
-                content.append('<!-- MCP Client: Write concise content for this section -->\n')
+                # Use section message as guidance if available, otherwise use generic prompt
+                comment_text = (
+                    section.message
+                    if section.message
+                    else 'Write concise content for this section'
+                )
+                content.append(f'<!-- MCP Client: {comment_text} -->\n')
 
             # Add subsections
             if section.subsections is not None:
@@ -401,8 +408,9 @@ class DocumentGenerator:
                     content.append('<!-- Describe what this data flow diagram shows below -->\n')
 
                     # Add any subsections
-                    if doc_spec.sections[data_flow_index].subsections is not None:
-                        for subsection in doc_spec.sections[data_flow_index].subsections:
+                    subsections = doc_spec.sections[data_flow_index].subsections
+                    if subsections is not None and subsections:
+                        for subsection in subsections:
                             add_section(subsection, doc_spec.sections[data_flow_index].level + 1)
 
                     # Process remaining sections

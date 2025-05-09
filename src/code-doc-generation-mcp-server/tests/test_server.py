@@ -27,7 +27,7 @@ from awslabs.code_doc_generation_mcp_server.utils.models import (
     ProjectAnalysis,
 )
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 
 @pytest.mark.asyncio
@@ -57,7 +57,7 @@ async def test_prepare_repository(mock_repomix_manager):
     ):
         # Act
         test_project_path = '/path/to/repo'
-        ctx = MagicMock()
+        ctx = AsyncMock()
         result = await prepare_repository(test_project_path, ctx)
 
         # Assert
@@ -81,7 +81,7 @@ async def test_analyze_project_structure():
         'metadata': {'key': 'value'},
     }
     docs_dir = Path('/path/to/repo/generated-docs')
-    ctx = MagicMock()
+    ctx = AsyncMock()
 
     # Act
     result = await _analyze_project_structure(raw_analysis, docs_dir, ctx)
@@ -103,6 +103,9 @@ def test_create_documentation_context():
         file_structure={'root': ['/path/to/repo']},
         dependencies={'react': '^18.2.0'},
         primary_languages=['JavaScript', 'TypeScript'],
+        apis=None,
+        backend=None,
+        frontend=None,
     )
 
     # Act
@@ -127,8 +130,11 @@ async def test_create_context():
         file_structure={'root': ['/path/to/repo']},
         dependencies={'react': '^18.2.0'},
         primary_languages=['JavaScript', 'TypeScript'],
+        apis=None,
+        backend=None,
+        frontend=None,
     )
-    ctx = MagicMock()
+    ctx = AsyncMock()
 
     # Act
     with patch(
@@ -138,6 +144,8 @@ async def test_create_context():
             project_name='test-project',
             working_dir=project_root,
             repomix_path=f'{project_root}/generated-docs',
+            status='initialized',
+            current_step='analysis',
             analysis_result=analysis,
         )
         result = await create_context(project_root, analysis, ctx)
@@ -161,14 +169,20 @@ async def test_plan_documentation(mock_create_doc, mock_get_template):
         name=name,
         type=template,
         template=template,
-        sections=[DocumentSection(title=f'{template} Section', content='', level=1)],
+        sections=[
+            DocumentSection(
+                title=f'{template} Section', content='', level=1, message=f'{template} message'
+            )
+        ],
     )
 
-    ctx = MagicMock()
+    ctx = AsyncMock()
     doc_context = DocumentationContext(
         project_name='test-project',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
+        status='initialized',
+        current_step='analysis',
         analysis_result=ProjectAnalysis(
             project_type='Web Application',
             features=['Feature 1', 'Feature 2'],
@@ -176,6 +190,7 @@ async def test_plan_documentation(mock_create_doc, mock_get_template):
             dependencies={'react': '^18.2.0'},
             primary_languages=['JavaScript', 'TypeScript'],
             backend={'framework': 'Express'},
+            frontend={'framework': 'React'},
             apis={
                 'endpoints': {'paths': ['/api/users']}
             },  # Fixed: apis should be Dict[str, Dict[str, Any]]
@@ -219,13 +234,21 @@ async def test_generate_documentation(mock_doc_generator_class):
                 name='README.md',
                 type='README',
                 template='README',
-                sections=[DocumentSection(title='Overview', content='', level=1)],
+                sections=[
+                    DocumentSection(
+                        title='Overview', content='', level=1, message='Overview section'
+                    )
+                ],
             ),
             DocumentSpec(
                 name='BACKEND.md',
                 type='BACKEND',
                 template='BACKEND',
-                sections=[DocumentSection(title='Backend', content='', level=1)],
+                sections=[
+                    DocumentSection(
+                        title='Backend', content='', level=1, message='Backend section'
+                    )
+                ],
             ),
         ],
     )
@@ -234,16 +257,21 @@ async def test_generate_documentation(mock_doc_generator_class):
         project_name='test-project',
         working_dir='/path/to/repo',
         repomix_path='/path/to/repo/generated-docs',
+        status='initialized',
+        current_step='analysis',
         analysis_result=ProjectAnalysis(
             project_type='Web Application',
             features=['Feature 1', 'Feature 2'],
             file_structure={'root': ['/path/to/repo']},
             dependencies={'react': '^18.2.0'},
             primary_languages=['JavaScript', 'TypeScript'],
+            apis=None,
+            backend=None,
+            frontend=None,
         ),
     )
 
-    ctx = MagicMock()
+    ctx = AsyncMock()
 
     # Act
     result = await generate_documentation(plan, doc_context, ctx)

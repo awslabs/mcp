@@ -244,7 +244,9 @@ async def prepare_repository(
         raise
 
 
-async def _analyze_project_structure(raw_analysis: dict, docs_dir: Path, ctx: Optional[Context] = None) -> dict:
+async def _analyze_project_structure(
+    raw_analysis: dict, docs_dir: Path, ctx: Optional[Context] = None
+) -> dict:
     """Prepares project structure for inclusion in ProjectAnalysis.
 
     This simplified function:
@@ -444,7 +446,9 @@ async def generate_documentation(
         # Log generation start
         if ctx:
             await ctx.error(f'Preparing documentation structure for {doc_context.project_name}')
-            await ctx.error(f'Project type: {doc_context.analysis_result and doc_context.analysis_result.project_type or "unknown"}')
+            await ctx.error(
+                f'Project type: {doc_context.analysis_result and doc_context.analysis_result.project_type or "unknown"}'
+            )
 
         # Generate documentation files with diagrams
         generated_files = await generator.generate_docs(plan, doc_context)

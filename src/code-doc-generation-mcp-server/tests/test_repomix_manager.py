@@ -12,7 +12,7 @@
 
 import pytest
 from awslabs.code_doc_generation_mcp_server.utils.repomix_manager import RepomixManager
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 def test_init():
@@ -122,7 +122,7 @@ async def test_prepare_repository(mock_unlink, mock_touch, mock_is_dir, mock_exi
                 # Act
                 project_root = '/path/to/project'
                 output_path = '/path/to/output'
-                ctx = MagicMock()
+                ctx = AsyncMock()
 
                 result = await manager.prepare_repository(project_root, output_path, ctx)
 
