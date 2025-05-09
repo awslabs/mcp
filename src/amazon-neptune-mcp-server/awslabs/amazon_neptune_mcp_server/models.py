@@ -10,8 +10,7 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 #
-"""
-Data Models Module for Neptune Graph Database
+"""Data Models Module for Neptune Graph Database.
 
 This module defines the core data structures and types used throughout the Neptune
 graph database interface. It includes models for query languages, graph schema
@@ -22,12 +21,11 @@ that represent both the graph structure and its contents.
 """
 
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 
 
 class Property(BaseModel):
-    """
-    Represents a property definition for nodes and relationships in the graph.
+    """Represents a property definition for nodes and relationships in the graph.
 
     Properties are key-value pairs that can be attached to both nodes and
     relationships, storing additional metadata about these graph elements.
@@ -41,8 +39,7 @@ class Property(BaseModel):
 
 
 class Node(BaseModel):
-    """
-    Defines a node type in the graph schema.
+    """Defines a node type in the graph schema.
 
     Nodes represent entities in the graph database and can have labels
     and properties that describe their characteristics.
@@ -56,8 +53,7 @@ class Node(BaseModel):
 
 
 class Relationship(BaseModel):
-    """
-    Defines a relationship type in the graph schema.
+    """Defines a relationship type in the graph schema.
 
     Relationships represent connections between nodes in the graph and can
     have their own properties to describe the nature of the connection.
@@ -71,8 +67,7 @@ class Relationship(BaseModel):
 
 
 class RelationshipPattern(BaseModel):
-    """
-    Defines a valid relationship pattern between nodes in the graph.
+    """Defines a valid relationship pattern between nodes in the graph.
 
     Relationship patterns describe the allowed connections between different
     types of nodes in the graph schema.
@@ -87,8 +82,7 @@ class RelationshipPattern(BaseModel):
     relation: str
 
 class GraphSchema(BaseModel):
-    """
-    Represents the complete schema definition for the graph database.
+    """Represents the complete schema definition for the graph database.
 
     The graph schema defines all possible node types, relationship types,
     and valid patterns of connections between nodes.

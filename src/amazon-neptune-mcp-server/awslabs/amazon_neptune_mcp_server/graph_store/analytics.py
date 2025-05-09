@@ -1,10 +1,16 @@
-from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
-from awslabs.amazon_neptune_mcp_server.graph_store import NeptuneGraph
-from awslabs.amazon_neptune_mcp_server.models import GraphSchema, Relationship, RelationshipPattern, Property, Node
-from typing import Optional
 import boto3
 import json
+from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
+from awslabs.amazon_neptune_mcp_server.graph_store import NeptuneGraph
+from awslabs.amazon_neptune_mcp_server.models import (
+    GraphSchema,
+    Node,
+    Property,
+    Relationship,
+    RelationshipPattern,
+)
 from loguru import logger
+from typing import Optional
 
 
 class NeptuneAnalytics(NeptuneGraph):
@@ -25,10 +31,9 @@ class NeptuneAnalytics(NeptuneGraph):
     def __init__(
         self,
         graph_identifier: str,
-        credentials_profile_name: Optional[str] = None        
+        credentials_profile_name: Optional[str] = None
     ) -> None:
         """Create a new Neptune Analytics graph wrapper instance."""
-
         self.graph_identifier = graph_identifier
 
         try:
@@ -59,13 +64,12 @@ class NeptuneAnalytics(NeptuneGraph):
 
 
     def _refresh_schema(self) -> GraphSchema:
-        """
-        Refreshes the Neptune graph schema information.
-        
+        """Refreshes the Neptune graph schema information.
+
         This method queries the Neptune Analytics graph to build a complete schema
         representation including nodes, relationships, and relationship patterns
         using the pg_schema procedure.
-        
+
         Returns:
             GraphSchema: Complete schema information for the graph
         """
@@ -110,9 +114,8 @@ class NeptuneAnalytics(NeptuneGraph):
         return graph
 
     def get_schema(self) -> GraphSchema:
-        """
-        Returns the current graph schema, refreshing it if necessary.
-        
+        """Returns the current graph schema, refreshing it if necessary.
+
         Returns:
             GraphSchema: Complete schema information for the graph
         """
@@ -121,16 +124,15 @@ class NeptuneAnalytics(NeptuneGraph):
         return self.schema if self.schema else GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
 
     def query_opencypher(self, query:str, params: Optional[dict]= None):
-        """
-        Executes an openCypher query against the Neptune Analytics graph.
-        
+        """Executes an openCypher query against the Neptune Analytics graph.
+
         Args:
             query (str): The openCypher query string to execute
             params (Optional[dict]): Optional parameters for the query, defaults to None
-            
+
         Returns:
             Any: The query results as a list
-            
+
         Raises:
             NeptuneException: If an error occurs during query execution
         """
@@ -153,12 +155,11 @@ class NeptuneAnalytics(NeptuneGraph):
             )
 
     def query_gremlin(self, query:str):
-        """
-        Not supported for Neptune Analytics graphs.
-        
+        """Not supported for Neptune Analytics graphs.
+
         Args:
             query (str): The Gremlin query string
-            
+
         Raises:
             NotImplementedError: Always raised as Gremlin is not supported for Neptune Analytics
         """

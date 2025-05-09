@@ -9,7 +9,6 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 """Tests for the main function in server.py."""
-import pytest
 
 from awslabs.amazon_neptune_mcp_server.server import main
 from unittest.mock import patch
@@ -21,7 +20,13 @@ class TestMain:
     @patch('awslabs.amazon_neptune_mcp_server.server.mcp.run')
     @patch('sys.argv', ['awslabs.amazon-neptune-mcp-server'])
     def test_main_default(self, mock_run):
-        """Test main function with default arguments."""
+        """Test main function with default arguments.
+
+        This test verifies that:
+        1. The main function runs without errors
+        2. The mcp.run method is called once
+        3. No transport parameter is passed to mcp.run
+        """
         # Call the main function
         main()
 
@@ -32,7 +37,13 @@ class TestMain:
     @patch('awslabs.amazon_neptune_mcp_server.server.mcp.run')
     @patch('sys.argv', ['awslabs.amazon-neptune-mcp-server', '--sse', '--port', '9999'])
     def test_main_sse(self, mock_run):
-        """Test main function with SSE transport."""
+        """Test main function with SSE transport.
+
+        This test verifies that:
+        1. The main function correctly processes command line arguments
+        2. The mcp.run method is called with transport='sse'
+        3. The port setting is correctly set to 9999
+        """
         # Call the main function
         main()
 
@@ -46,10 +57,16 @@ class TestMain:
         assert mcp.settings.port == 9999
 
     def test_module_execution(self):
-        """Test the module execution when run as __main__."""
-        # This test directly executes the code in the if __name__ == '__main__': block
-        # to ensure coverage of that line
+        """Test the module execution when run as __main__.
 
+        This test verifies that:
+        1. The server module contains the expected __main__ block
+        2. The main() function is called in the __main__ block
+
+        Note: This test doesn't actually execute the code, but ensures
+        that the coverage report includes the if __name__ == '__main__': line
+        by explicitly checking for its presence.
+        """
         # Get the source code of the module
         import inspect
         from awslabs.amazon_neptune_mcp_server import server
@@ -60,7 +77,3 @@ class TestMain:
         # Check that the module has the if __name__ == '__main__': block
         assert "if __name__ == '__main__':" in source
         assert 'main()' in source
-
-        # This test doesn't actually execute the code, but it ensures
-        # that the coverage report includes the if __name__ == '__main__': line
-        # by explicitly checking for its presence

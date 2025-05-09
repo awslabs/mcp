@@ -14,9 +14,9 @@
 import argparse
 import os
 import sys
-from loguru import logger
-from awslabs.amazon_neptune_mcp_server.neptune import NeptuneServer
 from awslabs.amazon_neptune_mcp_server.models import GraphSchema
+from awslabs.amazon_neptune_mcp_server.neptune import NeptuneServer
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
 
@@ -40,15 +40,14 @@ mcp = FastMCP(
 _graph = None
 
 def get_graph():
-    """
-    Lazily initialize the Neptune graph connection.
-    
+    """Lazily initialize the Neptune graph connection.
+
     This function ensures the graph is only initialized when needed,
     not at import time, which helps with testing.
-    
+
     Returns:
         NeptuneServer: The initialized Neptune server instance
-    
+
     Raises:
         ValueError: If NEPTUNE_ENDPOINT environment variable is not set
     """
@@ -59,16 +58,16 @@ def get_graph():
         if endpoint is None:
             logger.exception("NEPTUNE_ENDPOINT environment variable is not set")
             raise ValueError("NEPTUNE_ENDPOINT environment variable is not set")
-            
+
         use_https_value = os.environ.get("NEPTUNE_USE_HTTPS", "True")
         use_https = use_https_value.lower() in (
             "true",
             "1",
             "t",
         )
-        
+
         _graph = NeptuneServer(endpoint, use_https=use_https)
-    
+
     return _graph
 
 
@@ -76,7 +75,7 @@ def get_graph():
     uri="amazon-neptune://status", name="GraphStatus", mime_type="application/text"
 )
 def get_status_resource() -> str:
-    """Get the status of the currently configured Amazon Neptune graph"""
+    """Get the status of the currently configured Amazon Neptune graph."""
     return get_graph().status()
 
 
@@ -92,7 +91,7 @@ def get_schema_resource() -> GraphSchema:
 
 @mcp.tool(name="get_graph_status")
 def get_status() -> str:
-    """Get the status of the currently configured Amazon Neptune graph"""
+    """Get the status of the currently configured Amazon Neptune graph."""
     return get_graph().status()
 
 
@@ -106,13 +105,13 @@ def get_schema() -> GraphSchema:
 
 @mcp.tool(name="run_opencypher_query")
 def run_opencypher_query(query: str, parameters: Optional[dict] = None) -> dict:
-    """Executes the provided openCypher against the graph"""
+    """Executes the provided openCypher against the graph."""
     return get_graph().query_opencypher(query, parameters)
 
 
 @mcp.tool(name="run_gremlin_query")
 def run_gremlin_query(query: str) -> dict:
-    """Executes the provided Tinkerpop Gremlin against the graph"""
+    """Executes the provided Tinkerpop Gremlin against the graph."""
     return get_graph().query_gremlin(query)
 
 

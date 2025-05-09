@@ -76,7 +76,7 @@ force-exclude = true
 [tool.ruff.lint]
 exclude = ["__init__.py"]
 select = ["C", "D", "E", "F", "I", "W"]
-ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106", "D205"]
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2

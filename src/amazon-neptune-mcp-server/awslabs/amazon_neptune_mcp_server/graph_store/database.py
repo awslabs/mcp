@@ -1,10 +1,17 @@
-from awslabs.amazon_neptune_mcp_server.graph_store.base import NeptuneGraph
-from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
-from awslabs.amazon_neptune_mcp_server.models import GraphSchema, Relationship, RelationshipPattern, Node, Property
-from typing import Any, Dict, List, Optional, Tuple 
 import boto3
 import json
+from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
+from awslabs.amazon_neptune_mcp_server.graph_store.base import NeptuneGraph
+from awslabs.amazon_neptune_mcp_server.models import (
+    GraphSchema,
+    Node,
+    Property,
+    Relationship,
+    RelationshipPattern,
+)
 from loguru import logger
+from typing import Any, Dict, List, Optional, Tuple
+
 
 class NeptuneDatabase(NeptuneGraph):
     """Neptune wrapper for graph operations.
@@ -34,7 +41,6 @@ class NeptuneDatabase(NeptuneGraph):
         credentials_profile_name: Optional[str] = None
     ) -> None:
         """Create a new Neptune graph wrapper instance."""
-
         try:
             if not credentials_profile_name:
                 session = boto3.Session()
@@ -64,14 +70,13 @@ class NeptuneDatabase(NeptuneGraph):
                     "detail": str(e),
                 }
             )
-           
+
     def _get_summary(self) -> Dict:
-        """
-        Retrieves the graph summary from Neptune's property graph summary API.
-        
+        """Retrieves the graph summary from Neptune's property graph summary API.
+
         Returns:
             Dict: A dictionary containing the graph summary information
-            
+
         Raises:
             NeptuneException: If the summary API is not available or returns an invalid response
         """
@@ -101,9 +106,8 @@ class NeptuneDatabase(NeptuneGraph):
             return summary
 
     def _get_labels(self) -> Tuple[List[str], List[str]]:
-        """
-        Get node and edge labels from the Neptune statistics summary.
-        
+        """Get node and edge labels from the Neptune statistics summary.
+
         Returns:
             Tuple[List[str], List[str]]: A tuple containing two lists:
                 1. List of node labels
@@ -115,15 +119,14 @@ class NeptuneDatabase(NeptuneGraph):
         return n_labels, e_labels
 
     def _get_triples(self, e_labels: List[str]) -> List[RelationshipPattern]:
-        """
-        Retrieves relationship patterns (triples) from the graph based on edge labels.
-        
+        """Retrieves relationship patterns (triples) from the graph based on edge labels.
+
         This method queries the graph to find distinct patterns of node-edge-node
         relationships for each edge label.
-        
+
         Args:
             e_labels (List[str]): List of edge labels to query for relationship patterns
-            
+
         Returns:
             List[RelationshipPattern]: List of relationship patterns found in the graph
         """
@@ -144,16 +147,15 @@ class NeptuneDatabase(NeptuneGraph):
         return triple_schema
 
     def _get_node_properties(self, n_labels: List[str], types: Dict) -> List:
-        """
-        Retrieves property information for each node label in the graph.
-        
+        """Retrieves property information for each node label in the graph.
+
         This method queries the graph to find all properties associated with each
         node label and their data types.
-        
+
         Args:
             n_labels (List[str]): List of node labels to query for properties
             types (Dict): Dictionary mapping Python types to Neptune data types
-            
+
         Returns:
             List[Node]: List of Node objects with their properties
         """
@@ -171,28 +173,27 @@ class NeptuneDatabase(NeptuneGraph):
                 for k, v in p["props"].items():
                     prop_type = types[type(v).__name__]
                     if k not in props:
-                        props[k] = set([prop_type])
+                        props[k] = {prop_type}
                     else:
                         props[k].update([prop_type])
-            
+
             properties = []
             for k, v in props.items():
                 properties.append(Property(name=k, type=list(v)))
 
-            nodes.append(Node(labels=label, properties=properties))           
+            nodes.append(Node(labels=label, properties=properties))
         return nodes
 
     def _get_edge_properties(self, e_labels: List[str], types: Dict[str, Any]) -> List:
-        """
-        Retrieves property information for each edge label in the graph.
-        
+        """Retrieves property information for each edge label in the graph.
+
         This method queries the graph to find all properties associated with each
         edge label and their data types.
-        
+
         Args:
             e_labels (List[str]): List of edge labels to query for properties
             types (Dict[str, Any]): Dictionary mapping Python types to Neptune data types
-            
+
         Returns:
             List[Relationship]: List of Relationship objects with their properties
         """
@@ -210,25 +211,24 @@ class NeptuneDatabase(NeptuneGraph):
                 for k, v in p["props"].items():
                     prop_type = types[type(v).__name__]
                     if k not in props:
-                        props[k] = set([prop_type])
+                        props[k] = {prop_type}
                     else:
                         props[k].update([prop_type])
-            
+
             properties = []
             for k, v in props.items():
                 properties.append(Property(name=k, type=list(v)))
 
-            edges.append(Relationship(type=label, properties=properties)) 
+            edges.append(Relationship(type=label, properties=properties))
 
         return edges
 
     def _refresh_schema(self) -> GraphSchema:
-        """
-        Refreshes the Neptune graph schema information.
-        
+        """Refreshes the Neptune graph schema information.
+
         This method queries the graph to build a complete schema representation
         including nodes, relationships, and relationship patterns.
-        
+
         Returns:
             GraphSchema: Complete schema information for the graph
         """
@@ -252,9 +252,8 @@ class NeptuneDatabase(NeptuneGraph):
 
 
     def get_schema(self) -> GraphSchema:
-        """
-        Returns the current graph schema, refreshing it if necessary.
-        
+        """Returns the current graph schema, refreshing it if necessary.
+
         Returns:
             GraphSchema: Complete schema information for the graph
         """
@@ -263,13 +262,12 @@ class NeptuneDatabase(NeptuneGraph):
         return self.schema if self.schema else GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
 
     def query_opencypher(self, query:str, params:Optional[dict] = None):
-        """
-        Executes an openCypher query against the Neptune database.
-        
+        """Executes an openCypher query against the Neptune database.
+
         Args:
             query (str): The openCypher query string to execute
             params (Optional[dict]): Optional parameters for the query
-            
+
         Returns:
             Any: The query results, either as a single result or a list of results
         """
@@ -282,14 +280,13 @@ class NeptuneDatabase(NeptuneGraph):
             resp = self.client.execute_open_cypher_query(openCypherQuery=query)
 
         return resp["result"] if "result" in resp else resp["results"]
-    
+
     def query_gremlin(self, query):
-        """
-        Executes a Gremlin query against the Neptune database.
-        
+        """Executes a Gremlin query against the Neptune database.
+
         Args:
             query (str): The Gremlin query string to execute
-            
+
         Returns:
             Any: The query results, either as a single result or a list of results
         """
