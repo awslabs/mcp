@@ -19,6 +19,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
   - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
   - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
+  - [Infrastructure as Code MCP Server](#aws-infrastructure-as-code-mcp-server)
   - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
   - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
   - [Use Cases for the Servers](#use-cases-for-the-servers)
@@ -154,6 +155,17 @@ A server for seamlessly creating diagrams using the Python diagrams package DSL.
 - Code scanning to ensure secure diagram generation
 
 [Learn more](src/aws-diagram-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
+
+### AWS Infrastructure As Code MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.iac-mcp-server.svg)](https://pypi.org/project/awslabs.iac-mcp-server/)
+
+A server to manage AWS resources via cloudcontrol. This allows you to perform CRUDL operations on any AWS resources in your AWS account
+
+- This server acts as a bridge between MCP clients and AWS, allowing foundation models (FMs) to read and manage resources in your AWS account.
+- This can be used, for example, to create an AWS::S3::Bucket, list any AWS::Lambda::Function, etc.
+
+[Learn more](src/iac-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/iac-mcp-server/)
 
 ### AWS Lambda MCP Server
 
