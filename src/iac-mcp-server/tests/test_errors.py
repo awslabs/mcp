@@ -22,40 +22,40 @@ class TestErrors:
         """Testing access denied."""
         error = Exception('AccessDenied')
         mapped = handle_aws_api_error(error)
-        assert mapped.message.startswith('Access denied')
+        assert mapped.message.startswith('Access denied')  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_handle_validation(self):
         """Testing validation."""
         error = Exception('ValidationException')
         mapped = handle_aws_api_error(error)
-        assert mapped.message.startswith('Validation error')
+        assert mapped.message.startswith('Validation error')  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_handle_rnf(self):
         """Testing rnf."""
         error = Exception('ResourceNotFoundException')
         mapped = handle_aws_api_error(error)
-        assert mapped.message.startswith('Resource was not found')
+        assert mapped.message.startswith('Resource was not found')  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_handle_ua(self):
         """Testing uae."""
         error = Exception('UnsupportedActionException')
         mapped = handle_aws_api_error(error)
-        assert mapped.message.startswith('This action is not supported')
+        assert mapped.message.startswith('This action is not supported')  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_handle_ip(self):
         """Testing ip."""
         error = Exception('InvalidPatchException')
         mapped = handle_aws_api_error(error)
-        assert mapped.message.startswith('The patch document')
+        assert mapped.message.startswith('The patch document')  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_handle_throttle(self):
         """Testing throttle."""
         error = Exception('ThrottlingException')
         mapped = handle_aws_api_error(error)
-        assert mapped.message.startswith('Request was throttled')
+        assert mapped.message.startswith('Request was throttled')  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_handle_other(self):
         """Testing big catch."""
         error = Exception('none of the above')
         mapped = handle_aws_api_error(error)
-        assert mapped.message.startswith('An error occurred')
+        assert mapped.message.startswith('An error occurred')  # pyright: ignore[reportAttributeAccessIssue]

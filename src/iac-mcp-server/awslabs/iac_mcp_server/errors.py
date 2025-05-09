@@ -27,7 +27,7 @@ def handle_aws_api_error(e: Exception) -> Exception:
 
     # Extract error type from AWS exceptions if possible
     if hasattr(e, 'response') and 'Error' in getattr(e, 'response', {}):
-        error_type = e.response['Error'].get('Code', 'UnknownError')
+        error_type = e.response['Error'].get('Code', 'UnknownError')  # pyright: ignore[reportAttributeAccessIssue]
 
     # Handle common AWS error patterns
     if 'AccessDenied' in error_message or error_type == 'AccessDeniedException':

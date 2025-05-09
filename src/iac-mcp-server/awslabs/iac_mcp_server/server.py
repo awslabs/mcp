@@ -38,7 +38,9 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def get_resource_schema_information(resource_type: str = None, region: str = None) -> dict:
+async def get_resource_schema_information(
+    resource_type: str | None = None, region: str | None = None
+) -> dict:
     """Get schema information for an AWS resource.
 
     Parameters:
@@ -56,7 +58,7 @@ async def get_resource_schema_information(resource_type: str = None, region: str
 
 
 @mcp.tool()
-async def list_resources(resource_type: str = None, region: str = None) -> list:
+async def list_resources(resource_type: str | None = None, region: str | None = None) -> list:
     """List AWS resources of a specified type.
 
     Parameters:
@@ -85,7 +87,7 @@ async def list_resources(resource_type: str = None, region: str = None) -> list:
 
 @mcp.tool()
 async def get_resource(
-    resource_type: str = None, identifier: str = None, region: str = None
+    resource_type: str | None = None, identifier: str | None = None, region: str | None = None
 ) -> dict:
     """Get details of a specific AWS resource.
 
@@ -120,10 +122,10 @@ async def get_resource(
 
 @mcp.tool()
 async def update_resource(
-    resource_type: str = None,
-    identifier: str = None,
-    patch_document: list = None,
-    region: str = None,
+    resource_type: str | None = None,
+    identifier: str | None = None,
+    patch_document: list | None = None,
+    region: str | None = None,
 ) -> dict:
     """Update an AWS resource.
 
@@ -173,7 +175,7 @@ async def update_resource(
 
 @mcp.tool()
 async def create_resource(
-    resource_type: str = None, properties: dict = None, region: str = None
+    resource_type: str | None = None, properties: dict | None = None, region: str | None = None
 ) -> dict:
     """Create an AWS resource.
 
@@ -213,7 +215,7 @@ async def create_resource(
 
 @mcp.tool()
 async def delete_resource(
-    resource_type: str = None, identifier: str = None, region: str = None
+    resource_type: str | None = None, identifier: str | None = None, region: str | None = None
 ) -> dict:
     """Delete an AWS resource.
 
@@ -251,7 +253,7 @@ async def delete_resource(
 
 
 @mcp.tool()
-async def get_request_status(request_token: str = None, region: str = None) -> dict:
+async def get_request_status(request_token: str | None = None, region: str | None = None) -> dict:
     """Get the status of a long running operation with the request token.
 
     Args:

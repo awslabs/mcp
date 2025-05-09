@@ -77,7 +77,7 @@ class SchemaManager:
             except (json.JSONDecodeError, IOError) as e:
                 print(f'Error loading schema from {schema_file}: {str(e)}')
 
-    async def get_schema(self, resource_type: str, region: str = None) -> dict:
+    async def get_schema(self, resource_type: str, region: str | None = None) -> dict:
         """Get schema for a resource type, downloading it if necessary."""
         # Check if schema is in registry and not forced to refresh
         if resource_type in self.schema_registry:

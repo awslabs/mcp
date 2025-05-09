@@ -43,7 +43,7 @@ def progress_event(response_event) -> dict[str, str]:
     }
 
     if response_event.get('Identifier', None):
-        response['identifer'] = response_event['Identifier']
+        response['identifier'] = response_event['Identifier']
     if response_event.get('StatusMessage', None):
         response['status_message'] = response_event['StatusMessage']
     if response_event.get('ResourceModel', None):
