@@ -8,6 +8,6 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""CORE MCP server package."""
 
-__version__ = '0.2.3'
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.

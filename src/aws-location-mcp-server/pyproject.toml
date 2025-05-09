@@ -1,15 +1,14 @@
 [project]
-name = "awslabs.core-mcp-server"
-version = "0.2.4"
-description = "An AWS Labs Model Context Protocol (MCP) server for aswlabs Core MCP Server"
+name = "awslabs.aws-location-mcp-server"
+version = "1.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for AWS Location Service"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.37.0",
-    "loguru>=0.7.3",
-    "mcp[cli]>=1.3.0",
+    "boto3>=1.34.0",
+    "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-    "python-dotenv>=1.0.1",
+    "loguru>=0.7.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -17,7 +16,6 @@ license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Paul Vincent", email="44383239+PaulVincent707@users.noreply.github.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -31,14 +29,14 @@ classifiers = [
 ]
 
 [project.scripts]
-"awslabs.core-mcp-server" = "awslabs.core_mcp_server.server:main"
+"awslabs.aws-location-mcp-server" = "awslabs.aws_location_server.server:main"
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/core-mcp-server/"
+Documentation = "https://awslabs.github.io/mcp/servers/aws-location-mcp-server/"
 Source = "https://github.com/awslabs/mcp.git"
 "Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/core-mcp-server/CHANGELOG.md"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-location-mcp-server/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
@@ -46,9 +44,10 @@ dev = [
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
-    "pytest>=8.0.0",
+    "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
-    "pytest-mock>=3.12.0",
+    "pytest-mock>=3.11.1",
+    "pytest-asyncio>=0.26.0",
 ]
 
 [build-system]
@@ -98,29 +97,27 @@ docstring-code-format = true
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.0.0"
+version = "1.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/core_mcp_server/__init__.py:__version__"
+    "awslabs/aws_location_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
 
-[tool.bandit]
-exclude_dirs = ["venv","tests"]
-
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = "test_*.py"
-python_classes = "Test*"
-python_functions = "test_*"
-addopts = "--cov=awslabs.core_mcp_server --cov-report=term-missing"
 markers = [
-    "live: mark test as making live API calls",
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
 ]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.bandit]
+exclude_dirs = [".venv", "venv", "tests"]
 
 [tool.coverage.run]
 source = ["awslabs"]
