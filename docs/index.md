@@ -125,6 +125,20 @@ The Terraform MCP Server provides the following capabilities:
 
 [Learn more about the AWS Terraform MCP Server](servers/terraform-mcp-server.md)
 
+### Valkey MCP Server
+
+The Amazon ElastiCache/MemoryDB Valkey MCP Server provides a natural language interface to interact with Valkey datastores, enabling AI assistants to work with various data structures and perform complex data operations.
+
+**Features:**
+
+- Support for multiple data types (Strings, Lists, Sets, Sorted Sets, Hashes, Streams, etc.)
+- Advanced features like cluster support
+- JSON document storage and querying
+- Secure connections with SSL/TLS support
+- Connection pooling for efficient resource management
+
+[Learn more about the Valkey MCP Server](servers/valkey-mcp-server.md)
+
 ### AWS Location Service MCP Server
 
 A server for accessing AWS Location Service capabilities, focusing on place search, geographical coordinates, and route planning.
