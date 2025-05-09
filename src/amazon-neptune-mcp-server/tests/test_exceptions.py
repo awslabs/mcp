@@ -24,11 +24,11 @@ class TestNeptuneException:
         3. The details attribute defaults to "unknown".
         """
         # Arrange & Act
-        exception = NeptuneException("Test error message")
+        exception = NeptuneException('Test error message')
 
         # Assert
-        assert exception.message == "Test error message"
-        assert exception.details == "unknown"
+        assert exception.message == 'Test error message'
+        assert exception.details == 'unknown'
 
     def test_init_with_dict_complete(self):
         """Test initialization of NeptuneException with a complete dictionary.
@@ -38,15 +38,12 @@ class TestNeptuneException:
         3. The details attribute is set to the value from the dictionary.
         """
         # Arrange & Act
-        exception_dict = {
-            "message": "Test error message",
-            "details": "Test error details"
-        }
+        exception_dict = {'message': 'Test error message', 'details': 'Test error details'}
         exception = NeptuneException(exception_dict)
 
         # Assert
-        assert exception.message == "Test error message"
-        assert exception.details == "Test error details"
+        assert exception.message == 'Test error message'
+        assert exception.details == 'Test error details'
 
     def test_init_with_dict_message_only(self):
         """Test initialization of NeptuneException with a dictionary containing only message.
@@ -56,14 +53,12 @@ class TestNeptuneException:
         3. The details attribute defaults to "unknown".
         """
         # Arrange & Act
-        exception_dict = {
-            "message": "Test error message"
-        }
+        exception_dict = {'message': 'Test error message'}
         exception = NeptuneException(exception_dict)
 
         # Assert
-        assert exception.message == "Test error message"
-        assert exception.details == "unknown"
+        assert exception.message == 'Test error message'
+        assert exception.details == 'unknown'
 
     def test_init_with_dict_details_only(self):
         """Test initialization of NeptuneException with a dictionary containing only details.
@@ -73,14 +68,12 @@ class TestNeptuneException:
         3. The details attribute is set to the value from the dictionary.
         """
         # Arrange & Act
-        exception_dict = {
-            "details": "Test error details"
-        }
+        exception_dict = {'details': 'Test error details'}
         exception = NeptuneException(exception_dict)
 
         # Assert
-        assert exception.message == "unknown"
-        assert exception.details == "Test error details"
+        assert exception.message == 'unknown'
+        assert exception.details == 'Test error details'
 
     def test_init_with_empty_dict(self):
         """Test initialization of NeptuneException with an empty dictionary.
@@ -93,8 +86,8 @@ class TestNeptuneException:
         exception = NeptuneException({})
 
         # Assert
-        assert exception.message == "unknown"
-        assert exception.details == "unknown"
+        assert exception.message == 'unknown'
+        assert exception.details == 'unknown'
 
     def test_get_message(self):
         """Test the get_message method.
@@ -102,13 +95,13 @@ class TestNeptuneException:
         1. The get_message method returns the message attribute.
         """
         # Arrange
-        exception = NeptuneException("Test error message")
+        exception = NeptuneException('Test error message')
 
         # Act
         message = exception.get_message()
 
         # Assert
-        assert message == "Test error message"
+        assert message == 'Test error message'
 
     def test_get_details(self):
         """Test the get_details method.
@@ -116,17 +109,14 @@ class TestNeptuneException:
         1. The get_details method returns the details attribute.
         """
         # Arrange
-        exception_dict = {
-            "message": "Test error message",
-            "details": "Test error details"
-        }
+        exception_dict = {'message': 'Test error message', 'details': 'Test error details'}
         exception = NeptuneException(exception_dict)
 
         # Act
         details = exception.get_details()
 
         # Assert
-        assert details == "Test error details"
+        assert details == 'Test error details'
 
     def test_exception_inheritance(self):
         """Test that NeptuneException inherits from Exception.
@@ -135,18 +125,18 @@ class TestNeptuneException:
         2. NeptuneException can be caught as an Exception.
         """
         # Arrange & Act
-        exception = NeptuneException("Test error message")
+        exception = NeptuneException('Test error message')
 
         # Assert
         assert isinstance(exception, Exception)
 
         # Test that it can be caught as an Exception
         try:
-            raise NeptuneException("Test error message")
-            assert False, "Exception was not raised"
+            raise NeptuneException('Test error message')
+            assert False, 'Exception was not raised'
         except Exception as e:
             assert isinstance(e, NeptuneException)
-            assert e.message == "Test error message"
+            assert e.message == 'Test error message'
 
     def test_exception_in_try_except(self):
         """Test that NeptuneException can be used in a try-except block.
@@ -155,18 +145,15 @@ class TestNeptuneException:
         2. The message and details are preserved.
         """
         # Arrange
-        exception_dict = {
-            "message": "Test error message",
-            "details": "Test error details"
-        }
+        exception_dict = {'message': 'Test error message', 'details': 'Test error details'}
 
         # Act & Assert
         try:
             raise NeptuneException(exception_dict)
-            assert False, "Exception was not raised"
+            assert False, 'Exception was not raised'
         except NeptuneException as e:
-            assert e.message == "Test error message"
-            assert e.details == "Test error details"
+            assert e.message == 'Test error message'
+            assert e.details == 'Test error details'
 
     def test_complex_details(self):
         """Test that NeptuneException can handle complex details.
@@ -176,25 +163,19 @@ class TestNeptuneException:
         """
         # Arrange
         complex_details = {
-            "error_code": 500,
-            "error_type": "InternalServerError",
-            "nested": {
-                "field1": "value1",
-                "field2": 123
-            },
-            "items": [1, 2, 3]
+            'error_code': 500,
+            'error_type': 'InternalServerError',
+            'nested': {'field1': 'value1', 'field2': 123},
+            'items': [1, 2, 3],
         }
-        exception_dict = {
-            "message": "Test error message",
-            "details": complex_details
-        }
+        exception_dict = {'message': 'Test error message', 'details': complex_details}
 
         # Act
         exception = NeptuneException(exception_dict)
 
         # Assert
-        assert exception.message == "Test error message"
+        assert exception.message == 'Test error message'
         assert exception.details == complex_details
-        assert exception.details["error_code"] == 500
-        assert exception.details["nested"]["field1"] == "value1"
-        assert exception.details["items"] == [1, 2, 3]
+        assert exception.details['error_code'] == 500
+        assert exception.details['nested']['field1'] == 'value1'
+        assert exception.details['items'] == [1, 2, 3]

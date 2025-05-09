@@ -26,12 +26,11 @@ class NeptuneAnalytics(NeptuneGraph):
             graph_identifier='<my-graph-id>'
         )
     """
-    schema:Optional[GraphSchema] = None
+
+    schema: Optional[GraphSchema] = None
 
     def __init__(
-        self,
-        graph_identifier: str,
-        credentials_profile_name: Optional[str] = None
+        self, graph_identifier: str, credentials_profile_name: Optional[str] = None
     ) -> None:
         """Create a new Neptune Analytics graph wrapper instance."""
         self.graph_identifier = graph_identifier
@@ -42,26 +41,28 @@ class NeptuneAnalytics(NeptuneGraph):
             else:
                 session = boto3.Session(profile_name=credentials_profile_name)
 
-            self.client = session.client("neptune-graph")
+            self.client = session.client('neptune-graph')
 
         except Exception as e:
-            logger.exception("Could not load credentials to authenticate with AWS client. Please check that credentials in the specified profile name are valid.")
+            logger.exception(
+                'Could not load credentials to authenticate with AWS client. Please check that credentials in the specified profile name are valid.'
+            )
             raise ValueError(
-                    "Could not load credentials to authenticate with AWS client. "
-                    "Please check that credentials in the specified "
-                    "profile name are valid."
-                ) from e
+                'Could not load credentials to authenticate with AWS client. '
+                'Please check that credentials in the specified '
+                'profile name are valid.'
+            ) from e
 
         try:
             self._refresh_schema()
         except Exception as e:
-            logger.exception("Could not get schema for Neptune database")
+            logger.exception('Could not get schema for Neptune database')
             raise NeptuneException(
                 {
-                    "message": "Could not get schema for Neptune database",
-                    "detail": str(e),
-                })
-
+                    'message': 'Could not get schema for Neptune database',
+                    'detail': str(e),
+                }
+            )
 
     def _refresh_schema(self) -> GraphSchema:
         """Refreshes the Neptune graph schema information.
@@ -80,35 +81,29 @@ class NeptuneAnalytics(NeptuneGraph):
         """
 
         data = self.query_opencypher(pg_schema_query)
-        raw_schema = data[0]["schema"]
+        raw_schema = data[0]['schema']
         graph = GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
 
         # Process relationship patterns
-        for i in raw_schema["labelTriples"]:
+        for i in raw_schema['labelTriples']:
             graph.relationship_patterns.append(
-                RelationshipPattern(
-                    left_node=i["~from"], relation=i["~type"], right_node=i["~to"]
-                )
+                RelationshipPattern(left_node=i['~from'], relation=i['~type'], right_node=i['~to'])
             )
 
         # Process node labels and properties
-        for l in raw_schema["nodeLabels"]:
-            details = raw_schema["nodeLabelDetails"][l]
+        for l in raw_schema['nodeLabels']:
+            details = raw_schema['nodeLabelDetails'][l]
             props = []
-            for p in details["properties"]:
-                props.append(
-                    Property(name=p, type=details["properties"][p]["datatypes"])
-                )
+            for p in details['properties']:
+                props.append(Property(name=p, type=details['properties'][p]['datatypes']))
             graph.nodes.append(Node(labels=l, properties=props))
 
         # Process edge labels and properties
-        for l in raw_schema["edgeLabels"]:
-            details = raw_schema["edgeLabelDetails"][l]
+        for l in raw_schema['edgeLabels']:
+            details = raw_schema['edgeLabelDetails'][l]
             props = []
-            for p in details["properties"]:
-                props.append(
-                    Property(name=p, type=details["properties"][p]["datatypes"])
-                )
+            for p in details['properties']:
+                props.append(Property(name=p, type=details['properties'][p]['datatypes']))
             graph.relationships.append(Relationship(type=l, properties=props))
         self.schema = graph
         return graph
@@ -121,9 +116,13 @@ class NeptuneAnalytics(NeptuneGraph):
         """
         if self.schema is None:
             self._refresh_schema()
-        return self.schema if self.schema else GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
+        return (
+            self.schema
+            if self.schema
+            else GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
+        )
 
-    def query_opencypher(self, query:str, params: Optional[dict]= None):
+    def query_opencypher(self, query: str, params: Optional[dict] = None):
         """Executes an openCypher query against the Neptune Analytics graph.
 
         Args:
@@ -140,21 +139,21 @@ class NeptuneAnalytics(NeptuneGraph):
             if params is None:
                 params = {}
             resp = self.client.execute_query(
-                    graphIdentifier=self.graph_identifier,
-                    queryString=query,
-                    parameters=params,
-                    language="OPEN_CYPHER"
+                graphIdentifier=self.graph_identifier,
+                queryString=query,
+                parameters=params,
+                language='OPEN_CYPHER',
             )
-            return json.loads(resp["payload"].read().decode("UTF-8"))["results"]
+            return json.loads(resp['payload'].read().decode('UTF-8'))['results']
         except Exception as e:
             raise NeptuneException(
                 {
-                    "message": "An error occurred while executing the query.",
-                    "details": str(e),
+                    'message': 'An error occurred while executing the query.',
+                    'details': str(e),
                 }
             )
 
-    def query_gremlin(self, query:str):
+    def query_gremlin(self, query: str):
         """Not supported for Neptune Analytics graphs.
 
         Args:
@@ -163,4 +162,6 @@ class NeptuneAnalytics(NeptuneGraph):
         Raises:
             NotImplementedError: Always raised as Gremlin is not supported for Neptune Analytics
         """
-        raise NotImplementedError("Gremlin queries are not supported for Neptune Analytics graphs.")
+        raise NotImplementedError(
+            'Gremlin queries are not supported for Neptune Analytics graphs.'
+        )

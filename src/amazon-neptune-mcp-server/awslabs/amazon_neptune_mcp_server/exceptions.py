@@ -20,11 +20,11 @@ class NeptuneException(Exception):
                 containing 'message' and 'details' keys
         """
         if isinstance(exception, dict):
-            self.message = exception["message"] if "message" in exception else "unknown"
-            self.details = exception["details"] if "details" in exception else "unknown"
+            self.message = exception['message'] if 'message' in exception else 'unknown'
+            self.details = exception['details'] if 'details' in exception else 'unknown'
         else:
             self.message = exception
-            self.details = "unknown"
+            self.details = 'unknown'
 
     def get_message(self) -> str:
         """Get the exception message.

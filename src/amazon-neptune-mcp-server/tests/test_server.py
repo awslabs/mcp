@@ -38,14 +38,14 @@ class TestServerTools:
         """
         # Arrange
         mock_graph = MagicMock()
-        mock_graph.status.return_value = "Connected"
+        mock_graph.status.return_value = 'Connected'
         mock_get_graph.return_value = mock_graph
 
         # Act
         result = get_status()
 
         # Assert
-        assert result == "Connected"
+        assert result == 'Connected'
         mock_graph.status.assert_called_once()
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
@@ -79,16 +79,16 @@ class TestServerTools:
         """
         # Arrange
         mock_graph = MagicMock()
-        mock_result = {"results": [{"n": {"id": "1"}}]}
+        mock_result = {'results': [{'n': {'id': '1'}}]}
         mock_graph.query_opencypher.return_value = mock_result
         mock_get_graph.return_value = mock_graph
 
         # Act
-        result = run_opencypher_query("MATCH (n) RETURN n LIMIT 1")
+        result = run_opencypher_query('MATCH (n) RETURN n LIMIT 1')
 
         # Assert
         assert result == mock_result
-        mock_graph.query_opencypher.assert_called_once_with("MATCH (n) RETURN n LIMIT 1", None)
+        mock_graph.query_opencypher.assert_called_once_with('MATCH (n) RETURN n LIMIT 1', None)
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
     async def test_run_opencypher_query_with_parameters(self, mock_get_graph):
@@ -100,19 +100,18 @@ class TestServerTools:
         """
         # Arrange
         mock_graph = MagicMock()
-        mock_result = {"results": [{"n": {"id": "1"}}]}
+        mock_result = {'results': [{'n': {'id': '1'}}]}
         mock_graph.query_opencypher.return_value = mock_result
         mock_get_graph.return_value = mock_graph
-        parameters = {"id": "1"}
+        parameters = {'id': '1'}
 
         # Act
-        result = run_opencypher_query("MATCH (n) WHERE n.id = $id RETURN n", parameters)
+        result = run_opencypher_query('MATCH (n) WHERE n.id = $id RETURN n', parameters)
 
         # Assert
         assert result == mock_result
         mock_graph.query_opencypher.assert_called_once_with(
-            "MATCH (n) WHERE n.id = $id RETURN n",
-            parameters
+            'MATCH (n) WHERE n.id = $id RETURN n', parameters
         )
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
@@ -125,16 +124,16 @@ class TestServerTools:
         """
         # Arrange
         mock_graph = MagicMock()
-        mock_result = {"results": [{"id": "1"}]}
+        mock_result = {'results': [{'id': '1'}]}
         mock_graph.query_gremlin.return_value = mock_result
         mock_get_graph.return_value = mock_graph
 
         # Act
-        result = run_gremlin_query("g.V().limit(1)")
+        result = run_gremlin_query('g.V().limit(1)')
 
         # Assert
         assert result == mock_result
-        mock_graph.query_gremlin.assert_called_once_with("g.V().limit(1)")
+        mock_graph.query_gremlin.assert_called_once_with('g.V().limit(1)')
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
     async def test_get_status_resource(self, mock_get_graph):
@@ -146,14 +145,14 @@ class TestServerTools:
         """
         # Arrange
         mock_graph = MagicMock()
-        mock_graph.status.return_value = "AVAILABLE"
+        mock_graph.status.return_value = 'AVAILABLE'
         mock_get_graph.return_value = mock_graph
 
         # Act
         result = get_status_resource()
 
         # Assert
-        assert result == "AVAILABLE"
+        assert result == 'AVAILABLE'
         mock_graph.status.assert_called_once()
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
@@ -193,8 +192,8 @@ class TestGraphInitialization:
         """
         # Arrange
         mock_environ_get.side_effect = lambda key, default=None: {
-            "NEPTUNE_ENDPOINT": "neptune-db://test-endpoint",
-            "NEPTUNE_USE_HTTPS": "True"
+            'NEPTUNE_ENDPOINT': 'neptune-db://test-endpoint',
+            'NEPTUNE_USE_HTTPS': 'True',
         }.get(key, default)
 
         mock_server = MagicMock()
@@ -205,7 +204,7 @@ class TestGraphInitialization:
 
         # Assert
         assert graph == mock_server
-        mock_neptune_server.assert_called_once_with("neptune-db://test-endpoint", use_https=True)
+        mock_neptune_server.assert_called_once_with('neptune-db://test-endpoint', use_https=True)
 
         # Call again to verify singleton behavior
         graph2 = get_graph()
@@ -221,16 +220,17 @@ class TestGraphInitialization:
         """
         # Arrange
         mock_environ_get.side_effect = lambda key, default=None: {
-            "NEPTUNE_ENDPOINT": None,
-            "NEPTUNE_USE_HTTPS": "True"
+            'NEPTUNE_ENDPOINT': None,
+            'NEPTUNE_USE_HTTPS': 'True',
         }.get(key, default)
 
         # Reset the global _graph variable
         import awslabs.amazon_neptune_mcp_server.server
+
         awslabs.amazon_neptune_mcp_server.server._graph = None
 
         # Act & Assert
-        with pytest.raises(ValueError, match="NEPTUNE_ENDPOINT environment variable is not set"):
+        with pytest.raises(ValueError, match='NEPTUNE_ENDPOINT environment variable is not set'):
             get_graph()
 
     @patch('os.environ.get')
@@ -243,12 +243,13 @@ class TestGraphInitialization:
         """
         # Arrange
         mock_environ_get.side_effect = lambda key, default=None: {
-            "NEPTUNE_ENDPOINT": "neptune-db://test-endpoint",
-            "NEPTUNE_USE_HTTPS": "false"
+            'NEPTUNE_ENDPOINT': 'neptune-db://test-endpoint',
+            'NEPTUNE_USE_HTTPS': 'false',
         }.get(key, default)
 
         # Reset the global _graph variable
         import awslabs.amazon_neptune_mcp_server.server
+
         awslabs.amazon_neptune_mcp_server.server._graph = None
 
         mock_server = MagicMock()
@@ -259,7 +260,7 @@ class TestGraphInitialization:
 
         # Assert
         assert graph == mock_server
-        mock_neptune_server.assert_called_once_with("neptune-db://test-endpoint", use_https=False)
+        mock_neptune_server.assert_called_once_with('neptune-db://test-endpoint', use_https=False)
 
 
 @pytest.mark.asyncio

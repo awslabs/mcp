@@ -27,17 +27,14 @@ logger.add(sys.stderr, level='INFO')
 
 # Initialize FastMCP
 mcp = FastMCP(
-    "awslabs.neptune-mcp-server",
+    'awslabs.neptune-mcp-server',
     instructions='This server provides the ability to check connectivity, status and schema for working with Amazon Neptune.',
-    dependencies=[
-        'pydantic',
-        'loguru',
-        'boto3'
-    ],
+    dependencies=['pydantic', 'loguru', 'boto3'],
 )
 
 # Global variable to hold the graph instance
 _graph = None
+
 
 def get_graph():
     """Lazily initialize the Neptune graph connection.
@@ -53,17 +50,17 @@ def get_graph():
     """
     global _graph
     if _graph is None:
-        endpoint = os.environ.get("NEPTUNE_ENDPOINT", None)
-        logger.info(f"NEPTUNE_ENDPOINT: {endpoint}")
+        endpoint = os.environ.get('NEPTUNE_ENDPOINT', None)
+        logger.info(f'NEPTUNE_ENDPOINT: {endpoint}')
         if endpoint is None:
-            logger.exception("NEPTUNE_ENDPOINT environment variable is not set")
-            raise ValueError("NEPTUNE_ENDPOINT environment variable is not set")
+            logger.exception('NEPTUNE_ENDPOINT environment variable is not set')
+            raise ValueError('NEPTUNE_ENDPOINT environment variable is not set')
 
-        use_https_value = os.environ.get("NEPTUNE_USE_HTTPS", "True")
+        use_https_value = os.environ.get('NEPTUNE_USE_HTTPS', 'True')
         use_https = use_https_value.lower() in (
-            "true",
-            "1",
-            "t",
+            'true',
+            '1',
+            't',
         )
 
         _graph = NeptuneServer(endpoint, use_https=use_https)
@@ -71,17 +68,13 @@ def get_graph():
     return _graph
 
 
-@mcp.resource(
-    uri="amazon-neptune://status", name="GraphStatus", mime_type="application/text"
-)
+@mcp.resource(uri='amazon-neptune://status', name='GraphStatus', mime_type='application/text')
 def get_status_resource() -> str:
     """Get the status of the currently configured Amazon Neptune graph."""
     return get_graph().status()
 
 
-@mcp.resource(
-    uri="amazon-neptune://schema", name="GraphSchema", mime_type="application/text"
-)
+@mcp.resource(uri='amazon-neptune://schema', name='GraphSchema', mime_type='application/text')
 def get_schema_resource() -> GraphSchema:
     """Get the schema for the graph including the vertex and edge labels as well as the
     (vertex)-[edge]->(vertex) combinations.
@@ -89,13 +82,13 @@ def get_schema_resource() -> GraphSchema:
     return get_graph().schema()
 
 
-@mcp.tool(name="get_graph_status")
+@mcp.tool(name='get_graph_status')
 def get_status() -> str:
     """Get the status of the currently configured Amazon Neptune graph."""
     return get_graph().status()
 
 
-@mcp.tool(name="get_graph_schema")
+@mcp.tool(name='get_graph_schema')
 def get_schema() -> GraphSchema:
     """Get the schema for the graph including the vertex and edge labels as well as the
     (vertex)-[edge]->(vertex) combinations.
@@ -103,13 +96,13 @@ def get_schema() -> GraphSchema:
     return get_graph().schema()
 
 
-@mcp.tool(name="run_opencypher_query")
+@mcp.tool(name='run_opencypher_query')
 def run_opencypher_query(query: str, parameters: Optional[dict] = None) -> dict:
     """Executes the provided openCypher against the graph."""
     return get_graph().query_opencypher(query, parameters)
 
 
-@mcp.tool(name="run_gremlin_query")
+@mcp.tool(name='run_gremlin_query')
 def run_gremlin_query(query: str) -> dict:
     """Executes the provided Tinkerpop Gremlin against the graph."""
     return get_graph().query_gremlin(query)
@@ -117,7 +110,9 @@ def run_gremlin_query(query: str) -> dict:
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='An AWS Labs MCP server for interacting with Amazon Neptune')
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs MCP server for interacting with Amazon Neptune'
+    )
     parser.add_argument('--sse', action='store_true', help='Use SSE transport')
     parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
 

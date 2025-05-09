@@ -31,14 +31,14 @@ class NeptuneDatabase(NeptuneGraph):
         )
     """
 
-    schema:Optional[GraphSchema] = None
+    schema: Optional[GraphSchema] = None
 
     def __init__(
         self,
         host: str,
         port: int = 8182,
         use_https: bool = True,
-        credentials_profile_name: Optional[str] = None
+        credentials_profile_name: Optional[str] = None,
     ) -> None:
         """Create a new Neptune graph wrapper instance."""
         try:
@@ -48,26 +48,26 @@ class NeptuneDatabase(NeptuneGraph):
                 session = boto3.Session(profile_name=credentials_profile_name)
 
             client_params = {}
-            protocol = "https" if use_https else "http"
-            client_params["endpoint_url"] = f"{protocol}://{host}:{port}"
-            self.client = session.client("neptunedata", **client_params)
+            protocol = 'https' if use_https else 'http'
+            client_params['endpoint_url'] = f'{protocol}://{host}:{port}'
+            self.client = session.client('neptunedata', **client_params)
 
         except Exception as e:
-            logger.exception("Could not load credentials to authenticate with AWS client")
+            logger.exception('Could not load credentials to authenticate with AWS client')
             raise ValueError(
-                    "Could not load credentials to authenticate with AWS client. "
-                    "Please check that credentials in the specified "
-                    "profile name are valid."
-                ) from e
+                'Could not load credentials to authenticate with AWS client. '
+                'Please check that credentials in the specified '
+                'profile name are valid.'
+            ) from e
 
         try:
             self._refresh_schema()
         except Exception as e:
-            logger.exception("Could not get schema for Neptune database")
+            logger.exception('Could not get schema for Neptune database')
             raise NeptuneException(
                 {
-                    "message": "Could not get schema for Neptune database",
-                    "detail": str(e),
+                    'message': 'Could not get schema for Neptune database',
+                    'detail': str(e),
                 }
             )
 
@@ -85,21 +85,21 @@ class NeptuneDatabase(NeptuneGraph):
         except Exception as e:
             raise NeptuneException(
                 {
-                    "message": (
-                        "Summary API is not available for this instance of Neptune,"
-                        "ensure the engine version is >=1.2.1.0"
+                    'message': (
+                        'Summary API is not available for this instance of Neptune,'
+                        'ensure the engine version is >=1.2.1.0'
                     ),
-                    "details": str(e),
+                    'details': str(e),
                 }
             )
 
         try:
-            summary = response["payload"]["graphSummary"]
+            summary = response['payload']['graphSummary']
         except Exception:
             raise NeptuneException(
                 {
-                    "message": "Summary API did not return a valid response.",
-                    "details": response.content.decode(),
+                    'message': 'Summary API did not return a valid response.',
+                    'details': response.content.decode(),
                 }
             )
         else:
@@ -114,8 +114,8 @@ class NeptuneDatabase(NeptuneGraph):
                 2. List of edge labels
         """
         summary = self._get_summary()
-        n_labels = summary["nodeLabels"]
-        e_labels = summary["edgeLabels"]
+        n_labels = summary['nodeLabels']
+        e_labels = summary['edgeLabels']
         return n_labels, e_labels
 
     def _get_triples(self, e_labels: List[str]) -> List[RelationshipPattern]:
@@ -137,12 +137,16 @@ class NeptuneDatabase(NeptuneGraph):
         LIMIT 10
         """
 
-        triple_schema:List[RelationshipPattern] = []
+        triple_schema: List[RelationshipPattern] = []
         for label in e_labels:
             q = triple_query.format(e_label=label)
             data = self.query_opencypher(q)
             for d in data:
-                triple_schema.append(RelationshipPattern(left_node=d["from"][0], right_node=d["to"][0], relation=d["edge"]))
+                triple_schema.append(
+                    RelationshipPattern(
+                        left_node=d['from'][0], right_node=d['to'][0], relation=d['edge']
+                    )
+                )
 
         return triple_schema
 
@@ -170,7 +174,7 @@ class NeptuneDatabase(NeptuneGraph):
             resp = self.query_opencypher(q)
             props = {}
             for p in resp:
-                for k, v in p["props"].items():
+                for k, v in p['props'].items():
                     prop_type = types[type(v).__name__]
                     if k not in props:
                         props[k] = {prop_type}
@@ -208,7 +212,7 @@ class NeptuneDatabase(NeptuneGraph):
             resp = self.query_opencypher(q)
             props = {}
             for p in resp:
-                for k, v in p["props"].items():
+                for k, v in p['props'].items():
                     prop_type = types[type(v).__name__]
                     if k not in props:
                         props[k] = {prop_type}
@@ -233,12 +237,12 @@ class NeptuneDatabase(NeptuneGraph):
             GraphSchema: Complete schema information for the graph
         """
         types = {
-            "str": "STRING",
-            "float": "DOUBLE",
-            "int": "INTEGER",
-            "list": "LIST",
-            "dict": "MAP",
-            "bool": "BOOLEAN",
+            'str': 'STRING',
+            'float': 'DOUBLE',
+            'int': 'INTEGER',
+            'list': 'LIST',
+            'dict': 'MAP',
+            'bool': 'BOOLEAN',
         }
         n_labels, e_labels = self._get_labels()
         triple_schema = self._get_triples(e_labels)
@@ -250,7 +254,6 @@ class NeptuneDatabase(NeptuneGraph):
         self.schema = graph
         return graph
 
-
     def get_schema(self) -> GraphSchema:
         """Returns the current graph schema, refreshing it if necessary.
 
@@ -259,9 +262,13 @@ class NeptuneDatabase(NeptuneGraph):
         """
         if self.schema is None:
             self._refresh_schema()
-        return self.schema if self.schema else GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
+        return (
+            self.schema
+            if self.schema
+            else GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
+        )
 
-    def query_opencypher(self, query:str, params:Optional[dict] = None):
+    def query_opencypher(self, query: str, params: Optional[dict] = None):
         """Executes an openCypher query against the Neptune database.
 
         Args:
@@ -273,13 +280,13 @@ class NeptuneDatabase(NeptuneGraph):
         """
         if params:
             resp = self.client.execute_open_cypher_query(
-                            openCypherQuery=query,
-                            parameters=json.dumps(params),
-                        )
+                openCypherQuery=query,
+                parameters=json.dumps(params),
+            )
         else:
             resp = self.client.execute_open_cypher_query(openCypherQuery=query)
 
-        return resp["result"] if "result" in resp else resp["results"]
+        return resp['result'] if 'result' in resp else resp['results']
 
     def query_gremlin(self, query):
         """Executes a Gremlin query against the Neptune database.
@@ -291,4 +298,4 @@ class NeptuneDatabase(NeptuneGraph):
             Any: The query results, either as a single result or a list of results
         """
         resp = self.client.execute_gremlin_query(gremlinQuery=query)
-        return resp["result"] if "result" in resp else resp["results"]
+        return resp['result'] if 'result' in resp else resp['results']

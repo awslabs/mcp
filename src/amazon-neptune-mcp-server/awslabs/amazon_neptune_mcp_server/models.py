@@ -34,6 +34,7 @@ class Property(BaseModel):
         name (str): The name/key of the property
         type (str): The data type of the property value
     """
+
     name: str
     type: List[str]
 
@@ -48,6 +49,7 @@ class Node(BaseModel):
         labels (str): The label(s) that categorize this node type
         properties (List[Property]): List of properties that can be assigned to this node type
     """
+
     labels: str
     properties: List[Property] = []
 
@@ -62,6 +64,7 @@ class Relationship(BaseModel):
         type (str): The type/category of the relationship
         properties (List[Property]): List of properties that can be assigned to this relationship type
     """
+
     type: str
     properties: List[Property] = []
 
@@ -77,9 +80,11 @@ class RelationshipPattern(BaseModel):
         right_node (str): The label of the target/ending node
         relation (str): The type of relationship connecting the nodes
     """
+
     left_node: str
     right_node: str
     relation: str
+
 
 class GraphSchema(BaseModel):
     """Represents the complete schema definition for the graph database.
@@ -92,6 +97,7 @@ class GraphSchema(BaseModel):
         relationships (List[Relationship]): List of all relationship types defined in the schema
         relationship_patterns (List[RelationshipPattern]): List of valid relationship patterns
     """
+
     nodes: List[Node]
     relationships: List[Relationship]
     relationship_patterns: List[RelationshipPattern]

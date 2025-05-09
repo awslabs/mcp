@@ -3,12 +3,10 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 
-TEMP_ENV_VARS = {
-    'NEPTUNE_ENDPOINT': 'neptune-db://fake:8182'
-}
+TEMP_ENV_VARS = {'NEPTUNE_ENDPOINT': 'neptune-db://fake:8182'}
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope='session', autouse=True)
 def tests_setup_and_teardown():
     """Mock environment and module variables for testing."""
     global TEMP_ENV_VARS
@@ -20,6 +18,7 @@ def tests_setup_and_teardown():
     # Will be executed after the last test
     os.environ.clear()
     os.environ.update(old_environ)
+
 
 @pytest.fixture
 def mock_boto3():

@@ -19,6 +19,7 @@ instances, handling connection management, query execution, and schema operation
 The module implements classes for managing Neptune connections and executing queries
 using different query languages (OpenCypher and Gremlin).
 """
+
 from awslabs.amazon_neptune_mcp_server.graph_store import (
     NeptuneAnalytics,
     NeptuneDatabase,
@@ -39,11 +40,10 @@ class NeptuneServer:
     Attributes:
         graph: Active connection to the Neptune instance
     """
-    graph:NeptuneGraph
 
-    def __init__(
-        self, endpoint: str, use_https: bool = True, port: int = 8182, *args, **kwargs
-    ):
+    graph: NeptuneGraph
+
+    def __init__(self, endpoint: str, use_https: bool = True, port: int = 8182, *args, **kwargs):
         """Initialize a connection to a Neptune instance.
 
         Args:
@@ -58,22 +58,22 @@ class NeptuneServer:
         """
         if endpoint:
             # self._logger.debug("NeptuneServer host: %s", endpoint)
-            if endpoint.startswith("neptune-db://"):
+            if endpoint.startswith('neptune-db://'):
                 # This is a Neptune Database Cluster
-                endpoint = endpoint.replace("neptune-db://", "")
+                endpoint = endpoint.replace('neptune-db://', '')
                 self.graph = NeptuneDatabase(endpoint, port, use_https=use_https)
-                logger.debug("Creating Neptune Database session for %s", endpoint)
-            elif endpoint.startswith("neptune-graph://"):
+                logger.debug('Creating Neptune Database session for %s', endpoint)
+            elif endpoint.startswith('neptune-graph://'):
                 # This is a Neptune Analytics Graph
-                graphId = endpoint.replace("neptune-graph://", "")
+                graphId = endpoint.replace('neptune-graph://', '')
                 self.graph = NeptuneAnalytics(graphId)
-                logger.debug("Creating Neptune Graph session for %s", endpoint)
+                logger.debug('Creating Neptune Graph session for %s', endpoint)
             else:
                 raise ValueError(
-                    "You must provide an endpoint to create a NeptuneServer as either neptune-db://<endpoint> or neptune-graph://<graphid>"
+                    'You must provide an endpoint to create a NeptuneServer as either neptune-db://<endpoint> or neptune-graph://<graphid>'
                 )
         else:
-            raise ValueError("You must provide an endpoint to create a NeptuneServer")
+            raise ValueError('You must provide an endpoint to create a NeptuneServer')
 
     def status(self) -> str:
         """Check the current status of the Neptune instance.
@@ -85,11 +85,11 @@ class NeptuneServer:
             AttributeError: If engine type is unknown
         """
         try:
-            self.query_opencypher("RETURN 1")
-            return "Available"
+            self.query_opencypher('RETURN 1')
+            return 'Available'
         except Exception:
-            logger.exception("Could not get status for Neptune instance")
-            return "Unavailable"
+            logger.exception('Could not get status for Neptune instance')
+            return 'Unavailable'
 
     def schema(self) -> GraphSchema:
         """Retrieve the schema information from the Neptune instance.
@@ -129,4 +129,3 @@ class NeptuneServer:
             ValueError: If using unsupported query language for analytics
         """
         return self.graph.query_gremlin(query)
-
