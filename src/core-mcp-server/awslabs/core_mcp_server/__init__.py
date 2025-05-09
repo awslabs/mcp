@@ -10,4 +10,4 @@
 # and limitations under the License.
 """CORE MCP server package."""
 
-__version__ = '0.0.1'
+__version__ = '0.2.3'

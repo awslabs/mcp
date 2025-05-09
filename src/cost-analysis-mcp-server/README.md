@@ -11,6 +11,7 @@ MCP server for generating upfront AWS service cost estimates and providing cost 
 - Get detailed breakdown of your AWS costs by service, region and tier
 - Understand how costs are distributed across various services
 - Provide pre-deployment cost estimates for infrastructure planning
+- Support for analyzing both CDK and Terraform projects to identify AWS services
 
 ### Query cost data with natural language
 
