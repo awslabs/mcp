@@ -1,4 +1,4 @@
-"""Test fixtures for the lambda-mcp-server tests."""
+"""Test fixtures for the stepfunctions-mcp-server tests."""
 
 import json
 import pytest
@@ -7,30 +7,30 @@ from unittest.mock import MagicMock
 
 @pytest.fixture
 def mock_lambda_client():
-    """Create a mock boto3 Lambda client."""
+    """Create a mock boto3 client (will be updated to Step Functions client in phase 2)."""
     mock_client = MagicMock()
 
-    # Mock list_functions response
+    # Mock list_functions response (will be updated to list_state_machines in phase 2)
     mock_client.list_functions.return_value = {
         'Functions': [
             {
-                'FunctionName': 'test-function-1',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-1',
-                'Description': 'Test function 1 description',
+                'FunctionName': 'test-state-machine-1',
+                'FunctionArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine-1',
+                'Description': 'Test state machine 1 description',
             },
             {
-                'FunctionName': 'test-function-2',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-2',
-                'Description': 'Test function 2 description',
+                'FunctionName': 'test-state-machine-2',
+                'FunctionArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine-2',
+                'Description': 'Test state machine 2 description',
             },
             {
-                'FunctionName': 'prefix-test-function-3',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:prefix-test-function-3',
-                'Description': 'Test function 3 with prefix',
+                'FunctionName': 'prefix-test-state-machine-3',
+                'FunctionArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:prefix-test-state-machine-3',
+                'Description': 'Test state machine 3 with prefix',
             },
             {
-                'FunctionName': 'other-function',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:other-function',
+                'FunctionName': 'other-state-machine',
+                'FunctionArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:other-state-machine',
                 'Description': '',  # Empty description
             },
         ]
@@ -38,36 +38,36 @@ def mock_lambda_client():
 
     # Mock list_tags response
     def mock_list_tags(Resource):
-        if 'test-function-1' in Resource:
+        if 'test-state-machine-1' in Resource:
             return {'Tags': {'test-key': 'test-value'}}
-        elif 'test-function-2' in Resource:
+        elif 'test-state-machine-2' in Resource:
             return {'Tags': {'other-key': 'other-value'}}
-        elif 'prefix-test-function-3' in Resource:
+        elif 'prefix-test-state-machine-3' in Resource:
             return {'Tags': {'test-key': 'test-value'}}
         else:
             return {'Tags': {}}
 
     mock_client.list_tags.side_effect = mock_list_tags
 
-    # Mock invoke response
+    # Mock invoke response (will be updated to start_execution in phase 2)
     def mock_invoke(FunctionName, InvocationType, Payload):
-        if FunctionName == 'test-function-1':
+        if FunctionName == 'test-state-machine-1':
             mock_payload = MagicMock()
             mock_payload.read.return_value = json.dumps({'result': 'success'}).encode()
             return {
                 'StatusCode': 200,
                 'Payload': mock_payload,
             }
-        elif FunctionName == 'test-function-2':
+        elif FunctionName == 'test-state-machine-2':
             mock_payload = MagicMock()
             mock_payload.read.return_value = b'Non-JSON response'
             return {
                 'StatusCode': 200,
                 'Payload': mock_payload,
             }
-        elif FunctionName == 'error-function':
+        elif FunctionName == 'error-state-machine':
             mock_payload = MagicMock()
-            mock_payload.read.return_value = json.dumps({'error': 'Function error'}).encode()
+            mock_payload.read.return_value = json.dumps({'error': 'State machine error'}).encode()
             return {
                 'StatusCode': 200,
                 'FunctionError': 'Handled',

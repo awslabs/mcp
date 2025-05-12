@@ -1,4 +1,4 @@
-"""Additional tests to improve coverage for the server module of the lambda-mcp-server."""
+"""Additional tests to improve coverage for the server module of the stepfunctions-mcp-server."""
 
 import json
 import logging
@@ -8,17 +8,17 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.lambda_mcp_server.server import (
-        filter_functions_by_tag,
-        format_lambda_response,
-        register_lambda_functions,
+    from awslabs.stepfunctions_mcp_server.server import (
+        filter_state_machines_by_tag,
+        format_state_machine_response,
+        register_state_machines,
         sanitize_tool_name,
-        validate_function_name,
+        validate_state_machine_name,
     )
 
 
-class TestFormatLambdaResponseCoverage:
-    """Additional tests for the format_lambda_response function to improve coverage."""
+class TestFormatStateMachineResponseCoverage:
+    """Additional tests for the format_state_machine_response function to improve coverage."""
 
     def test_unicode_decode_error(self):
         """Test with payload that causes UnicodeDecodeError."""
@@ -33,119 +33,119 @@ class TestFormatLambdaResponseCoverage:
         except UnicodeDecodeError:
             # Now test our function with this payload
             assert invalid_json is not None
-            result = format_lambda_response('test-function', invalid_json)
-            assert 'Function test-function returned payload:' in result
+            result = format_state_machine_response('test-state-machine', invalid_json)
+            assert 'State machine test-state-machine returned payload:' in result
             assert str(invalid_json) in result
 
-    def test_format_lambda_response_variants(self):
-        """Test formatting different types of Lambda responses."""
+    def test_format_state_machine_response_variants(self):
+        """Test formatting different types of Step Functions responses."""
         # Test with empty JSON object
-        assert 'Function test-function returned: {}' in format_lambda_response(
-            'test-function', b'{}'
+        assert 'State machine test-state-machine returned: {}' in format_state_machine_response(
+            'test-state-machine', b'{}'
         )
 
         # Test with nested JSON
         complex_json = json.dumps({'data': {'nested': {'value': 123}}}).encode()
-        result = format_lambda_response('test-function', complex_json)
-        assert 'Function test-function returned:' in result
+        result = format_state_machine_response('test-state-machine', complex_json)
+        assert 'State machine test-state-machine returned:' in result
         assert '"data": {' in result
         assert '"nested": {' in result
         assert '"value": 123' in result
 
 
-class TestFilterFunctionsByTagCoverage:
-    """Additional tests for the filter_functions_by_tag function to improve coverage."""
+class TestFilterStateMachinesByTagCoverage:
+    """Additional tests for the filter_state_machines_by_tag function to improve coverage."""
 
     def test_specific_error_getting_tags(self, caplog):
         """Test specific error handling when getting tags."""
-        with patch('awslabs.lambda_mcp_server.server.lambda_client') as mock_client:
+        with patch('awslabs.stepfunctions_mcp_server.server.lambda_client') as mock_client:
             # Make list_tags raise a specific exception type
             mock_client.list_tags.side_effect = Exception('Access denied')
 
-            functions = [
+            state_machines = [
                 {
-                    'FunctionName': 'test-function-1',
-                    'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-1',
+                    'Name': 'test-state-machine-1',
+                    'StateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine-1',
                 },
             ]
 
             with caplog.at_level(logging.WARNING):
                 # Should log a warning but not raise an exception
-                result = filter_functions_by_tag(functions, 'test-key', 'test-value')
+                result = filter_state_machines_by_tag(state_machines, 'test-key', 'test-value')
 
                 # Should return an empty list
                 assert len(result) == 0
 
                 # Verify the warning was logged
-                assert 'Error getting tags for function test-function-1' in caplog.text
+                assert 'Error getting tags for state machine test-state-machine-1' in caplog.text
                 assert 'Access denied' in caplog.text
 
 
-class TestRegisterLambdaFunctionsCoverage:
-    """Additional tests for the register_lambda_functions function to improve coverage."""
+class TestRegisterStateMachinesCoverage:
+    """Additional tests for the register_state_machines function to improve coverage."""
 
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_KEY', 'test-key')
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_VALUE', '')
-    @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_TAG_KEY', 'test-key')
+    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_TAG_VALUE', '')
+    @patch('awslabs.stepfunctions_mcp_server.server.create_state_machine_tool')
     def test_register_with_incomplete_tag_config(
-        self, mock_create_lambda_tool, mock_lambda_client, caplog
+        self, mock_create_state_machine_tool, mock_lambda_client, caplog
     ):
-        """Test registering Lambda functions with incomplete tag configuration."""
-        with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+        """Test registering Step Functions state machines with incomplete tag configuration."""
+        with patch('awslabs.stepfunctions_mcp_server.server.lambda_client', mock_lambda_client):
             with caplog.at_level(logging.WARNING):
                 # Call the function
-                register_lambda_functions()
+                register_state_machines()
 
-                # Should not register any functions
-                assert mock_create_lambda_tool.call_count == 0
+                # Should not register any state machines
+                assert mock_create_state_machine_tool.call_count == 0
 
                 # Should log a warning
                 assert (
-                    'Both FUNCTION_TAG_KEY and FUNCTION_TAG_VALUE must be set to filter by tag'
+                    'Both STATE_MACHINE_TAG_KEY and STATE_MACHINE_TAG_VALUE must be set to filter by tag'
                     in caplog.text
                 )
 
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_KEY', '')
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_VALUE', 'test-value')
-    @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_TAG_KEY', '')
+    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_TAG_VALUE', 'test-value')
+    @patch('awslabs.stepfunctions_mcp_server.server.create_state_machine_tool')
     def test_register_with_incomplete_tag_config_reversed(
-        self, mock_create_lambda_tool, mock_lambda_client, caplog
+        self, mock_create_state_machine_tool, mock_lambda_client, caplog
     ):
-        """Test registering Lambda functions with incomplete tag configuration (reversed case)."""
-        with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+        """Test registering Step Functions state machines with incomplete tag configuration (reversed case)."""
+        with patch('awslabs.stepfunctions_mcp_server.server.lambda_client', mock_lambda_client):
             with caplog.at_level(logging.WARNING):
                 # Call the function
-                register_lambda_functions()
+                register_state_machines()
 
-                # Should not register any functions
-                assert mock_create_lambda_tool.call_count == 0
+                # Should not register any state machines
+                assert mock_create_state_machine_tool.call_count == 0
 
                 # Should log a warning
                 assert (
-                    'Both FUNCTION_TAG_KEY and FUNCTION_TAG_VALUE must be set to filter by tag'
+                    'Both STATE_MACHINE_TAG_KEY and STATE_MACHINE_TAG_VALUE must be set to filter by tag'
                     in caplog.text
                 )
 
 
-class TestValidateFunctionNameCoverage:
-    """Additional tests for the validate_function_name function to improve coverage."""
+class TestValidateStateMachineNameCoverage:
+    """Additional tests for the validate_state_machine_name function to improve coverage."""
 
-    def test_validate_function_name_edge_cases(self):
-        """Test edge cases for function name validation."""
-        # Empty function name
-        assert validate_function_name('') is True  # When no filters are set
+    def test_validate_state_machine_name_edge_cases(self):
+        """Test edge cases for state machine name validation."""
+        # Empty state machine name
+        assert validate_state_machine_name('') is True  # When no filters are set
 
         # With prefix set
-        with patch('awslabs.lambda_mcp_server.server.FUNCTION_PREFIX', 'test-'):
-            assert validate_function_name('') is False
-            assert validate_function_name('test-') is True
-            assert validate_function_name('test') is False
+        with patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_PREFIX', 'test-'):
+            assert validate_state_machine_name('') is False
+            assert validate_state_machine_name('test-') is True
+            assert validate_state_machine_name('test') is False
 
         # With list set
-        with patch('awslabs.lambda_mcp_server.server.FUNCTION_LIST', ['func1', 'func2']):
-            assert validate_function_name('') is False
-            assert validate_function_name('func1') is True
-            assert validate_function_name('func3') is False
+        with patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_LIST', ['sm1', 'sm2']):
+            assert validate_state_machine_name('') is False
+            assert validate_state_machine_name('sm1') is True
+            assert validate_state_machine_name('sm3') is False
 
 
 class TestSanitizeToolNameCoverage:
@@ -160,7 +160,7 @@ class TestSanitizeToolNameCoverage:
         assert sanitize_tool_name('!@#$%^') == '______'
 
         # Name with mixed valid and invalid characters
-        assert sanitize_tool_name('func-123!@#') == 'func_123___'
+        assert sanitize_tool_name('sm-123!@#') == 'sm_123___'
 
         # Name starting with multiple numbers
-        assert sanitize_tool_name('123func') == '_123func'
+        assert sanitize_tool_name('123sm') == '_123sm'

@@ -1,4 +1,4 @@
-"""Additional integration tests to improve coverage for the lambda-mcp-server."""
+"""Additional integration tests to improve coverage for the stepfunctions-mcp-server."""
 
 import json
 import pytest
@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.lambda_mcp_server.server import (
-        invoke_lambda_function_impl,
+    from awslabs.stepfunctions_mcp_server.server import (
+        invoke_state_machine_impl,
     )
 
 
@@ -17,9 +17,9 @@ class TestServerIntegrationCoverage:
     """Additional integration tests for the server module to improve coverage."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.lambda_mcp_server.server.lambda_client')
-    async def test_lambda_function_binary_response(self, mock_lambda_client):
-        """Test the Lambda function with binary response."""
+    @patch('awslabs.stepfunctions_mcp_server.server.lambda_client')
+    async def test_state_machine_binary_response(self, mock_lambda_client):
+        """Test the Step Functions state machine with binary response."""
         # Set up the mock
         mock_payload = MagicMock()
         mock_payload.read.return_value = b'\x80\x81\x82\x83'  # Invalid UTF-8 sequence
@@ -34,22 +34,22 @@ class TestServerIntegrationCoverage:
         ctx.error = AsyncMock()
 
         # Call the function
-        result = await invoke_lambda_function_impl('binary-function', {'param': 'value'}, ctx)
+        result = await invoke_state_machine_impl('binary-state-machine', {'param': 'value'}, ctx)
 
-        # Check that the Lambda function was invoked with the correct parameters
+        # Check that the state machine was invoked with the correct parameters
         mock_lambda_client.invoke.assert_called_once()
 
         # Check that the context methods were called
         ctx.info.assert_called()
 
         # Check the result
-        assert 'Function binary-function returned payload:' in result
+        assert 'State machine binary-state-machine returned payload:' in result
         assert "b'\\x80\\x81\\x82\\x83'" in result
 
     @pytest.mark.asyncio
-    @patch('awslabs.lambda_mcp_server.server.lambda_client')
-    async def test_lambda_function_empty_response(self, mock_lambda_client):
-        """Test the Lambda function with empty response."""
+    @patch('awslabs.stepfunctions_mcp_server.server.lambda_client')
+    async def test_state_machine_empty_response(self, mock_lambda_client):
+        """Test the Step Functions state machine with empty response."""
         # Set up the mock
         mock_payload = MagicMock()
         mock_payload.read.return_value = b''
@@ -64,22 +64,22 @@ class TestServerIntegrationCoverage:
         ctx.error = AsyncMock()
 
         # Call the function
-        result = await invoke_lambda_function_impl('empty-function', {'param': 'value'}, ctx)
+        result = await invoke_state_machine_impl('empty-state-machine', {'param': 'value'}, ctx)
 
-        # Check that the Lambda function was invoked with the correct parameters
+        # Check that the state machine was invoked with the correct parameters
         mock_lambda_client.invoke.assert_called_once()
 
         # Check the result
-        assert "Function empty-function returned payload: b''" == result
+        assert "State machine empty-state-machine returned payload: b''" == result
 
 
 class TestToolFunctionalityCoverage:
-    """Additional tests for the functionality of the Lambda tools to improve coverage."""
+    """Additional tests for the functionality of the Step Functions tools to improve coverage."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.lambda_mcp_server.server.lambda_client')
-    async def test_lambda_function_complex_json(self, mock_lambda_client):
-        """Test the Lambda function with complex JSON response."""
+    @patch('awslabs.stepfunctions_mcp_server.server.lambda_client')
+    async def test_state_machine_complex_json(self, mock_lambda_client):
+        """Test the Step Functions state machine with complex JSON response."""
         # Set up the mock with complex nested JSON
         complex_json = {
             'data': {
@@ -105,7 +105,7 @@ class TestToolFunctionalityCoverage:
 
         # Create a mock tool function
         async def mock_tool_function(parameters, ctx):
-            return await invoke_lambda_function_impl('complex-json-function', parameters, ctx)
+            return await invoke_state_machine_impl('complex-json-state-machine', parameters, ctx)
 
         # Create a mock context
         ctx = MagicMock(spec=Context)
@@ -113,14 +113,14 @@ class TestToolFunctionalityCoverage:
         ctx.error = AsyncMock()
 
         # Call the function
-        with patch('awslabs.lambda_mcp_server.server.mcp', mock_mcp):
+        with patch('awslabs.stepfunctions_mcp_server.server.mcp', mock_mcp):
             result = await mock_tool_function({'param': 'value'}, ctx)
 
-        # Check that the Lambda function was invoked with the correct parameters
+        # Check that the state machine was invoked with the correct parameters
         mock_lambda_client.invoke.assert_called_once()
 
         # Check the result
-        assert 'Function complex-json-function returned:' in result
+        assert 'State machine complex-json-state-machine returned:' in result
         assert '"data": {' in result
         assert '"nested": {' in result
         assert '"array": [' in result

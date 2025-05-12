@@ -1,1 +1,1 @@
-"""Tests for the lambda-mcp-server."""
+"""Tests for the stepfunctions-mcp-server."""

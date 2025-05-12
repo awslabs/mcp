@@ -1,7 +1,7 @@
 [project]
-name = "awslabs.lambda-mcp-server"
+name = "awslabs.stepfunctions-mcp-server"
 version = "0.1.3"
-description = "An AWS Labs Model Context Protocol (MCP) server for AWS Lambda"
+description = "An AWS Labs Model Context Protocol (MCP) server for AWS Step Functions"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -28,14 +28,14 @@ classifiers = [
 ]
 
 [project.scripts]
-"awslabs.lambda-mcp-server" = "awslabs.lambda_mcp_server.server:main"
+"awslabs.stepfunctions-mcp-server" = "awslabs.stepfunctions_mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/lambda-mcp-server/"
+Documentation = "https://awslabs.github.io/mcp/servers/stepfunctions-mcp-server/"
 Source = "https://github.com/awslabs/mcp.git"
 "Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/lambda-mcp-server/CHANGELOG.md"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/stepfunctions-mcp-server/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
@@ -100,7 +100,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/lambda_mcp_server/__init__.py:__version__"
+    "awslabs/stepfunctions_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
@@ -114,7 +114,7 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "--cov=awslabs.lambda_mcp_server --cov-report=term-missing"
+addopts = "--cov=awslabs.stepfunctions_mcp_server --cov-report=term-missing"
 markers = [
     "live: mark test as making live API calls",
     "asyncio: mark a test as an asyncio coroutine",
