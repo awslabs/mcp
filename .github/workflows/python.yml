@@ -142,7 +142,7 @@ jobs:
               fi;
             ) || echo "good $line"
           done < .venv/FILES;
-          uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format XML > sbom.xml
+          uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format JSON > sbom.json
       - name: Display SBOM
         working-directory: src/${{ matrix.package }}
         run: |
@@ -237,4 +237,4 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sbom-${{ matrix.package }}
-          path: src/${{ matrix.package }}/sbom.xml
+          path: src/${{ matrix.package }}/sbom.json
