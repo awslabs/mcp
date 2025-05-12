@@ -1,40 +1,68 @@
 {
+  "containerEnv": {
+    "MY_CONTAINER_VAR": "${localEnv:MY_CONTAINER_VAR:default-container-here}"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
-        "AmazonWebServices.amazon-q-vscode",
-        "AmazonWebServices.aws-toolkit-vscode",
-        "GitHub.vscode-github-actions",
-        "GitHub.vscode-pull-request-github",
-        "GitHub.copilot",
-        "GitHub.copilot-chat",
+        "amazonwebservices.amazon-q-vscode",
+        "amazonwebservices.aws-toolkit-vscode",
+        "github.copilot",
+        "github.copilot-chat",
+        "github.codespaces",
+        "github.vscode-github-actions",
+        "github.vscode-pull-request-github",
         "ms-azuretools.vscode-docker",
-        "ms-python.python",
-        "ms-python.vscode-pylance",
+        "ms-vscode-remote.remote-containers",
         "saoudrizwan.claude-dev"
       ]
     }
   },
   "features": {
-    "ghcr.io/devcontainers-extra/features/typescript:2": {
-      "version": "2.0.15"
+    "ghcr.io/devcontainers-extra/features/aws-cdk:2.0.15": {},
+    "ghcr.io/devcontainers-extra/features/typescript:2.0.15": {},
+    "ghcr.io/devcontainers/features/aws-cli:1.1.1": {},
+    "ghcr.io/devcontainers/features/common-utils:2.5.3": {
+      "configureZshAsDefaultShell": true
     },
-    "ghcr.io/devcontainers/features/python:1": {
-      "version": "1.7.1"
+    "ghcr.io/devcontainers/features/go:1.3.2": {},
+    "ghcr.io/devcontainers/features/java:1.6.3": {
+      "jdkDistro": "amzn"
     },
-    "ghcr.io/devcontainers/features/ruby:1": {
-      "version": "1.3.1"
-    },
-    "ghcr.io/devcontainers/features/rust:1": {
-      "version": "1.3.2"
-    },
-    "ghcr.io/devcontainers/features/terraform:1": {
-      "version": "1.3.10"
-    }
+    "ghcr.io/devcontainers/features/node:1.6.2": {},
+    "ghcr.io/devcontainers/features/nvidia-cuda:1.2.1": {},
+    "ghcr.io/devcontainers/features/powershell:1.5.1": {},
+    "ghcr.io/devcontainers/features/python:1.7.1": {},
+    "ghcr.io/devcontainers/features/ruby:1.3.1": {},
+    "ghcr.io/devcontainers/features/rust:1.3.2": {},
+    "ghcr.io/devcontainers/features/sshd:1.0.10": {},
+    "ghcr.io/devcontainers/features/terraform:1.3.10": {}
   },
   "hostRequirements": {
     "cpus": 4
   },
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "postCreateCommand": "pip install uv pre-commit detect-secrets && pre-commit run --all-files"
+  "image": "mcr.microsoft.com/devcontainers/universal:2.9.0",
+  "postCreateCommand": {
+    "Install Extra Apt Packages": "sudo apt -y update && sudo apt -y install graphviz",
+    "Install Extra Node Packages": "npm install --global @anthropic-ai/claude-code",
+    "Install Extra Python Packages": "pip install uv pre-commit detect-secrets cookiecutter pyright pytest pytest-asyncio pytest-cov pytest-mock"
+  },
+  "postStartCommand": {
+    "Install Pre-Commit": "pre-commit install"
+  },
+  "remoteEnv": {
+    "ANTHROPIC_MODEL": "${localEnv:ANTHROPIC_MODEL:us.anthropic.claude-3-7-sonnet-20250219-v1:0}",
+    "AWS_ACCESS_KEY_ID": "${localEnv:AWS_ACCESS_KEY_ID}",
+    "AWS_DEFAULT_REGION": "${localEnv:AWS_DEFAULT_REGION:us-west-2}",
+    "AWS_PROFILE": "${localEnv:AWS_PROFILE:default}",
+    "AWS_REGION": "${localEnv:AWS_REGION:us-west-2}",
+    "AWS_SECRET_ACCESS_KEY": "${localEnv:AWS_SECRET_ACCESS_KEY}",
+    "AWS_SESSION_TOKEN": "${localEnv:AWS_SESSION_TOKEN}",
+    "CLAUDE_CODE_USE_BEDROCK": "1",
+    "DISABLE_PROMPT_CACHING": "1",
+    "GITHUB_DYNAMIC_TOOLSETS": "1",
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "GITHUB_TOOLSETS": "all",
+    "MY_ENV_VAR": "${containerEnv:MY_CONTAINER_VAR:default-local-here}"
+  }
 }

@@ -92,7 +92,6 @@ The AWS Lambda MCP Server enables AI assistants to select and run AWS Lambda fun
 
 [Learn more about the AWS Lambda MCP Server](servers/lambda-mcp-server.md)
 
-
 ### AWS Diagram MCP Server
 
 This MCP server that seamlessly creates [diagrams](https://diagrams.mingrammer.com/) using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
@@ -137,6 +136,47 @@ The Code Documentation Generation MCP Server automatically generates comprehensi
 - Interactive documentation creation workflow
 
 [Learn more about the Code Documentation Generation MCP Server](servers/code-doc-generation-mcp-server.md)
+
+### AWS Location Service MCP Server
+
+A server for accessing AWS Location Service capabilities, focusing on place search, geographical coordinates, and route planning.
+
+**Features:**
+
+- Search for places using geocoding
+- Get details for specific places by PlaceId
+- Reverse geocode coordinates to addresses
+- Search for places near a location
+- Search for places that are currently open
+- Calculate routes between locations with turn-by-turn directions
+- Optimize waypoints for efficient routing
+
+[Learn more about the AWS Location Service MCP Server](servers/aws-location-mcp-server.md)
+
+### Git Repo Research MCP Server
+
+A server for researching Git repositories using semantic search.
+
+**Features:**
+
+- Repository Indexing with FAISS and Amazon Bedrock embeddings
+- Semantic Search within repositories
+- Repository Structure Analysis
+- GitHub Repository Search in AWS organizations
+- File Access with text and binary support
+
+[Learn more about the Git Repo Research MCP Server](servers/git-repo-research-mcp-server.md)
+
+### Postgres MCP Server
+
+A server for Aurora Postgres.
+
+**Features:**
+
+- Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora Postgres database
+- Fetch table columns and comments from Postgres using RDS Data API
+
+[Learn more about the Postgres MCP Server](servers/postgres-mcp-server.md)
 
 ## Installation and Setup
 
