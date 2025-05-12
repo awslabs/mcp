@@ -125,18 +125,6 @@ The Terraform MCP Server provides the following capabilities:
 
 [Learn more about the AWS Terraform MCP Server](servers/terraform-mcp-server.md)
 
-### Frontend MCP Server
-
-The Frontend MCP Server provides specialized tools for modern web application development with React.
-
-**Features:**
-
-- Modern React Application Setup with best practices
-- Optimistic UI Implementation with React Query and Zustand
-- Authentication Integration with AWS Amplify Authenticator
-
-[Learn more about the Frontend MCP Server](servers/frontend-mcp-server.md)
-
 ### Code Documentation Generation MCP Server
 
 The Code Documentation Generation MCP Server automatically generates comprehensive documentation for code repositories.
