@@ -49,7 +49,7 @@ with pytest.MonkeyPatch().context() as CTX:
 
             # Check that create_lambda_tool was called with the correct arguments
             mock_create_lambda_tool.assert_called_once_with(
-                'test-function', 'Test function description'
+                'test-function', 'Test function description', None
             )
 
         @pytest.mark.asyncio
