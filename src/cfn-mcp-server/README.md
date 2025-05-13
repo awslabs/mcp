@@ -1,4 +1,4 @@
-# AWS Infrastructure as Code MCP Server
+# CloudFormation MCP Server
 
 Model Context Protocol (MCP) server that enables LLMs to directly create and manage over 1,100 AWS resources through natural language using AWS Cloud Control API with Infrastructure as Code best practices.
 
@@ -29,7 +29,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
   "mcpServers": {
     "awslabs.aws-infrastructure-as-code-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-iac-mcp-server@latest"],
+      "args": ["awslabs.aws-cfn-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-named-profile",
       }
@@ -83,6 +83,8 @@ Examples of how to use the AWS Infrastructure as Code MCP Server:
 - "Implement cross-region replication for critical S3 buckets"
 - "Show me the schema for AWS::Lambda::Function"
 
+## Resource Type support
+Resources which are supported by this MCP and the supported operations can be found here: https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html
 
 ## Security Considerations
 
@@ -93,6 +95,7 @@ When using this MCP server, you should consider:
 - Configure resource-specific permissions when possible instead of wildcard permissions
 - Consider using resource tagging for better governance and cost management
 - Review all changes made by the MCP server as part of your regular security reviews
+- If you would like to restrict the MCP to readonly operations, specify --readonly True in the startup arguments for the MCP
 
 ### Required IAM Permissions
 
@@ -112,19 +115,6 @@ Ensure your AWS credentials have the following minimum permissions:
                 "cloudcontrol:UpdateResource"
             ],
             "Resource": "*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:PutObject",
-                "s3:GetObject"
-            ],
-            "Resource": "arn:aws:s3:::${S3_EXPORT_BUCKET}/${S3_EXPORT_PREFIX}*",
-            "Condition": {
-                "Bool": {
-                    "aws:SecureTransport": "true"
-                }
-            }
         }
     ]
 }

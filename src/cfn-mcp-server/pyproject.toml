@@ -1,5 +1,5 @@
 [project]
-name = "awslabs.iac-mcp-server"
+name = "awslabs.cfn-mcp-server"
 version = "0.0.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for doing common infrastructure as code tasks and for managing your resources in your AWS account"
 readme = "README.md"
@@ -30,13 +30,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/iac-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/iac-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/cfn-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/cfn-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/iac-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/cfn-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.iac-mcp-server" = "awslabs.iac_mcp_server.server:main"
+"awslabs.cfn-mcp-server" = "awslabs.cfn_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -105,7 +105,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/iac_mcp_server/__init__.py:__version__"
+    "awslabs/cfn_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 

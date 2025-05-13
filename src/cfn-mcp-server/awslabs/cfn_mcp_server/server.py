@@ -9,24 +9,25 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-"""awslabs iac MCP Server implementation."""
+"""awslabs CFN MCP Server implementation."""
 
 import argparse
 import json
-from awslabs.iac_mcp_server.aws_client import get_aws_client
-from awslabs.iac_mcp_server.cloud_control_utils import progress_event, validate_patch
-from awslabs.iac_mcp_server.errors import ClientError, handle_aws_api_error
-from awslabs.iac_mcp_server.schema_manager import schema_manager
+from awslabs.cfn_mcp_server.aws_client import get_aws_client
+from awslabs.cfn_mcp_server.cloud_control_utils import progress_event, validate_patch
+from awslabs.cfn_mcp_server.context import Context
+from awslabs.cfn_mcp_server.errors import ClientError, handle_aws_api_error
+from awslabs.cfn_mcp_server.schema_manager import schema_manager
 from mcp.server.fastmcp import FastMCP
 
 
 mcp = FastMCP(
-    'awslabs.iac-mcp-server',
+    'awslabs.cfn-mcp-server',
     instructions="""
-    # Infrastructure as Code MCP
+    # CloudFormation MCP
 
     This MCP allows you to:
-    1. Read and List all of your AWS resources
+    1. Read and List all of your AWS resources by the CloudFormation type name (e.g. AWS::S3::Bucket)
     2. Create/Update/Delete your AWS resources
     """,
     dependencies=[
@@ -156,6 +157,11 @@ async def update_resource(
     if not patch_document:
         raise ClientError('Please provide a patch document for the update')
 
+    if Context.readonly_mode():
+        raise ClientError(
+            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
+        )
+
     validate_patch(patch_document)
     cloudcontrol_client = get_aws_client('cloudcontrol', region)
 
@@ -202,6 +208,11 @@ async def create_resource(
     if not properties:
         raise ClientError('Please provide the properties for the desired resource')
 
+    if Context.readonly_mode():
+        raise ClientError(
+            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
+        )
+
     cloudcontrol_client = get_aws_client('cloudcontrol', region)
     try:
         response = cloudcontrol_client.create_resource(
@@ -240,6 +251,11 @@ async def delete_resource(
 
     if not identifier:
         raise ClientError('Please provide a resource identifier')
+
+    if Context.readonly_mode():
+        raise ClientError(
+            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
+        )
 
     cloudcontrol_client = get_aws_client('cloudcontrol', region)
     try:
@@ -290,12 +306,19 @@ async def get_request_status(request_token: str | None = None, region: str | Non
 def main():
     """Run the MCP server with CLI argument support."""
     parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for doing common infrastructure as code tasks and for managing your resources in your AWS account'
+        description='An AWS Labs Model Context Protocol (MCP) server for doing common cloudformation tasks and for managing your resources in your AWS account'
     )
     parser.add_argument('--sse', action='store_true', help='Use SSE transport')
     parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
+    parser.add_argument(
+        '--readonly',
+        type=bool,
+        default=False,
+        help='Prevents the MCP server from performing mutating operations',
+    )
 
     args = parser.parse_args()
+    Context.initialize(args.readonly)
 
     # Run server with appropriate transport
     if args.sse:

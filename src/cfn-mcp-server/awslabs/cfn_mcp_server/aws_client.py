@@ -10,7 +10,7 @@
 # and limitations under the License.
 
 import sys
-from awslabs.iac_mcp_server.errors import ClientError
+from awslabs.cfn_mcp_server.errors import ClientError
 from boto3 import Session
 from os import environ
 

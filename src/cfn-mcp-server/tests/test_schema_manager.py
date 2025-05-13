@@ -8,12 +8,12 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""Tests for the iac MCP Server."""
+"""Tests for the cfn MCP Server."""
 
 import pytest
 import random
 import string
-from awslabs.iac_mcp_server.schema_manager import schema_manager
+from awslabs.cfn_mcp_server.schema_manager import schema_manager
 from unittest.mock import MagicMock, patch
 
 
@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 class TestSchemaManager:
     """Tests on the schema_manager module."""
 
-    @patch('awslabs.iac_mcp_server.schema_manager.get_aws_client')
+    @patch('awslabs.cfn_mcp_server.schema_manager.get_aws_client')
     async def test_download_schema(self, mock_get_aws_client):
         """Testing getting a schema from download."""
         # Setup the mock
@@ -41,7 +41,7 @@ class TestSchemaManager:
         result = await sm.get_schema(type_name)
         assert result['properties'] == {}
 
-    @patch('awslabs.iac_mcp_server.schema_manager.get_aws_client')
+    @patch('awslabs.cfn_mcp_server.schema_manager.get_aws_client')
     async def test_load_schema(self, mock_get_aws_client):
         """Testing testing a schema that was already in the registry."""
         # Setup the mock

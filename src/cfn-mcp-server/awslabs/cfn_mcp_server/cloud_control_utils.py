@@ -9,7 +9,7 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-from awslabs.iac_mcp_server.errors import ClientError
+from awslabs.cfn_mcp_server.errors import ClientError
 
 
 def validate_patch(patch_document: list):

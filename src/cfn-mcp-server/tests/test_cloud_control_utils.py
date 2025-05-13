@@ -8,11 +8,11 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""Tests for the iac MCP Server."""
+"""Tests for the cfn MCP Server."""
 
 import pytest
-from awslabs.iac_mcp_server.cloud_control_utils import progress_event, validate_patch
-from awslabs.iac_mcp_server.errors import ClientError
+from awslabs.cfn_mcp_server.cloud_control_utils import progress_event, validate_patch
+from awslabs.cfn_mcp_server.errors import ClientError
 
 
 @pytest.mark.asyncio

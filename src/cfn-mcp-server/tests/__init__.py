@@ -8,7 +8,4 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-
-"""awslabs.iac-mcp-server"""
-
-__version__ = '0.0.0'
+"""Tests for the CloudFormation MCP Server."""

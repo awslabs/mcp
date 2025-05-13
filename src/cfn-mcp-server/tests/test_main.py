@@ -10,15 +10,15 @@
 # and limitations under the License.
 """Tests for the main function in server.py."""
 
-from awslabs.iac_mcp_server.server import main
+from awslabs.cfn_mcp_server.server import main
 from unittest.mock import patch
 
 
 class TestMain:
     """Tests for the main function."""
 
-    @patch('awslabs.iac_mcp_server.server.mcp.run')
-    @patch('sys.argv', ['awslabs.iac-mcp-server'])
+    @patch('awslabs.cfn_mcp_server.server.mcp.run')
+    @patch('sys.argv', ['awslabs.cfn-mcp-server'])
     def test_main_default(self, mock_run):
         """Test main function with default arguments."""
         # Call the main function
@@ -28,8 +28,8 @@ class TestMain:
         mock_run.assert_called_once()
         assert mock_run.call_args[1].get('transport') is None
 
-    @patch('awslabs.iac_mcp_server.server.mcp.run')
-    @patch('sys.argv', ['awslabs.iac-mcp-server', '--sse', '--port', '9999'])
+    @patch('awslabs.cfn_mcp_server.server.mcp.run')
+    @patch('sys.argv', ['awslabs.cfn-mcp-server', '--sse', '--port', '9999'])
     def test_main_sse(self, mock_run):
         """Test main function with SSE transport."""
         # Call the main function
@@ -40,7 +40,7 @@ class TestMain:
         assert mock_run.call_args[1].get('transport') == 'sse'
 
         # Check that the port was set correctly
-        from awslabs.iac_mcp_server.server import mcp
+        from awslabs.cfn_mcp_server.server import mcp
 
         assert mcp.settings.port == 9999
 
@@ -51,7 +51,7 @@ class TestMain:
 
         # Get the source code of the module
         import inspect
-        from awslabs.iac_mcp_server import server
+        from awslabs.cfn_mcp_server import server
 
         # Get the source code
         source = inspect.getsource(server)

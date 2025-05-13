@@ -40,7 +40,7 @@ ENV/
 .coverage.*
 htmlcov/
 .pytest_cache/
-awslabs/iac_mcp_server/.schemas/
+awslabs/cfn_mcp_server/.schemas/
 
 # Ruff
 .ruff_cache/

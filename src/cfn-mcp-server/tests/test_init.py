@@ -8,7 +8,7 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""Tests for the awslabs.iac-mcp-server package."""
+"""Tests for the awslabs.cfn-mcp-server package."""
 
 import importlib
 import re
@@ -20,30 +20,30 @@ class TestInit:
     def test_version(self):
         """Test that __version__ is defined and follows semantic versioning."""
         # Import the module
-        import awslabs.iac_mcp_server
+        import awslabs.cfn_mcp_server
 
         # Check that __version__ is defined
-        assert hasattr(awslabs.iac_mcp_server, '__version__')
+        assert hasattr(awslabs.cfn_mcp_server, '__version__')
 
         # Check that __version__ is a string
-        assert isinstance(awslabs.iac_mcp_server.__version__, str)
+        assert isinstance(awslabs.cfn_mcp_server.__version__, str)
 
         # Check that __version__ follows semantic versioning (major.minor.patch)
         version_pattern = r'^\d+\.\d+\.\d+$'
-        assert re.match(version_pattern, awslabs.iac_mcp_server.__version__), (
-            f"Version '{awslabs.iac_mcp_server.__version__}' does not follow semantic versioning"
+        assert re.match(version_pattern, awslabs.cfn_mcp_server.__version__), (
+            f"Version '{awslabs.cfn_mcp_server.__version__}' does not follow semantic versioning"
         )
 
     def test_module_reload(self):
         """Test that the module can be reloaded."""
         # Import the module
-        import awslabs.iac_mcp_server
+        import awslabs.cfn_mcp_server
 
         # Store the original version
-        original_version = awslabs.iac_mcp_server.__version__
+        original_version = awslabs.cfn_mcp_server.__version__
 
         # Reload the module
-        importlib.reload(awslabs.iac_mcp_server)
+        importlib.reload(awslabs.cfn_mcp_server)
 
         # Check that the version is still the same
-        assert awslabs.iac_mcp_server.__version__ == original_version
+        assert awslabs.cfn_mcp_server.__version__ == original_version

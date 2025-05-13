@@ -11,8 +11,8 @@
 
 import json
 import os
-from awslabs.iac_mcp_server.aws_client import get_aws_client
-from awslabs.iac_mcp_server.errors import ClientError
+from awslabs.cfn_mcp_server.aws_client import get_aws_client
+from awslabs.cfn_mcp_server.errors import ClientError
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict
@@ -106,7 +106,9 @@ class SchemaManager:
         schema = await self._download_resource_schema(resource_type, region)
         return schema
 
-    async def _download_resource_schema(self, resource_type: str, region: str = None) -> dict:
+    async def _download_resource_schema(
+        self, resource_type: str, region: str | None = None
+    ) -> dict:
         """Download schema for a specific resource type.
 
         Args:
