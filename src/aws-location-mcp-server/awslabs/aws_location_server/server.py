@@ -12,6 +12,7 @@
 """Amazon Location Service MCP Server implementation using geo-places client only."""
 
 import argparse
+import asyncio
 import boto3
 import botocore.config
 import botocore.exceptions
@@ -21,7 +22,6 @@ from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Dict, Optional
-import asyncio
 
 
 # Set up logging
@@ -101,6 +101,7 @@ class GeoRoutesClient:
     """Amazon Location Service geo-routes client wrapper."""
 
     def __init__(self):
+        """Initialize the Amazon geo-routes client."""
         self.aws_region = os.environ.get('AWS_REGION', 'us-east-1')
         self.geo_routes_client = None
         config = botocore.config.Config(
@@ -644,28 +645,37 @@ async def search_places_open_now(
 async def calculate_route(
     ctx: Context,
     departure_position: list = Field(description='Departure position as [longitude, latitude]'),
-    destination_position: list = Field(description='Destination position as [longitude, latitude]'),
-    travel_mode: str = Field(default='Car', description="Travel mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')"),
-    optimize_for: str = Field(default='FastestRoute', description="Optimize route for 'FastestRoute' or 'ShortestRoute' (default: 'FastestRoute')")
+    destination_position: list = Field(
+        description='Destination position as [longitude, latitude]'
+    ),
+    travel_mode: str = Field(
+        default='Car',
+        description="Travel mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')",
+    ),
+    optimize_for: str = Field(
+        default='FastestRoute',
+        description="Optimize route for 'FastestRoute' or 'ShortestRoute' (default: 'FastestRoute')",
+    ),
 ) -> dict:
-    """
-    Calculate a route and return summary info and turn-by-turn directions.
+    """Calculate a route and return summary info and turn-by-turn directions.
+
     Parameters:
         departure_position: [lon, lat]
         destination_position: [lon, lat]
         travel_mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')
         optimize_for: 'FastestRoute' or 'ShortestRoute' (default: 'FastestRoute')
+
     Returns:
-        dict with distance, duration, and turn_by_turn directions (list of step summaries)
+        dict with distance, duration, and turn_by_turn directions (list of step summaries).
     """
     include_leg_geometry = False
     mode = 'summary'
     client = GeoRoutesClient().geo_routes_client
-    
+
     # Check if client is None before proceeding
     if client is None:
         return {'error': 'Failed to initialize Amazon geo-routes client'}
-    
+
     params = {
         'Origin': departure_position,
         'Destination': destination_position,
@@ -693,7 +703,9 @@ async def calculate_route(
                     'distance_meters': step.get('Distance'),
                     'duration_seconds': step.get('Duration'),
                     'type': step.get('Type'),
-                    'road_name': step.get('NextRoad', {}).get('RoadName') if step.get('NextRoad') else None,
+                    'road_name': step.get('NextRoad', {}).get('RoadName')
+                    if step.get('NextRoad')
+                    else None,
                 }
                 turn_by_turn.append(step_summary)
         return {
@@ -709,21 +721,31 @@ async def calculate_route(
 async def optimize_waypoints(
     ctx: Context,
     origin_position: list = Field(description='Origin position as [longitude, latitude]'),
-    destination_position: list = Field(description='Destination position as [longitude, latitude]'),
-    waypoints: list = Field(description='List of intermediate waypoints, each as a dict with at least Position [longitude, latitude], optionally Id'),
-    travel_mode: str = Field(default='Car', description="Travel mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')"),
-    mode: str = Field(default='summary', description="Output mode: 'summary' (default) or 'raw' for all AWS fields"),
+    destination_position: list = Field(
+        description='Destination position as [longitude, latitude]'
+    ),
+    waypoints: list = Field(
+        description='List of intermediate waypoints, each as a dict with at least Position [longitude, latitude], optionally Id'
+    ),
+    travel_mode: str = Field(
+        default='Car',
+        description="Travel mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')",
+    ),
+    mode: str = Field(
+        default='summary',
+        description="Output mode: 'summary' (default) or 'raw' for all AWS fields",
+    ),
 ) -> Dict:
-    """
-    Optimize the order of waypoints using Amazon Location Service geo-routes optimize_waypoints API (V2).
+    """Optimize the order of waypoints using Amazon Location Service geo-routes optimize_waypoints API (V2).
+
     Returns summary (optimized order, total distance, duration, etc.) or full response if mode='raw'.
     """
     client = GeoRoutesClient().geo_routes_client
-    
+
     # Check if client is None before proceeding
     if client is None:
         return {'error': 'Failed to initialize Amazon geo-routes client'}
-    
+
     params = {
         'Origin': origin_position,
         'Destination': destination_position,

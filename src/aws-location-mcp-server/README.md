@@ -59,9 +59,9 @@ For temporary credentials (such as those from AWS STS, IAM roles, or federation)
         "command": "uvx",
         "args": ["awslabs.aws-location-mcp-server@latest"],
         "env": {
-          "AWS_ACCESS_KEY_ID": "your-temporary-access-key",
-          "AWS_SECRET_ACCESS_KEY": "your-temporary-secret-key",
-          "AWS_SESSION_TOKEN": "your-session-token",
+          "AWS_ACCESS_KEY_ID": "your-temporary-access-key", # pragma: allowlist secret
+          "AWS_SECRET_ACCESS_KEY": "your-temporary-secret-key", # pragma: allowlist secret
+          "AWS_SESSION_TOKEN": "your-session-token", # pragma: allowlist secret
           "AWS_REGION": "us-east-1",
           "FASTMCP_LOG_LEVEL": "ERROR"
         },
@@ -112,9 +112,9 @@ After building with `docker build -t awslabs/aws-location-mcp-server .`:
           "awslabs/aws-location-mcp-server"
         ],
         "env": {
-          "AWS_ACCESS_KEY_ID": "your-temporary-access-key",
-          "AWS_SECRET_ACCESS_KEY": "your-temporary-secret-key",
-          "AWS_SESSION_TOKEN": "your-session-token",
+          "AWS_ACCESS_KEY_ID": "your-temporary-access-key", # pragma: allowlist secret
+          "AWS_SECRET_ACCESS_KEY": "your-temporary-secret-key", # pragma: allowlist secret
+          "AWS_SESSION_TOKEN": "your-session-token", # pragma: allowlist secret
           "AWS_REGION": "us-east-1"
         },
         "disabled": false,
