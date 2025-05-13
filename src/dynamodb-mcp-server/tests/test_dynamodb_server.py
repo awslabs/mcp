@@ -3,7 +3,7 @@ import pytest_asyncio
 import asyncio
 from moto import mock_aws
 import boto3
-from src.dynamodb_server import (
+from awslabs.dynamodb_mcp_server.dynamodb_server import (
     create_table, put_item, get_item, update_item, delete_item,
     scan, query, describe_table, list_tables, create_backup,
     describe_backup, list_backups, restore_table_from_backup,
