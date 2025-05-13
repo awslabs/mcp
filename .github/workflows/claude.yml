@@ -80,7 +80,7 @@ jobs:
             # Find Conclusions that are not Success
             cat pull_request_runs.json | \
               jq '.[] | select(.conclusion != "success")' | \
-              jq --slurp '. | if length>0 then error("\n\n\(.) \n\nincomplete worflow status or not a successful conclusion")'
+              jq --slurp '. | if length>0 then error("\n\n\(.) \n\nincomplete worflow status or not a successful conclusion") else empty end'
 
   claude:
     name: Perform Code Review
