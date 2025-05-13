@@ -8,7 +8,7 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""Live test for the read_documentation tool in the AWS Documentation MCP server."""
+"""Live test for the read_documentation tool in the AWS China Documentation MCP server."""
 
 import pytest
 from awslabs.aws_cn_documentation_mcp_server.server import read_documentation
@@ -54,7 +54,7 @@ async def test_read_documentation_live():
         assert marker.lower() in result.lower(), f"Expected to find '{marker}' in the result"
 
     # Check that the content is properly formatted
-    assert 'AWS Documentation from' in result
+    assert 'AWS China Documentation from' in result
 
     # Check that the result doesn't contain error messages
     error_indicators = ['<e>Error', 'Failed to fetch']

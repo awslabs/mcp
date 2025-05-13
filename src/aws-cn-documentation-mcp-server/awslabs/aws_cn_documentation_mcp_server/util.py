@@ -8,7 +8,7 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""Utility functions for AWS Documentation MCP Server."""
+"""Utility functions for AWS China Documentation MCP Server."""
 
 import markdownify
 from awslabs.aws_cn_documentation_mcp_server.models import RecommendationResult
@@ -166,19 +166,19 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     original_length = len(content)
 
     if start_index >= original_length:
-        return f'AWS Documentation from {url}:\n\n<e>No more content available.</e>'
+        return f'AWS China Documentation from {url}:\n\n<e>No more content available.</e>'
 
     # Calculate the end index, ensuring we don't go beyond the content length
     end_index = min(start_index + max_length, original_length)
     truncated_content = content[start_index:end_index]
 
     if not truncated_content:
-        return f'AWS Documentation from {url}:\n\n<e>No more content available.</e>'
+        return f'AWS China Documentation from {url}:\n\n<e>No more content available.</e>'
 
     actual_content_length = len(truncated_content)
     remaining_content = original_length - (start_index + actual_content_length)
 
-    result = f'AWS Documentation from {url}:\n\n{truncated_content}'
+    result = f'AWS China Documentation from {url}:\n\n{truncated_content}'
 
     # Only add the prompt to continue fetching if there is still remaining content
     if remaining_content > 0:

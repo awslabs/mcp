@@ -8,7 +8,7 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""Live test for the recommend tool in the AWS Documentation MCP server."""
+"""Live test for the recommend tool in the AWS China Documentation MCP server."""
 
 import asyncio
 import pytest

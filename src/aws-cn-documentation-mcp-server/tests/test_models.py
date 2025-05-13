@@ -8,7 +8,7 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""Tests for data models in the AWS Documentation MCP Server."""
+"""Tests for data models in the AWS China Documentation MCP Server."""
 
 from awslabs.aws_cn_documentation_mcp_server.models import (
     RecommendationResult,

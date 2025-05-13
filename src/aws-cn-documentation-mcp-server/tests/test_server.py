@@ -8,7 +8,7 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""Tests for the AWS Documentation MCP Server."""
+"""Tests for the AWS China Documentation MCP Server."""
 
 import httpx
 import pytest
@@ -80,7 +80,7 @@ class TestReadDocumentation:
 
                 result = await read_documentation(ctx, url=url, max_length=10000, start_index=0)
 
-                assert 'AWS Documentation from' in result
+                assert 'AWS China Documentation from' in result
                 assert '# Test\n\nThis is a test.' in result
                 mock_get.assert_called_once()
                 mock_extract.assert_called_once()

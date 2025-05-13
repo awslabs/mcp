@@ -8,7 +8,7 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
-"""awslabs AWS Documentation MCP Server implementation."""
+"""awslabs AWS China Documentation MCP Server implementation."""
 
 import argparse
 import httpx
@@ -40,7 +40,7 @@ from typing import List, Union
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
-DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/1.0 (AWS Documentation Server)'
+DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/1.0 (AWS China Documentation Server)'
 SEARCH_API_URL = 'https://proxy.search.docs.aws.amazon.com/search'
 RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'
 
@@ -48,7 +48,7 @@ RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recomm
 mcp = FastMCP(
     'awslabs.aws-cn-documentation-mcp-server',
     instructions="""
-    # AWS Documentation MCP Server
+    # AWS China Documentation MCP Server
 
     This server provides tools to access public AWS documentation, search for content, and get recommendations.
 
@@ -195,7 +195,7 @@ async def search_documentation(
         le=50,
     ),
 ) -> List[SearchResult]:
-    """Search AWS documentation using the official AWS Documentation Search API.
+    """Search AWS documentation using the official AWS China Documentation Search API.
 
     ## Usage
 
@@ -405,7 +405,7 @@ async def recommend(
 def main():
     """Run the MCP server with CLI argument support."""
     parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for AWS Documentation'
+        description='An AWS Labs Model Context Protocol (MCP) server for AWS China Documentation'
     )
     parser.add_argument('--sse', action='store_true', help='Use SSE transport')
     parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
@@ -413,7 +413,7 @@ def main():
     args = parser.parse_args()
 
     # Log startup information
-    logger.info('Starting AWS Documentation MCP Server')
+    logger.info('Starting AWS China Documentation MCP Server')
 
     # Run server with appropriate transport
     if args.sse:
