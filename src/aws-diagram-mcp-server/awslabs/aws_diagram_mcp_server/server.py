@@ -223,34 +223,41 @@ async def mcp_get_diagram_examples(
 
 
 @mcp.tool(name='list_icons')
-async def mcp_list_diagram_icons():
-    """List all available icons from the diagrams package.
+async def mcp_list_diagram_icons(
+    provider_filter: Optional[str] = Field(
+        default=None, description='Filter icons by provider name (e.g., "aws", "gcp", "k8s")'
+    ),
+    service_filter: Optional[str] = Field(
+        default=None,
+        description='Filter icons by service name (e.g., "compute", "database", "network")',
+    ),
+):
+    """List available icons from the diagrams package, with optional filtering.
 
-    This tool dynamically inspects the diagrams package to find all available
+    This tool dynamically inspects the diagrams package to find available
     providers, services, and icons that can be used in diagrams.
 
     USAGE INSTRUCTIONS:
-    1. Use this tool to discover all available icons in the diagrams package
-    2. The response is organized by provider (aws, on-premises, etc.)
-    3. Each provider contains services (compute, database, network, etc.)
-    4. Each service contains a list of available icons
+    1. Call without filters to get a list of available providers
+    2. Call with provider_filter to get all services and icons for that provider
+    3. Call with both provider_filter and service_filter to get icons for a specific service
 
-    Example:
-    If the response shows:
-    ```
-    {'aws': {'compute': ['EC2', 'Lambda', ...]}}
-    ```
+    Example workflow:
+    - First call: list_icons() → Returns all available providers
+    - Second call: list_icons(provider_filter="aws") → Returns all AWS services and icons
+    - Third call: list_icons(provider_filter="aws", service_filter="compute") → Returns AWS compute icons
 
-    You can use these icons in your code:
-    ```
-    with Diagram('AWS Example'):
-        EC2('web') >> Lambda('process')
-    ```
+    This approach is more efficient than loading all icons at once, especially when you only need
+    icons from specific providers or services.
 
     Returns:
-        Dictionary with all available providers, services, and icons organized hierarchically
+        Dictionary with available providers, services, and icons organized hierarchically
     """
-    result = list_diagram_icons()
+    # Extract the actual values from the parameters
+    provider_filter_value = None if provider_filter is None else provider_filter
+    service_filter_value = None if service_filter is None else service_filter
+
+    result = list_diagram_icons(provider_filter_value, service_filter_value)
     return result.model_dump()
 
 
