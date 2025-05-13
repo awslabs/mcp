@@ -166,6 +166,16 @@ A server for Aurora Postgres.
 
 [Learn more about the Postgres MCP Server](servers/postgres-mcp-server.md)
 
+### AWS DynamoDB MCP Server
+
+A server for interacting with AWS DynamoDB
+
+**Features:**
+- Control Plane operations like table creation, table update, global secondary index, streams, global table management, backup, restore, etc.
+- Data Plane operations like put, get, update, query and scan.
+
+[Learn more about the AWS DynamoDB MCP Server](servers/dynamodb-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
