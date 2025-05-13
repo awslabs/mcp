@@ -3,15 +3,29 @@
 # takes the most precedence.
 
 # Default owners for everything in the repo.
-*                   @awslabs/mcp-maintainers
+*                                     @awslabs/mcp-maintainers
 
 # Secure specific files and directories
-CODE_OF_CONDUCT.md  @awslabs/mcp-admins
-CONTRIBUTING.md     @awslabs/mcp-admins
-LICENSE             @awslabs/mcp-admins
-NOTICE              @awslabs/mcp-admins
-/.github/           @awslabs/mcp-admins
-/.devcontainer/     @awslabs/mcp-admins
+CODE_OF_CONDUCT.md                    @awslabs/mcp-admins
+CONTRIBUTING.md                       @awslabs/mcp-admins
+LICENSE                               @awslabs/mcp-admins
+NOTICE                                @awslabs/mcp-admins
+/.github/                             @awslabs/mcp-admins
+/.devcontainer/                       @awslabs/mcp-admins
+
+/src/aws-diagram-mcp-server           @awslabs/mcp-maintainers 
+/src/aws-documentation-mcp-server     @awslabs/mcp-maintainers 
+/src/aws-location-mcp-server          @awslabs/mcp-maintainers 
+/src/bedrock-kb-retrieval-mcp-server  @awslabs/mcp-maintainers 
+/src/cdk-mcp-server                   @awslabs/mcp-maintainers 
+/src/core-mcp-server                  @awslabs/mcp-maintainers 
+/src/cost-analysis-mcp-server         @awslabs/mcp-maintainers 
+/src/git-repo-research-mcp-server     @awslabs/mcp-maintainers 
+/src/lambda-mcp-server                @awslabs/mcp-maintainers 
+/src/nova-canvas-mcp-server           @awslabs/mcp-maintainers 
+/src/postgres-mcp-server              @awslabs/mcp-maintainers 
+/src/syntheticdata-mcp-server         @awslabs/mcp-maintainers 
+/src/terrafor-mcp-server              @awslabs/mcp-maintainers 
 
 # Secure the CODEOWNERS file
-/.github/CODEOWNERS @awslabs/mcp-admins
+/.github/CODEOWNERS                   @awslabs/mcp-admins
