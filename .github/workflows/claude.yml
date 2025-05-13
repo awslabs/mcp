@@ -33,7 +33,7 @@ jobs:
 
           # Loop Protection of a maximum of 15 loops (coordinated to step's timeout)
           counter=0;
-          until [[ ! $a -lt 15 ]]; do
+          until [[ ! $counter -lt 15 ]]; do
 
             echo "Loop $counter waiting ${{ env.SLEEP_WAIT }}..."
             # Wait time for runs to update
@@ -65,13 +65,13 @@ jobs:
         run: |
             # Find Conclusions that are not Success
             cat pull_request_runs.json | \
-              jq '.[] | select(.conclusion != "success"))' | \
+              jq '.[] | select(.conclusion != "success")' | \
               jq --slurp '. | if length>0 then error("\n\n\(.) \n\nincomplete worflow status or not a successful conclusion")'
 
   claude:
     name: Perform Code Review
     runs-on: ubuntu-latest
-    # needs: ["precheck"]
+    needs: ["precheck"]
     permissions:
       id-token: write
       contents: read
