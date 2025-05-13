@@ -25,13 +25,13 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 {
   "mcpServers": {
     "awslabs.aws-documentation-mcp-server": {
-        "command": "uvx",
-        "args": ["awslabs.aws-documentation-mcp-server@latest"],
-        "env": {
-          "FASTMCP_LOG_LEVEL": "ERROR"
-        },
-        "disabled": false,
-        "autoApprove": []
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }
@@ -40,34 +40,34 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 or docker after a succesful `docker build -t awslabs/aws-documentation-mcp-server .`:
 
 ```json
-  {
-    "mcpServers": {
-      "awslabs.aws-documentation-mcp-server": {
-        "command": "docker",
-        "args": [
-          "run",
-          "--rm",
-          "--interactive",
-          "--env",
-          "FASTMCP_LOG_LEVEL=ERROR",
-          "awslabs/aws-documentation-mcp-server:latest"
-        ],
-        "env": {},
-        "disabled": false,
-        "autoApprove": []
-      }
+{
+  "mcpServers": {
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--interactive",
+        "--env",
+        "FASTMCP_LOG_LEVEL=ERROR",
+        "awslabs/aws-documentation-mcp-server:latest"
+      ],
+      "env": {},
+      "disabled": false,
+      "autoApprove": []
     }
   }
+}
 ```
 
 ## Basic Usage
+
 Example:
- - "look up documentation on S3 bucket naming rule. cite your sources"
- - "recommend content for page https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html"
+
+- "look up documentation on S3 bucket naming rule. cite your sources"
+- "recommend content for page https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html"
 
 ![AWS Documentation MCP Demo](https://github.com/awslabs/mcp/blob/main/src/aws-documentation-mcp-server/basic-usage.gif?raw=true)
-
-
 
 ## Tools
 
