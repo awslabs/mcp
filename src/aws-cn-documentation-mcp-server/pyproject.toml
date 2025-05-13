@@ -99,11 +99,11 @@ docstring-code-format = true
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.0.1"
+version = "0.1.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/aws-documentation_mcp_server.__init__py:__version__",
+    "awslabs/aws_cn_documentation_mcp_server/__init__.py:__version__",
 ]
 update_changelog_on_bump = true
 
