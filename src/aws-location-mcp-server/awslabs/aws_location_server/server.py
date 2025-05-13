@@ -152,9 +152,7 @@ async def search_places(
 ) -> Dict:
     """Search for places using Amazon Location Service geo-places search_text API. Geocode the query using the geocode API to get BiasPosition. If no results, try a bounding box filter. Includes contact info and opening hours if present. Output is standardized and includes all fields, even if empty or not available."""
     if not geo_places_client.geo_places_client:
-        error_msg = (
-            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
-        )
+        error_msg = 'AWS geo-places client not initialized'
         await ctx.error(error_msg)
         return {'error': error_msg}
     try:
@@ -245,7 +243,7 @@ async def search_places(
         result = {'query': query, 'places': result_places}
         return result
     except botocore.exceptions.ClientError as e:
-        error_msg = f'Amazon geo-places Service error: {str(e)}'
+        error_msg = f'AWS geo-places Service error: {str(e)}'
         print(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -267,9 +265,7 @@ async def get_place(
 ) -> Dict:
     """Get details for a place using Amazon Location Service geo-places get_place API. Output is standardized and includes all fields, even if empty or not available."""
     if not geo_places_client.geo_places_client:
-        error_msg = (
-            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
-        )
+        error_msg = 'AWS geo-places client not initialized'
         await ctx.error(error_msg)
         return {'error': error_msg}
     try:
@@ -345,9 +341,7 @@ async def reverse_geocode(
 ) -> Dict:
     """Reverse geocode coordinates to an address using Amazon Location Service geo-places reverse_geocode API."""
     if not geo_places_client.geo_places_client:
-        error_msg = (
-            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
-        )
+        error_msg = 'AWS geo-places client not initialized'
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -372,7 +366,7 @@ async def reverse_geocode(
         logger.debug(f'Reverse geocoded address for coordinates: {longitude}, {latitude}')
         return result
     except botocore.exceptions.ClientError as e:
-        error_msg = f'Amazon geo-places Service error: {str(e)}'
+        error_msg = f'AWS geo-places Service error: {str(e)}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -406,9 +400,7 @@ async def search_nearby(
     # expansion_factor: Factor to expand radius by if no results (default=2.0, ge=1.1, le=10.0)
     # mode: Output mode: 'summary' (default) or 'raw' for all AWS fields
     if not geo_places_client.geo_places_client:
-        error_msg = (
-            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
-        )
+        error_msg = 'AWS geo-places client not initialized'
         await ctx.error(error_msg)
         return {'error': error_msg}
     try:
@@ -516,9 +508,7 @@ async def search_places_open_now(
     # max_radius: Maximum search radius in meters for expansion (default=50000, ge=1, le=50000)
     # expansion_factor: Factor to expand radius by if no open places (default=2.0, ge=1.1, le=10.0)
     if not geo_places_client.geo_places_client:
-        error_msg = (
-            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
-        )
+        error_msg = 'AWS geo-places client not initialized'
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -630,7 +620,7 @@ async def search_places_open_now(
         logger.debug(f'Found {len(open_places)} places open now for query: {query}')
         return result
     except botocore.exceptions.ClientError as e:
-        error_msg = f'Amazon geo-places Service error: {str(e)}'
+        error_msg = f'AWS geo-places Service error: {str(e)}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
