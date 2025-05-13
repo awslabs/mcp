@@ -135,7 +135,7 @@ The Code Documentation Generation MCP Server automatically generates comprehensi
 - Multiple document types (README, API, Backend, Frontend)
 - Interactive documentation creation workflow
 
-[Learn more about the Code Documentation Generation MCP Server](servers/code-doc-generation-mcp-server.md)
+[Learn more about the Code Documentation Generation MCP Server](servers/code-doc-gen-mcp-server.md)
 
 ### AWS Location Service MCP Server
 

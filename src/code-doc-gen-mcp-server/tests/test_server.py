@@ -52,9 +52,7 @@ async def test_prepare_repository(mock_repomix_manager):
         'directory_structure': 'bin/\n  app.ts\nlib/\n  stack.ts',
     }
 
-    with patch(
-        'awslabs.code_doc_gen_mcp_server.server._analyze_project_structure', mock_analyze
-    ):
+    with patch('awslabs.code_doc_gen_mcp_server.server._analyze_project_structure', mock_analyze):
         # Act
         test_project_path = '/path/to/repo'
         ctx = AsyncMock()
