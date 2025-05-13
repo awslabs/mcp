@@ -28,7 +28,6 @@ jobs:
   precheck:
     name: Code Review Upon All Successful Runs
     runs-on: ubuntu-latest
-    environment: claude
     env:
       SLEEP_WAIT: ${{ vars.SLEEP_WAIT }}
       GH_TOKEN: ${{ github.token }}
