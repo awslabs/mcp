@@ -9,10 +9,9 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-"""AWS Location Service MCP Server implementation using geo-places client only."""
+"""Amazon Location Service MCP Server implementation using geo-places client only."""
 
 import argparse
-import asyncio
 import boto3
 import botocore.config
 import botocore.exceptions
@@ -22,6 +21,7 @@ from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Dict, Optional
+import asyncio
 
 
 # Set up logging
@@ -32,9 +32,9 @@ logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 mcp = FastMCP(
     'awslabs.aws-location-mcp-server',
     instructions="""
-    # AWS Location Service MCP Server (geo-places)
+    # Amazon Location Service MCP Server (geo-places)
 
-    This server provides tools to interact with AWS Location Service geo-places capabilities, focusing on place search, details, and geocoding.
+    This server provides tools to interact with Amazon Location Service geo-places capabilities, focusing on place search, details, and geocoding.
 
     ## Features
     - Search for places using text queries
@@ -44,7 +44,7 @@ mcp = FastMCP(
     - Search for places open now (extension)
 
     ## Prerequisites
-    1. Have an AWS account with AWS Location Service enabled
+    1. Have an AWS account with Amazon Location Service enabled
     2. Configure AWS CLI with your credentials and profile
     3. Set AWS_REGION environment variable if not using default
 
@@ -64,10 +64,10 @@ mcp = FastMCP(
 
 
 class GeoPlacesClient:
-    """AWS Location Service geo-places client wrapper."""
+    """Amazon Location Service geo-places client wrapper."""
 
     def __init__(self):
-        """Initialize the AWS geo-places client."""
+        """Initialize the Amazon geo-places client."""
         self.aws_region = os.environ.get('AWS_REGION', 'us-east-1')
         self.geo_places_client = None
         config = botocore.config.Config(
@@ -75,6 +75,7 @@ class GeoPlacesClient:
         )
         aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
         aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+        aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
         try:
             if aws_access_key and aws_secret_key:
                 client_args = {
@@ -83,22 +84,23 @@ class GeoPlacesClient:
                     'region_name': self.aws_region,
                     'config': config,
                 }
+                if aws_session_token:
+                    client_args['aws_session_token'] = aws_session_token
                 self.geo_places_client = boto3.client('geo-places', **client_args)
             else:
                 self.geo_places_client = boto3.client(
                     'geo-places', region_name=self.aws_region, config=config
                 )
-            logger.debug(f'AWS geo-places client initialized for region {self.aws_region}')
+            logger.debug(f'Amazon geo-places client initialized for region {self.aws_region}')
         except Exception as e:
-            logger.error(f'Failed to initialize AWS geo-places client: {str(e)}')
+            logger.error(f'Failed to initialize Amazon geo-places client: {str(e)}')
             self.geo_places_client = None
 
 
 class GeoRoutesClient:
-    """AWS Location Service geo-routes client wrapper."""
+    """Amazon Location Service geo-routes client wrapper."""
 
     def __init__(self):
-        """Initialize the AWS geo-routes client."""
         self.aws_region = os.environ.get('AWS_REGION', 'us-east-1')
         self.geo_routes_client = None
         config = botocore.config.Config(
@@ -106,6 +108,7 @@ class GeoRoutesClient:
         )
         aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
         aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+        aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
         try:
             if aws_access_key and aws_secret_key:
                 client_args = {
@@ -114,14 +117,16 @@ class GeoRoutesClient:
                     'region_name': self.aws_region,
                     'config': config,
                 }
+                if aws_session_token:
+                    client_args['aws_session_token'] = aws_session_token
                 self.geo_routes_client = boto3.client('geo-routes', **client_args)
             else:
                 self.geo_routes_client = boto3.client(
                     'geo-routes', region_name=self.aws_region, config=config
                 )
-            logger.debug(f'AWS geo-routes client initialized for region {self.aws_region}')
+            logger.debug(f'Amazon geo-routes client initialized for region {self.aws_region}')
         except Exception as e:
-            logger.error(f'Failed to initialize AWS geo-routes client: {str(e)}')
+            logger.error(f'Failed to initialize Amazon geo-routes client: {str(e)}')
             self.geo_routes_client = None
 
 
@@ -144,10 +149,10 @@ async def search_places(
         description="Output mode: 'summary' (default) or 'raw' for all AWS fields",
     ),
 ) -> Dict:
-    """Search for places using AWS Location Service geo-places search_text API. Geocode the query using the geocode API to get BiasPosition. If no results, try a bounding box filter. Includes contact info and opening hours if present. Output is standardized and includes all fields, even if empty or not available."""
+    """Search for places using Amazon Location Service geo-places search_text API. Geocode the query using the geocode API to get BiasPosition. If no results, try a bounding box filter. Includes contact info and opening hours if present. Output is standardized and includes all fields, even if empty or not available."""
     if not geo_places_client.geo_places_client:
         error_msg = (
-            'AWS geo-places client not initialized. Please check AWS credentials and region.'
+            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
         )
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -239,7 +244,7 @@ async def search_places(
         result = {'query': query, 'places': result_places}
         return result
     except botocore.exceptions.ClientError as e:
-        error_msg = f'AWS geo-places Service error: {str(e)}'
+        error_msg = f'Amazon geo-places Service error: {str(e)}'
         print(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -259,10 +264,10 @@ async def get_place(
         description="Output mode: 'summary' (default) or 'raw' for all AWS fields",
     ),
 ) -> Dict:
-    """Get details for a place using AWS Location Service geo-places get_place API. Output is standardized and includes all fields, even if empty or not available."""
+    """Get details for a place using Amazon Location Service geo-places get_place API. Output is standardized and includes all fields, even if empty or not available."""
     if not geo_places_client.geo_places_client:
         error_msg = (
-            'AWS geo-places client not initialized. Please check AWS credentials and region.'
+            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
         )
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -337,10 +342,10 @@ async def reverse_geocode(
     longitude: float = Field(description='Longitude of the location'),
     latitude: float = Field(description='Latitude of the location'),
 ) -> Dict:
-    """Reverse geocode coordinates to an address using AWS Location Service geo-places reverse_geocode API."""
+    """Reverse geocode coordinates to an address using Amazon Location Service geo-places reverse_geocode API."""
     if not geo_places_client.geo_places_client:
         error_msg = (
-            'AWS geo-places client not initialized. Please check AWS credentials and region.'
+            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
         )
         logger.error(error_msg)
         await ctx.error(error_msg)
@@ -366,7 +371,7 @@ async def reverse_geocode(
         logger.debug(f'Reverse geocoded address for coordinates: {longitude}, {latitude}')
         return result
     except botocore.exceptions.ClientError as e:
-        error_msg = f'AWS geo-places Service error: {str(e)}'
+        error_msg = f'Amazon geo-places Service error: {str(e)}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -388,7 +393,7 @@ async def search_nearby(
     query: Optional[str] = Field(default=None, description='Optional search query'),
     radius: int = Field(default=500, description='Search radius in meters', ge=1, le=50000),
 ) -> Dict:
-    """Search for places near a location using AWS Location Service geo-places search_nearby API. If no results, expand the radius up to max_radius. Output is standardized and includes all fields, even if empty or not available."""
+    """Search for places near a location using Amazon Location Service geo-places search_nearby API. If no results, expand the radius up to max_radius. Output is standardized and includes all fields, even if empty or not available."""
     # Moved from parameters to local variables
     max_results = 5  # Maximum number of results to return
     max_radius = 10000  # Maximum search radius in meters for expansion
@@ -401,7 +406,7 @@ async def search_nearby(
     # mode: Output mode: 'summary' (default) or 'raw' for all AWS fields
     if not geo_places_client.geo_places_client:
         error_msg = (
-            'AWS geo-places client not initialized. Please check AWS credentials and region.'
+            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
         )
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -500,7 +505,7 @@ async def search_places_open_now(
         default=500, description='Initial search radius in meters for expansion', ge=1, le=50000
     ),
 ) -> Dict:
-    """Search for places that are open now using AWS Location Service geo-places search_text API and filter by opening hours. If no open places, expand the search radius up to max_radius. Uses BiasPosition from geocode."""
+    """Search for places that are open now using Amazon Location Service geo-places search_text API and filter by opening hours. If no open places, expand the search radius up to max_radius. Uses BiasPosition from geocode."""
     # Moved from parameters to local variables
     max_results = 5  # Maximum number of results to return
     max_radius = 50000  # Maximum search radius in meters for expansion
@@ -511,7 +516,7 @@ async def search_places_open_now(
     # expansion_factor: Factor to expand radius by if no open places (default=2.0, ge=1.1, le=10.0)
     if not geo_places_client.geo_places_client:
         error_msg = (
-            'AWS geo-places client not initialized. Please check AWS credentials and region.'
+            'Amazon geo-places client not initialized. Please check AWS credentials and region.'
         )
         logger.error(error_msg)
         await ctx.error(error_msg)
@@ -624,7 +629,7 @@ async def search_places_open_now(
         logger.debug(f'Found {len(open_places)} places open now for query: {query}')
         return result
     except botocore.exceptions.ClientError as e:
-        error_msg = f'AWS geo-places Service error: {str(e)}'
+        error_msg = f'Amazon geo-places Service error: {str(e)}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         return {'error': error_msg}
@@ -639,37 +644,28 @@ async def search_places_open_now(
 async def calculate_route(
     ctx: Context,
     departure_position: list = Field(description='Departure position as [longitude, latitude]'),
-    destination_position: list = Field(
-        description='Destination position as [longitude, latitude]'
-    ),
-    travel_mode: str = Field(
-        default='Car',
-        description="Travel mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')",
-    ),
-    optimize_for: str = Field(
-        default='FastestRoute',
-        description="Optimize route for 'FastestRoute' or 'ShortestRoute' (default: 'FastestRoute')",
-    ),
+    destination_position: list = Field(description='Destination position as [longitude, latitude]'),
+    travel_mode: str = Field(default='Car', description="Travel mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')"),
+    optimize_for: str = Field(default='FastestRoute', description="Optimize route for 'FastestRoute' or 'ShortestRoute' (default: 'FastestRoute')")
 ) -> dict:
-    """Calculate a route and return summary info and turn-by-turn directions.
-
+    """
+    Calculate a route and return summary info and turn-by-turn directions.
     Parameters:
         departure_position: [lon, lat]
         destination_position: [lon, lat]
         travel_mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')
         optimize_for: 'FastestRoute' or 'ShortestRoute' (default: 'FastestRoute')
-
     Returns:
         dict with distance, duration, and turn_by_turn directions (list of step summaries)
     """
     include_leg_geometry = False
     mode = 'summary'
     client = GeoRoutesClient().geo_routes_client
-
+    
     # Check if client is None before proceeding
     if client is None:
-        return {'error': 'Failed to initialize AWS geo-routes client'}
-
+        return {'error': 'Failed to initialize Amazon geo-routes client'}
+    
     params = {
         'Origin': departure_position,
         'Destination': destination_position,
@@ -697,9 +693,7 @@ async def calculate_route(
                     'distance_meters': step.get('Distance'),
                     'duration_seconds': step.get('Duration'),
                     'type': step.get('Type'),
-                    'road_name': step.get('NextRoad', {}).get('RoadName')
-                    if step.get('NextRoad')
-                    else None,
+                    'road_name': step.get('NextRoad', {}).get('RoadName') if step.get('NextRoad') else None,
                 }
                 turn_by_turn.append(step_summary)
         return {
@@ -715,31 +709,21 @@ async def calculate_route(
 async def optimize_waypoints(
     ctx: Context,
     origin_position: list = Field(description='Origin position as [longitude, latitude]'),
-    destination_position: list = Field(
-        description='Destination position as [longitude, latitude]'
-    ),
-    waypoints: list = Field(
-        description='List of intermediate waypoints, each as a dict with at least Position [longitude, latitude], optionally Id'
-    ),
-    travel_mode: str = Field(
-        default='Car',
-        description="Travel mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')",
-    ),
-    mode: str = Field(
-        default='summary',
-        description="Output mode: 'summary' (default) or 'raw' for all AWS fields",
-    ),
+    destination_position: list = Field(description='Destination position as [longitude, latitude]'),
+    waypoints: list = Field(description='List of intermediate waypoints, each as a dict with at least Position [longitude, latitude], optionally Id'),
+    travel_mode: str = Field(default='Car', description="Travel mode: 'Car', 'Truck', 'Walking', or 'Bicycle' (default: 'Car')"),
+    mode: str = Field(default='summary', description="Output mode: 'summary' (default) or 'raw' for all AWS fields"),
 ) -> Dict:
-    """Optimize the order of waypoints using AWS Location Service geo-routes optimize_waypoints API (V2).
-
+    """
+    Optimize the order of waypoints using Amazon Location Service geo-routes optimize_waypoints API (V2).
     Returns summary (optimized order, total distance, duration, etc.) or full response if mode='raw'.
     """
     client = GeoRoutesClient().geo_routes_client
-
+    
     # Check if client is None before proceeding
     if client is None:
-        return {'error': 'Failed to initialize AWS geo-routes client'}
-
+        return {'error': 'Failed to initialize Amazon geo-routes client'}
+    
     params = {
         'Origin': origin_position,
         'Destination': destination_position,
@@ -771,12 +755,12 @@ async def optimize_waypoints(
 def main():
     """Run the MCP server with CLI argument support."""
     parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for AWS Location Service (geo-places)'
+        description='An AWS Labs Model Context Protocol (MCP) server for Amazon Location Service (geo-places)'
     )
     parser.add_argument('--sse', action='store_true', help='Use SSE transport')
     parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
     args = parser.parse_args()
-    logger.info('Starting AWS Location Service MCP Server (geo-places)')
+    logger.info('Starting Amazon Location Service MCP Server (geo-places)')
     if args.sse:
         logger.info(f'Using SSE transport on port {args.port}')
         mcp.settings.port = args.port
