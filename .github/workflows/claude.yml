@@ -1,6 +1,8 @@
 # This workflow runs an automated pull request code review when labeled
 name: Claude
 on:
+  pull_request:
+    branches: ["main"]
   pull_request_target:
     branches: ["main"]
     types:
