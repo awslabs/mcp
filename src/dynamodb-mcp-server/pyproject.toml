@@ -103,6 +103,12 @@ docstring-code-format = true
 [tool.pyright]
 include = ["awslabs", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+# allow using None as default without declaring field as Optional
+# declaring field as Optiona consumes tokens unnecessarily in the JSON schema
+# LLM doesn't need to be told that this field is Optional
+# because LLM already knows that the default is None
+reportArgumentType = false
+reportAssignmentType = false
 
 [tool.commitizen]
 name = "cz_conventional_commits"
