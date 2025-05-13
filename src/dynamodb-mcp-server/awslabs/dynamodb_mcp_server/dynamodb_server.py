@@ -3,6 +3,7 @@
 import boto3
 import json
 import os
+from botocore.config import Config
 from fastmcp import FastMCP
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Literal, Optional, Union
@@ -311,7 +312,7 @@ def get_dynamodb_client(region_name: str | None):
     region = region_name or os.getenv('AWS_REGION') or 'us-west-2'
 
     # Configure custom user agent to identify requests from LLM/MCP
-    config = boto3.session.Config(user_agent_extra='MCP/DynamoDBServer')
+    config = Config(user_agent_extra='MCP/DynamoDBServer')
 
     # Create a new session to force credentials to reload
     # so that if user changes credential, it will be reflected immediately in the next call
