@@ -27,7 +27,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-infrastructure-as-code-mcp-server": {
+    "awslabs.aws-cfn-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.aws-cfn-mcp-server@latest"],
       "env": {

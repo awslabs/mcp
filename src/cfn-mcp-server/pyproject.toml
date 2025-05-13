@@ -1,7 +1,7 @@
 [project]
 name = "awslabs.cfn-mcp-server"
 version = "0.0.0"
-description = "An AWS Labs Model Context Protocol (MCP) server for doing common infrastructure as code tasks and for managing your resources in your AWS account"
+description = "An AWS Labs Model Context Protocol (MCP) server for doing common cloudformation tasks and for managing your resources in your AWS account"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
