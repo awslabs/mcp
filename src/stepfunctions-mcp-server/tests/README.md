@@ -4,8 +4,19 @@ This directory contains tests for the stepfunctions-mcp-server. The tests are or
 
 ## Test Structure
 
-- `test_server.py`: Unit tests for the server module functions
-- `test_integration.py`: Integration tests for the MCP server and Step Functions state machine tools
+The tests are organized into separate files, each focused on testing a specific functionality:
+
+- `test_create_state_machine_tool.py`: Tests for state machine creation functionality
+- `test_filter_state_machines_by_tag.py`: Tests for filtering state machines using tags
+- `test_format_state_machine_response.py`: Tests for state machine response formatting
+- `test_get_schema_arn_from_state_machine_arn.py`: Tests for schema ARN extraction
+- `test_get_schema_from_registry.py`: Tests for schema registry operations
+- `test_invoke_express_state_machine_impl.py`: Tests for Express state machine invocation
+- `test_invoke_standard_state_machine_impl.py`: Tests for Standard state machine invocation
+- `test_main.py`: Tests for the main server functionality
+- `test_register_state_machines.py`: Tests for state machine registration
+- `test_sanitize_tool_name.py`: Tests for tool name sanitization
+- `test_validate_state_machine_name.py`: Tests for state machine name validation
 
 ## Running the Tests
 
@@ -26,19 +37,19 @@ pytest -xvs tests/
 To run a specific test file:
 
 ```bash
-pytest -xvs tests/test_server.py
+pytest -xvs tests/test_validate_state_machine_name.py
 ```
 
 To run a specific test class:
 
 ```bash
-pytest -xvs tests/test_server.py::TestValidateStateMachineName
+pytest -xvs tests/test_validate_state_machine_name.py::TestValidateStateMachineName
 ```
 
 To run a specific test:
 
 ```bash
-pytest -xvs tests/test_server.py::TestValidateStateMachineName::test_empty_prefix_and_list
+pytest -xvs tests/test_validate_state_machine_name.py::TestValidateStateMachineName::test_empty_prefix_and_list
 ```
 
 ## Test Coverage
@@ -72,7 +83,7 @@ These dependencies are included in the project's development dependencies.
 
 The test fixtures are defined in `conftest.py` and include:
 
-- `mock_lambda_client`: A mock boto3 client (will be updated to Step Functions in phase 2)
+- `mock_sfn_client`: A mock boto3 client (will be updated to Step Functions in phase 2)
 - `mock_env_vars`: Sets up and tears down environment variables for testing
 - `clear_env_vars`: Clears environment variables for testing
 
