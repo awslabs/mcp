@@ -270,6 +270,34 @@ class ReplicationGroupUpdate(TypedDict, total=False):
     Delete: ReplicaDelete
 
 
+class CreateTableInput(TypedDict, total=False):
+    """Parameters for CreateTable operation."""
+
+    TableName: str  # required
+    AttributeDefinitions: List[AttributeDefinition]  # required
+    KeySchema: List[KeySchemaElement]  # required
+    BillingMode: Literal['PROVISIONED', 'PAY_PER_REQUEST']
+    GlobalSecondaryIndexes: List[GlobalSecondaryIndex]
+    ProvisionedThroughput: ProvisionedThroughput
+
+
+class UpdateTableInput(TypedDict, total=False):
+    """Parameters for UpdateTable operation."""
+
+    TableName: str  # required
+    AttributeDefinitions: List[AttributeDefinition]
+    BillingMode: Literal['PROVISIONED', 'PAY_PER_REQUEST']
+    DeletionProtectionEnabled: bool
+    GlobalSecondaryIndexUpdates: List[GlobalSecondaryIndexUpdate]
+    OnDemandThroughput: OnDemandThroughput
+    ProvisionedThroughput: ProvisionedThroughput
+    ReplicaUpdates: List[ReplicationGroupUpdate]
+    SSESpecification: Dict[str, Any]  # Using Dict since SSESpecification is a BaseModel
+    StreamSpecification: StreamSpecification
+    TableClass: Literal['STANDARD', 'STANDARD_INFREQUENT_ACCESS']
+    WarmThroughput: WarmThroughput
+
+
 app = FastMCP(
     name='dynamodb-server',
     instructions='The official MCP Server for interacting with AWS DynamoDB',
@@ -676,7 +704,7 @@ async def update_table(
     """Modifies table settings including provisioned throughput, global secondary indexes, and DynamoDB Streams configuration. This is an asynchronous operation."""
     try:
         client = get_dynamodb_client(region_name)
-        params = {'TableName': table_name}
+        params: UpdateTableInput = {'TableName': table_name}
 
         if attribute_definitions:
             params['AttributeDefinitions'] = attribute_definitions
@@ -760,7 +788,7 @@ async def create_table(
     """Creates a new DynamoDB table with optional secondary indexes. This is an asynchronous operation."""
     try:
         client = get_dynamodb_client(region_name)
-        params = {
+        params: CreateTableInput = {
             'TableName': table_name,
             'AttributeDefinitions': attribute_definitions,
             'KeySchema': key_schema,
