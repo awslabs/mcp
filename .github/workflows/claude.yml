@@ -54,6 +54,7 @@ jobs:
 
             # Get all the runs (except this one) into a file
             gh run list \
+              --repo "${{ github.repository }}" \
               --event pull_request \
               --commit "${{ github.event.pull_request.head.sha }}" \
               --json "attempt,conclusion,headBranch,name,number,status,workflowName" \
