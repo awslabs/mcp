@@ -12,12 +12,12 @@ dependencies = [
     "loguru>=0.7.0",
     "beautifulsoup4>=4.12.0",
 ]
-license = {text = "Apache-2.0"}
-license-files = ["LICENSE", "NOTICE" ]
+license = { text = "Apache-2.0" }
+license-files = ["LICENSE", "NOTICE"]
 
 authors = [
-    {name = "Amazon Web Services"},
-    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    { name = "Amazon Web Services" },
+    { name = "AWSLabs MCP", email = "203918161+awslabs-mcp@users.noreply.github.com" },
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -71,7 +71,7 @@ exclude = [
     "**/env",
     "**/.ruff_cache",
     "**/.venv",
-    "**/.ipynb_checkpoints"
+    "**/.ipynb_checkpoints",
 ]
 force-exclude = true
 
@@ -103,7 +103,7 @@ version = "0.0.1"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/aws-documentation_mcp_server.__init__py:__version__"
+    "awslabs/aws-documentation_mcp_server.__init__py:__version__",
 ]
 update_changelog_on_bump = true
 
@@ -113,13 +113,13 @@ packages = ["awslabs"]
 [tool.pytest.ini_options]
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
-    "asyncio: marks tests that use asyncio"
+    "asyncio: marks tests that use asyncio",
 ]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.bandit]
-exclude_dirs = ["venv","tests"]
+exclude_dirs = ["venv", "tests"]
 
 [tool.coverage.run]
 source = ["awslabs"]
