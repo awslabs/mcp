@@ -215,6 +215,19 @@ A server for researching Git repositories using semantic search.
 
 [Learn more](src/git-repo-research-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
 
+### Code Documentation Generation MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.code-doc-gen-mcp-server.svg)](https://pypi.org/project/awslabs.code-doc-gen-mcp-server/)
+
+A server that automatically generates comprehensive documentation for code repositories.
+
+- Automated documentation generation based on repository analysis
+- AWS architecture diagram integration with AWS Diagrams MCP Server
+- Multiple document types (README, API, Backend, Frontend)
+- Interactive documentation creation workflow for AI assistants
+
+[Learn more](src/code-doc-gen-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/code-doc-gen-mcp-server/)
+
 ### Postgres MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.postgres-mcp-server.svg)](https://pypi.org/project/awslabs.postgres-mcp-server/)
