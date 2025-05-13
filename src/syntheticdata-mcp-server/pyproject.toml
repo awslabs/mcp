@@ -1,0 +1,123 @@
+[project]
+name = "awslabs.syntheticdata-mcp-server"
+version = "0.0.0"
+description = "An AWS Labs Model Context Protocol (MCP) server for syntheticdata"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "pydantic>=2.10.6",
+    "pandas>=2.0.0",
+    "boto3>=1.34.0",
+    "pyarrow>=14.0.1",  # For parquet format support
+    "python-snappy>=0.6.1",  # For snappy compression
+]
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE" ]
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+homepage = "https://awslabs.github.io/mcp/"
+docs = "https://awslabs.github.io/mcp/servers/syntheticdata-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/syntheticdata-mcp-server/"
+repository = "https://github.com/awslabs/mcp.git"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/syntheticdata-mcp-server/CHANGELOG.md"
+
+[project.scripts]
+"awslabs.syntheticdata-mcp-server" = "awslabs.syntheticdata_mcp_server.server:main"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+    "pytest-asyncio>=0.26.0",
+    "moto>=5.0.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/syntheticdata_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.pytest.ini_options]
+markers = [
+    "asyncio: marks tests that use asyncio"
+]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.bandit]
+exclude_dirs = [".venv", "tests"]
+
+[tool.coverage.run]
+source = ["awslabs"]

@@ -239,6 +239,21 @@ A server for Aurora Postgres.
 
 [Learn more](src/postgres-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/postgres-mcp-server/)
 
+### Synthetic Data MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.syntheticdata-mcp-server.svg)](https://pypi.org/project/awslabs.syntheticdata-mcp-server/)
+
+A server for generating, validating, and managing synthetic data.
+
+- Business-Driven Generation: Generate synthetic data instructions based on business descriptions
+- Safe Pandas Code Execution: Run pandas code in a restricted environment with automatic DataFrame detection
+- JSON Lines Validation: Validate and convert JSON Lines data to CSV format
+- Data Validation: Validate data structure, referential integrity, and save as CSV files
+- Referential Integrity Checking: Validate relationships between tables
+- Data Quality Assessment: Identify potential issues in data models (3NF validation)
+- Storage Integration: Load data to various storage targets (S3) with support for multiple formats and configurations
+
+[Learn more](src/syntheticdata-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/syntheticdata-mcp-server/)
 
 ### Use Cases for the Servers
 
