@@ -11,7 +11,7 @@
 """Live test for the read_documentation tool in the AWS Documentation MCP server."""
 
 import pytest
-from awslabs.aws_documentation_mcp_server.server import read_documentation
+from awslabs.aws_cn_documentation_mcp_server.server import read_documentation
 
 
 class MockContext:
@@ -42,7 +42,13 @@ async def test_read_documentation_live():
     assert url in result
 
     # Check for expected content in the S3 bucket naming rules page
-    expected_content_markers = ['bucket naming rules', 'S3', 'Amazon', 'naming', 'rules']
+    expected_content_markers = [
+        'bucket naming rules',
+        'S3',
+        'Amazon',
+        'naming',
+        'rules',
+    ]
 
     for marker in expected_content_markers:
         assert marker.lower() in result.lower(), f"Expected to find '{marker}' in the result"

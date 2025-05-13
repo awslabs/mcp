@@ -11,7 +11,7 @@
 """Utility functions for AWS Documentation MCP Server."""
 
 import markdownify
-from awslabs.aws_documentation_mcp_server.models import RecommendationResult
+from awslabs.aws_cn_documentation_mcp_server.models import RecommendationResult
 from typing import Any, Dict, List
 
 
@@ -206,7 +206,9 @@ def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationRes
 
             results.append(
                 RecommendationResult(
-                    url=item.get('url', ''), title=item.get('assetTitle', ''), context=context
+                    url=item.get('url', ''),
+                    title=item.get('assetTitle', ''),
+                    context=context,
                 )
             )
 
@@ -236,7 +238,9 @@ def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationRes
 
             results.append(
                 RecommendationResult(
-                    url=item.get('url', ''), title=item.get('assetTitle', ''), context=context
+                    url=item.get('url', ''),
+                    title=item.get('assetTitle', ''),
+                    context=context,
                 )
             )
 
@@ -247,7 +251,9 @@ def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationRes
 
             results.append(
                 RecommendationResult(
-                    url=item.get('url', ''), title=item.get('assetTitle', ''), context=context
+                    url=item.get('url', ''),
+                    title=item.get('assetTitle', ''),
+                    context=context,
                 )
             )
 

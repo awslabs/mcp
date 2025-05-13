@@ -12,7 +12,7 @@
 
 import asyncio
 import pytest
-from awslabs.aws_documentation_mcp_server.server import recommend
+from awslabs.aws_cn_documentation_mcp_server.server import recommend
 
 
 class MockContext:

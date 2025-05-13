@@ -11,7 +11,7 @@
 """Tests for utility functions in the AWS Documentation MCP Server."""
 
 import os
-from awslabs.aws_documentation_mcp_server.util import (
+from awslabs.aws_cn_documentation_mcp_server.util import (
     extract_content_from_html,
     format_documentation_result,
     is_html_content,
@@ -233,7 +233,10 @@ class TestParseRecommendationResults:
                         'assetTitle': 'Test 1',
                         'abstract': 'Abstract 1',
                     },
-                    {'url': 'https://docs.aws.amazon.com/test2', 'assetTitle': 'Test 2'},
+                    {
+                        'url': 'https://docs.aws.amazon.com/test2',
+                        'assetTitle': 'Test 2',
+                    },
                 ]
             }
         }
@@ -254,13 +257,19 @@ class TestParseRecommendationResults:
                     {
                         'intent': 'Learn',
                         'urls': [
-                            {'url': 'https://docs.aws.amazon.com/learn1', 'assetTitle': 'Learn 1'}
+                            {
+                                'url': 'https://docs.aws.amazon.com/learn1',
+                                'assetTitle': 'Learn 1',
+                            }
                         ],
                     },
                     {
                         'intent': 'Build',
                         'urls': [
-                            {'url': 'https://docs.aws.amazon.com/build1', 'assetTitle': 'Build 1'}
+                            {
+                                'url': 'https://docs.aws.amazon.com/build1',
+                                'assetTitle': 'Build 1',
+                            }
                         ],
                     },
                 ]
@@ -308,7 +317,10 @@ class TestParseRecommendationResults:
                         'assetTitle': 'Similar 1',
                         'abstract': 'Abstract for similar 1',
                     },
-                    {'url': 'https://docs.aws.amazon.com/similar2', 'assetTitle': 'Similar 2'},
+                    {
+                        'url': 'https://docs.aws.amazon.com/similar2',
+                        'assetTitle': 'Similar 2',
+                    },
                 ]
             }
         }
@@ -332,14 +344,22 @@ class TestParseRecommendationResults:
                     {
                         'intent': 'Learn',
                         'urls': [
-                            {'url': 'https://docs.aws.amazon.com/journey', 'assetTitle': 'Journey'}
+                            {
+                                'url': 'https://docs.aws.amazon.com/journey',
+                                'assetTitle': 'Journey',
+                            }
                         ],
                     }
                 ]
             },
             'new': {'items': [{'url': 'https://docs.aws.amazon.com/new', 'assetTitle': 'New'}]},
             'similar': {
-                'items': [{'url': 'https://docs.aws.amazon.com/similar', 'assetTitle': 'Similar'}]
+                'items': [
+                    {
+                        'url': 'https://docs.aws.amazon.com/similar',
+                        'assetTitle': 'Similar',
+                    }
+                ]
             },
         }
         results = parse_recommendation_results(data)

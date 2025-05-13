@@ -10,7 +10,7 @@
 # and limitations under the License.
 """Tests for data models in the AWS Documentation MCP Server."""
 
-from awslabs.aws_documentation_mcp_server.models import (
+from awslabs.aws_cn_documentation_mcp_server.models import (
     RecommendationResult,
     SearchResult,
 )

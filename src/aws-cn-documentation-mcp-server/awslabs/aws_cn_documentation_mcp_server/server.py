@@ -18,13 +18,13 @@ import re
 import sys
 
 # Import models
-from awslabs.aws_documentation_mcp_server.models import (
+from awslabs.aws_cn_documentation_mcp_server.models import (
     RecommendationResult,
     SearchResult,
 )
 
 # Import utility functions
-from awslabs.aws_documentation_mcp_server.util import (
+from awslabs.aws_cn_documentation_mcp_server.util import (
     extract_content_from_html,
     format_documentation_result,
     is_html_content,
@@ -46,7 +46,7 @@ RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recomm
 
 
 mcp = FastMCP(
-    'awslabs.aws-documentation-mcp-server',
+    'awslabs.aws-cn-documentation-mcp-server',
     instructions="""
     # AWS Documentation MCP Server
 
@@ -241,7 +241,10 @@ async def search_documentation(
             response = await client.post(
                 SEARCH_API_URL,
                 json=request_body,
-                headers={'Content-Type': 'application/json', 'User-Agent': DEFAULT_USER_AGENT},
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': DEFAULT_USER_AGENT,
+                },
                 timeout=30,
             )
         except httpx.HTTPError as e:
