@@ -11,6 +11,7 @@ on:
 permissions: {}
 jobs:
   precheck:
+    name: Code Review Upon All Successful Runs
     runs-on: ubuntu-latest
     steps:
       - name: List Running Workflows Until Complete
@@ -21,7 +22,7 @@ jobs:
         run: |
           # Record the list of runs for this commit
 
-          # Loop
+          # Loop Protection of a maximum of 15 loops (coordinated to step's timeout)
           counter=0;
           until [[ ! $a -lt 15 ]]; do
 
@@ -50,17 +51,18 @@ jobs:
               echo "There are runs that are not \"completed\"...";
             fi;
           done;
-      - name: Gate
+      - name: Check for Successful Conclusions
         id: dont-run-review-until-passed-checks
         run: |
-            cat pull_request_runs.json | jq '.[] | select(.conclusion != "success"))' | \
+            # Find Conclusions that are not Success
+            cat pull_request_runs.json | \
+              jq '.[] | select(.conclusion != "success"))' | \
               jq --slurp '. | if length>0 then error("\n\n\(.) \n\nincomplete worflow status or not a successful conclusion")'
 
-
   claude:
+    name: Perform Code Review
     runs-on: ubuntu-latest
     needs: ["precheck"]
-    if: needs.precheck.result 
     permissions:
       id-token: write
       contents: read
