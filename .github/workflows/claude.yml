@@ -1,8 +1,8 @@
 # This workflow runs an automated pull request code review when labeled
 name: Claude
 on:
-  pull_request:
-    branches: ["main"]
+  # pull_request:
+  #   branches: ["main"]
   pull_request_target:
     branches: ["main"]
     types:
@@ -18,6 +18,9 @@ jobs:
     environment: claude
     env:
       SLEEP_WAIT: ${{ vars.SLEEP_WAIT }}
+      GH_TOKEN: ${{ github.token }}
+    permissions:
+      id-token: write
     if: contains(github.event.pull_request.labels.*.name, 'code-review')
     steps:
       - name: List Running Workflows Until Complete
