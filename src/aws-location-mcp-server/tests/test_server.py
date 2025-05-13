@@ -763,8 +763,12 @@ def test_geo_routes_client_initialization_with_credentials(monkeypatch):
         args, kwargs = mock_boto3_client.call_args
         assert args[0] == 'geo-routes'
         assert kwargs['region_name'] == 'us-west-2'
-        assert kwargs['aws_access_key_id'] == 'AKIAIOSFODNN7EXAMPLE'
-        assert kwargs['aws_secret_access_key'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+        assert (
+            kwargs['aws_access_key_id'] == 'AKIAIOSFODNN7EXAMPLE'
+        )  # pragma: allowlist secret - Test credential for unit tests only
+        assert (
+            kwargs['aws_secret_access_key'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+        )  # pragma: allowlist secret - Test credential for unit tests only
 
 
 def test_geo_routes_client_initialization_exception():
