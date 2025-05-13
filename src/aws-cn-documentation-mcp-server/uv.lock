@@ -37,7 +37,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-cn-documentation-mcp-server"
-version = "0.1.2"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
