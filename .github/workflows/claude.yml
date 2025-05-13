@@ -13,13 +13,16 @@ jobs:
   precheck:
     name: Code Review Upon All Successful Runs
     runs-on: ubuntu-latest
+    environment: claude
+    env:
+      SLEEP_WAIT: ${{ vars.SLEEP_WAIT }}
     if: contains(github.event.pull_request.labels.*.name, 'code-review')
     steps:
       - name: List Running Workflows Until Complete
         id: list-workflows-until-complete
         timeout-minutes: 15
         env:
-          SLEEP_WAIT: ${{ vars.SLEEP_WAIT || '60' }}
+          SLEEP_WAIT: ${{ env.SLEEP_WAIT || '60' }}
         run: |
           # Record the list of runs for this commit
 
@@ -63,7 +66,7 @@ jobs:
   claude:
     name: Perform Code Review
     runs-on: ubuntu-latest
-    needs: ["precheck"]
+    # needs: ["precheck"]
     permissions:
       id-token: write
       contents: read
