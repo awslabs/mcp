@@ -13,6 +13,7 @@ jobs:
   precheck:
     name: Code Review Upon All Successful Runs
     runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'code-review')
     steps:
       - name: List Running Workflows Until Complete
         id: list-workflows-until-complete
