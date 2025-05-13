@@ -21,7 +21,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/cdk-mcp-server                   @awslabs/mcp-maintainers
 /src/core-mcp-server                  @awslabs/mcp-maintainers
 /src/cost-analysis-mcp-server         @awslabs/mcp-maintainers
-/src/git-repo-research-mcp-server     @awslabs/mcp-maintainers 
+/src/git-repo-research-mcp-server     @awslabs/mcp-maintainers
 /src/lambda-mcp-server                @danilop @jsamuel1
 /src/nova-canvas-mcp-server           @awslabs/mcp-maintainers
 /src/postgres-mcp-server              @kennthhz
