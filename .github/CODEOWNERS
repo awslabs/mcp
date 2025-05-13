@@ -14,6 +14,9 @@ NOTICE                                @awslabs/mcp-admins
 /.devcontainer/                       @awslabs/mcp-admins
 
 # Alphabetical listing of MCP servers
+/src/amazon-sns-sqs-mcp-server        @kenliao94 @hashimsharkh
+/src/amazon-mq-mcp-server             @kenliao94 @hashimsharkh
+/src/aws-diagram-mcp-server           @awslabs/mcp-maintainers
 /src/aws-diagram-mcp-server           @awslabs/mcp-maintainers
 /src/aws-documentation-mcp-server     @awslabs/mcp-maintainers
 /src/aws-location-mcp-server          @awslabs/mcp-maintainers
@@ -22,9 +25,9 @@ NOTICE                                @awslabs/mcp-admins
 /src/core-mcp-server                  @awslabs/mcp-maintainers
 /src/cost-analysis-mcp-server         @awslabs/mcp-maintainers
 /src/git-repo-research-mcp-server     @awslabs/mcp-maintainers
-/src/lambda-mcp-server                @danilop @jsamuel1
+/src/lambda-mcp-server                @awslabs/mcp-maintainers # @danilop @jsamuel1
 /src/nova-canvas-mcp-server           @awslabs/mcp-maintainers
-/src/postgres-mcp-server              @kennthhz
+/src/postgres-mcp-server              @awslabs/mcp-maintainers # @kennthhz
 /src/syntheticdata-mcp-server         @awslabs/mcp-maintainers
 /src/terraform-mcp-server             @awslabs/mcp-maintainers
 
