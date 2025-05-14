@@ -5,7 +5,7 @@ import json
 import os
 from botocore.config import Config
 from fastmcp import FastMCP
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional, Union
 from typing_extensions import TypedDict
 
@@ -205,9 +205,7 @@ class Tag(TypedDict):
     Value: str
 
 
-class SSESpecification(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+class SSESpecification(TypedDict, total=False):
     Enabled: bool = Field(
         description='If true, uses AWS managed key (KMS charges apply). If false/not specified, uses AWS owned key',
         default=None,
@@ -722,7 +720,7 @@ async def update_table(
         if replica_updates:
             params['ReplicaUpdates'] = replica_updates
         if sse_specification:
-            params['SSESpecification'] = sse_specification.model_dump(exclude_none=True)
+            params['SSESpecification'] = sse_specification
         if stream_specification:
             params['StreamSpecification'] = stream_specification
         if table_class:

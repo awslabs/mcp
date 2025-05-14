@@ -27,6 +27,7 @@ from awslabs.dynamodb_mcp_server.dynamodb_server import (
     untag_resource,
     update_continuous_backups,
     update_item,
+    update_table,
     update_time_to_live,
 )
 from moto import mock_aws
@@ -179,18 +180,24 @@ async def test_get_item(test_table):
 
 @pytest.mark.asyncio
 async def test_update_item(test_table):
-    """Test updating an item in a table."""
+    """Test updating an item in a table with conditional expression."""
     # First put an item
     await put_item(
         table_name='TestTable',
-        item={'id': {'S': 'test1'}, 'sort': {'S': 'data1'}, 'data': {'S': 'old data'}},
+        item={
+            'id': {'S': 'test1'},
+            'sort': {'S': 'data1'},
+            'data': {'S': 'old data'},
+            'status': {'S': 'active'},
+            'version': {'N': '1'},
+        },
         region_name='us-west-2',
         condition_expression=None,
         expression_attribute_names=None,
         expression_attribute_values=None,
     )
 
-    # Then update the item
+    # Test 1: Basic update without condition
     result = await update_item(
         table_name='TestTable',
         key={'id': {'S': 'test1'}, 'sort': {'S': 'data1'}},
@@ -215,18 +222,64 @@ async def test_update_item(test_table):
 
     assert get_result['Item']['data']['S'] == 'new data'
 
-
-@pytest.mark.asyncio
-async def test_delete_item(test_table):
-    """Test deleting an item from a table."""
-    # First put an item
-    await put_item(
+    # Test 2: Update with condition that succeeds
+    result = await update_item(
         table_name='TestTable',
-        item={'id': {'S': 'test1'}, 'sort': {'S': 'data1'}, 'data': {'S': 'test data'}},
+        key={'id': {'S': 'test1'}, 'sort': {'S': 'data1'}},
+        update_expression='SET #v = :new_version, #s = :new_status',
+        expression_attribute_names={'#v': 'version', '#s': 'status', '#curr_status': 'status'},
+        expression_attribute_values={
+            ':new_version': {'N': '2'},
+            ':new_status': {'S': 'updated'},
+            ':expected_status': {'S': 'active'},
+        },
+        condition_expression='#curr_status = :expected_status',
         region_name='us-west-2',
     )
 
-    # Then delete the item
+    if 'error' in result:
+        pytest.fail(f'Failed to update item with condition: {result["error"]}')
+
+    # Verify the conditional update succeeded
+    get_result = await get_item(
+        table_name='TestTable',
+        key={'id': {'S': 'test1'}, 'sort': {'S': 'data1'}},
+        expression_attribute_names=None,
+        projection_expression=None,
+        region_name='us-west-2',
+    )
+
+    assert get_result['Item']['version']['N'] == '2'
+    assert get_result['Item']['status']['S'] == 'updated'
+
+
+@pytest.mark.asyncio
+async def test_delete_item(test_table):
+    """Test deleting an item from a table with conditional expressions."""
+    # First put some test items
+    items = [
+        {
+            'id': {'S': 'test1'},
+            'sort': {'S': 'data1'},
+            'data': {'S': 'test data'},
+            'status': {'S': 'active'},
+            'version': {'N': '1'},
+        },
+        {
+            'id': {'S': 'test2'},
+            'sort': {'S': 'data1'},
+            'data': {'S': 'test data'},
+            'status': {'S': 'inactive'},
+            'version': {'N': '1'},
+        },
+    ]
+    for item in items:
+        await put_item(
+            table_name='TestTable',
+            item=item,
+            region_name='us-west-2',
+        )
+
     result = await delete_item(
         table_name='TestTable',
         key={'id': {'S': 'test1'}, 'sort': {'S': 'data1'}},
@@ -237,7 +290,7 @@ async def test_delete_item(test_table):
     )
 
     if 'error' in result:
-        pytest.fail(f'Failed to delete item: {result["error"]}')
+        pytest.fail(f'Failed to delete item with condition: {result["error"]}')
 
     # Verify the item is deleted
     get_result = await get_item(
@@ -251,11 +304,33 @@ async def test_delete_item(test_table):
 
 @pytest.mark.asyncio
 async def test_query(test_table):
-    """Test querying items from a table."""
-    # Put some test items
+    """Test querying items from a table with filter and projection expressions."""
+    # Put some test items with varied attributes
     items = [
-        {'id': {'S': 'user1'}, 'sort': {'S': 'order1'}, 'status': {'S': 'pending'}},
-        {'id': {'S': 'user1'}, 'sort': {'S': 'order2'}, 'status': {'S': 'completed'}},
+        {
+            'id': {'S': 'user1'},
+            'sort': {'S': 'order1'},
+            'status': {'S': 'pending'},
+            'amount': {'N': '100'},
+            'category': {'S': 'electronics'},
+            'notes': {'S': 'priority delivery'},
+        },
+        {
+            'id': {'S': 'user1'},
+            'sort': {'S': 'order2'},
+            'status': {'S': 'completed'},
+            'amount': {'N': '50'},
+            'category': {'S': 'books'},
+            'notes': {'S': 'standard delivery'},
+        },
+        {
+            'id': {'S': 'user1'},
+            'sort': {'S': 'order3'},
+            'status': {'S': 'pending'},
+            'amount': {'N': '75'},
+            'category': {'S': 'electronics'},
+            'notes': {'S': 'gift wrapped'},
+        },
     ]
     for item in items:
         await put_item(
@@ -267,15 +342,19 @@ async def test_query(test_table):
             expression_attribute_values=None,
         )
 
-    # Query items for user1
+    # Test 1: Basic query with filter expression
     result = await query(
         table_name='TestTable',
         key_condition_expression='#id = :id_val',
-        expression_attribute_names={'#id': 'id'},
-        expression_attribute_values={':id_val': {'S': 'user1'}},
+        expression_attribute_names={'#id': 'id', '#status': 'status', '#category': 'category'},
+        expression_attribute_values={
+            ':id_val': {'S': 'user1'},
+            ':status_val': {'S': 'pending'},
+            ':category_val': {'S': 'electronics'},
+        },
+        filter_expression='#status = :status_val AND #category = :category_val',
         region_name='us-west-2',
         index_name=None,
-        filter_expression=None,
         projection_expression=None,
         select=None,
         limit=None,
@@ -284,20 +363,79 @@ async def test_query(test_table):
     )
 
     if 'error' in result:
-        pytest.fail(f'Failed to query items: {result["error"]}')
+        pytest.fail(f'Failed to query items with filter: {result["error"]}')
 
     assert result['Count'] == 2
     assert len(result['Items']) == 2
-    assert all(item['id']['S'] == 'user1' for item in result['Items'])
+    assert all(
+        item['status']['S'] == 'pending' and item['category']['S'] == 'electronics'
+        for item in result['Items']
+    )
+
+    # Test 3: Query with both filter and projection expressions
+    result = await query(
+        table_name='TestTable',
+        key_condition_expression='#id = :id_val',
+        expression_attribute_names={'#id': 'id', '#status': 'status', '#amount': 'amount'},
+        expression_attribute_values={
+            ':id_val': {'S': 'user1'},
+            ':status_val': {'S': 'pending'},
+            ':amount_val': {'N': '50'},
+        },
+        filter_expression='#status = :status_val AND #amount > :amount_val',
+        projection_expression='#status, #amount',
+        region_name='us-west-2',
+        index_name=None,
+        select=None,
+        limit=100,
+        scan_index_forward=True,
+        exclusive_start_key=None,
+    )
+
+    if 'error' in result:
+        pytest.fail(f'Failed to query items with filter and projection: {result["error"]}')
+
+    assert result['Count'] == 2
+    assert len(result['Items']) == 2
+    # Verify results match filter criteria and only include projected attributes
+    for item in result['Items']:
+        assert set(item.keys()) == {'status', 'amount'}
+        assert item['status']['S'] == 'pending'
+        assert float(item['amount']['N']) > 50
 
 
 @pytest.mark.asyncio
 async def test_scan(test_table):
-    """Test scanning items from a table."""
-    # Put some test items
+    """Test scanning items from a table with filter and projection expressions."""
+    # Put some test items with varied attributes
     items = [
-        {'id': {'S': 'user1'}, 'sort': {'S': 'data1'}, 'status': {'S': 'active'}},
-        {'id': {'S': 'user2'}, 'sort': {'S': 'data1'}, 'status': {'S': 'active'}},
+        {
+            'id': {'S': 'user1'},
+            'sort': {'S': 'data1'},
+            'status': {'S': 'active'},
+            'price': {'N': '299'},
+            'category': {'S': 'electronics'},
+            'stock': {'N': '50'},
+            'description': {'S': 'High-end product'},
+        },
+        {
+            'id': {'S': 'user2'},
+            'sort': {'S': 'data1'},
+            'status': {'S': 'inactive'},
+            'price': {'N': '199'},
+            'category': {'S': 'books'},
+            'stock': {'N': '100'},
+            'description': {'S': 'Bestseller'},
+        },
+        {
+            'id': {'S': 'user3'},
+            'sort': {'S': 'data1'},
+            'status': {'S': 'active'},
+            'price': {'N': '399'},
+            'category': {'S': 'electronics'},
+            'stock': {'N': '25'},
+            'description': {'S': 'Premium product'},
+        },
     ]
     for item in items:
         await put_item(
@@ -309,12 +447,20 @@ async def test_scan(test_table):
             expression_attribute_values=None,
         )
 
-    # Scan for active items
+    # Test 1: Basic scan with filter expression
     result = await scan(
         table_name='TestTable',
-        filter_expression='#status = :status_val',
-        expression_attribute_names={'#status': 'status'},
-        expression_attribute_values={':status_val': {'S': 'active'}},
+        filter_expression='#status = :status_val AND #category = :category_val AND #stock < :stock_val',
+        expression_attribute_names={
+            '#status': 'status',
+            '#category': 'category',
+            '#stock': 'stock',
+        },
+        expression_attribute_values={
+            ':status_val': {'S': 'active'},
+            ':category_val': {'S': 'electronics'},
+            ':stock_val': {'N': '30'},
+        },
         region_name='us-west-2',
         index_name=None,
         projection_expression=None,
@@ -324,11 +470,41 @@ async def test_scan(test_table):
     )
 
     if 'error' in result:
-        pytest.fail(f'Failed to scan items: {result["error"]}')
+        pytest.fail(f'Failed to scan items with filter: {result["error"]}')
+
+    assert result['Count'] == 1
+    assert len(result['Items']) == 1
+    assert result['Items'][0]['stock']['N'] == '25'
+    assert result['Items'][0]['status']['S'] == 'active'
+    assert result['Items'][0]['category']['S'] == 'electronics'
+
+    # Test 3: Scan with both filter and projection expressions
+    result = await scan(
+        table_name='TestTable',
+        filter_expression='#price > :price_val AND #category = :category_val',
+        expression_attribute_names={'#price': 'price', '#category': 'category', '#stock': 'stock'},
+        expression_attribute_values={
+            ':price_val': {'N': '200'},
+            ':category_val': {'S': 'electronics'},
+        },
+        projection_expression='#price, #stock',
+        region_name='us-west-2',
+        index_name=None,
+        select=None,
+        limit=100,
+        exclusive_start_key=None,
+    )
+
+    if 'error' in result:
+        pytest.fail(f'Failed to scan items with filter and projection: {result["error"]}')
 
     assert result['Count'] == 2
     assert len(result['Items']) == 2
-    assert all(item['status']['S'] == 'active' for item in result['Items'])
+    # Verify results match filter criteria and only include projected attributes
+    for item in result['Items']:
+        assert set(item.keys()) == {'price', 'stock'}
+        assert float(item['price']['N']) > 200
+        assert 'category' not in item
 
 
 @pytest.mark.asyncio
@@ -347,9 +523,7 @@ async def test_describe_table(test_table):
 @pytest.mark.asyncio
 async def test_list_tables(test_table):
     """Test listing tables."""
-    result = await list_tables(
-        region_name='us-west-2', exclusive_start_table_name=None, limit=None
-    )
+    result = await list_tables(region_name='us-west-2', exclusive_start_table_name=None, limit=100)
 
     if 'error' in result:
         pytest.fail(f'Failed to list tables: {result["error"]}')
@@ -610,3 +784,35 @@ async def test_describe_endpoints(dynamodb):
         pytest.fail(f'Failed to describe endpoints: {result["error"]}')
 
     assert 'Endpoints' in result
+
+
+@pytest.mark.asyncio
+async def test_update_table(test_table):
+    """Test updating a table's provisioned throughput."""
+    # Update the table's read and write capacity
+    result = await update_table(
+        table_name='TestTable',
+        provisioned_throughput={'ReadCapacityUnits': 2, 'WriteCapacityUnits': 2},
+        region_name='us-west-2',
+        attribute_definitions=None,
+        billing_mode='PROVISIONED',
+        deletion_protection_enabled=True,
+        global_secondary_index_updates=None,
+        on_demand_throughput=None,
+        replica_updates=None,
+        sse_specification={'Enabled': False},
+        stream_specification={
+            'StreamEnabled': True,
+            'StreamViewType': 'KEYS_ONLY',
+        },
+        table_class='STANDARD_INFREQUENT_ACCESS',
+        warm_throughput=None,
+    )
+
+    if 'error' in result:
+        pytest.fail(f'Failed to update table: {result["error"]}')
+
+    # Verify the update
+    assert result['TableName'] == 'TestTable'
+    assert result['ProvisionedThroughput']['ReadCapacityUnits'] == 2
+    assert result['ProvisionedThroughput']['WriteCapacityUnits'] == 2
