@@ -312,8 +312,7 @@ def main():
     parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
     parser.add_argument(
         '--readonly',
-        type=bool,
-        default=False,
+        action=argparse.BooleanOptionalAction,
         help='Prevents the MCP server from performing mutating operations',
     )
 

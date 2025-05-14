@@ -6,18 +6,18 @@ class Context:
 
     _instance = None
 
-    def __init__(self, readonly_mode):
+    def __init__(self, readonly_mode: bool):
         """Initializes the context."""
-        self.readonly_mode = readonly_mode
+        self._readonly_mode = readonly_mode
 
     @classmethod
-    def readonly_mode(cls):
+    def readonly_mode(cls) -> bool:
         """If a the server was started up with the argument --readonly True, this will be set to True."""
         if cls._instance is None:
             raise ServerError('Context was not initialized')
-        return cls._instance.readonly_mode
+        return cls._instance._readonly_mode
 
     @classmethod
-    def initialize(cls, readonly_mode):
+    def initialize(cls, readonly_mode: bool):
         """Create the singleton instance of the type."""
         cls._instance = cls(readonly_mode)

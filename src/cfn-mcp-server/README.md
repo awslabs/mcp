@@ -31,7 +31,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
       "command": "uvx",
       "args": [
         "awslabs.aws-cfn-mcp-server@latest",
-        "--readonly", "False"
+        "--readonly" // Optional paramter if you would like to restrict the MCP to only read actions
       ],
       "env": {
         "AWS_PROFILE": "your-named-profile",
@@ -64,7 +64,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
           "--env-file",
           "/full/path/to/file/above/.env",
           "awslabs/cfn-mcp-server:latest",
-          "--readonly", "False"
+          "--readonly" // Optional paramter if you would like to restrict the MCP to only read actions
         ],
         "env": {},
         "disabled": false,
