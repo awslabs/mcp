@@ -1,4 +1,3 @@
-from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 from typing_extensions import TypedDict
 
@@ -199,19 +198,11 @@ class Tag(TypedDict):
 
 
 class SSESpecification(TypedDict, total=False):
-    """Set Enabled to true for AWS managed key (KMS charges apply). set it to false/not specified for AWS owned key."""
+    """Set Enabled to true for AWS managed key (KMS charges apply). set it to false for AWS owned key."""
 
-    Enabled: bool = Field(
-        default=None,
-    )
-    SSEType: Literal['KMS'] = Field(
-        description='Server-side encryption type',
-        default=None,
-    )
-    KMSMasterKeyId: str = Field(
-        description='Custom KMS key identifier (only if not using default DynamoDB key)',
-        default=None,
-    )
+    Enabled: bool
+    SSEType: Literal['KMS']
+    KMSMasterKeyId: str
 
 
 class TimeToLiveSpecification(TypedDict):
@@ -285,7 +276,7 @@ class UpdateTableInput(TypedDict, total=False):
     OnDemandThroughput: OnDemandThroughput
     ProvisionedThroughput: ProvisionedThroughput
     ReplicaUpdates: List[ReplicationGroupUpdate]
-    SSESpecification: Dict[str, Any]  # Using Dict since SSESpecification is a BaseModel
+    SSESpecification: SSESpecification
     StreamSpecification: StreamSpecification
     TableClass: Literal['STANDARD', 'STANDARD_INFREQUENT_ACCESS']
     WarmThroughput: WarmThroughput
