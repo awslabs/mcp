@@ -19,6 +19,7 @@ from awslabs.cfn_mcp_server.context import Context
 from awslabs.cfn_mcp_server.errors import ClientError, handle_aws_api_error
 from awslabs.cfn_mcp_server.schema_manager import schema_manager
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 
 mcp = FastMCP(
@@ -40,7 +41,12 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def get_resource_schema_information(
-    resource_type: str | None = None, region: str | None = None
+    resource_type: str = Field(
+        description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
 ) -> dict:
     """Get schema information for an AWS resource.
 
@@ -59,7 +65,14 @@ async def get_resource_schema_information(
 
 
 @mcp.tool()
-async def list_resources(resource_type: str | None = None, region: str | None = None) -> list:
+async def list_resources(
+    resource_type: str = Field(
+        description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
+) -> list:
     """List AWS resources of a specified type.
 
     Parameters:
@@ -88,7 +101,15 @@ async def list_resources(resource_type: str | None = None, region: str | None = 
 
 @mcp.tool()
 async def get_resource(
-    resource_type: str | None = None, identifier: str | None = None, region: str | None = None
+    resource_type: str = Field(
+        description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
+    ),
+    identifier: str = Field(
+        description='The primary identifier of the resource to get (e.g., bucket name for S3 buckets)'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
 ) -> dict:
     """Get details of a specific AWS resource.
 
@@ -123,10 +144,18 @@ async def get_resource(
 
 @mcp.tool()
 async def update_resource(
-    resource_type: str | None = None,
-    identifier: str | None = None,
-    patch_document: list | None = None,
-    region: str | None = None,
+    resource_type: str = Field(
+        description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
+    ),
+    identifier: str = Field(
+        description='The primary identifier of the resource to get (e.g., bucket name for S3 buckets)'
+    ),
+    patch_document: list = Field(
+        description='A list of RFC 6902 JSON Patch operations to apply', default=[]
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
 ) -> dict:
     """Update an AWS resource.
 
@@ -181,7 +210,13 @@ async def update_resource(
 
 @mcp.tool()
 async def create_resource(
-    resource_type: str | None = None, properties: dict | None = None, region: str | None = None
+    resource_type: str = Field(
+        description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
+    ),
+    properties: dict = Field(description='A dictionary of properties for the resource'),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
 ) -> dict:
     """Create an AWS resource.
 
@@ -226,7 +261,15 @@ async def create_resource(
 
 @mcp.tool()
 async def delete_resource(
-    resource_type: str | None = None, identifier: str | None = None, region: str | None = None
+    resource_type: str = Field(
+        description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
+    ),
+    identifier: str = Field(
+        description='The primary identifier of the resource to get (e.g., bucket name for S3 buckets)'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
 ) -> dict:
     """Delete an AWS resource.
 
@@ -269,7 +312,14 @@ async def delete_resource(
 
 
 @mcp.tool()
-async def get_request_status(request_token: str | None = None, region: str | None = None) -> dict:
+async def get_request_status(
+    request_token: str = Field(
+        description='The request_token returned from the long running operation'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
+) -> dict:
     """Get the status of a long running operation with the request token.
 
     Args:

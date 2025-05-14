@@ -64,7 +64,7 @@ class TestTools:
     async def test_get_resource_schema_no_type(self):
         """Testing no type provided."""
         with pytest.raises(ClientError):
-            await get_resource_schema_information()
+            await get_resource_schema_information(resource_type=None)
 
     @patch('awslabs.cfn_mcp_server.server.schema_manager')
     async def test_get_resource_schema(self, mock_schema_manager):
@@ -87,7 +87,7 @@ class TestTools:
     async def test_list_resources_no_type(self):
         """Testing no type provided."""
         with pytest.raises(ClientError):
-            await list_resources()
+            await list_resources(resource_type=None)
 
     @patch('awslabs.cfn_mcp_server.server.get_aws_client')
     async def test_list_resources(self, mock_get_aws_client):
@@ -115,12 +115,14 @@ class TestTools:
     async def test_get_resource_no_type(self):
         """Testing no type provided."""
         with pytest.raises(ClientError):
-            await get_resource(identifier='identifier')
+            await get_resource(resource_type=None, identifier='identifier')
 
     async def test_get_resource_no_identifier(self):
         """Testing no identifier provided."""
         with pytest.raises(ClientError):
-            await get_resource(resource_type='AWS::CodeStarConnections::Connection')
+            await get_resource(
+                resource_type='AWS::CodeStarConnections::Connection', identifier=None
+            )
 
     @patch('awslabs.cfn_mcp_server.server.get_aws_client')
     async def test_get_resource(self, mock_get_aws_client):
@@ -148,20 +150,24 @@ class TestTools:
     async def test_update_resource_no_type(self):
         """Testing testing update with no type."""
         with pytest.raises(ClientError):
-            await update_resource(identifier='identifier', patch_document=[])
+            await update_resource(resource_type=None, identifier='identifier', patch_document=[])
 
     async def test_update_resource_no_identifier(self):
         """Testing no identifier provided."""
         with pytest.raises(ClientError):
             await update_resource(
-                resource_type='AWS::CodeStarConnections::Connection', patch_document=[]
+                resource_type='AWS::CodeStarConnections::Connection',
+                identifier=None,
+                patch_document=[],
             )
 
     async def test_update_resource_no_patch(self):
         """Testing no patch provided."""
         with pytest.raises(ClientError):
             await update_resource(
-                identifier='identifier', resource_type='AWS::CodeStarConnections::Connection'
+                identifier='identifier',
+                resource_type='AWS::CodeStarConnections::Connection',
+                patch_document=None,
             )
 
     @patch('awslabs.cfn_mcp_server.server.get_aws_client')
@@ -197,12 +203,14 @@ class TestTools:
     async def test_create_resource_no_type(self):
         """Testing no type provided."""
         with pytest.raises(ClientError):
-            await create_resource(properties={})
+            await create_resource(resource_type=None, properties={})
 
     async def test_create_resource_no_properties(self):
         """Testing no properties provided."""
         with pytest.raises(ClientError):
-            await create_resource(resource_type='AWS::CodeStarConnections::Connection')
+            await create_resource(
+                resource_type='AWS::CodeStarConnections::Connection', properties=None
+            )
 
     @patch('awslabs.cfn_mcp_server.server.get_aws_client')
     async def test_create_resource(self, mock_get_aws_client):
@@ -236,12 +244,14 @@ class TestTools:
     async def test_delete_resource_no_type(self):
         """Testing simple delete."""
         with pytest.raises(ClientError):
-            await delete_resource(identifier='Identifier')
+            await delete_resource(resource_type=None, identifier='Identifier')
 
     async def test_delete_resource_no_identifier(self):
         """Testing no identifier on delete."""
         with pytest.raises(ClientError):
-            await create_resource(resource_type='AWS::CodeStarConnections::Connection')
+            await delete_resource(
+                resource_type='AWS::CodeStarConnections::Connection', identifier=None
+            )
 
     @patch('awslabs.cfn_mcp_server.server.get_aws_client')
     async def test_delete_resource(self, mock_get_aws_client):
