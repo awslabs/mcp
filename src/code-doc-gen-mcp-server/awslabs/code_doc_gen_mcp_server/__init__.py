@@ -9,6 +9,6 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-"""awslabs.postgres-mcp-server"""
+"""awslabs.code-doc-gen-mcp-server"""
 
-__version__ = '0.0.3'
+__version__ = '0.0.0'

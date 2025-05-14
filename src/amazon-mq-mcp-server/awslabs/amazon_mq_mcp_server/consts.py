@@ -8,7 +8,7 @@
 # or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.
 
-"""awslabs.postgres-mcp-server"""
-
-__version__ = '0.0.3'
+MCP_SERVER_VERSION = '1.0.0'
