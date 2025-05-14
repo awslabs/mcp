@@ -88,7 +88,7 @@ no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
-"awslabs/dynamodb_mcp_server/dynamodb_server.py" = ["D101"]
+"awslabs/dynamodb_mcp_server/common.py" = ["D101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
