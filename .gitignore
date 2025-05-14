@@ -556,3 +556,6 @@ dist
 
 # End of https://www.toptal.com/developers/gitignore/api/jetbrains+all,pycharm+all,node
 samples/mcp-integration-with-nova-canvas/output/*
+src/openapi-mcp-server/generated-diagrams/*
+src/openapi-mcp-server/*.txt
+src/openapi-mcp-server/*-coverage.xml
