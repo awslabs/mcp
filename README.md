@@ -162,7 +162,7 @@ A server for seamlessly creating diagrams using the Python diagrams package DSL.
 
 ### AWS CloudFormation MCP Server
 
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.iac-cfn-server.svg)](https://pypi.org/project/awslabs.cfn-mcp-server/)
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.cfn-mcp-server.svg)](https://pypi.org/project/awslabs.cfn-mcp-server/)
 
 A server to manage AWS resources via cloudcontrol. This allows you to perform CRUDL operations on any AWS resources in your AWS account
 
