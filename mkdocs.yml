@@ -26,6 +26,9 @@ theme:
 plugins:
   - search
   - include-markdown
+  - mermaid2:
+      version: 11.6.0
+      javascript: https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.esm.min.mjs
 nav:
   - Home: index.md
   - AWS MCP Servers:
