@@ -66,14 +66,14 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
-If you would like to specify a flag (for example, to disable creation of resources), you can pass it to the args
+If you would like to specify a flag (for example, to allow creation of resources), you can pass it to the args
 
 ```json
 {
   "mcpServers": {
     "awslabs.amazon-mq-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.amazon-mq-mcp-server@latest", "--disallow-resource-creation"],
+      "args": ["awslabs.amazon-mq-mcp-server@latest", "--allow-resource-creation"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
@@ -135,9 +135,9 @@ Example:
 uv run awslabs.amazon-mq-mcp-server --port 9000
 ```
 
-### `--disallow-resource-creation`
+### `--allow-resource-creation`
 
-Disables tools that create resources in the user's AWS account. When this flag is enabled, the `create_broker` and `create_configuration` tools will be hidden from the MCP client, preventing the creation of new Amazon MQ resources. Default is False.
+Allow tools that create resources in the user's AWS account. When this flag is enabled, the `create_broker` and `create_configuration` tools will be created for the MCP client, preventing the creation of new Amazon MQ resources. Default is False.
 
 This flag is particularly useful for:
 - Testing environments where resource creation should be restricted
@@ -145,7 +145,7 @@ This flag is particularly useful for:
 
 Example:
 ```bash
-uv run awslabs.amazon-mq-mcp-server --disallow-resource-creation
+uv run awslabs.amazon-mq-mcp-server --allow-resource-creation
 ```
 
 ### Security Features
