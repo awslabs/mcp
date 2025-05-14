@@ -2,4 +2,4 @@
 title: AWS Location Service MCP Server
 ---
 
-{%include "../../src/postgres-mcp-server/README.md"%}
+{%include "../../src/aws-location-mcp-server/README.md"%}
