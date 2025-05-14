@@ -92,7 +92,6 @@ The AWS Lambda MCP Server enables AI assistants to select and run AWS Lambda fun
 
 [Learn more about the AWS Lambda MCP Server](servers/lambda-mcp-server.md)
 
-
 ### AWS Diagram MCP Server
 
 This MCP server that seamlessly creates [diagrams](https://diagrams.mingrammer.com/) using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
@@ -138,6 +137,19 @@ The Amazon ElastiCache/MemoryDB Valkey MCP Server provides a natural language in
 - Connection pooling for efficient resource management
 
 [Learn more about the Valkey MCP Server](servers/valkey-mcp-server.md)
+
+### Code Documentation Generation MCP Server
+
+The Code Documentation Generation MCP Server automatically generates comprehensive documentation for code repositories.
+
+**Features:**
+
+- Automated documentation generation based on repository analysis
+- AWS architecture diagram integration
+- Multiple document types (README, API, Backend, Frontend)
+- Interactive documentation creation workflow
+
+[Learn more about the Code Documentation Generation MCP Server](servers/code-doc-gen-mcp-server.md)
 
 ### AWS Location Service MCP Server
 

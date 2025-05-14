@@ -127,21 +127,21 @@ runs:
 
     - name: Export digest
       run: |
-        mkdir -p ${{ runner.temp }}/digests
+        mkdir -p ${{ runner.temp }}/digests/${{ inputs.image }}
         digest="${{ steps.build.outputs.digest }}"
-        touch "${{ runner.temp }}/digests/${digest#sha256:}"
+        touch "${{ runner.temp }}/digests/${{ inputs.image }}/${digest#sha256:}"
       shell: bash
 
     - name: Upload digest
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: digests
-        path: ${{ runner.temp }}/digests/*
+        name: digests-${{ inputs.image }}
+        path: ${{ runner.temp }}/digests/${{ inputs.image }}/*
         if-no-files-found: error
         retention-days: 1
 
     - name: Create manifest list and push
-      working-directory: ${{ runner.temp }}/digests
+      working-directory: ${{ runner.temp }}/digests/${{ inputs.image }}
       env:
         IMAGE: ${{ inputs.image }}
         ALIAS: ${{ inputs.public-erc-registry-alias }}

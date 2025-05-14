@@ -25,6 +25,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
   - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
   - [Postgres MCP Server](#postgres-mcp-server)
+  - [AmazonMQ MCP Server](#amazon-mq-mcp-server)
   - [Use Cases for the Servers](#use-cases-for-the-servers)
 - [Installation and Setup](#installation-and-setup)
   - [Getting Started with Cline and Amazon Bedrock](#getting-started-with-cline-and-amazon-bedrock)
@@ -230,6 +231,19 @@ A server for researching Git repositories using semantic search.
 
 [Learn more](src/git-repo-research-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
 
+### Code Documentation Generation MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.code-doc-gen-mcp-server.svg)](https://pypi.org/project/awslabs.code-doc-gen-mcp-server/)
+
+A server that automatically generates comprehensive documentation for code repositories.
+
+- Automated documentation generation based on repository analysis
+- AWS architecture diagram integration with AWS Diagrams MCP Server
+- Multiple document types (README, API, Backend, Frontend)
+- Interactive documentation creation workflow for AI assistants
+
+[Learn more](src/code-doc-gen-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/code-doc-gen-mcp-server/)
+
 ### Postgres MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.postgres-mcp-server.svg)](https://pypi.org/project/awslabs.postgres-mcp-server/)
@@ -240,6 +254,33 @@ A server for Aurora Postgres.
 - Fetch table columns and comments from Postgres using RDS Data API
 
 [Learn more](src/postgres-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/postgres-mcp-server/)
+
+### Amazon MQ MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-mq-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-mq-mcp-server/)
+
+A server for Amazon MQ.
+
+- Analyze existing Amazon MQ for ActiveMQ and RabbitMQ brokers .
+- Provision new Amazon MQ for ActiveMQ and RabbitMQ broker instances.
+
+[Learn more](src/amazon-mq-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-mq-mcp-server/)
+
+### Synthetic Data MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.syntheticdata-mcp-server.svg)](https://pypi.org/project/awslabs.syntheticdata-mcp-server/)
+
+A server for generating, validating, and managing synthetic data.
+
+- Business-Driven Generation: Generate synthetic data instructions based on business descriptions
+- Safe Pandas Code Execution: Run pandas code in a restricted environment with automatic DataFrame detection
+- JSON Lines Validation: Validate and convert JSON Lines data to CSV format
+- Data Validation: Validate data structure, referential integrity, and save as CSV files
+- Referential Integrity Checking: Validate relationships between tables
+- Data Quality Assessment: Identify potential issues in data models (3NF validation)
+- Storage Integration: Load data to various storage targets (S3) with support for multiple formats and configurations
+
+[Learn more](src/syntheticdata-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/syntheticdata-mcp-server/)
 
 ### Use Cases for the Servers
 

@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from mcp.server.fastmcp import Context, FastMCP
+from typing import Optional
 
 
 # Set up logging
@@ -35,7 +36,13 @@ logger.info(f'FUNCTION_TAG_KEY: {FUNCTION_TAG_KEY}')
 FUNCTION_TAG_VALUE = os.environ.get('FUNCTION_TAG_VALUE', '')
 logger.info(f'FUNCTION_TAG_VALUE: {FUNCTION_TAG_VALUE}')
 
-lambda_client = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION).client('lambda')
+FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY = os.environ.get('FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY')
+logger.info(f'FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY: {FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY}')
+
+# Initialize AWS clients
+session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
+lambda_client = session.client('lambda')
+schemas_client = session.client('schemas')
 
 mcp = FastMCP(
     'awslabs.lambda-mcp-server',
@@ -108,8 +115,53 @@ async def invoke_lambda_function_impl(function_name: str, parameters: dict, ctx:
     return format_lambda_response(function_name, payload)
 
 
-def create_lambda_tool(function_name: str, description: str):
-    """Create a tool function for a Lambda function."""
+def get_schema_from_registry(schema_arn: str) -> Optional[dict]:
+    """Fetch schema from EventBridge Schema Registry.
+
+    Args:
+        schema_arn: ARN of the schema to fetch
+
+    Returns:
+        Schema content if successful, None if failed
+    """
+    try:
+        # Parse registry name and schema name from ARN
+        # ARN format: arn:aws:schemas:region:account:schema/registry-name/schema-name
+        arn_parts = schema_arn.split(':')
+        if len(arn_parts) < 6:
+            logger.error(f'Invalid schema ARN format: {schema_arn}')
+            return None
+
+        registry_schema = arn_parts[5].split('/')
+        if len(registry_schema) != 3:
+            logger.error(f'Invalid schema path in ARN: {arn_parts[5]}')
+            return None
+
+        registry_name = registry_schema[1]
+        schema_name = registry_schema[2]
+
+        # Get the latest schema version
+        response = schemas_client.describe_schema(
+            RegistryName=registry_name,
+            SchemaName=schema_name,
+        )
+
+        # Return the raw schema content
+        return response['Content']
+
+    except Exception as e:
+        logger.error(f'Error fetching schema from registry: {e}')
+        return None
+
+
+def create_lambda_tool(function_name: str, description: str, schema_arn: Optional[str] = None):
+    """Create a tool function for a Lambda function.
+
+    Args:
+        function_name: Name of the Lambda function
+        description: Base description for the tool
+        schema_arn: Optional ARN of the input schema in the Schema Registry
+    """
     # Create a meaningful tool name
     tool_name = sanitize_tool_name(function_name)
 
@@ -120,13 +172,53 @@ def create_lambda_tool(function_name: str, description: str):
         return await invoke_lambda_function_impl(function_name, parameters, ctx)
 
     # Set the function's documentation
-    lambda_function.__doc__ = description
+    if schema_arn:
+        schema = get_schema_from_registry(schema_arn)
+        if schema:
+            #  We add the schema to the description because mcp.tool does not expose overriding the tool schema.
+            description_with_schema = f'{description}\n\nInput Schema:\n{schema}'
+            lambda_function.__doc__ = description_with_schema
+            logger.info(f'Added schema from registry to description for function {function_name}')
+        else:
+            lambda_function.__doc__ = description
+    else:
+        lambda_function.__doc__ = description
 
     logger.info(f'Registering tool {tool_name} with description: {description}')
     # Apply the decorator manually with the specific name
     decorated_function = mcp.tool(name=tool_name)(lambda_function)
 
     return decorated_function
+
+
+def get_schema_arn_from_function_arn(function_arn: str) -> Optional[str]:
+    """Get schema ARN from function tags if configured.
+
+    Args:
+        function_arn: ARN of the Lambda function
+
+    Returns:
+        Schema ARN if found and configured, None otherwise
+    """
+    if not FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY:
+        logger.info(
+            'No schema tag environment variable provided (FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY ).'
+        )
+        return None
+
+    try:
+        tags_response = lambda_client.list_tags(Resource=function_arn)
+        tags = tags_response.get('Tags', {})
+        if FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY in tags:
+            return tags[FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY]
+        else:
+            logger.info(
+                f'No schema arn provided for function {function_arn} via tag {FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY}'
+            )
+    except Exception as e:
+        logger.warning(f'Error checking tags for function {function_arn}: {e}')
+
+    return None
 
 
 def filter_functions_by_tag(functions, tag_key, tag_value):
@@ -196,8 +288,9 @@ def register_lambda_functions():
         for function in valid_functions:
             function_name = function['FunctionName']
             description = function.get('Description', f'AWS Lambda function: {function_name}')
+            schema_arn = get_schema_arn_from_function_arn(function['FunctionArn'])
 
-            create_lambda_tool(function_name, description)
+            create_lambda_tool(function_name, description, schema_arn)
 
         logger.info('Lambda functions registered successfully as individual tools.')
 
