@@ -206,8 +206,9 @@ class Tag(TypedDict):
 
 
 class SSESpecification(TypedDict, total=False):
+    """Set Enabled to true for AWS managed key (KMS charges apply). set it to false/not specified for AWS owned key."""
+
     Enabled: bool = Field(
-        description='If true, uses AWS managed key (KMS charges apply). If false/not specified, uses AWS owned key',
         default=None,
     )
     SSEType: Literal['KMS'] = Field(
