@@ -26,6 +26,8 @@ theme:
 plugins:
   - search
   - include-markdown
+  - mermaid2:
+      javascript: null
 nav:
   - Home: index.md
   - AWS MCP Servers:

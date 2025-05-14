@@ -51,7 +51,7 @@ MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as
 
 This diagram provides a comprehensive view of the recommended CDK implementation workflow:
 
-```code
+```mermaid
 graph TD
     Start([Start]) --> A["CDKGeneralGuidance"]
     A --> Init["cdk init app"]
