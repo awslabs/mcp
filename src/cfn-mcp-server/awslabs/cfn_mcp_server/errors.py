@@ -32,6 +32,20 @@ def handle_aws_api_error(e: Exception) -> Exception:
     # Handle common AWS error patterns
     if 'AccessDenied' in error_message or error_type == 'AccessDeniedException':
         return ClientError('Access denied. Please check your AWS credentials and permissions.')
+    elif 'IncompleteSignature' in error_message:
+        return ClientError(
+            'Incomplete signature. The request signature does not conform to AWS standards.'
+        )
+    elif 'InvalidAction' in error_message:
+        return ClientError(
+            'Invalid action. The action or operation requested is invalid. Verify that the action is typed correctly.'
+        )
+    elif 'InvalidClientTokenId' in error_message:
+        return ClientError(
+            'Invalid client token id. The X.509 certificate or AWS access key ID provided does not exist in our records.'
+        )
+    elif 'NotAuthorized' in error_message:
+        return ClientError('Not authorized. You do not have permission to perform this action.')
     elif 'ValidationException' in error_message or error_type == 'ValidationException':
         return ClientError('Validation error. Please check your input parameters.')
     elif 'ResourceNotFoundException' in error_message or error_type == 'ResourceNotFoundException':
@@ -46,6 +60,10 @@ def handle_aws_api_error(e: Exception) -> Exception:
         )
     elif 'ThrottlingException' in error_message or error_type == 'ThrottlingException':
         return ClientError('Request was throttled. Please reduce your request rate.')
+    elif 'InternalFailure' in error_message or error_type == 'InternalFailure':
+        return ServerError('Internal failure. The server failed to process the request.')
+    elif 'ServiceUnavailable' in error_message or error_type == 'ServiceUnavailable':
+        return ServerError('Service unavailable. The server failed to process the request.')
     else:
         # Generic error handling - we might shift to this for everything eventually since it gives more context to the LLM, will have to test
         return ClientError(f'An error occurred: {error_message}')

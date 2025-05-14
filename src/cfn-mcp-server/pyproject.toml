@@ -16,6 +16,8 @@ authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
     {name = "Karam Singh", email="karam.singh.vir@gmail.com"},
+    {name = "Brian Terry", email="brianter@amazon.com"},
+    {name = "Shardul Vaidya", email="cam.v737@gmail.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",

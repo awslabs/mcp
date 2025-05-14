@@ -22,6 +22,62 @@ Model Context Protocol (MCP) server that enables LLMs to directly create and man
 
 ## Installation
 
+Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "awslabs.cfn-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-cfn-mcp-server@latest",
+        "--readonly", "False"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-named-profile",
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+or docker after a succesful `docker build -t awslabs/cfn-mcp-server .`:
+
+```file
+# ficticious `.env` file with AWS temporary credentials
+AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+```
+
+```json
+  {
+    "mcpServers": {
+      "awslabs.cfn-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env-file",
+          "/full/path/to/file/above/.env",
+          "awslabs/cfn-mcp-server:latest",
+          "--readonly", "False"
+        ],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+      }
+    }
+  }
+```
+
+NOTE: Your credentials will need to be kept refreshed from your host
+
+## Installation - DELETE
+
 Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
@@ -67,7 +123,6 @@ Get schema information for an AWS CloudFormation resource.
 ### get_request_status
 Get the status of a mutation that was initiated by create/update/delete resource
 **Example**: Give me the status of the last request I made
-
 
 ## Basic Usage
 
