@@ -131,13 +131,14 @@ async def test_create_table_with_gsi(dynamodb):
 
 @pytest.mark.asyncio
 async def test_put_item(test_table):
-    """Test putting an item into a table."""
+    """Test putting an item into a table with condition expression."""
+    # Test 1: Put item with condition that it doesn't exist
     result = await put_item(
         table_name='TestTable',
         item={'id': {'S': 'test1'}, 'sort': {'S': 'data1'}, 'data': {'S': 'test data'}},
         region_name='us-west-2',
-        condition_expression=None,
-        expression_attribute_names=None,
+        condition_expression='attribute_not_exists(id) AND attribute_not_exists(#sort)',
+        expression_attribute_names={'#sort': 'sort'},
         expression_attribute_values=None,
     )
 
@@ -146,6 +147,31 @@ async def test_put_item(test_table):
 
     # DynamoDB returns empty response on success unless ReturnValues is specified
     assert 'error' not in result
+
+    # Test 2: Try to put same item again, should fail due to condition
+    result = await put_item(
+        table_name='TestTable',
+        item={'id': {'S': 'test1'}, 'sort': {'S': 'data1'}, 'data': {'S': 'new data'}},
+        region_name='us-west-2',
+        condition_expression='attribute_not_exists(id) AND attribute_not_exists(#sort)',
+        expression_attribute_names={'#sort': 'sort'},
+        expression_attribute_values=None,
+    )
+
+    # Verify the conditional put failed
+    assert 'error' in result
+    assert 'ConditionalCheckFailedException' in str(result['error'])
+
+    # Verify the original item is unchanged
+    get_result = await get_item(
+        table_name='TestTable',
+        key={'id': {'S': 'test1'}, 'sort': {'S': 'data1'}},
+        expression_attribute_names=None,
+        projection_expression=None,
+        region_name='us-west-2',
+    )
+
+    assert get_result['Item']['data']['S'] == 'test data'
 
 
 @pytest.mark.asyncio
@@ -556,9 +582,9 @@ async def test_backup_operations(test_table):
     list_result = await list_backups(
         table_name='TestTable',
         region_name='us-west-2',
-        backup_type=None,
+        backup_type='USER',
         exclusive_start_backup_arn=None,
-        limit=None,
+        limit=100,
     )
 
     if 'error' in list_result:
@@ -676,7 +702,7 @@ async def test_continuous_backup_operations(test_table):
     update_result = await update_continuous_backups(
         table_name='TestTable',
         point_in_time_recovery_enabled=False,
-        recovery_period_in_days=None,
+        recovery_period_in_days=30,
         region_name='us-west-2',
     )
 
