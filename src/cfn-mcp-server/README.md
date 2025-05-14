@@ -76,24 +76,6 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
 
 NOTE: Your credentials will need to be kept refreshed from your host
 
-## Installation - DELETE
-
-Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-cfn-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.aws-cfn-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-named-profile",
-      }
-    }
-  }
-}
-```
-
 ## Tools
 
 ### create_resource
