@@ -77,7 +77,20 @@ class DiagramExampleResponse(BaseModel):
     examples: Dict[str, str]
 
 
+class DiagramIconsRequest(BaseModel):
+    """Request model for listing available diagram icons."""
+
+    provider_filter: Optional[str] = Field(
+        None, description='Filter icons by provider name (e.g., "aws", "gcp", "k8s")'
+    )
+    service_filter: Optional[str] = Field(
+        None, description='Filter icons by service name (e.g., "compute", "database", "network")'
+    )
+
+
 class DiagramIconsResponse(BaseModel):
     """Response model for listing available diagram icons."""
 
     providers: Dict[str, Dict[str, List[str]]]
+    filtered: bool = False
+    filter_info: Optional[Dict[str, str]] = None
