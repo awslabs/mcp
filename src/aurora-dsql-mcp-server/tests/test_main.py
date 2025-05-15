@@ -30,7 +30,7 @@ class TestMain:
             'us-west-2',
         ],
     )
-    def test_main_with_valid_arguments(self, mocker):
+    def test_main_with_required_arguments(self, mocker):
         mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
         mock_execute_query.return_value = {'column': 1}
 
@@ -41,11 +41,12 @@ class TestMain:
         assert awslabs.aurora_dsql_mcp_server.server.database_user == 'test_user'
         assert awslabs.aurora_dsql_mcp_server.server.cluster_endpoint == 'test_ce'
         assert awslabs.aurora_dsql_mcp_server.server.region == 'us-west-2'
-        assert awslabs.aurora_dsql_mcp_server.server.read_only == False
+        assert awslabs.aurora_dsql_mcp_server.server.read_only == True
 
         mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
         assert mock_mcp_run.call_args[1].get('transport') is None
+
 
     @patch(
         'sys.argv',
@@ -57,13 +58,13 @@ class TestMain:
             'test_user',
             '--region',
             'us-west-2',
-            '--read-only',
+            '--allow-writes',
             '--sse',
             '--port',
             '9999',
         ],
     )
-    def test_main_with_valid_arguments(self, mocker):
+    def test_main_with_optional_arguments(self, mocker):
         mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
         mock_execute_query.return_value = {'column': 1}
 
@@ -71,7 +72,7 @@ class TestMain:
 
         main()
 
-        assert awslabs.aurora_dsql_mcp_server.server.read_only == True
+        assert awslabs.aurora_dsql_mcp_server.server.read_only == False
 
         mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
