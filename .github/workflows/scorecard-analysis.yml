@@ -8,16 +8,15 @@ on:
     # Weekly on Thursdays.
     - cron:  '30 1 * * 4'
 
-permissions: read-all
+permissions: {}
 
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
     permissions:
-      # Needed for Code scanning upload
+      contents: read
       security-events: write
-      # Needed for GitHub OIDC token if publish_results is true
       id-token: write
 
     steps:

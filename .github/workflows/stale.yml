@@ -3,11 +3,12 @@ on:
   schedule:
     - cron: 0 1 * * *
   workflow_dispatch: {}
-permissions: read-all
+permissions: {}
 jobs:
   stale:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       issues: write
       pull-requests: write
     steps:
