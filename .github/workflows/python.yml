@@ -5,12 +5,13 @@ on:
   pull_request:
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   detect-packages:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       packages: ${{ steps.find-packages.outputs.packages }}
     steps:
