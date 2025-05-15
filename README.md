@@ -14,6 +14,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 - [Available Servers](#available-servers)
   - [Core MCP Server](#core-mcp-server)
   - [AWS Documentation MCP Server](#aws-documentation-mcp-server)
+  - [AWS Kendra Index MCP Server](#amazon-kendra-index-mcp-server)
   - [Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)
   - [AWS CDK MCP Server](#aws-cdk-mcp-server)
   - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
@@ -99,6 +100,16 @@ A server for accessing AWS documentation and best practices.
 - Convert documentation to markdown format
 
 [Learn more](src/aws-documentation-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/)
+
+### Amazon Kendra Index MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.bedrock-kb-retrieval-mcp-server.svg)](https://pypi.org/project/awslabs.bedrock-kb-retrieval-mcp-server/)
+
+A server for querying an Amazon Kendra Index.
+
+- Query Kendra indices with natural language to give additional knowledge to your AI tool from Kendra
+
+[Learn more](src/amazon-kendra-index-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/kendra-index-mcp-server/)
 
 ### Amazon Bedrock Knowledge Bases Retrieval MCP Server
 
