@@ -153,6 +153,17 @@ A server for accessing AWS Location Service capabilities, focusing on place sear
 
 [Learn more about the AWS Location Service MCP Server](servers/aws-location-mcp-server.md)
 
+### CloudFormation MCP Server
+
+A server for managing your AWS resources directly and through cloudformation.
+
+**Features:**
+
+- Create/Update/Delete your resources with the resource access tools
+- List/Read your resources with the resource access tools
+
+[Learn more about the CloudFormation MCP Server](servers/cfn-mcp-server.md)
+
 ### Git Repo Research MCP Server
 
 A server for researching Git repositories using semantic search.
@@ -177,6 +188,16 @@ A server for Aurora Postgres.
 - Fetch table columns and comments from Postgres using RDS Data API
 
 [Learn more about the Postgres MCP Server](servers/postgres-mcp-server.md)
+
+### AWS DynamoDB MCP Server
+
+A server for interacting with AWS DynamoDB
+
+**Features:**
+- Control Plane operations like table creation, table update, global secondary index, streams, global table management, backup, restore, etc.
+- Data Plane operations like put, get, update, query and scan.
+
+[Learn more about the AWS DynamoDB MCP Server](servers/dynamodb-mcp-server.md)
 
 ## Installation and Setup
 
