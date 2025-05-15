@@ -199,7 +199,12 @@ class TestSNSTools:
 
         # Define a mock AWSToolGenerator that captures the tool_configuration
         def mock_generator(
-            service_name, service_display_name, mcp, tool_configuration, skip_param_documentation
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
         ):
             nonlocal tool_config_capture
             tool_config_capture = tool_configuration
