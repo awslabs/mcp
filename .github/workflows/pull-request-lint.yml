@@ -12,14 +12,14 @@ on:
       - edited
   merge_group: {}
 
-permissions: read-all
+permissions: {}
 
 jobs:
   validate:
     name: Validate PR title
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
+      pull-requests: read
     if: (github.event_name == 'pull_request' || github.event_name == 'pull_request_target')
     steps:
       - uses: amannn/action-semantic-pull-request@0723387faaf9b38adef4775cd42cfd5155ed6017 #v5.5.3
