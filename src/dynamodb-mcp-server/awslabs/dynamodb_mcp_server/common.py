@@ -1,5 +1,29 @@
-from typing import Any, Dict, List, Literal, Optional
+from functools import wraps
+from typing import Any, Callable, Dict, List, Literal, Optional
 from typing_extensions import TypedDict
+
+
+def handle_exceptions(func: Callable) -> Callable:
+    """Decorator to handle exceptions in DynamoDB operations.
+
+    Wraps the function in a try-catch block and returns any exceptions
+    in a standardized error format.
+
+    Args:
+        func: The function to wrap
+
+    Returns:
+        The wrapped function that handles exceptions
+    """
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            return {'error': str(e)}
+
+    return wrapper
 
 
 # Type definitions

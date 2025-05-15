@@ -490,7 +490,7 @@ async def test_scan(test_table):
         region_name='us-west-2',
         index_name=None,
         projection_expression=None,
-        select=None,
+        select='ALL_ATTRIBUTES',
         limit=None,
         exclusive_start_key=None,
     )
@@ -722,7 +722,7 @@ async def test_resource_policy_operations(test_table):
     describe_result = await describe_table(table_name='TestTable', region_name='us-west-2')
     table_arn = describe_result['TableArn']
 
-    # Put resource policy
+    # Test 1: Put valid resource policy
     policy = {
         'Version': '2012-10-17',
         'Statement': [
@@ -842,3 +842,33 @@ async def test_update_table(test_table):
     assert result['TableName'] == 'TestTable'
     assert result['ProvisionedThroughput']['ReadCapacityUnits'] == 2
     assert result['ProvisionedThroughput']['WriteCapacityUnits'] == 2
+
+
+@pytest.mark.asyncio
+async def test_exception_handling(test_table):
+    """Test exception handling."""
+    # Test error handling by using invalid region
+
+    # Test 1: Put valid resource policy
+    # Get table ARN
+    describe_result = await describe_table(table_name='TestTable', region_name='us-west-2')
+    table_arn = describe_result['TableArn']
+
+    policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {
+                'Effect': 'Allow',
+                'Principal': {'AWS': '*'},
+                'Action': ['dynamodb:GetItem'],
+                'Resource': table_arn,
+            }
+        ],
+    }
+    error_result = await put_resource_policy(
+        resource_arn=table_arn, policy=policy, region_name='invalid'
+    )
+
+    # Verify error is returned
+    assert 'error' in error_result
+    print(error_result)
