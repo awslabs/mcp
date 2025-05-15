@@ -13,13 +13,13 @@ DSQL_MCP_SERVER_APPLICATION_NAME = 'awslabs.aurora-dsql-mcp-server'
 DSQL_DB_NAME = 'postgres'
 DSQL_DB_PORT = '5432'
 
-ERROR_EMPTY_SQL_PASSED_TO_QUERY = 'Incorrect invocation: Query invoked without a SQL statement'
+ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY = (
+    'Incorrect invocation: readonly_query invoked without a SQL statement'
+)
 ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT = (
-    'Incorrect invocation: Transact invoked with no sql statements'
+    'Incorrect invocation: transact invoked with no sql statements'
 )
-ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE = (
-    'transact cannot be used due to read only mode. Use query for executing a sql statement'
-)
+ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE = 'Your mcp server does not allow writes. To use transact, change the MCP configuration per README.md'
 ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA = (
     'Incorrect invocation: Schema invoked without a table name'
 )

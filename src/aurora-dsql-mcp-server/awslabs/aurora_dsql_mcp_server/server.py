@@ -22,8 +22,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     DSQL_MCP_SERVER_APPLICATION_NAME,
     ERROR_CREATE_CONNECTION,
     ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT,
-    ERROR_EMPTY_SQL_PASSED_TO_EXPLAIN,
-    ERROR_EMPTY_SQL_PASSED_TO_QUERY,
+    ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY,
     ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA,
     ERROR_EXECUTE_QUERY,
     ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE,
@@ -39,20 +38,36 @@ cluster_endpoint = None
 database_user = None
 region = None
 read_only = False
+dsql_client = None
 
 mcp = FastMCP(
-    'Aurora DSQL MCP server. This is the starting point for all solutions created',
+    'awslabs-aurora-dsql-mcp-server',
+    instructions="""
+    # Aurora DSQL MCP server.
+    Provides tools to execute SQL queries on Aurora DSQL cluster'
+
+    ## Available Tools
+
+    ### readonly_query
+    Runs a read-only SQL query.
+
+    ### transact
+    Executes one or more SQL commands in a transaction.
+
+    ### schema
+    Returns the schema of a table.
+    """,
     dependencies=[
         'loguru',
     ],
 )
 
 
-@mcp.tool(name='query', description='Run a read-only SQL query')
-async def query(
+@mcp.tool(name='readonly_query', description='Run a read-only SQL query')
+async def readonly_query(
     sql: Annotated[str, Field(description='The SQL query to run')], ctx: Context
 ) -> List[dict]:
-    """Runs a read-only SQL query against Aurora DSQL cluster.
+    """Runs a read-only SQL query.
 
     Args:
         sql: The sql statement to run
@@ -65,8 +80,8 @@ async def query(
     logger.info(f'query: {sql}')
 
     if not sql:
-        await ctx.error(ERROR_EMPTY_SQL_PASSED_TO_QUERY)
-        raise ValueError(ERROR_EMPTY_SQL_PASSED_TO_QUERY)
+        await ctx.error(ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY)
+        raise ValueError(ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY)
 
     conn = await create_connection(ctx)
 
@@ -102,13 +117,13 @@ async def transact(
     """
     logger.info(f'transact: {sql_list}')
 
-    if not sql_list:
-        await ctx.error(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
-        raise ValueError(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
-
     if read_only:
         await ctx.error(ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE)
         raise Exception(ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE)
+
+    if not sql_list:
+        await ctx.error(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
+        raise ValueError(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
 
     conn = await create_connection(ctx)
 
@@ -153,33 +168,6 @@ async def schema(
         raise e
 
 
-@mcp.tool(name='explain', description='Explain the given SQL query using Postgres EXPLAIN ANALYZE')
-async def explain(
-    sql: Annotated[str, Field(description='SQL query to explain analyze')], ctx: Context
-) -> List[dict]:
-    """Returns the explain plan for a query using Explain Analyze.
-
-    Args:
-        sql: SQL statement whose explain plan is to be returned
-        ctx: MCP context for logging and state management
-
-    Returns:
-        List of rows.
-    """
-    logger.info(f'sql: {sql}')
-
-    if not sql:
-        await ctx.error(ERROR_EMPTY_SQL_PASSED_TO_EXPLAIN)
-        raise ValueError(ERROR_EMPTY_SQL_PASSED_TO_EXPLAIN)
-
-    query = f'EXPLAIN ANALYZE {sql}'
-
-    try:
-        return await execute_query(ctx, None, query)
-    except Exception as e:
-        raise e
-
-
 class NoOpCtx:
     """A No-op context class for error handling in MCP tools."""
 
@@ -194,12 +182,11 @@ class NoOpCtx:
 async def get_password_token():  # noqa: D103
     # Generate a fresh password token for each connection, to ensure the token is not expired
     # when the connection is established
-    client = boto3.client('dsql', region_name=region)
 
     if database_user == 'admin':
-        return client.generate_db_connect_admin_auth_token(cluster_endpoint, region)
+        return dsql_client.generate_db_connect_admin_auth_token(cluster_endpoint, region)
     else:
-        return client.generate_db_connect_auth_token(cluster_endpoint, region)
+        return dsql_client.generate_db_connect_auth_token(cluster_endpoint, region)
 
 
 async def create_connection(ctx):  # noqa: D103
@@ -260,14 +247,11 @@ def main():
         '--cluster_endpoint', required=True, help='Endpoint for your Aurora DSQL cluster'
     )
     parser.add_argument('--database_user', required=True, help='Database username')
+    parser.add_argument('--region', required=True)
     parser.add_argument(
-        '--region',
-        required=True,
-        default='us-west-2',
-        help='AWS region for Aurora DSQL Cluster (default: us-west-2)',
-    )
-    parser.add_argument(
-        '--read-only', action='store_true', help='Do not allow read/write operations'
+        '--allow-writes',
+        action='store_true',
+        help='Allow use of tools that may perform write operations such as transact',
     )
     args = parser.parse_args()
 
@@ -281,15 +265,18 @@ def main():
     database_user = args.database_user
 
     global read_only
-    read_only = args.read_only
+    read_only = not args.allow_writes
 
     logger.info(
-        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, READ_ONLY:{}',
+        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}',
         cluster_endpoint,
         region,
         database_user,
-        read_only,
+        args.allow_writes,
     )
+
+    global dsql_client
+    dsql_client = boto3.client('dsql', region_name=region)
 
     try:
         logger.info('Validating connection to cluster')

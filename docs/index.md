@@ -98,9 +98,10 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 **Features:**
 
-- Execute queries against your DSQL Cluster
+- Execute read only queries
+- Fetch table schema
+- Write or modify data using SQL, in a transaction
 
-Instructions: TODO
 [Learn more about the aurora-dsql MCP Server](servers/aurora-dsql-mcp-server.md)
 
 ### AWS Diagram MCP Server

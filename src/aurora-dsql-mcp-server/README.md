@@ -45,6 +45,8 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 }
 ```
 
+NOTE: By default, mcp server does not allow write operations. Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing --allow-writes parameter.
+
 The MCP server can use the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
 
 ```json

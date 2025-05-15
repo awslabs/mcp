@@ -260,7 +260,7 @@ A server for generating, validating, and managing synthetic data.
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.aurora-dsql-mcp-server.svg)](https://pypi.org/project/awslabs.git-repo-aurora-dsql-mcp-server/)
 
-An AWS Labs Model Context Protocol (MCP) server for Aurora Postgres
+An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 - Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora DSQL database.
 
