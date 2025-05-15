@@ -19,6 +19,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
   - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
   - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
+  - [CloudFormation MCP Server](#aws-cloudformation-mcp-server)
   - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
   - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
   - [Amazon ElastiCache Memcached MCP Server](#memcached-mcp-server)
@@ -159,6 +160,17 @@ A server for seamlessly creating diagrams using the Python diagrams package DSL.
 - Code scanning to ensure secure diagram generation
 
 [Learn more](src/aws-diagram-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
+
+### AWS CloudFormation MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.cfn-mcp-server.svg)](https://pypi.org/project/awslabs.cfn-mcp-server/)
+
+A server to manage AWS resources via cloudcontrol. This allows you to perform CRUDL operations on any AWS resources in your AWS account
+
+- This server acts as a bridge between MCP clients and AWS, allowing foundation models (FMs) to read and manage resources in your AWS account.
+- This can be used, for example, to create an AWS::S3::Bucket, list any AWS::Lambda::Function, etc.
+
+[Learn more](src/cfn-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
 
 ### AWS Lambda MCP Server
 
@@ -399,6 +411,15 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
         "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR",
         "GITHUB_TOKEN": "your-github-token"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs.cloudformation": {
+      "command": "uvx",
+      "args": ["awslabs.cfn-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
       },
       "disabled": false,
       "autoApprove": []
@@ -705,6 +726,7 @@ Documentation for each server:
 erver/)
 - [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 - [Git Repo Research MCP Server](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
+- [CloudFormation MCP Server](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
 
 Documentation includes:
 
