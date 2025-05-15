@@ -13,7 +13,7 @@ from awslabs.syntheticdata_mcp_server.server import (
     _get_recommended_record_counts,
     _validate_table_data,
     execute_pandas_code,
-    get_data_generation_instructions,
+    get_data_gen_instructions,
     load_to_storage,
     main,
     mcp,
@@ -23,7 +23,7 @@ from pytest import mark
 
 
 @mark.asyncio
-async def test_get_data_generation_instructions() -> None:
+async def test_get_data_gen_instructions() -> None:
     """Test generation of data generation instructions."""
     business_description = """
     An e-commerce platform that sells electronics. We need customer data with their
@@ -31,7 +31,7 @@ async def test_get_data_generation_instructions() -> None:
     including payment status.
     """
 
-    result = await get_data_generation_instructions(business_description)
+    result = await get_data_gen_instructions(business_description)
 
     assert result['success'] is True
     assert 'instructions' in result
@@ -58,9 +58,9 @@ async def test_get_data_generation_instructions() -> None:
 
 
 @mark.asyncio
-async def test_get_data_generation_instructions_empty() -> None:
+async def test_get_data_gen_instructions_empty() -> None:
     """Test generation of data generation instructions with empty input."""
-    result = await get_data_generation_instructions('')
+    result = await get_data_gen_instructions('')
 
     assert result['success'] is False
     assert 'error' in result
@@ -68,9 +68,9 @@ async def test_get_data_generation_instructions_empty() -> None:
 
 
 @mark.asyncio
-async def test_get_data_generation_instructions_invalid() -> None:
+async def test_get_data_gen_instructions_invalid() -> None:
     """Test generation of data generation instructions with invalid input."""
-    result = await get_data_generation_instructions('   ')
+    result = await get_data_gen_instructions('   ')
 
     assert result['success'] is False
     assert 'error' in result
