@@ -30,11 +30,31 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
     "awslabs.cfn-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.aws-cfn-mcp-server@latest",
-        "--readonly" // Optional paramter if you would like to restrict the MCP to only read actions
+        "awslabs.cfn-mcp-server@latest"
       ],
       "env": {
-        "AWS_PROFILE": "your-named-profile",
+        "AWS_PROFILE": "your-named-profile"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+If you would like to prevent the MCP from taking any mutating actions (i.e. Create/Update/Delete Resource), you can specify the readonly flag as demonstrated below:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.cfn-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.cfn-mcp-server@latest",
+        "--readonly"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-named-profile"
       },
       "disabled": false,
       "autoApprove": []
