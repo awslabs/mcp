@@ -180,30 +180,3 @@ async def set_contains(key: str, member: Any) -> str:
         return str(result).lower()
     except ValkeyError as e:
         return f"Error checking set membership in '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def set_scan(
-    key: str, cursor: int = 0, match: Optional[str] = None, count: Optional[int] = None
-) -> str:
-    """Incrementally iterate over set.
-
-    Args:
-        key: The name of the key
-        cursor: Scan cursor position
-        match: Pattern to match members (optional)
-        count: Number of members per scan (optional)
-
-    Returns:
-        Scan result or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.sscan(key, cursor, match=match, count=count)
-        if not result[1]:  # No members found in this scan
-            if cursor == 0:  # First scan
-                return f"No matching members found in set '{key}'"
-            return f"No more matching members in set '{key}'"
-        return f'Cursor: {result[0]}, Members: {result[1]}'
-    except ValkeyError as e:
-        return f"Error scanning set '{key}': {str(e)}"

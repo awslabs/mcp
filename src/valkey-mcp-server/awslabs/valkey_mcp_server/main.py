@@ -44,15 +44,21 @@ async def health_check(request):
 class ValkeyMCPServer:
     """Valkey MCP Server wrapper."""
 
-    def __init__(self, sse=False, port=None):
-        """Initialize MCP Server wrapper."""
+    def __init__(self, sse=False, port=8888):
+        """Initialize MCP Server wrapper.
+
+        Args:
+            sse: Whether to use SSE transport
+            port: Port to run the server on (default: 8888)
+        """
         self.sse = sse
         self.port = port
 
     def run(self):
         """Run server with appropriate transport."""
         if self.sse:
-            mcp.settings.port = self.port
+            if self.port is not None:
+                mcp.settings.port = self.port
             mcp.run(transport='sse')
         else:
             mcp.run()

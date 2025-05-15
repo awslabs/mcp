@@ -312,33 +312,6 @@ async def sorted_set_range_by_lex(
 
 
 @mcp.tool()
-async def sorted_set_scan(
-    key: str, cursor: int = 0, match: Optional[str] = None, count: Optional[int] = None
-) -> str:
-    """Incrementally iterate sorted set.
-
-    Args:
-        key: The name of the key
-        cursor: Scan cursor position
-        match: Pattern to match members (optional)
-        count: Number of members per scan (optional)
-
-    Returns:
-        Scan result or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.zscan(key, cursor, match=match, count=count)
-        if not result[1]:  # No members found in this scan
-            if cursor == 0:  # First scan
-                return f"No matching members found in sorted set '{key}'"
-            return f"No more matching members in sorted set '{key}'"
-        return f'Cursor: {result[0]}, Members with scores: {result[1]}'
-    except ValkeyError as e:
-        return f"Error scanning sorted set '{key}': {str(e)}"
-
-
-@mcp.tool()
 async def sorted_set_popmin(key: str, count: Optional[int] = None) -> str:
     """Remove and return members with lowest scores.
 
@@ -384,45 +357,3 @@ async def sorted_set_popmax(key: str, count: Optional[int] = None) -> str:
         return str(result)
     except ValkeyError as e:
         return f"Error popping max from sorted set '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def sorted_set_popmin_blocking(key: str, timeout: float) -> str:
-    """Remove and return member with lowest score, blocking if empty.
-
-    Args:
-        key: The name of the key
-        timeout: Maximum seconds to block
-
-    Returns:
-        Popped member with score or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.bzpopmin(key, timeout)
-        if result is None:
-            return f"Timeout waiting for member in sorted set '{key}'"
-        return str(result)
-    except ValkeyError as e:
-        return f"Error blocking pop min from sorted set '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def sorted_set_popmax_blocking(key: str, timeout: float) -> str:
-    """Remove and return member with highest score, blocking if empty.
-
-    Args:
-        key: The name of the key
-        timeout: Maximum seconds to block
-
-    Returns:
-        Popped member with score or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.bzpopmax(key, timeout)
-        if result is None:
-            return f"Timeout waiting for member in sorted set '{key}'"
-        return str(result)
-    except ValkeyError as e:
-        return f"Error blocking pop max from sorted set '{key}': {str(e)}"

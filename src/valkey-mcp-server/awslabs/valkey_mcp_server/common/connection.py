@@ -10,21 +10,23 @@
 # and limitations under the License.
 
 import sys
-import valkey
 from awslabs.valkey_mcp_server.common.config import VALKEY_CFG
 from awslabs.valkey_mcp_server.version import __version__
 from typing import Optional, Type, Union
-from valkey import Valkey
+from valkey import (
+    Valkey,
+    exceptions,
+)
 from valkey.cluster import ValkeyCluster
 
 
 class ValkeyConnectionManager:
     """Manages connection to Valkey."""
 
-    _instance: Optional[Valkey] = None
+    _instance: Optional[Union[Valkey, ValkeyCluster]] = None
 
     @classmethod
-    def get_connection(cls, decode_responses: bool = True) -> Valkey:
+    def get_connection(cls, decode_responses: bool = True) -> Union[Valkey, ValkeyCluster]:
         """Create connection to Valkey if none present or returns existing connection.
 
         Args:
@@ -36,7 +38,7 @@ class ValkeyConnectionManager:
         if cls._instance is None:
             try:
                 valkey_class: Type[Union[Valkey, ValkeyCluster]] = (
-                    valkey.cluster.ValkeyCluster if VALKEY_CFG['cluster_mode'] else valkey.Valkey
+                    ValkeyCluster if VALKEY_CFG['cluster_mode'] else Valkey
                 )
 
                 # Get SSL settings with defaults
@@ -70,23 +72,23 @@ class ValkeyConnectionManager:
                 # Create new instance
                 cls._instance = valkey_class(**connection_kwargs)
 
-            except valkey.exceptions.ConnectionError:
-                print('Failed to connect to Valkey server', file=sys.stderr)
-                raise
-            except valkey.exceptions.AuthenticationError:
+            except exceptions.AuthenticationError:
                 print('Authentication failed', file=sys.stderr)
                 raise
-            except valkey.exceptions.TimeoutError:
+            except exceptions.ConnectionError:
+                print('Failed to connect to Valkey server', file=sys.stderr)
+                raise
+            except exceptions.TimeoutError:
                 print('Connection timed out', file=sys.stderr)
                 raise
-            except valkey.exceptions.ResponseError as e:
+            except exceptions.ResponseError as e:
                 print(f'Response error: {e}', file=sys.stderr)
                 raise
-            except valkey.exceptions.ValkeyError as e:
-                print(f'Valkey error: {e}', file=sys.stderr)
-                raise
-            except valkey.exceptions.ClusterError as e:
+            except exceptions.ClusterError as e:
                 print(f'Valkey Cluster error: {e}', file=sys.stderr)
+                raise
+            except exceptions.ValkeyError as e:
+                print(f'Valkey error: {e}', file=sys.stderr)
                 raise
             except Exception as e:
                 print(f'Unexpected error: {e}', file=sys.stderr)

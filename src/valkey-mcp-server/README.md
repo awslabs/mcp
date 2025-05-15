@@ -87,7 +87,7 @@ The server can be configured using the following environment variables:
 | `VALKEY_PORT` | Valkey port | `6379` |
 | `VALKEY_USERNAME` | Default database username | `None` |
 | `VALKEY_PWD` | Default database password | `""` |
-| `VALKEY_SSL` | Enables or disables SSL/TLS | `False` |
+| `VALKEY_USE_SSL` | Enables or disables SSL/TLS | `False` |
 | `VALKEY_CA_PATH` | CA certificate for verifying server | `None` |
 | `VALKEY_SSL_KEYFILE` | Client's private key file | `None` |
 | `VALKEY_SSL_CERTFILE` | Client's certificate file | `None` |

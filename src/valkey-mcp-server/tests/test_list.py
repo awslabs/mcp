@@ -13,17 +13,20 @@
 
 import pytest
 from awslabs.valkey_mcp_server.tools.list import (
+    list_append,
+    list_append_multiple,
+    list_get,
     list_insert_after,
     list_insert_before,
     list_length,
-    list_move_blocking,
-    list_pop_blocking,
+    list_move,
     list_pop_left,
-    list_pop_push_blocking,
     list_pop_right,
     list_position,
     list_prepend_multiple,
+    list_range,
     list_remove,
+    list_set,
     list_trim,
 )
 from unittest.mock import Mock, patch
@@ -32,6 +35,138 @@ from valkey.exceptions import ValkeyError
 
 class TestList:
     """Tests for List operations."""
+
+    @pytest.mark.asyncio
+    async def test_list_append(self, mock_connection):
+        """Test appending value to list."""
+        key = 'test_list'
+        value = 'test_value'
+
+        # Test successful append
+        mock_connection.rpush.return_value = 1
+        result = await list_append(key, value)
+        assert f"Successfully appended value to list '{key}'" in result
+        mock_connection.rpush.assert_called_with(key, value)
+
+        # Test error handling
+        mock_connection.rpush.side_effect = ValkeyError('Test error')
+        result = await list_append(key, value)
+        assert f"Error appending to list '{key}'" in result
+        assert 'Test error' in result
+
+    @pytest.mark.asyncio
+    async def test_list_append_multiple(self, mock_connection):
+        """Test appending multiple values to list."""
+        key = 'test_list'
+        values = ['value1', 'value2']
+
+        # Test successful append
+        mock_connection.rpush.return_value = 2
+        result = await list_append_multiple(key, values)
+        assert f"Successfully appended {len(values)} values to list '{key}'" in result
+        mock_connection.rpush.assert_called_with(key, *values)
+
+        # Test error handling
+        mock_connection.rpush.side_effect = ValkeyError('Test error')
+        result = await list_append_multiple(key, values)
+        assert f"Error appending multiple values to list '{key}'" in result
+        assert 'Test error' in result
+
+    @pytest.mark.asyncio
+    async def test_list_get(self, mock_connection):
+        """Test getting value at index from list."""
+        key = 'test_list'
+        index = 1
+
+        # Test successful get
+        mock_connection.lindex.return_value = 'test_value'
+        result = await list_get(key, index)
+        assert 'test_value' in result
+        mock_connection.lindex.assert_called_with(key, index)
+
+        # Test value not found
+        mock_connection.lindex.return_value = None
+        result = await list_get(key, index)
+        assert f"No value found at index {index} in list '{key}'" in result
+
+        # Test error handling
+        mock_connection.lindex.side_effect = ValkeyError('Test error')
+        result = await list_get(key, index)
+        assert f"Error getting value from list '{key}'" in result
+        assert 'Test error' in result
+
+    @pytest.mark.asyncio
+    async def test_list_set(self, mock_connection):
+        """Test setting value at index in list."""
+        key = 'test_list'
+        index = 1
+        value = 'test_value'
+
+        # Test successful set
+        result = await list_set(key, index, value)
+        assert f"Successfully set value at index {index} in list '{key}'" in result
+        mock_connection.lset.assert_called_with(key, index, value)
+
+        # Test error handling
+        mock_connection.lset.side_effect = ValkeyError('Test error')
+        result = await list_set(key, index, value)
+        assert f"Error setting value in list '{key}'" in result
+        assert 'Test error' in result
+
+    @pytest.mark.asyncio
+    async def test_list_range(self, mock_connection):
+        """Test getting range of values from list."""
+        key = 'test_list'
+        start = 0
+        stop = -1
+
+        # Test successful range
+        mock_connection.lrange.return_value = ['value1', 'value2']
+        result = await list_range(key, start, stop)
+        assert "['value1', 'value2']" in result
+        mock_connection.lrange.assert_called_with(key, start, stop)
+
+        # Test empty range
+        mock_connection.lrange.return_value = []
+        result = await list_range(key, start, stop)
+        assert f"No values found in range [{start}, {stop}] in list '{key}'" in result
+
+        # Test error handling
+        mock_connection.lrange.side_effect = ValkeyError('Test error')
+        result = await list_range(key, start, stop)
+        assert f"Error getting range from list '{key}'" in result
+        assert 'Test error' in result
+
+    @pytest.mark.asyncio
+    async def test_list_move(self, mock_connection):
+        """Test moving element between lists."""
+        source = 'source_list'
+        destination = 'dest_list'
+
+        # Test successful move
+        mock_connection.lmove.return_value = 'moved_value'
+        result = await list_move(source, destination)
+        assert "Successfully moved value 'moved_value'" in result
+        mock_connection.lmove.assert_called_with(source, destination, 'LEFT', 'RIGHT')
+
+        # Test with custom directions
+        result = await list_move(source, destination, 'RIGHT', 'LEFT')
+        mock_connection.lmove.assert_called_with(source, destination, 'RIGHT', 'LEFT')
+
+        # Test invalid direction
+        result = await list_move(source, destination, 'INVALID', 'RIGHT')
+        assert "Error: wherefrom and whereto must be either 'LEFT' or 'RIGHT'" in result
+
+        # Test empty source list
+        mock_connection.lmove.return_value = None
+        result = await list_move(source, destination)
+        assert f"Source list '{source}' is empty" in result
+
+        # Test error handling
+        mock_connection.lmove.side_effect = ValkeyError('Test error')
+        result = await list_move(source, destination)
+        assert 'Error moving value between lists' in result
+        assert 'Test error' in result
 
     @pytest.fixture
     def mock_connection(self):
@@ -168,78 +303,6 @@ class TestList:
         mock_connection.lpos.side_effect = ValkeyError('Test error')
         result = await list_position(key, value)
         assert f"Error finding position in list '{key}'" in result
-        assert 'Test error' in result
-
-    @pytest.mark.asyncio
-    async def test_list_move_blocking(self, mock_connection):
-        """Test blocking move between lists."""
-        source = 'source_list'
-        destination = 'dest_list'
-        wherefrom = 'LEFT'
-        whereto = 'RIGHT'
-        timeout = 1.0
-
-        # Test successful move
-        mock_connection.blmove.return_value = 'test_value'
-        result = await list_move_blocking(source, destination, wherefrom, whereto, timeout)
-        assert "Successfully moved value 'test_value'" in result
-        mock_connection.blmove.assert_called_with(source, destination, wherefrom, whereto, timeout)
-
-        # Test timeout
-        mock_connection.blmove.return_value = None
-        result = await list_move_blocking(source, destination, wherefrom, whereto, timeout)
-        assert f"Timeout waiting for value in source list '{source}'" in result
-
-        # Test invalid direction
-        result = await list_move_blocking(source, destination, 'INVALID', whereto, timeout)
-        assert "Error: wherefrom and whereto must be either 'LEFT' or 'RIGHT'" in result
-
-        # Test error handling
-        mock_connection.blmove.side_effect = ValkeyError('Test error')
-        result = await list_move_blocking(source, destination, wherefrom, whereto, timeout)
-        assert 'Error moving value between lists' in result
-        assert 'Test error' in result
-
-    @pytest.mark.asyncio
-    async def test_list_pop_blocking_right(self, mock_connection):
-        """Test blocking pop from right side."""
-        key = 'test_list'
-        timeout = 1.0
-
-        # Test successful pop from right
-        mock_connection.brpop.return_value = (key, 'test_value')
-        result = await list_pop_blocking(key, timeout, 'RIGHT')
-        assert "Successfully popped value 'test_value'" in result
-        mock_connection.brpop.assert_called_with(key, timeout)
-
-        # Test invalid side
-        result = await list_pop_blocking(key, timeout, 'INVALID')
-        assert "Error: side must be either 'LEFT' or 'RIGHT'" in result
-
-    @pytest.mark.asyncio
-    async def test_list_pop_push_blocking(self, mock_connection):
-        """Test blocking pop and push between lists."""
-        source = 'source_list'
-        destination = 'dest_list'
-        timeout = 1.0
-
-        # Test successful move
-        mock_connection.brpoplpush.return_value = 'test_value'
-        result = await list_pop_push_blocking(source, destination, timeout)
-        assert (
-            f"Successfully moved value 'test_value' from '{source}' to '{destination}'" in result
-        )
-        mock_connection.brpoplpush.assert_called_with(source, destination, timeout)
-
-        # Test timeout
-        mock_connection.brpoplpush.return_value = None
-        result = await list_pop_push_blocking(source, destination, timeout)
-        assert f"Timeout waiting for value in source list '{source}'" in result
-
-        # Test error handling
-        mock_connection.brpoplpush.side_effect = ValkeyError('Test error')
-        result = await list_pop_push_blocking(source, destination, timeout)
-        assert 'Error moving value between lists' in result
         assert 'Test error' in result
 
     @pytest.mark.asyncio

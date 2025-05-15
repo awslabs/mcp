@@ -120,7 +120,9 @@ async def json_numincrby(key: str, path: str, value: Union[int, float]) -> str:
     """
     try:
         r = ValkeyConnectionManager.get_connection()
-        result = r.json().numincrby(key, path, value)
+        # Convert float to int by rounding if needed
+        int_value = round(value) if isinstance(value, float) else value
+        result = r.json().numincrby(key, path, int_value)
         return f"Value at path '{path}' in '{key}' incremented to {result}"
     except ValkeyError as e:
         return f"Error incrementing JSON value in '{key}': {str(e)}"
@@ -140,7 +142,9 @@ async def json_nummultby(key: str, path: str, value: Union[int, float]) -> str:
     """
     try:
         r = ValkeyConnectionManager.get_connection()
-        result = r.json().nummultby(key, path, value)
+        # Convert float to int by rounding if needed
+        int_value = round(value) if isinstance(value, float) else value
+        result = r.json().nummultby(key, path, int_value)
         return f"Value at path '{path}' in '{key}' multiplied to {result}"
     except ValkeyError as e:
         return f"Error multiplying JSON value in '{key}': {str(e)}"
@@ -327,7 +331,9 @@ async def json_objkeys(key: str, path: str) -> str:
             return f"No object found at path '{path}' in '{key}'"
         if not result:
             return f"Object at path '{path}' in '{key}' has no keys"
-        return f"Keys in object at path '{path}' in '{key}': {', '.join(result)}"
+        # Filter out None values and ensure all elements are strings
+        valid_keys = [str(key) for key in result if key is not None]
+        return f"Keys in object at path '{path}' in '{key}': {', '.join(valid_keys)}"
     except ValkeyError as e:
         return f"Error getting JSON object keys from '{key}': {str(e)}"
 

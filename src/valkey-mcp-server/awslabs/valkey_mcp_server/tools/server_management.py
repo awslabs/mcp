@@ -11,21 +11,22 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
-from valkey.exceptions import ValkeyError as RedisError
+from valkey.exceptions import ValkeyError
 
 
 @mcp.tool()
-async def dbsize() -> int:
+async def dbsize() -> str:
     """Get the number of keys stored in the Valkey database."""
     try:
         r = ValkeyConnectionManager.get_connection()
-        return r.dbsize()
-    except RedisError as e:
-        return f'Error getting database size: {str(e)}'
+        result = r.dbsize()
+        return str(result)
+    except ValkeyError as e:
+        raise RuntimeError(f'Error getting database size: {str(e)}')
 
 
 @mcp.tool()
-async def info(section: str = 'default') -> dict:
+async def info(section: str = 'default') -> str:
     """Get Valkey server information and statistics.
 
     Args:
@@ -37,17 +38,17 @@ async def info(section: str = 'default') -> dict:
     try:
         r = ValkeyConnectionManager.get_connection()
         info = r.info(section)
-        return info
-    except RedisError as e:
-        return f'Error retrieving Redis info: {str(e)}'
+        return str(info)
+    except ValkeyError as e:
+        raise RuntimeError(f'Error retrieving Redis info: {str(e)}')
 
 
 @mcp.tool()
-async def client_list() -> list:
+async def client_list() -> str:
     """Get a list of connected clients to the Valkey server."""
     try:
         r = ValkeyConnectionManager.get_connection()
         clients = r.client_list()
-        return clients
-    except RedisError as e:
-        return f'Error retrieving client list: {str(e)}'
+        return str(clients)
+    except ValkeyError as e:
+        raise RuntimeError(f'Error retrieving client list: {str(e)}')

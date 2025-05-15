@@ -19,7 +19,6 @@ from awslabs.valkey_mcp_server.tools.stream import (
     stream_group_delete_consumer,
     stream_group_destroy,
     stream_group_set_id,
-    stream_pending,
     stream_range,
     stream_read,
     stream_read_group,
@@ -255,47 +254,4 @@ class TestStream:
         mock_connection.xreadgroup.side_effect = ValkeyError('Test error')
         result = await stream_read_group(key, group, consumer)
         assert 'Error reading from group' in result
-        assert 'Test error' in result
-
-    @pytest.mark.asyncio
-    async def test_stream_pending_options(self, mock_connection):
-        """Test getting pending entries information with different options."""
-        key = 'test_stream'
-        group = 'test_group'
-        consumer = 'test_consumer'
-
-        # Test summary info
-        pending_info = {'pending': 5, 'min': '1234567890-0', 'max': '1234567890-1'}
-        mock_connection.xpending.return_value = pending_info
-        result = await stream_pending(key, group)
-        assert str(pending_info) in result
-        mock_connection.xpending.assert_called_with(key, group)
-
-        # Test detailed info
-        pending_details = [
-            {'id': '1234567890-0', 'consumer': 'consumer1', 'idle': 1000},
-            {'id': '1234567890-1', 'consumer': 'consumer2', 'idle': 2000},
-        ]
-        mock_connection.xpending_range.return_value = pending_details
-        result = await stream_pending(key, group, start='0', end='9999999999', count=10)
-        assert str(pending_details) in result
-        mock_connection.xpending_range.assert_called_with(
-            key, group, '0', '9999999999', count=10, consumername=None
-        )
-
-        # Test with consumer filter
-        result = await stream_pending(key, group, consumer=consumer)
-        mock_connection.xpending_range.assert_called_with(
-            key, group, '-', '+', count=None, consumername=consumer
-        )
-
-        # Test no pending entries
-        mock_connection.xpending.return_value = None
-        result = await stream_pending(key, group)
-        assert 'No pending entries found' in result
-
-        # Test error handling
-        mock_connection.xpending.side_effect = ValkeyError('Test error')
-        result = await stream_pending(key, group)
-        assert 'Error getting pending entries' in result
         assert 'Test error' in result

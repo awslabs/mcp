@@ -13,7 +13,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 from valkey.exceptions import ValkeyError
 
 
@@ -117,27 +117,6 @@ async def hash_get_all(key: str) -> str:
         return str(result)
     except ValkeyError as e:
         return f"Error getting all hash fields from '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def hash_get_multiple(key: str, fields: List[str]) -> str:
-    """Get multiple fields from hash.
-
-    Args:
-        key: The name of the key
-        fields: List of field names
-
-    Returns:
-        List of values or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        result = r.hmget(key, fields)
-        if not any(result):
-            return f"No fields found in hash '{key}'"
-        return str(result)
-    except ValkeyError as e:
-        return f"Error getting multiple hash fields from '{key}': {str(e)}"
 
 
 @mcp.tool()
@@ -263,34 +242,6 @@ async def hash_random_field_with_values(key: str, count: int) -> str:
         return str(result)
     except ValkeyError as e:
         return f"Error getting random hash field-value pairs from '{key}': {str(e)}"
-
-
-@mcp.tool()
-async def hash_scan(key: str, pattern: Optional[str] = None, count: Optional[int] = None) -> str:
-    """Scan fields in hash.
-
-    Args:
-        key: The name of the key
-        pattern: Pattern to match field names (optional)
-        count: Number of fields to return per iteration (optional)
-
-    Returns:
-        Iterator over matching fields or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        cursor = 0
-        results = []
-        while True:
-            cursor, data = r.hscan(key, cursor, match=pattern, count=count)
-            results.extend(list(data.items()))
-            if cursor == 0:
-                break
-        if not results:
-            return f"No matching fields found in hash '{key}'"
-        return str(dict(results))
-    except ValkeyError as e:
-        return f"Error scanning hash fields in '{key}': {str(e)}"
 
 
 @mcp.tool()

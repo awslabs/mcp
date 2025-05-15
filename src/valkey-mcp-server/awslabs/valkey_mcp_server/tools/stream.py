@@ -285,45 +285,6 @@ async def stream_read_group(
 
 
 @mcp.tool()
-async def stream_pending(
-    key: str,
-    group_name: str,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-    count: Optional[int] = None,
-    consumer: Optional[str] = None,
-) -> str:
-    """Get information about pending entries.
-
-    Args:
-        key: The name of the key
-        group_name: Name of consumer group
-        start: Start ID (optional)
-        end: End ID (optional)
-        count: Maximum number of entries to return
-        consumer: Filter by consumer name
-
-    Returns:
-        Pending entries information or error message
-    """
-    try:
-        r = ValkeyConnectionManager.get_connection()
-        if start is None and end is None and count is None and consumer is None:
-            # Get summary of pending entries
-            result = r.xpending(key, group_name)
-        else:
-            # Get detailed information about pending entries
-            result = r.xpending_range(
-                key, group_name, start or '-', end or '+', count=count, consumername=consumer
-            )
-        if not result:
-            return f"No pending entries found for group '{group_name}'"
-        return str(result)
-    except ValkeyError as e:
-        return f'Error getting pending entries: {str(e)}'
-
-
-@mcp.tool()
 async def stream_info(key: str) -> str:
     """Get information about stream.
 

@@ -23,7 +23,7 @@ VALKEY_CFG = {
     'port': int(os.getenv('VALKEY_PORT', 6379)),
     'username': os.getenv('VALKEY_USERNAME', None),
     'password': os.getenv('VALKEY_PWD', ''),
-    'ssl': os.getenv('VALKEY_SSL', False) in ('true', '1', 't'),
+    'ssl': os.getenv('VALKEY_USE_SSL', False) in ('true', '1', 't'),
     'ssl_ca_path': os.getenv('VALKEY_SSL_CA_PATH', None),
     'ssl_keyfile': os.getenv('VALKEY_SSL_KEYFILE', None),
     'ssl_certfile': os.getenv('VALKEY_SSL_CERTFILE', None),
@@ -44,10 +44,16 @@ def generate_valkey_uri():
     password = cfg.get('password')
 
     # Auth part - use quote() for auth components to preserve spaces as %20
+    def safe_quote(value):
+        """Safely quote a value that might be None."""
+        if value is None:
+            return ''
+        return urllib.parse.quote(str(value))
+
     if username:
-        auth_part = f'{urllib.parse.quote(username)}:{urllib.parse.quote(password)}@'
+        auth_part = f'{safe_quote(username)}:{safe_quote(password)}@'
     elif password:
-        auth_part = f':{urllib.parse.quote(password)}@'
+        auth_part = f':{safe_quote(password)}@'
     else:
         auth_part = ''
 

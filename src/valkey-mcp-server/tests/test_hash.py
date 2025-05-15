@@ -16,13 +16,11 @@ from awslabs.valkey_mcp_server.tools.hash import (
     hash_exists,
     hash_get,
     hash_get_all,
-    hash_get_multiple,
     hash_increment,
     hash_keys,
     hash_length,
     hash_random_field,
     hash_random_field_with_values,
-    hash_scan,
     hash_set,
     hash_set_if_not_exists,
     hash_set_multiple,
@@ -147,29 +145,6 @@ class TestHash:
         mock_connection.hgetall.side_effect = ValkeyError('Test error')
         result = await hash_get_all(key)
         assert f"Error getting all hash fields from '{key}'" in result
-        assert 'Test error' in result
-
-    @pytest.mark.asyncio
-    async def test_hash_get_multiple(self, mock_connection):
-        """Test getting multiple hash fields."""
-        key = 'test_hash'
-        fields = ['field1', 'field2']
-
-        # Test successful get
-        mock_connection.hmget.return_value = ['value1', 'value2']
-        result = await hash_get_multiple(key, fields)
-        assert 'value1' in result and 'value2' in result
-        mock_connection.hmget.assert_called_with(key, fields)
-
-        # Test no fields found
-        mock_connection.hmget.return_value = [None, None]
-        result = await hash_get_multiple(key, fields)
-        assert f"No fields found in hash '{key}'" in result
-
-        # Test error handling
-        mock_connection.hmget.side_effect = ValkeyError('Test error')
-        result = await hash_get_multiple(key, fields)
-        assert f"Error getting multiple hash fields from '{key}'" in result
         assert 'Test error' in result
 
     @pytest.mark.asyncio
@@ -307,30 +282,6 @@ class TestHash:
         mock_connection.hrandfield.side_effect = ValkeyError('Test error')
         result = await hash_random_field_with_values(key, count)
         assert f"Error getting random hash field-value pairs from '{key}'" in result
-        assert 'Test error' in result
-
-    @pytest.mark.asyncio
-    async def test_hash_scan(self, mock_connection):
-        """Test scanning hash fields."""
-        key = 'test_hash'
-        pattern = 'field*'
-        count = 2
-
-        # Test successful scan
-        mock_connection.hscan.side_effect = [(0, {'field1': 'value1', 'field2': 'value2'})]
-        result = await hash_scan(key, pattern, count)
-        assert 'field1' in result and 'value1' in result
-        mock_connection.hscan.assert_called_with(key, 0, match=pattern, count=count)
-
-        # Test no matching fields
-        mock_connection.hscan.side_effect = [(0, {})]
-        result = await hash_scan(key, pattern, count)
-        assert f"No matching fields found in hash '{key}'" in result
-
-        # Test error handling
-        mock_connection.hscan.side_effect = ValkeyError('Test error')
-        result = await hash_scan(key, pattern, count)
-        assert f"Error scanning hash fields in '{key}'" in result
         assert 'Test error' in result
 
     @pytest.mark.asyncio

@@ -18,7 +18,6 @@ from awslabs.valkey_mcp_server.tools.sorted_set import (
     sorted_set_popmin,
     sorted_set_range,
     sorted_set_remove,
-    sorted_set_scan,
     sorted_set_score,
 )
 from unittest.mock import Mock, patch
@@ -168,29 +167,4 @@ class TestSortedSet:
         mock_connection.zpopmin.side_effect = ValkeyError('Test error')
         result = await sorted_set_popmin(key)
         assert f"Error popping min from sorted set '{key}'" in result
-        assert 'Test error' in result
-
-    @pytest.mark.asyncio
-    async def test_sorted_set_scan(self, mock_connection):
-        """Test scanning sorted set."""
-        key = 'test_sorted_set'
-        cursor = 0
-        match = 'pattern*'
-        count = 10
-
-        # Test successful scan
-        mock_connection.zscan.return_value = (0, [('member1', 1.0), ('member2', 2.0)])
-        result = await sorted_set_scan(key, cursor, match, count)
-        assert 'member1' in result and 'member2' in result
-        mock_connection.zscan.assert_called_with(key, cursor, match=match, count=count)
-
-        # Test no matching members
-        mock_connection.zscan.return_value = (0, [])
-        result = await sorted_set_scan(key, cursor, match, count)
-        assert f"No matching members found in sorted set '{key}'" in result
-
-        # Test error handling
-        mock_connection.zscan.side_effect = ValkeyError('Test error')
-        result = await sorted_set_scan(key, cursor, match, count)
-        assert f"Error scanning sorted set '{key}'" in result
         assert 'Test error' in result

@@ -15,8 +15,6 @@ import pytest
 from awslabs.valkey_mcp_server.tools.sorted_set import (
     sorted_set_cardinality,
     sorted_set_popmax,
-    sorted_set_popmax_blocking,
-    sorted_set_popmin_blocking,
     sorted_set_range,
     sorted_set_range_by_lex,
     sorted_set_range_by_score,
@@ -24,7 +22,6 @@ from awslabs.valkey_mcp_server.tools.sorted_set import (
     sorted_set_remove_by_lex,
     sorted_set_remove_by_rank,
     sorted_set_remove_by_score,
-    sorted_set_scan,
 )
 from unittest.mock import Mock, patch
 from valkey.exceptions import ValkeyError
@@ -204,20 +201,6 @@ class TestSortedSetAdditional:
         assert f"No members found in lex range for sorted set '{key}'" in result
 
     @pytest.mark.asyncio
-    async def test_sorted_set_scan_no_more_members(self, mock_connection):
-        """Test scanning with no more members after initial scan."""
-        key = 'test_sorted_set'
-        cursor = 1  # Non-zero cursor
-        match = 'pattern*'
-        count = 10
-
-        # Test no more members found
-        mock_connection.zscan.return_value = (0, [])
-        result = await sorted_set_scan(key, cursor, match, count)
-        assert f"No more matching members in sorted set '{key}'" in result
-        mock_connection.zscan.assert_called_with(key, cursor, match=match, count=count)
-
-    @pytest.mark.asyncio
     async def test_sorted_set_popmax_with_count(self, mock_connection):
         """Test popping multiple maximum score members."""
         key = 'test_sorted_set'
@@ -233,27 +216,3 @@ class TestSortedSetAdditional:
         mock_connection.zpopmax.return_value = []
         result = await sorted_set_popmax(key, count)
         assert f"Sorted set '{key}' is empty" in result
-
-    @pytest.mark.asyncio
-    async def test_sorted_set_popmin_blocking_timeout(self, mock_connection):
-        """Test blocking pop with timeout."""
-        key = 'test_sorted_set'
-        timeout = 1.0
-
-        # Test timeout
-        mock_connection.bzpopmin.return_value = None
-        result = await sorted_set_popmin_blocking(key, timeout)
-        assert f"Timeout waiting for member in sorted set '{key}'" in result
-        mock_connection.bzpopmin.assert_called_with(key, timeout)
-
-    @pytest.mark.asyncio
-    async def test_sorted_set_popmax_blocking_timeout(self, mock_connection):
-        """Test blocking pop max with timeout."""
-        key = 'test_sorted_set'
-        timeout = 1.0
-
-        # Test timeout
-        mock_connection.bzpopmax.return_value = None
-        result = await sorted_set_popmax_blocking(key, timeout)
-        assert f"Timeout waiting for member in sorted set '{key}'" in result
-        mock_connection.bzpopmax.assert_called_with(key, timeout)
