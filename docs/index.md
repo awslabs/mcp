@@ -165,6 +165,17 @@ A server for accessing AWS Location Service capabilities, focusing on place sear
 
 [Learn more about the AWS Location Service MCP Server](servers/aws-location-mcp-server.md)
 
+### CloudFormation MCP Server
+
+A server for managing your AWS resources directly and through cloudformation.
+
+**Features:**
+
+- Create/Update/Delete your resources with the resource access tools
+- List/Read your resources with the resource access tools
+
+[Learn more about the CloudFormation MCP Server](servers/cfn-mcp-server.md)
+
 ### Git Repo Research MCP Server
 
 A server for researching Git repositories using semantic search.

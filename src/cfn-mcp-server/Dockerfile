@@ -10,7 +10,7 @@
 # and limitations under the License.
 
 #FROM public.ecr.aws/sam/build-python3.10:1.137.1-20250411084548
-FROM public.ecr.aws/sam/build-python3.10@sha256:a40f492a0cd8d76557f8a187fc00e49e8864b3cea683e74718ce317790c1ce61 AS uv
+FROM public.ecr.aws/sam/build-python3.10@sha256:04cdbe84bec08d17d621192bc3f0a9e4a85a83f2ac99aa9241659dfac0d845ea AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -44,7 +44,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/sam/build-python3.10@sha256:a40f492a0cd8d76557f8a187fc00e49e8864b3cea683e74718ce317790c1ce61
+FROM public.ecr.aws/sam/build-python3.10@sha256:04cdbe84bec08d17d621192bc3f0a9e4a85a83f2ac99aa9241659dfac0d845ea
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
@@ -72,4 +72,4 @@ USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
-ENTRYPOINT ["awslabs.terraform-mcp-server"]
+ENTRYPOINT ["awslabs.cfn-mcp-server"]
