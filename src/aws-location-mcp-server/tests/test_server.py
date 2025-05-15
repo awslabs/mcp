@@ -707,19 +707,19 @@ async def test_calculate_route_raw_mode(mock_boto3_client, mock_context):
     # Since we can't easily modify local variables in the function,
     # we'll skip this test as it's not possible to test the raw mode
     # without modifying the function to accept a mode parameter.
-    # 
+    #
     # In a real-world scenario, we would refactor the function to accept
     # a mode parameter, but for this test we'll just verify that the
     # function processes the response correctly.
-    
+
     # Create a mock response with the expected structure
     mock_response = {'Routes': [{'Distance': 100.0, 'DurationSeconds': 300}]}
-    
+
     # Create a mock for the calculate_route function
     with patch('awslabs.aws_location_server.server.GeoRoutesClient') as mock_geo_client:
         # Set up the mock to return our mock_boto3_client
         mock_geo_client.return_value.geo_routes_client = mock_boto3_client
-        
+
         # Mock asyncio.to_thread to return the mock response
         with patch('asyncio.to_thread', return_value=mock_response):
             # Call the function
@@ -728,7 +728,7 @@ async def test_calculate_route_raw_mode(mock_boto3_client, mock_context):
                 departure_position=[-122.335167, 47.608013],
                 destination_position=[-122.200676, 47.610149],
             )
-    
+
     # Verify the result has the expected structure
     assert 'distance_meters' in result
     assert 'duration_seconds' in result
@@ -824,7 +824,9 @@ async def test_optimize_waypoints_no_routes(mock_boto3_client, mock_context):
 
     with patch('awslabs.aws_location_server.server.GeoRoutesClient') as mock_geo_client:
         mock_geo_client.return_value.geo_routes_client = mock_boto3_client
-        with patch('asyncio.to_thread', return_value=mock_boto3_client.optimize_waypoints.return_value):
+        with patch(
+            'asyncio.to_thread', return_value=mock_boto3_client.optimize_waypoints.return_value
+        ):
             result = await optimize_waypoints(
                 mock_context,
                 origin_position=[-122.335167, 47.608013],
@@ -872,7 +874,7 @@ async def test_calculate_route_with_leg_geometry(mock_boto3_client, mock_context
     """Test calculate_route with leg geometry enabled."""
     # Since we can't easily modify local variables in the function,
     # we'll create a custom implementation that captures the parameters
-    
+
     # Create a mock response with the expected structure
     mock_response = {
         'Routes': [
@@ -903,12 +905,12 @@ async def test_calculate_route_with_leg_geometry(mock_boto3_client, mock_context
 
     # Create a patched version of the client that captures the parameters
     params_captured = {}
-    
+
     def mock_calculate_routes(**params):
         nonlocal params_captured
         params_captured = params
         return mock_response
-    
+
     # Create a mock for the calculate_route function
     with patch('awslabs.aws_location_server.server.GeoRoutesClient') as mock_geo_client:
         # Set up the mock to return our mock_boto3_client with the custom implementation
@@ -925,10 +927,10 @@ async def test_calculate_route_with_leg_geometry(mock_boto3_client, mock_context
                 travel_mode='Car',
                 optimize_for='FastestRoute',
             )
-            
+
     # Verify the function was called
     assert mock_boto3_client.calculate_routes.called
-    
+
     # Verify the result has the expected structure
     assert 'distance_meters' in result
     assert 'duration_seconds' in result
