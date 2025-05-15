@@ -40,7 +40,7 @@ class MemcachedMCPServer:
     def run(self):
         """Run server with appropriate transport."""
         if self.sse:
-            mcp.settings.port = self.port
+            mcp.settings.port = int(self.port) if self.port is not None else 8888
             mcp.run(transport='sse')
         else:
             mcp.run()

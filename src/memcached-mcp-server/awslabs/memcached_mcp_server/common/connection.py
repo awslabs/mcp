@@ -67,7 +67,7 @@ class MemcachedConnectionManager:
             cls._client = RetryingClient(
                 base_client,
                 attempts=max_retries,
-                retry_delay=retry_timeout,
+                retry_delay=int(retry_timeout),
                 retry_for=[MemcacheError],
             )
 
