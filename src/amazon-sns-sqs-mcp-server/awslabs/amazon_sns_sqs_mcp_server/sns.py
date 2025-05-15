@@ -1,4 +1,3 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
@@ -150,6 +149,7 @@ def register_sns_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
         service_name='sns',
         service_display_name='Amazon SNS',
         mcp=mcp,
+        mcp_server_version=MCP_SERVER_VERSION,
         tool_configuration=tool_configuration,
         skip_param_documentation=True,
     )

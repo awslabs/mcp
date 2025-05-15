@@ -2,7 +2,7 @@ import asyncio
 import boto3
 import pytest
 import pytest_asyncio
-from awslabs.dynamodb_mcp_server.dynamodb_server import (
+from awslabs.dynamodb_mcp_server.server import (
     create_backup,
     create_table,
     delete_item,
