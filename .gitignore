@@ -240,9 +240,6 @@ pyrightconfig.json
 .history
 .ionide
 
-# Internal tooling
-wasabi-toolbag/
-
 ### Windows ###
 # Windows thumbnail cache files
 Thumbs.db
