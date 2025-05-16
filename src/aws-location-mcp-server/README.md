@@ -1,8 +1,8 @@
-# AWS Location Service MCP Server
+# Amazon Location Service MCP Server
 
-Model Context Protocol (MCP) server for AWS Location Service
+Model Context Protocol (MCP) server for Amazon Location Service
 
-This MCP server provides tools to access AWS Location Service capabilities, focusing on place search, geographical coordinates, and route planning.
+This MCP server provides tools to access Amazon Location Service capabilities, focusing on place search and geographical coordinates.
 
 ## Features
 
@@ -11,20 +11,20 @@ This MCP server provides tools to access AWS Location Service capabilities, focu
 - **Reverse Geocode**: Convert coordinates to addresses
 - **Search Nearby**: Search for places near a specified location
 - **Open Now Search**: Search for places that are currently open
-- **Route Calculation**: Calculate routes between locations with turn-by-turn directions
-- **Waypoint Optimization**: Optimize the order of waypoints for efficient routing
+- **Route Calculation**: Calculate routes between locations using Amazon Location Service
+- **Optimize Waypoints**: Optimize the order of waypoints for a route using Amazon Location Service
 
 ## Prerequisites
 
 ### Requirements
 
-1. Have an AWS account with AWS Location Service enabled
+1. Have an AWS account with Amazon Location Service enabled
 2. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 3. Install Python 3.10 or newer using `uv python install 3.10` (or a more recent version)
 
 ## Installation
 
-Here are the ways you can work with the AWS Location MCP server:
+Here are the ways you can work with the Amazon Location MCP server:
 
 ## Configuration
 
@@ -38,6 +38,31 @@ Configure the server in your MCP configuration file. Here are some ways you can 
         "args": ["awslabs.aws-location-mcp-server@latest"],
         "env": {
           "AWS_PROFILE": "your-aws-profile",
+          "AWS_REGION": "us-east-1",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "disabled": false,
+        "autoApprove": []
+    }
+  }
+}
+```
+
+### Using Temporary Credentials
+
+For temporary credentials (such as those from AWS STS, IAM roles, or federation):
+
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-location-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.aws-location-mcp-server@latest"],
+        "env": {
+          "AWS_ACCESS_KEY_ID": "your-temporary-access-key",
+          "AWS_SECRET_ACCESS_KEY": "your-temporary-secret-key",
+          "AWS_SESSION_TOKEN": "your-session-token",
           "AWS_REGION": "us-east-1",
           "FASTMCP_LOG_LEVEL": "ERROR"
         },
@@ -74,11 +99,38 @@ After building with `docker build -t awslabs/aws-location-mcp-server .`:
 }
 ```
 
+### Docker with Temporary Credentials
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-location-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "-i",
+          "awslabs/aws-location-mcp-server"
+        ],
+        "env": {
+          "AWS_ACCESS_KEY_ID": "your-temporary-access-key",
+          "AWS_SECRET_ACCESS_KEY": "your-temporary-secret-key",
+          "AWS_SESSION_TOKEN": "your-session-token",
+          "AWS_REGION": "us-east-1"
+        },
+        "disabled": false,
+        "autoApprove": []
+    }
+  }
+}
+```
+
 ### Environment Variables
 
 - `AWS_PROFILE`: AWS CLI profile to use for credentials
 - `AWS_REGION`: AWS region to use (default: us-east-1)
 - `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`: Explicit AWS credentials (alternative to AWS_PROFILE)
+- `AWS_SESSION_TOKEN`: Session token for temporary credentials (used with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
 - `FASTMCP_LOG_LEVEL`: Logging level (ERROR, WARNING, INFO, DEBUG)
 
 ## Tools
@@ -87,7 +139,7 @@ The server exposes the following tools through the MCP interface:
 
 ### search_places
 
-Search for places using AWS Location Service geocoding capabilities.
+Search for places using Amazon Location Service geocoding capabilities.
 
 ```python
 search_places(query: str, max_results: int = 5, mode: str = 'summary') -> dict
@@ -130,7 +182,7 @@ search_places_open_now(query: str, max_results: int = 5, initial_radius: int = 5
 
 ### calculate_route
 
-Calculate a route between two locations with turn-by-turn directions.
+Calculate a route between two locations using Amazon Location Service.
 
 ```python
 calculate_route(
@@ -140,61 +192,14 @@ calculate_route(
     optimize_for: str = 'FastestRoute'  # 'FastestRoute' or 'ShortestRoute'
 ) -> dict
 ```
+Returns route geometry, distance, duration, and turn-by-turn directions.
 
-Returns:
-- `distance_meters`: Total route distance in meters
-- `duration_seconds`: Estimated travel time in seconds
-- `legs`: List of route legs with distance and duration
-- `turn_by_turn`: List of navigation instructions with:
-  - `distance_meters`: Distance for this step
-  - `duration_seconds`: Duration for this step
-  - `type`: Maneuver type (e.g., 'Straight', 'Turn')
-  - `road_name`: Name of the road for this step
+- `departure_position`: List of [longitude, latitude] for the starting point.
+- `destination_position`: List of [longitude, latitude] for the destination.
+- `travel_mode`: Travel mode, one of `'Car'`, `'Truck'`, `'Walking'`, or `'Bicycle'`.
+- `optimize_for`: Route optimization, either `'FastestRoute'` or `'ShortestRoute'`.
 
-Example usage:
-```python
-route = await calculate_route(
-    ctx,
-    departure_position=[-122.335167, 47.608013],  # Seattle
-    destination_position=[-122.200676, 47.610149],  # Bellevue
-    travel_mode='Car',
-    optimize_for='FastestRoute'
-)
-```
-
-### optimize_waypoints
-
-Optimize the order of waypoints for efficient routing.
-
-```python
-optimize_waypoints(
-    origin_position: list,  # [longitude, latitude]
-    destination_position: list,  # [longitude, latitude]
-    waypoints: list,  # List of waypoints, each as a dict with 'Id' and 'Position' [longitude, latitude]
-    travel_mode: str = 'Car',
-    mode: str = 'summary'
-) -> dict
-```
-
-Returns:
-- `optimized_order`: List of waypoint IDs in optimized order
-- `total_distance_meters`: Total route distance in meters
-- `total_duration_seconds`: Total estimated travel time in seconds
-- `waypoints`: List of waypoints with arrival and departure times
-
-Example usage:
-```python
-result = await optimize_waypoints(
-    ctx,
-    origin_position=[-122.335167, 47.608013],  # Seattle
-    destination_position=[-122.121513, 47.673988],  # Redmond
-    waypoints=[
-        {'Id': 'bellevue', 'Position': [-122.200676, 47.610149]},
-        {'Id': 'kirkland', 'Position': [-122.209032, 47.676607]}
-    ],
-    travel_mode='Car'
-)
-```
+See [AWS documentation](https://docs.aws.amazon.com/location/latest/developerguide/calculate-routes-custom-avoidance-shortest.html) for more details.
 
 ### get_coordinates
 
@@ -204,18 +209,34 @@ Get coordinates for a location name or address.
 get_coordinates(location: str) -> dict
 ```
 
-## AWS Location Service Resources
+### optimize_waypoints
 
-This server uses the AWS Location Service APIs for:
+Optimize the order of waypoints using Amazon Location Service geo-routes API.
+
+```python
+optimize_waypoints(
+    origin_position: list,  # [longitude, latitude]
+    destination_position: list,  # [longitude, latitude]
+    waypoints: list,  # List of waypoints, each as a dict with at least Position [longitude, latitude]
+    travel_mode: str = 'Car',
+    mode: str = 'summary'
+) -> dict
+```
+Returns the optimized order of waypoints, total distance, and duration.
+
+## Amazon Location Service Resources
+
+This server uses the Amazon Location Service geo-places and route calculation APIs for:
 - Geocoding (converting addresses to coordinates)
 - Reverse geocoding (converting coordinates to addresses)
 - Place search (finding places by name, category, etc.)
 - Place details (getting information about specific places)
-- Route calculation (finding routes between locations with turn-by-turn directions)
-- Waypoint optimization (determining the most efficient order to visit multiple locations)
+- **Route calculation (finding routes between locations)**
 
 ## Security Considerations
 
 - Use AWS profiles for credential management
-- Use IAM policies to restrict access to only the required AWS Location Service resources
-- Consider using temporary credentials or AWS IAM roles for enhanced security
+- Use IAM policies to restrict access to only the required Amazon Location Service resources
+- Use temporary credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN) from AWS STS for enhanced security
+- Implement AWS IAM roles with temporary credentials for applications and services
+- Regularly rotate credentials and use the shortest practical expiration time for temporary credentials
