@@ -11,27 +11,12 @@ MCP server for interacting with Amazon ElastiCache Memcached through a secure an
 - Automatic connection management and pooling
 - Built-in retry mechanism for failed operations
 
-### Robust Connection Management
-
-- Configurable connection settings and timeouts
-- Automatic connection retrying with customizable parameters
-- Connection pooling for improved performance
-- Comprehensive error handling and recovery
-
-### Security and Reliability
-
-- SSL/TLS support for encrypted communication
-- Certificate-based authentication
-- Configurable verification settings
-- Automatic handling of connection failures
-
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
-3. Access to a Memcached server,
-   - For instructions to connect to an Amazon ElastiCache Memcached cache [click here](ELASTICACHECONNECT.md)
-   - For local development, ensure Memcached is installed and running
+3. Access to a Memcached server. For instructions to connect to an Amazon ElastiCache Memcached cache [click here](ELASTICACHECONNECT.md)
+
 
 ## Installation
 
@@ -116,3 +101,26 @@ The server automatically handles:
 - SSL/TLS encryption when enabled
 - Automatic retrying of failed operations
 - Timeout enforcement and error handling
+
+## Development
+
+### Running Tests
+```bash
+uv venv
+source .venv/bin/activate
+uv sync
+uv run --frozen pytest
+```
+
+### Building Docker Image
+```bash
+docker build -t awslabs/memcached-mcp-server .
+```
+
+### Running Docker Container
+```bash
+docker run -p 8080:8080 \
+  -e MEMCACHED_HOST=host.docker.internal \
+  -e MEMCACHED_PORT=11211 \
+  awslabs/memcached-mcp-server
+```
