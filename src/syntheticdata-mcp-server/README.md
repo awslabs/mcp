@@ -66,7 +66,7 @@ The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment v
 ### Getting Data Generation Instructions
 
 ```python
-response = await server.get_data_generation_instructions(
+response = await server.get_data_gen_instructions(
     business_description="An e-commerce platform with customers, orders, and products"
 )
 ```
