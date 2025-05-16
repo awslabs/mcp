@@ -32,6 +32,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Amazon MQ MCP Server](#amazon-mq-mcp-server)
     - [Synthetic Data MCP Server](#synthetic-data-mcp-server)
     - [AWS DynamoDB MCP Server](#aws-dynamodb-mcp-server)
+    - [Amazon Neptune MCP Server](#amazon-neptune-mcp-server)
     - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
     - [Running MCP servers in containers](#running-mcp-servers-in-containers)
@@ -273,6 +274,18 @@ A server for Aurora Postgres.
 - Fetch table columns and comments from Postgres using RDS Data API
 
 [Learn more](src/postgres-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/postgres-mcp-server/)
+
+### Amazon Neptune MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-neptune-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-neptune-mcp-server/)
+
+A server for interacting with Amazon Neptune graph database.
+
+- Run openCypher/Gremlin queries on a Neptune Database
+- Run openCypher queries on Neptune Analytics
+- Get the schema of the graph
+
+[Learn more](src/amazon-neptune-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-neptune-mcp-server/)
 
 ### Amazon MQ MCP Server
 

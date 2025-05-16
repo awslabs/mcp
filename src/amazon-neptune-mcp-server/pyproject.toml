@@ -1,23 +1,21 @@
 [project]
-name = "awslabs.dynamodb-mcp-server"
-version = "0.1.2"
-description = "The official MCP Server for interacting with AWS DynamoDB"
+name = "awslabs.amazon-neptune-mcp-server"
+version = "0.0.1"
+description = "An Amazon Neptune MCP server that allows for fetching status, schema, and querying using openCypher, Gremlin, and SPARQL for Neptune Database and openCypher for Neptune Analytics."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.28.0",
-    "fastmcp>=0.1.0",
+    "boto3>=1.38.11",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-    "typing-extensions>=4.0.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Erben Mo", email="moerben@amazon.com"},
+    {name = "Amazon Web Services", email="githubusername@users.noreply.github.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -32,13 +30,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/dynamodb-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/dynamodb-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/amazon-neptune-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/amazon-neptune-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/dynamodb-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-neptune-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.dynamodb-mcp-server" = "awslabs.dynamodb_mcp_server.server:main"
+"awslabs.amazon-neptune-mcp-server" = "awslabs.amazon_neptune_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -50,8 +48,6 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
-    "moto>=5.1.4",
-    "boto3>=1.38.14",
 ]
 
 [build-system]
@@ -80,7 +76,7 @@ force-exclude = true
 [tool.ruff.lint]
 exclude = ["__init__.py"]
 select = ["C", "D", "E", "F", "I", "W"]
-ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106", "D205"]
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2
@@ -88,7 +84,6 @@ no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
-"awslabs/dynamodb_mcp_server/common.py" = ["D101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -101,14 +96,8 @@ line-ending = "auto"
 docstring-code-format = true
 
 [tool.pyright]
-include = ["awslabs", "tests"]
+include = ["awslabs"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
-# allow using None as default without declaring field as Optional
-# declaring field as Optiona consumes tokens unnecessarily in the JSON schema
-# LLM doesn't need to be told that this field is Optional
-# because LLM already knows that the default is None
-reportArgumentType = false
-reportAssignmentType = false
 
 [tool.commitizen]
 name = "cz_conventional_commits"
@@ -116,7 +105,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/dynamodb_mcp_server/__init__.py:__version__"
+    "awslabs/amazon_neptune_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
@@ -136,6 +125,8 @@ markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"
 ]
+asyncio_default_fixture_loop_scope = "session"
+
 
 [tool.coverage.report]
 exclude_also = [
