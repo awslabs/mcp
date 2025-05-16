@@ -14,22 +14,23 @@ NOTICE                                @awslabs/mcp-admins
 /.devcontainer/                       @awslabs/mcp-admins
 
 # Alphabetical listing of MCP servers
-/src/amazon-sns-sqs-mcp-server        @kenliao94 @hashimsharkh @awslabs/mcp-admins
-/src/amazon-mq-mcp-server             @kenliao94 @hashimsharkh @awslabs/mcp-admins
-/src/aws-diagram-mcp-server           @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/aws-diagram-mcp-server           @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/aws-documentation-mcp-server     @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/aws-location-mcp-server          @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/bedrock-kb-retrieval-mcp-server  @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/cdk-mcp-server                   @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/core-mcp-server                  @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/cost-analysis-mcp-server         @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/git-repo-research-mcp-server     @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/lambda-mcp-server                @awslabs/mcp-maintainers # @danilop @jsamuel1 @awslabs/mcp-admins
-/src/nova-canvas-mcp-server           @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/postgres-mcp-server              @awslabs/mcp-maintainers # @kennthhz @awslabs/mcp-admins
-/src/syntheticdata-mcp-server         @awslabs/mcp-maintainers @awslabs/mcp-admins
-/src/terraform-mcp-server             @awslabs/mcp-maintainers @awslabs/mcp-admins
+/src/amazon-sns-sqs-mcp-server        @kenliao94 @hashimsharkh         @awslabs/mcp-admins
+/src/amazon-mq-mcp-server             @kenliao94 @hashimsharkh         @awslabs/mcp-admins
+/src/amazon-neptune-mcp-server        @bechbd @cornerwings @krlawrence @awslabs/mcp-admins
+/src/aws-diagram-mcp-server           @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/aws-diagram-mcp-server           @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/aws-documentation-mcp-server     @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/aws-location-mcp-server          @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/bedrock-kb-retrieval-mcp-server  @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/cdk-mcp-server                   @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/core-mcp-server                  @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/cost-analysis-mcp-server         @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/git-repo-research-mcp-server     @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/lambda-mcp-server                @danilop @jsamuel1               @awslabs/mcp-admins
+/src/nova-canvas-mcp-server           @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/postgres-mcp-server              @kennthhz                        @awslabs/mcp-admins
+/src/syntheticdata-mcp-server         @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/terraform-mcp-server             @awslabs/mcp-maintainers         @awslabs/mcp-admins
 
 # Secure the CODEOWNERS file
 /.github/CODEOWNERS                   @awslabs/mcp-admins
