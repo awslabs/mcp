@@ -138,6 +138,19 @@ The Amazon ElastiCache/MemoryDB Valkey MCP Server provides a natural language in
 
 [Learn more about the Valkey MCP Server](servers/valkey-mcp-server.md)
 
+### Memcached MCP Server
+
+A server that provides natural language interface to interact with Amazon ElastiCache  [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
+
+**Features:**
+
+- Natural language interface for cache operations
+- Comprehensive command support (Get, Set, Remove, Touch, CAS, Increment, Decrement)
+- Secure connections with SSL/TLS
+- Connection pooling and efficient resource management
+
+[Learn more about the Amazon ElastiCache Memcached MCP Server](servers/memcached-mcp-server.md)
+
 ### Code Documentation Generation MCP Server
 
 The Code Documentation Generation MCP Server automatically generates comprehensive documentation for code repositories.
