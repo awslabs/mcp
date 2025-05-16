@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.10,<3.13"
 dependencies = [
     "diagrams>=0.24.4",
-    "boto3>=1.37.27",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
     "bandit>=1.7.5",
@@ -48,6 +47,7 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.26.0",
+    "deptry>=0.23.0",
 ]
 
 [build-system]

@@ -8,9 +8,7 @@ dependencies = [
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
     "pandas>=2.0.0",
-    "boto3>=1.34.0",
-    "pyarrow>=14.0.1",  # For parquet format support
-    "python-snappy>=0.6.1",  # For snappy compression
+    "boto3>=1.34.0", # For snappy compression
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -48,7 +46,9 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.1",
     "pytest-asyncio>=0.26.0",
-    "moto>=5.0.0"
+    "moto>=5.0.0",
+    "deptry>=0.23.0",
+    "pyarrow>=20.0.0",
 ]
 
 [build-system]

@@ -20,15 +20,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "markdownify>=0.13.1",
     "mcp[cli]>=1.8.0",
-    "protego>=0.3.1",
     "pydantic>=2.0.0",
-    "readabilipy>=0.2.0",
-    "requests>=2.32.3",
     "boto3>=1.38.12",
-    "pytest>=8.3.5",
-    "fastmcp>=2.3.0",
+    "botocore>=1.38.13",
 ]
 
 [project.scripts]
@@ -51,6 +46,7 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    "deptry>=0.23.0",
 ]
 
 [build-system]

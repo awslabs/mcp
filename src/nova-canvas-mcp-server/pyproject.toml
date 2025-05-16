@@ -9,10 +9,6 @@ dependencies = [
     "loguru>=0.7.3",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.11.1",
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.26.0",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.12.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -46,6 +42,7 @@ Changelog = "https://github.com/awslabs/mcp/blob/main/src/nova-mcp-server/CHANGE
 dev = [
     "boto3-stubs[bedrock-runtime]>=1.37.24",
     "commitizen>=4.4.1",
+    "deptry>=0.23.0",
     "pre-commit>=4.2.0",
     "pyright>=1.1.398",
     "pytest>=8.0.0",

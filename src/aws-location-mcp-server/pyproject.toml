@@ -9,6 +9,7 @@ dependencies = [
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
     "loguru>=0.7.0",
+    "botocore>=1.37.35",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -48,6 +49,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.1",
     "pytest-asyncio>=0.26.0",
+    "deptry>=0.23.0",
 ]
 
 [build-system]
