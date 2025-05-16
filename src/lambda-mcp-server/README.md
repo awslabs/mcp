@@ -47,7 +47,8 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
         "FUNCTION_PREFIX": "your-function-prefix",
         "FUNCTION_LIST": "your-first-function, your-second-function",
         "FUNCTION_TAG_KEY": "your-tag-key",
-        "FUNCTION_TAG_VALUE": "your-tag-value"
+        "FUNCTION_TAG_VALUE": "your-tag-value",
+        "FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY": "your-function-tag-for-input-schema"
       }
     }
   }
@@ -82,6 +83,8 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
           "FUNCTION_TAG_KEY=your-tag-key",
           "--env",
           "FUNCTION_TAG_VALUE=your-tag-value",
+          "--env",
+          "FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY=your-function-tag-for-input-schema",
           "--env-file",
           "/full/path/to/file/above/.env",
           "awslabs/lambda-mcp-server:latest"
@@ -103,19 +106,53 @@ After the name check, if both `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE` are se
 If only one of `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE`, then no function is selected and a warning is displayed.
 
 **IMPORTANT**: The function name is used as MCP tool name. The function description in AWS Lambda is used as MCP tool description. The function description should clarify when to use the function (what it provides) and how (which parameters). For example, a function that gives access to an internal Customer Relationship Management (CRM) system can use this description:
-
 ```plaintext
 Retrieve customer status on the CRM system based on { 'customerId' } or { 'customerEmail' }
 ```
 
+The lambda function parameters can also be provided through the EventBridge Schema Registry, which provides formal JSON Schema. See [Schema Support](#schema-support) below.
+
 Sample functions that can be deployed via AWS SAM are provided in the `examples` folder.
+
+## Schema Support
+
+The Lambda MCP Server supports input schema through AWS EventBridge Schema Registry. This provides formal JSON Schema documentation for your Lambda function inputs.
+
+### Configuration
+
+To use schema validation:
+
+1. Create your schema in EventBridge Schema Registry
+2. Tag your Lambda function with the schema ARN:
+   ```plaintext
+   Key: FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY (configurable)
+   Value: arn:aws:schemas:region:account:schema/registry-name/schema-name
+   ```
+3. Configure the MCP server with the tag key:
+   ```json
+   {
+     "env": {
+       "FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY": "your-schema-arn-tag-key"
+     }
+   }
+   ```
+
+When a Lambda function has a schema tag, the MCP server will:
+1. Fetch the schema from EventBridge Schema Registry
+2. Add the schema to the tool's documentation
+
+This provides better documentation compared to describing parameters in the function description.
 
 ## Best practices
 
 - Use the `FUNCTION_LIST` to specify the functions that are available as MCP tools.
 - Use the `FUNCTION_PREFIX` to specify the prefix of the functions that are available as MCP tools.
 - Use the `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE` to specify the tag key and value of the functions that are available as MCP tools.
-- AWS Lambda `Description` property: the description of the function is used as MCP tool description, so it should be very detailed to help the model understand when and how to use the function and with with which parameters.
+- AWS Lambda `Description` property: the description of the function is used as MCP tool description, so it should be very detailed to help the model understand when and how to use the function
+- Use EventBridge Schema Registry to provide formal input validation:
+  - Create JSON Schema definitions for your function inputs
+  - Tag functions with their schema ARNs
+  - Configure `FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY` in the MCP server
 
 ## Security Considerations
 

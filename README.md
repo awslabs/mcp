@@ -9,36 +9,49 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 
 ## Table of Contents
 
-- [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
-  - [Why MCP Servers?](#why-mcp-servers)
-- [Available Servers](#available-servers)
-  - [Core MCP Server](#core-mcp-server)
-  - [AWS Documentation MCP Server](#aws-documentation-mcp-server)
-  - [Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)
-  - [AWS CDK MCP Server](#aws-cdk-mcp-server)
-  - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
-  - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
-  - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
-  - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
-  - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
-  - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
-  - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
-  - [Postgres MCP Server](#postgres-mcp-server)
-  - [Use Cases for the Servers](#use-cases-for-the-servers)
-- [Installation and Setup](#installation-and-setup)
-  - [Getting Started with Cline and Amazon Bedrock](#getting-started-with-cline-and-amazon-bedrock)
-  - [Getting Started with Cursor](#getting-started-with-cursor)
-  - [Getting Started with Windsurf](#getting-started-with-windsurf)
-  - Getting Started with Q Developer - Coming Soon
-- [Samples](#samples)
-- [Documentation](#documentation)
-- [Vibe coding](#vibe-coding)
-- [Additional Resources](#additional-resources)
-- [Security](#security)
-- [Contributing](#contributing)
-- [Developer guide](#developer-guide)
-- [License](#license)
-- [Disclaimer](#disclaimer)
+- [AWS MCP Servers](#aws-mcp-servers)
+  - [Table of Contents](#table-of-contents)
+  - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
+    - [Why MCP Servers?](#why-mcp-servers)
+  - [Available Servers](#available-servers)
+    - [Core MCP Server](#core-mcp-server)
+    - [AWS Documentation MCP Server](#aws-documentation-mcp-server)
+    - [Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)
+    - [AWS CDK MCP Server](#aws-cdk-mcp-server)
+    - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
+    - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
+    - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
+    - [AWS CloudFormation MCP Server](#aws-cloudformation-mcp-server)
+    - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
+    - [Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)
+    - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
+    - [Amazon ElastiCache Memcached MCP Server](#memcached-mcp-server)
+    - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
+    - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
+    - [Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)
+    - [Postgres MCP Server](#postgres-mcp-server)
+    - [Amazon MQ MCP Server](#amazon-mq-mcp-server)
+    - [Synthetic Data MCP Server](#synthetic-data-mcp-server)
+    - [AWS DynamoDB MCP Server](#aws-dynamodb-mcp-server)
+    - [Amazon Neptune MCP Server](#amazon-neptune-mcp-server)
+    - [Use Cases for the Servers](#use-cases-for-the-servers)
+  - [Installation and Setup](#installation-and-setup)
+    - [Running MCP servers in containers](#running-mcp-servers-in-containers)
+    - [Getting Started with Cline and Amazon Bedrock](#getting-started-with-cline-and-amazon-bedrock)
+      - [`cline_mcp_settings.json`](#cline_mcp_settingsjson)
+    - [Getting Started with Cursor](#getting-started-with-cursor)
+      - [`.cursor/mcp.json`](#cursormcpjson)
+    - [Getting Started with Windsurf](#getting-started-with-windsurf)
+      - [`~/.codeium/windsurf/mcp_config.json`](#codeiumwindsurfmcp_configjson)
+  - [Samples](#samples)
+  - [Documentation](#documentation)
+  - [Vibe coding](#vibe-coding)
+  - [Additional Resources](#additional-resources)
+  - [Security](#security)
+  - [Contributing](#contributing)
+  - [Developer guide](#developer-guide)
+  - [License](#license)
+  - [Disclaimer](#disclaimer)
 
 ## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
 
@@ -158,6 +171,17 @@ A server for seamlessly creating diagrams using the Python diagrams package DSL.
 
 [Learn more](src/aws-diagram-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
 
+### AWS CloudFormation MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.cfn-mcp-server.svg)](https://pypi.org/project/awslabs.cfn-mcp-server/)
+
+A server to manage AWS resources via cloudcontrol. This allows you to perform CRUDL operations on any AWS resources in your AWS account
+
+- This server acts as a bridge between MCP clients and AWS, allowing foundation models (FMs) to read and manage resources in your AWS account.
+- This can be used, for example, to create an AWS::S3::Bucket, list any AWS::Lambda::Function, etc.
+
+[Learn more](src/cfn-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
+
 ### AWS Lambda MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.lambda-mcp-server.svg)](https://pypi.org/project/awslabs.lambda-mcp-server/)
@@ -170,6 +194,19 @@ A server to select and run AWS Lambda function as MCP tools without code changes
 - The Lambda function description is used by MCP to describe the tool and should guide the FMs on when (what does the function provide?) and how (which parameters it needs? which syntax?) to use it.
 
 [Learn more](src/lambda-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/lambda-mcp-server/)
+
+### Amazon SNS / SQS MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-sns-sqs-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-sns-sqs-mcp-server/)
+
+A server for Amazon SNS / SQS.
+
+- Create SNS / SQS Topics and Queues.
+- Subscribe, PublishMessages to SNS Topics.
+- Send and receive messages from / to Queues.
+- Modify Topic / Queue Attributes
+
+[Learn more](src/amazon-sns-sqs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-sns-sqs-mcp-server/)
 
 ### AWS Terraform MCP Server
 
@@ -184,6 +221,19 @@ A server for AWS Terraform best practices.
 - Terraform Workflow Execution
 
 [Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
+
+### Memcached MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.memcached-mcp-server.svg)](https://pypi.org/project/awslabs.memcached-mcp-server/)
+
+A server that provides natural language interface to interact with Amazon ElastiCache  [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
+
+- Natural language interface for cache operations
+- Comprehensive command support (Get, Set, Remove, Touch, CAS, Increment, Decrement)
+- Secure connections with SSL/TLS
+- Connection pooling and efficient resource management
+
+[Learn more](src/memcached-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 
 ### AWS Location Service MCP Server
 
@@ -215,6 +265,19 @@ A server for researching Git repositories using semantic search.
 
 [Learn more](src/git-repo-research-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
 
+### Code Documentation Generation MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.code-doc-gen-mcp-server.svg)](https://pypi.org/project/awslabs.code-doc-gen-mcp-server/)
+
+A server that automatically generates comprehensive documentation for code repositories.
+
+- Automated documentation generation based on repository analysis
+- AWS architecture diagram integration with AWS Diagrams MCP Server
+- Multiple document types (README, API, Backend, Frontend)
+- Interactive documentation creation workflow for AI assistants
+
+[Learn more](src/code-doc-gen-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/code-doc-gen-mcp-server/)
+
 ### Postgres MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.postgres-mcp-server.svg)](https://pypi.org/project/awslabs.postgres-mcp-server/)
@@ -225,6 +288,54 @@ A server for Aurora Postgres.
 - Fetch table columns and comments from Postgres using RDS Data API
 
 [Learn more](src/postgres-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/postgres-mcp-server/)
+
+### Amazon Neptune MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-neptune-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-neptune-mcp-server/)
+
+A server for interacting with Amazon Neptune graph database.
+
+- Run openCypher/Gremlin queries on a Neptune Database
+- Run openCypher queries on Neptune Analytics
+- Get the schema of the graph
+
+[Learn more](src/amazon-neptune-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-neptune-mcp-server/)
+
+### Amazon MQ MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-mq-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-mq-mcp-server/)
+
+A server for Amazon MQ.
+
+- Analyze existing Amazon MQ for ActiveMQ and RabbitMQ brokers .
+- Provision new Amazon MQ for ActiveMQ and RabbitMQ broker instances.
+
+[Learn more](src/amazon-mq-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-mq-mcp-server/)
+
+### Synthetic Data MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.syntheticdata-mcp-server.svg)](https://pypi.org/project/awslabs.syntheticdata-mcp-server/)
+
+A server for generating, validating, and managing synthetic data.
+
+- Business-Driven Generation: Generate synthetic data instructions based on business descriptions
+- Safe Pandas Code Execution: Run pandas code in a restricted environment with automatic DataFrame detection
+- JSON Lines Validation: Validate and convert JSON Lines data to CSV format
+- Data Validation: Validate data structure, referential integrity, and save as CSV files
+- Referential Integrity Checking: Validate relationships between tables
+- Data Quality Assessment: Identify potential issues in data models (3NF validation)
+- Storage Integration: Load data to various storage targets (S3) with support for multiple formats and configurations
+
+[Learn more](src/syntheticdata-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/syntheticdata-mcp-server/)
+
+### AWS DynamoDB MCP Server
+
+A server for interacting with AWS DynamoDB
+
+- Control Plane operations like table creation, table update, global secondary index, streams, global table management, backup, restore, etc.
+- Data Plane operations like put, get, update, query and scan.
+
+[Learn more](src/dynamodb-mcp-server/README.md)
 
 ### Use Cases for the Servers
 
@@ -325,7 +436,18 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
        "disabled": false,
        "autoApprove": []
     },
-    "awslabs.git-research": {
+    "awslabs.memcached-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.memcached-mcp-server@latest"],
+        "env": {
+          "MEMCACHED_HOST": "127.0.0.1",
+          "MEMCACHED_PORT": "11211",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
+    }
+    "awslabs.git-repo-research-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.git-repo-research-mcp-server@latest"],
       "env": {
@@ -333,6 +455,15 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
         "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR",
         "GITHUB_TOKEN": "your-github-token"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs.cloudformation": {
+      "command": "uvx",
+      "args": ["awslabs.cfn-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
       },
       "disabled": false,
       "autoApprove": []
@@ -636,7 +767,10 @@ Documentation for each server:
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 - [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
+erver/)
+- [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 - [Git Repo Research MCP Server](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
+- [CloudFormation MCP Server](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
 
 Documentation includes:
 

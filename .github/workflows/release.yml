@@ -5,14 +5,14 @@ on:
   schedule:
     - cron: '0 10 * * *'
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   create-metadata:
     if: github.repository == 'awslabs/mcp'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       hash: ${{ steps.last-release.outputs.hash }}
       version: ${{ steps.create-version.outputs.version}}
@@ -60,6 +60,9 @@ jobs:
     if: github.repository == 'awslabs/mcp' && (needs.create-metadata.outputs.npm_packages != '[]' || needs.create-metadata.outputs.pypi_packages != '[]')
     needs: [create-metadata]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     environment: release
     outputs:
       changes_made: ${{ steps.commit.outputs.changes_made }}
@@ -132,6 +135,7 @@ jobs:
     name: Build ${{ matrix.package }}
     environment: release
     permissions:
+      contents: read
       id-token: write # Required for trusted publishing
     runs-on: ubuntu-latest
     steps:
@@ -199,6 +203,8 @@ jobs:
     name: Build ${{ matrix.package }}
     environment: release
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
