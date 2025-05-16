@@ -1,19 +1,19 @@
-# Valkey MCP Server
+# Amazon ElastiCache/MemoryDB Valkey MCP Server
 
-This server provides a natural language interface to interact with Amazon ElastiCache and MemoryDB [Valkey](https://valkey.io/) datastores. Amazon ElastiCache is a serverless, fully managed cache delivering real-time, cost-optimized performance for data-driven applications. Amazon MemoryDB is a durable, in-memory database service for ultra-fast performance. Both servuces offer full Valkey compatibility. At its core, Valkey provides a collection of native data types that help you solve a wide variety of problems, from caching to queuing to event processing.
+An AWS Labs Model Context Protocol (MCP) server for Amazon ElastiCache [Valkey](https://valkey.io/) datastores.
 
 ## Features
+This MCP server provides tools to operate on Valkey data types. For example, it allows an agent to operate with Valkey Strings using commands such as SET, SETRANGE, GET, GETRANGE, APPEND, INCREMENT and more.
 
 ### Supported Data Types
-- **Strings**: Strings are the most basic Valkey data type, representing a sequence of bytes. You can store and retrieve strings with optional expiration for caching and session data.
-- **Lists**: Lists are collections of strings sorted by insertion order. You can manage these collections with push/pop operations.
-- **Sets**: Sets are unordered collections of unique strings that act like the sets from your favorite programming language. With a Set, you can add, remove, and test for existence in O(1) time (in other words, regardless of the number of set elements).
-- **Sorted Sets**: Sorted Sets are collections of unique strings that maintain order by each string's associated score. These are typically used to manage scored elements for leaderboards and priority queues.
-- **Hashes**: Hashes are record types modeled as collections of field-value pairs. As such, Hashes resemble Python dictionaries, Java HashMaps, and Ruby hashes.
-- **Streams**: A Stream is a data structure that acts like an append-only log. Streams help record events in the order they occur and then syndicate them for processing. These are typically used to process time-series data and event streams.
+- **Strings**: Store, retrieve, append, increment, decrement, length and more.
+- **Lists**: Manage List collections with push/pop operations.
+- **Sets and Sorted Sets**: Store and retrieve items from Sets.
+- **Hashes**: Store and retrieve items in Hashes. Check for existence of items in a hash, increment item values in a Hash, and more.
+- **Streams**: Store, retrieve, trim items in Streams.
 - **Bitmaps**: Bitmaps let you perform bitwise operations on strings.
-- **HyperLogLog**: HyperLogLog data structures provide probabilistic estimates of the cardinality (i.e., number of elements) of large sets.
-- **JSONs**: Store and query JSON documents with path-based access
+- **JSONs**: Store and retrieve JSON documents with path-based access.
+- **HyperLogLog**: Store and count items in HyperLogs.
 
 ### Advanced Features
 - **Cluster Support**: Support for standalone and clustered Valkey deployments.
@@ -24,7 +24,9 @@ This server provides a natural language interface to interact with Amazon Elasti
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
-3. Access to a Valkey datastore instance
+3. Access to a Valkey datastore instance. 
+   - For instructions to connect to an Amazon ElastiCache/MemoryDB Valkey cache [click here](ELASTICACHECONNECT.md).
+   - For local development, ensure Valkey is installed and running
 
 ## Installation
 

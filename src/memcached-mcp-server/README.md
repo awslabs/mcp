@@ -1,4 +1,4 @@
-# Memcached MCP Server
+# Amazon ElastiCache Memcached MCP Server
 
 MCP server for interacting with Amazon ElastiCache Memcached through a secure and reliable connection
 
@@ -29,8 +29,8 @@ MCP server for interacting with Amazon ElastiCache Memcached through a secure an
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
-3. Access to a Memcached server (local or Amazon ElastiCache)
-   - For Amazon ElastiCache, you need appropriate AWS credentials and permissions
+3. Access to a Memcached server,
+   - For instructions to connect to an Amazon ElastiCache Memcached cache [click here](ELASTICACHECONNECT.md)
    - For local development, ensure Memcached is installed and running
 
 ## Installation
