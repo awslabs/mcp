@@ -6,14 +6,14 @@ An AWS Labs Model Context Protocol (MCP) server for Amazon ElastiCache [Valkey](
 This MCP server provides tools to operate on Valkey data types. For example, it allows an agent to operate with Valkey Strings using commands such as SET, SETRANGE, GET, GETRANGE, APPEND, INCREMENT and more.
 
 ### Supported Data Types
-- **Strings**: Store, retrieve, append, increment, decrement, length and more.
-- **Lists**: Manage List collections with push/pop operations.
-- **Sets and Sorted Sets**: Store and retrieve items from Sets.
-- **Hashes**: Store and retrieve items in Hashes. Check for existence of items in a hash, increment item values in a Hash, and more.
-- **Streams**: Store, retrieve, trim items in Streams.
-- **Bitmaps**: Bitmaps let you perform bitwise operations on strings.
-- **JSONs**: Store and retrieve JSON documents with path-based access.
-- **HyperLogLog**: Store and count items in HyperLogs.
+- `Strings`- Store, retrieve, append, increment, decrement, length and more.
+- `Lists`- Manage List collections with push/pop operations.
+- `Sets and Sorted Sets`- Store and retrieve items from Sets.
+- `Hashes`- Store and retrieve items in Hashes. Check for existence of items in a hash, increment item values in a Hash, and more.
+- `Streams`- Store, retrieve, trim items in Streams.
+- `Bitmaps`- Bitmaps let you perform bitwise operations on strings.
+- `JSONs`- Store and retrieve JSON documents with path-based access.
+- `HyperLogLog`- Store and count items in HyperLogs.
 
 ### Advanced Features
 - **Cluster Support**: Support for standalone and clustered Valkey deployments.
@@ -24,9 +24,8 @@ This MCP server provides tools to operate on Valkey data types. For example, it 
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
-3. Access to a Valkey datastore instance. 
-   - For instructions to connect to an Amazon ElastiCache/MemoryDB Valkey cache [click here](ELASTICACHECONNECT.md).
-   - For local development, ensure Valkey is installed and running
+3. Access to a Valkey datastore instance. For instructions to connect to an Amazon ElastiCache/MemoryDB Valkey cache [click here](ELASTICACHECONNECT.md).
+  
 
 ## Installation
 
