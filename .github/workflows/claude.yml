@@ -43,7 +43,7 @@ jobs:
               --event pull_request \
               --commit "${{ github.event.pull_request.head.sha }}" \
               --json "attempt,conclusion,headBranch,name,number,status,workflowName" \
-              --jq ".[] | select(.workflowName != \"${{ github.workflow }}\")" \
+              --jq ".[] | select(.workflowName != \"${{ github.workflow }}\" and .workflowName != \"Merge Prevention\")" \
               --limit 1000 | \
               jq --slurp '.' | \
               tee pull_request_runs.json;
