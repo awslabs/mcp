@@ -49,6 +49,30 @@ Below is an example of how to configure your MCP client, although different clie
 }
 
 ```
+### Docker Configuration
+After building with `docker build -t awslabs/amazon-neptune-mcp-server .`:
+
+```
+{
+  "mcpServers": {
+    "awslabs.amazon-neptune-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "-i",
+          "awslabs/amazon-neptune-mcp-server"
+        ],
+        "env": {
+        "FASTMCP_LOG_LEVEL": "INFO",
+        "NEPTUNE_ENDPOINT": "<INSERT NEPTUNE ENDPOINT IN FORMAT SPECIFIED BELOW>"
+        },
+        "disabled": false,
+        "autoApprove": []
+    }
+  }
+}
+```
 
 When specifying the Neptune Endpoint the following formats are expected:
 
