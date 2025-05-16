@@ -143,8 +143,8 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool(name='get_data_generation_instructions')
-async def get_data_generation_instructions(
+@mcp.tool(name='get_data_gen_instructions')
+async def get_data_gen_instructions(
     business_description: str = Field(
         ...,
         description='A detailed description of the business domain and use case. The more specific and comprehensive the description, the better the data generation instructions will be.',

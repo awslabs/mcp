@@ -124,6 +124,33 @@ The Terraform MCP Server provides the following capabilities:
 
 [Learn more about the AWS Terraform MCP Server](servers/terraform-mcp-server.md)
 
+### Valkey MCP Server
+
+The Amazon ElastiCache/MemoryDB Valkey MCP Server provides a natural language interface to interact with Valkey datastores, enabling AI assistants to work with various data structures and perform complex data operations.
+
+**Features:**
+
+- Support for multiple data types (Strings, Lists, Sets, Sorted Sets, Hashes, Streams, etc.)
+- Advanced features like cluster support
+- JSON document storage and querying
+- Secure connections with SSL/TLS support
+- Connection pooling for efficient resource management
+
+[Learn more about the Valkey MCP Server](servers/valkey-mcp-server.md)
+
+### Memcached MCP Server
+
+A server that provides natural language interface to interact with Amazon ElastiCache  [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
+
+**Features:**
+
+- Natural language interface for cache operations
+- Comprehensive command support (Get, Set, Remove, Touch, CAS, Increment, Decrement)
+- Secure connections with SSL/TLS
+- Connection pooling and efficient resource management
+
+[Learn more about the Amazon ElastiCache Memcached MCP Server](servers/memcached-mcp-server.md)
+
 ### Code Documentation Generation MCP Server
 
 The Code Documentation Generation MCP Server automatically generates comprehensive documentation for code repositories.
