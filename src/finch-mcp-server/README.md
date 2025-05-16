@@ -1,0 +1,102 @@
+# Finch MCP Server
+
+A Model Context Protocol (MCP) server for Finch that enables generative AI models to build and push container images through finch cli leveraged MCP tools.
+
+## Features
+
+This MCP server acts as a bridge between MCP clients and Finch, allowing generative AI models to build and push container images. The server provides a secure way to interact with Finch, ensuring that the Finch VM is properly initialized and running before performing operations.
+
+## Key Capabilities
+
+- Build container images using Finch
+- Push container images to repositories, including Amazon ECR
+- Automatic management of the Finch VM on macos and windows (initialization, starting, etc.)
+- Support for container build options
+- Automatic configuration of ECR credential helpers when needed
+
+## Prerequisites
+
+1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
+2. Install Python using `uv python install 3.10`
+3. Install [Finch](https://github.com/runfinch/finch) on your system
+4. For ECR operations, AWS credentials with permissions to push to ECR repositories.
+
+## Setup
+
+### Installation
+
+Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "disabled": false,
+      "timeout": 1000,
+      "command": "uv",
+      "args": [
+        "--directory",
+        "<ABSOLUTE PATH>",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-west-2",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "transportType": "stdio"
+    }
+  }
+}
+```
+
+## Available Tools
+
+### `finch_build_container_image`
+
+Build a container image using Finch.
+
+This tool first ensures that the Finch VM is running, starting it if necessary. Then it builds a Docker image using the specified Dockerfile and context directory. It supports a range of build options including tags, platforms, and more.
+
+Parameters:
+- `dockerfile_path` (str): Absolute path to the Dockerfile
+- `context_path` (str): Absolute path to the build context directory
+- `tags` (List[str], optional): List of tags to apply to the image (e.g., ["myimage:latest", "myimage:v1"])
+- `platforms` (List[str], optional): List of target platforms (e.g., ["linux/amd64", "linux/arm64"])
+- `target` (str, optional): Target build stage to build
+- `no_cache` (bool, optional): Whether to disable cache. Defaults to False.
+- `pull` (bool, optional): Whether to always pull base images. Defaults to False.
+- `add_hosts` (List[str], optional): List of custom host-to-IP mappings
+- `allow` (List[str], optional): List of extra privileged entitlements
+- `build_contexts` (List[str], optional): List of additional build contexts
+- `outputs` (str, optional): Output destination
+- `cache_from` (List[str], optional): List of external cache sources
+- `cache_to` (List[str], optional): List of cache export destinations
+- `quiet` (bool, optional): Whether to suppress build output. Defaults to False.
+- `progress` (str, optional): Type of progress output. Defaults to "auto".
+
+### `finch_push_image`
+
+Push a container image to a repository using Finch.
+
+If the image URL is an ECR repository, it verifies that ECR login credential helper is configured. This tool first ensures that the Finch VM is running, starting it if necessary. Then it pushes a container image to a repository.
+
+Parameters:
+- `image` (str): The full image name to push, including the repository URL and tag. For ECR repositories, it must follow the format: `<aws_account_id>.dkr.ecr.<region>.amazonaws.com/<repository_name>:<tag>`
+
+## Best Practices
+
+TODO: Write Best Practices for the finch mcp server
+
+
+## Troubleshooting
+
+- If you encounter permission errors with ECR, verify your AWS credentials are properly configured
+- For Finch VM issues, try running `finch vm stop` and then `finch vm start` manually
+- If the build fails with errors about missing files, check that your context path is correct
+- For general Finch issues, consult the [Finch documentation](https://github.com/runfinch/finch)
+
+## Version
+
+Current MCP server version: 1.0.0
