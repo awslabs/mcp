@@ -19,7 +19,7 @@ from awslabs.amazon_sns_sqs_mcp_server.common import (
 )
 from awslabs.amazon_sns_sqs_mcp_server.consts import MCP_SERVER_VERSION
 from awslabs.amazon_sns_sqs_mcp_server.generator import BOTO3_CLIENT_GETTER, AWSToolGenerator
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from typing import Any, Dict, Tuple
 
 

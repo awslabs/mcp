@@ -20,7 +20,7 @@ import os
 import sys
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 from typing import Annotated, Any, Callable, Dict, List
 

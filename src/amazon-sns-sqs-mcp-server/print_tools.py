@@ -2,7 +2,7 @@
 
 from awslabs.amazon_sns_sqs_mcp_server.sns import register_sns_tools
 from awslabs.amazon_sns_sqs_mcp_server.sqs import register_sqs_tools
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 
 async def print_tool_info(mcp):
