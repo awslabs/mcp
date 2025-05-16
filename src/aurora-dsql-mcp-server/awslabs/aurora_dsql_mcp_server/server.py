@@ -126,9 +126,9 @@ async def transact(
         raise ValueError(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
 
     conn = await create_connection(ctx)
-
     await execute_query(ctx, conn, 'BEGIN')
     try:
+        rows = []
         for query in sql_list:
             rows = await execute_query(ctx, conn, query)
         await execute_query(ctx, conn, 'COMMIT')
@@ -182,11 +182,10 @@ class NoOpCtx:
 async def get_password_token():  # noqa: D103
     # Generate a fresh password token for each connection, to ensure the token is not expired
     # when the connection is established
-
     if database_user == 'admin':
-        return dsql_client.generate_db_connect_admin_auth_token(cluster_endpoint, region)
+        return dsql_client.generate_db_connect_admin_auth_token(cluster_endpoint, region)  # pyright: ignore[reportOptionalMemberAccess]
     else:
-        return dsql_client.generate_db_connect_auth_token(cluster_endpoint, region)
+        return dsql_client.generate_db_connect_auth_token(cluster_endpoint, region)  # pyright: ignore[reportOptionalMemberAccess]
 
 
 async def create_connection(ctx):  # noqa: D103
@@ -221,8 +220,8 @@ async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]
         conn = conn_to_use
 
     try:
-        async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-            await cur.execute(query, params)
+        async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:  # pyright: ignore[reportAttributeAccessIssue]
+            await cur.execute(query, params)  # pyright: ignore[reportArgumentType]
             if cur.rownumber is None:
                 return []
             else:
