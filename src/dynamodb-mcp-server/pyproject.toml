@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.28.0",
-    "fastmcp>=0.1.0",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
