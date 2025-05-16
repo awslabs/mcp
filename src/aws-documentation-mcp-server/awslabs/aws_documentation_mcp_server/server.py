@@ -41,7 +41,7 @@ logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/1.0 (AWS Documentation Server)'
-SEARCH_API_URL = 'https://proxy.search.docs.aws.amazon.com/search'
+SEARCH_API_URL = 'https://public.knowledge-search.us-east-1.prod.mynah.aws.dev/general/search'
 RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'
 
 
@@ -241,7 +241,11 @@ async def search_documentation(
             response = await client.post(
                 SEARCH_API_URL,
                 json=request_body,
-                headers={'Content-Type': 'application/json', 'User-Agent': DEFAULT_USER_AGENT},
+                headers={
+                    'Content-Type': 'application/json', 
+                    'User-Agent': DEFAULT_USER_AGENT, 
+                    'x-amzn-requester': 'aws-doc-mcp'
+                },
                 timeout=30,
             )
         except httpx.HTTPError as e:
