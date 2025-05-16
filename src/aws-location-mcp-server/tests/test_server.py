@@ -1176,3 +1176,59 @@ def test_geo_places_client_initialization_exception():
     with patch('boto3.client', side_effect=Exception('Test exception')):
         geo_client = GeoPlacesClient()
         assert geo_client.geo_places_client is None
+
+
+def test_geo_places_client_initialization_with_session_token(monkeypatch):
+    """Test the GeoPlacesClient initialization with session token."""
+    monkeypatch.setenv('AWS_REGION', 'us-west-2')
+    monkeypatch.setenv(
+        'AWS_ACCESS_KEY_ID', 'AKIAIOSFODNN7EXAMPLE'
+    )  # pragma: allowlist secret - Test credential for unit tests only
+    monkeypatch.setenv(
+        'AWS_SECRET_ACCESS_KEY', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+    )  # pragma: allowlist secret - Test credential for unit tests only
+    monkeypatch.setenv(
+        'AWS_SESSION_TOKEN',
+        'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4Olgk',
+    )  # pragma: allowlist secret - Test credential for unit tests only
+
+    with patch('boto3.client') as mock_boto3_client:
+        _ = GeoPlacesClient()
+        mock_boto3_client.assert_called_once()
+        args, kwargs = mock_boto3_client.call_args
+        assert args[0] == 'geo-places'
+        assert kwargs['region_name'] == 'us-west-2'
+        assert kwargs['aws_access_key_id'] == 'AKIAIOSFODNN7EXAMPLE'
+        assert kwargs['aws_secret_access_key'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+        assert (
+            kwargs['aws_session_token']
+            == 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4Olgk'
+        )
+
+
+def test_geo_routes_client_initialization_with_session_token(monkeypatch):
+    """Test the GeoRoutesClient initialization with session token."""
+    monkeypatch.setenv('AWS_REGION', 'us-west-2')
+    monkeypatch.setenv(
+        'AWS_ACCESS_KEY_ID', 'AKIAIOSFODNN7EXAMPLE'
+    )  # pragma: allowlist secret - Test credential for unit tests only
+    monkeypatch.setenv(
+        'AWS_SECRET_ACCESS_KEY', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+    )  # pragma: allowlist secret - Test credential for unit tests only
+    monkeypatch.setenv(
+        'AWS_SESSION_TOKEN',
+        'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4Olgk',
+    )  # pragma: allowlist secret - Test credential for unit tests only
+
+    with patch('boto3.client') as mock_boto3_client:
+        _ = GeoRoutesClient()
+        mock_boto3_client.assert_called_once()
+        args, kwargs = mock_boto3_client.call_args
+        assert args[0] == 'geo-routes'
+        assert kwargs['region_name'] == 'us-west-2'
+        assert kwargs['aws_access_key_id'] == 'AKIAIOSFODNN7EXAMPLE'
+        assert kwargs['aws_secret_access_key'] == 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+        assert (
+            kwargs['aws_session_token']
+            == 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4Olgk'
+        )
