@@ -1,0 +1,67 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
+"""awslabs memcached MCP Server implementation."""
+
+import argparse
+from awslabs.memcached_mcp_server.common.server import mcp
+from awslabs.memcached_mcp_server.tools import cache  # noqa: F401
+from loguru import logger
+from starlette.requests import Request  # noqa: F401
+from starlette.responses import Response
+
+
+# Add a health check route directly to the MCP server
+@mcp.custom_route('/health', methods=['GET'])
+async def health_check(request):
+    """Simple health check endpoint for ALB Target Group.
+
+    Always returns 200 OK to indicate the service is running.
+    """
+    return Response(content='healthy', status_code=200, media_type='text/plain')
+
+
+class MemcachedMCPServer:
+    """Memcached MCP Server wrapper."""
+
+    def __init__(self, sse=False, port=None):
+        """Initialize MCP Server wrapper."""
+        self.sse = sse
+        self.port = port
+
+    def run(self):
+        """Run server with appropriate transport."""
+        if self.sse:
+            mcp.settings.port = int(self.port) if self.port is not None else 8888
+            mcp.run(transport='sse')
+        else:
+            mcp.run()
+
+
+def main():
+    """Run the MCP server with CLI argument support."""
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server for Amazon ElastiCache Memcached'
+    )
+    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
+    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
+
+    args = parser.parse_args()
+
+    logger.info('Amazon ElastiCache Memcached MCP Server Started...')
+
+    # Run server with appropriate transport
+    server = MemcachedMCPServer(args.sse, args.port)
+    server.run()
+
+
+if __name__ == '__main__':
+    main()

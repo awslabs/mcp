@@ -25,6 +25,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
     - [Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)
     - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
+    - [Amazon ElastiCache Memcached MCP Server](#memcached-mcp-server)
     - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
     - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
     - [Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)
@@ -221,6 +222,19 @@ A server for AWS Terraform best practices.
 - Terraform Workflow Execution
 
 [Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
+
+### Memcached MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.memcached-mcp-server.svg)](https://pypi.org/project/awslabs.memcached-mcp-server/)
+
+A server that provides natural language interface to interact with Amazon ElastiCache  [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
+
+- Natural language interface for cache operations
+- Comprehensive command support (Get, Set, Remove, Touch, CAS, Increment, Decrement)
+- Secure connections with SSL/TLS
+- Connection pooling and efficient resource management
+
+[Learn more](src/memcached-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 
 ### AWS Location Service MCP Server
 
@@ -431,7 +445,18 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
        "disabled": false,
        "autoApprove": []
     },
-    "awslabs.git-research": {
+    "awslabs.memcached-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.memcached-mcp-server@latest"],
+        "env": {
+          "MEMCACHED_HOST": "127.0.0.1",
+          "MEMCACHED_PORT": "11211",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
+    }
+    "awslabs.git-repo-research-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.git-repo-research-mcp-server@latest"],
       "env": {
@@ -751,6 +776,8 @@ Documentation for each server:
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 - [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
+erver/)
+- [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 - [Git Repo Research MCP Server](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
 - [CloudFormation MCP Server](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
 

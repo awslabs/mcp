@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.syntheticdata-mcp-server"
-version = "0.0.1"
+version = "0.0.2"
 description = "An AWS Labs Model Context Protocol (MCP) server for syntheticdata"
 readme = "README.md"
 requires-python = ">=3.10"
