@@ -74,13 +74,7 @@ def main():
 
     args = parser.parse_args()
 
-    logger.trace('A trace message.')
-    logger.debug('A debug message.')
-    logger.info('An info message.')
-    logger.success('A success message.')
-    logger.warning('A warning message.')
-    logger.error('An error message.')
-    logger.critical('A critical message.')
+    logger.info('Amazon ElastiCache/MemoryDB Valkey MCP Server Started...')
 
     server = ValkeyMCPServer(args.sse, args.port)
     server.run()
