@@ -86,7 +86,7 @@ ssh -i YOUR_EC2_KEY EC2_USER@EC2_HOST -p EC2_TUNNEL_PORT -L LOCAL_PORT:ELASTICAC
 Use a third connection and run the following command to verify connection to your Amazon ElastiCache Memcached cache from your local machine:
 
 ```
-telnet 127.0.0.1 LOCAL_PORT 
+telnet 127.0.0.1 LOCAL_PORT
 ```
 
 **Note**: Replace the following values:

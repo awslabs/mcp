@@ -80,7 +80,7 @@ ssh -i YOUR_EC2_KEY EC2_USER@EC2_HOST -p EC2_TUNNEL_PORT -L LOCAL_PORT:ELASTICAC
 Use a third connection and run the following command to verify connection to your Amazon ElastiCache Valkey cache from your local machine:
 
 ```
-valkey-cli -h 127.0.0.1 -p LOCAL_PORT 
+valkey-cli -h 127.0.0.1 -p LOCAL_PORT
 ```
 
 **Note**: Replace the following values:
