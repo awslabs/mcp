@@ -278,10 +278,9 @@ def register_lambda_functions():
     """Register Lambda functions as individual tools."""
     try:
         logger.info('Registering Lambda functions as individual tools...')
-        functions = get_all_lambda_functions([])
 
         # Get all functions
-        all_functions = functions['Functions']
+        all_functions = get_all_lambda_functions([])
         logger.info(f'Total Lambda functions found: {len(all_functions)}')
 
         # First filter by function name if prefix or list is set
