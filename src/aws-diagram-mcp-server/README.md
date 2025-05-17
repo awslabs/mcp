@@ -6,6 +6,10 @@ This MCP server that seamlessly creates [diagrams](https://diagrams.mingrammer.c
 
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
 
+## Platform Support
+
+This MCP server is compatible with both Unix-like systems (Linux, macOS) and Windows. The server uses platform-specific implementations for features like timeout handling to ensure consistent behavior across all operating systems.
+
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
@@ -63,6 +67,7 @@ The Diagrams MCP Server provides the following capabilities:
 2. **Multiple Diagram Types**: Support for AWS architecture, sequence diagrams, flow charts, class diagrams, and more
 3. **Customization**: Customize diagram appearance, layout, and styling
 4. **Security**: Code scanning to ensure secure diagram generation
+5. **Cross-Platform**: Works on Windows, Linux, and macOS
 
 ## Quick Example
 
