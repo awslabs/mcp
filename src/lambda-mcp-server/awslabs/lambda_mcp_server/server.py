@@ -251,14 +251,36 @@ def filter_functions_by_tag(functions, tag_key, tag_value):
     return tagged_functions
 
 
+def get_all_lambda_functions(functions: list, marker: str = '', max_items: int = 50) -> list:
+    """Retrieve all Lambda functions using pagination.
+
+    Args:
+        functions: List to store the retrieved functions
+        marker: Marker for pagination
+        max_items: Maximum number of items to retrieve per page
+    
+    Returns:
+        List of all Lambda functions
+    """
+    query = {
+        'MaxItems': max_items,
+    }
+    if marker:
+        query['Marker'] = marker
+    response = lambda_client.list_functions(**query)
+    functions += response['Functions']
+    if len(response['Functions']) == max_items:
+        get_all_lambda_functions(functions, response['NextMarker'])
+    return functions
+
+
 def register_lambda_functions():
     """Register Lambda functions as individual tools."""
     try:
         logger.info('Registering Lambda functions as individual tools...')
-        functions = lambda_client.list_functions()
 
         # Get all functions
-        all_functions = functions['Functions']
+        all_functions = get_all_lambda_functions([])
         logger.info(f'Total Lambda functions found: {len(all_functions)}')
 
         # First filter by function name if prefix or list is set
