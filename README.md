@@ -25,8 +25,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
     - [Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)
     - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
-    - [Amazon ElastiCache/MemoryDB Valkey MCP Server](#valkey-mcp-server)
-    - [Amazon ElastiCache Memcached MCP Server](#memcached-mcp-server)
+    - [Amazon ElastiCache/MemoryDB Valkey MCP Server](#amazon-elasticache--memorydb-valkey-mcp-server)
+    - [Amazon ElastiCache Memcached MCP Server](#amazon-elasticache-memcached-mcp-server)
     - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
     - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
     - [Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)
@@ -224,11 +224,11 @@ A server for AWS Terraform best practices.
 
 [Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
 
-### Valkey MCP Server
+### Amazon ElastiCache / MemoryDB Valkey MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.valkey-mcp-server.svg)](https://pypi.org/project/awslabs.valkey-mcp-server/)
 
-A server that provides natural language interface to interact with Amazon ElastiCache or MemoryDB [Valkey](https://valkey.io/) datastores, enabling AI agents to efficiently manage and search data.
+A server that provides natural language interface to interact with Amazon ElastiCache [Valkey](https://valkey.io/) datastores, enabling AI agents to efficiently manage and search data. This MCP server can be used with Amazon MemoryDB Valkey datastores.
 
 - Natural language interface for data operations
 - Comprehensive data type support (String, Hash, List, Set, Sorted Set)
@@ -238,11 +238,11 @@ A server that provides natural language interface to interact with Amazon Elasti
 
 [Learn more](src/valkey-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
 
-### Memcached MCP Server
+### Amazon ElastiCache Memcached MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.memcached-mcp-server.svg)](https://pypi.org/project/awslabs.memcached-mcp-server/)
 
-A server that provides natural language interface to interact with Amazon ElastiCache  [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
+A server that provides natural language interface to interact with Amazon ElastiCache [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
 
 - Natural language interface for cache operations
 - Comprehensive command support (Get, Set, Remove, Touch, CAS, Increment, Decrement)
@@ -695,25 +695,69 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 #### `.cursor/mcp.json`
  ```json
  {
-   "mcpServers": {
-     "awslabs.core-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.core-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR",
-         "MCP_SETTINGS_PATH": "path to your mcp settings file"
-       }
-     },
-     "awslabs.nova-canvas-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.nova-canvas-mcp-server@latest"],
-       "env": {
-         "AWS_PROFILE": "your-aws-profile",
-         "AWS_REGION": "us-east-1",
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       }
-     },
-     "awslabs.terraform-mcp-server": {
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.nova-canvas-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.nova-canvas-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.bedrock-kb-retrieval-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.bedrock-kb-retrieval-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.cost-analysis-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cost-analysis-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.cdk-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cdk-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs.lambda-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.lambda-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FUNCTION_PREFIX": "your-function-prefix",
+        "FUNCTION_LIST": "your-first-function, your-second-function",
+        "FUNCTION_TAG_KEY": "your-tag-key",
+        "FUNCTION_TAG_VALUE": "your-tag-value"
+      }
+    },
+    "awslabs.terraform-mcp-server": {
        "command": "uvx",
        "args": ["awslabs.terraform-mcp-server@latest"],
        "env": {
@@ -722,8 +766,63 @@ For every new project, always look at your MCP servers and use mcp-core as the s
        "disabled": false,
        "autoApprove": []
      },
+      "awslabs.valkey-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.valkey-mcp-server@latest"],
+        "env": {
+          "VALKEY_HOST": "127.0.0.1",
+          "VALKEY_PORT": "6379",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
+      },
+    "awslabs.aws-location-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.aws-location-mcp-server@latest"],
+       "env": {
+         "AWS_PROFILE": "your-aws-profile",
+         "AWS_REGION": "us-east-1",
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+    },
+    "awslabs.memcached-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.memcached-mcp-server@latest"],
+        "env": {
+          "MEMCACHED_HOST": "127.0.0.1",
+          "MEMCACHED_PORT": "11211",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
+    },
+    "awslabs.git-repo-research-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.git-repo-research-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "GITHUB_TOKEN": "your-github-token"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs.cloudformation": {
+      "command": "uvx",
+      "args": ["awslabs.cfn-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
+}
+
  ```
 
 3. **Using MCP in Chat** The Composer Agent will automatically use any MCP tools that are listed under Available Tools on the MCP settings page if it determines them to be relevant. To prompt tool usage intentionally, please prompt Cursor to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
