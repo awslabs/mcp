@@ -7,9 +7,15 @@ import logging
 from awslabs.finch_mcp_server.consts import LOG_FILE, SERVER_NAME
 
 # Import Pydantic models for input validation
-from awslabs.finch_mcp_server.models import BuildImageRequest, PushImageRequest, Result
+from awslabs.finch_mcp_server.models import (
+    BuildImageRequest,
+    CreateEcrRepoRequest,
+    PushImageRequest,
+    Result,
+)
 from awslabs.finch_mcp_server.utils.build import build_image, contains_ecr_reference
 from awslabs.finch_mcp_server.utils.common import format_result
+from awslabs.finch_mcp_server.utils.ecr import check_ecr_repository
 
 # Import utility functions from local modules
 from awslabs.finch_mcp_server.utils.push import is_ecr_repository, push_image
@@ -206,6 +212,45 @@ async def finch_push_image(request: PushImageRequest) -> Result:
         return Result(**result)
     except Exception as e:
         error_result = format_result('error', f'Error pushing image: {str(e)}')
+        return Result(**error_result)
+
+
+@mcp.tool()
+async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
+    """Check if an ECR repository exists and create it if it doesn't.
+
+    This tool checks if the specified ECR repository exists by using the AWS CLI.
+    If the repository doesn't exist, it creates a new one with the given name.
+    The tool requires AWS CLI to be installed and configured with appropriate credentials.
+
+    Arguments:
+        request: The request object of type CreateEcrRepoRequest containing:
+            - app_name (str): The name of the application/repository to check or create in ECR
+            - region (str, optional): AWS region for the ECR repository. If not provided, uses the default region
+                                     from AWS configuration
+
+    Returns:
+        Result: An object containing:
+            - status (str): "success" if the operation succeeded, "error" otherwise
+            - message (str): A descriptive message about the result of the operation
+            - repository_uri (str, optional): The URI of the repository if successful
+            - stdout (str, optional): Standard output from the command if successful
+            - stderr (str, optional): Standard error output if the command failed
+            - exists (bool, optional): Whether the repository already existed
+
+    Example response:
+        Result(status="success", message="Successfully created ECR repository 'my-app'.",
+               repository_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app",
+               exists=False)
+
+    """
+    try:
+        result = check_ecr_repository(
+            app_name=request.app_name, scan_on_push=True, image_tag_mutability='IMMUTABLE'
+        )
+        return Result(**result)
+    except Exception as e:
+        error_result = format_result('error', f'Error checking/creating ECR repository: {str(e)}')
         return Result(**error_result)
 
 
