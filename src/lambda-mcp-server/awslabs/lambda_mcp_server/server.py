@@ -251,7 +251,7 @@ def filter_functions_by_tag(functions, tag_key, tag_value):
     return tagged_functions
 
 
-def get_all_lambda_functions(functions: list, marker: str = '', max_items: int = 50) -> list:
+def get_all_lambda_functions(functions: list, marker: Optional[str] = '', max_items: Optional[int] = 50) -> list:
     """Retrieve all Lambda functions using pagination.
 
     Args:
@@ -262,15 +262,21 @@ def get_all_lambda_functions(functions: list, marker: str = '', max_items: int =
     Returns:
         List of all Lambda functions
     """
-    query = {
-        'MaxItems': max_items,
-    }
-    if marker:
-        query['Marker'] = marker
-    response = lambda_client.list_functions(**query)
-    functions += response['Functions']
-    if len(response['Functions']) == max_items:
-        get_all_lambda_functions(functions, response['NextMarker'])
+    logger.info('Retrieving all Lambda functions...')
+    try:
+        query = {
+            'MaxItems': max_items,
+        }
+        if marker:
+            query['Marker'] = marker
+        response = lambda_client.list_functions(**query)
+        functions += response['Functions']
+        if len(response['Functions']) == max_items:
+            get_all_lambda_functions(functions, response['NextMarker'])
+    except Exception as e:
+        logger.error(f'Error retrieving Lambda functions: {e}')
+    
+    logger.info(f'Total Lambda functions found: {len(functions)}')
     return functions
 
 
