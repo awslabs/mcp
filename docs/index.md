@@ -159,7 +159,7 @@ The Frontend MCP Server provides specialized tools for prototyping web applicati
 
 [Learn more about the Frontend MCP Server](servers/frontend-mcp-server.md)
 
-### Amazon ElastiCache for Valkey MCP Server
+### Amazon ElastiCache/MemoryDB for Valkey MCP Server
 
 The Amazon ElastiCache/MemoryDB Valkey MCP Server provides a natural language interface to interact with Valkey datastores, enabling AI assistants to work with various data structures and perform complex data operations.
 
@@ -285,6 +285,21 @@ A server for interacting with Amazon DynamoDB
 - Data Plane operations like put, get, update, query and scan.
 
 [Learn more about the Amazon DynamoDB MCP Server](servers/dynamodb-mcp-server.md)
+
+### Amazon ElastiCache MCP Server
+
+A server for managing and interacting with Amazon ElastiCache resources.
+
+**Features:**
+
+- Replication Group Operations (create, delete, modify, describe)
+- Cache Cluster Operations (create, delete, modify, describe)
+- Serverless Cache Operations (create, delete, modify, describe)
+- Jump Host Configuration for secure access
+- Service Updates and Engine Management
+- Comprehensive monitoring and event tracking
+
+[Learn more about the Amazon ElastiCache MCP Server](servers/elasticache-mcp-server.md)
 
 ### Amazon DocumentDB MCP Server
 

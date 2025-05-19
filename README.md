@@ -28,8 +28,9 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS Step Functions Tool MCP Server](#aws-step-functions-tool-mcp-server)
     - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
     - [Frontend MCP Server](#frontend-mcp-server)
-    - [Amazon ElastiCache/MemoryDB Valkey for MCP Server](#amazon-elasticache--memorydb-for-valkey-mcp-server)
-    - [Amazon ElastiCache Memcached for MCP Server](#amazon-elasticache-for-memcached-mcp-server)
+    - [Amazon ElastiCache MCP Server](#amazon-elasticache-mcp-server)
+    - [Amazon ElastiCache/MemoryDB for Valkey MCP Server](#amazon-elasticache--memorydb-for-valkey-mcp-server)
+    - [Amazon ElastiCache for Memcached MCP Server](#amazon-elasticache-for-memcached-mcp-server)
     - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
     - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
     - [Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)
@@ -280,6 +281,20 @@ A server that provides specialized documentation for modern web application deve
 - Best practices for building AWS-powered React applications
 
 [Learn more](src/frontend-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/frontend-mcp-server/)
+
+### Amazon ElastiCache MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.elasticache-mcp-server.svg)](https://pypi.org/project/awslabs.elasticache-mcp-server/)
+
+A server for comprehensive management of Amazon ElastiCache resources.
+
+- Replication Group Operations: Create, delete, modify, and manage ElastiCache replication groups
+- Cache Cluster Operations: Full lifecycle management of ElastiCache clusters
+- Serverless Cache Operations: Create and manage ElastiCache serverless caches
+- Advanced Features: Service updates, engine management, and SSH tunnel access via jump hosts
+- Monitoring and Events: Track cluster events, service updates, and engine configurations
+
+[Learn more](src/elasticache-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/elasticache-mcp-server/)
 
 ### Amazon ElastiCache / MemoryDB for Valkey MCP Server
 
@@ -1203,8 +1218,9 @@ Documentation for each server:
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 - [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
-- [Amazon ElastiCache/MemoryDB Valkey MCP Server](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
-- [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
+- [Amazon ElastiCache MCP Server](https://awslabs.github.io/mcp/servers/elasticache-mcp-server/)
+- [Amazon ElastiCache/MemoryDB for Valkey MCP Server](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
+- [Amazon ElastiCache for Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 - [Git Repo Research MCP Server](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
 - [CloudFormation MCP Server](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
 
