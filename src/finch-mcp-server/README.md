@@ -78,12 +78,23 @@ Parameters:
 
 ### `finch_push_image`
 
-Push a container image to a repository using Finch.
+Push a container image to a repository using Finch, replacing the tag with the image hash.
 
-If the image URL is an ECR repository, it verifies that ECR login credential helper is configured. This tool first ensures that the Finch VM is running, starting it if necessary. Then it pushes a container image to a repository.
+If the image URL is an ECR repository, it verifies that ECR login credential helper is configured. This tool first ensures that the Finch VM is running, starting it if necessary. Then it gets the image hash, creates a new tag using the hash, and pushes the image with the hash tag to the repository.
+
+The workflow is:
+1. Get the image hash using `finch image inspect`
+2. Create a new tag for the image using the short form of the hash (first 12 characters)
+3. Push the hash-tagged image to the repository
 
 Parameters:
 - `image` (str): The full image name to push, including the repository URL and tag. For ECR repositories, it must follow the format: `<aws_account_id>.dkr.ecr.<region>.amazonaws.com/<repository_name>:<tag>`
+
+Example:
+```
+# Original image: myrepo/myimage:latest
+# After processing: myrepo/myimage:1a2b3c4d5e6f (where 1a2b3c4d5e6f is the short hash)
+```
 
 ## Best Practices
 
