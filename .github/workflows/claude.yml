@@ -116,7 +116,7 @@ jobs:
           audience: '${{ github.server_url }}/${{ github.repository_owner }}'
       - name: Setup AWS Credentials
         id: setup-aws-credentials
-        uses: aws-actions/configure-aws-credentials@f24d7193d98baebaeacc7e2227925dd47cc267f5
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
         if: ${{ env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME == 'true' && env.AWS_REGION }}
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
