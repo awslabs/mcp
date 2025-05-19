@@ -10,6 +10,7 @@ This MCP server acts as a bridge between MCP clients and Finch, allowing generat
 
 - Build container images using Finch
 - Push container images to repositories, including Amazon ECR
+- Check if ECR repositories exist and create them if needed
 - Automatic management of the Finch VM on macos and windows (initialization, starting, etc.)
 - Support for container build options
 - Automatic configuration of ECR credential helpers when needed
@@ -19,7 +20,8 @@ This MCP server acts as a bridge between MCP clients and Finch, allowing generat
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
 3. Install [Finch](https://github.com/runfinch/finch) on your system
-4. For ECR operations, AWS credentials with permissions to push to ECR repositories.
+4. Install [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) for ECR repository operations
+5. For ECR operations, AWS credentials with permissions to push to ECR repositories and create/describe ECR repositories
 
 ## Setup
 
@@ -96,6 +98,41 @@ Example:
 # After processing: myrepo/myimage:1a2b3c4d5e6f (where 1a2b3c4d5e6f is the short hash)
 ```
 
+### `finch_create_ecr_repo`
+
+Check if an ECR repository exists and create it if it doesn't.
+
+This tool checks if the specified ECR repository exists by using the AWS CLI. If the repository doesn't exist, it creates a new one with the given name with scan on push enabled and immutable tags for enhanced security. The tool requires AWS CLI to be installed and configured with appropriate credentials.
+
+Parameters:
+- `app_name` (str): The name of the application/repository to check or create in ECR
+- `region` (str, optional): AWS region for the ECR repository. If not provided, uses the default region from AWS configuration
+
+Example:
+```
+# Check if 'my-app' repository exists in us-west-2 region, create it if it doesn't
+{
+  "app_name": "my-app",
+  "region": "us-west-2"
+}
+
+# Response if repository already exists:
+{
+  "status": "success",
+  "message": "ECR repository 'my-app' already exists.",
+  "repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app",
+  "exists": true
+}
+
+# Response if repository was created:
+{
+  "status": "success",
+  "message": "Successfully created ECR repository 'my-app'.",
+  "repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app",
+  "exists": false
+}
+```
+
 ## Best Practices
 
 TODO: Write Best Practices for the finch mcp server
@@ -110,4 +147,4 @@ TODO: Write Best Practices for the finch mcp server
 
 ## Version
 
-Current MCP server version: 1.0.0
+Current MCP server version: 1.3.0
