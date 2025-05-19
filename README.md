@@ -25,8 +25,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
     - [Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)
     - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
-    - [Amazon ElastiCache/MemoryDB Valkey MCP Server](#valkey-mcp-server)
-    - [Amazon ElastiCache Memcached MCP Server](#memcached-mcp-server)
+    - [Amazon ElastiCache/MemoryDB Valkey MCP Server](#amazon-elasticache--memorydb-valkey-mcp-server)
+    - [Amazon ElastiCache Memcached MCP Server](#amazon-elasticache-memcached-mcp-server)
     - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
     - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
     - [Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)
@@ -223,11 +223,11 @@ A server for AWS Terraform best practices.
 
 [Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
 
-### Valkey MCP Server
+### Amazon ElastiCache / MemoryDB Valkey MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.valkey-mcp-server.svg)](https://pypi.org/project/awslabs.valkey-mcp-server/)
 
-A server that provides natural language interface to interact with Amazon ElastiCache or MemoryDB [Valkey](https://valkey.io/) datastores, enabling AI agents to efficiently manage and search data.
+A server that provides natural language interface to interact with Amazon ElastiCache [Valkey](https://valkey.io/) datastores, enabling AI agents to efficiently manage and search data. This MCP server can be used with Amazon MemoryDB Valkey datastores.
 
 - Natural language interface for data operations
 - Comprehensive data type support (String, Hash, List, Set, Sorted Set)
@@ -237,11 +237,11 @@ A server that provides natural language interface to interact with Amazon Elasti
 
 [Learn more](src/valkey-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
 
-### Memcached MCP Server
+### Amazon ElastiCache Memcached MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.memcached-mcp-server.svg)](https://pypi.org/project/awslabs.memcached-mcp-server/)
 
-A server that provides natural language interface to interact with Amazon ElastiCache  [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
+A server that provides natural language interface to interact with Amazon ElastiCache [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
 
 - Natural language interface for cache operations
 - Comprehensive command support (Get, Set, Remove, Touch, CAS, Increment, Decrement)
