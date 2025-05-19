@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.amazon-sns-sqs-mcp-server"
-version = "1.0.2"
+version = "1.0.3"
 description = "A Model Context Protocol server for Amazon SNS and SQS to provision and manage your messaging services"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,7 +28,6 @@ dependencies = [
     "requests>=2.32.3",
     "boto3>=1.38.12",
     "pytest>=8.3.5",
-    "fastmcp>=2.3.0",
 ]
 
 [project.scripts]

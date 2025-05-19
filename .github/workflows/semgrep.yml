@@ -29,6 +29,6 @@ jobs:
           python -m pip install semgrep
       - run: semgrep scan --config auto --sarif-output semgrep.sarif.json --no-error --dryrun --verbose
       - name: Upload Semgrep scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3.28.17 #v3.28.15
+        uses: github/codeql-action/upload-sarif@v3.28.18 #v3.28.15
         with:
           sarif_file: semgrep.sarif.json
