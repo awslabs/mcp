@@ -4,6 +4,7 @@ This module provides the MCP server implementation for Finch container operation
 """
 
 import logging
+import sys
 from awslabs.finch_mcp_server.consts import LOG_FILE, SERVER_NAME
 
 # Import Pydantic models for input validation
@@ -56,6 +57,10 @@ def ensure_vm_running() -> Dict[str, Any]:
 
     """
     try:
+        if sys.platform == 'linux':
+            logger.debug('Linux OS detected. No VM operation required')
+            return format_result('success', 'No VM operation required on Linux.')
+
         status_result = get_vm_status()
 
         if is_vm_nonexistent(status_result):
