@@ -1,15 +1,14 @@
 # MCP Lambda Handler Module
 
-A Python library for creating serverless HTTP handlers for the Model Context Protocol (MCP) using AWS Lambda. This library provides a flexible framework for building MCP HTTP endpoints with pluggable session management support.
+A Python library for creating serverless HTTP handlers for the Model Context Protocol (MCP) using AWS Lambda. This library provides a minimal, extensible framework for building MCP HTTP endpoints with pluggable session management support.
+
+> **Note:**
+> For a sample deployment with session managment and authentication, see the [samples](../../samples/mcp-lambda-handler) folder.
 
 ## Features
 
 - 🚀 Easy serverless MCP HTTP handler creation using AWS Lambda
-- 🔌 Pluggable session management system
-- 💾 Built-in DynamoDB session backend support
-- 🔒 Customizable authentication and authorization
-- 📝 Example implementations and tests
-- ✅ Well-tested codebase
+- 🔌 Pluggable session management system (NoOp or DynamoDB, or custom backends)
 
 ## Installation
 
@@ -50,7 +49,18 @@ def lambda_handler(event, context):
 
 ## Session Management
 
-The library provides flexible session management with built-in support for DynamoDB and the ability to create custom session backends.
+The library provides flexible session management with built-in support for DynamoDB and the ability to create custom session backends. You can use the default stateless (NoOp) session store, or configure a DynamoDB-backed store for persistent sessions.
+
+## Example Architecture for Auth & Session Management
+
+A typical serverless deployment using this library might look like:
+
+- **API Gateway**: Exposes the `/mcp` endpoint.
+- **Lambda Authorizer**: Validates authentication tokens (e.g., bearer tokens in the `Authorization` header).
+- **MCP Server Lambda**: Implements MCP tools and session logic using this library.
+- **DynamoDB**: Stores session data (if using the DynamoDB session backend).
+
+For a full working example, including a sample Lambda authorizer and AWS SAM deployment, see [`/samples/mcp-lambda-handler`](../../samples/mcp-lambda-handler).
 
 ## Development
 
