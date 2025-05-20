@@ -1,4 +1,4 @@
-from mcp_lambda_handler import MCPLambdaHandler
+from awslabs.mcp_lambda_handler import MCPLambdaHandler
 import random
 import os
 
