@@ -41,6 +41,7 @@ nav:
     - AWS Terraform MCP Server: servers/terraform-mcp-server.md
     - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
     - CloudFormation MCP Server: servers/cfn-mcp-server.md
+    - CloudFormation MCP Server: servers/aws-support-mcp-server.md
   - Samples:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
