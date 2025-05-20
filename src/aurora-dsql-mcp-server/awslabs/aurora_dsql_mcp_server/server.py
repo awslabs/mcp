@@ -17,20 +17,33 @@ import boto3
 import psycopg
 import sys
 from awslabs.aurora_dsql_mcp_server.consts import (
+    BEGIN_READ_ONLY_TRANSACTION_SQL,
+    BEGIN_TRANSACTION_SQL,
+    COMMIT_TRANSACTION_SQL,
     DSQL_DB_NAME,
     DSQL_DB_PORT,
     DSQL_MCP_SERVER_APPLICATION_NAME,
+    ERROR_BEGIN_READ_ONLY_TRANSACTION,
+    ERROR_BEGIN_TRANSACTION,
     ERROR_CREATE_CONNECTION,
     ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT,
     ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY,
     ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA,
     ERROR_EXECUTE_QUERY,
+    ERROR_GET_SCHEMA,
+    ERROR_READONLY_QUERY,
+    ERROR_ROLLBACK_TRANSACTION,
+    ERROR_TRANSACT,
     ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE,
+    GET_SCHEMA_SQL,
+    INTERNAL_ERROR,
+    READ_ONLY_QUERY_WRITE_ERROR,
+    ROLLBACK_TRANSACTION_SQL,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
-from typing import Annotated, Any, List
+from typing import Annotated, List
 
 
 # Global variables
@@ -54,7 +67,7 @@ mcp = FastMCP(
     ### transact
     Executes one or more SQL commands in a transaction.
 
-    ### schema
+    ### get_schema
     Returns the schema of a table.
     """,
     dependencies=[
@@ -83,24 +96,41 @@ async def readonly_query(
         await ctx.error(ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY)
         raise ValueError(ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY)
 
-    conn = await create_connection(ctx)
-
-    await execute_query(ctx, conn, 'BEGIN TRANSACTION READ ONLY')
     try:
-        rows = await execute_query(ctx, conn, sql)
-        await execute_query(ctx, conn, 'COMMIT')
-        return rows
+        conn = await create_connection(ctx)
+
+        try:
+            await execute_query(ctx, conn, BEGIN_READ_ONLY_TRANSACTION_SQL)
+        except Exception as e:
+            logger.error(f'{ERROR_BEGIN_READ_ONLY_TRANSACTION}: {str(e)}')
+            await ctx.error(INTERNAL_ERROR)
+            raise Exception(INTERNAL_ERROR)
+
+        try:
+            rows = await execute_query(ctx, conn, sql)
+            await execute_query(ctx, conn, COMMIT_TRANSACTION_SQL)
+            return rows
+        except psycopg.errors.ReadOnlySqlTransaction:
+            await ctx.error(READ_ONLY_QUERY_WRITE_ERROR)
+            raise Exception(READ_ONLY_QUERY_WRITE_ERROR)
+        except Exception as e:
+            raise e
+        finally:
+            try:
+                await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
+            except Exception as e:
+                logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(e)}')
+            await conn.close()
+
     except Exception as e:
-        await execute_query(ctx, conn, 'ROLLBACK')
-        raise e
-    finally:
-        await conn.close()
+        await ctx.error(f'{ERROR_READONLY_QUERY}: {str(e)}')
+        raise Exception(f'{ERROR_READONLY_QUERY}: {str(e)}')
 
 
 @mcp.tool(name='transact', description='Write or modify data using SQL, in a transaction')
 async def transact(
     sql_list: Annotated[
-        List[Any],
+        List[str],
         Field(description='List of one or more SQL statements to execute in a transaction'),
     ],
     ctx: Context,
@@ -125,23 +155,38 @@ async def transact(
         await ctx.error(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
         raise ValueError(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
 
-    conn = await create_connection(ctx)
-    await execute_query(ctx, conn, 'BEGIN')
     try:
-        rows = []
-        for query in sql_list:
-            rows = await execute_query(ctx, conn, query)
-        await execute_query(ctx, conn, 'COMMIT')
-        return rows
+        conn = await create_connection(ctx)
+
+        try:
+            await execute_query(ctx, conn, BEGIN_TRANSACTION_SQL)
+        except Exception as e:
+            logger.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
+            await ctx.error(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
+            raise Exception(f'{ERROR_BEGIN_TRANSACTION}: {str(e)}')
+
+        try:
+            rows = []
+            for query in sql_list:
+                rows = await execute_query(ctx, conn, query)
+            await execute_query(ctx, conn, COMMIT_TRANSACTION_SQL)
+            return rows
+        except Exception as e:
+            try:
+                await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
+            except Exception as re:
+                logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(re)}')
+            raise e
+        finally:
+            await conn.close()
+
     except Exception as e:
-        await execute_query(ctx, conn, 'ROLLBACK')
-        raise e
-    finally:
-        await conn.close()
+        await ctx.error(f'{ERROR_TRANSACT}: {str(e)}')
+        raise Exception(f'{ERROR_TRANSACT}: {str(e)}')
 
 
-@mcp.tool(name='schema', description='Get the schema of the given table')
-async def schema(
+@mcp.tool(name='get_schema', description='Get the schema of the given table')
+async def get_schema(
     table_name: Annotated[str, Field(description='name of the table')], ctx: Context
 ) -> List[dict]:
     """Returns the schema of a table.
@@ -154,18 +199,17 @@ async def schema(
         List of rows. Each row contains column name and type information for a column in the
         table provided in a dictionary form. Empty list is returned if table is not found.
     """
-    logger.info(f'schema: {table_name}')
+    logger.info(f'get_schema: {table_name}')
 
     if not table_name:
         await ctx.error(ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA)
         raise ValueError(ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA)
 
-    query = 'SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s'
-
     try:
-        return await execute_query(ctx, None, query, [table_name])
+        return await execute_query(ctx, None, GET_SCHEMA_SQL, [table_name])
     except Exception as e:
-        raise e
+        await ctx.error(f'{ERROR_GET_SCHEMA}: {str(e)}')
+        raise Exception(f'{ERROR_GET_SCHEMA}: {str(e)}')
 
 
 class NoOpCtx:

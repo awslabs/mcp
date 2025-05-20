@@ -23,6 +23,20 @@ ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE = 'Your mcp server does not allow write
 ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA = (
     'Incorrect invocation: Schema invoked without a table name'
 )
-ERROR_EMPTY_SQL_PASSED_TO_EXPLAIN = 'Incorrect invocation: Explain invoked without a SQL statement'
 ERROR_CREATE_CONNECTION = 'Failed to create connection due to error'
 ERROR_EXECUTE_QUERY = 'Failed to execute query due to error'
+BEGIN_READ_ONLY_TRANSACTION_SQL = 'BEGIN TRANSACTION READ ONLY'
+COMMIT_TRANSACTION_SQL = 'COMMIT'
+ROLLBACK_TRANSACTION_SQL = 'ROLLBACK'
+BEGIN_TRANSACTION_SQL = 'BEGIN'
+GET_SCHEMA_SQL = (
+    'SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s'
+)
+ERROR_BEGIN_READ_ONLY_TRANSACTION = 'Failed to begin read only transaction'
+INTERNAL_ERROR = 'Internal Error'
+READ_ONLY_QUERY_WRITE_ERROR = 'readonly_query does not support write operations. Use transact'
+ERROR_ROLLBACK_TRANSACTION = 'Failed to rollback transaction'
+ERROR_READONLY_QUERY = 'Error executing readonly_query'
+ERROR_BEGIN_TRANSACTION = 'Failed to begin transaction'
+ERROR_TRANSACT = 'Error executing transact'
+ERROR_GET_SCHEMA = 'Error executing get_schema'

@@ -16,19 +16,27 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     DSQL_DB_PORT,
     DSQL_MCP_SERVER_APPLICATION_NAME,
     ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT,
-    ERROR_EMPTY_SQL_PASSED_TO_EXPLAIN,
     ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY,
     ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA,
     ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE,
+    BEGIN_READ_ONLY_TRANSACTION_SQL,
+    COMMIT_TRANSACTION_SQL,
+    ROLLBACK_TRANSACTION_SQL,
+    BEGIN_TRANSACTION_SQL,
+    GET_SCHEMA_SQL,
+    INTERNAL_ERROR,
+    READ_ONLY_QUERY_WRITE_ERROR,
+    ERROR_BEGIN_TRANSACTION
 )
 from awslabs.aurora_dsql_mcp_server.server import (
     create_connection,
     get_password_token,
     readonly_query,
-    schema,
+    get_schema,
     transact,
 )
 from unittest.mock import AsyncMock, MagicMock, call, patch
+from psycopg.errors import ReadOnlySqlTransaction
 
 
 ctx = AsyncMock()
@@ -54,15 +62,15 @@ async def test_transact_throws_exception_when_read_only():
     assert str(excinfo.value) == ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE
 
 
-async def test_schema_throws_exception_on_empty_input():
+async def test_get_schema_throws_exception_on_empty_input():
     with pytest.raises(ValueError) as excinfo:
-        await schema('', ctx)
+        await get_schema('', ctx)
     assert str(excinfo.value) == ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA
 
 
 @patch('awslabs.aurora_dsql_mcp_server.server.database_user', 'admin')
 @patch('awslabs.aurora_dsql_mcp_server.server.region', 'us-west-2')
-@patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'foo')
+@patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'test_ce')
 async def test_get_password_token_for_admin_user(mocker):
     mock_client = mocker.patch('awslabs.aurora_dsql_mcp_server.server.dsql_client')
     mock_client.generate_db_connect_admin_auth_token.return_value = 'admin_token'
@@ -71,12 +79,12 @@ async def test_get_password_token_for_admin_user(mocker):
 
     assert result == 'admin_token'
 
-    mock_client.generate_db_connect_admin_auth_token.assert_called_once_with('foo', 'us-west-2')
+    mock_client.generate_db_connect_admin_auth_token.assert_called_once_with('test_ce', 'us-west-2')
 
 
 @patch('awslabs.aurora_dsql_mcp_server.server.database_user', 'nonadmin')
 @patch('awslabs.aurora_dsql_mcp_server.server.region', 'us-west-2')
-@patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'foo')
+@patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'test_ce')
 async def test_get_password_token_for_non_admin_user(mocker):
     mock_client = mocker.patch('awslabs.aurora_dsql_mcp_server.server.dsql_client')
     mock_client.generate_db_connect_auth_token.return_value = 'non_admin_token'
@@ -85,11 +93,11 @@ async def test_get_password_token_for_non_admin_user(mocker):
 
     assert result == 'non_admin_token'
 
-    mock_client.generate_db_connect_auth_token.assert_called_once_with('foo', 'us-west-2')
+    mock_client.generate_db_connect_auth_token.assert_called_once_with('test_ce', 'us-west-2')
 
 
 @patch('awslabs.aurora_dsql_mcp_server.server.database_user', 'admin')
-@patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'foo')
+@patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'test_ce')
 async def test_create_connection(mocker):
     mock_auth = mocker.patch('awslabs.aurora_dsql_mcp_server.server.get_password_token')
     mock_auth.return_value = 'auth_token'
@@ -103,7 +111,7 @@ async def test_create_connection(mocker):
     conn_params = {
         'dbname': DSQL_DB_NAME,
         'user': 'admin',
-        'host': 'foo',
+        'host': 'test_ce',
         'port': DSQL_DB_PORT,
         'password': 'auth_token', # pragma: allowlist secret - test credential for unit tests only
         'application_name': DSQL_MCP_SERVER_APPLICATION_NAME,
@@ -114,45 +122,45 @@ async def test_create_connection(mocker):
 
 
 @patch('awslabs.aurora_dsql_mcp_server.server.database_user', 'admin')
-@patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'foo')
+@patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'test_ce')
 async def test_create_connection_failure(mocker):
     mock_auth = mocker.patch('awslabs.aurora_dsql_mcp_server.server.get_password_token')
     mock_auth.return_value = 'auth_token'
     mock_connect = mocker.patch('psycopg.AsyncConnection.connect')
-    mock_connect.side_effect = Exception('Failed to create connection')
+    mock_connect.side_effect = Exception('Connection error')
 
     with pytest.raises(Exception) as excinfo:
         await create_connection(ctx)
-    assert str(excinfo.value) == 'Failed to create connection'
+    assert str(excinfo.value) == 'Connection error'
 
 
-async def test_schema(mocker):
+async def test_get_schema(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.return_value = {'col1': 'integer'}
 
-    result = await schema('table1', ctx)
+    result = await get_schema('table1', ctx)
 
     assert result == {'col1': 'integer'}
 
     mock_execute_query.assert_called_once_with(
         ctx,
         None,
-        'SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s',
+        GET_SCHEMA_SQL,
         ['table1'],
     )
 
 
-async def test_schema_failure(mocker):
+async def test_get_schema_failure(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.side_effect = Exception('')
 
     with pytest.raises(Exception) as excinfo:
-        await schema('table1', ctx)
+        await get_schema('table1', ctx)
 
     mock_execute_query.assert_called_once_with(
         ctx,
         None,
-        'SELECT column_name, data_type FROM information_schema.columns WHERE table_name = %s',
+        GET_SCHEMA_SQL,
         ['table1'],
     )
 
@@ -174,9 +182,9 @@ async def test_readonly_query_commit_on_success(mocker):
 
     mock_execute_query.assert_has_calls(
         [
-            call(ctx, mock_conn, 'BEGIN TRANSACTION READ ONLY'),
+            call(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL),
             call(ctx, mock_conn, sql),
-            call(ctx, mock_conn, 'COMMIT'),
+            call(ctx, mock_conn, COMMIT_TRANSACTION_SQL),
         ]
     )
 
@@ -197,9 +205,50 @@ async def test_readonly_query_rollback_on_failure(mocker):
 
     mock_execute_query.assert_has_calls(
         [
-            call(ctx, mock_conn, 'BEGIN TRANSACTION READ ONLY'),
+            call(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL),
             call(ctx, mock_conn, sql),
-            call(ctx, mock_conn, 'ROLLBACK'),
+            call(ctx, mock_conn, ROLLBACK_TRANSACTION_SQL),
+        ]
+    )
+
+
+async def test_readonly_query_internal_error_on_failed_begin(mocker):
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.side_effect = (Exception(''), '', '')
+
+    mock_create_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_create_connection.return_value = mock_conn
+
+    sql = 'select 1'
+    with pytest.raises(Exception) as excinfo:
+        await readonly_query(sql, ctx)
+    assert INTERNAL_ERROR in str(excinfo.value)
+
+    mock_execute_query.assert_called_once_with(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL)
+
+
+async def test_readonly_query_error_on_write_sql(mocker):
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.side_effect = ('', ReadOnlySqlTransaction(''), '')
+
+    mock_create_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_create_connection.return_value = mock_conn
+
+    sql = 'delete from orders'
+    with pytest.raises(Exception) as excinfo:
+        await readonly_query(sql, ctx)
+    assert READ_ONLY_QUERY_WRITE_ERROR in str(excinfo.value)
+
+    mock_execute_query.assert_has_calls(
+        [
+            call(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL),
+            call(ctx, mock_conn, sql),
         ]
     )
 
@@ -225,10 +274,10 @@ async def test_transact_commit_on_success(mocker):
 
     mock_execute_query.assert_has_calls(
         [
-            call(ctx, mock_conn, 'BEGIN'),
+            call(ctx, mock_conn, BEGIN_TRANSACTION_SQL),
             call(ctx, mock_conn, sql1),
             call(ctx, mock_conn, sql2),
-            call(ctx, mock_conn, 'COMMIT'),
+            call(ctx, mock_conn, COMMIT_TRANSACTION_SQL),
         ]
     )
 
@@ -253,8 +302,26 @@ async def test_transact_rollback_on_failure(mocker):
 
     mock_execute_query.assert_has_calls(
         [
-            call(ctx, mock_conn, 'BEGIN'),
+            call(ctx, mock_conn, BEGIN_TRANSACTION_SQL),
             call(ctx, mock_conn, sql1),
-            call(ctx, mock_conn, 'ROLLBACK'),
+            call(ctx, mock_conn, ROLLBACK_TRANSACTION_SQL),
         ]
     )
+
+@patch('awslabs.aurora_dsql_mcp_server.server.read_only', False)
+async def test_transact_error_on_failed_begin(mocker):
+    mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
+    mock_execute_query.side_effect = (Exception(''), '', '')
+
+    mock_create_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_create_connection.return_value = mock_conn
+
+    sql = 'select 1'
+    with pytest.raises(Exception) as excinfo:
+        await transact((sql), ctx)
+    assert ERROR_BEGIN_TRANSACTION in str(excinfo.value)
+
+    mock_execute_query.assert_called_once_with(ctx, mock_conn, BEGIN_TRANSACTION_SQL)
