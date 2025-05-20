@@ -4,6 +4,8 @@ This module provides the MCP server implementation for Finch container operation
 """
 
 import logging
+import os
+import re
 import sys
 from awslabs.finch_mcp_server.consts import LOG_FILE, SERVER_NAME
 
@@ -16,7 +18,7 @@ from awslabs.finch_mcp_server.models import (
 )
 from awslabs.finch_mcp_server.utils.build import build_image, contains_ecr_reference
 from awslabs.finch_mcp_server.utils.common import format_result
-from awslabs.finch_mcp_server.utils.ecr import check_ecr_repository
+from awslabs.finch_mcp_server.utils.ecr import create_ecr_repository
 
 # Import utility functions from local modules
 from awslabs.finch_mcp_server.utils.push import is_ecr_repository, push_image
@@ -31,14 +33,78 @@ from awslabs.finch_mcp_server.utils.vm import (
     start_stopped_vm,
     stop_vm,
 )
+from logging.handlers import RotatingFileHandler
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict
 
 
-# Initialize FastMCP server for image operations
-mcp = FastMCP(SERVER_NAME)
+class SensitiveDataFilter(logging.Filter):
+    """Filter that redacts sensitive information from log messages."""
 
-logger = logging.getLogger(__name__)
+    def __init__(self):
+        """Initialize the filter with regex patterns for sensitive data detection.
+
+        Sets up regular expression patterns to identify and redact various types of
+        sensitive information such as API keys, passwords, and credentials.
+        """
+        super().__init__()
+        self.patterns = [
+            (re.compile(r'((?<![A-Z0-9])[A-Z0-9]{20}(?![A-Z0-9]))'), 'AWS_ACCESS_KEY_REDACTED'),
+            (
+                re.compile(r'((?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=]))'),
+                'AWS_SECRET_KEY_REDACTED',
+            ),
+            (re.compile(r'api[_-]?key[=:]\s*["\'](.*?)["\']', re.IGNORECASE), 'api_key=REDACTED'),
+            (re.compile(r'password[=:]\s*["\'](.*?)["\']', re.IGNORECASE), 'password=REDACTED'),
+            (re.compile(r'secret[=:]\s*["\'](.*?)["\']', re.IGNORECASE), 'secret=REDACTED'),
+            (re.compile(r'token[=:]\s*["\'](.*?)["\']', re.IGNORECASE), 'token=REDACTED'),
+            (re.compile(r'(https?://)([^:@\s]+):([^:@\s]+)@'), r'\1REDACTED:REDACTED@'),
+        ]
+
+    def filter(self, record):
+        """Process the log record to redact sensitive information.
+
+        Args:
+            record: The log record to process
+
+        Returns:
+            bool: Always returns True to allow the log record to be processed
+
+        """
+        if isinstance(record.msg, str):
+            for pattern, replacement in self.patterns:
+                record.msg = pattern.sub(replacement, record.msg)
+
+        if record.args:
+            args_list = list(record.args)
+            for i, arg in enumerate(args_list):
+                if isinstance(arg, str):
+                    for pattern, replacement in self.patterns:
+                        args_list[i] = pattern.sub(replacement, arg)
+            record.args = tuple(args_list)
+
+        return True
+
+
+log_level = logging.INFO
+server_log_level = os.environ.get('SERVER_LOG_LEVEL', '').upper()
+if server_log_level and hasattr(logging, server_log_level):
+    log_level = getattr(logging, server_log_level)
+
+handler = RotatingFileHandler(LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=7)
+
+# Add sensitive data filter to the handler
+sensitive_filter = SensitiveDataFilter()
+handler.addFilter(sensitive_filter)
+
+logging.basicConfig(
+    level=log_level,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[handler],
+)
+logger = logging.getLogger(SERVER_NAME)
+
+mcp = FastMCP(SERVER_NAME)
 
 
 def ensure_vm_running() -> Dict[str, Any]:
@@ -52,7 +118,7 @@ def ensure_vm_running() -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: A dictionary containing:
             - status (str): "success" if the VM is running or was started successfully,
-                           "error" otherwise
+                            "error" otherwise
             - message (str): A descriptive message about the result of the operation
 
     """
@@ -126,15 +192,22 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
         Result(status="success", message="Successfully built image from /path/to/Dockerfile")
 
     """
+    logger.info('tool-name: finch_build_container_image')
+    logger.info(
+        f'tool-args: dockerfile_path={request.dockerfile_path}, context_path={request.context_path}'
+    )
+
     try:
         finch_install_status = check_finch_installation()
         if finch_install_status['status'] == 'error':
             return Result(**finch_install_status)
 
         if contains_ecr_reference(request.dockerfile_path):
+            logger.info('ECR reference detected in Dockerfile, configuring ECR login')
             config_result = configure_ecr()
             changed = config_result.get('changed', False)
             if changed:
+                logger.info('ECR configuration changed, restarting VM')
                 stop_vm(force=True)
 
         vm_status = ensure_vm_running()
@@ -192,6 +265,9 @@ async def finch_push_image(request: PushImageRequest) -> Result:
         Result(status="success", message="Successfully pushed image 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:latest to ECR.")
 
     """
+    logger.info('tool-name: finch_push_image')
+    logger.info(f'tool-args: image={request.image}')
+
     try:
         finch_install_status = check_finch_installation()
         if finch_install_status['status'] == 'error':
@@ -199,9 +275,11 @@ async def finch_push_image(request: PushImageRequest) -> Result:
 
         is_ecr = is_ecr_repository(request.image)
         if is_ecr:
+            logger.info('ECR repository detected, configuring ECR login')
             config_result = configure_ecr()
             changed = config_result.get('changed', False)
             if changed:
+                logger.info('ECR configuration changed, restarting VM')
                 stop_vm(force=True)
 
         vm_status = ensure_vm_running()
@@ -242,9 +320,15 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
                exists=False)
 
     """
+    logger.info('tool-name: finch_create_ecr_repo')
+    logger.info(f'tool-args: app_name={request.app_name}')
+
     try:
-        result = check_ecr_repository(
-            app_name=request.app_name, scan_on_push=True, image_tag_mutability='IMMUTABLE'
+        result = create_ecr_repository(
+            app_name=request.app_name,
+            region=request.region,
+            scan_on_push=True,
+            image_tag_mutability='IMMUTABLE',
         )
         return Result(**result)
     except Exception as e:
@@ -254,7 +338,8 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
 
 def main():
     """Run the Finch MCP server."""
-    logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG)
+    logger.info('Starting Finch MCP server')
+    logger.info(f'Logs will be written to: {LOG_FILE}')
     mcp.run(transport='stdio')
 
 

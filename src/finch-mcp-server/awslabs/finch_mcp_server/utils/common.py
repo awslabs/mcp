@@ -30,7 +30,19 @@ def execute_command(command: list, env=None) -> subprocess.CompletedProcess:
         env = os.environ.copy()
         env['HOME'] = os.path.expanduser('~')
 
-    return subprocess.run(command, capture_output=True, text=True, env=env)
+    result = subprocess.run(command, capture_output=True, text=True, env=env)
+
+    # Log stdout and stderr at debug level if LOG_LEVEL=debug
+    if os.environ.get('LOG_LEVEL', '').lower() == 'debug':
+        cmd_str = ' '.join(command)
+        logger.debug(f'Command executed: {cmd_str}')
+        logger.debug(f'Return code: {result.returncode}')
+        if result.stdout:
+            logger.debug(f'STDOUT: {result.stdout}')
+        if result.stderr:
+            logger.debug(f'STDERR: {result.stderr}')
+
+    return result
 
 
 def format_result(status: str, message: str, **kwargs) -> Dict[str, Any]:
