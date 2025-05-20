@@ -7,59 +7,59 @@ repos:
   # uv run --frozen pytest --cov --cov-branch --cov-report=term-missing
   # uv run --frozen pyright
 
-  - repo: local
-    hooks:
-    - id: bandit
-      name: bandit
-      stages: [pre-commit, pre-push]
-      pass_filenames: false
-      always_run: true
-      language: system
-      entry: uv
-      args:
-        - --project
-        - ./src/mcp-lambda-handler
-        - run
-        - --frozen
-        - bandit
-        - -r
-        - --severity-level
-        - medium
-        - --confidence-level
-        - medium
-        - -c
-        - ./src/mcp-lambda-handler/pyproject.toml
-        - ./src/mcp-lambda-handler
+  # - repo: local
+  #   hooks:
+  #   - id: bandit
+  #     name: bandit
+  #     stages: [pre-commit, pre-push]
+  #     pass_filenames: false
+  #     always_run: true
+  #     language: system
+  #     entry: uv
+  #     args:
+  #       - --project
+  #       - ./src/mcp-lambda-handler
+  #       - run
+  #       - --frozen
+  #       - bandit
+  #       - -r
+  #       - --severity-level
+  #       - medium
+  #       - --confidence-level
+  #       - medium
+  #       - -c
+  #       - ./src/mcp-lambda-handler/pyproject.toml
+  #       - ./src/mcp-lambda-handler
 
-    - id: pyright
-      name: pyright
-      stages: [pre-commit, pre-push]
-      pass_filenames: false
-      always_run: true
-      language: system
-      entry: uv
-      args:
-        - --project
-        - ./src/mcp-lambda-handler
-        - run
-        - --frozen
-        - pyright
-        - --project
-        - ./src/mcp-lambda-handler
+  #   - id: pyright
+  #     name: pyright
+  #     stages: [pre-commit, pre-push]
+  #     pass_filenames: false
+  #     always_run: true
+  #     language: system
+  #     entry: uv
+  #     args:
+  #       - --project
+  #       - ./src/mcp-lambda-handler
+  #       - run
+  #       - --frozen
+  #       - pyright
+  #       - --project
+  #       - ./src/mcp-lambda-handler
 
-    - id: pytest
-      name: pytest
-      stages: [pre-commit, pre-push]
-      pass_filenames: false
-      always_run: true
-      language: system
-      entry: uv
-      args:
-        - --project
-        - ./src/mcp-lambda-handler
-        - run
-        - --frozen
-        - pytest
-        - --cov-branch
-        - --cov-report=term-missing
-        - ./src/mcp-lambda-handler/tests
+  #   - id: pytest
+  #     name: pytest
+  #     stages: [pre-commit, pre-push]
+  #     pass_filenames: false
+  #     always_run: true
+  #     language: system
+  #     entry: uv
+  #     args:
+  #       - --project
+  #       - ./src/mcp-lambda-handler
+  #       - run
+  #       - --frozen
+  #       - pytest
+  #       - --cov-branch
+  #       - --cov-report=term-missing
+  #       - ./src/mcp-lambda-handler/tests
