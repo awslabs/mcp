@@ -1,2 +1,2 @@
 boto3==1.37.37
-mcp_lambda_handler==0.1.0
+awslabs.mcp_lambda_handler==0.1.0
