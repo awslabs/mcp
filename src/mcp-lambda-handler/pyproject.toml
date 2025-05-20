@@ -42,13 +42,17 @@ Changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon_mq-mcp-server/C
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.9.7",
-    "pyright>=1.1.398",
     "black>=24.2.0",
     "isort>=5.13.0",
     "flake8>=7.0.0",
-    "moto>=5.0.3"
+    "moto>=5.0.3",
+    "pytest>=8.0.0",
+    "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.9.7",
 ]
 
 [tool.hatch.metadata]
@@ -103,7 +107,6 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "--cov=mcp_lambda_handler --cov-report=term-missing"
 markers = [
     "live: mark test as making live API calls",
     "asyncio: mark a test as an asyncio coroutine",
@@ -116,4 +119,4 @@ exclude_also = [
 ]
 
 [tool.coverage.run]
-source = ["mcp_lambda_handler"]
+source = ["awslabs"]
