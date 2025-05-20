@@ -1,20 +1,119 @@
 import pytest
 from botocore.exceptions import ClientError
+from enum import Enum
 from typing import List
+
+
+class MockException(Enum):
+    """Mock exception type."""
+
+    No = 'none'
+    Client = 'client'
+    Unexpected = 'unexpected'
 
 
 class Mock_boto3_client:
     """Mock implementation of boto3 client for testing purposes."""
 
-    def __init__(self, throw_client_error=False):
+    def __init__(self, error: MockException = MockException.No):
         """Initialize the mock boto3 client.
 
         Args:
-            throw_client_error: Whether to simulate a client error
+            error: Whether to simulate an error
         """
         self._responses: List[dict] = []
-        self.throw_client_error = throw_client_error
+        self.error = error
         self._current_response_index = 0
+
+    def begin_transaction(self, **kwargs) -> dict:
+        """Mock implementation of begin_transaction.
+
+        Returns:
+            dict: The mock response
+
+        Raises:
+            ClientError
+            Exception
+        """
+        if self.error == MockException.Client:
+            error_response = {
+                'Error': {
+                    'Code': 'AccessDeniedException',
+                    'Message': 'User is not authorized to perform rds-data:begin_transaction',
+                }
+            }
+            raise ClientError(error_response, operation_name='begin_transaction')
+
+        if self.error == MockException.Unexpected:
+            error_response = {
+                'Error': {
+                    'Code': 'UnexpectedException',
+                    'Message': 'UnexpectedException',
+                }
+            }
+            raise Exception(error_response)
+
+        return {'transactionId': 'txt-id-xxxxx'}
+
+    def commit_transaction(self, **kwargs) -> dict:
+        """Mock implementation of commit_transaction.
+
+        Returns:
+            dict: The mock response
+
+        Raises:
+            ClientError
+            Exception
+        """
+        if self.error == MockException.Client:
+            error_response = {
+                'Error': {
+                    'Code': 'AccessDeniedException',
+                    'Message': 'User is not authorized to perform rds-data:begin_transaction',
+                }
+            }
+            raise ClientError(error_response, operation_name='commit_transaction')
+
+        if self.error == MockException.Unexpected:
+            error_response = {
+                'Error': {
+                    'Code': 'UnexpectedException',
+                    'Message': 'UnexpectedException',
+                }
+            }
+            raise Exception(error_response)
+
+        return {'transactionStatus': 'txt status'}
+
+    def rollback_transaction(self, **kwargs) -> dict:
+        """Mock implementation of rollback_transaction.
+
+        Returns:
+            dict: The mock response
+
+        Raises:
+            ClientError
+            Exception
+        """
+        if self.error == MockException.Client:
+            error_response = {
+                'Error': {
+                    'Code': 'AccessDeniedException',
+                    'Message': 'User is not authorized to perform rds-data:begin_transaction',
+                }
+            }
+            raise ClientError(error_response, operation_name='rollback_transaction')
+
+        if self.error == MockException.Unexpected:
+            error_response = {
+                'Error': {
+                    'Code': 'UnexpectedException',
+                    'Message': 'UnexpectedException',
+                }
+            }
+            raise Exception(error_response)
+
+        return {'transactionStatus': 'txt status'}
 
     def execute_statement(self, **kwargs) -> dict:
         """Mock implementation of execute_statement.
@@ -23,17 +122,26 @@ class Mock_boto3_client:
             dict: The mock response
 
         Raises:
-            ClientError: If throw_client_error is True
-            Exception: If no more mock responses are available
+            ClientError
+            Exception
         """
-        if self.throw_client_error:
+        if self.error == MockException.Client:
             error_response = {
                 'Error': {
                     'Code': 'AccessDeniedException',
-                    'Message': 'User is not authorized to perform rds-data:ExecuteStatement',
+                    'Message': 'User is not authorized to perform rds-data:begin_transaction',
                 }
             }
-            raise ClientError(error_response, operation_name='ExecuteStatement')
+            raise ClientError(error_response, operation_name='execute_statement')
+
+        if self.error == MockException.Unexpected:
+            error_response = {
+                'Error': {
+                    'Code': 'UnexpectedException',
+                    'Message': 'UnexpectedException',
+                }
+            }
+            raise Exception(error_response)
 
         if self._current_response_index < len(self._responses):
             response = self._responses[self._current_response_index]
@@ -53,19 +161,19 @@ class Mock_boto3_client:
 class Mock_DBConnection:
     """Mock implementation of DBConnection for testing purposes."""
 
-    def __init__(self, readonly, throw_client_error=False):
+    def __init__(self, readonly, error: MockException = MockException.No):
         """Initialize the mock DB connection.
 
         Args:
             readonly: Whether the connection should be read-only
-            throw_client_error: Whether to simulate a client error
+            error: Mock exception if any
         """
         self.cluster_arn = 'dummy_cluster_arn'
         self.secret_arn = 'dummy_secret_arn'  # pragma: allowlist secret
         self.database = 'dummy_database'
         self.readonly = readonly
-        self.throw_client_error = throw_client_error
-        self._data_client = Mock_boto3_client(throw_client_error)
+        self.error = error
+        self._data_client = Mock_boto3_client(error)
 
     @property
     def data_client(self):
@@ -89,13 +197,14 @@ class Mock_DBConnection:
 class DummyCtx:
     """Mock implementation of MCP context for testing purposes."""
 
-    def error(self, message):
-        """Raise a runtime error with the given message.
+    async def error(self, message):
+        """Mock MCP ctx.error with the given message.
 
         Args:
-            message: The error message to include in the runtime error
+            message: The error message
         """
-        raise RuntimeError(f'MCP Tool Error: {message}')
+        # Do nothing because MCP ctx.error doesn't throw exception
+        pass
 
 
 @pytest.fixture
