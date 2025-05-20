@@ -4,7 +4,7 @@ repos:
     hooks:
       - id: black
   - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.13.2
+    rev: v5.10.1
     hooks:
       - id: isort
   - repo: https://github.com/charliermarsh/ruff-pre-commit

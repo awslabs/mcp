@@ -53,7 +53,8 @@ class MCPLambdaHandler:
         version: str = '1.0.0',
         session_store: Optional[Union[SessionStore, str]] = None,
     ):
-        """Initialize the MCP handler
+        """
+        Initialize the MCP handler
 
         Args:
             name: Handler name
@@ -79,7 +80,8 @@ class MCPLambdaHandler:
             self.session_store = session_store
 
     def get_session(self) -> Optional[SessionData]:
-        """Get the current session data wrapper.
+        """
+        Get the current session data wrapper.
 
         Returns:
             SessionData object or None if no session exists
@@ -92,7 +94,8 @@ class MCPLambdaHandler:
         return SessionData(data) if data is not None else None
 
     def set_session(self, data: Dict[str, Any]) -> bool:
-        """Set the entire session data.
+        """
+        Set the entire session data.
 
         Args:
             data: New session data
@@ -107,7 +110,8 @@ class MCPLambdaHandler:
         return self.session_store.update_session(session_id, data)
 
     def update_session(self, updater_func: Callable[[SessionData], None]) -> bool:
-        """Update session data using a function.
+        """
+        Update session data using a function.
 
         Args:
             updater_func: Function that takes SessionData and updates it in place
@@ -127,7 +131,8 @@ class MCPLambdaHandler:
         return self.set_session(session.raw())
 
     def tool(self):
-        """Decorator to register a function as an MCP tool.
+        """
+        Decorator to register a function as an MCP tool.
 
         Uses function name, docstring, and type hints to generate the MCP tool schema.
         """
