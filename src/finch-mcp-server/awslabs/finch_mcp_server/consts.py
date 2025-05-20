@@ -4,10 +4,10 @@ This module defines constants used throughout the Finch MCP server.
 """
 
 # Server name
-SERVER_NAME = 'finch_image'
+SERVER_NAME = 'finch_mcp_server'
 
 # Log file name
-LOG_FILE = 'finch_image.log'
+LOG_FILE = 'finch_server.log'
 
 # VM states
 VM_STATE_RUNNING = 'running'

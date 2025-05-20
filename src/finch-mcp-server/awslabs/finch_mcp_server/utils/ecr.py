@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 
-def check_ecr_repository(
+def create_ecr_repository(
     app_name: str,
     region: Optional[str] = None,
     scan_on_push: bool = True,
