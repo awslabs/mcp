@@ -80,8 +80,7 @@ def ensure_vm_running() -> Dict[str, Any]:
         else:
             return format_result(
                 'error',
-                f'Unknown VM status: status: {status_result.returncode}, '
-                f'stdout: {status_result.stdout}, stderr: {status_result.stderr}',
+                f'Unknown VM status: status code {status_result.returncode}',
             )
     except Exception as e:
         return format_result('error', f'Error ensuring Finch VM is running: {str(e)}')
@@ -122,8 +121,6 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
         Result: An object containing:
             - status (str): "success" if the operation succeeded, "error" otherwise
             - message (str): A descriptive message about the result of the operation
-            - stdout (str, optional): Standard output from the build command if successful
-            - stderr (str, optional): Standard error output if the build failed
 
     Example response:
         Result(status="success", message="Successfully built image from /path/to/Dockerfile")
@@ -190,8 +187,6 @@ async def finch_push_image(request: PushImageRequest) -> Result:
         Result: An object containing:
             - status (str): "success" if the operation succeeded, "error" otherwise
             - message (str): A descriptive message about the result of the operation
-            - stdout (str, optional): Standard output from the push command if successful
-            - stderr (str, optional): Standard error output if the push failed
 
     Example response:
         Result(status="success", message="Successfully pushed image 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:latest to ECR.")
@@ -239,8 +234,6 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
             - status (str): "success" if the operation succeeded, "error" otherwise
             - message (str): A descriptive message about the result of the operation
             - repository_uri (str, optional): The URI of the repository if successful
-            - stdout (str, optional): Standard output from the command if successful
-            - stderr (str, optional): Standard error output if the command failed
             - exists (bool, optional): Whether the repository already existed
 
     Example response:
