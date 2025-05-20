@@ -9,7 +9,6 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-# dependabot should continue to update this to the latest hash.
 FROM public.ecr.aws/sam/build-python3.10@sha256:a40f492a0cd8d76557f8a187fc00e49e8864b3cea683e74718ce317790c1ce61 AS uv
 
 # Install the project into `/app`
