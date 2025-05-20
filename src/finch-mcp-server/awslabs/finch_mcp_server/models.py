@@ -56,7 +56,3 @@ class Result(BaseModel):
 
     status: str = Field(..., description="Status of the operation ('success', 'error', etc.)")
     message: str = Field(..., description='Descriptive message about the result of the operation')
-    stdout: Optional[str] = Field(
-        None, description='Standard output from the command if successful'
-    )
-    stderr: Optional[str] = Field(None, description='Standard error output if the command failed')
