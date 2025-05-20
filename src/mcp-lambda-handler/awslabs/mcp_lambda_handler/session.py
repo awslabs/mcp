@@ -100,7 +100,7 @@ class DynamoDBSessionStore(SessionStore):
         """
         self.table_name = table_name
         self.dynamodb = boto3.resource('dynamodb')
-        self.table = self.dynamodb.Table(table_name)
+        self.table = self.dynamodb.Table(table_name)  # pyright: ignore [reportAttributeAccessIssue]
 
     def create_session(self, session_data: Optional[Dict[str, Any]] = None) -> str:
         """Create a new session.
