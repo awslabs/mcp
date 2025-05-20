@@ -61,4 +61,4 @@ coverage.xml
 .pyre/
 
 # Ruff
-.ruff_cache/ 
+.ruff_cache/

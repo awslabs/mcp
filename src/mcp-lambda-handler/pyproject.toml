@@ -110,4 +110,4 @@ exclude_also = [
 ]
 
 [tool.coverage.run]
-source = ["mcp_lambda_handler"] 
+source = ["mcp_lambda_handler"]

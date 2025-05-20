@@ -90,4 +90,4 @@ Development dependencies:
 - black >= 24.2.0
 - isort >= 5.13.0
 - flake8 >= 7.0.0
-- moto >= 5.0.3 (for AWS mocking in tests) 
+- moto >= 5.0.3 (for AWS mocking in tests)

@@ -1,6 +1,8 @@
 """Type definitions for MCP protocol"""
-from typing import Optional, Any, Dict, List
+
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
 
 @dataclass
 class JSONRPCError:
@@ -10,11 +12,15 @@ class JSONRPCError:
 
     def model_dump_json(self) -> str:
         import json
-        return json.dumps({
-            "code": self.code,
-            "message": self.message,
-            **({"data": self.data} if self.data is not None else {})
-        })
+
+        return json.dumps(
+            {
+                'code': self.code,
+                'message': self.message,
+                **({'data': self.data} if self.data is not None else {}),
+            }
+        )
+
 
 @dataclass
 class JSONRPCResponse:
@@ -26,17 +32,16 @@ class JSONRPCResponse:
 
     def model_dump_json(self) -> str:
         import json
-        data = {
-            "jsonrpc": self.jsonrpc,
-            "id": self.id
-        }
+
+        data = {'jsonrpc': self.jsonrpc, 'id': self.id}
         if self.result is not None:
-            data["result"] = self.result
+            data['result'] = self.result
         if self.error is not None:
-            data["error"] = json.loads(self.error.model_dump_json())
+            data['error'] = json.loads(self.error.model_dump_json())
         if self.errorContent is not None:
-            data["errorContent"] = self.errorContent
+            data['errorContent'] = self.errorContent
         return json.dumps(data)
+
 
 @dataclass
 class ServerInfo:
@@ -44,19 +49,16 @@ class ServerInfo:
     version: str
 
     def model_dump(self) -> Dict:
-        return {
-            "name": self.name,
-            "version": self.version
-        }
+        return {'name': self.name, 'version': self.version}
+
 
 @dataclass
 class Capabilities:
     tools: Dict[str, bool]
 
     def model_dump(self) -> Dict:
-        return {
-            "tools": self.tools
-        }
+        return {'tools': self.tools}
+
 
 @dataclass
 class InitializeResult:
@@ -66,14 +68,16 @@ class InitializeResult:
 
     def model_dump(self) -> Dict:
         return {
-            "protocolVersion": self.protocolVersion,
-            "serverInfo": self.serverInfo.model_dump(),
-            "capabilities": self.capabilities.model_dump()
+            'protocolVersion': self.protocolVersion,
+            'serverInfo': self.serverInfo.model_dump(),
+            'capabilities': self.capabilities.model_dump(),
         }
 
     def model_dump_json(self) -> str:
         import json
+
         return json.dumps(self.model_dump())
+
 
 @dataclass
 class JSONRPCRequest:
@@ -85,55 +89,51 @@ class JSONRPCRequest:
     @classmethod
     def model_validate(cls, data: Dict) -> 'JSONRPCRequest':
         return cls(
-            jsonrpc=data["jsonrpc"],
-            id=data.get("id"),
-            method=data["method"],
-            params=data.get("params")
+            jsonrpc=data['jsonrpc'],
+            id=data.get('id'),
+            method=data['method'],
+            params=data.get('params'),
         )
+
 
 @dataclass
 class TextContent:
     text: str
-    type: str = "text"
+    type: str = 'text'
 
     def model_dump(self) -> Dict:
-        return {
-            "type": self.type,
-            "text": self.text
-        }
+        return {'type': self.type, 'text': self.text}
 
     def model_dump_json(self) -> str:
         import json
+
         return json.dumps(self.model_dump())
+
 
 @dataclass
 class ErrorContent:
     text: str
-    type: str = "error"
+    type: str = 'error'
 
     def model_dump(self) -> Dict:
-        return {
-            "type": self.type,
-            "text": self.text
-        }
+        return {'type': self.type, 'text': self.text}
 
     def model_dump_json(self) -> str:
         import json
+
         return json.dumps(self.model_dump())
+
 
 @dataclass
 class ImageContent:
     data: str
     mimeType: str
-    type: str = "image"
+    type: str = 'image'
 
     def model_dump(self) -> Dict:
-        return {
-            "type": self.type,
-            "data": self.data,
-            "mimeType": self.mimeType
-        }
+        return {'type': self.type, 'data': self.data, 'mimeType': self.mimeType}
 
     def model_dump_json(self) -> str:
         import json
-        return json.dumps(self.model_dump()) 
+
+        return json.dumps(self.model_dump())
