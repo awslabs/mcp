@@ -2,24 +2,10 @@
 
 A Python library for creating serverless HTTP handlers for the Model Context Protocol (MCP) using AWS Lambda. This library provides a minimal, extensible framework for building MCP HTTP endpoints with pluggable session management support.
 
-> **Note:**
-> For a sample deployment with session managment and authentication, see the [samples](../../samples/mcp-lambda-handler) folder.
-
 ## Features
 
 - 🚀 Easy serverless MCP HTTP handler creation using AWS Lambda
 - 🔌 Pluggable session management system (NoOp or DynamoDB, or custom backends)
-
-## Installation
-
-> **Note:**
-> This package is part of the [awslabs/mcp](https://github.com/awslabs/mcp) monorepo and is not published on PyPI. To install for development, use:
->
-> ```bash
-> git clone https://github.com/awslabs/mcp.git
-> cd mcp/src/mcp-lambda-handler
-> pip install -e .[dev]
-> ```
 
 ## Quick Start
 
@@ -59,8 +45,6 @@ A typical serverless deployment using this library might look like:
 - **Lambda Authorizer**: Validates authentication tokens (e.g., bearer tokens in the `Authorization` header).
 - **MCP Server Lambda**: Implements MCP tools and session logic using this library.
 - **DynamoDB**: Stores session data (if using the DynamoDB session backend).
-
-For a full working example, including a sample Lambda authorizer and AWS SAM deployment, see [`/samples/mcp-lambda-handler`](../../samples/mcp-lambda-handler).
 
 ## Development
 
