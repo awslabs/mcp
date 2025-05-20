@@ -120,3 +120,6 @@ exclude_also = [
 
 [tool.coverage.run]
 source = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv",".venv","tests"]

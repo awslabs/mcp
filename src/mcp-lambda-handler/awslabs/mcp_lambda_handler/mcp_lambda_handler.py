@@ -242,7 +242,7 @@ class MCPLambdaHandler:
         return error_map.get(error_code, 500)
 
     def _create_success_response(
-        self, result: Any, request_id: str, session_id: Optional[str] = None
+        self, result: Any, request_id: str | None, session_id: Optional[str] = None
     ) -> Dict:
         """Create a standardized success response."""
         response = JSONRPCResponse(jsonrpc='2.0', id=request_id, result=result)
@@ -349,7 +349,7 @@ class MCPLambdaHandler:
                 )
 
             # Handle tool calls
-            if request.method == 'tools/call':
+            if request.method == 'tools/call' and request.params:
                 tool_name = request.params.get('name')
                 tool_args = request.params.get('arguments', {})
 

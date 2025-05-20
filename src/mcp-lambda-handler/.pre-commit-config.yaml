@@ -1,18 +1,65 @@
+---
+# Run `pre-commit install` at the root of the repository for the monorepo
+#  `.pre-commit-config.yaml`
+# (optionally) add more here for your use-case.
 repos:
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
+  # bandit -r --severity-level medium --confidence-level medium -f html -o bandit-report-${{ matrix.package }}.html -c "pyproject.toml" .
+  # uv run --frozen pytest --cov --cov-branch --cov-report=term-missing
+  # uv run --frozen pyright
+
+  - repo: local
     hooks:
-      - id: black
-  - repo: https://github.com/pre-commit/mirrors-isort
-    rev: v5.10.1
-    hooks:
-      - id: isort
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.4.4
-    hooks:
-      - id: ruff
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
+    - id: bandit
+      name: bandit
+      stages: [pre-commit, pre-push]
+      pass_filenames: false
+      always_run: true
+      language: system
+      entry: uv
+      args:
+        - --project
+        - ./src/mcp-lambda-handler
+        - run
+        - --frozen
+        - bandit
+        - -r
+        - --severity-level
+        - medium
+        - --confidence-level
+        - medium
+        - -c
+        - ./src/mcp-lambda-handler/pyproject.toml
+        - ./src/mcp-lambda-handler
+
+    - id: pyright
+      name: pyright
+      stages: [pre-commit, pre-push]
+      pass_filenames: false
+      always_run: true
+      language: system
+      entry: uv
+      args:
+        - --project
+        - ./src/mcp-lambda-handler
+        - run
+        - --frozen
+        - pyright
+        - --project
+        - ./src/mcp-lambda-handler
+
+    - id: pytest
+      name: pytest
+      stages: [pre-commit, pre-push]
+      pass_filenames: false
+      always_run: true
+      language: system
+      entry: uv
+      args:
+        - --project
+        - ./src/mcp-lambda-handler
+        - run
+        - --frozen
+        - pytest
+        - --cov-branch
+        - --cov-report=term-missing
+        - ./src/mcp-lambda-handler/tests
