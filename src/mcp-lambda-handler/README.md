@@ -1,23 +1,37 @@
-# mcp-lambda-handler
+# MCP Lambda Handler Module
 
-A serverless HTTP handler for the Model Context Protocol (MCP) using AWS Lambda. This package provides a flexible framework for building MCP HTTP endpoints with pluggable session management and AWS integration.
+A Python library for creating serverless HTTP handlers for the Model Context Protocol (MCP) using AWS Lambda. This library provides a flexible framework for building MCP HTTP endpoints with pluggable session management support.
 
 ## Features
-- Easy serverless MCP HTTP handler creation using AWS Lambda
-- Pluggable session management system
-- Built-in DynamoDB session backend support
-- Customizable authentication and authorization
-- Example implementations and tests
+
+- 🚀 Easy serverless MCP HTTP handler creation using AWS Lambda
+- 🔌 Pluggable session management system
+- 💾 Built-in DynamoDB session backend support
+- 🔒 Customizable authentication and authorization
+- 📝 Example implementations and tests
+- ✅ Well-tested codebase
 
 ## Installation
 
-> **Note:** This package is intended to be used as part of the [awslabs/mcp](https://github.com/awslabs/mcp) monorepo. For standalone development:
+> **Note:**
+> This package is part of the [awslabs/mcp](https://github.com/awslabs/mcp) monorepo and is not published on PyPI. To install for development, use:
 >
 > ```bash
+> git clone https://github.com/awslabs/mcp.git
+> cd mcp/src/mcp-lambda-handler
 > pip install -e .[dev]
 > ```
 
-## Usage
+## Quick Start
+
+1. Install the package with development dependencies:
+```bash
+pip install -e .[dev]
+```
+
+2. Use the handler in your AWS Lambda function:
+
+## Basic Usage
 
 ```python
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
@@ -30,24 +44,56 @@ def add_two_numbers(a: int, b: int) -> int:
     return a + b
 
 def lambda_handler(event, context):
+    """AWS Lambda handler function."""
     return mcp.handle_request(event, context)
 ```
 
+## Session Management
+
+The library provides flexible session management with built-in support for DynamoDB and the ability to create custom session backends.
+
 ## Development
 
-- Install development dependencies:
-  ```bash
-  pip install -e .[dev]
-  ```
-- Run tests:
-  ```bash
-  pytest
-  ```
+1. Clone the repository:
+```bash
+git clone https://github.com/awslabs/mcp.git
+cd mcp/src/mcp-lambda-handler
+```
+
+2. Install development dependencies:
+```bash
+pip install -e .[dev]
+```
+
+3. Run tests:
+```bash
+pytest
+```
+
+## Contributing
+
+Contributions are welcome! Please see the [CONTRIBUTING.md](../../CONTRIBUTING.md) in the monorepo root for guidelines.
 
 ## License
 
 This project is licensed under the Apache-2.0 License - see the [LICENSE](LICENSE) file for details.
 
-## Contributing
+## Python Version Support
 
-Contributions are welcome! Please see the [CONTRIBUTING.md](../../CONTRIBUTING.md) in the monorepo root for guidelines. 
+- Python 3.10+
+
+## Dependencies
+
+Core dependencies:
+- python-dateutil >= 2.8.2
+
+Optional dependencies:
+- boto3 >= 1.38.1 (for AWS/DynamoDB support)
+- botocore >= 1.38.1 (for AWS/DynamoDB support)
+
+Development dependencies:
+- pytest >= 8.0.0
+- black >= 24.2.0
+- isort >= 5.13.0
+- flake8 >= 7.0.0
+- moto >= 5.0.3 (for AWS mocking in tests) 
