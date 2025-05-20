@@ -36,8 +36,8 @@ wheels = [
 ]
 
 [[package]]
-name = "awslabs-lambda-mcp-server"
-version = "0.1.2"
+name = "awslabs-stepfunctions-mcp-server"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

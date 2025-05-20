@@ -125,9 +125,6 @@ Resources:
       Runtime: python3.13
       Architectures:
         - arm64
-      Tags:
-        tool-input-schema-arn:
-          Fn::GetAtt: [CustomerCreateSchema, SchemaArn]
     Metadata:
       cfn_nag:
         rules_to_suppress:
@@ -136,19 +133,92 @@ Resources:
           - id: W92
             reason: "Because this is an example, there is no requirement to reserve concurrency"
 
+  # IAM Role for state machines
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+      RoleName:
+        Fn::Sub: ${AWS::StackName}-state-machine-role
+
+  # Express state machine for customer creation
+  CustomerCreateStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: EXPRESS
+      Definition:
+        StartAt: CreateCustomer
+        Comment: Create a new customer
+        States:
+          CreateCustomer:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [CustomerCreate, Arn]
+            End: true
+      Role:
+        Fn::GetAtt: [StateMachineRole, Arn]
+      Tags:
+        mcp:type: tool
+        tool-input-schema-arn:
+          Fn::GetAtt: [CustomerCreateSchema, SchemaArn]
+
+  # Standard state machine for customer info workflow
+  GetCustomerInfoWorkflowStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      Definition:
+        Comment: Get customer ID from { 'email' }
+        StartAt: GetCustomerId
+        States:
+          GetCustomerId:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [CustomerIdFromEmail, Arn]
+            ResultPath: "$.customerId"
+            Next: GetCustomerInfo
+          GetCustomerInfo:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [CustomerInfoFromId, Arn]
+            InputPath: "$.customerId"
+            End: true
+      Tags:
+        mcp:type: tool
+      Role:
+        Fn::GetAtt: [StateMachineRole, Arn]
+
 Outputs:
 
   CustomerInfoFromId:
     Description: "CustomerInfoFromId Function ARN"
     Value:
-      Fn::GetAtt: [CustomerInfoFromId,Arn]
+      Fn::GetAtt: [CustomerInfoFromId, Arn]
 
   CustomerIdFromEmail:
     Description: "CustomerIdFromEmail Function ARN"
     Value:
-      Fn::GetAtt: [CustomerIdFromEmail,Arn]
+      Fn::GetAtt: [CustomerIdFromEmail, Arn]
 
   CustomerCreate:
     Description: "CustomerCreate Function ARN"
     Value:
-      Fn::GetAtt: [CustomerCreate,Arn]
+      Fn::GetAtt: [CustomerCreate, Arn]
+
+  CustomerCreateStateMachine:
+    Description: "CustomerCreate State Machine ARN"
+    Value:
+      Fn::GetAtt: [CustomerCreateStateMachine, Arn]
+
+  GetCustomerInfoWorkflowStateMachine:
+    Description: "GetCustomerInfoWorkflow State Machine ARN"
+    Value:
+      Fn::GetAtt: [GetCustomerInfoWorkflowStateMachine, Arn]

@@ -1,3 +1,3 @@
-"""awslabs.lambda-mcp-server"""
+"""awslabs.stepfunctions-mcp-server"""
 
 __version__ = '0.0.0'

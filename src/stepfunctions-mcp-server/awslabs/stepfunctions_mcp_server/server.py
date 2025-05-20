@@ -1,6 +1,7 @@
 """awslabs Step Functions MCP Server implementation."""
 
 import argparse
+import asyncio
 import boto3
 import json
 import logging
@@ -41,7 +42,7 @@ logger.info(f'STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY: {STATE_MACHINE_INPUT_SCHEM
 
 # Initialize AWS clients
 session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
-lambda_client = session.client('lambda')
+sfn_client = session.client('stepfunctions')
 schemas_client = session.client('schemas')
 
 mcp = FastMCP(
@@ -91,28 +92,75 @@ def format_state_machine_response(state_machine_name: str, payload: bytes) -> st
         return f'State machine {state_machine_name} returned payload: {payload}'
 
 
-async def invoke_state_machine_impl(state_machine_name: str, parameters: dict, ctx: Context) -> str:
-    """Tool that invokes an AWS Step Functions state machine with a JSON payload."""
-    await ctx.info(f'Invoking {state_machine_name} with parameters: {parameters}')
-
-    response = lambda_client.invoke(
-        FunctionName=state_machine_name,
-        InvocationType='RequestResponse',
-        Payload=json.dumps(parameters),
+async def invoke_standard_state_machine_impl(
+    state_machine_name: str, state_machine_arn: str, parameters: dict, ctx: Context
+) -> str:
+    """Execute a Standard state machine using StartExecution and poll for completion."""
+    await ctx.info(
+        f'Starting asynchronous execution of Standard state machine {state_machine_name}'
     )
 
-    await ctx.info(f'State machine {state_machine_name} returned with status code: {response["StatusCode"]}')
+    # Start the execution
+    response = sfn_client.start_execution(
+        stateMachineArn=state_machine_arn,
+        input=json.dumps(parameters),
+    )
 
-    if 'FunctionError' in response:
+    await ctx.info(f'Started execution {response["executionArn"]}')
+
+    # Wait for execution to complete
+    while True:
+        execution = sfn_client.describe_execution(executionArn=response['executionArn'])
+        status = execution['status']
+        await ctx.info(f'Execution status: {status}')
+
+        if status == 'SUCCEEDED':
+            output = execution['output']
+            return format_state_machine_response(state_machine_name, output.encode())
+        elif status in ['FAILED', 'TIMED_OUT', 'ABORTED']:
+            error_message = (
+                f'State machine {state_machine_name} execution failed with status: {status}'
+            )
+            if 'error' in execution:
+                error_message += f', error: {execution["error"]}'
+            if 'cause' in execution:
+                error_message += f', cause: {execution["cause"]}'
+            await ctx.error(error_message)
+            return error_message
+
+        # Wait before checking again
+        await asyncio.sleep(1)
+
+
+async def invoke_express_state_machine_impl(
+    state_machine_name: str, state_machine_arn: str, parameters: dict, ctx: Context
+) -> str:
+    """Execute an Express state machine using StartSyncExecution."""
+    await ctx.info(f'Starting synchronous execution of Express state machine {state_machine_name}')
+
+    # Start synchronous execution
+    response = sfn_client.start_sync_execution(
+        stateMachineArn=state_machine_arn,
+        input=json.dumps(parameters),
+    )
+
+    # Check execution status
+    status = response['status']
+    await ctx.info(f'Express execution completed with status: {status}')
+
+    if status == 'SUCCEEDED':
+        output = response['output']
+        return format_state_machine_response(state_machine_name, output.encode())
+    else:
         error_message = (
-            f'State machine {state_machine_name} returned with error: {response["FunctionError"]}'
+            f'Express state machine {state_machine_name} execution failed with status: {status}'
         )
+        if 'error' in response:
+            error_message += f', error: {response["error"]}'
+        if 'cause' in response:
+            error_message += f', cause: {response["cause"]}'
         await ctx.error(error_message)
         return error_message
-
-    payload = response['Payload'].read()
-    # Format the response payload
-    return format_state_machine_response(state_machine_name, payload)
 
 
 def get_schema_from_registry(schema_arn: str) -> Optional[dict]:
@@ -154,11 +202,19 @@ def get_schema_from_registry(schema_arn: str) -> Optional[dict]:
         return None
 
 
-def create_state_machine_tool(state_machine_name: str, description: str, schema_arn: Optional[str] = None):
+def create_state_machine_tool(
+    state_machine_name: str,
+    state_machine_arn: str,
+    state_machine_type: str,
+    description: str,
+    schema_arn: Optional[str] = None,
+):
     """Create a tool function for a Step Functions state machine.
 
     Args:
         state_machine_name: Name of the Step Functions state machine
+        state_machine_arn: ARN of the Step Functions state machine
+        state_machine_type: Type of the state machine (STANDARD or EXPRESS)
         description: Base description for the tool
         schema_arn: Optional ARN of the input schema in the Schema Registry
     """
@@ -168,8 +224,15 @@ def create_state_machine_tool(state_machine_name: str, description: str, schema_
     # Define the inner function
     async def state_machine_function(parameters: dict, ctx: Context) -> str:
         """Tool for invoking a specific AWS Step Functions state machine with parameters."""
-        # Use the same implementation as the generic invoke function
-        return await invoke_state_machine_impl(state_machine_name, parameters, ctx)
+        # Use the appropriate implementation based on state machine type
+        if state_machine_type == 'EXPRESS':
+            return await invoke_express_state_machine_impl(
+                state_machine_name, state_machine_arn, parameters, ctx
+            )
+        else:  # STANDARD
+            return await invoke_standard_state_machine_impl(
+                state_machine_name, state_machine_arn, parameters, ctx
+            )
 
     # Set the function's documentation
     if schema_arn:
@@ -178,7 +241,9 @@ def create_state_machine_tool(state_machine_name: str, description: str, schema_
             #  We add the schema to the description because mcp.tool does not expose overriding the tool schema.
             description_with_schema = f'{description}\n\nInput Schema:\n{schema}'
             state_machine_function.__doc__ = description_with_schema
-            logger.info(f'Added schema from registry to description for state machine {state_machine_name}')
+            logger.info(
+                f'Added schema from registry to description for state machine {state_machine_name}'
+            )
         else:
             state_machine_function.__doc__ = description
     else:
@@ -207,8 +272,8 @@ def get_schema_arn_from_state_machine_arn(state_machine_arn: str) -> Optional[st
         return None
 
     try:
-        tags_response = lambda_client.list_tags(Resource=state_machine_arn)
-        tags = tags_response.get('Tags', {})
+        tags_response = sfn_client.list_tags_for_resource(resourceArn=state_machine_arn)
+        tags = {tag['key']: tag['value'] for tag in tags_response.get('tags', [])}
         if STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY in tags:
             return tags[STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY]
         else:
@@ -238,16 +303,20 @@ def filter_state_machines_by_tag(state_machines, tag_key, tag_value):
     for state_machine in state_machines:
         try:
             # Get tags for the state machine
-            tags_response = lambda_client.list_tags(Resource=state_machine['StateMachineArn'])
-            tags = tags_response.get('Tags', {})
+            tags_response = sfn_client.list_tags_for_resource(
+                resourceArn=state_machine['stateMachineArn']
+            )
+            tags = {tag['key']: tag['value'] for tag in tags_response.get('tags', [])}
 
             # Check if the state machine has the specified tag key-value pair
             if tag_key in tags and tags[tag_key] == tag_value:
                 tagged_state_machines.append(state_machine)
         except Exception as e:
-            logger.warning(f'Error getting tags for state machine {state_machine["Name"]}: {e}')
+            logger.warning(f'Error getting tags for state machine {state_machine["name"]}: {e}')
 
-    logger.info(f'{len(tagged_state_machines)} Step Functions state machines found with tag {tag_key}={tag_value}.')
+    logger.info(
+        f'{len(tagged_state_machines)} Step Functions state machines found with tag {tag_key}={tag_value}.'
+    )
     return tagged_state_machines
 
 
@@ -255,18 +324,20 @@ def register_state_machines():
     """Register Step Functions state machines as individual tools."""
     try:
         logger.info('Registering Step Functions state machines as individual tools...')
-        state_machines = lambda_client.list_functions()  # This will be changed in phase 2
+        state_machines = sfn_client.list_state_machines()
 
         # Get all state machines
-        all_state_machines = state_machines['Functions']  # This will be changed in phase 2
+        all_state_machines = state_machines['stateMachines']
         logger.info(f'Total Step Functions state machines found: {len(all_state_machines)}')
 
         # First filter by state machine name if prefix or list is set
         if STATE_MACHINE_PREFIX or STATE_MACHINE_LIST:
             valid_state_machines = [
-                f for f in all_state_machines if validate_state_machine_name(f['FunctionName'])  # This will be changed in phase 2
+                sm for sm in all_state_machines if validate_state_machine_name(sm['name'])
             ]
-            logger.info(f'{len(valid_state_machines)} Step Functions state machines found after name filtering.')
+            logger.info(
+                f'{len(valid_state_machines)} Step Functions state machines found after name filtering.'
+            )
         else:
             valid_state_machines = all_state_machines
             logger.info(
@@ -286,11 +357,35 @@ def register_state_machines():
             valid_state_machines = []
 
         for state_machine in valid_state_machines:
-            state_machine_name = state_machine['FunctionName']  # This will be changed in phase 2
-            description = state_machine.get('Description', f'AWS Step Functions state machine: {state_machine_name}')
-            schema_arn = get_schema_arn_from_state_machine_arn(state_machine['FunctionArn'])  # This will be changed in phase 2
+            state_machine_name = state_machine['name']
+            state_machine_arn = state_machine['stateMachineArn']
 
-            create_state_machine_tool(state_machine_name, description, schema_arn)
+            # Get state machine description from describe_state_machine
+            try:
+                state_machine_details = sfn_client.describe_state_machine(
+                    stateMachineArn=state_machine_arn
+                )
+                description = state_machine_details.get(
+                    'description', f'AWS Step Functions state machine: {state_machine_name}'
+                )
+                # Parse definition and get Comment if present
+                definition = json.loads(state_machine_details.get('definition', '{}'))
+                if 'Comment' in definition:
+                    description = f'{description}\n\nWorkflow Description: {definition["Comment"]}'
+            except Exception as e:
+                logger.warning(
+                    f'Error getting details for state machine {state_machine_name}: {e}'
+                )
+                description = f'AWS Step Functions state machine: {state_machine_name}'
+
+            schema_arn = get_schema_arn_from_state_machine_arn(state_machine_arn)
+            create_state_machine_tool(
+                state_machine_name,
+                state_machine_arn,
+                state_machine['type'],
+                description,
+                schema_arn,
+            )
 
         logger.info('Step Functions state machines registered successfully as individual tools.')
 
