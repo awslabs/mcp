@@ -40,8 +40,8 @@ Source = "https://github.com/awslabs/mcp.git"
 "Bug Tracker" = "https://github.com/awslabs/mcp/issues"
 Changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon_mq-mcp-server/CHANGELOG.md"
 
-[dependency-groups.dev]
-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=8.0.0",
     "black>=24.2.0",
     "isort>=5.13.0",
