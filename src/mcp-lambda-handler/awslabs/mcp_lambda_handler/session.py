@@ -1,4 +1,4 @@
-"""Session management for MCP server with pluggable storage"""
+"""Session management for MCP server with pluggable storage."""
 
 import boto3
 import logging
@@ -12,12 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 class SessionStore(ABC):
-    """Abstract base class for session storage implementations"""
+    """Abstract base class for session storage implementations."""
 
     @abstractmethod
     def create_session(self, session_data: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Create a new session
+        """Create a new session.
 
         Args:
             session_data: Optional initial session data
@@ -30,8 +29,7 @@ class SessionStore(ABC):
 
     @abstractmethod
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get session data
+        """Get session data.
 
         Args:
             session_id: The session ID to look up
@@ -44,8 +42,7 @@ class SessionStore(ABC):
 
     @abstractmethod
     def update_session(self, session_id: str, session_data: Dict[str, Any]) -> bool:
-        """
-        Update session data
+        """Update session data.
 
         Args:
             session_id: The session ID to update
@@ -59,8 +56,7 @@ class SessionStore(ABC):
 
     @abstractmethod
     def delete_session(self, session_id: str) -> bool:
-        """
-        Delete a session
+        """Delete a session.
 
         Args:
             session_id: The session ID to delete
@@ -73,31 +69,30 @@ class SessionStore(ABC):
 
 
 class NoOpSessionStore(SessionStore):
-    """A no-op session store that doesn't actually store sessions"""
+    """A no-op session store that doesn't actually store sessions."""
 
     def create_session(self, session_data: Optional[Dict[str, Any]] = None) -> str:
-        """Create a new session ID but don't store anything"""
+        """Create a new session ID but don't store anything."""
         return str(uuid.uuid4())
 
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """Always return empty session data"""
+        """Return an empty session data."""
         return {}
 
     def update_session(self, session_id: str, session_data: Dict[str, Any]) -> bool:
-        """Pretend to update but do nothing"""
+        """Pretend to update but do nothing."""
         return True
 
     def delete_session(self, session_id: str) -> bool:
-        """Pretend to delete but do nothing"""
+        """Pretend to delete but do nothing."""
         return True
 
 
 class DynamoDBSessionStore(SessionStore):
-    """Manages MCP sessions using DynamoDB"""
+    """Manages MCP sessions using DynamoDB."""
 
     def __init__(self, table_name: str = 'mcp_sessions'):
-        """
-        Initialize the session store
+        """Initialize the session store.
 
         Args:
             table_name: Name of DynamoDB table to use for sessions
@@ -108,8 +103,7 @@ class DynamoDBSessionStore(SessionStore):
         self.table = self.dynamodb.Table(table_name)
 
     def create_session(self, session_data: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Create a new session
+        """Create a new session.
 
         Args:
             session_data: Optional initial session data
@@ -138,8 +132,7 @@ class DynamoDBSessionStore(SessionStore):
         return session_id
 
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get session data
+        """Get session data.
 
         Args:
             session_id: The session ID to look up
@@ -167,8 +160,7 @@ class DynamoDBSessionStore(SessionStore):
             return None
 
     def update_session(self, session_id: str, session_data: Dict[str, Any]) -> bool:
-        """
-        Update session data
+        """Update session data.
 
         Args:
             session_id: The session ID to update
@@ -191,8 +183,7 @@ class DynamoDBSessionStore(SessionStore):
             return False
 
     def delete_session(self, session_id: str) -> bool:
-        """
-        Delete a session
+        """Delete a session.
 
         Args:
             session_id: The session ID to delete

@@ -84,6 +84,10 @@ no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
+"awslabs/mcp_lambda_handler/types.py" = ["D101", "D102"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.format]
 quote-style = "single"

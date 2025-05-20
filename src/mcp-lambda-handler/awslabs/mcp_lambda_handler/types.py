@@ -1,4 +1,4 @@
-"""Type definitions for MCP protocol"""
+"""Type definitions for MCP protocol."""
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional

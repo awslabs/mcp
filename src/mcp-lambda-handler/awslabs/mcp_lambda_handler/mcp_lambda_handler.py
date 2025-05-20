@@ -26,26 +26,27 @@ T = TypeVar('T')
 
 
 class SessionData(Generic[T]):
-    """Helper class for type-safe session data access"""
+    """Helper class for type-safe session data access."""
 
     def __init__(self, data: Dict[str, Any]):
+        """Initialize the class."""
         self._data = data
 
     def get(self, key: str, default: T = None) -> T:
-        """Get a value from session data with type safety"""
+        """Get a value from session data with type safety."""
         return self._data.get(key, default)
 
     def set(self, key: str, value: T) -> None:
-        """Set a value in session data"""
+        """Set a value in session data."""
         self._data[key] = value
 
     def raw(self) -> Dict[str, Any]:
-        """Get the raw dictionary data"""
+        """Get the raw dictionary data."""
         return self._data
 
 
 class MCPLambdaHandler:
-    """A class to handle MCP (Model Context Protocol) HTTP events in AWS Lambda"""
+    """A class to handle MCP (Model Context Protocol) HTTP events in AWS Lambda."""
 
     def __init__(
         self,
@@ -53,8 +54,7 @@ class MCPLambdaHandler:
         version: str = '1.0.0',
         session_store: Optional[Union[SessionStore, str]] = None,
     ):
-        """
-        Initialize the MCP handler
+        """Initialize the MCP handler.
 
         Args:
             name: Handler name
@@ -80,8 +80,7 @@ class MCPLambdaHandler:
             self.session_store = session_store
 
     def get_session(self) -> Optional[SessionData]:
-        """
-        Get the current session data wrapper.
+        """Get the current session data wrapper.
 
         Returns:
             SessionData object or None if no session exists
@@ -94,8 +93,7 @@ class MCPLambdaHandler:
         return SessionData(data) if data is not None else None
 
     def set_session(self, data: Dict[str, Any]) -> bool:
-        """
-        Set the entire session data.
+        """Set the entire session data.
 
         Args:
             data: New session data
@@ -110,8 +108,7 @@ class MCPLambdaHandler:
         return self.session_store.update_session(session_id, data)
 
     def update_session(self, updater_func: Callable[[SessionData], None]) -> bool:
-        """
-        Update session data using a function.
+        """Update session data using a function.
 
         Args:
             updater_func: Function that takes SessionData and updates it in place
@@ -131,8 +128,7 @@ class MCPLambdaHandler:
         return self.set_session(session.raw())
 
     def tool(self):
-        """
-        Decorator to register a function as an MCP tool.
+        """Create a decorator for a function as an MCP tool.
 
         Uses function name, docstring, and type hints to generate the MCP tool schema.
         """
@@ -151,7 +147,8 @@ class MCPLambdaHandler:
 
             # Get type hints
             hints = get_type_hints(func)
-            return_type = hints.pop('return', Any)
+            # return_type = hints.pop('return', Any)
+            hints.pop('return', Any)
 
             # Build input schema from type hints and docstring
             properties = {}
@@ -176,11 +173,11 @@ class MCPLambdaHandler:
             # Build properties from type hints
             for param_name, param_type in hints.items():
                 param_schema = {'type': 'string'}  # Default to string
-                if param_type == int:
+                if param_type is int:
                     param_schema['type'] = 'integer'
-                elif param_type == float:
+                elif param_type is float:
                     param_schema['type'] = 'number'
-                elif param_type == bool:
+                elif param_type is bool:
                     param_schema['type'] = 'boolean'
 
                 if param_name in arg_descriptions:
@@ -217,7 +214,7 @@ class MCPLambdaHandler:
         session_id: Optional[str] = None,
         status_code: Optional[int] = None,
     ) -> Dict:
-        """Create a standardized error response"""
+        """Create a standardized error response."""
         error = JSONRPCError(code=code, message=message)
         response = JSONRPCResponse(
             jsonrpc='2.0', id=request_id, error=error, errorContent=error_content
@@ -234,7 +231,7 @@ class MCPLambdaHandler:
         }
 
     def _error_code_to_http_status(self, error_code: int) -> int:
-        """Map JSON-RPC error codes to HTTP status codes"""
+        """Map JSON-RPC error codes to HTTP status codes."""
         error_map = {
             -32700: 400,  # Parse error
             -32600: 400,  # Invalid Request
@@ -247,7 +244,7 @@ class MCPLambdaHandler:
     def _create_success_response(
         self, result: Any, request_id: str, session_id: Optional[str] = None
     ) -> Dict:
-        """Create a standardized success response"""
+        """Create a standardized success response."""
         response = JSONRPCResponse(jsonrpc='2.0', id=request_id, result=result)
 
         headers = {'Content-Type': 'application/json', 'MCP-Version': '0.6'}
@@ -257,7 +254,7 @@ class MCPLambdaHandler:
         return {'statusCode': 200, 'body': response.model_dump_json(), 'headers': headers}
 
     def handle_request(self, event: Dict, context: Any) -> Dict:
-        """Handle an incoming Lambda request"""
+        """Handle an incoming Lambda request."""
         request_id = None
         session_id = None
 
