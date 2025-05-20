@@ -178,7 +178,7 @@ jobs:
       - name: Run Claude Pull Request Review
         id: run-claude-pull-request-review
         if: github.event_name == 'pull_request_target'
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           # Pipe the prompt guide into claude with placeholder values
           (cat .github/workflows/CLAUDE_PR_REVIEW_GUIDE.md; cat <<EOF |
