@@ -21,7 +21,15 @@ def is_ecr_repository(repository: str) -> bool:
         bool: True if the repository is an ECR repository, False otherwise
 
     """
-    return bool(re.match(ECR_REPOSITORY_PATTERN, repository))
+    # Check if the repository matches the ECR pattern and has a valid region format
+    match = re.match(ECR_REPOSITORY_PATTERN, repository)
+    if not match:
+        return False
+
+    # Validate that the region is a valid AWS region format (e.g., us-west-2, eu-central-1)
+    region = match.group(2)
+    region_pattern = r'^[a-z]{2}-[a-z]+-\d+$'
+    return bool(re.match(region_pattern, region))
 
 
 def get_image_hash(image: str) -> Dict[str, Any]:

@@ -3,10 +3,11 @@
 This module provides functions to check if an ECR repository exists and create it if needed.
 """
 
-import json
+import boto3
 import logging
 from ..consts import STATUS_ERROR, STATUS_SUCCESS
-from .common import execute_command, format_result
+from .common import format_result
+from botocore.exceptions import ClientError
 from typing import Any, Dict, Optional
 
 
@@ -16,101 +17,77 @@ logger = logging.getLogger(__name__)
 def create_ecr_repository(
     app_name: str,
     region: Optional[str] = None,
-    scan_on_push: bool = True,
-    image_tag_mutability: str = 'IMMUTABLE',
 ) -> Dict[str, Any]:
     """Check if an ECR repository exists and create it if it doesn't.
 
-    This function first checks if the specified ECR repository exists by using the AWS CLI.
+    This function first checks if the specified ECR repository exists using boto3.
     If the repository doesn't exist, it creates a new one with the given name.
 
     Args:
         app_name: The name of the application/repository to check or create in ECR
         region: AWS region for the ECR repository. If not provided, uses the default region
                 from AWS configuration
-        scan_on_push: Whether to enable scan on push for the repository. Defaults to True.
-        image_tag_mutability: Image tag mutability setting. Can be "MUTABLE" or "IMMUTABLE".
-                             Defaults to "IMMUTABLE".
 
     Returns:
         Dict[str, Any]: A dictionary containing:
             - status (str): "success" if the operation succeeded, "error" otherwise
             - message (str): A descriptive message about the result of the operation
             - repository_uri (str, optional): The URI of the repository if successful
-            - stdout (str, optional): Standard output from the command if successful
-            - stderr (str, optional): Standard error output if the command failed
             - exists (bool, optional): Whether the repository already existed
 
     """
-    describe_cmd = ['aws', 'ecr', 'describe-repositories', '--repository-names', app_name]
+    try:
+        # Create ECR client with optional region
+        ecr_client = boto3.client('ecr', region_name=region) if region else boto3.client('ecr')
 
-    describe_result = execute_command(describe_cmd)
-
-    if describe_result.returncode == 0:
+        # Try to describe the repository to check if it exists
         try:
-            repo_data = json.loads(describe_result.stdout)
-            if 'repositories' in repo_data and len(repo_data['repositories']) > 0:
-                repository = repo_data['repositories'][0]
+            response = ecr_client.describe_repositories(repositoryNames=[app_name])
+
+            if 'repositories' in response and len(response['repositories']) > 0:
+                repository = response['repositories'][0]
                 repository_uri = repository.get('repositoryUri', '')
 
                 return format_result(
                     STATUS_SUCCESS,
                     f"ECR repository '{app_name}' already exists.",
                     repository_uri=repository_uri,
-                    stdout=describe_result.stdout,
                     exists=True,
                 )
-        except json.JSONDecodeError:
-            return format_result(
-                STATUS_ERROR,
-                f'Failed to parse ECR repository information: {describe_result.stderr}',
-                stderr=describe_result.stderr,
-            )
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code')
 
-    if 'RepositoryNotFoundException' not in describe_result.stderr:
-        return format_result(
-            STATUS_ERROR,
-            f'Error checking ECR repository: {describe_result.stderr}',
-            stderr=describe_result.stderr,
+            # If repository doesn't exist, we'll create it
+            if error_code != 'RepositoryNotFoundException':
+                return format_result(
+                    STATUS_ERROR,
+                    f'Error checking ECR repository: {str(e)}',
+                )
+
+        # Repository doesn't exist, create it
+        response = ecr_client.create_repository(
+            repositoryName=app_name,
+            imageScanningConfiguration={'scanOnPush': True},
+            imageTagMutability='IMMUTABLE',
         )
 
-    # Repository doesn't exist, create it
-    create_cmd = [
-        'aws',
-        'ecr',
-        'create-repository',
-        '--repository-name',
-        app_name,
-        '--image-scanning-configuration',
-        f'scanOnPush={str(scan_on_push).lower()}',
-        '--image-tag-mutability',
-        image_tag_mutability,
-    ]
+        repository = response.get('repository', {})
+        repository_uri = repository.get('repositoryUri', '')
 
-    create_result = execute_command(create_cmd)
+        return format_result(
+            STATUS_SUCCESS,
+            f"Successfully created ECR repository '{app_name}'.",
+            repository_uri=repository_uri,
+            exists=False,
+        )
 
-    if create_result.returncode == 0:
-        try:
-            repo_data = json.loads(create_result.stdout)
-            repository = repo_data.get('repository', {})
-            repository_uri = repository.get('repositoryUri', '')
-
-            return format_result(
-                STATUS_SUCCESS,
-                f"Successfully created ECR repository '{app_name}'.",
-                repository_uri=repository_uri,
-                stdout=create_result.stdout,
-                exists=False,
-            )
-        except json.JSONDecodeError:
-            return format_result(
-                STATUS_ERROR,
-                f'Failed to parse created ECR repository information: {create_result.stderr}',
-                stderr=create_result.stderr,
-            )
-    else:
+    except ClientError as e:
         return format_result(
             STATUS_ERROR,
-            f"Failed to create ECR repository '{app_name}': {create_result.stderr}",
-            stderr=create_result.stderr,
+            f"Failed to create ECR repository '{app_name}': {str(e)}",
+        )
+    except Exception as e:
+        return format_result(
+            STATUS_ERROR,
+            f"Unexpected error creating ECR repository '{app_name}': {str(e)}",
         )
