@@ -15,6 +15,7 @@ from ..consts import (
     VM_STATE_UNKNOWN,
 )
 from .common import execute_command, format_result
+from shutil import which
 from typing import Any, Dict, Literal
 
 
@@ -249,8 +250,6 @@ def check_finch_installation() -> Dict[str, Any]:
 
     """
     try:
-        from shutil import which
-
         if which('finch') is not None:
             return format_result(STATUS_SUCCESS, 'Finch is installed.')
         else:
