@@ -45,6 +45,36 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 }
 ```
 
+### Build and install docker image locally on the same host of your LLM client
+
+1. 'git clone https://github.com/awslabs/mcp.git'
+2. Go to sub-directory 'src/aurora-dsql-mcp-server/'
+3. Run 'docker build -t awslabs/aurora-mcp-server:latest .'
+
+### Add or update your LLM client's config with following:
+<pre><code>
+{
+  "mcpServers": {
+    "awslabs.aurora-dsql-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e", "AWS_ACCESS_KEY_ID=[your data]",
+        "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
+        "-e", "AWS_REGION=[your data]",
+        "awslabs/aurora-dsql-mcp-server:latest",
+        "--cluster_endpoint", "[your data]",
+        "--database_user", "[your data]",
+        "--region", "[your data]"
+      ]
+    }
+  }
+}
+</code></pre>
+
+
 NOTE: By default, mcp server does not allow write operations. Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing --allow-writes parameter.
 
 The MCP server can use the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
