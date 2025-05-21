@@ -37,10 +37,11 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-kendra-index-mcp-server"
-version = "0.0.0"
+version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
+    { name = "boto3-stubs", extra = ["kendra"] },
     { name = "loguru" },
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
@@ -62,6 +63,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.26.0" },
+    { name = "boto3-stubs", extras = ["kendra"] },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.6.0" },
     { name = "pydantic", specifier = ">=2.10.6" },

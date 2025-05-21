@@ -13,7 +13,7 @@
 
 import argparse
 import os
-from .util import get_kendra_client
+from awslabs.amazon_kendra_index_mcp_server.util import get_kendra_client
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, Optional
 
