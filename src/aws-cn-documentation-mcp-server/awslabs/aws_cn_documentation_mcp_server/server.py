@@ -40,7 +40,7 @@ mcp = FastMCP(
     instructions="""
     # AWS China Documentation MCP Server
 
-    This server provides tools to access public AWS documentation.
+    This server provides tools to access public AWS China documentation.
 
     ## Best Practices
 
@@ -63,7 +63,7 @@ mcp = FastMCP(
 @mcp.tool()
 async def read_documentation(
     ctx: Context,
-    url: Union[AnyUrl, str] = Field(description='URL of the AWS documentation page to read'),
+    url: Union[AnyUrl, str] = Field(description='URL of the AWS China documentation page to read'),
     max_length: int = Field(
         default=5000,
         description='Maximum number of characters to return.',
@@ -76,11 +76,11 @@ async def read_documentation(
         ge=0,
     ),
 ) -> str:
-    """Fetch and convert an AWS documentation page to markdown format.
+    """Fetch and convert an AWS China documentation page to markdown format.
 
     ## Usage
 
-    This tool retrieves the content of an AWS documentation page and converts it to markdown format.
+    This tool retrieves the content of an AWS China documentation page and converts it to markdown format.
     For long documents, you can make multiple calls with different start_index values to retrieve
     the entire content in chunks.
 
@@ -110,12 +110,12 @@ async def read_documentation(
 
     Args:
         ctx: MCP context for logging and error handling
-        url: URL of the AWS documentation page to read
+        url: URL of the AWS China documentation page to read
         max_length: Maximum number of characters to return
         start_index: On return output starting at this character index
 
     Returns:
-        Markdown content of the AWS documentation
+        Markdown content of the AWS China documentation
     """
     # Validate that URL is from docs.amazonaws.cn and ends with .html
     url_str = str(url)
