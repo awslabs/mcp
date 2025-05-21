@@ -46,6 +46,7 @@ mcp = FastMCP(
     ## Best Practices
 
     - Always use `get_available_services` first to checkout available services and their documentation URLs
+    - If a service is available, checkout the documentation URL for that service to see the feature differences and other documentation URLs
     - For long documentation pages, make multiple calls to `read_documentation` with different `start_index` values for pagination
     - For very long documents (>30,000 characters), stop reading if you've found the needed information
     - Always cite the documentation URL when providing information to users
