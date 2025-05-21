@@ -77,6 +77,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
     - [Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)
     - [Postgres MCP Server](#postgres-mcp-server)
+    - [Aurora DSQL MCP Server](#aurora-dsql-mcp-server)
     - [Amazon MQ MCP Server](#amazon-mq-mcp-server)
     - [Synthetic Data MCP Server](#synthetic-data-mcp-server)
     - [AWS DynamoDB MCP Server](#aws-dynamodb-mcp-server)
@@ -452,6 +453,16 @@ A server for generating, validating, and managing synthetic data.
 - Storage Integration: Load data to various storage targets (S3) with support for multiple formats and configurations
 
 [Learn more](src/syntheticdata-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/syntheticdata-mcp-server/)
+
+### Aurora DSQL MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aurora-dsql-mcp-server.svg)](https://pypi.org/project/awslabs.aurora-dsql-mcp-server/)
+
+An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
+
+- Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora DSQL database.
+
+[Learn more](src/aurora-dsql-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aurora-dsql-mcp-server/)
 
 ### AWS DynamoDB MCP Server
 
