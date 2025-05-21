@@ -17,6 +17,52 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Core MCP Server](#core-mcp-server)
     - [AWS Documentation MCP Server](#aws-documentation-mcp-server)
     - [Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)
+    - [AWS Kendra Index MCP Server](#amazon-kendra-index-mcp-server)
+    - [AWS CDK MCP Server](#aws-cdk-mcp-server)
+    - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
+    - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
+    - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
+    - [AWS CloudFormation MCP Server](#aws-cloudformation-mcp-server)
+    - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
+    - [Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)
+    - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
+    - [Amazon ElastiCache/MemoryDB Valkey MCP Server](#amazon-elasticache--memorydb-valkey-mcp-server)
+    - [Amazon ElastiCache Memcached MCP Server](#amazon-elasticache-memcached-mcp-server)
+    - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
+    - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
+    - [Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)
+    - [Postgres MCP Server](#postgres-mcp-server)
+    - [Amazon MQ MCP Server](#amazon-mq-mcp-server)
+    - [Synthetic Data MCP Server](#synthetic-data-mcp-server)
+    - [AWS DynamoDB MCP Server](#aws-dynamodb-mcp-server)
+    - [Amazon Neptune MCP Server](#amazon-neptune-mcp-server)
+    - [Use Cases for the Servers](#use-cases-for-the-servers)
+  - [Installation and Setup](#installation-and-setup)
+    - [Running MCP servers in containers](#running-mcp-servers-in-containers)
+    - [Getting Started with Cline and Amazon Bedrock](#getting-started-with-cline-and-amazon-bedrock)
+      - [`cline_mcp_settings.json`](#cline_mcp_settingsjson)
+    - [Getting Started with Cursor](#getting-started-with-cursor)
+      - [`.cursor/mcp.json`](#cursormcpjson)
+    - [Getting Started with Windsurf](#getting-started-with-windsurf)
+      - [`~/.codeium/windsurf/mcp_config.json`](#codeiumwindsurfmcp_configjson)
+  - [Samples](#samples)
+  - [Documentation](#documentation)
+  - [Vibe coding](#vibe-coding)
+  - [Additional Resources](#additional-resources)
+  - [Security](#security)
+  - [Contributing](#contributing)
+  - [Developer guide](#developer-guide)
+  - [License](#license)
+  - [Disclaimer](#disclaimer)
+- [AWS MCP Servers](#aws-mcp-servers)
+  - [Table of Contents](#table-of-contents)
+  - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
+    - [Why MCP Servers?](#why-mcp-servers)
+  - [Available Servers](#available-servers)
+    - [Core MCP Server](#core-mcp-server)
+    - [AWS Documentation MCP Server](#aws-documentation-mcp-server)
+    - [Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)
+    - [AWS Kendra Index MCP Server](#amazon-kendra-index-mcp-server)
     - [AWS CDK MCP Server](#aws-cdk-mcp-server)
     - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
     - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
@@ -109,6 +155,17 @@ A server for accessing AWS documentation and best practices.
 - Convert documentation to markdown format
 
 [Learn more](src/aws-documentation-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/)
+
+### Amazon Kendra Index MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-kendra-index-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-kendra-index-mcp-server/)
+
+A server for listing and querying Amazon Kendra Indexes
+
+- List the Kendra indexes in your account.
+- Query Kendra indexes with natural language to give additional RAG context to your AI tool.
+
+[Learn more](src/amazon-kendra-index-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-kendra-index-mcp-server/)
 
 ### Amazon Bedrock Knowledge Bases Retrieval MCP Server
 
@@ -210,6 +267,19 @@ A server for Amazon SNS / SQS.
 
 [Learn more](src/amazon-sns-sqs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-sns-sqs-mcp-server/)
 
+### Amazon SNS / SQS MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-sns-sqs-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-sns-sqs-mcp-server/)
+
+A server for Amazon SNS / SQS.
+
+- Create SNS / SQS Topics and Queues.
+- Subscribe, PublishMessages to SNS Topics.
+- Send and receive messages from / to Queues.
+- Modify Topic / Queue Attributes
+
+[Learn more](src/amazon-sns-sqs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-sns-sqs-mcp-server/)
+
 ### AWS Terraform MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.terraform-mcp-server.svg)](https://pypi.org/project/awslabs.terraform-mcp-server/)
@@ -223,6 +293,33 @@ A server for AWS Terraform best practices.
 - Terraform Workflow Execution
 
 [Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
+
+### Amazon ElastiCache / MemoryDB Valkey MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.valkey-mcp-server.svg)](https://pypi.org/project/awslabs.valkey-mcp-server/)
+
+A server that provides natural language interface to interact with Amazon ElastiCache [Valkey](https://valkey.io/) datastores, enabling AI agents to efficiently manage and search data. This MCP server can be used with Amazon MemoryDB Valkey datastores.
+
+- Natural language interface for data operations
+- Comprehensive data type support (String, Hash, List, Set, Sorted Set)
+- Advanced features like Streams, JSON documents
+- Secure connections with SSL/TLS and cluster mode support
+- Connection pooling and efficient resource management
+
+[Learn more](src/valkey-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
+
+### Amazon ElastiCache Memcached MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.memcached-mcp-server.svg)](https://pypi.org/project/awslabs.memcached-mcp-server/)
+
+A server that provides natural language interface to interact with Amazon ElastiCache [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
+
+- Natural language interface for cache operations
+- Comprehensive command support (Get, Set, Remove, Touch, CAS, Increment, Decrement)
+- Secure connections with SSL/TLS
+- Connection pooling and efficient resource management
+
+[Learn more](src/memcached-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 
 ### Amazon ElastiCache / MemoryDB Valkey MCP Server
 
@@ -317,6 +414,18 @@ A server for interacting with Amazon Neptune graph database.
 
 [Learn more](src/amazon-neptune-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-neptune-mcp-server/)
 
+### Amazon Neptune MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-neptune-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-neptune-mcp-server/)
+
+A server for interacting with Amazon Neptune graph database.
+
+- Run openCypher/Gremlin queries on a Neptune Database
+- Run openCypher queries on Neptune Analytics
+- Get the schema of the graph
+
+[Learn more](src/amazon-neptune-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-neptune-mcp-server/)
+
 ### Amazon MQ MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-mq-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-mq-mcp-server/)
@@ -365,6 +474,7 @@ A server for interacting with AWS DynamoDB
 
 ### Use Cases for the Servers
 
+For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What would be the estimated monthly cost for this CDK project before I deploy it?" or "Can you help me understand the potential AWS service expenses for this infrastructure design?" and receive detailed cost estimations and budget planning insights. The **Valkey MCP Server** enables natural language interaction with Valkey data stores, allowing AI assistants to efficiently manage data operations through a simple conversational interface.
 For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What would be the estimated monthly cost for this CDK project before I deploy it?" or "Can you help me understand the potential AWS service expenses for this infrastructure design?" and receive detailed cost estimations and budget planning insights. The **Valkey MCP Server** enables natural language interaction with Valkey data stores, allowing AI assistants to efficiently manage data operations through a simple conversational interface.
 
 ## Installation and Setup
@@ -461,6 +571,16 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
         },
         "autoApprove": [],
         "disabled": false
+      "awslabs.valkey-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.valkey-mcp-server@latest"],
+        "env": {
+          "VALKEY_HOST": "127.0.0.1",
+          "VALKEY_PORT": "6379",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
     "awslabs.aws-location-mcp-server": {
        "command": "uvx",
        "args": ["awslabs.aws-location-mcp-server@latest"],
@@ -472,6 +592,18 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
        "disabled": false,
        "autoApprove": []
     },
+    "awslabs.memcached-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.memcached-mcp-server@latest"],
+        "env": {
+          "MEMCACHED_HOST": "127.0.0.1",
+          "MEMCACHED_PORT": "11211",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
+    }
+    "awslabs.git-repo-research-mcp-server": {
     "awslabs.memcached-mcp-server": {
         "command": "uvx",
         "args": ["awslabs.memcached-mcp-server@latest"],
@@ -760,6 +892,69 @@ For every new project, always look at your MCP servers and use mcp-core as the s
       }
     },
     "awslabs.terraform-mcp-server": {
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.nova-canvas-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.nova-canvas-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.bedrock-kb-retrieval-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.bedrock-kb-retrieval-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.cost-analysis-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cost-analysis-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.cdk-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cdk-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs.lambda-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.lambda-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FUNCTION_PREFIX": "your-function-prefix",
+        "FUNCTION_LIST": "your-first-function, your-second-function",
+        "FUNCTION_TAG_KEY": "your-tag-key",
+        "FUNCTION_TAG_VALUE": "your-tag-value"
+      }
+    },
+    "awslabs.terraform-mcp-server": {
        "command": "uvx",
        "args": ["awslabs.terraform-mcp-server@latest"],
        "env": {
@@ -768,6 +963,63 @@ For every new project, always look at your MCP servers and use mcp-core as the s
        "disabled": false,
        "autoApprove": []
      },
+      "awslabs.valkey-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.valkey-mcp-server@latest"],
+        "env": {
+          "VALKEY_HOST": "127.0.0.1",
+          "VALKEY_PORT": "6379",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
+      },
+    "awslabs.aws-location-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.aws-location-mcp-server@latest"],
+       "env": {
+         "AWS_PROFILE": "your-aws-profile",
+         "AWS_REGION": "us-east-1",
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+    },
+    "awslabs.memcached-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.memcached-mcp-server@latest"],
+        "env": {
+          "MEMCACHED_HOST": "127.0.0.1",
+          "MEMCACHED_PORT": "11211",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
+    },
+    "awslabs.git-repo-research-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.git-repo-research-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "GITHUB_TOKEN": "your-github-token"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs.cloudformation": {
+      "command": "uvx",
+      "args": ["awslabs.cfn-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+
       "awslabs.valkey-mcp-server": {
         "command": "uvx",
         "args": ["awslabs.valkey-mcp-server@latest"],
@@ -902,6 +1154,9 @@ Documentation for each server:
 - [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 - [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
+- [Amazon ElastiCache/MemoryDB Valkey MCP Server](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
+erver/)
+- [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 - [Amazon ElastiCache/MemoryDB Valkey MCP Server](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
 erver/)
 - [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
