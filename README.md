@@ -222,19 +222,6 @@ A server for Amazon SNS / SQS.
 
 [Learn more](src/amazon-sns-sqs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-sns-sqs-mcp-server/)
 
-### Amazon SNS / SQS MCP Server
-
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-sns-sqs-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-sns-sqs-mcp-server/)
-
-A server for Amazon SNS / SQS.
-
-- Create SNS / SQS Topics and Queues.
-- Subscribe, PublishMessages to SNS Topics.
-- Send and receive messages from / to Queues.
-- Modify Topic / Queue Attributes
-
-[Learn more](src/amazon-sns-sqs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-sns-sqs-mcp-server/)
-
 ### AWS Terraform MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.terraform-mcp-server.svg)](https://pypi.org/project/awslabs.terraform-mcp-server/)
@@ -260,33 +247,6 @@ A server that provides specialized documentation for modern web application deve
 - Best practices for building AWS-powered React applications
 
 [Learn more](src/frontend-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/frontend-mcp-server/)
-
-### Amazon ElastiCache / MemoryDB Valkey MCP Server
-
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.valkey-mcp-server.svg)](https://pypi.org/project/awslabs.valkey-mcp-server/)
-
-A server that provides natural language interface to interact with Amazon ElastiCache [Valkey](https://valkey.io/) datastores, enabling AI agents to efficiently manage and search data. This MCP server can be used with Amazon MemoryDB Valkey datastores.
-
-- Natural language interface for data operations
-- Comprehensive data type support (String, Hash, List, Set, Sorted Set)
-- Advanced features like Streams, JSON documents
-- Secure connections with SSL/TLS and cluster mode support
-- Connection pooling and efficient resource management
-
-[Learn more](src/valkey-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
-
-### Amazon ElastiCache Memcached MCP Server
-
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.memcached-mcp-server.svg)](https://pypi.org/project/awslabs.memcached-mcp-server/)
-
-A server that provides natural language interface to interact with Amazon ElastiCache [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
-
-- Natural language interface for cache operations
-- Comprehensive command support (Get, Set, Remove, Touch, CAS, Increment, Decrement)
-- Secure connections with SSL/TLS
-- Connection pooling and efficient resource management
-
-[Learn more](src/memcached-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 
 ### Amazon ElastiCache / MemoryDB Valkey MCP Server
 
@@ -381,18 +341,6 @@ A server for interacting with Amazon Neptune graph database.
 
 [Learn more](src/amazon-neptune-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-neptune-mcp-server/)
 
-### Amazon Neptune MCP Server
-
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-neptune-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-neptune-mcp-server/)
-
-A server for interacting with Amazon Neptune graph database.
-
-- Run openCypher/Gremlin queries on a Neptune Database
-- Run openCypher queries on Neptune Analytics
-- Get the schema of the graph
-
-[Learn more](src/amazon-neptune-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-neptune-mcp-server/)
-
 ### Amazon MQ MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-mq-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-mq-mcp-server/)
@@ -437,7 +385,7 @@ A server for interacting with AWS DynamoDB
 - Control Plane operations like table creation, table update, global secondary index, streams, global table management, backup, restore, etc.
 - Data Plane operations like put, get, update, query and scan.
 
-[Learn more](src/dynamodb-mcp-server/README.md)
+[Learn more](src/dynamodb-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/dynamodb-mcp-server/)
 
 ## MCP Lambda Handler Module
 
