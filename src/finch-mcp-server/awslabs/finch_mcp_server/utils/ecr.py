@@ -1,6 +1,9 @@
 """Utility functions for working with Amazon ECR repositories.
 
 This module provides functions to check if an ECR repository exists and create it if needed.
+
+Note: These tools are intended for development and prototyping purposes only and are not meant
+for production use cases.
 """
 
 import boto3

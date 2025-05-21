@@ -20,8 +20,7 @@ This MCP server acts as a bridge between MCP clients and Finch, allowing generat
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
 3. Install [Finch](https://github.com/runfinch/finch) on your system
-4. Install [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) for ECR repository operations
-5. For ECR operations, AWS credentials with permissions to push to ECR repositories and create/describe ECR repositories
+4. For ECR operations, AWS credentials with permissions to push to ECR repositories and create/describe ECR repositories
 
 ## Setup
 
@@ -102,7 +101,7 @@ Example:
 
 Check if an ECR repository exists and create it if it doesn't.
 
-This tool checks if the specified ECR repository exists by using the AWS CLI. If the repository doesn't exist, it creates a new one with the given name with scan on push enabled and immutable tags for enhanced security. The tool requires AWS CLI to be installed and configured with appropriate credentials.
+This tool checks if the specified ECR repository exists using boto3. If the repository doesn't exist, it creates a new one with the given name with scan on push enabled and immutable tags for enhanced security. The tool requires appropriate AWS credentials configured.
 
 Parameters:
 - `app_name` (str): The name of the application/repository to check or create in ECR
@@ -135,12 +134,16 @@ Example:
 
 ## Best Practices
 
-TODO: Write Best Practices for the finch mcp server
+- **Development and Prototyping Only**: The tools provided by this MCP server are intended for development and prototyping purposes only. They are not meant for production use cases.
+- **Security Considerations**: Always review the Dockerfiles and container configurations before building and pushing images.
+- **Resource Management**: Regularly clean up unused images and containers to free up disk space.
+- **Version Control**: Keep track of image versions and tags to ensure reproducibility.
+- **Error Handling**: Implement proper error handling in your applications when using these tools.
 
 
 ## Troubleshooting
 
-- If you encounter permission errors with ECR, verify your AWS credentials are properly configured
+- If you encounter permission errors with ECR, verify your AWS credentials and boto3 configuration are properly set up
 - For Finch VM issues, try running `finch vm stop` and then `finch vm start` manually
 - If the build fails with errors about missing files, check that your context path is correct
 - For general Finch issues, consult the [Finch documentation](https://github.com/runfinch/finch)

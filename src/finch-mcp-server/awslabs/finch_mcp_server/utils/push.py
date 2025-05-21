@@ -1,3 +1,12 @@
+"""Utility functions for pushing container images to repositories.
+
+This module provides functions to push container images to repositories,
+including Amazon ECR, and handle image tagging with hash values.
+
+Note: These tools are intended for development and prototyping purposes only
+and are not meant for production use cases.
+"""
+
 import logging
 import re
 from ..consts import ECR_REPOSITORY_PATTERN, STATUS_ERROR, STATUS_SUCCESS
