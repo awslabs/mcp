@@ -14,8 +14,6 @@ import httpx
 import pytest
 from awslabs.aws_cn_documentation_mcp_server.server import (
     read_documentation,
-    recommend,
-    search_documentation,
 )
 from awslabs.aws_cn_documentation_mcp_server.util import extract_content_from_html
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -98,98 +96,4 @@ class TestReadDocumentation:
 
             assert 'Failed to fetch' in result
             assert 'Connection error' in result
-            mock_get.assert_called_once()
-
-
-class TestSearchDocumentation:
-    """Tests for the search_documentation function."""
-
-    @pytest.mark.asyncio
-    async def test_search_documentation(self):
-        """Test searching AWS documentation."""
-        search_phrase = 'test'
-        ctx = MockContext()
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            'suggestions': [
-                {
-                    'textExcerptSuggestion': {
-                        'link': 'https://docs.aws.amazon.com/test1',
-                        'title': 'Test 1',
-                        'summary': 'This is test 1.',
-                    }
-                },
-                {
-                    'textExcerptSuggestion': {
-                        'link': 'https://docs.aws.amazon.com/test2',
-                        'title': 'Test 2',
-                        'suggestionBody': 'This is test 2.',
-                    }
-                },
-            ]
-        }
-
-        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
-            mock_post.return_value = mock_response
-
-            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
-
-            assert len(results) == 2
-            assert results[0].rank_order == 1
-            assert results[0].url == 'https://docs.aws.amazon.com/test1'
-            assert results[0].title == 'Test 1'
-            assert results[0].context == 'This is test 1.'
-            assert results[1].rank_order == 2
-            assert results[1].url == 'https://docs.aws.amazon.com/test2'
-            assert results[1].title == 'Test 2'
-            assert results[1].context == 'This is test 2.'
-            mock_post.assert_called_once()
-
-
-class TestRecommend:
-    """Tests for the recommend function."""
-
-    @pytest.mark.asyncio
-    async def test_recommend(self):
-        """Test getting content recommendations."""
-        url = 'https://docs.aws.amazon.com/test'
-        ctx = MockContext()
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            'highlyRated': {
-                'items': [
-                    {
-                        'url': 'https://docs.aws.amazon.com/rec1',
-                        'assetTitle': 'Recommendation 1',
-                        'abstract': 'This is recommendation 1.',
-                    }
-                ]
-            },
-            'similar': {
-                'items': [
-                    {
-                        'url': 'https://docs.aws.amazon.com/rec2',
-                        'assetTitle': 'Recommendation 2',
-                        'abstract': 'This is recommendation 2.',
-                    }
-                ]
-            },
-        }
-
-        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = mock_response
-
-            results = await recommend(ctx, url=url)
-
-            assert len(results) == 2
-            assert results[0].url == 'https://docs.aws.amazon.com/rec1'
-            assert results[0].title == 'Recommendation 1'
-            assert results[0].context == 'This is recommendation 1.'
-            assert results[1].url == 'https://docs.aws.amazon.com/rec2'
-            assert results[1].title == 'Recommendation 2'
-            assert results[1].context == 'This is recommendation 2.'
             mock_get.assert_called_once()
