@@ -146,6 +146,19 @@ The Terraform MCP Server provides the following capabilities:
 
 [Learn more about the AWS Terraform MCP Server](servers/terraform-mcp-server.md)
 
+### Frontend MCP Server
+
+The Frontend MCP Server provides specialized tools for prototyping web applications with React and AWS Amplify.
+
+**Features:**
+
+- Create a web application using React, Tailwind, and shadcn
+- Customize the application based on functional requirements, deconstructing high-level application goals into features, pages, and components
+- Automatic application naming, branding (customized theme) and thematic image generation (splash images, fav icon) using Nova Canvas MCP
+- Integrated authentication flows with AWS Amplify auth
+
+[Learn more about the Frontend MCP Server](servers/frontend-mcp-server.md)
+
 ### Valkey MCP Server
 
 The Amazon ElastiCache/MemoryDB Valkey MCP Server provides a natural language interface to interact with Valkey datastores, enabling AI assistants to work with various data structures and perform complex data operations.

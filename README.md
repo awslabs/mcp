@@ -26,6 +26,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
     - [Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)
     - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
+    - [Frontend MCP Server](#frontend-mcp-server)
     - [Amazon ElastiCache/MemoryDB Valkey MCP Server](#amazon-elasticache--memorydb-valkey-mcp-server)
     - [Amazon ElastiCache Memcached MCP Server](#amazon-elasticache-memcached-mcp-server)
     - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
@@ -294,6 +295,18 @@ A server for AWS Terraform best practices.
 - Terraform Workflow Execution
 
 [Learn more](src/terraform-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/terraform-mcp-server/)
+
+### Frontend MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.frontend-mcp-server.svg)](https://pypi.org/project/awslabs.frontend-mcp-server/)
+
+A server that provides specialized documentation for modern web application development with AWS.
+
+- Comprehensive documentation on React with AWS integrations
+- Topics include AWS Amplify authentication, React Router, and shadcn/ui
+- Best practices for building AWS-powered React applications
+
+[Learn more](src/frontend-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/frontend-mcp-server/)
 
 ### Amazon ElastiCache / MemoryDB Valkey MCP Server
 
@@ -569,6 +582,15 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     "awslabs.terraform-mcp-server": {
        "command": "uvx",
        "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
+    "awslabs.frontend-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.frontend-mcp-server@latest"],
        "env": {
          "FASTMCP_LOG_LEVEL": "ERROR"
        },
@@ -971,6 +993,15 @@ For every new project, always look at your MCP servers and use mcp-core as the s
     "awslabs.terraform-mcp-server": {
        "command": "uvx",
        "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
+    "awslabs.frontend-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.frontend-mcp-server@latest"],
        "env": {
          "FASTMCP_LOG_LEVEL": "ERROR"
        },
