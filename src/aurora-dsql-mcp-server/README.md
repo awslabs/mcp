@@ -49,7 +49,7 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 
 1. 'git clone https://github.com/awslabs/mcp.git'
 2. Go to sub-directory 'src/aurora-dsql-mcp-server/'
-3. Run 'docker build -t awslabs/aurora-mcp-server:latest .'
+3. Run 'docker build -t awslabs/aurora-dsql-mcp-server:latest .'
 
 ### Add or update your LLM client's config with following:
 <pre><code>
