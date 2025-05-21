@@ -1,22 +1,21 @@
 [project]
-name = "awslabs.postgres-mcp-server"
-version = "0.0.5"
-description = "An AWS Labs Model Context Protocol (MCP) server for postgres"
+name = "awslabs.documentdb-mcp-server"
+version = "0.0.0"
+description = "An AWS Labs Model Context Protocol (MCP) server for documentdb"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-    "boto3>=1.38.5",
-    "botocore>=1.38.5",
+    "pymongo>=4.12.1",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Ken Zhang", email="kennthhz@amazon.com"},
+    {name = "Nitin Ahuja", email="nitahuja@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -31,13 +30,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/documentdb-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/documentdb-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/postgres-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/documentdb-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.postgres-mcp-server" = "awslabs.postgres_mcp_server.server:main"
+"awslabs.documentdb-mcp-server" = "awslabs.documentdb_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -106,7 +105,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/postgres_mcp_server/__init__.py:__version__"
+    "awslabs/documentdb_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 

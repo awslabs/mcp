@@ -1,7 +1,7 @@
 [project]
-name = "awslabs.postgres-mcp-server"
-version = "0.0.5"
-description = "An AWS Labs Model Context Protocol (MCP) server for postgres"
+name = "awslabs.aurora-dsql-mcp-server"
+version = "0.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -10,13 +10,15 @@ dependencies = [
     "pydantic>=2.10.6",
     "boto3>=1.38.5",
     "botocore>=1.38.5",
+    "psycopg[binary]>=3.0"
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Ken Zhang", email="kennthhz@amazon.com"},
+    {name = "Ram Dwivedula"},
+    {name = "Yoni Shalom"}
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -31,13 +33,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/aurora-dsql-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/aurora-dsql-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/postgres-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.postgres-mcp-server" = "awslabs.postgres_mcp_server.server:main"
+"awslabs.aurora-dsql-mcp-server" = "awslabs.aurora_dsql_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -69,6 +71,7 @@ exclude = [
     "**/build",
     "**/env",
     "**/.ruff_cache",
+    "**/tests/*",
     "**/.venv",
     "**/.ipynb_checkpoints"
 ]
@@ -106,7 +109,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/postgres_mcp_server/__init__.py:__version__"
+    "awslabs/aurora_dsql_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
@@ -122,6 +125,7 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = [ "tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope="function"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"

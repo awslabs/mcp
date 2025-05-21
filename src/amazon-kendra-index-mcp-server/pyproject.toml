@@ -1,22 +1,21 @@
 [project]
-name = "awslabs.postgres-mcp-server"
-version = "0.0.5"
-description = "An AWS Labs Model Context Protocol (MCP) server for postgres"
+name = "awslabs.amazon-kendra-index-mcp-server"
+version = "0.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for amazon-kendra-index-mcp-server"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-    "boto3>=1.38.5",
-    "botocore>=1.38.5",
+    "boto3>=1.26.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Ken Zhang", email="kennthhz@amazon.com"},
+    {name = "Tom Ron", email="tomron-aws@users.noreply.github.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -31,16 +30,17 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/amazon-kendra-index-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/amazon-kendra-index-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/postgres-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-kendra-index-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.postgres-mcp-server" = "awslabs.postgres_mcp_server.server:main"
+"awslabs.amazon-kendra-index-mcp-server" = "awslabs.amazon_kendra_index_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
+    "boto3-stubs[kendra]",
     "commitizen>=4.2.2",
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
@@ -96,17 +96,13 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 
-[tool.pyright]
-include = ["awslabs", "tests"]
-exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
-
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/postgres_mcp_server/__init__.py:__version__"
+    "awslabs/amazon_kendra_index_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
@@ -114,7 +110,7 @@ update_changelog_on_bump = true
 packages = ["awslabs"]
 
 [tool.bandit]
-exclude_dirs = ["venv", ".venv", "tests"]
+exclude_dirs = [".venv", "tests"]
 
 [tool.pytest.ini_options]
 python_files = "test_*.py"
@@ -122,10 +118,6 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = [ "tests"]
 asyncio_mode = "auto"
-markers = [
-    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
-    "asyncio: marks tests that use asyncio"
-]
 
 [tool.coverage.report]
 exclude_also = [
