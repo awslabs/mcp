@@ -24,7 +24,8 @@ This MCP server provides tools to operate on Valkey data types. For example, it 
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
-3. Access to a Valkey datastore instance. For instructions to connect to an Amazon ElastiCache/MemoryDB Valkey cache [click here](ELASTICACHECONNECT.md).
+3. Access to a Valkey datastore.
+4. For instructions to connect to an Amazon ElastiCache/MemoryDB Valkey datastore [click here](https://github.com/awslabs/mcp/blob/main/src/valkey-mcp-server/ELASTICACHECONNECT.md).
 
 
 ## Installation
