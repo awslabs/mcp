@@ -248,6 +248,22 @@ A server for interacting with AWS DynamoDB
 
 [Learn more about the AWS DynamoDB MCP Server](servers/dynamodb-mcp-server.md)
 
+
+### AWS DocumentDB MCP Server
+
+The DocumentDB MCP Server enables AI assistants to interact with Amazon DocumentDB databases, providing secure query capabilities and database operations.
+
+**Features:**
+
+- Connection management for DocumentDB clusters
+- Query documents with filtering and projection
+- Execute MongoDB aggregation pipelines
+- Optional read-only mode for enhanced security
+- Automatic connection cleanup and resource management
+
+[Learn more about the DocumentDB MCP Server](servers/documentdb-mcp-server.md)
+
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
