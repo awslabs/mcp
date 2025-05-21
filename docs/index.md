@@ -289,6 +289,16 @@ A server for generating, validating, and managing synthetic data.
 
 [Learn more about the Synthetic Data MCP Server](servers/syntheticdata-mcp-server.md)
 
+### Amazon Neptune MCP Server
+
+A server for interacting with Amazon Neptune graph database.
+
+- Run openCypher/Gremlin queries on a Neptune Database
+- Run openCypher queries on Neptune Analytics
+- Get the schema of the graph
+
+[Learn more](servers/amazon-neptune-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
