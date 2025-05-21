@@ -12,6 +12,7 @@
 
 import argparse
 import httpx
+import math
 import os
 import re
 import sys
@@ -40,16 +41,18 @@ mcp = FastMCP(
     instructions="""
     # AWS China Documentation MCP Server
 
-    This server provides tools to access public AWS China documentation.
+    This server provides tools to access public AWS China documentation, and get service differences between AWS China and global regions.
 
     ## Best Practices
 
+    - Always use `get_available_services` first to checkout available services and their documentation URLs
     - For long documentation pages, make multiple calls to `read_documentation` with different `start_index` values for pagination
     - For very long documents (>30,000 characters), stop reading if you've found the needed information
     - Always cite the documentation URL when providing information to users
 
     ## Tool Selection Guide
 
+    - Use `get_available_services` when: You need to know what services are available in AWS China
     - Use `read_documentation` when: You have a specific documentation URL and need its content
     """,
     dependencies=[
@@ -163,6 +166,64 @@ async def read_documentation(
         logger.debug(
             f'Content truncated at {start_index + max_length} of {len(content)} characters'
         )
+
+    return result
+
+
+@mcp.tool()
+async def get_available_services(
+    ctx: Context,
+) -> str:
+    """Fetch available services from AWS China documentation.
+
+    ## Usage
+
+    Available services in AWS China are different from global AWS services.
+    This tool retrieves a list of available services and their documentation URLs.
+
+    ## Output Format
+
+    The output is formatted as markdown text with:
+    - Preserved headings and structure
+    - Code blocks for examples
+    - Lists and tables converted to markdown format
+
+    Args:
+        ctx: MCP context for logging and error handling
+
+    Returns:
+        Markdown content of the AWS China documentation about available services
+    """
+    url_str = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html'
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                url_str,
+                follow_redirects=True,
+                headers={'User-Agent': DEFAULT_USER_AGENT},
+                timeout=30,
+            )
+        except httpx.HTTPError as e:
+            error_msg = f'Failed to fetch {url_str}: {str(e)}'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return error_msg
+
+        if response.status_code >= 400:
+            error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            return error_msg
+
+        page_raw = response.text
+        content_type = response.headers.get('content-type', '')
+
+    if is_html_content(page_raw, content_type):
+        content = extract_content_from_html(page_raw)
+    else:
+        content = page_raw
+
+    result = format_documentation_result(url_str, content, 0, math.inf)
 
     return result
 
