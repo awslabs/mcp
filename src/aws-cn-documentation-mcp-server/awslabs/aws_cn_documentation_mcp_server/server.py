@@ -86,13 +86,13 @@ async def read_documentation(
 
     ## URL Requirements
 
-    - Must be from the docs.aws.amazon.com domain
+    - Must be from the docs.amazonaws.cn domain
     - Must end with .html
 
     ## Example URLs
 
-    - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
-    - https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html
+    - https://docs.amazonaws.cn/en_us/AmazonS3/latest/userguide/bucketnamingrules.html
+    - https://docs.amazonaws.cn/en_us/lambda/latest/dg/lambda-invocation.html
 
     ## Output Format
 
@@ -117,11 +117,11 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS documentation
     """
-    # Validate that URL is from docs.aws.amazon.com and ends with .html
+    # Validate that URL is from docs.amazonaws.cn and ends with .html
     url_str = str(url)
-    if not re.match(r'^https?://docs\.aws\.amazon\.com/', url_str):
-        await ctx.error(f'Invalid URL: {url_str}. URL must be from the docs.aws.amazon.com domain')
-        raise ValueError('URL must be from the docs.aws.amazon.com domain')
+    if not re.match(r'^https?://docs\.amazonaws\.cn/', url_str):
+        await ctx.error(f'Invalid URL: {url_str}. URL must be from the docs.amazonaws.cn domain')
+        raise ValueError('URL must be from the docs.amazonaws.cn domain')
     if not url_str.endswith('.html'):
         await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
         raise ValueError('URL must end with .html')

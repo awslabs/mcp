@@ -48,21 +48,21 @@ class TestFormatDocumentationResult:
 
     def test_normal_content(self):
         """Test formatting normal content."""
-        url = 'https://docs.aws.amazon.com/test'
+        url = 'https://docs.amazonaws.cn/test'
         content = 'Test content'
         result = format_documentation_result(url, content, 0, 100)
         assert result == f'AWS China Documentation from {url}:\n\n{content}'
 
     def test_start_index_beyond_content(self):
         """Test when start_index is beyond content length."""
-        url = 'https://docs.aws.amazon.com/test'
+        url = 'https://docs.amazonaws.cn/test'
         content = 'Test content'
         result = format_documentation_result(url, content, 100, 100)
         assert '<e>No more content available.</e>' in result
 
     def test_empty_truncated_content(self):
         """Test when truncated content is empty."""
-        url = 'https://docs.aws.amazon.com/test'
+        url = 'https://docs.amazonaws.cn/test'
         content = 'Test content'
         # This should result in empty truncated content
         result = format_documentation_result(url, content, 12, 100)
@@ -70,7 +70,7 @@ class TestFormatDocumentationResult:
 
     def test_truncated_content_with_more_available(self):
         """Test when content is truncated with more available."""
-        url = 'https://docs.aws.amazon.com/test'
+        url = 'https://docs.amazonaws.cn/test'
         content = 'A' * 200  # 200 characters
         max_length = 100
         result = format_documentation_result(url, content, 0, max_length)
@@ -80,14 +80,14 @@ class TestFormatDocumentationResult:
 
     def test_truncated_content_exact_fit(self):
         """Test when content fits exactly in max_length."""
-        url = 'https://docs.aws.amazon.com/test'
+        url = 'https://docs.amazonaws.cn/test'
         content = 'A' * 100
         result = format_documentation_result(url, content, 0, 100)
         assert 'Content truncated' not in result
 
     def test_content_shorter_than_max_length(self):
         """Test when content is shorter than max_length."""
-        url = 'https://docs.aws.amazon.com/test'
+        url = 'https://docs.amazonaws.cn/test'
         content = 'A' * 50  # 50 characters
         max_length = 100
         result = format_documentation_result(url, content, 0, max_length)
@@ -96,7 +96,7 @@ class TestFormatDocumentationResult:
 
     def test_partial_content_with_remaining(self):
         """Test when reading partial content with more remaining."""
-        url = 'https://docs.aws.amazon.com/test'
+        url = 'https://docs.amazonaws.cn/test'
         content = 'A' * 300  # 300 characters
         start_index = 100
         max_length = 100
@@ -107,7 +107,7 @@ class TestFormatDocumentationResult:
 
     def test_partial_content_at_end(self):
         """Test when reading partial content at the end."""
-        url = 'https://docs.aws.amazon.com/test'
+        url = 'https://docs.amazonaws.cn/test'
         content = 'A' * 150  # 150 characters
         start_index = 100
         max_length = 100

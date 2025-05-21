@@ -61,7 +61,7 @@ class TestReadDocumentation:
     @pytest.mark.asyncio
     async def test_read_documentation(self):
         """Test reading AWS documentation."""
-        url = 'https://docs.aws.amazon.com/test.html'
+        url = 'https://docs.amazonaws.cn/test.html'
         ctx = MockContext()
 
         mock_response = MagicMock()
@@ -86,7 +86,7 @@ class TestReadDocumentation:
     @pytest.mark.asyncio
     async def test_read_documentation_error(self):
         """Test reading AWS documentation with an error."""
-        url = 'https://docs.aws.amazon.com/test.html'
+        url = 'https://docs.amazonaws.cn/test.html'
         ctx = MockContext()
 
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:

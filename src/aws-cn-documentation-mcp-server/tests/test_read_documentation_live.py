@@ -27,7 +27,7 @@ class MockContext:
 async def test_read_documentation_live():
     """Test that read_documentation can fetch real AWS documentation."""
     # Use a stable AWS documentation URL that's unlikely to change
-    url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html'
+    url = 'https://docs.amazonaws.cn/en_us/AmazonS3/latest/userguide/bucketnamingrules.html'
     ctx = MockContext()
 
     # Call the tool
@@ -71,7 +71,7 @@ async def test_read_documentation_live():
 async def test_read_documentation_pagination_live():
     """Test that read_documentation pagination works correctly."""
     # Use a stable AWS documentation URL that's likely to have substantial content
-    url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html'
+    url = 'https://docs.amazonaws.cn/en_us/AmazonS3/latest/userguide/Welcome.html'
     ctx = MockContext()
 
     # Create parameters for the tool with a small max_length to force pagination
