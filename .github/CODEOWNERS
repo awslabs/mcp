@@ -18,7 +18,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/amazon-neptune-mcp-server        @bechbd @cornerwings @krlawrence @awslabs/mcp-admins
 /src/amazon-sns-sqs-mcp-server        @kenliao94 @hashimsharkh         @awslabs/mcp-admins
 /src/aws-diagram-mcp-server           @MichaelWalker-git               @awslabs/mcp-admins
-#/src/aws-documentation-mcp-server    @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/aws-documentation-mcp-server     @Lavoiedavidw                    @awslabs/mcp-admins
 #/src/aws-location-mcp-server         @awslabs/mcp-maintainers         @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/cdk-mcp-server                   @jimini55                        @awslabs/mcp-admins
