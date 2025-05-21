@@ -33,7 +33,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
       "awslabs_support_mcp_server": {
          "command": "uvx",
          "args": [
-            "-m", "awslabs.lambda-mcp-server@latest",
+            "-m", "awslabs.aws-support-mcp-server@latest",
             "--debug",
             "--log-file",
             "./logs/mcp_support_server.log"
