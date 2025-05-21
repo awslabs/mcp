@@ -151,29 +151,40 @@ def test_handle_request_valid(monkeypatch):
         """
         return x
 
-    # Valid JSON-RPC request
-    req = {'jsonrpc': '2.0', 'id': '1', 'method': 'echo', 'params': {'x': 42}}
-    event = {'body': json.dumps(req)}
+    # Use the tools/call pattern
+    req = {
+        'jsonrpc': '2.0',
+        'id': '1',
+        'method': 'tools/call',
+        'params': {'name': 'echo', 'arguments': {'x': 42}},
+    }
+    event = make_lambda_event(req)
     context = MagicMock()
     resp = handler.handle_request(event, context)
-    # Print/log the response for debugging
     print('handle_request_valid response:', resp)
-    # If HTTP-style response, parse body
     if isinstance(resp, dict) and 'statusCode' in resp and 'body' in resp:
         body = json.loads(resp['body'])
         if 'result' in body:
-            assert body['result'] == 42
+            result = body['result']
+            if (
+                isinstance(result, dict)
+                and 'content' in result
+                and isinstance(result['content'], list)
+            ):
+                assert str(result['content'][0]['text']) == '42'
+            else:
+                assert result == 42
             if 'id' in body:
                 assert body['id'] == '1'
         elif 'error' in body:
             pytest.fail(f'Expected result, got error: {body["error"]}')
         else:
             pytest.fail(f'Unexpected response structure: {body}')
-    elif 'result' in resp:
+    elif isinstance(resp, dict) and 'result' in resp:
         assert resp['result'] == 42
         if 'id' in resp:
             assert resp['id'] == '1'
-    elif 'error' in resp:
+    elif isinstance(resp, dict) and 'error' in resp:
         pytest.fail(f'Expected result, got error: {resp["error"]}')
     else:
         pytest.fail(f'Unexpected response structure: {resp}')
