@@ -76,7 +76,33 @@ mcp = FastMCP(
 )
 
 
-@mcp.tool(name='readonly_query', description='Run a read-only SQL query')
+@mcp.tool(
+    name='readonly_query',
+    description="""Run a read-only SQL query against the configured Aurora DSQL cluster.
+
+Aurora DSQL is distributed SQL database with Postgres compatibility. The following table
+summarizes `SELECT` functionality that is expected to work. Items not in this table may
+also be supported, as this is a point in time snapshot.
+| Primary clause                  | Supported clauses     |
+|---------------------------------|-----------------------|
+| FROM                            |                       |
+| GROUP BY                        | ALL, DISTINCT         |
+| ORDER BY                        | ASC, DESC, NULLS      |
+| LIMIT                           |                       |
+| DISTINCT                        |                       |
+| HAVING                          |                       |
+| USING                           |                       |
+| WITH (common table expressions) |                       |
+| INNER JOIN                      | ON                    |
+| OUTER JOIN                      | LEFT, RIGHT, FULL, ON |
+| CROSS JOIN                      | ON                    |
+| UNION                           | ALL                   |
+| INTERSECT                       | ALL                   |
+| EXCEPT                          | ALL                   |
+| OVER                            | RANK (), PARTITION BY |
+| FOR UPDATE                      |                       |
+""",
+)
 async def readonly_query(
     sql: Annotated[str, Field(description='The SQL query to run')], ctx: Context
 ) -> List[dict]:
@@ -127,7 +153,22 @@ async def readonly_query(
         raise Exception(f'{ERROR_READONLY_QUERY}: {str(e)}')
 
 
-@mcp.tool(name='transact', description='Write or modify data using SQL, in a transaction')
+@mcp.tool(
+    name='transact',
+    description="""Write or modify data using SQL, in a transaction against the configured Aurora DSQL cluster.
+
+Aurora DSQL is a distributed SQL database with Postgres compatibility. This tool will automatically
+insert `BEGIN` and `COMMIT` statements; you only need to provide the statements to run
+within the transaction scope.
+
+In addition to the `SELECT` functionality described on the `readonly_query` tool, DSQL supports
+common DDL statements such as `CREATE TABLE`. Note that it is a best practice to use UUIDs
+for new tables in DSQL as this will spread your workload out over as many nodes as possible.
+
+Some DDL commands are async (like `CREATE INDEX ASYNC`), and return a job id. Jobs can
+be viewed by running `SELECT * FROM sys.jobs`.
+""",
+)
 async def transact(
     sql_list: Annotated[
         List[str],

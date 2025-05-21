@@ -352,6 +352,8 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 - Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora DSQL database.
 
+[Learn more](src/aurora-dsql-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aurora-dsql-mcp-server/)
+
 ### AWS DynamoDB MCP Server
 
 A server for interacting with AWS DynamoDB
