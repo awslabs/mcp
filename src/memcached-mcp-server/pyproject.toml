@@ -37,7 +37,7 @@ repository = "https://github.com/awslabs/mcp.git"
 changelog = "https://github.com/awslabs/mcp/blob/main/src/memcached-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.memcached-mcp-server" = "awslabs.memcached_mcp_server.server:main"
+"awslabs.memcached-mcp-server" = "awslabs.memcached_mcp_server.main:main"
 
 [dependency-groups]
 dev = [
