@@ -1,3 +1,12 @@
+"""Utility functions for building container images using Finch.
+
+This module provides functions to build Docker images using Finch and check
+if Dockerfiles contain references to ECR repositories.
+
+Note: These tools are intended for development and prototyping purposes only
+and are not meant for production use cases.
+"""
+
 import logging
 import os
 import re

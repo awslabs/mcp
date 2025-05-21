@@ -1,6 +1,9 @@
 """Finch MCP Server main module.
 
 This module provides the MCP server implementation for Finch container operations.
+
+Note: The tools provided by this MCP server are intended for development and prototyping
+purposes only and are not meant for production use cases.
 """
 
 import logging
@@ -310,9 +313,9 @@ async def finch_push_image(request: PushImageRequest) -> Result:
 async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
     """Check if an ECR repository exists and create it if it doesn't.
 
-    This tool checks if the specified ECR repository exists by using the AWS CLI.
+    This tool checks if the specified ECR repository exists using boto3.
     If the repository doesn't exist, it creates a new one with the given name.
-    The tool requires AWS CLI to be installed and configured with appropriate credentials.
+    The tool requires appropriate AWS credentials configured.
 
     Arguments:
         request: The request object of type CreateEcrRepoRequest containing:

@@ -1,3 +1,12 @@
+"""Common utility functions for the Finch MCP server.
+
+This module provides shared utility functions used across the Finch MCP server,
+including command execution and result formatting.
+
+Note: These tools are intended for development and prototyping purposes only
+and are not meant for production use cases.
+"""
+
 import logging
 import os
 import subprocess

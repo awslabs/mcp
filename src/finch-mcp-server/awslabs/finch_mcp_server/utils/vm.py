@@ -1,3 +1,12 @@
+"""Utility functions for managing the Finch VM.
+
+This module provides functions to check, initialize, start, stop, and configure
+the Finch virtual machine that runs containers.
+
+Note: These tools are intended for development and prototyping purposes only
+and are not meant for production use cases.
+"""
+
 import json
 import logging
 import os
