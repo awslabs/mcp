@@ -2,10 +2,11 @@
 
 Model Context Protocol (MCP) server for AWS China Documentation
 
-This MCP server provides tools to access AWS China documentation.
+This server provides tools to access public AWS China documentation, and get service differences between AWS China and global regions.
 
 ## Features
 
+- **Get Available Services**: Fetch available services from AWS China documentation
 - **Read Documentation**: Fetch and convert AWS China documentation pages to markdown format
 
 ## Prerequisites
@@ -35,7 +36,7 @@ Here are some ways you can work with MCP across AWS China, and we'll be adding s
 }
 ```
 
-or docker after a succesful `docker build -t awslabs/aws-cn-documentation-mcp-server .`:
+or docker after a successful `docker build -t awslabs/aws-cn-documentation-mcp-server .`:
 
 ```json
 {
@@ -62,11 +63,17 @@ or docker after a succesful `docker build -t awslabs/aws-cn-documentation-mcp-se
 
 Example:
 
-- "look up documentation on S3 bucket naming rule for AWS China. cite your sources"
-
-![AWS China Documentation MCP Demo](https://github.com/awslabs/mcp/blob/main/src/aws-cn-documentation-mcp-server/basic-usage.gif?raw=true)
+- "look up feature differences on EC2 between AWS China regions and global regions. cite your sources"
 
 ## Tools
+
+### get_available_services
+
+Fetch available services from AWS China documentation.
+
+```python
+get_available_services() -> str
+```
 
 ### read_documentation
 
