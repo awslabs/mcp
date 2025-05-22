@@ -267,11 +267,11 @@ def check_finch_installation() -> Dict[str, Any]:
 def configure_ecr() -> Dict[str, Any]:
     """Configure Finch to use ECR (Amazon Elastic Container Registry).
 
-    This function updates two Finch configuration files using a merge policy:
-    1. ~/.finch/config.json - Sets 'credsStore' to 'ecr-login' while preserving other settings
-    2. ~/.finch/finch.yaml - Adds 'ecr-login' to the creds_helpers list while preserving other settings
+    This function updates the Finch YAML configuration file:
+    ~/.finch/finch.yaml - Adds 'ecr-login' to the creds_helpers list while preserving other settings
 
-    This enables Finch to authenticate with Amazon ECR.
+    This enables Finch to authenticate with Amazon ECR. The config.json file is not modified
+    as it is automatically handled when adding the ecr-login credential helper in finch.yaml.
 
     Returns:
         Dict[str, Any]: Result dictionary with:
@@ -281,7 +281,6 @@ def configure_ecr() -> Dict[str, Any]:
 
     """
     try:
-        changed_json = False
         changed_yaml = False
         config_dir = os.path.expanduser('~/.finch')
 
@@ -289,31 +288,6 @@ def configure_ecr() -> Dict[str, Any]:
         if not os.path.exists(config_dir):
             os.makedirs(config_dir)
             logger.info(f'Created directory: {config_dir}')
-
-        config_json_path = os.path.expanduser(CONFIG_JSON_PATH)
-
-        existing_config_json = {}
-        if os.path.exists(config_json_path):
-            try:
-                with open(config_json_path, 'r') as f:
-                    existing_config_json = json.load(f)
-            except json.JSONDecodeError:
-                logger.warning(
-                    f'Invalid JSON in {config_json_path}, will create a new valid JSON file'
-                )
-            except Exception as e:
-                logger.warning(f'Error reading {config_json_path}: {str(e)}')
-
-        if existing_config_json.get('credsStore') != 'ecr-login':
-            existing_config_json['credsStore'] = 'ecr-login'
-            changed_json = True
-
-            with open(config_json_path, 'w') as f:
-                json.dump(existing_config_json, f, indent=4)
-        elif not os.path.exists(config_json_path):
-            with open(config_json_path, 'w') as f:
-                json.dump({'credsStore': 'ecr-login'}, f, indent=4)
-            changed_json = True
 
         finch_yaml_path = os.path.expanduser(FINCH_YAML_PATH)
 
@@ -347,17 +321,17 @@ def configure_ecr() -> Dict[str, Any]:
         else:
             return format_result(STATUS_ERROR, 'finch yaml file not found in ~/.finch/finch.yaml')
 
-        changed = changed_json or changed_yaml
-
-        if changed:
+        if changed_yaml:
             return format_result(
                 STATUS_SUCCESS,
-                'ECR configuration updated successfully using PyYAML.',
+                'ECR configuration updated successfully in finch.yaml.',
                 changed=True,
             )
         else:
             return format_result(
-                STATUS_SUCCESS, 'ECR was already configured correctly.', changed=False
+                STATUS_SUCCESS,
+                'ECR was already configured correctly in finch.yaml.',
+                changed=False,
             )
 
     except Exception as e:
