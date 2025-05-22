@@ -24,6 +24,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "boto3>=1.28.0",
     "loguru>=0.7.0",
+    "PyYAML>=6.0",
 ]
 
 [project.scripts]

@@ -13,7 +13,7 @@ This MCP server acts as a bridge between MCP clients and Finch, allowing generat
 - Check if ECR repositories exist and create them if needed
 - Automatic management of the Finch VM on macos and windows (initialization, starting, etc.)
 - Support for container build options
-- Automatic configuration of ECR credential helpers when needed
+- Automatic configuration of ECR credential helpers when needed (only modifies finch.yaml as config.json is automatically handled)
 
 ## Prerequisites
 
