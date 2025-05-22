@@ -1,6 +1,5 @@
 """AWS Support MCP Server package."""
 
-import logging
 import sys
 
 from loguru import logger

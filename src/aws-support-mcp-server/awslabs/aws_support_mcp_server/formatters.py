@@ -330,28 +330,3 @@ def format_markdown_severity_levels(severity_levels: Dict[str, Any]) -> str:
         sections.append(f"- **{severity['name']}** (`{code}`)")
 
     return "\n".join(sections)
-
-
-def format_markdown_supported_languages(languages: List[Dict[str, Any]]) -> str:
-    """Format supported languages as a Markdown summary.
-
-    Args:
-        languages: The list of supported languages
-
-    Returns:
-        A Markdown string
-    """
-    sections = ["# AWS Support Supported Languages\n"]
-
-    for language in sorted(languages, key=lambda x: x.get("code", "")):
-        code = language.get("code", "")
-        name = language.get("name", "")
-        native_name = language.get("nativeName", "")
-
-        entry = f"- **{name}**"
-        if native_name and native_name != name:
-            entry += f" ({native_name})"
-        entry += f" - `{code}`"
-        sections.append(entry)
-
-    return "\n".join(sections)

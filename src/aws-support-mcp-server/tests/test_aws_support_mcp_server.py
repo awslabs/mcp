@@ -55,9 +55,8 @@ from awslabs.aws_support_mcp_server.server import (
     resolve_support_case,
 )
 
+
 # Fixtures
-
-
 @pytest.fixture
 def support_case_data() -> Dict[str, Any]:
     """Return a dictionary with sample support case data."""
@@ -571,7 +570,7 @@ class TestSupportClient:
         mock_session.return_value.get_credentials.return_value = None
 
         with patch("awslabs.aws_support_mcp_server.client.logger") as mock_logger:
-            client = SupportClient()
+            SupportClient()
             mock_logger.warning.assert_called_with("No AWS credentials found in session")
 
     @patch("boto3.Session")
@@ -583,7 +582,7 @@ class TestSupportClient:
         mock_session.return_value.get_credentials.side_effect = Exception("Credential error")
 
         with patch("awslabs.aws_support_mcp_server.client.logger") as mock_logger:
-            client = SupportClient()
+            SupportClient()
             mock_logger.warning.assert_called_with("Error checking credentials: Credential error")
 
     @patch("boto3.Session")
@@ -595,6 +594,7 @@ class TestSupportClient:
         with patch("awslabs.aws_support_mcp_server.client.logger") as mock_logger:
             with pytest.raises(Exception) as exc_info:
                 SupportClient()
+            assert str(exc_info.value) == "Unexpected initialization error"
             mock_logger.error.assert_called_with(
                 "Unexpected error initializing AWS Support client: Unexpected initialization error",
                 exc_info=True,
@@ -604,7 +604,7 @@ class TestSupportClient:
     def test_initialization_business_subscription_required_error(self, mock_session):
         """Test initialization when AWS Business Support subscription is required."""
         # Setup mock
-        mock_client = MagicMock()
+        MagicMock()
         error_response = {
             "Error": {
                 "Code": "SubscriptionRequiredException",
@@ -1048,68 +1048,6 @@ class TestSupportClient:
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
-    async def test_describe_communications(self, mock_run_in_executor, mock_session):
-        """Test that describe_communications calls the AWS Support API correctly."""
-        # Setup mocks
-        mock_client = MagicMock()
-        mock_session.return_value.client.return_value = mock_client
-        mock_run_in_executor.return_value = {
-            "communications": [
-                {
-                    "caseId": "test-case-id",
-                    "body": "Test communication",
-                    "submittedBy": "test-user",
-                    "timeCreated": "2023-01-01T00:00:00Z",
-                }
-            ],
-            "nextToken": None,
-        }
-
-        # Create client
-        client = SupportClient()
-
-        # Call describe_communications
-        result = await client.describe_communications(
-            case_id="test-case-id",
-            after_time="2023-01-01T00:00:00Z",
-            before_time="2023-01-31T23:59:59Z",
-            max_results=10,
-            next_token=None,
-        )
-
-        # Verify
-        mock_run_in_executor.assert_called_once()
-        assert "communications" in result
-        assert len(result["communications"]) == 1
-        assert result["communications"][0]["caseId"] == "test-case-id"
-
-    @patch("boto3.Session")
-    @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
-    async def test_describe_create_case_options(self, mock_run_in_executor, mock_session):
-        """Test that describe_create_case_options calls the AWS Support API correctly."""
-        # Setup mocks
-        mock_client = MagicMock()
-        mock_session.return_value.client.return_value = mock_client
-        mock_run_in_executor.return_value = {
-            "categoryList": [{"code": "test-category", "name": "Test Category"}],
-            "severityLevels": [{"code": "low", "name": "General guidance"}],
-        }
-
-        # Create client
-        client = SupportClient()
-
-        # Call describe_create_case_options
-        result = await client.describe_create_case_options(
-            service_code="test-service", language="en"
-        )
-
-        # Verify
-        mock_run_in_executor.assert_called_once()
-        assert "categoryList" in result
-        assert "severityLevels" in result
-
-    @patch("boto3.Session")
-    @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
     async def test_add_attachments_to_set(self, mock_run_in_executor, mock_session):
         """Test that add_attachments_to_set calls the AWS Support API correctly."""
         # Setup mocks
@@ -1526,27 +1464,6 @@ class TestErrorHandling:
 
     """Tests for the error handling functions."""
 
-    """Tests for the error handling functions."""
-
-    async def test_handle_client_error_subscription_required(self):
-        """Test handling of SubscriptionRequiredException."""
-        # Setup
-        context = MagicMock()
-        context.error = AsyncMock(
-            return_value={"status": "error", "message": ERROR_SUBSCRIPTION_REQUIRED}
-        )
-        error_response = {
-            "Error": {"Code": "SubscriptionRequiredException", "Message": "Subscription required"}
-        }
-        error = ClientError(error_response, "operation_name")
-
-        # Call function
-        result = await handle_client_error(context, error, "test_function")
-
-        # Verify
-        assert result["status"] == "error"
-        assert ERROR_SUBSCRIPTION_REQUIRED in result["message"]
-
     async def test_handle_client_error_unauthorized(self):
         """Test handling of UnauthorizedException."""
         # Setup
@@ -1563,40 +1480,6 @@ class TestErrorHandling:
         # Verify
         assert result["status"] == "error"
         assert "Unauthorized" in result["message"]
-
-    async def test_handle_client_error_case_not_found(self):
-        """Test handling of CaseIdNotFound."""
-        # Setup
-        context = MagicMock()
-        context.error = AsyncMock(
-            return_value={"status": "error", "message": ERROR_CASE_NOT_FOUND}
-        )
-        error_response = {"Error": {"Code": "CaseIdNotFound", "Message": "Case not found"}}
-        error = ClientError(error_response, "operation_name")
-
-        # Call function
-        result = await handle_client_error(context, error, "test_function")
-
-        # Verify
-        assert result["status"] == "error"
-        assert ERROR_CASE_NOT_FOUND in result["message"]
-
-    async def test_handle_client_error_throttling(self):
-        """Test handling of ThrottlingException."""
-        # Setup
-        context = MagicMock()
-        context.error = AsyncMock(
-            return_value={"status": "error", "message": ERROR_RATE_LIMIT_EXCEEDED}
-        )
-        error_response = {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}}
-        error = ClientError(error_response, "operation_name")
-
-        # Call function
-        result = await handle_client_error(context, error, "test_function")
-
-        # Verify
-        assert result["status"] == "error"
-        assert ERROR_RATE_LIMIT_EXCEEDED in result["message"]
 
     async def test_handle_client_error_other(self):
         """Test handling of other client errors."""
@@ -1684,61 +1567,6 @@ class TestErrorHandling:
 
 
 # Formatter Tests
-
-
-class TestFormatCase:
-    """Tests for the format_case function."""
-
-    def test_format_case_with_communications(self, support_case_data):
-        """Test formatting a case with communications."""
-        formatted = format_case(support_case_data, include_communications=True)
-
-        # Verify basic case fields
-        assert formatted["caseId"] == support_case_data["caseId"]
-        assert formatted["displayId"] == support_case_data["displayId"]
-        assert formatted["subject"] == support_case_data["subject"]
-        assert formatted["status"] == support_case_data["status"]
-        assert formatted["serviceCode"] == support_case_data["serviceCode"]
-        assert formatted["categoryCode"] == support_case_data["categoryCode"]
-        assert formatted["severityCode"] == support_case_data["severityCode"]
-
-        # Verify communications
-        assert "recentCommunications" in formatted
-        comms = formatted["recentCommunications"]["communications"]
-        assert len(comms) == len(support_case_data["recentCommunications"]["communications"])
-
-        # Verify first communication
-        first_comm = comms[0]
-        orig_comm = support_case_data["recentCommunications"]["communications"][0]
-        assert first_comm["body"] == orig_comm["body"]
-        assert first_comm["submittedBy"] == orig_comm["submittedBy"]
-        assert first_comm["timeCreated"] == orig_comm["timeCreated"]
-
-    def test_format_case_without_communications(self, support_case_data):
-        """Test formatting a case without communications."""
-        formatted = format_case(support_case_data, include_communications=False)
-
-        # Verify basic case fields are present
-        assert formatted["caseId"] == support_case_data["caseId"]
-        assert formatted["subject"] == support_case_data["subject"]
-
-        # Verify communications are not included
-        assert "recentCommunications" not in formatted
-
-    def test_format_case_minimal(self, minimal_support_case_data):
-        """Test formatting a case with minimal data."""
-        formatted = format_case(minimal_support_case_data)
-
-        # Verify required fields
-        assert formatted["caseId"] == minimal_support_case_data["caseId"]
-        assert formatted["subject"] == minimal_support_case_data["subject"]
-        assert formatted["status"] == minimal_support_case_data["status"]
-
-        # Verify optional fields are handled
-        assert formatted.get("displayId") is None
-        assert "recentCommunications" not in formatted
-
-
 class TestFormatCases:
     """Tests for the format_cases function."""
 
@@ -2118,126 +1946,6 @@ async def test_resolve_case(mock_support_client):
 
 async def test_error_handling():
     """Test that the server handles errors correctly."""
-
-
-# Debug Helper Tests
-class TestDiagnosticsTracker:
-    """Tests for the DiagnosticsTracker class."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        from awslabs.aws_support_mcp_server.debug_helper import DiagnosticsTracker
-
-        self.tracker = DiagnosticsTracker()
-
-    def test_initial_state(self):
-        """Test initial state of DiagnosticsTracker."""
-        assert not self.tracker.enabled
-        assert isinstance(self.tracker.uptime, float)
-        report = self.tracker.get_diagnostics_report()
-        assert report == {"diagnostics_enabled": False}
-
-    def test_enable_disable(self):
-        """Test enabling and disabling diagnostics."""
-        self.tracker.enable()
-        assert self.tracker.enabled
-        report = self.tracker.get_diagnostics_report()
-        assert report["diagnostics_enabled"] is True
-
-        self.tracker.disable()
-        assert not self.tracker.enabled
-        report = self.tracker.get_diagnostics_report()
-        assert report == {"diagnostics_enabled": False}
-
-    def test_reset(self):
-        """Test resetting diagnostics data."""
-        self.tracker.enable()
-        self.tracker.track_performance("test_func", 1.0)
-        self.tracker.track_error("TestError")
-        self.tracker.track_request("test_request")
-
-        self.tracker.reset()
-        report = self.tracker.get_diagnostics_report()
-        assert report["performance"] == {}
-        assert report["errors"] == {}
-        assert report["requests"] == {}
-
-    def test_track_performance(self):
-        """Test performance tracking."""
-        self.tracker.enable()
-        self.tracker.track_performance("test_func", 1.0)
-        self.tracker.track_performance("test_func", 2.0)
-
-        report = self.tracker.get_diagnostics_report()
-        perf_data = report["performance"]["test_func"]
-        assert perf_data["count"] == 2
-        assert perf_data["total_time"] == 3.0
-        assert perf_data["min_time"] == 1.0
-        assert perf_data["max_time"] == 2.0
-        assert isinstance(perf_data["last_call"], float)
-
-    def test_track_performance_disabled(self):
-        """Test performance tracking when disabled."""
-        self.tracker.track_performance("test_func", 1.0)
-        report = self.tracker.get_diagnostics_report()
-        assert report == {"diagnostics_enabled": False}
-
-    def test_track_error(self):
-        """Test error tracking."""
-        self.tracker.enable()
-        self.tracker.track_error("TestError")
-        self.tracker.track_error("TestError")
-        self.tracker.track_error("OtherError")
-
-        report = self.tracker.get_diagnostics_report()
-        assert report["errors"]["TestError"] == 2
-        assert report["errors"]["OtherError"] == 1
-
-    def test_track_error_disabled(self):
-        """Test error tracking when disabled."""
-        self.tracker.track_error("TestError")
-        report = self.tracker.get_diagnostics_report()
-        assert report == {"diagnostics_enabled": False}
-
-    def test_track_request(self):
-        """Test request tracking."""
-        self.tracker.enable()
-        self.tracker.track_request("GET")
-        self.tracker.track_request("GET")
-        self.tracker.track_request("POST")
-
-        report = self.tracker.get_diagnostics_report()
-        assert report["requests"]["GET"] == 2
-        assert report["requests"]["POST"] == 1
-
-    def test_track_request_disabled(self):
-        """Test request tracking when disabled."""
-        self.tracker.track_request("GET")
-        report = self.tracker.get_diagnostics_report()
-        assert report == {"diagnostics_enabled": False}
-
-    def test_uptime(self):
-        """Test uptime calculation."""
-        self.tracker.enable()
-        time.sleep(0.1)  # Small delay to ensure uptime > 0
-        assert self.tracker.uptime > 0
-
-    @patch("time.time")
-    def test_performance_tracking_edge_cases(self, mock_time):
-        """Test performance tracking edge cases."""
-        self.tracker.enable()
-
-        # Test with very small duration
-        mock_time.return_value = 1000.0
-        self.tracker.track_performance("test_func", 0.000001)
-
-        # Test with very large duration
-        self.tracker.track_performance("test_func", 999999.999)
-
-        report = self.tracker.get_diagnostics_report()
-        perf_data = report["performance"]["test_func"]
-        assert perf_data["min_time"] == 0.000001
-        assert perf_data["max_time"] == 999999.999
 
 
 # Debug Helper Tests
