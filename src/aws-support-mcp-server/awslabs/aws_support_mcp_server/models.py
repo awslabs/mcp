@@ -238,9 +238,8 @@ class SupportCase(BaseModel):
     subject: str = Field(
         ..., description="The subject of the support case"
     )
-    status: str = Field(
-        ..., description="The status of the support case",
-        enum=CaseStatus
+    status: CaseStatus = Field(
+        ..., description="The status of the support case"
     )
     service_code: str = Field(
         ...,

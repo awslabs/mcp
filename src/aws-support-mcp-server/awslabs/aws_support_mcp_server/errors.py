@@ -52,7 +52,7 @@ async def handle_client_error(ctx: Any, e: ClientError, operation: str) -> Dict[
     logger.error(f"Error in {operation}: {error_code} - {error_message}")
     await ctx.error(message)
 
-    return create_error_response(message)
+    return create_error_response(message, status_code=get_error_status_code(e))
 
 
 async def handle_validation_error(ctx: Any, e: ValidationError, operation: str) -> Dict[str, Any]:
@@ -79,7 +79,7 @@ async def handle_validation_error(ctx: Any, e: ValidationError, operation: str) 
     logger.error(message)
     await ctx.error(message)
 
-    return create_error_response(message)
+    return create_error_response(message, status_code=get_error_status_code(e))
 
 
 async def handle_general_error(ctx: Any, e: Exception, operation: str) -> Dict[str, Any]:
@@ -107,7 +107,8 @@ async def handle_general_error(ctx: Any, e: Exception, operation: str) -> Dict[s
         message,
         details={
             "error_type": error_type
-        })
+        },
+        status_code=get_error_status_code(e))
 
 
 def format_error_message(error_code: str, error_message: str, operation: str) -> str:
