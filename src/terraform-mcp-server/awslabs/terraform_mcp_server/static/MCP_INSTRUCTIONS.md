@@ -1,8 +1,6 @@
 # Terraform MCP Server Instructions
 
-## Overview
-
-MCP server specialized in AWS cloud infrastructure provided through Terraform. I help you create, understand, optimize, and execute Terraform configurations for AWS using security-focused development practices.
+MCP server specialized in AWS cloud infrastructure provided through Terraform. I help you create, understand, optimize, and execute Terraform Or Terragrunt configurations for AWS using security-focused development practices.
 
 ## How to Use This Server (Required Workflow)
 
@@ -80,7 +78,10 @@ When implementing specific AWS resources (only after confirming no suitable AWS-
 1. `ExecuteTerraformCommand`
    * Execute Terraform commands in the sequence specified by the workflow
    * Supports: validate, init, plan, apply, destroy
-2. `RunCheckovScan`
+2. `ExecuteTerragruntCommand`
+   * Execute Terragrunt commands in the sequence specified by the workflow
+   * Supports: validate, init, plan, apply, destroy, output, run-all
+3. `RunCheckovScan`
    * Run after validation passes, before initialization
    * Identifies security and compliance issues
 
@@ -103,6 +104,8 @@ The AWSCC provider (Cloud Control API-based) offers:
 - "Find documentation for awscc_lambda_function resource" (specifically AWSCC)
 - "Find documentation for aws_lambda_function resource" (specifically AWS)
 - "Execute terraform plan in my ./infrastructure directory"
+- "Execute terragrunt plan in my ./infrastructure directory"
+- "Execute terragrunt run-all plan in my ./infrastructure directory"
 - "How can I use the AWS Bedrock module to create a RAG application?"
 - "Show me details about the AWS-IA Bedrock Terraform module"
 - "Compare the four specific AWS-IA modules for generative AI applications"
@@ -115,6 +118,10 @@ The AWSCC provider (Cloud Control API-based) offers:
 - "Use the terraform-aws-modules/vpc/aws module to implement a VPC"
 - "Search for the hashicorp/consul/aws module and explain how to use it"
 - "What variables are required for the terraform-aws-modules/eks/aws module?"
+- "I have a multi-environment Terragrunt project. How can I run apply on all modules at once?"
+- "Execute terragrunt run-all apply in my ./infrastructure directory"
+- "How to construct a well-formed terragrunt hierarchy folder structure"
+- "Generate common inputs for all environments using generate in Terragrunt"
 
 ## Best Practices
 
@@ -129,5 +136,7 @@ When interacting with this server:
 7. **Be specific** about your requirements and constraints
 8. **Specify AWS region** when relevant to your infrastructure needs
 9. **Provide context** about your architecture and use case
-10. **For Terraform execution**, ensure the working directory exists and contains valid Terraform files
+10. **For Terraform/Terragrunt execution**, ensure the working directory exists and contains valid Terraform/Terragrunt files
 11. **Review generated code** carefully before applying changes to your infrastructure
+12. When using **Terragrunt**, leverage DRY features—locals, dependencies, and generate blocks—to compose multi-env stacks.
+13. **Organize repos with clear folder hierarchies** (e.g. live/, modules/) and consistent naming so both Terraform and Terragrunt code is discoverable.

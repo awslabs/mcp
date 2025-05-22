@@ -15,52 +15,48 @@
 
 import asyncio
 import json
-import pytest
 import time
-from typing import Dict, List, Any
-from unittest.mock import patch, MagicMock, AsyncMock, ANY
+from typing import Any, Dict, List
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
+
+import pytest
 from botocore.exceptions import ClientError
 from pydantic import ValidationError
 
 from awslabs.aws_support_mcp_server.client import SupportClient
 from awslabs.aws_support_mcp_server.consts import (
     DEFAULT_REGION,
-    ERROR_SUBSCRIPTION_REQUIRED,
+    ERROR_AUTHENTICATION_FAILED,
     ERROR_CASE_NOT_FOUND,
     ERROR_RATE_LIMIT_EXCEEDED,
-    MAX_RESULTS_PER_PAGE,
-    ERROR_AUTHENTICATION_FAILED
+    ERROR_SUBSCRIPTION_REQUIRED,
 )
 from awslabs.aws_support_mcp_server.errors import (
+    create_error_response,
     handle_client_error,
-    handle_validation_error,
     handle_general_error,
-    get_error_status_code,
-    create_error_response
+    handle_validation_error,
 )
 from awslabs.aws_support_mcp_server.formatters import (
     format_case,
     format_cases,
     format_communications,
-    format_services,
-    format_severity_levels,
     format_json_response,
     format_markdown_case_summary,
     format_markdown_services,
     format_markdown_severity_levels,
-    format_markdown_supported_languages,
+    format_services,
+    format_severity_levels,
 )
-
-
 from awslabs.aws_support_mcp_server.server import (
+    add_communication_to_case,
     create_support_case,
     describe_support_cases,
-    add_communication_to_case,
-    resolve_support_case
+    resolve_support_case,
 )
 
-
 # Fixtures
+
 
 @pytest.fixture
 def support_case_data() -> Dict[str, Any]:
@@ -81,14 +77,14 @@ def support_case_data() -> Dict[str, Any]:
                     "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                     "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
                     "submittedBy": "user@example.com",
-                    "timeCreated": "2023-01-01T12:00:00Z"
+                    "timeCreated": "2023-01-01T12:00:00Z",
                 }
             ],
-            "nextToken": None
+            "nextToken": None,
         },
         "ccEmailAddresses": ["team@example.com"],
         "language": "en",
-        "nextToken": None
+        "nextToken": None,
     }
 
 
@@ -103,7 +99,7 @@ def minimal_support_case_data() -> Dict[str, Any]:
         "categoryCode": "using-aws",
         "severityCode": "urgent",
         "submittedBy": "user@example.com",
-        "timeCreated": "2023-01-01T12:00:00Z"
+        "timeCreated": "2023-01-01T12:00:00Z",
     }
 
 
@@ -126,14 +122,14 @@ def edge_case_support_case_data() -> Dict[str, Any]:
                     "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                     "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
                     "submittedBy": "user@example.com",
-                    "timeCreated": "2023-01-01T12:00:00Z"
+                    "timeCreated": "2023-01-01T12:00:00Z",
                 }
             ],
-            "nextToken": None
+            "nextToken": None,
         },
         "ccEmailAddresses": ["team@example.com"],
         "language": "en",
-        "nextToken": None
+        "nextToken": None,
     }
 
 
@@ -150,7 +146,7 @@ def multiple_support_cases_data() -> List[Dict[str, Any]]:
             "categoryCode": "using-aws",
             "severityCode": "urgent",
             "submittedBy": "user@example.com",
-            "timeCreated": "2023-01-01T12:00:00Z"
+            "timeCreated": "2023-01-01T12:00:00Z",
         },
         {
             "caseId": "case-98765432109-2013-a1b2c3d4e5f6",
@@ -161,8 +157,8 @@ def multiple_support_cases_data() -> List[Dict[str, Any]]:
             "categoryCode": "using-aws",
             "severityCode": "high",
             "submittedBy": "user@example.com",
-            "timeCreated": "2023-01-02T12:00:00Z"
-        }
+            "timeCreated": "2023-01-02T12:00:00Z",
+        },
     ]
 
 
@@ -174,7 +170,7 @@ def communication_data() -> Dict[str, Any]:
         "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
         "submittedBy": "user@example.com",
         "timeCreated": "2023-01-01T12:00:00Z",
-        "attachmentSet": None
+        "attachmentSet": None,
     }
 
 
@@ -185,7 +181,7 @@ def minimal_communication_data() -> Dict[str, Any]:
         "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
         "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
         "submittedBy": "user@example.com",
-        "timeCreated": "2023-01-01T12:00:00Z"
+        "timeCreated": "2023-01-01T12:00:00Z",
     }
 
 
@@ -198,26 +194,23 @@ def communications_response_data() -> Dict[str, Any]:
                 "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                 "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
                 "submittedBy": "user@example.com",
-                "timeCreated": "2023-01-01T12:00:00Z"
+                "timeCreated": "2023-01-01T12:00:00Z",
             },
             {
                 "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                 "body": "I've tried rebooting the instance but it's still not starting.",
                 "submittedBy": "user@example.com",
-                "timeCreated": "2023-01-01T12:30:00Z"
-            }
+                "timeCreated": "2023-01-01T12:30:00Z",
+            },
         ],
-        "nextToken": None
+        "nextToken": None,
     }
 
 
 @pytest.fixture
 def empty_communications_response_data() -> Dict[str, Any]:
     """Return a dictionary with empty communications response data."""
-    return {
-        "communications": [],
-        "nextToken": None
-    }
+    return {"communications": [], "nextToken": None}
 
 
 @pytest.fixture
@@ -227,15 +220,9 @@ def service_data() -> Dict[str, Any]:
         "code": "amazon-elastic-compute-cloud-linux",
         "name": "Amazon Elastic Compute Cloud (Linux)",
         "categories": [
-            {
-                "code": "using-aws",
-                "name": "Using AWS"
-            },
-            {
-                "code": "performance",
-                "name": "Performance"
-            }
-        ]
+            {"code": "using-aws", "name": "Using AWS"},
+            {"code": "performance", "name": "Performance"},
+        ],
     }
 
 
@@ -245,7 +232,7 @@ def minimal_service_data() -> Dict[str, Any]:
     return {
         "code": "amazon-elastic-compute-cloud-linux",
         "name": "Amazon Elastic Compute Cloud (Linux)",
-        "categories": []
+        "categories": [],
     }
 
 
@@ -258,26 +245,15 @@ def services_response_data() -> Dict[str, Any]:
                 "code": "amazon-elastic-compute-cloud-linux",
                 "name": "Amazon Elastic Compute Cloud (Linux)",
                 "categories": [
-                    {
-                        "code": "using-aws",
-                        "name": "Using AWS"
-                    },
-                    {
-                        "code": "performance",
-                        "name": "Performance"
-                    }
-                ]
+                    {"code": "using-aws", "name": "Using AWS"},
+                    {"code": "performance", "name": "Performance"},
+                ],
             },
             {
                 "code": "amazon-s3",
                 "name": "Amazon Simple Storage Service",
-                "categories": [
-                    {
-                        "code": "using-aws",
-                        "name": "Using AWS"
-                    }
-                ]
-            }
+                "categories": [{"code": "using-aws", "name": "Using AWS"}],
+            },
         ]
     }
 
@@ -285,36 +261,25 @@ def services_response_data() -> Dict[str, Any]:
 @pytest.fixture
 def empty_services_response_data() -> Dict[str, Any]:
     """Return a dictionary with empty services response data."""
-    return {
-        "services": []
-    }
+    return {"services": []}
 
 
 @pytest.fixture
 def category_data() -> Dict[str, Any]:
     """Return a dictionary with sample category data."""
-    return {
-        "code": "using-aws",
-        "name": "Using AWS"
-    }
+    return {"code": "using-aws", "name": "Using AWS"}
 
 
 @pytest.fixture
 def severity_level_data() -> Dict[str, Any]:
     """Return a dictionary with sample severity level data."""
-    return {
-        "code": "urgent",
-        "name": "Production system down"
-    }
+    return {"code": "urgent", "name": "Production system down"}
 
 
 @pytest.fixture
 def minimal_severity_level_data() -> Dict[str, Any]:
     """Return a dictionary with minimal severity level data."""
-    return {
-        "code": "urgent",
-        "name": "Production system down"
-    }
+    return {"code": "urgent", "name": "Production system down"}
 
 
 @pytest.fixture
@@ -322,26 +287,11 @@ def severity_levels_response_data() -> Dict[str, Any]:
     """Return a dictionary with sample severity levels response data."""
     return {
         "severityLevels": [
-            {
-                "code": "low",
-                "name": "General guidance"
-            },
-            {
-                "code": "normal",
-                "name": "System impaired"
-            },
-            {
-                "code": "high",
-                "name": "Production system impaired"
-            },
-            {
-                "code": "urgent",
-                "name": "Production system down"
-            },
-            {
-                "code": "critical",
-                "name": "Business-critical system down"
-            }
+            {"code": "low", "name": "General guidance"},
+            {"code": "normal", "name": "System impaired"},
+            {"code": "high", "name": "Production system impaired"},
+            {"code": "urgent", "name": "Production system down"},
+            {"code": "critical", "name": "Business-critical system down"},
         ]
     }
 
@@ -349,9 +299,8 @@ def severity_levels_response_data() -> Dict[str, Any]:
 @pytest.fixture
 def empty_severity_levels_response_data() -> Dict[str, Any]:
     """Return a dictionary with empty severity levels response data."""
-    return {
-        "severityLevels": []
-    }
+    return {"severityLevels": []}
+
 
 @pytest.fixture
 def supported_languages_data() -> List[Dict[str, Any]]:
@@ -360,7 +309,7 @@ def supported_languages_data() -> List[Dict[str, Any]]:
         {"code": "en", "name": "English", "nativeName": "English"},
         {"code": "ja", "name": "Japanese", "nativeName": "日本語"},
         {"code": "zh", "name": "Chinese", "nativeName": "中文"},
-        {"code": "ko", "name": "Korean", "nativeName": "한국어"}
+        {"code": "ko", "name": "Korean", "nativeName": "한국어"},
     ]
 
 
@@ -376,7 +325,7 @@ def create_case_request_data() -> Dict[str, Any]:
         "cc_email_addresses": ["team@example.com"],
         "language": "en",
         "issue_type": "technical",
-        "attachment_set_id": None
+        "attachment_set_id": None,
     }
 
 
@@ -388,7 +337,7 @@ def minimal_create_case_request_data() -> Dict[str, Any]:
         "service_code": "amazon-elastic-compute-cloud-linux",
         "category_code": "using-aws",
         "severity_code": "urgent",
-        "communication_body": "My EC2 instance i-1234567890abcdef0 is not starting."
+        "communication_body": "My EC2 instance i-1234567890abcdef0 is not starting.",
     }
 
 
@@ -398,7 +347,7 @@ def create_case_response_data() -> Dict[str, Any]:
     return {
         "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
         "status": "success",
-        "message": "Support case created successfully with ID: case-12345678910-2013-c4c1d2bf33c5cf47"
+        "message": "Support case created successfully with ID: case-12345678910-2013-c4c1d2bf33c5cf47",
     }
 
 
@@ -414,17 +363,14 @@ def describe_cases_request_data() -> Dict[str, Any]:
         "include_communications": True,
         "language": "en",
         "max_results": 100,
-        "next_token": None
+        "next_token": None,
     }
 
 
 @pytest.fixture
 def minimal_describe_cases_request_data() -> Dict[str, Any]:
     """Return a dictionary with minimal describe cases request data."""
-    return {
-        "include_resolved_cases": False,
-        "include_communications": True
-    }
+    return {"include_resolved_cases": False, "include_communications": True}
 
 
 @pytest.fixture
@@ -448,24 +394,21 @@ def describe_cases_response_data() -> Dict[str, Any]:
                             "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                             "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
                             "submittedBy": "user@example.com",
-                            "timeCreated": "2023-01-01T12:00:00Z"
+                            "timeCreated": "2023-01-01T12:00:00Z",
                         }
                     ],
-                    "nextToken": None
-                }
+                    "nextToken": None,
+                },
             }
         ],
-        "nextToken": None
+        "nextToken": None,
     }
 
 
 @pytest.fixture
 def empty_describe_cases_response_data() -> Dict[str, Any]:
     """Return a dictionary with empty describe cases response data."""
-    return {
-        "cases": [],
-        "nextToken": None
-    }
+    return {"cases": [], "nextToken": None}
 
 
 @pytest.fixture
@@ -475,7 +418,7 @@ def add_communication_request_data() -> Dict[str, Any]:
         "case_id": "case-12345678910-2013-c4c1d2bf33c5cf47",
         "communication_body": "I've tried rebooting the instance but it's still not starting.",
         "cc_email_addresses": ["team@example.com"],
-        "attachment_set_id": None
+        "attachment_set_id": None,
     }
 
 
@@ -484,7 +427,7 @@ def minimal_add_communication_request_data() -> Dict[str, Any]:
     """Return a dictionary with minimal add communication request data."""
     return {
         "case_id": "case-12345678910-2013-c4c1d2bf33c5cf47",
-        "communication_body": "I've tried rebooting the instance but it's still not starting."
+        "communication_body": "I've tried rebooting the instance but it's still not starting.",
     }
 
 
@@ -494,16 +437,14 @@ def add_communication_response_data() -> Dict[str, Any]:
     return {
         "result": True,
         "status": "success",
-        "message": "Communication added successfully to case: case-12345678910-2013-c4c1d2bf33c5cf47"
+        "message": "Communication added successfully to case: case-12345678910-2013-c4c1d2bf33c5cf47",
     }
 
 
 @pytest.fixture
 def resolve_case_request_data() -> Dict[str, Any]:
     """Return a dictionary with sample resolve case request data."""
-    return {
-        "case_id": "case-12345678910-2013-c4c1d2bf33c5cf47"
-    }
+    return {"case_id": "case-12345678910-2013-c4c1d2bf33c5cf47"}
 
 
 @pytest.fixture
@@ -513,11 +454,12 @@ def resolve_case_response_data() -> Dict[str, Any]:
         "initial_case_status": "opened",
         "final_case_status": "resolved",
         "status": "success",
-        "message": "Support case resolved successfully: case-12345678910-2013-c4c1d2bf33c5cf47"
+        "message": "Support case resolved successfully: case-12345678910-2013-c4c1d2bf33c5cf47",
     }
 
 
 # Client Tests
+
 
 class TestSupportClient:
     """Tests for the SupportClient class."""
@@ -537,7 +479,7 @@ class TestSupportClient:
         mock_session.assert_called_once_with(**{"region_name": DEFAULT_REGION})
         mock_session.return_value.client.assert_called_once_with(
             "support",
-            config=ANY  # Using ANY since we just want to verify the service name
+            config=ANY,  # Using ANY since we just want to verify the service name
         )
         assert client.region_name == DEFAULT_REGION
 
@@ -558,14 +500,11 @@ class TestSupportClient:
 
         # Verify
         mock_session.assert_called_once_with(
-            **{
-                "region_name": custom_region,
-                "profile_name": custom_profile
-            }
+            **{"region_name": custom_region, "profile_name": custom_profile}
         )
         mock_session.return_value.client.assert_called_once_with(
             "support",
-            config=ANY  # Using ANY since we just want to verify the service name
+            config=ANY,  # Using ANY since we just want to verify the service name
         )
         assert client.region_name == custom_region
 
@@ -574,14 +513,9 @@ class TestSupportClient:
         """Test that a SupportClient raises an error when subscription is required."""
         # Setup mock
         error_response = {
-            "Error": {
-                "Code": "SubscriptionRequiredException",
-                "Message": "Subscription required"
-            }
+            "Error": {"Code": "SubscriptionRequiredException", "Message": "Subscription required"}
         }
-        mock_session.return_value.client.side_effect = ClientError(
-            error_response, "create_case"
-        )
+        mock_session.return_value.client.side_effect = ClientError(error_response, "create_case")
 
         # Create client and verify error
         with pytest.raises(ClientError) as excinfo:
@@ -594,15 +528,8 @@ class TestSupportClient:
     def test_initialization_other_client_error(self, mock_session):
         """Test that a SupportClient raises an error when there's another client error."""
         # Setup mock
-        error_response = {
-            "Error": {
-                "Code": "OtherError",
-                "Message": "Some other error"
-            }
-        }
-        mock_session.return_value.client.side_effect = ClientError(
-            error_response, "create_case"
-        )
+        error_response = {"Error": {"Code": "OtherError", "Message": "Some other error"}}
+        mock_session.return_value.client.side_effect = ClientError(error_response, "create_case")
 
         # Create client and verify error
         with pytest.raises(ClientError) as excinfo:
@@ -670,9 +597,8 @@ class TestSupportClient:
                 SupportClient()
             mock_logger.error.assert_called_with(
                 "Unexpected error initializing AWS Support client: Unexpected initialization error",
-                exc_info=True
+                exc_info=True,
             )
-
 
     @patch("boto3.Session")
     def test_initialization_business_subscription_required_error(self, mock_session):
@@ -682,7 +608,7 @@ class TestSupportClient:
         error_response = {
             "Error": {
                 "Code": "SubscriptionRequiredException",
-                "Message": "AWS Business Support or higher is required"
+                "Message": "AWS Business Support or higher is required",
             }
         }
         mock_session.return_value.client.side_effect = ClientError(error_response, "support")
@@ -707,17 +633,14 @@ class TestSupportClient:
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
-    async def test_describe_communications_case_not_found(self, mock_run_in_executor, mock_session):
+    async def test_describe_communications_case_not_found(
+        self, mock_run_in_executor, mock_session
+    ):
         """Test describe_communications when case is not found."""
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        error_response = {
-            "Error": {
-                "Code": "CaseIdNotFound",
-                "Message": "Case not found"
-            }
-        }
+        error_response = {"Error": {"Code": "CaseIdNotFound", "Message": "Case not found"}}
         mock_run_in_executor.side_effect = ClientError(error_response, "describe_communications")
 
         # Create client
@@ -731,7 +654,9 @@ class TestSupportClient:
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
-    async def test_describe_communications_unexpected_error(self, mock_run_in_executor, mock_session):
+    async def test_describe_communications_unexpected_error(
+        self, mock_run_in_executor, mock_session
+    ):
         """Test describe_communications when unexpected error occurs."""
         # Setup mocks
         mock_client = MagicMock()
@@ -749,18 +674,17 @@ class TestSupportClient:
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
-    async def test_describe_supported_languages_client_error(self, mock_run_in_executor, mock_session):
+    async def test_describe_supported_languages_client_error(
+        self, mock_run_in_executor, mock_session
+    ):
         """Test describe_supported_languages when client error occurs."""
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        error_response = {
-            "Error": {
-                "Code": "SomeError",
-                "Message": "Some error occurred"
-            }
-        }
-        mock_run_in_executor.side_effect = ClientError(error_response, "describe_supported_languages")
+        error_response = {"Error": {"Code": "SomeError", "Message": "Some error occurred"}}
+        mock_run_in_executor.side_effect = ClientError(
+            error_response, "describe_supported_languages"
+        )
 
         # Create client
         client = SupportClient()
@@ -773,18 +697,17 @@ class TestSupportClient:
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
-    async def test_describe_create_case_options_client_error(self, mock_run_in_executor, mock_session):
+    async def test_describe_create_case_options_client_error(
+        self, mock_run_in_executor, mock_session
+    ):
         """Test describe_create_case_options when client error occurs."""
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        error_response = {
-            "Error": {
-                "Code": "SomeError",
-                "Message": "Some error occurred"
-            }
-        }
-        mock_run_in_executor.side_effect = ClientError(error_response, "describe_create_case_options")
+        error_response = {"Error": {"Code": "SomeError", "Message": "Some error occurred"}}
+        mock_run_in_executor.side_effect = ClientError(
+            error_response, "describe_create_case_options"
+        )
 
         # Create client
         client = SupportClient()
@@ -802,24 +725,14 @@ class TestSupportClient:
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        error_response = {
-            "Error": {
-                "Code": "SomeError",
-                "Message": "Some error occurred"
-            }
-        }
+        error_response = {"Error": {"Code": "SomeError", "Message": "Some error occurred"}}
         mock_run_in_executor.side_effect = ClientError(error_response, "add_attachments_to_set")
 
         # Create client
         client = SupportClient()
 
         # Test data
-        attachments = [
-            {
-                "fileName": "test.txt",
-                "data": "base64_encoded_content"
-            }
-        ]
+        attachments = [{"fileName": "test.txt", "data": "base64_encoded_content"}]
 
         # Verify error is raised
         with pytest.raises(ClientError) as exc_info:
@@ -829,7 +742,9 @@ class TestSupportClient:
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
-    async def test_retry_with_backoff_max_retries_exceeded(self, mock_run_in_executor, mock_session):
+    async def test_retry_with_backoff_max_retries_exceeded(
+        self, mock_run_in_executor, mock_session
+    ):
         """Test _retry_with_backoff when max retries are exceeded."""
         # Setup mocks
         mock_client = MagicMock()
@@ -840,12 +755,7 @@ class TestSupportClient:
 
         # Create mock function that always fails with throttling
         mock_func = AsyncMock()
-        error_response = {
-            "Error": {
-                "Code": "ThrottlingException",
-                "Message": "Rate exceeded"
-            }
-        }
+        error_response = {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}}
         mock_func.side_effect = ClientError(error_response, "operation")
 
         # Verify error is raised after max retries
@@ -857,7 +767,9 @@ class TestSupportClient:
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
-    async def test_retry_with_backoff_non_retryable_error(self, mock_run_in_executor, mock_session):
+    async def test_retry_with_backoff_non_retryable_error(
+        self, mock_run_in_executor, mock_session
+    ):
         """Test _retry_with_backoff with non-retryable error."""
         # Setup mocks
         mock_client = MagicMock()
@@ -868,12 +780,7 @@ class TestSupportClient:
 
         # Create mock function that fails with non-retryable error
         mock_func = AsyncMock()
-        error_response = {
-            "Error": {
-                "Code": "ValidationError",
-                "Message": "Invalid input"
-            }
-        }
+        error_response = {"Error": {"Code": "ValidationError", "Message": "Invalid input"}}
         mock_func.side_effect = ClientError(error_response, "operation")
 
         # Verify error is raised immediately
@@ -919,15 +826,9 @@ class TestSupportClient:
         # Create mock function that fails with TooManyRequestsException
         mock_func = AsyncMock()
         error_response = {
-            "Error": {
-                "Code": "TooManyRequestsException",
-                "Message": "Too many requests"
-            }
+            "Error": {"Code": "TooManyRequestsException", "Message": "Too many requests"}
         }
-        mock_func.side_effect = [
-            ClientError(error_response, "operation"),
-            {"success": True}
-        ]
+        mock_func.side_effect = [ClientError(error_response, "operation"), {"success": True}]
 
         # Call _retry_with_backoff
         result = await client._retry_with_backoff(mock_func)
@@ -996,10 +897,10 @@ class TestSupportClient:
                     "caseId": "test-case-id",
                     "body": "Test communication",
                     "submittedBy": "test-user",
-                    "timeCreated": "2023-01-01T00:00:00Z"
+                    "timeCreated": "2023-01-01T00:00:00Z",
                 }
             ],
-            "nextToken": None
+            "nextToken": None,
         }
 
         # Create client
@@ -1011,7 +912,7 @@ class TestSupportClient:
             after_time="2023-01-01T00:00:00Z",
             before_time="2023-01-31T23:59:59Z",
             max_results=10,
-            next_token="test-token"
+            next_token="test-token",
         )
 
         # Verify
@@ -1027,14 +928,7 @@ class TestSupportClient:
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        mock_run_in_executor.return_value = {
-            "languages": [
-                {
-                    "code": "en",
-                    "name": "English"
-                }
-            ]
-        }
+        mock_run_in_executor.return_value = {"languages": [{"code": "en", "name": "English"}]}
 
         # Create client
         client = SupportClient()
@@ -1056,18 +950,8 @@ class TestSupportClient:
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
         mock_run_in_executor.return_value = {
-            "categoryList": [
-                {
-                    "code": "test-category",
-                    "name": "Test Category"
-                }
-            ],
-            "severityLevels": [
-                {
-                    "code": "low",
-                    "name": "General guidance"
-                }
-            ]
+            "categoryList": [{"code": "test-category", "name": "Test Category"}],
+            "severityLevels": [{"code": "low", "name": "General guidance"}],
         }
 
         # Create client
@@ -1075,8 +959,7 @@ class TestSupportClient:
 
         # Call describe_create_case_options
         result = await client.describe_create_case_options(
-            service_code="test-service",
-            language="en"
+            service_code="test-service", language="en"
         )
 
         # Verify
@@ -1097,16 +980,11 @@ class TestSupportClient:
 
         # Create mock function that fails twice then succeeds
         mock_func = AsyncMock()
-        error_response = {
-            "Error": {
-                "Code": "ThrottlingException",
-                "Message": "Rate exceeded"
-            }
-        }
+        error_response = {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}}
         mock_func.side_effect = [
             ClientError(error_response, "operation"),  # First call fails
             ClientError(error_response, "operation"),  # Second call fails
-            {"success": True}  # Third call succeeds
+            {"success": True},  # Third call succeeds
         ]
 
         # Call _retry_with_backoff
@@ -1128,12 +1006,7 @@ class TestSupportClient:
                 {
                     "code": "test-service",
                     "name": "Test Service",
-                    "categories": [
-                        {
-                            "code": "test-category",
-                            "name": "Test Category"
-                        }
-                    ]
+                    "categories": [{"code": "test-category", "name": "Test Category"}],
                 }
             ]
         }
@@ -1142,10 +1015,7 @@ class TestSupportClient:
         client = SupportClient()
 
         # Call describe_services
-        result = await client.describe_services(
-            service_code_list=["test-service"],
-            language="en"
-        )
+        result = await client.describe_services(service_code_list=["test-service"], language="en")
 
         # Verify
         mock_run_in_executor.assert_called_once()
@@ -1161,12 +1031,7 @@ class TestSupportClient:
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
         mock_run_in_executor.return_value = {
-            "severityLevels": [
-                {
-                    "code": "low",
-                    "name": "General guidance"
-                }
-            ]
+            "severityLevels": [{"code": "low", "name": "General guidance"}]
         }
 
         # Create client
@@ -1194,10 +1059,10 @@ class TestSupportClient:
                     "caseId": "test-case-id",
                     "body": "Test communication",
                     "submittedBy": "test-user",
-                    "timeCreated": "2023-01-01T00:00:00Z"
+                    "timeCreated": "2023-01-01T00:00:00Z",
                 }
             ],
-            "nextToken": None
+            "nextToken": None,
         }
 
         # Create client
@@ -1209,7 +1074,7 @@ class TestSupportClient:
             after_time="2023-01-01T00:00:00Z",
             before_time="2023-01-31T23:59:59Z",
             max_results=10,
-            next_token=None
+            next_token=None,
         )
 
         # Verify
@@ -1226,18 +1091,8 @@ class TestSupportClient:
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
         mock_run_in_executor.return_value = {
-            "categoryList": [
-                {
-                    "code": "test-category",
-                    "name": "Test Category"
-                }
-            ],
-            "severityLevels": [
-                {
-                    "code": "low",
-                    "name": "General guidance"
-                }
-            ]
+            "categoryList": [{"code": "test-category", "name": "Test Category"}],
+            "severityLevels": [{"code": "low", "name": "General guidance"}],
         }
 
         # Create client
@@ -1245,8 +1100,7 @@ class TestSupportClient:
 
         # Call describe_create_case_options
         result = await client.describe_create_case_options(
-            service_code="test-service",
-            language="en"
+            service_code="test-service", language="en"
         )
 
         # Verify
@@ -1263,24 +1117,18 @@ class TestSupportClient:
         mock_session.return_value.client.return_value = mock_client
         mock_run_in_executor.return_value = {
             "attachmentSetId": "test-attachment-set-id",
-            "expiryTime": "2023-01-01T01:00:00Z"
+            "expiryTime": "2023-01-01T01:00:00Z",
         }
 
         # Create client
         client = SupportClient()
 
         # Test data
-        attachments = [
-            {
-                "fileName": "test.txt",
-                "data": "base64_encoded_content"
-            }
-        ]
+        attachments = [{"fileName": "test.txt", "data": "base64_encoded_content"}]
 
         # Call add_attachments_to_set
         result = await client.add_attachments_to_set(
-            attachments=attachments,
-            attachment_set_id="existing-set-id"
+            attachments=attachments, attachment_set_id="existing-set-id"
         )
 
         # Verify
@@ -1301,16 +1149,11 @@ class TestSupportClient:
 
         # Setup mock function that fails twice then succeeds
         mock_func = AsyncMock()
-        error_response = {
-            "Error": {
-                "Code": "ThrottlingException",
-                "Message": "Rate exceeded"
-            }
-        }
+        error_response = {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}}
         mock_func.side_effect = [
             ClientError(error_response, "operation"),  # First call fails
             ClientError(error_response, "operation"),  # Second call fails
-            {"success": True}  # Third call succeeds
+            {"success": True},  # Third call succeeds
         ]
 
         # Call _retry_with_backoff
@@ -1342,7 +1185,7 @@ class TestSupportClient:
             cc_email_addresses=["test@example.com"],
             language="en",
             issue_type="technical",
-            attachment_set_id="test-attachment-set-id"
+            attachment_set_id="test-attachment-set-id",
         )
 
         # Verify
@@ -1367,7 +1210,7 @@ class TestSupportClient:
             service_code="test-service",
             category_code="test-category",
             severity_code="low",
-            communication_body="Test body"
+            communication_body="Test body",
         )
 
         # Verify
@@ -1381,12 +1224,7 @@ class TestSupportClient:
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        error_response = {
-            "Error": {
-                "Code": "OtherError",
-                "Message": "Some other error"
-            }
-        }
+        error_response = {"Error": {"Code": "OtherError", "Message": "Some other error"}}
         mock_run_in_executor.side_effect = ClientError(error_response, "create_case")
 
         # Create client
@@ -1399,7 +1237,7 @@ class TestSupportClient:
                 service_code="test-service",
                 category_code="test-category",
                 severity_code="low",
-                communication_body="Test body"
+                communication_body="Test body",
             )
 
         # Verify error
@@ -1427,7 +1265,7 @@ class TestSupportClient:
             include_communications=True,
             language="en",
             max_results=10,
-            next_token="test-next-token"
+            next_token="test-next-token",
         )
 
         # Verify
@@ -1460,12 +1298,7 @@ class TestSupportClient:
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        error_response = {
-            "Error": {
-                "Code": "CaseIdNotFound",
-                "Message": "Case not found"
-            }
-        }
+        error_response = {"Error": {"Code": "CaseIdNotFound", "Message": "Case not found"}}
         mock_run_in_executor.side_effect = ClientError(error_response, "describe_cases")
 
         # Create client
@@ -1487,7 +1320,7 @@ class TestSupportClient:
         mock_session.return_value.client.return_value = mock_client
         mock_run_in_executor.return_value = {
             "initialCaseStatus": "opened",
-            "finalCaseStatus": "resolved"
+            "finalCaseStatus": "resolved",
         }
 
         # Create client
@@ -1498,10 +1331,7 @@ class TestSupportClient:
 
         # Verify
         mock_run_in_executor.assert_called_once()
-        assert result == {
-            "initialCaseStatus": "opened",
-            "finalCaseStatus": "resolved"
-        }
+        assert result == {"initialCaseStatus": "opened", "finalCaseStatus": "resolved"}
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
@@ -1510,12 +1340,7 @@ class TestSupportClient:
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        error_response = {
-            "Error": {
-                "Code": "CaseIdNotFound",
-                "Message": "Case not found"
-            }
-        }
+        error_response = {"Error": {"Code": "CaseIdNotFound", "Message": "Case not found"}}
         mock_run_in_executor.side_effect = ClientError(error_response, "resolve_case")
 
         # Create client
@@ -1545,7 +1370,7 @@ class TestSupportClient:
             case_id="test-case-id",
             communication_body="Test body",
             cc_email_addresses=["test@example.com"],
-            attachment_set_id="test-attachment-set-id"
+            attachment_set_id="test-attachment-set-id",
         )
 
         # Verify
@@ -1566,8 +1391,7 @@ class TestSupportClient:
 
         # Call add_communication_to_case
         result = await client.add_communication_to_case(
-            case_id="test-case-id",
-            communication_body="Test body"
+            case_id="test-case-id", communication_body="Test body"
         )
 
         # Verify
@@ -1576,17 +1400,14 @@ class TestSupportClient:
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
-    async def test_add_communication_to_case_case_not_found(self, mock_run_in_executor, mock_session):
+    async def test_add_communication_to_case_case_not_found(
+        self, mock_run_in_executor, mock_session
+    ):
         """Test that add_communication_to_case handles case not found errors correctly."""
         # Setup mocks
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        error_response = {
-            "Error": {
-                "Code": "CaseIdNotFound",
-                "Message": "Case not found"
-            }
-        }
+        error_response = {"Error": {"Code": "CaseIdNotFound", "Message": "Case not found"}}
         mock_run_in_executor.side_effect = ClientError(error_response, "add_communication_to_case")
 
         # Create client
@@ -1595,8 +1416,7 @@ class TestSupportClient:
         # Call add_communication_to_case and verify error
         with pytest.raises(ClientError) as excinfo:
             await client.add_communication_to_case(
-                case_id="test-case-id",
-                communication_body="Test body"
+                case_id="test-case-id", communication_body="Test body"
             )
 
         # Verify error
@@ -1605,8 +1425,15 @@ class TestSupportClient:
 
 # Error Handling Tests
 
+
 class TestErrorHandling:
-    from awslabs.aws_support_mcp_server.consts import ERROR_AUTHENTICATION_FAILED, ERROR_CASE_NOT_FOUND, ERROR_RATE_LIMIT_EXCEEDED, ERROR_SUBSCRIPTION_REQUIRED
+    from awslabs.aws_support_mcp_server.consts import (
+        ERROR_AUTHENTICATION_FAILED,
+        ERROR_CASE_NOT_FOUND,
+        ERROR_RATE_LIMIT_EXCEEDED,
+        ERROR_SUBSCRIPTION_REQUIRED,
+    )
+
     """Tests for the error handling functions."""
 
     @pytest.fixture
@@ -1618,12 +1445,7 @@ class TestErrorHandling:
 
     async def test_handle_client_error_access_denied(self, mock_context):
         """Test handling of AccessDeniedException."""
-        error_response = {
-            "Error": {
-                "Code": "AccessDeniedException",
-                "Message": "Access denied"
-            }
-        }
+        error_response = {"Error": {"Code": "AccessDeniedException", "Message": "Access denied"}}
         error = ClientError(error_response, "test_operation")
 
         result = await handle_client_error(mock_context, error, "test_operation")
@@ -1635,12 +1457,7 @@ class TestErrorHandling:
 
     async def test_handle_client_error_case_not_found(self, mock_context):
         """Test handling of CaseIdNotFound."""
-        error_response = {
-            "Error": {
-                "Code": "CaseIdNotFound",
-                "Message": "Case not found"
-            }
-        }
+        error_response = {"Error": {"Code": "CaseIdNotFound", "Message": "Case not found"}}
         error = ClientError(error_response, "test_operation")
 
         result = await handle_client_error(mock_context, error, "test_operation")
@@ -1652,12 +1469,7 @@ class TestErrorHandling:
 
     async def test_handle_client_error_throttling(self, mock_context):
         """Test handling of ThrottlingException."""
-        error_response = {
-            "Error": {
-                "Code": "ThrottlingException",
-                "Message": "Rate exceeded"
-            }
-        }
+        error_response = {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}}
         error = ClientError(error_response, "test_operation")
 
         result = await handle_client_error(mock_context, error, "test_operation")
@@ -1667,10 +1479,9 @@ class TestErrorHandling:
         assert result["status_code"] == 429
         mock_context.error.assert_called_once()
 
-
-
     async def test_handle_general_error_with_custom_exception(self, mock_context):
         """Test handling of custom exception types."""
+
         class CustomError(Exception):
             pass
 
@@ -1689,7 +1500,7 @@ class TestErrorHandling:
         details = {
             "error_code": "TEST001",
             "error_source": "test_module",
-            "additional_info": "Test information"
+            "additional_info": "Test information",
         }
         result = create_error_response("Test error", details=details, status_code=418)
 
@@ -1699,14 +1510,10 @@ class TestErrorHandling:
         assert "timestamp" in result
         assert result["details"] == details
 
-
     async def test_handle_client_error_subscription_required(self, mock_context):
         """Test handling of SubscriptionRequiredException."""
         error_response = {
-            "Error": {
-                "Code": "SubscriptionRequiredException",
-                "Message": "Subscription required"
-            }
+            "Error": {"Code": "SubscriptionRequiredException", "Message": "Subscription required"}
         }
         error = ClientError(error_response, "test_operation")
 
@@ -1725,12 +1532,11 @@ class TestErrorHandling:
         """Test handling of SubscriptionRequiredException."""
         # Setup
         context = MagicMock()
-        context.error = AsyncMock(return_value={"status": "error", "message": ERROR_SUBSCRIPTION_REQUIRED})
+        context.error = AsyncMock(
+            return_value={"status": "error", "message": ERROR_SUBSCRIPTION_REQUIRED}
+        )
         error_response = {
-            "Error": {
-                "Code": "SubscriptionRequiredException",
-                "Message": "Subscription required"
-            }
+            "Error": {"Code": "SubscriptionRequiredException", "Message": "Subscription required"}
         }
         error = ClientError(error_response, "operation_name")
 
@@ -1745,13 +1551,10 @@ class TestErrorHandling:
         """Test handling of UnauthorizedException."""
         # Setup
         context = MagicMock()
-        context.error = AsyncMock(return_value={"status": "error", "message": "AWS Support API error: Unauthorized"})
-        error_response = {
-            "Error": {
-                "Code": "UnauthorizedException",
-                "Message": "Unauthorized"
-            }
-        }
+        context.error = AsyncMock(
+            return_value={"status": "error", "message": "AWS Support API error: Unauthorized"}
+        )
+        error_response = {"Error": {"Code": "UnauthorizedException", "Message": "Unauthorized"}}
         error = ClientError(error_response, "operation_name")
 
         # Call function
@@ -1765,13 +1568,10 @@ class TestErrorHandling:
         """Test handling of CaseIdNotFound."""
         # Setup
         context = MagicMock()
-        context.error = AsyncMock(return_value={"status": "error", "message": ERROR_CASE_NOT_FOUND})
-        error_response = {
-            "Error": {
-                "Code": "CaseIdNotFound",
-                "Message": "Case not found"
-            }
-        }
+        context.error = AsyncMock(
+            return_value={"status": "error", "message": ERROR_CASE_NOT_FOUND}
+        )
+        error_response = {"Error": {"Code": "CaseIdNotFound", "Message": "Case not found"}}
         error = ClientError(error_response, "operation_name")
 
         # Call function
@@ -1785,13 +1585,10 @@ class TestErrorHandling:
         """Test handling of ThrottlingException."""
         # Setup
         context = MagicMock()
-        context.error = AsyncMock(return_value={"status": "error", "message": ERROR_RATE_LIMIT_EXCEEDED})
-        error_response = {
-            "Error": {
-                "Code": "ThrottlingException",
-                "Message": "Rate exceeded"
-            }
-        }
+        context.error = AsyncMock(
+            return_value={"status": "error", "message": ERROR_RATE_LIMIT_EXCEEDED}
+        )
+        error_response = {"Error": {"Code": "ThrottlingException", "Message": "Rate exceeded"}}
         error = ClientError(error_response, "operation_name")
 
         # Call function
@@ -1805,13 +1602,10 @@ class TestErrorHandling:
         """Test handling of other client errors."""
         # Setup
         context = MagicMock()
-        context.error = AsyncMock(return_value={"status": "error", "message": "AWS Support API error: Some other error"})
-        error_response = {
-            "Error": {
-                "Code": "OtherError",
-                "Message": "Some other error"
-            }
-        }
+        context.error = AsyncMock(
+            return_value={"status": "error", "message": "AWS Support API error: Some other error"}
+        )
+        error_response = {"Error": {"Code": "OtherError", "Message": "Some other error"}}
         error = ClientError(error_response, "operation_name")
 
         # Call function
@@ -1852,7 +1646,12 @@ class TestErrorHandling:
         """Test handling of general errors."""
         # Setup
         context = MagicMock()
-        context.error = AsyncMock(return_value={"status": "error", "message": "Error in test_function: Test error message"})
+        context.error = AsyncMock(
+            return_value={
+                "status": "error",
+                "message": "Error in test_function: Test error message",
+            }
+        )
         error = ValueError("Test error message")
 
         # Call function
@@ -1867,7 +1666,12 @@ class TestErrorHandling:
         """Test handling of general errors with internal server error."""
         # Setup
         context = MagicMock()
-        context.error = AsyncMock(return_value={"status": "error", "message": "Error in test_function: Internal server error"})
+        context.error = AsyncMock(
+            return_value={
+                "status": "error",
+                "message": "Error in test_function: Internal server error",
+            }
+        )
         error = Exception("Internal server error")
 
         # Call function
@@ -1880,6 +1684,7 @@ class TestErrorHandling:
 
 
 # Formatter Tests
+
 
 class TestFormatCase:
     """Tests for the format_case function."""
@@ -1942,7 +1747,9 @@ class TestFormatCases:
         formatted = format_cases(multiple_support_cases_data)
 
         assert len(formatted) == len(multiple_support_cases_data)
-        for formatted_case, original_case in zip(formatted, multiple_support_cases_data):
+        for formatted_case, original_case in zip(
+            formatted, multiple_support_cases_data, strict=False
+        ):
             assert formatted_case["caseId"] == original_case["caseId"]
             assert formatted_case["subject"] == original_case["subject"]
 
@@ -1960,7 +1767,9 @@ class TestFormatCommunications:
         formatted = format_communications(communications_response_data)
 
         assert "communications" in formatted
-        assert len(formatted["communications"]) == len(communications_response_data["communications"])
+        assert len(formatted["communications"]) == len(
+            communications_response_data["communications"]
+        )
 
         first_comm = formatted["communications"][0]
         orig_comm = communications_response_data["communications"][0]
@@ -2066,13 +1875,7 @@ class TestFormatMarkdown:
 
     def test_format_json_response(self):
         """Test JSON response formatting."""
-        test_data = {
-            "key1": "value1",
-            "key2": {
-                "nested": "value2"
-            },
-            "key3": [1, 2, 3]
-        }
+        test_data = {"key1": "value1", "key2": {"nested": "value2"}, "key3": [1, 2, 3]}
 
         formatted = format_json_response(test_data)
         assert isinstance(formatted, str)
@@ -2124,6 +1927,7 @@ class TestFormatCase:
 
 # Server Tests
 
+
 @patch("awslabs.aws_support_mcp_server.server.support_client")
 async def test_create_case(mock_support_client):
     """Test that create_case calls the AWS Support API correctly."""
@@ -2144,11 +1948,13 @@ async def test_create_case(mock_support_client):
         "cc_email_addresses": ["test@example.com"],
         "language": "en",
         "issue_type": "technical",
-        "attachment_set_id": "test-attachment-set-id"
+        "attachment_set_id": "test-attachment-set-id",
     }
 
     # Patch the to_api_params method to return the correct parameter names
-    with patch("awslabs.aws_support_mcp_server.models.CreateCaseRequest.to_api_params") as mock_to_api_params:
+    with patch(
+        "awslabs.aws_support_mcp_server.models.CreateCaseRequest.to_api_params"
+    ) as mock_to_api_params:
         mock_to_api_params.return_value = {
             "subject": "Test subject",
             "service_code": "test-service",
@@ -2158,7 +1964,7 @@ async def test_create_case(mock_support_client):
             "cc_email_addresses": ["test@example.com"],
             "language": "en",
             "issue_type": "technical",
-            "attachment_set_id": "test-attachment-set-id"
+            "attachment_set_id": "test-attachment-set-id",
         }
 
         result = await create_support_case(context, **request_data)
@@ -2173,31 +1979,33 @@ async def test_create_case(mock_support_client):
 async def test_describe_cases(mock_support_client):
     """Test that describe_cases calls the AWS Support API correctly."""
     # Setup mocks
-    mock_support_client.describe_cases = AsyncMock(return_value={
-        "cases": [
-            {
-                "caseId": "test-case-id",
-                "displayId": "test-display-id",
-                "subject": "Test subject",
-                "status": "opened",
-                "serviceCode": "test-service",
-                "categoryCode": "test-category",
-                "severityCode": "low",
-                "submittedBy": "test-user",
-                "timeCreated": "2023-01-01T00:00:00Z",
-                "recentCommunications": {
-                    "communications": [
-                        {
-                            "caseId": "test-case-id",
-                            "body": "Test body",
-                            "submittedBy": "test-user",
-                            "timeCreated": "2023-01-01T00:00:00Z"
-                        }
-                    ]
+    mock_support_client.describe_cases = AsyncMock(
+        return_value={
+            "cases": [
+                {
+                    "caseId": "test-case-id",
+                    "displayId": "test-display-id",
+                    "subject": "Test subject",
+                    "status": "opened",
+                    "serviceCode": "test-service",
+                    "categoryCode": "test-category",
+                    "severityCode": "low",
+                    "submittedBy": "test-user",
+                    "timeCreated": "2023-01-01T00:00:00Z",
+                    "recentCommunications": {
+                        "communications": [
+                            {
+                                "caseId": "test-case-id",
+                                "body": "Test body",
+                                "submittedBy": "test-user",
+                                "timeCreated": "2023-01-01T00:00:00Z",
+                            }
+                        ]
+                    },
                 }
-            }
-        ]
-    })
+            ]
+        }
+    )
 
     # Create mock context
     context = MagicMock()
@@ -2214,11 +2022,13 @@ async def test_describe_cases(mock_support_client):
         "language": "en",
         "max_results": 10,
         "next_token": "test-next-token",
-        "format": "json"
+        "format": "json",
     }
 
     # Patch the to_api_params method to return the correct parameter names
-    with patch("awslabs.aws_support_mcp_server.models.DescribeCasesRequest.to_api_params") as mock_to_api_params:
+    with patch(
+        "awslabs.aws_support_mcp_server.models.DescribeCasesRequest.to_api_params"
+    ) as mock_to_api_params:
         mock_to_api_params.return_value = {
             "case_id_list": ["test-case-id"],
             "display_id": "test-display-id",
@@ -2228,7 +2038,7 @@ async def test_describe_cases(mock_support_client):
             "include_communications": True,
             "language": "en",
             "max_results": 10,
-            "next_token": "test-next-token"
+            "next_token": "test-next-token",
         }
 
         result = await describe_support_cases(context, **request_data)
@@ -2255,16 +2065,18 @@ async def test_add_communication_to_case(mock_support_client):
         "case_id": "test-case-id",
         "communication_body": "Test body",
         "cc_email_addresses": ["test@example.com"],
-        "attachment_set_id": "test-attachment-set-id"
+        "attachment_set_id": "test-attachment-set-id",
     }
 
     # Patch the to_api_params method to return the correct parameter names
-    with patch("awslabs.aws_support_mcp_server.models.AddCommunicationRequest.to_api_params") as mock_to_api_params:
+    with patch(
+        "awslabs.aws_support_mcp_server.models.AddCommunicationRequest.to_api_params"
+    ) as mock_to_api_params:
         mock_to_api_params.return_value = {
             "case_id": "test-case-id",
             "communication_body": "Test body",
             "cc_email_addresses": ["test@example.com"],
-            "attachment_set_id": "test-attachment-set-id"
+            "attachment_set_id": "test-attachment-set-id",
         }
 
         result = await add_communication_to_case(context, **request_data)
@@ -2279,10 +2091,9 @@ async def test_add_communication_to_case(mock_support_client):
 async def test_resolve_case(mock_support_client):
     """Test that resolve_case calls the AWS Support API correctly."""
     # Setup mocks
-    mock_support_client.resolve_case = AsyncMock(return_value={
-        "initialCaseStatus": "opened",
-        "finalCaseStatus": "resolved"
-    })
+    mock_support_client.resolve_case = AsyncMock(
+        return_value={"initialCaseStatus": "opened", "finalCaseStatus": "resolved"}
+    )
 
     # Create mock context
     context = MagicMock()
@@ -2290,10 +2101,10 @@ async def test_resolve_case(mock_support_client):
 
     # Call resolve_case
     # Patch the to_api_params method to return the correct parameter names
-    with patch("awslabs.aws_support_mcp_server.models.ResolveCaseRequest.to_api_params") as mock_to_api_params:
-        mock_to_api_params.return_value = {
-            "case_id": "test-case-id"
-        }
+    with patch(
+        "awslabs.aws_support_mcp_server.models.ResolveCaseRequest.to_api_params"
+    ) as mock_to_api_params:
+        mock_to_api_params.return_value = {"case_id": "test-case-id"}
 
         result = await resolve_support_case(context, case_id="test-case-id")
 
@@ -2303,7 +2114,6 @@ async def test_resolve_case(mock_support_client):
     assert result["initial_case_status"] == "opened"
     assert "final_case_status" in result
     assert result["final_case_status"] == "resolved"
-
 
 
 async def test_error_handling():
@@ -2317,6 +2127,7 @@ class TestDiagnosticsTracker:
     def setup_method(self):
         """Set up test fixtures."""
         from awslabs.aws_support_mcp_server.debug_helper import DiagnosticsTracker
+
         self.tracker = DiagnosticsTracker()
 
     def test_initial_state(self):
@@ -2429,7 +2240,6 @@ class TestDiagnosticsTracker:
         assert perf_data["max_time"] == 999999.999
 
 
-
 # Debug Helper Tests
 class TestDiagnosticsTracker:
     """Tests for the DiagnosticsTracker class."""
@@ -2437,6 +2247,7 @@ class TestDiagnosticsTracker:
     def setup_method(self):
         """Set up test fixtures."""
         from awslabs.aws_support_mcp_server.debug_helper import DiagnosticsTracker
+
         self.tracker = DiagnosticsTracker()
 
     def test_initial_state(self):
@@ -2557,6 +2368,7 @@ class TestServer:
     def test_logging_configuration(self, mock_logger):
         """Test logging configuration."""
         import sys
+
         from awslabs.aws_support_mcp_server.server import main
 
         # Create mock arguments
