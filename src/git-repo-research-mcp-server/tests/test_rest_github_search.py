@@ -151,7 +151,9 @@ async def test_github_repository_order_by_stars_live():
     ctx = MockContext()
 
     # Search for popular AWS repositories
-    search_result = await search_repositories_on_github(ctx, keywords=['aws', 'cdk'], num_results=10)
+    search_result = await search_repositories_on_github(
+        ctx, keywords=['aws', 'cdk'], num_results=10
+    )
 
     # Verify the results structure
     assert search_result is not None
