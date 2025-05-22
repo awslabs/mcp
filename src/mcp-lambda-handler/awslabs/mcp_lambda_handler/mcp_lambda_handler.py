@@ -298,7 +298,7 @@ class MCPLambdaHandler:
                 if isinstance(body, dict) and 'id' not in body:
                     logger.debug('Request is a notification')
                     return {
-                        'statusCode': 202,
+                        'statusCode': 204,
                         'body': '',
                         'headers': {'Content-Type': 'application/json', 'MCP-Version': '0.6'},
                     }
