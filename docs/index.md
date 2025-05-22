@@ -54,6 +54,16 @@ The Nova Canvas MCP Server enables AI assistants to generate images using Amazon
 
 [Learn more about the Nova Canvas MCP Server](servers/nova-canvas-mcp-server.md)
 
+### Kendra Index MCP Server
+
+The Kendra Index MCP Server enables AI assistants to retrieve additional context from a specified AWS Kendra index.
+
+**Features:**
+
+- Query a specified Kendra index
+
+[Learn more about the Kendra Index MCP Server](servers/kendra-index-mcp-server/README.md)
+
 ### Amazon Bedrock Knowledge Base Retrieval MCP Server
 
 The Bedrock Knowledge Base Retrieval MCP Server enables AI assistants to retrieve information from Amazon Bedrock Knowledge Bases.
@@ -92,6 +102,17 @@ The AWS Lambda MCP Server enables AI assistants to select and run AWS Lambda fun
 
 [Learn more about the AWS Lambda MCP Server](servers/lambda-mcp-server.md)
 
+### Aurora DSQL MCP Server
+
+An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
+
+**Features:**
+
+- Execute read only queries
+- Fetch table schema
+- Write or modify data using SQL, in a transaction
+
+[Learn more about the aurora-dsql MCP Server](servers/aurora-dsql-mcp-server.md)
 
 ### AWS Diagram MCP Server
 
@@ -125,6 +146,59 @@ The Terraform MCP Server provides the following capabilities:
 
 [Learn more about the AWS Terraform MCP Server](servers/terraform-mcp-server.md)
 
+### Frontend MCP Server
+
+The Frontend MCP Server provides specialized tools for prototyping web applications with React and AWS Amplify.
+
+**Features:**
+
+- Create a web application using React, Tailwind, and shadcn
+- Customize the application based on functional requirements, deconstructing high-level application goals into features, pages, and components
+- Automatic application naming, branding (customized theme) and thematic image generation (splash images, fav icon) using Nova Canvas MCP
+- Integrated authentication flows with AWS Amplify auth
+
+[Learn more about the Frontend MCP Server](servers/frontend-mcp-server.md)
+
+### Valkey MCP Server
+
+The Amazon ElastiCache/MemoryDB Valkey MCP Server provides a natural language interface to interact with Valkey datastores, enabling AI assistants to work with various data structures and perform complex data operations.
+
+**Features:**
+
+- Support for multiple data types (Strings, Lists, Sets, Sorted Sets, Hashes, Streams, etc.)
+- Advanced features like cluster support
+- JSON document storage and querying
+- Secure connections with SSL/TLS support
+- Connection pooling for efficient resource management
+
+[Learn more about the Valkey MCP Server](servers/valkey-mcp-server.md)
+
+### Memcached MCP Server
+
+A server that provides natural language interface to interact with Amazon ElastiCache  [Memcached](https://memcached.org/) caches, enabling AI agents to efficiently manage and search cached data.
+
+**Features:**
+
+- Natural language interface for cache operations
+- Comprehensive command support (Get, Set, Remove, Touch, CAS, Increment, Decrement)
+- Secure connections with SSL/TLS
+- Connection pooling and efficient resource management
+
+[Learn more about the Amazon ElastiCache Memcached MCP Server](servers/memcached-mcp-server.md)
+
+### Code Documentation Generation MCP Server
+
+The Code Documentation Generation MCP Server automatically generates comprehensive documentation for code repositories.
+
+**Features:**
+
+- Automated documentation generation based on repository analysis
+- AWS architecture diagram integration
+- Multiple document types (README, API, Backend, Frontend)
+- Interactive documentation creation workflow
+
+[Learn more about the Code Documentation Generation MCP Server](servers/code-doc-gen-mcp-server.md)
+
 ### AWS Location Service MCP Server
 
 A server for accessing AWS Location Service capabilities, focusing on place search, geographical coordinates, and route planning.
@@ -140,6 +214,17 @@ A server for accessing AWS Location Service capabilities, focusing on place sear
 - Optimize waypoints for efficient routing
 
 [Learn more about the AWS Location Service MCP Server](servers/aws-location-mcp-server.md)
+
+### CloudFormation MCP Server
+
+A server for managing your AWS resources directly and through cloudformation.
+
+**Features:**
+
+- Create/Update/Delete your resources with the resource access tools
+- List/Read your resources with the resource access tools
+
+[Learn more about the CloudFormation MCP Server](servers/cfn-mcp-server.md)
 
 ### Git Repo Research MCP Server
 
@@ -165,6 +250,32 @@ A server for Aurora Postgres.
 - Fetch table columns and comments from Postgres using RDS Data API
 
 [Learn more about the Postgres MCP Server](servers/postgres-mcp-server.md)
+
+### AWS DynamoDB MCP Server
+
+A server for interacting with AWS DynamoDB
+
+**Features:**
+- Control Plane operations like table creation, table update, global secondary index, streams, global table management, backup, restore, etc.
+- Data Plane operations like put, get, update, query and scan.
+
+[Learn more about the AWS DynamoDB MCP Server](servers/dynamodb-mcp-server.md)
+
+
+### AWS DocumentDB MCP Server
+
+The DocumentDB MCP Server enables AI assistants to interact with Amazon DocumentDB databases, providing secure query capabilities and database operations.
+
+**Features:**
+
+- Connection management for DocumentDB clusters
+- Query documents with filtering and projection
+- Execute MongoDB aggregation pipelines
+- Optional read-only mode for enhanced security
+- Automatic connection cleanup and resource management
+
+[Learn more about the DocumentDB MCP Server](servers/documentdb-mcp-server.md)
+
 
 ## Installation and Setup
 

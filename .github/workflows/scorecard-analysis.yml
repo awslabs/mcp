@@ -8,16 +8,15 @@ on:
     # Weekly on Thursdays.
     - cron:  '30 1 * * 4'
 
-permissions: read-all
+permissions: {}
 
 jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
     permissions:
-      # Needed for Code scanning upload
+      contents: read
       security-events: write
-      # Needed for GitHub OIDC token if publish_results is true
       id-token: write
 
     steps:
@@ -51,6 +50,6 @@ jobs:
       # Upload the results to GitHub's code scanning dashboard (optional).
       # Commenting out will disable upload of results to your repo's Code Scanning dashboard
       - name: "Upload to code-scanning"
-        uses: github/codeql-action/upload-sarif@5eb3ed6614230b1931d5c08df9e096e4ba524f21 # v3.28.15
+        uses: github/codeql-action/upload-sarif@57eebf61a2246ab60a0c2f5a85766db783ad3553 # v3.28.15
         with:
           sarif_file: scorecard-results.sarif

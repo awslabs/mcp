@@ -10,7 +10,7 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-permissions: read-all
+permissions: {}
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # This workflow contains a single job called "scan"
@@ -18,7 +18,6 @@ jobs:
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
 
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
@@ -29,14 +28,14 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
 
       - name: Checkov GitHub Action
-        uses: bridgecrewio/checkov-action@66cb7d1a5d82e11edf60ee12d465423dbac41916 # v12.3006.0
+        uses: bridgecrewio/checkov-action@360818f2ad44468d3294cfddae854a8c9036dfee # v12.3014.0
         with:
           # This will add both a CLI output to the console and create a results.sarif file
           output_format: cli,sarif
           output_file_path: console,results.sarif
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3.28.17 #v3.28.15
+        uses: github/codeql-action/upload-sarif@v3.28.18 #v3.28.15
 
         # Results are generated only on a success or failure
         # this is required since GitHub by default won't run the next step
