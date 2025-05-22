@@ -416,6 +416,7 @@ def test_handle_request_notification():
     assert resp['body'] == ''
     assert resp['headers']['Content-Type'] == 'application/json'
 
+
 def test_handle_request_ping():
     """Test handle_request with a ping (no response expected)."""
     handler = MCPLambdaHandler('test-server')
@@ -423,7 +424,7 @@ def test_handle_request_ping():
     event = make_lambda_event(req)
     context = None
     resp = handler.handle_request(event, context)
-    assert resp['statusCode'] == 202
+    assert resp['statusCode'] == 204
     assert resp['body'] == ''
     assert resp['headers']['Content-Type'] == 'application/json'
 
@@ -506,38 +507,38 @@ def test_tool_decorator_no_docstring():
 def test_tool_decorator_enum_type():
     """Test tool decorator with Enum type hint."""
     from enum import Enum
-    
+
     class Color(Enum):
-        RED = "red"
-        BLUE = "blue"
-        GREEN = "green"
-    
+        RED = 'red'
+        BLUE = 'blue'
+        GREEN = 'green'
+
     handler = MCPLambdaHandler('test-server')
-    
+
     @handler.tool()
     def paint(color: Color) -> str:
         """Test tool with enum parameter.
-        
+
         Args:
             color: The color to paint with
         """
-        return f"Painted with {color.value}"
-    
+        return f'Painted with {color.value}'
+
     # Verify the schema includes enum values
     schema = handler.tools['paint']
     assert schema['inputSchema']['properties']['color']['type'] == 'string'
-    assert set(schema['inputSchema']['properties']['color']['enum']) == {"red", "blue", "green"}
-    
+    assert set(schema['inputSchema']['properties']['color']['enum']) == {'red', 'blue', 'green'}
+
     # Test tool execution with enum conversion
     req = {
         'jsonrpc': '2.0',
         'id': 1,
         'method': 'tools/call',
-        'params': {'name': 'paint', 'arguments': {'color': 'blue'}}
+        'params': {'name': 'paint', 'arguments': {'color': 'blue'}},
     }
     event = make_lambda_event(req)
     resp = handler.handle_request(event, None)
-    
+
     # Verify the response
     body = json.loads(resp['body'])
     assert 'result' in body

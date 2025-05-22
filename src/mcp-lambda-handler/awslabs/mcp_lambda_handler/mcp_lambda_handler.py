@@ -1,4 +1,3 @@
-from enum import Enum
 import functools
 import inspect
 import json
@@ -15,6 +14,7 @@ from awslabs.mcp_lambda_handler.types import (
     TextContent,
 )
 from contextvars import ContextVar
+from enum import Enum
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union, get_type_hints
 
 
@@ -181,8 +181,8 @@ class MCPLambdaHandler:
                 elif param_type is bool:
                     param_schema['type'] = 'boolean'
                 elif isinstance(param_type, type) and issubclass(param_type, Enum):
-                    param_schema["type"] = "string"
-                    param_schema["enum"] = [e.value for e in param_type]
+                    param_schema['type'] = 'string'
+                    param_schema['enum'] = [e.value for e in param_type]
 
                 if param_name in arg_descriptions:
                     param_schema['description'] = arg_descriptions[param_name]
@@ -390,9 +390,9 @@ class MCPLambdaHandler:
                         error_content,
                         session_id,
                     )
-            
+
             # Hanlde pings
-            if request.method == "ping":
+            if request.method == 'ping':
                 return self._create_success_response({}, request.id, session_id)
 
             # Handle unknown methods
