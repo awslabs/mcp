@@ -56,49 +56,60 @@ def sensitive_data_filter(record):
     """
     # Define patterns for sensitive data detection
     patterns = [
+        # AWS Access Key (20 character alphanumeric)
         (re.compile(r'((?<![A-Z0-9])[A-Z0-9]{20}(?![A-Z0-9]))'), 'AWS_ACCESS_KEY_REDACTED'),
+        # AWS Secret Key (40 character base64)
         (
             re.compile(r'((?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=]))'),
             'AWS_SECRET_KEY_REDACTED',
         ),
+        # API Keys
         (
             re.compile(r'(api[_-]?key[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE),
             r'api_key=REDACTED',
         ),
+        # Passwords
         (
             re.compile(r'(password[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE),
             r'password=REDACTED',
         ),
+        # Secrets
         (
             re.compile(r'(secret[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE),
             r'secret=REDACTED',
         ),
-        (re.compile(r'(token[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE), r'REDACTED'),
-        (re.compile(r'(https?://)([^:@\s]+):([^:@\s]+)@'), r'https://REDACTED:REDACTED@'),
+        # Tokens
+        (re.compile(r'(token[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE), r'\1REDACTED\2'),
+        # URLs with credentials
+        (re.compile(r'(https?://)([^:@\s]+):([^:@\s]+)@'), r'\1REDACTED:REDACTED@'),
+        # JWT tokens (common format)
+        (
+            re.compile(r'eyJ[a-zA-Z0-9_-]{5,}\.eyJ[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}'),
+            'JWT_TOKEN_REDACTED',
+        ),
+        # OAuth tokens
+        (
+            re.compile(r'(oauth[_-]?token[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE),
+            r'\1REDACTED\2',
+        ),
+        # Generic credentials
+        (
+            re.compile(r'(credential[s]?[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE),
+            r'\1REDACTED\2',
+        ),
     ]
 
-    # Handle both dict-style records (loguru) and object-style records (unittest mock)
-    if isinstance(record, dict):
-        message = record['message']
+    try:
+        if 'message' in record:
+            message = record['message']
 
-        for pattern, replacement in patterns:
-            message = pattern.sub(replacement, message)
-
-        record['message'] = message
-    else:
-        # For unittest mock objects
-        if hasattr(record, 'msg'):
             for pattern, replacement in patterns:
-                record.msg = pattern.sub(replacement, record.msg)
+                message = pattern.sub(replacement, message)
 
-        # Handle args if present
-        if hasattr(record, 'args') and record.args:
-            new_args = list(record.args)
-            for i, arg in enumerate(new_args):
-                if isinstance(arg, str):
-                    for pattern, replacement in patterns:
-                        new_args[i] = pattern.sub(replacement, arg)
-            record.args = tuple(new_args)
+            record['message'] = message
+
+    except Exception:
+        pass
 
     return True
 
@@ -108,7 +119,7 @@ logger.remove()
 
 # Determine log level from environment
 log_level = 'INFO'
-server_log_level = os.environ.get('SERVER_LOG_LEVEL', '').upper()
+server_log_level = os.environ.get('FASTMCP_LOG_LEVEL', '').upper()
 if server_log_level in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
     log_level = server_log_level
 
