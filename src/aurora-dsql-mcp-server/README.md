@@ -64,6 +64,7 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
         "--rm",
         "-e", "AWS_ACCESS_KEY_ID=[your data]",
         "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
+        "-e", "AWS_SESSION_TOKEN=[your data]",
         "-e", "AWS_REGION=[your data]",
         "awslabs/aurora-dsql-mcp-server:latest",
         "--cluster_endpoint", "[your data]",
@@ -74,7 +75,6 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
   }
 }
 ```
-
 
 NOTE: By default, mcp server does not allow write operations. Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing --allow-writes parameter.
 
