@@ -41,7 +41,7 @@ VALID_ATTACHMENT_DETAILS = {
 VALID_COMMUNICATION = {
     "body": "Test communication body",
     "caseId": "test-case-id",
-    "submittedBy": "jacqueco@example.com",
+    "submittedBy": "test@example.com",
     "timeCreated": "2023-01-01T00:00:00Z",
     "attachmentSet": [VALID_ATTACHMENT_DETAILS]
 }
