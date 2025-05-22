@@ -214,12 +214,9 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
             - target (str, optional): Target build stage to build
             - no_cache (bool, optional): Whether to disable cache. Defaults to False.
             - pull (bool, optional): Whether to always pull base images. Defaults to False.
-            - add_hosts (List[str], optional): List of custom host-to-IP mappings
-            - allow (List[str], optional): List of extra privileged entitlements
             - build_contexts (List[str], optional): List of additional build contexts
             - outputs (str, optional): Output destination
             - cache_from (List[str], optional): List of external cache sources
-            - cache_to (List[str], optional): List of cache export destinations
             - quiet (bool, optional): Whether to suppress build output. Defaults to False.
             - progress (str, optional): Type of progress output. Defaults to "auto".
 
@@ -262,12 +259,9 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
             target=request.target,
             no_cache=request.no_cache,
             pull=request.pull,
-            add_hosts=request.add_hosts,
-            allow=request.allow,
             build_contexts=request.build_contexts,
             outputs=request.outputs,
             cache_from=request.cache_from,
-            cache_to=request.cache_to,
             quiet=request.quiet,
             progress=request.progress,
         )

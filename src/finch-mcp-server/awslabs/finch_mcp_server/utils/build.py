@@ -49,12 +49,9 @@ def build_image(
     target: Optional[str] = None,
     no_cache: bool = False,
     pull: bool = False,
-    add_hosts: Optional[List[str]] = None,
-    allow: Optional[List[str]] = None,
     build_contexts: Optional[List[str]] = None,
     outputs: Optional[str] = None,
     cache_from: Optional[List[str]] = None,
-    cache_to: Optional[List[str]] = None,
     quiet: bool = False,
     progress: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -68,12 +65,9 @@ def build_image(
         target: Target build stage
         no_cache: Whether to disable cache
         pull: Whether to always pull base images
-        add_hosts: List of custom host-to-IP mappings
-        allow: List of extra privileged entitlements
         build_contexts: List of additional build contexts
         outputs: Output destination
         cache_from: List of external cache sources
-        cache_to: List of cache export destinations
         quiet: Whether to suppress build output
         progress: Type of progress output
     Returns:
@@ -109,14 +103,6 @@ def build_image(
         if pull:
             command.append('--pull')
 
-        if add_hosts:
-            for host in add_hosts:
-                command.extend(['--add-host', host])
-
-        if allow:
-            for a in allow:
-                command.extend(['--allow', a])
-
         if build_contexts:
             for ctx in build_contexts:
                 command.extend(['--build-context', ctx])
@@ -127,10 +113,6 @@ def build_image(
         if cache_from:
             for cache in cache_from:
                 command.extend(['--cache-from', cache])
-
-        if cache_to:
-            for cache in cache_to:
-                command.extend(['--cache-to', cache])
 
         if quiet:
             command.append('--quiet')
