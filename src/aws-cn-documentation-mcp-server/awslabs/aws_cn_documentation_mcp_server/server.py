@@ -12,7 +12,6 @@
 
 import argparse
 import httpx
-import math
 import os
 import re
 import sys
@@ -224,7 +223,7 @@ async def get_available_services(
     else:
         content = page_raw
 
-    result = format_documentation_result(url_str, content, 0, math.inf)
+    result = format_documentation_result(url_str, content)
 
     return result
 

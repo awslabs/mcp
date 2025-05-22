@@ -149,7 +149,9 @@ def is_html_content(page_raw: str, content_type: str) -> bool:
     return '<html' in page_raw[:100] or 'text/html' in content_type or not content_type
 
 
-def format_documentation_result(url: str, content: str, start_index: int, max_length: int) -> str:
+def format_documentation_result(
+    url: str, content: str, start_index: int = 0, max_length: int | None = None
+) -> str:
     """Format documentation result with pagination information.
 
     Args:
@@ -166,9 +168,12 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     if start_index >= original_length:
         return f'AWS China Documentation from {url}:\n\n<e>No more content available.</e>'
 
-    # Calculate the end index, ensuring we don't go beyond the content length
-    end_index = min(start_index + max_length, original_length)
-    truncated_content = content[start_index:end_index]
+    if max_length is None:
+        truncated_content = content[start_index:]
+    else:
+        # Calculate the end index, ensuring we don't go beyond the content length
+        end_index = min(start_index + max_length, original_length)
+        truncated_content = content[start_index:end_index]
 
     if not truncated_content:
         return f'AWS China Documentation from {url}:\n\n<e>No more content available.</e>'
