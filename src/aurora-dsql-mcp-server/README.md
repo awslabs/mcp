@@ -6,6 +6,7 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 - Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora DSQL database.
 - Read-only mode via --read-only
+- Connection reuse between requests for improved performance
 
 ## Prerequisites
 
@@ -52,7 +53,7 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 3. Run 'docker build -t awslabs/aurora-dsql-mcp-server:latest .'
 
 ### Add or update your LLM client's config with following:
-<pre><code>
+```json
 {
   "mcpServers": {
     "awslabs.aurora-dsql-mcp-server": {
@@ -72,7 +73,7 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
     }
   }
 }
-</code></pre>
+```
 
 
 NOTE: By default, mcp server does not allow write operations. Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing --allow-writes parameter.

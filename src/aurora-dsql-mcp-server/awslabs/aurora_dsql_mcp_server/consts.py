@@ -13,6 +13,10 @@ DSQL_MCP_SERVER_APPLICATION_NAME = 'awslabs.aurora-dsql-mcp-server'
 DSQL_DB_NAME = 'postgres'
 DSQL_DB_PORT = '5432'
 
+# Connection management
+CONNECTION_IDLE_TIMEOUT_SECONDS = 3600  # 1 hour
+CONNECTION_TEST_QUERY = 'SELECT 1'
+
 ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY = (
     'Incorrect invocation: readonly_query invoked without a SQL statement'
 )
