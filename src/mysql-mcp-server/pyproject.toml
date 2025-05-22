@@ -1,10 +1,12 @@
 [project]
-name = "awslabs.frontend-mcp-server"
+name = "awslabs.mysql-mcp-server"
 version = "0.0.1"
-description = "An AWS Labs Model Context Protocol (MCP) server for frontend"
+description = "An AWS Labs Model Context Protocol (MCP) server for mysql"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "boto3>=1.38.14",
+    "botocore>=1.38.14",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
@@ -14,7 +16,7 @@ license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Jimin Kim", email="jimini55@users.noreply.github.com"},
+    {name = "Ken Zhang", email="kennthhz@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -29,13 +31,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/frontend-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/frontend-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/mysql-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/mysql-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/frontend-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/mysql-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.frontend-mcp-server" = "awslabs.frontend_mcp_server.server:main"
+"awslabs.mysql-mcp-server" = "awslabs.mysql_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -75,7 +77,7 @@ force-exclude = true
 [tool.ruff.lint]
 exclude = ["__init__.py"]
 select = ["C", "D", "E", "F", "I", "W"]
-ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106", "F821"]
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2
@@ -104,7 +106,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/frontend_mcp_server/__init__.py:__version__"
+    "awslabs/mysql_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 

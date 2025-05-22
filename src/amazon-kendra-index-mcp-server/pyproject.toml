@@ -1,14 +1,16 @@
 [project]
 name = "awslabs.amazon-kendra-index-mcp-server"
-version = "0.0.1"
+version = "0.0.2"
 description = "An AWS Labs Model Context Protocol (MCP) server for amazon-kendra-index-mcp-server"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "boto3>=1.26.0",
+    "boto3-stubs[kendra]",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-    "boto3>=1.26.0",
+
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
