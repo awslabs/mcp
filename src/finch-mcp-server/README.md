@@ -68,12 +68,9 @@ Parameters:
 - `target` (str, optional): Target build stage to build
 - `no_cache` (bool, optional): Whether to disable cache. Defaults to False.
 - `pull` (bool, optional): Whether to always pull base images. Defaults to False.
-- `add_hosts` (List[str], optional): List of custom host-to-IP mappings
-- `allow` (List[str], optional): List of extra privileged entitlements
 - `build_contexts` (List[str], optional): List of additional build contexts
 - `outputs` (str, optional): Output destination
 - `cache_from` (List[str], optional): List of external cache sources
-- `cache_to` (List[str], optional): List of cache export destinations
 - `quiet` (bool, optional): Whether to suppress build output. Defaults to False.
 - `progress` (str, optional): Type of progress output. Defaults to "auto".
 
@@ -150,4 +147,4 @@ Example:
 
 ## Version
 
-Current MCP server version: 1.3.0
+Current MCP server version: 0.1.0

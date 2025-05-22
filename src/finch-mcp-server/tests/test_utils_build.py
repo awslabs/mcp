@@ -91,12 +91,9 @@ class TestBuildImage:
             target='build-stage',
             no_cache=True,
             pull=True,
-            add_hosts=['host1:192.168.1.1'],
-            allow=['network.host'],
             build_contexts=['source=git://github.com/user/repo.git'],
             outputs='type=docker',
             cache_from=['type=registry,ref=myregistry/myimage'],
-            cache_to=['type=inline'],
             quiet=False,
             progress='plain',
         )
@@ -120,18 +117,12 @@ class TestBuildImage:
         assert 'build-stage' in command_args
         assert '--no-cache' in command_args
         assert '--pull' in command_args
-        assert '--add-host' in command_args
-        assert 'host1:192.168.1.1' in command_args
-        assert '--allow' in command_args
-        assert 'network.host' in command_args
         assert '--build-context' in command_args
         assert 'source=git://github.com/user/repo.git' in command_args
         assert '--output' in command_args
         assert 'type=docker' in command_args
         assert '--cache-from' in command_args
         assert 'type=registry,ref=myregistry/myimage' in command_args
-        assert '--cache-to' in command_args
-        assert 'type=inline' in command_args
         assert '--progress' in command_args
         assert 'plain' in command_args
         assert '/path/to/context' in command_args

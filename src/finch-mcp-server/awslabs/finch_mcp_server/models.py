@@ -23,14 +23,11 @@ class BuildImageRequest(BaseModel):
     target: Optional[str] = Field(None, description='Target build stage to build')
     no_cache: bool = Field(False, description='Whether to disable cache')
     pull: bool = Field(False, description='Whether to always pull base images')
-    add_hosts: Optional[List[str]] = Field(None, description='List of custom host-to-IP mappings')
-    allow: Optional[List[str]] = Field(None, description='List of extra privileged entitlements')
     build_contexts: Optional[List[str]] = Field(
         None, description='List of additional build contexts'
     )
     outputs: Optional[str] = Field(None, description='Output destination')
     cache_from: Optional[List[str]] = Field(None, description='List of external cache sources')
-    cache_to: Optional[List[str]] = Field(None, description='List of cache export destinations')
     quiet: bool = Field(False, description='Whether to suppress build output')
     progress: str = Field('auto', description='Type of progress output')
 
