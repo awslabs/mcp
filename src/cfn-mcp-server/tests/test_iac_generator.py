@@ -144,6 +144,31 @@ async def test_create_template_retrieve_template(mock_get_aws_client, mock_cfn_c
 
 
 @pytest.mark.asyncio
+async def test_create_template_retrieve_json_template(mock_get_aws_client, mock_cfn_client):
+    """Test retrieving a generated template."""
+    mock_get_aws_client.return_value = mock_cfn_client
+    mock_cfn_client.describe_generated_template.return_value = {
+        'Status': 'COMPLETE',
+        'ResourceIdentifiers': [
+            {"ResourceType": "AWS::S3::Bucket", "ResourceIdentifier": "test-bucket"}
+        ]
+    }
+    mock_cfn_client.get_generated_template.return_value = {
+        'TemplateBody': 'template-content'
+    }
+
+    result = await create_template(template_id="test-template-id", output_format="JSON")
+
+    mock_cfn_client.describe_generated_template.assert_called_once_with(
+        GeneratedTemplateName="test-template-id"
+    )
+    mock_cfn_client.get_generated_template.assert_called_once_with(
+        GeneratedTemplateName="test-template-id",
+        Format="JSON"
+    )
+
+
+@pytest.mark.asyncio
 async def test_create_template_save_to_file(mock_get_aws_client, mock_cfn_client, tmpdir):
     """Test saving a generated template to a file."""
     mock_get_aws_client.return_value = mock_cfn_client
