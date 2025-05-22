@@ -13,9 +13,9 @@
 
 """Pytest fixtures for AWS Support API MCP Server tests."""
 
-import datetime
+from typing import Any, Dict, List
+
 import pytest
-from typing import Dict, List, Any
 
 
 @pytest.fixture
@@ -37,14 +37,14 @@ def support_case_data() -> Dict[str, Any]:
                     "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                     "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
                     "submittedBy": "user@example.com",
-                    "timeCreated": "2023-01-01T12:00:00Z"
+                    "timeCreated": "2023-01-01T12:00:00Z",
                 }
             ],
-            "nextToken": None
+            "nextToken": None,
         },
         "ccEmailAddresses": ["team@example.com"],
         "language": "en",
-        "nextToken": None
+        "nextToken": None,
     }
 
 
@@ -59,7 +59,7 @@ def minimal_support_case_data() -> Dict[str, Any]:
         "categoryCode": "using-aws",
         "severityCode": "urgent",
         "submittedBy": "user@example.com",
-        "timeCreated": "2023-01-01T12:00:00Z"
+        "timeCreated": "2023-01-01T12:00:00Z",
     }
 
 
@@ -82,14 +82,14 @@ def edge_case_support_case_data() -> Dict[str, Any]:
                     "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                     "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
                     "submittedBy": "user@example.com",
-                    "timeCreated": "2023-01-01T12:00:00Z"
+                    "timeCreated": "2023-01-01T12:00:00Z",
                 }
             ],
-            "nextToken": None
+            "nextToken": None,
         },
         "ccEmailAddresses": ["team@example.com"],
         "language": "en",
-        "nextToken": None
+        "nextToken": None,
     }
 
 
@@ -106,7 +106,7 @@ def multiple_support_cases_data() -> List[Dict[str, Any]]:
             "categoryCode": "using-aws",
             "severityCode": "urgent",
             "submittedBy": "user@example.com",
-            "timeCreated": "2023-01-01T12:00:00Z"
+            "timeCreated": "2023-01-01T12:00:00Z",
         },
         {
             "caseId": "case-98765432109-2013-a1b2c3d4e5f6",
@@ -117,8 +117,8 @@ def multiple_support_cases_data() -> List[Dict[str, Any]]:
             "categoryCode": "using-aws",
             "severityCode": "high",
             "submittedBy": "user@example.com",
-            "timeCreated": "2023-01-02T12:00:00Z"
-        }
+            "timeCreated": "2023-01-02T12:00:00Z",
+        },
     ]
 
 
@@ -130,7 +130,7 @@ def communication_data() -> Dict[str, Any]:
         "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
         "submittedBy": "user@example.com",
         "timeCreated": "2023-01-01T12:00:00Z",
-        "attachmentSet": None
+        "attachmentSet": None,
     }
 
 
@@ -141,7 +141,7 @@ def minimal_communication_data() -> Dict[str, Any]:
         "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
         "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
         "submittedBy": "user@example.com",
-        "timeCreated": "2023-01-01T12:00:00Z"
+        "timeCreated": "2023-01-01T12:00:00Z",
     }
 
 
@@ -154,26 +154,23 @@ def communications_response_data() -> Dict[str, Any]:
                 "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                 "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
                 "submittedBy": "user@example.com",
-                "timeCreated": "2023-01-01T12:00:00Z"
+                "timeCreated": "2023-01-01T12:00:00Z",
             },
             {
                 "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                 "body": "I've tried rebooting the instance but it's still not starting.",
                 "submittedBy": "user@example.com",
-                "timeCreated": "2023-01-01T12:30:00Z"
-            }
+                "timeCreated": "2023-01-01T12:30:00Z",
+            },
         ],
-        "nextToken": None
+        "nextToken": None,
     }
 
 
 @pytest.fixture
 def empty_communications_response_data() -> Dict[str, Any]:
     """Return a dictionary with empty communications response data."""
-    return {
-        "communications": [],
-        "nextToken": None
-    }
+    return {"communications": [], "nextToken": None}
 
 
 @pytest.fixture
@@ -183,15 +180,9 @@ def service_data() -> Dict[str, Any]:
         "code": "amazon-elastic-compute-cloud-linux",
         "name": "Amazon Elastic Compute Cloud (Linux)",
         "categories": [
-            {
-                "code": "using-aws",
-                "name": "Using AWS"
-            },
-            {
-                "code": "performance",
-                "name": "Performance"
-            }
-        ]
+            {"code": "using-aws", "name": "Using AWS"},
+            {"code": "performance", "name": "Performance"},
+        ],
     }
 
 
@@ -201,7 +192,7 @@ def minimal_service_data() -> Dict[str, Any]:
     return {
         "code": "amazon-elastic-compute-cloud-linux",
         "name": "Amazon Elastic Compute Cloud (Linux)",
-        "categories": []
+        "categories": [],
     }
 
 
@@ -214,26 +205,15 @@ def services_response_data() -> Dict[str, Any]:
                 "code": "amazon-elastic-compute-cloud-linux",
                 "name": "Amazon Elastic Compute Cloud (Linux)",
                 "categories": [
-                    {
-                        "code": "using-aws",
-                        "name": "Using AWS"
-                    },
-                    {
-                        "code": "performance",
-                        "name": "Performance"
-                    }
-                ]
+                    {"code": "using-aws", "name": "Using AWS"},
+                    {"code": "performance", "name": "Performance"},
+                ],
             },
             {
                 "code": "amazon-s3",
                 "name": "Amazon Simple Storage Service",
-                "categories": [
-                    {
-                        "code": "using-aws",
-                        "name": "Using AWS"
-                    }
-                ]
-            }
+                "categories": [{"code": "using-aws", "name": "Using AWS"}],
+            },
         ]
     }
 
@@ -241,36 +221,25 @@ def services_response_data() -> Dict[str, Any]:
 @pytest.fixture
 def empty_services_response_data() -> Dict[str, Any]:
     """Return a dictionary with empty services response data."""
-    return {
-        "services": []
-    }
+    return {"services": []}
 
 
 @pytest.fixture
 def category_data() -> Dict[str, Any]:
     """Return a dictionary with sample category data."""
-    return {
-        "code": "using-aws",
-        "name": "Using AWS"
-    }
+    return {"code": "using-aws", "name": "Using AWS"}
 
 
 @pytest.fixture
 def severity_level_data() -> Dict[str, Any]:
     """Return a dictionary with sample severity level data."""
-    return {
-        "code": "urgent",
-        "name": "Production system down"
-    }
+    return {"code": "urgent", "name": "Production system down"}
 
 
 @pytest.fixture
 def minimal_severity_level_data() -> Dict[str, Any]:
     """Return a dictionary with minimal severity level data."""
-    return {
-        "code": "urgent",
-        "name": "Production system down"
-    }
+    return {"code": "urgent", "name": "Production system down"}
 
 
 @pytest.fixture
@@ -278,26 +247,11 @@ def severity_levels_response_data() -> Dict[str, Any]:
     """Return a dictionary with sample severity levels response data."""
     return {
         "severityLevels": [
-            {
-                "code": "low",
-                "name": "General guidance"
-            },
-            {
-                "code": "normal",
-                "name": "System impaired"
-            },
-            {
-                "code": "high",
-                "name": "Production system impaired"
-            },
-            {
-                "code": "urgent",
-                "name": "Production system down"
-            },
-            {
-                "code": "critical",
-                "name": "Business-critical system down"
-            }
+            {"code": "low", "name": "General guidance"},
+            {"code": "normal", "name": "System impaired"},
+            {"code": "high", "name": "Production system impaired"},
+            {"code": "urgent", "name": "Production system down"},
+            {"code": "critical", "name": "Business-critical system down"},
         ]
     }
 
@@ -305,9 +259,7 @@ def severity_levels_response_data() -> Dict[str, Any]:
 @pytest.fixture
 def empty_severity_levels_response_data() -> Dict[str, Any]:
     """Return a dictionary with empty severity levels response data."""
-    return {
-        "severityLevels": []
-    }
+    return {"severityLevels": []}
 
 
 @pytest.fixture
@@ -322,7 +274,7 @@ def create_case_request_data() -> Dict[str, Any]:
         "cc_email_addresses": ["team@example.com"],
         "language": "en",
         "issue_type": "technical",
-        "attachment_set_id": None
+        "attachment_set_id": None,
     }
 
 
@@ -334,7 +286,7 @@ def minimal_create_case_request_data() -> Dict[str, Any]:
         "service_code": "amazon-elastic-compute-cloud-linux",
         "category_code": "using-aws",
         "severity_code": "urgent",
-        "communication_body": "My EC2 instance i-1234567890abcdef0 is not starting."
+        "communication_body": "My EC2 instance i-1234567890abcdef0 is not starting.",
     }
 
 
@@ -344,7 +296,7 @@ def create_case_response_data() -> Dict[str, Any]:
     return {
         "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
         "status": "success",
-        "message": "Support case created successfully with ID: case-12345678910-2013-c4c1d2bf33c5cf47"
+        "message": "Support case created successfully with ID: case-12345678910-2013-c4c1d2bf33c5cf47",
     }
 
 
@@ -360,17 +312,14 @@ def describe_cases_request_data() -> Dict[str, Any]:
         "include_communications": True,
         "language": "en",
         "max_results": 100,
-        "next_token": None
+        "next_token": None,
     }
 
 
 @pytest.fixture
 def minimal_describe_cases_request_data() -> Dict[str, Any]:
     """Return a dictionary with minimal describe cases request data."""
-    return {
-        "include_resolved_cases": False,
-        "include_communications": True
-    }
+    return {"include_resolved_cases": False, "include_communications": True}
 
 
 @pytest.fixture
@@ -394,24 +343,21 @@ def describe_cases_response_data() -> Dict[str, Any]:
                             "caseId": "case-12345678910-2013-c4c1d2bf33c5cf47",
                             "body": "My EC2 instance i-1234567890abcdef0 is not starting.",
                             "submittedBy": "user@example.com",
-                            "timeCreated": "2023-01-01T12:00:00Z"
+                            "timeCreated": "2023-01-01T12:00:00Z",
                         }
                     ],
-                    "nextToken": None
-                }
+                    "nextToken": None,
+                },
             }
         ],
-        "nextToken": None
+        "nextToken": None,
     }
 
 
 @pytest.fixture
 def empty_describe_cases_response_data() -> Dict[str, Any]:
     """Return a dictionary with empty describe cases response data."""
-    return {
-        "cases": [],
-        "nextToken": None
-    }
+    return {"cases": [], "nextToken": None}
 
 
 @pytest.fixture
@@ -421,7 +367,7 @@ def add_communication_request_data() -> Dict[str, Any]:
         "case_id": "case-12345678910-2013-c4c1d2bf33c5cf47",
         "communication_body": "I've tried rebooting the instance but it's still not starting.",
         "cc_email_addresses": ["team@example.com"],
-        "attachment_set_id": None
+        "attachment_set_id": None,
     }
 
 
@@ -430,7 +376,7 @@ def minimal_add_communication_request_data() -> Dict[str, Any]:
     """Return a dictionary with minimal add communication request data."""
     return {
         "case_id": "case-12345678910-2013-c4c1d2bf33c5cf47",
-        "communication_body": "I've tried rebooting the instance but it's still not starting."
+        "communication_body": "I've tried rebooting the instance but it's still not starting.",
     }
 
 
@@ -440,16 +386,14 @@ def add_communication_response_data() -> Dict[str, Any]:
     return {
         "result": True,
         "status": "success",
-        "message": "Communication added successfully to case: case-12345678910-2013-c4c1d2bf33c5cf47"
+        "message": "Communication added successfully to case: case-12345678910-2013-c4c1d2bf33c5cf47",
     }
 
 
 @pytest.fixture
 def resolve_case_request_data() -> Dict[str, Any]:
     """Return a dictionary with sample resolve case request data."""
-    return {
-        "case_id": "case-12345678910-2013-c4c1d2bf33c5cf47"
-    }
+    return {"case_id": "case-12345678910-2013-c4c1d2bf33c5cf47"}
 
 
 @pytest.fixture
@@ -459,5 +403,5 @@ def resolve_case_response_data() -> Dict[str, Any]:
         "initial_case_status": "opened",
         "final_case_status": "resolved",
         "status": "success",
-        "message": "Support case resolved successfully: case-12345678910-2013-c4c1d2bf33c5cf47"
+        "message": "Support case resolved successfully: case-12345678910-2013-c4c1d2bf33c5cf47",
     }

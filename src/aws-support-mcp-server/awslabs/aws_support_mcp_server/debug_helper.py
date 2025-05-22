@@ -107,7 +107,7 @@ class DiagnosticsTracker:
                     "min_time": data["min_time"],
                     "max_time": data["max_time"],
                     "last_call": data["last_call"],
-                    "total_time": total_time
+                    "total_time": total_time,
                 }
 
         return {
@@ -124,10 +124,12 @@ class DiagnosticsTracker:
 diagnostics = DiagnosticsTracker()
 
 # Type variable for generic function types
-F = TypeVar('F', bound=Callable[..., Any])
+F = TypeVar("F", bound=Callable[..., Any])
+
 
 def track_performance(func: F) -> F:
     """Decorator to track function performance."""
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -145,6 +147,7 @@ def track_performance(func: F) -> F:
 
 def track_errors(func: F) -> F:
     """Decorator to track function errors."""
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
@@ -162,6 +165,7 @@ def track_errors(func: F) -> F:
 
 def track_request(request_type: str) -> Callable[[F], F]:
     """Decorator to track request counts by type."""
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -169,7 +173,9 @@ def track_request(request_type: str) -> Callable[[F], F]:
             if diagnostics.enabled:
                 logger.debug(f"Request: {request_type}")
             return await func(*args, **kwargs)
+
         return cast(F, wrapper)
+
     return decorator
 
 

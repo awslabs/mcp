@@ -20,10 +20,7 @@ from botocore.exceptions import ClientError
 from loguru import logger
 from pydantic import ValidationError
 
-from awslabs.aws_support_mcp_server.consts import (
-    ERROR_CODE_MAP
-)
-
+from awslabs.aws_support_mcp_server.consts import ERROR_CODE_MAP
 
 
 async def handle_client_error(ctx: Any, e: ClientError, operation: str) -> Dict[str, Any]:
@@ -104,11 +101,8 @@ async def handle_general_error(ctx: Any, e: Exception, operation: str) -> Dict[s
 
     # Include error type in response for better error tracking
     return create_error_response(
-        message,
-        details={
-            "error_type": error_type
-        },
-        status_code=get_error_status_code(e))
+        message, details={"error_type": error_type}, status_code=get_error_status_code(e)
+    )
 
 
 def format_error_message(error_code: str, error_message: str, operation: str) -> str:
@@ -125,7 +119,9 @@ def format_error_message(error_code: str, error_message: str, operation: str) ->
     return f"Error in {operation}: {error_code} - {error_message}"
 
 
-def create_error_response(message: str, details: Optional[Dict[str, Any]] = None, status_code: int = 500) -> Dict[str, Any]:
+def create_error_response(
+    message: str, details: Optional[Dict[str, Any]] = None, status_code: int = 500
+) -> Dict[str, Any]:
     """Create a standardized error response.
 
     Args:
