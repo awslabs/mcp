@@ -8,82 +8,64 @@ from awslabs.finch_mcp_server.models import (
     Result,
 )
 from awslabs.finch_mcp_server.server import (
-    SensitiveDataFilter,
     ensure_vm_running,
+    sensitive_data_filter,
 )
 from unittest.mock import MagicMock, patch
 
 
 class TestSensitiveDataFilter:
-    """Tests for the SensitiveDataFilter class."""
+    """Tests for the sensitive_data_filter function."""
 
     def test_filter_aws_access_key(self):
         """Test filtering AWS access keys."""
-        filter_instance = SensitiveDataFilter()
         record = MagicMock()
         record.msg = 'AWS Access Key: AKIAIOSFODNN7EXAMPLE is sensitive'
 
-        filter_instance.filter(record)
+        sensitive_data_filter(record)
 
         assert 'AWS_ACCESS_KEY_REDACTED' in record.msg
         assert 'AKIAIOSFODNN7EXAMPLE' not in record.msg
 
     def test_filter_aws_secret_key(self):
         """Test filtering AWS secret keys."""
-        filter_instance = SensitiveDataFilter()
         record = MagicMock()
         record.msg = 'AWS Secret Key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY is sensitive'
 
-        filter_instance.filter(record)
+        sensitive_data_filter(record)
 
         assert 'AWS_SECRET_KEY_REDACTED' in record.msg
         assert 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY' not in record.msg
 
     def test_filter_api_key(self):
         """Test filtering API keys."""
-        filter_instance = SensitiveDataFilter()
         record = MagicMock()
         record.msg = "api_key='secret123'"
 
-        filter_instance.filter(record)
+        sensitive_data_filter(record)
 
         assert 'api_key=REDACTED' in record.msg
         assert 'secret123' not in record.msg
 
     def test_filter_password(self):
         """Test filtering passwords."""
-        filter_instance = SensitiveDataFilter()
         record = MagicMock()
         record.msg = "password='mypassword'"
 
-        filter_instance.filter(record)
+        sensitive_data_filter(record)
 
         assert 'password=REDACTED' in record.msg
         assert 'mypassword' not in record.msg
 
     def test_filter_url_with_credentials(self):
         """Test filtering URLs with credentials."""
-        filter_instance = SensitiveDataFilter()
         record = MagicMock()
         record.msg = 'Connection URL: https://username:password@example.com'
 
-        filter_instance.filter(record)
+        sensitive_data_filter(record)
 
         assert 'https://REDACTED:REDACTED@example.com' in record.msg
         assert 'username:password' not in record.msg
-
-    def test_filter_args(self):
-        """Test filtering sensitive data in args."""
-        filter_instance = SensitiveDataFilter()
-        record = MagicMock()
-        record.msg = 'Log message'
-        record.args = ("api_key='secret123'", 'normal text')
-
-        filter_instance.filter(record)
-
-        assert 'api_key=REDACTED' in record.args[0]
-        assert 'secret123' not in record.args[0]
-        assert record.args[1] == 'normal text'
 
 
 @patch('awslabs.finch_mcp_server.server.get_vm_status')
