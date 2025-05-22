@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.valkey-mcp-server"
-version = "0.1.1"
+version = "0.1.2"
 description = "An AWS Labs Model Context Protocol (MCP) server for valkey"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -38,7 +38,7 @@ repository = "https://github.com/awslabs/mcp.git"
 changelog = "https://github.com/awslabs/mcp/blob/main/src/valkey-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.valkey-mcp-server" = "awslabs.valkey_mcp_server.server:main"
+"awslabs.valkey-mcp-server" = "awslabs.valkey_mcp_server.main:main"
 
 [dependency-groups]
 dev = [
