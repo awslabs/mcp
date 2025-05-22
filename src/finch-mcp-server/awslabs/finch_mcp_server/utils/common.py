@@ -7,13 +7,10 @@ Note: These tools are intended for development and prototyping purposes only
 and are not meant for production use cases.
 """
 
-import logging
 import os
 import subprocess
+from loguru import logger
 from typing import Any, Dict
-
-
-logger = logging.getLogger(__name__)
 
 
 def execute_command(command: list, env=None) -> subprocess.CompletedProcess:

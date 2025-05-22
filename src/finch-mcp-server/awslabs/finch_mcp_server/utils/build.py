@@ -7,15 +7,12 @@ Note: These tools are intended for development and prototyping purposes only
 and are not meant for production use cases.
 """
 
-import logging
 import os
 import re
 from ..consts import ECR_REFERENCE_PATTERN, STATUS_ERROR, STATUS_SUCCESS
 from .common import execute_command, format_result
+from loguru import logger
 from typing import Any, Dict, List, Optional
-
-
-logger = logging.getLogger(__name__)
 
 
 def contains_ecr_reference(dockerfile_path: str) -> bool:

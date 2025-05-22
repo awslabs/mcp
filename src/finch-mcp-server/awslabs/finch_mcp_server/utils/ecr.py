@@ -7,14 +7,10 @@ for production use cases.
 """
 
 import boto3
-import logging
 from ..consts import STATUS_ERROR, STATUS_SUCCESS
 from .common import format_result
 from botocore.exceptions import ClientError
 from typing import Any, Dict, Optional
-
-
-logger = logging.getLogger(__name__)
 
 
 def create_ecr_repository(

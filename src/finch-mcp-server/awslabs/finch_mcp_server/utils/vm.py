@@ -8,7 +8,6 @@ and are not meant for production use cases.
 """
 
 import json
-import logging
 import os
 import subprocess
 import sys
@@ -24,11 +23,9 @@ from ..consts import (
     VM_STATE_UNKNOWN,
 )
 from .common import execute_command, format_result
+from loguru import logger
 from shutil import which
 from typing import Any, Dict, Literal
-
-
-logger = logging.getLogger(__name__)
 
 
 def get_vm_status() -> subprocess.CompletedProcess:

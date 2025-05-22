@@ -6,7 +6,6 @@ Note: The tools provided by this MCP server are intended for development and pro
 purposes only and are not meant for production use cases.
 """
 
-import logging
 import os
 import re
 import sys
@@ -36,89 +35,103 @@ from awslabs.finch_mcp_server.utils.vm import (
     start_stopped_vm,
     stop_vm,
 )
-from logging.handlers import RotatingFileHandler
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict
 
 
-class SensitiveDataFilter(logging.Filter):
-    """Filter that redacts sensitive information from log messages."""
+# Configure loguru logger
+def sensitive_data_filter(record):
+    """Filter that redacts sensitive information from log messages.
 
-    def __init__(self):
-        """Initialize the filter with regex patterns for sensitive data detection.
+    This function processes log records to redact sensitive information such as
+    API keys, passwords, and credentials from the message.
 
-        Sets up regular expression patterns to identify and redact various types of
-        sensitive information such as API keys, passwords, and credentials.
-        """
-        super().__init__()
-        self.patterns = [
-            (re.compile(r'((?<![A-Z0-9])[A-Z0-9]{20}(?![A-Z0-9]))'), 'AWS_ACCESS_KEY_REDACTED'),
-            (
-                re.compile(r'((?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=]))'),
-                'AWS_SECRET_KEY_REDACTED',
-            ),
-            (
-                re.compile(r'api[_-]?key[=:]\s*[\'"]?([^\'"\s]+)[\'"]?', re.IGNORECASE),
-                r'api_key=REDACTED',
-            ),
-            (
-                re.compile(r'password[=:]\s*[\'"]?([^\'"\s]+)[\'"]?', re.IGNORECASE),
-                r'password=REDACTED',
-            ),
-            (
-                re.compile(r'secret[=:]\s*[\'"]?([^\'"\s]+)[\'"]?', re.IGNORECASE),
-                r'secret=REDACTED',
-            ),
-            (re.compile(r'token[=:]\s*[\'"]?([^\'"\s]+)[\'"]?', re.IGNORECASE), r'token=REDACTED'),
-            (re.compile(r'(https?://)([^:@\s]+):([^:@\s]+)@'), r'\1REDACTED:REDACTED@'),
-        ]
+    Args:
+        record: The log record to process
 
-    def filter(self, record):
-        """Process the log record to redact sensitive information.
+    Returns:
+        bool: True to allow the log record to be processed, False to filter it out
 
-        Args:
-            record: The log record to process
+    """
+    # Define patterns for sensitive data detection
+    patterns = [
+        (re.compile(r'((?<![A-Z0-9])[A-Z0-9]{20}(?![A-Z0-9]))'), 'AWS_ACCESS_KEY_REDACTED'),
+        (
+            re.compile(r'((?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=]))'),
+            'AWS_SECRET_KEY_REDACTED',
+        ),
+        (
+            re.compile(r'(api[_-]?key[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE),
+            r'api_key=REDACTED',
+        ),
+        (
+            re.compile(r'(password[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE),
+            r'password=REDACTED',
+        ),
+        (
+            re.compile(r'(secret[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE),
+            r'secret=REDACTED',
+        ),
+        (re.compile(r'(token[=:]\s*[\'"]?)[^\'"\s]+([\'"]?)', re.IGNORECASE), r'REDACTED'),
+        (re.compile(r'(https?://)([^:@\s]+):([^:@\s]+)@'), r'https://REDACTED:REDACTED@'),
+    ]
 
-        Returns:
-            bool: Always returns True to allow the log record to be processed
+    # Handle both dict-style records (loguru) and object-style records (unittest mock)
+    if isinstance(record, dict):
+        message = record['message']
 
-        """
-        if isinstance(record.msg, str):
-            for pattern, replacement in self.patterns:
+        for pattern, replacement in patterns:
+            message = pattern.sub(replacement, message)
+
+        record['message'] = message
+    else:
+        # For unittest mock objects
+        if hasattr(record, 'msg'):
+            for pattern, replacement in patterns:
                 record.msg = pattern.sub(replacement, record.msg)
 
-        if record.args:
-            args_list = list(record.args)
-            for i, arg in enumerate(args_list):
+        # Handle args if present
+        if hasattr(record, 'args') and record.args:
+            new_args = list(record.args)
+            for i, arg in enumerate(new_args):
                 if isinstance(arg, str):
-                    for pattern, replacement in self.patterns:
-                        # For args, we need to ensure exact replacement format for tests
-                        if 'api_key=' in arg and "'" in arg:
-                            args_list[i] = 'api_key=REDACTED'
-                        else:
-                            args_list[i] = pattern.sub(replacement, arg)
-            record.args = tuple(args_list)
+                    for pattern, replacement in patterns:
+                        new_args[i] = pattern.sub(replacement, arg)
+            record.args = tuple(new_args)
 
-        return True
+    return True
 
 
-log_level = logging.INFO
+# Remove default logger
+logger.remove()
+
+# Determine log level from environment
+log_level = 'INFO'
 server_log_level = os.environ.get('SERVER_LOG_LEVEL', '').upper()
-if server_log_level and hasattr(logging, server_log_level):
-    log_level = getattr(logging, server_log_level)
+if server_log_level in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+    log_level = server_log_level
 
-handler = RotatingFileHandler(LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=7)
-
-# Add sensitive data filter to the handler
-sensitive_filter = SensitiveDataFilter()
-handler.addFilter(sensitive_filter)
-
-logging.basicConfig(
+# Add file handler with rotation
+logger.add(
+    LOG_FILE,
+    rotation='10 MB',
+    retention=7,
     level=log_level,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[handler],
+    format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}',
+    filter=sensitive_data_filter,
 )
-logger = logging.getLogger(SERVER_NAME)
+
+# Add a handler for stderr
+logger.add(
+    sys.stderr,
+    level=log_level,
+    format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}',
+    filter=sensitive_data_filter,
+)
+
+# Configure logger with name
+logger = logger.bind(name=SERVER_NAME)
 
 mcp = FastMCP(SERVER_NAME)
 
