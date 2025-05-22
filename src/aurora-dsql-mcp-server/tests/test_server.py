@@ -29,7 +29,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_BEGIN_TRANSACTION
 )
 from awslabs.aurora_dsql_mcp_server.server import (
-    create_connection,
+    get_connection,
     get_password_token,
     readonly_query,
     get_schema,
@@ -98,14 +98,14 @@ async def test_get_password_token_for_non_admin_user(mocker):
 
 @patch('awslabs.aurora_dsql_mcp_server.server.database_user', 'admin')
 @patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'test_ce')
-async def test_create_connection(mocker):
+async def test_get_connection(mocker):
     mock_auth = mocker.patch('awslabs.aurora_dsql_mcp_server.server.get_password_token')
     mock_auth.return_value = 'auth_token'
     mock_connect = mocker.patch('psycopg.AsyncConnection.connect')
     mock_conn = AsyncMock()
     mock_connect.return_value = mock_conn
 
-    result = await create_connection(ctx)
+    result = await get_connection(ctx)
     assert result == mock_conn
 
     conn_params = {
@@ -123,18 +123,24 @@ async def test_create_connection(mocker):
 
 @patch('awslabs.aurora_dsql_mcp_server.server.database_user', 'admin')
 @patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'test_ce')
-async def test_create_connection_failure(mocker):
+@patch('awslabs.aurora_dsql_mcp_server.server.persistent_connection', None)
+async def test_get_connection_failure(mocker):
     mock_auth = mocker.patch('awslabs.aurora_dsql_mcp_server.server.get_password_token')
     mock_auth.return_value = 'auth_token'
     mock_connect = mocker.patch('psycopg.AsyncConnection.connect')
     mock_connect.side_effect = Exception('Connection error')
 
     with pytest.raises(Exception) as excinfo:
-        await create_connection(ctx)
+        await get_connection(ctx)
     assert str(excinfo.value) == 'Connection error'
 
 
 async def test_get_schema(mocker):
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.return_value = {'col1': 'integer'}
 
@@ -144,13 +150,18 @@ async def test_get_schema(mocker):
 
     mock_execute_query.assert_called_once_with(
         ctx,
-        None,
+        mock_conn,
         GET_SCHEMA_SQL,
         ['table1'],
     )
 
 
 async def test_get_schema_failure(mocker):
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
+    )
+    mock_conn = AsyncMock()
+    mock_get_connection.return_value = mock_conn
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.side_effect = Exception('')
 
@@ -159,7 +170,7 @@ async def test_get_schema_failure(mocker):
 
     mock_execute_query.assert_called_once_with(
         ctx,
-        None,
+        mock_conn,
         GET_SCHEMA_SQL,
         ['table1'],
     )
@@ -169,11 +180,11 @@ async def test_readonly_query_commit_on_success(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.return_value = {'column': 1}
 
-    mock_create_connection = mocker.patch(
-        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
     )
     mock_conn = AsyncMock()
-    mock_create_connection.return_value = mock_conn
+    mock_get_connection.return_value = mock_conn
 
     sql = 'select 1'
     result = await readonly_query(sql, ctx)
@@ -193,11 +204,11 @@ async def test_readonly_query_rollback_on_failure(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.side_effect = ('', Exception(''), '')
 
-    mock_create_connection = mocker.patch(
-        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
     )
     mock_conn = AsyncMock()
-    mock_create_connection.return_value = mock_conn
+    mock_get_connection.return_value = mock_conn
 
     sql = 'select 1'
     with pytest.raises(Exception) as excinfo:
@@ -216,11 +227,11 @@ async def test_readonly_query_internal_error_on_failed_begin(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.side_effect = (Exception(''), '', '')
 
-    mock_create_connection = mocker.patch(
-        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
     )
     mock_conn = AsyncMock()
-    mock_create_connection.return_value = mock_conn
+    mock_get_connection.return_value = mock_conn
 
     sql = 'select 1'
     with pytest.raises(Exception) as excinfo:
@@ -234,11 +245,11 @@ async def test_readonly_query_error_on_write_sql(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.side_effect = ('', ReadOnlySqlTransaction(''), '')
 
-    mock_create_connection = mocker.patch(
-        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
     )
     mock_conn = AsyncMock()
-    mock_create_connection.return_value = mock_conn
+    mock_get_connection.return_value = mock_conn
 
     sql = 'delete from orders'
     with pytest.raises(Exception) as excinfo:
@@ -258,11 +269,11 @@ async def test_transact_commit_on_success(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.return_value = {'column': 2}
 
-    mock_create_connection = mocker.patch(
-        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
     )
     mock_conn = AsyncMock()
-    mock_create_connection.return_value = mock_conn
+    mock_get_connection.return_value = mock_conn
 
     sql1 = 'select 1'
     sql2 = 'select 2'
@@ -287,11 +298,11 @@ async def test_transact_rollback_on_failure(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.side_effect = ('', Exception(''), '')
 
-    mock_create_connection = mocker.patch(
-        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
     )
     mock_conn = AsyncMock()
-    mock_create_connection.return_value = mock_conn
+    mock_get_connection.return_value = mock_conn
 
     sql1 = 'select 1'
     sql2 = 'select 2'
@@ -313,11 +324,11 @@ async def test_transact_error_on_failed_begin(mocker):
     mock_execute_query = mocker.patch('awslabs.aurora_dsql_mcp_server.server.execute_query')
     mock_execute_query.side_effect = (Exception(''), '', '')
 
-    mock_create_connection = mocker.patch(
-        'awslabs.aurora_dsql_mcp_server.server.create_connection'
+    mock_get_connection = mocker.patch(
+        'awslabs.aurora_dsql_mcp_server.server.get_connection'
     )
     mock_conn = AsyncMock()
-    mock_create_connection.return_value = mock_conn
+    mock_get_connection.return_value = mock_conn
 
     sql = 'select 1'
     with pytest.raises(Exception) as excinfo:
