@@ -420,12 +420,15 @@ def test_handle_request_notification():
 def test_handle_request_ping():
     """Test handle_request with a ping (no response expected)."""
     handler = MCPLambdaHandler('test-server')
-    req = {'jsonrpc': '2.0', 'method': 'ping'}
+    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'ping'}
     event = make_lambda_event(req)
     context = None
     resp = handler.handle_request(event, context)
-    assert resp['statusCode'] == 204
-    assert resp['body'] == ''
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert body['jsonrpc'] == '2.0'
+    assert body['id'] == 1
+    assert body['result'] == {}
     assert resp['headers']['Content-Type'] == 'application/json'
 
 

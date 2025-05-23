@@ -15,7 +15,17 @@ from awslabs.mcp_lambda_handler.types import (
 )
 from contextvars import ContextVar
 from enum import Enum
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union, get_type_hints
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    TypeVar,
+    Union,
+    get_type_hints,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -173,7 +183,9 @@ class MCPLambdaHandler:
 
             # Build properties from type hints
             for param_name, param_type in hints.items():
-                param_schema = {'type': 'string'}  # Default to string
+                param_schema: Dict[str, Union[str, List[str]]] = {
+                    'type': 'string'
+                }  # Default to string
                 if param_type is int:
                     param_schema['type'] = 'integer'
                 elif param_type is float:
@@ -391,7 +403,7 @@ class MCPLambdaHandler:
                         session_id,
                     )
 
-            # Hanlde pings
+            # Handle pings
             if request.method == 'ping':
                 return self._create_success_response({}, request.id, session_id)
 
