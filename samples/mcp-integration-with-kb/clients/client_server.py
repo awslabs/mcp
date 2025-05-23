@@ -128,103 +128,102 @@ async def process_query(query: str, kb_id: str) -> Dict[str, Any]:
 
         # Process with MCP client
         logger.info('Connecting to MCP server')
-        async with mcp_client as client:
-            # Get tools from the MCP server
-            logger.info('Getting tools from MCP server')
-            original_tools = client.get_tools()
-            tool_names = [tool.name for tool in original_tools]
-            logger.info(f'Retrieved {len(original_tools)} tools from MCP server: {tool_names}')
+        # Get tools from the MCP server directly without using context manager
+        logger.info('Getting tools from MCP server')
+        original_tools = await mcp_client.get_tools()
+        tool_names = [tool.name for tool in original_tools]
+        logger.info(f'Retrieved {len(original_tools)} tools from MCP server: {tool_names}')
 
-            if not original_tools:
-                logger.warning('No tools were returned from the MCP server')
-                return {
-                    'messages': [{'content': 'No tools available from the knowledge base server.'}]
-                }
+        if not original_tools:
+            logger.warning('No tools were returned from the MCP server')
+            return {
+                'messages': [{'content': 'No tools available from the knowledge base server.'}]
+            }
 
-            # We'll use the original tools
-            tools = original_tools
+        # We'll use the original tools
+        tools = original_tools
 
-            # Create a ChatBedrock instance with tools
-            logger.info('Creating ChatBedrock with tools')
-            chat_model = ChatBedrock(
-                client=bedrock_runtime,
-                model_id='anthropic.claude-3-sonnet-20240229-v1:0',
-                model_kwargs={
-                    'temperature': 0.7,
-                    'max_tokens': 2048,
-                    'anthropic_version': 'bedrock-2023-05-31',
-                },
-                streaming=False,
-                system_prompt_with_tools=SYSTEM_PROMPT,
-            )
+        # Create a ChatBedrock instance with tools
+        logger.info('Creating ChatBedrock with tools')
+        chat_model = ChatBedrock(
+            client=bedrock_runtime,
+            model_id='anthropic.claude-3-sonnet-20240229-v1:0',
+            model_kwargs={
+                'temperature': 0.7,
+                'max_tokens': 2048,
+                'anthropic_version': 'bedrock-2023-05-31',
+            },
+            streaming=False,
+            system_prompt_with_tools=SYSTEM_PROMPT,
+        )
 
-            # Prepare tools for Bedrock
-            logger.info('Preparing tools for Bedrock')
-            model = chat_model.bind_tools(tools)
+        # Prepare tools for Bedrock
+        logger.info('Preparing tools for Bedrock')
+        model = chat_model.bind_tools(tools)
 
-            # Start conversation with Bedrock - include KB ID in the message
-            kb_info = f'Use knowledge base ID: {kb_id} for any knowledge base queries.'
-            enhanced_query = f'{kb_info}\n\nUser query: {query}'
-            messages = [HumanMessage(content=enhanced_query)]
+        # Start conversation with Bedrock - include KB ID in the message
+        kb_info = f'Use knowledge base ID: {kb_id} for any knowledge base queries.'
+        enhanced_query = f'{kb_info}\n\nUser query: {query}'
+        messages = [HumanMessage(content=enhanced_query)]
 
-            logger.info('Sending initial query to Bedrock')
-            response = await model.ainvoke(
-                messages,
-            )
+        logger.info('Sending initial query to Bedrock')
+        response = await model.ainvoke(
+            messages,
+        )
 
-            # Check if Bedrock requested a tool
-            if hasattr(response, 'tool_calls') and response.tool_calls:
-                logger.info('Bedrock requested tool use')
-                logger.info(f'Tool calls: {response.tool_calls}')
+        # Check if Bedrock requested a tool
+        if hasattr(response, 'tool_calls') and response.tool_calls:
+            logger.info('Bedrock requested tool use')
+            logger.info(f'Tool calls: {response.tool_calls}')
 
-                for tool_call in response.tool_calls:
-                    tool_name = tool_call['name']
-                    tool_args = tool_call['args']
-                    tool_id = tool_call['id']
+            for tool_call in response.tool_calls:
+                tool_name = tool_call['name']
+                tool_args = tool_call['args']
+                tool_id = tool_call['id']
 
-                    logger.info(f'Tool requested: {tool_name} with args: {tool_args}')
+                logger.info(f'Tool requested: {tool_name} with args: {tool_args}')
 
-                    # Find the requested tool
-                    requested_tool = None
-                    for tool in tools:
-                        if tool.name == tool_name:
-                            requested_tool = tool
-                            break
+                # Find the requested tool
+                requested_tool = None
+                for tool in tools:
+                    if tool.name == tool_name:
+                        requested_tool = tool
+                        break
 
-                    if not requested_tool:
-                        logger.warning(f'Requested tool {tool_name} not found')
-                        continue
+                if not requested_tool:
+                    logger.warning(f'Requested tool {tool_name} not found')
+                    continue
 
-                    # For query_knowledge_base tool, ensure we use the correct KB ID
-                    if tool_name == 'query_knowledge_base':
-                        # Always override kb_id with the one from the request
-                        tool_args['kb_id'] = kb_id
+                # For query_knowledge_base tool, ensure we use the correct KB ID
+                if tool_name == 'query_knowledge_base':
+                    # Always override kb_id with the one from the request
+                    tool_args['kb_id'] = kb_id
 
-                    # Execute the tool
-                    logger.info(f'Executing tool {tool_name}')
-                    tool_result = await requested_tool.ainvoke(tool_args)
-                    logger.debug(f'Tool result: {tool_result}')
+                # Execute the tool
+                logger.info(f'Executing tool {tool_name}')
+                tool_result = await requested_tool.ainvoke(tool_args)
+                logger.debug(f'Tool result: {tool_result}')
 
-                    # Create a new conversation with the tool response - use the original query
-                    new_messages = [HumanMessage(content=enhanced_query)]
-                    new_messages.append(response)  # Add the original AI response with tool_calls
-                    new_messages.append(
-                        ToolMessage(
-                            content=str(tool_result),
-                            tool_call_id=tool_id,
-                            name=tool_name,
-                        )
+                # Create a new conversation with the tool response - use the original query
+                new_messages = [HumanMessage(content=enhanced_query)]
+                new_messages.append(response)  # Add the original AI response with tool_calls
+                new_messages.append(
+                    ToolMessage(
+                        content=str(tool_result),
+                        tool_call_id=tool_id,
+                        name=tool_name,
                     )
+                )
 
-                    # Get final response from Bedrock with tool results
-                    logger.info('Sending tool results back to Bedrock')
-                    final_response = await model.ainvoke(new_messages)
-                    response_content = str(final_response.content)
+                # Get final response from Bedrock with tool results
+                logger.info('Sending tool results back to Bedrock')
+                final_response = await model.ainvoke(new_messages)
+                response_content = str(final_response.content)
 
-                    return {'messages': [{'content': response_content}]}
+                return {'messages': [{'content': response_content}]}
 
-            # If no tool was requested, return the direct response
-            return {'messages': [{'content': response.content}]}
+        # If no tool was requested, return the direct response
+        return {'messages': [{'content': response.content}]}
 
     except Exception as e:
         logger.error(f'Error in process_query: {str(e)}')
