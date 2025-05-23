@@ -9,8 +9,9 @@ The tests are organized as follows:
 - `conftest.py`: Contains pytest fixtures used across multiple test files
 - `test_models.py`: Tests for the data models
 - `test_server.py`: Tests for the MCP server functionality
-- `test_command_impl.py`: Tests for the Terraform command execution implementation
+- `test_command_impl.py`: Tests for the Terraform, Terragrunt and Checkov commands execution implementation
 - `test_execute_terraform_command.py`: Dedicated tests for the execute_terraform_command implementation
+- `test_execute_terragrunt_command.py`: Dedicated tests for the Terragrunt command execution
 - `test_run_checkov_scan.py`: Dedicated tests for the run_checkov_scan implementation
 - `test_search_user_provided_module.py`: Dedicated tests for the search_user_provided_module implementation
 - `test_resources.py`: Tests for the resource implementations
@@ -75,6 +76,7 @@ To run the tests with verbose output:
 The tests use mocking to avoid making actual system calls. The mocks are defined in `conftest.py` and include:
 
 - `mock_terraform_command_output`: Mock outputs for Terraform commands
+- `mock_terragrunt_command_output`: Mock outputs for Terragrunt commands
 - `mock_checkov_output`: Mock outputs for Checkov scans
 - `mock_subprocess`: Mock for subprocess module
 - `mock_os_path`: Mock for os.path module
@@ -92,6 +94,8 @@ Tests for the data models used in the Terraform MCP server, including:
 
 - `TerraformExecutionRequest`: Request model for Terraform command execution
 - `TerraformExecutionResult`: Result model for Terraform command execution
+- `TerragruntExecutionRequest`: Request model for Terragrunt command execution
+- `TerragruntExecutionResult`: Result model for Terragrunt command execution
 - `CheckovScanRequest`: Request model for Checkov scan execution
 - `CheckovScanResult`: Result model for Checkov scan execution
 - `CheckovVulnerability`: Model for security vulnerabilities found by Checkov
@@ -147,6 +151,17 @@ Dedicated tests for the execute_terraform_command implementation, including:
 - Testing output error handling
 - Testing JSON parsing error handling
 - Testing complex output structures with nested values
+
+### test_execute_terragrunt_command.py
+
+Dedicated tests for the execute_terragrunt_command implementation, including:
+
+- Testing the clean_output_text helper function
+- Testing exception handling
+- Testing output error handling
+- Testing JSON parsing error handling
+- Testing complex output structures with nested values
+- Testing CLI flags parsing and validating for dangerous patterns
 
 ### test_run_checkov_scan.py
 

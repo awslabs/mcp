@@ -32,7 +32,7 @@ from awslabs.dynamodb_mcp_server.common import (
     handle_exceptions,
 )
 from botocore.config import Config
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Union
 

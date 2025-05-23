@@ -41,82 +41,53 @@ MUTATING_KEYWORDS = {
     'ANALYZE',
 }
 
-SUSPICIOUS_PATTERNS = [
-    r"(?i)'.*?--",
-    r"(?i)'.*?or\s+1=1",
-    r'(?i)\bunion\b.*\bselect\b',
-    r'(?i)\bdrop\b',
-    r'(?i)\btruncate\b',
-    r'(?i)\bgrant\b|\brevoke\b',
-    r'(?i);',
-    r"(?i)or\s+['\"]?\d+=\d+",
-]
-
 # Compile regex pattern
 MUTATING_PATTERN = re.compile(
     r'(?i)\b(' + '|'.join(re.escape(k) for k in MUTATING_KEYWORDS) + r')\b'
 )
 
-
-def remove_comments(sql: str) -> str:
-    """Remove SQL comments from the input string.
-
-    Args:
-        sql: The SQL string to process
-
-    Returns:
-        The SQL string with all comments removed
-    """
-    sql = re.sub(r'--.*?$', '', sql, flags=re.MULTILINE)
-    sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
-    return sql
-
-
-def remove_strings(sql: str) -> str:
-    """Remove string literals from the SQL query.
-
-    Args:
-        sql: The SQL string to process
-
-    Returns:
-        The SQL string with all string literals removed
-    """
-    # Remove single-quoted and double-quoted string literals
-    return re.sub(r"('([^']|'')*')|(\"([^\"]|\"\")*\")", '', sql)
+SUSPICIOUS_PATTERNS = [
+    r'--.*$',  # single-line comment
+    r'/\*.*?\*/',  # multi-line comment
+    r"(?i)'.*?--",  # comment injection
+    r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
+    r"(?i)\bor\b\s*'[^']+'\s*=\s*'[^']+'",  # string tautology e.g. OR '1'='1'
+    r'(?i)\bunion\b.*\bselect\b',  # UNION SELECT
+    r'(?i)\bdrop\b',  # DROP statement
+    r'(?i)\btruncate\b',  # TRUNCATE
+    r'(?i)\bgrant\b|\brevoke\b',  # GRANT or REVOKE
+    r'(?i);',  # stacked queries
+    r'(?i)\bsleep\s*\(',  # delay-based probes
+    r'(?i)\bpg_sleep\s*\(',
+    r'(?i)\bload_file\s*\(',
+    r'(?i)\binto\s+outfile\b',
+]
 
 
 def detect_mutating_keywords(sql_text: str) -> list[str]:
     """Return a list of mutating keywords found in the SQL (excluding comments)."""
-    cleaned_sql = remove_comments(sql_text)
-    cleaned_sql = remove_strings(cleaned_sql)
-    matches = MUTATING_PATTERN.findall(cleaned_sql)
+    matches = MUTATING_PATTERN.findall(sql_text)
     return list({m.upper() for m in matches})  # Deduplicated and normalized to uppercase
 
 
-def check_sql_injection_risk(parameters: list[dict] | None) -> list[dict]:
-    """Check for potential SQL injection risks in query parameters.
+def check_sql_injection_risk(sql: str) -> list[dict]:
+    """Check for potential SQL injection risks in sql query.
 
     Args:
-        parameters: List of parameter dictionaries containing name and value pairs
+        sql: query string
 
     Returns:
-        List of dictionaries containing detected security issues
+        dictionaries containing detected security issue
     """
     issues = []
-
-    if parameters is not None:
-        for param in parameters:
-            value = next(iter(param['value'].values()))
-            for pattern in SUSPICIOUS_PATTERNS:
-                if re.search(pattern, str(value)):
-                    issues.append(
-                        {
-                            'type': 'parameter',
-                            'parameter_name': param['name'],
-                            'message': f'Suspicious pattern in value: {value}',
-                            'severity': 'high',
-                        }
-                    )
-                    break
-
+    for pattern in SUSPICIOUS_PATTERNS:
+        if re.search(pattern, sql):
+            issues.append(
+                {
+                    'type': 'sql',
+                    'message': f'Suspicious pattern in query: {sql}',
+                    'severity': 'high',
+                }
+            )
+            break
     return issues

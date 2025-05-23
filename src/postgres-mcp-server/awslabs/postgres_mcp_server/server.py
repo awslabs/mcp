@@ -29,18 +29,21 @@ from typing import Annotated, Any, Dict, List, Optional
 client_error_code_key = 'run_query ClientError code'
 unexpected_error_key = 'run_query unexpected error'
 write_query_prohibited_key = 'Your MCP tool only allows readonly query. If you want to write, change the MCP configuration per README.md'
+query_comment_prohibited_key = 'The comment in query is prohibited because of injection risk'
+query_injection_risk_key = 'Your query contains risky injection patterns'
 
 
 class DummyCtx:
     """A dummy context class for error handling in MCP tools."""
 
-    def error(self, message):
+    async def error(self, message):
         """Raise a runtime error with the given message.
 
         Args:
             message: The error message to include in the runtime error
         """
-        raise RuntimeError(f'MCP Tool Error: {message}')
+        # Do nothing
+        pass
 
 
 class DBConnection:
@@ -214,48 +217,52 @@ async def run_query(
             await ctx.error(write_query_prohibited_key)
             return [{'error': write_query_prohibited_key}]
 
-    if query_parameters is not None:
-        issues = check_sql_injection_risk(query_parameters)
-        if issues:
-            logger.info(
-                f'query is rejected because it contains risky SQL pattern, SQL query: {sql}, reasons: {issues}'
-            )
-            await ctx.error(
-                str({'message': 'Query parameter contains suspicious pattern', 'details': issues})
-            )
-            return [{'error': write_query_prohibited_key}]
+    issues = check_sql_injection_risk(sql)
+    if issues:
+        logger.info(
+            f'query is rejected because it contains risky SQL pattern, SQL query: {sql}, reasons: {issues}'
+        )
+        await ctx.error(
+            str({'message': 'Query parameter contains suspicious pattern', 'details': issues})
+        )
+        return [{'error': query_injection_risk_key}]
 
     try:
-        logger.info(f'run_query: {sql}')
+        logger.info(f'run_query: readonly:{db_connection.readonly_query}, SQL:{sql}')
 
-        execute_params = {
-            'resourceArn': db_connection.cluster_arn,
-            'secretArn': db_connection.secret_arn,
-            'database': db_connection.database,
-            'sql': sql,
-            'includeResultMetadata': True,
-        }
+        if db_connection.readonly_query:
+            response = await asyncio.to_thread(
+                execute_readonly_query, db_connection, sql, query_parameters
+            )
+        else:
+            execute_params = {
+                'resourceArn': db_connection.cluster_arn,
+                'secretArn': db_connection.secret_arn,
+                'database': db_connection.database,
+                'sql': sql,
+                'includeResultMetadata': True,
+            }
 
-        if query_parameters:
-            execute_params['parameters'] = query_parameters
+            if query_parameters:
+                execute_params['parameters'] = query_parameters
 
-        response = await asyncio.to_thread(
-            db_connection.data_client.execute_statement, **execute_params
-        )
+            response = await asyncio.to_thread(
+                db_connection.data_client.execute_statement, **execute_params
+            )
 
         logger.success('run_query successfully executed query:{}', sql)
         return parse_execute_response(response)
     except ClientError as e:
-        logger.error(f'{client_error_code_key}: {e.response["Error"]["Message"]}')
+        logger.exception(client_error_code_key)
         await ctx.error(
             str({'code': e.response['Error']['Code'], 'message': e.response['Error']['Message']})
         )
-        return [{'error': write_query_prohibited_key}]
+        return [{'error': client_error_code_key}]
     except Exception as e:
+        logger.exception(unexpected_error_key)
         error_details = f'{type(e).__name__}: {str(e)}'
-        logger.error(f'{unexpected_error_key}: {error_details}')
         await ctx.error(str({'message': error_details}))
-        return [{'error': write_query_prohibited_key}]
+        return [{'error': unexpected_error_key}]
 
 
 @mcp.tool(
@@ -276,7 +283,7 @@ async def get_table_schema(
     """
     logger.info(f'get_table_schema: {table_name}')
 
-    sql = f"""
+    sql = """
         SELECT
             a.attname AS column_name,
             pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
@@ -284,13 +291,77 @@ async def get_table_schema(
         FROM
             pg_attribute a
         WHERE
-            a.attrelid = '{table_name}'::regclass
+            a.attrelid = :table_name::regclass
             AND a.attnum > 0
             AND NOT a.attisdropped
         ORDER BY a.attnum
-    """  # nosec B608: injection risk is handled inside run_query
+    """
 
-    return await run_query(sql, ctx)
+    params = [{'name': 'table_name', 'value': {'stringValue': table_name}}]
+
+    return await run_query(sql=sql, ctx=ctx, query_parameters=params)
+
+
+def execute_readonly_query(
+    db_connection: DBConnection, query: str, parameters: Optional[List[Dict[str, Any]]] = None
+) -> dict:
+    """Execute a query under readonly transaction.
+
+    Args:
+        db_connection: connection object
+        query: query to run
+        parameters: parameters
+
+    Returns:
+        List of dictionary that contains query response rows
+    """
+    tx_id = ''
+    try:
+        # Begin read-only transaction
+        tx = db_connection.data_client.begin_transaction(
+            resourceArn=db_connection.cluster_arn,
+            secretArn=db_connection.secret_arn,
+            database=db_connection.database,
+        )
+
+        tx_id = tx['transactionId']
+
+        db_connection.data_client.execute_statement(
+            resourceArn=db_connection.cluster_arn,
+            secretArn=db_connection.secret_arn,
+            database=db_connection.database,
+            sql='SET TRANSACTION READ ONLY',
+            transactionId=tx_id,
+        )
+
+        execute_params = {
+            'resourceArn': db_connection.cluster_arn,
+            'secretArn': db_connection.secret_arn,
+            'database': db_connection.database,
+            'sql': query,
+            'includeResultMetadata': True,
+            'transactionId': tx_id,
+        }
+
+        if parameters is not None:
+            execute_params['parameters'] = parameters
+
+        result = db_connection.data_client.execute_statement(**execute_params)
+
+        db_connection.data_client.commit_transaction(
+            resourceArn=db_connection.cluster_arn,
+            secretArn=db_connection.secret_arn,
+            transactionId=tx_id,
+        )
+        return result
+    except Exception as e:
+        if tx_id:
+            db_connection.data_client.rollback_transaction(
+                resourceArn=db_connection.cluster_arn,
+                secretArn=db_connection.secret_arn,
+                transactionId=tx_id,
+            )
+        raise e
 
 
 def main():
@@ -331,20 +402,20 @@ def main():
         DBConnectionSingleton.initialize(
             args.resource_arn, args.secret_arn, args.database, args.region, args.readonly
         )
-    except BotoCoreError as e:
-        logger.error(
-            f'Failed to RDS API client object for Postgres. Exit the MCP server. error: {str(e)}'
-        )
+    except BotoCoreError:
+        logger.exception('Failed to RDS API client object for Postgres. Exit the MCP server')
         sys.exit(1)
 
     # Test RDS API connection
     ctx = DummyCtx()
-    try:
-        asyncio.run(run_query('SELECT 1', ctx))
-    except Exception as e:
-        logger.error(
-            f'Failed to validate RDS API db connection to Postgres. Exit the MCP server. error: {e}'
-        )
+    response = asyncio.run(run_query('SELECT 1', ctx))
+    if (
+        isinstance(response, list)
+        and len(response) == 1
+        and isinstance(response[0], dict)
+        and 'error' in response[0]
+    ):
+        logger.error('Failed to validate RDS API db connection to Postgres. Exit the MCP server')
         sys.exit(1)
 
     logger.success('Successfully validated RDS API db connection to Postgres')
