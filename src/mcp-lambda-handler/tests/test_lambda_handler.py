@@ -412,7 +412,7 @@ def test_handle_request_notification():
     event = make_lambda_event(req)
     context = None
     resp = handler.handle_request(event, context)
-    assert resp['statusCode'] == 202
+    assert resp['statusCode'] == 204
     assert resp['body'] == ''
     assert resp['headers']['Content-Type'] == 'application/json'
 
@@ -430,7 +430,7 @@ def test_handle_request_delete_session():
     event['headers'].pop('mcp-session-id')
     resp = handler.handle_request(event, None)
     # NOTE: Accepting 202 here, but double check this is correct per the MCP spec
-    assert resp['statusCode'] in (202, 400, 404)
+    assert resp['statusCode'] in (204, 400, 404)
 
 
 def test_handle_request_unsupported_content_type():
