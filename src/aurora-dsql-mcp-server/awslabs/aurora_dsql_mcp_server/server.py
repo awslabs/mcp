@@ -53,6 +53,7 @@ region = None
 read_only = False
 dsql_client = None
 persistent_connection = None
+aws_profile = None
 
 mcp = FastMCP(
     'awslabs-aurora-dsql-mcp-server',
@@ -360,6 +361,10 @@ def main():
         action='store_true',
         help='Allow use of tools that may perform write operations such as transact',
     )
+    parser.add_argument(
+        '--profile',
+        help='AWS profile to use for credentials',
+    )
     args = parser.parse_args()
 
     global cluster_endpoint
@@ -374,16 +379,21 @@ def main():
     global read_only
     read_only = not args.allow_writes
 
+    global aws_profile
+    aws_profile = args.profile
+
     logger.info(
-        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}',
+        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}, AWS_PROFILE:{}',
         cluster_endpoint,
         region,
         database_user,
         args.allow_writes,
+        aws_profile or 'default',
     )
 
     global dsql_client
-    dsql_client = boto3.client('dsql', region_name=region)
+    session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
+    dsql_client = session.client('dsql', region_name=region)
 
     try:
         logger.info('Validating connection to cluster')

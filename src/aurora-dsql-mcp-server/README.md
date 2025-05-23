@@ -34,7 +34,9 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
          "--region",
          "[your dsql cluster region, e.g. us-east-1]",
          "--database_user",
-         "[your dsql username]"
+         "[your dsql username]",
+         "--profile",
+         "[optional: your AWS profile name]"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -69,7 +71,8 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
         "awslabs/aurora-dsql-mcp-server:latest",
         "--cluster_endpoint", "[your data]",
         "--database_user", "[your data]",
-        "--region", "[your data]"
+        "--region", "[your data]",
+        "--profile", "[optional: your AWS profile name]"
       ]
     }
   }
@@ -78,10 +81,22 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 
 NOTE: By default, mcp server does not allow write operations. Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing --allow-writes parameter.
 
-The MCP server can use the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
+## AWS Credentials
+
+You can specify AWS credentials in two ways:
+
+1. Using the `--profile` command-line option to specify an AWS profile from your AWS configuration file:
+
+```
+--profile your-aws-profile
+```
+
+2. Using the `AWS_PROFILE` environment variable in your MCP configuration:
 
 ```json
 "env": {
   "AWS_PROFILE": "your-aws-profile"
 }
 ```
+
+If neither is provided, the MCP server defaults to using the "default" profile in your AWS configuration file.
