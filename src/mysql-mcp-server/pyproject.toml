@@ -1,19 +1,23 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
-name = "awslabs.mcp-lambda-handler"
-version = "0.1.2"
-description = "AWS Lambda MCP Server: A serverless HTTP handler for the Model Context Protocol (MCP) using AWS Lambda."
+name = "awslabs.mysql-mcp-server"
+version = "0.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for mysql"
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = [
+    "boto3>=1.38.14",
+    "botocore>=1.38.14",
+    "loguru>=0.7.0",
+    "mcp[cli]>=1.6.0",
+    "pydantic>=2.10.6",
+]
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE" ]
 authors = [
-    {name = "Mike Chambers", email = "mikegc@amazon.com"},
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    {name = "Ken Zhang", email="kennthhz@amazon.com"},
 ]
-license = { text = "Apache-2.0" }
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
@@ -24,42 +28,35 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-dependencies = [
-    "python-dateutil>=2.8.2",
-    "boto3>=1.38.1",
-    "botocore>=1.38.1"
-]
-
-[project.scripts]
-"awslabs.mcp-lambda-handler" = "awslabs.mcp_lambda_handler.server:main"
 
 [project.urls]
-Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/amazon_mq-mcp-server/"
-Source = "https://github.com/awslabs/mcp.git"
-"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon_mq-mcp-server/CHANGELOG.md"
+homepage = "https://awslabs.github.io/mcp/"
+docs = "https://awslabs.github.io/mcp/servers/mysql-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/mysql-mcp-server/"
+repository = "https://github.com/awslabs/mcp.git"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/mysql-mcp-server/CHANGELOG.md"
+
+[project.scripts]
+"awslabs.mysql-mcp-server" = "awslabs.mysql_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
-    "black>=24.2.0",
-    "isort>=5.13.0",
-    "flake8>=7.0.0",
-    "moto>=5.0.3",
-    "pytest>=8.0.0",
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
-    "ruff>=0.9.7",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
 allow-direct-references = true
-
-[tool.hatch.build.targets.wheel]
-packages = ["awslabs"]
 
 [tool.ruff]
 line-length = 99
@@ -80,7 +77,7 @@ force-exclude = true
 [tool.ruff.lint]
 exclude = ["__init__.py"]
 select = ["C", "D", "E", "F", "I", "W"]
-ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106", "F821"]
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2
@@ -88,7 +85,6 @@ no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
-"awslabs/mcp_lambda_handler/types.py" = ["D101", "D102"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -100,16 +96,35 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/mysql_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv", ".venv", "tests"]
+
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-asyncio_mode = "auto"
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-asyncio_default_fixture_loop_scope = "function"
+testpaths = [ "tests"]
+asyncio_mode = "auto"
 markers = [
-    "live: mark test as making live API calls",
-    "asyncio: mark a test as an asyncio coroutine",
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
 ]
 
 [tool.coverage.report]
@@ -120,6 +135,3 @@ exclude_also = [
 
 [tool.coverage.run]
 source = ["awslabs"]
-
-[tool.bandit]
-exclude_dirs = ["venv",".venv","tests"]
