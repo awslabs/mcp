@@ -30,8 +30,9 @@ jobs:
       fail-fast: false
       matrix:
         package: ${{ fromJson(needs.detect-packages.outputs.packages) }}
-    name: Build ${{ matrix.package }}
-    runs-on: ubuntu-latest
+        os: [ubuntu-latest, windows-latest]
+    name: Build ${{ matrix.package }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
       pull-requests: read
@@ -49,14 +50,16 @@ jobs:
           python-version-file: "src/${{ matrix.package }}/.python-version"
           # cache: uv (not supported)
 
-      - name: Cache GraphViz
+      - name: Cache GraphViz (Linux)
+        if: runner.os == 'Linux'
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
         id: cache-graphviz
         with:
           path: "~/graphviz"
-          key: graphviz
+          key: graphviz-${{ matrix.os }}
 
-      - name: Install Graphviz
+      - name: Install Graphviz (Linux)
+        if: runner.os == 'Linux'
         env:
           CACHE_HIT: ${{steps.cache-graphviz.outputs.cache-hit}}
         run: |
@@ -68,19 +71,24 @@ jobs:
             sudo dpkg -L graphviz | while IFS= read -r f; do if test -f $f; then echo $f; fi; done | xargs cp --parents --target-directory ~/graphviz/
           fi
 
+      - name: Install Graphviz (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install graphviz
+
       - name: Install Bandit
         run: pip install bandit[toml]
 
       - name: Security check - Bandit
         id: bandit-check
         working-directory: src/${{ matrix.package }}
-        run: bandit -r --severity-level medium --confidence-level medium -f html -o bandit-report-${{ matrix.package }}.html -c "pyproject.toml" . || echo "status=failure" >> $GITHUB_OUTPUT
+        run: bandit -r --severity-level medium --confidence-level medium -f html -o bandit-report-${{ matrix.package }}-${{ matrix.os }}.html -c "pyproject.toml" . || echo "status=failure" >> $GITHUB_OUTPUT
 
       - name: Store Bandit as Artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: bandit-report-${{ matrix.package }}.html
-          path: src/${{ matrix.package }}/bandit-report-${{ matrix.package }}.html
+          name: bandit-report-${{ matrix.package }}-${{ matrix.os }}.html
+          path: src/${{ matrix.package }}/bandit-report-${{ matrix.package }}-${{ matrix.os }}.html
 
       - name: Stop on Bandit failure
         if: steps.bandit-check.outputs.status == 'failure'
@@ -92,9 +100,10 @@ jobs:
 
       - name: Run tests
         working-directory: src/${{ matrix.package }}
+        shell: bash
         run: |
           if [ -d "tests" ]; then
-            uv run --frozen pytest --cov --cov-branch --cov-report=term-missing --cov-report=xml:${{ matrix.package }}-coverage.xml
+            uv run --frozen pytest --cov --cov-branch --cov-report=term-missing --cov-report=xml:${{ matrix.package }}-${{ matrix.os }}-coverage.xml
           else
             echo "No tests directory found, skipping tests"
           fi
@@ -103,7 +112,7 @@ jobs:
         uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 #v5.4.3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ${{ matrix.package }}-coverage.xml
+          files: ${{ matrix.package }}-${{ matrix.os }}-coverage.xml
 
       - name: Run pyright
         working-directory: src/${{ matrix.package }}
@@ -124,10 +133,11 @@ jobs:
       - name: Upload distribution
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: dist-${{ matrix.package }}
+          name: dist-${{ matrix.package }}-${{ matrix.os }}
           path: src/${{ matrix.package }}/dist/
 
-      - name: Generate Software Bill of Materials (SBOM)
+      - name: Generate Software Bill of Materials (SBOM) - Unix
+        if: runner.os != 'Windows'
         working-directory: src/${{ matrix.package }}
         run: |
           source .venv/bin/activate
@@ -144,10 +154,18 @@ jobs:
             ) || echo "good $line"
           done < .venv/FILES;
           uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format JSON > sbom.json
-      - name: Display SBOM
+
+      - name: Generate Software Bill of Materials (SBOM) - Windows
+        if: runner.os == 'Windows'
         working-directory: src/${{ matrix.package }}
         run: |
-          cat <<EOT |
+          . .venv/Scripts/activate
+          uv tool run --from cyclonedx-bom cyclonedx-py environment $env:VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format JSON > sbom.json
+      - name: Display SBOM (Unix)
+        if: runner.os != 'Windows'
+        working-directory: src/${{ matrix.package }}
+        run: |
+          cat <<EOT > display_sbom.py
           import re
           import json
           import importlib.metadata as metadata
@@ -232,10 +250,99 @@ jobs:
           if __name__ == "__main__":
               main()
           EOT
-           python -
+          python display_sbom.py
+
+      - name: Display SBOM (Windows)
+        if: runner.os == 'Windows'
+        working-directory: src/${{ matrix.package }}
+        run: |
+          echo "import re" > display_sbom.py
+          echo "import json" >> display_sbom.py
+          echo "import importlib.metadata as metadata" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "def parse_bom(json_file):" >> display_sbom.py
+          echo "    # Parse the JSON file" >> display_sbom.py
+          echo "    with open(json_file, 'r') as file:" >> display_sbom.py
+          echo "        data = json.load(file)" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "    # Extract components" >> display_sbom.py
+          echo "    components = []" >> display_sbom.py
+          echo "    for component in data['components']:" >> display_sbom.py
+          echo "        comp_info = {}" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "        # Get name, version, description, and purl" >> display_sbom.py
+          echo "        comp_info['name'] = component.get('name', 'Unknown')" >> display_sbom.py
+          echo "        comp_info['version'] = component.get('version', 'Unknown')" >> display_sbom.py
+          echo "        comp_info['description'] = component.get('description', 'Unknown')" >> display_sbom.py
+          echo "        comp_info['purl'] = component.get('purl', 'Unknown')" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "        # Get licenses" >> display_sbom.py
+          echo "        comp_info['licenses'] = []" >> display_sbom.py
+          echo "        licenses = component.get('licenses', [])" >> display_sbom.py
+          echo "        for license in licenses:" >> display_sbom.py
+          echo "            if license.get('license', {}).get('id'):" >> display_sbom.py
+          echo "                comp_info['licenses'].append(license.get('license').get('id'))" >> display_sbom.py
+          echo "        if len(comp_info['licenses']) == 0:" >> display_sbom.py
+          echo "            comp_info['licenses'].append('No licenses')" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "        # Extract additional information (copyright, etc.)" >> display_sbom.py
+          echo "        copyright_info = extract_copyright_from_metadata(comp_info['name'])" >> display_sbom.py
+          echo "        comp_info['copyright'] = copyright_info if copyright_info else 'No copyright information'" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "        components.append(comp_info)" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "    return components" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "def extract_copyright_from_metadata(package_name):" >> display_sbom.py
+          echo "    try:" >> display_sbom.py
+          echo "        # Use importlib.metadata to retrieve metadata from the installed package" >> display_sbom.py
+          echo "        dist = metadata.distribution(package_name)" >> display_sbom.py
+          echo "        metadata_info = dist.metadata" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "        # Extract relevant metadata" >> display_sbom.py
+          echo "        copyright_info = []" >> display_sbom.py
+          echo "        author = metadata_info.get('Author')" >> display_sbom.py
+          echo "        author_email = metadata_info.get('Author-email')" >> display_sbom.py
+          echo "        license_info = metadata_info.get('License')" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "        if author:" >> display_sbom.py
+          echo "            copyright_info.append(f'Author: {author}')" >> display_sbom.py
+          echo "        if author_email:" >> display_sbom.py
+          echo "            copyright_info.append(f'Author Email: {author_email}')" >> display_sbom.py
+          echo "        if license_info:" >> display_sbom.py
+          echo "            copyright_info.append(f'License: {license_info}')" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "        # Check for classifiers or any extra metadata fields" >> display_sbom.py
+          echo "        if 'Classifier' in metadata_info:" >> display_sbom.py
+          echo "            for classifier in metadata_info.get_all('Classifier'):" >> display_sbom.py
+          echo "                if 'copyright' in classifier.lower():" >> display_sbom.py
+          echo "                    copyright_info.append(classifier)" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "        return ', '.join(copyright_info) if copyright_info else None" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "    except metadata.PackageNotFoundError:" >> display_sbom.py
+          echo "        return None" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "def main():" >> display_sbom.py
+          echo "    bom_file = 'sbom.json'  # Replace with your BOM file path" >> display_sbom.py
+          echo "    components = parse_bom(bom_file)" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "    for component in components:" >> display_sbom.py
+          echo "        print(f""Name: {component['name']}"")" >> display_sbom.py
+          echo "        print(f""Version: {component['version']}"")" >> display_sbom.py
+          echo "        print(f""Description: {component['description']}"")" >> display_sbom.py
+          echo "        print(f""PURL: {component['purl']}"")" >> display_sbom.py
+          echo "        print(f""Licenses: {', '.join(component['licenses'])}"")" >> display_sbom.py
+          echo "        print(f""Copyright: {component['copyright']}"")" >> display_sbom.py
+          echo "        print('-' * 40)" >> display_sbom.py
+          echo "" >> display_sbom.py
+          echo "if __name__ == '__main__':" >> display_sbom.py
+          echo "    main()" >> display_sbom.py
+          python display_sbom.py
 
       - name: Upload Software Bill of Materials
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: sbom-${{ matrix.package }}
+          name: sbom-${{ matrix.package }}-${{ matrix.os }}
           path: src/${{ matrix.package }}/sbom.json
