@@ -87,12 +87,12 @@ search_research_repository(
 ) -> Dict
 ```
 
-### search_research_repository_suggestions
+### search_repositories_on_github
 
 Searches for GitHub repositories based on keywords, scoped to AWS organizations.
 
 ```python
-search_research_repository_suggestions(
+search_repositories_on_github(
     keywords: List[str],
     num_results: int = 5
 ) -> Dict
