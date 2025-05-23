@@ -52,6 +52,8 @@ database_user = None
 region = None
 read_only = False
 dsql_client = None
+persistent_connection = None
+aws_profile = None
 
 mcp = FastMCP(
     'awslabs-aurora-dsql-mcp-server',
@@ -123,7 +125,7 @@ async def readonly_query(
         raise ValueError(ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY)
 
     try:
-        conn = await create_connection(ctx)
+        conn = await get_connection(ctx)
 
         try:
             await execute_query(ctx, conn, BEGIN_READ_ONLY_TRANSACTION_SQL)
@@ -146,7 +148,6 @@ async def readonly_query(
                 await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
             except Exception as e:
                 logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(e)}')
-            await conn.close()
 
     except Exception as e:
         await ctx.error(f'{ERROR_READONLY_QUERY}: {str(e)}')
@@ -197,7 +198,7 @@ async def transact(
         raise ValueError(ERROR_EMPTY_SQL_LIST_PASSED_TO_TRANSACT)
 
     try:
-        conn = await create_connection(ctx)
+        conn = await get_connection(ctx)
 
         try:
             await execute_query(ctx, conn, BEGIN_TRANSACTION_SQL)
@@ -218,8 +219,6 @@ async def transact(
             except Exception as re:
                 logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(re)}')
             raise e
-        finally:
-            await conn.close()
 
     except Exception as e:
         await ctx.error(f'{ERROR_TRANSACT}: {str(e)}')
@@ -247,7 +246,8 @@ async def get_schema(
         raise ValueError(ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA)
 
     try:
-        return await execute_query(ctx, None, GET_SCHEMA_SQL, [table_name])
+        conn = await get_connection(ctx)
+        return await execute_query(ctx, conn, GET_SCHEMA_SQL, [table_name])
     except Exception as e:
         await ctx.error(f'{ERROR_GET_SCHEMA}: {str(e)}')
         raise Exception(f'{ERROR_GET_SCHEMA}: {str(e)}')
@@ -273,7 +273,23 @@ async def get_password_token():  # noqa: D103
         return dsql_client.generate_db_connect_auth_token(cluster_endpoint, region)  # pyright: ignore[reportOptionalMemberAccess]
 
 
-async def create_connection(ctx):  # noqa: D103
+async def get_connection(ctx):  # noqa: D103
+    """Get a connection to the database, creating one if needed or reusing the existing one.
+
+    Args:
+        ctx: MCP context for logging and state management
+
+    Returns:
+        A database connection
+    """
+    global persistent_connection
+
+    # Return the existing connection without health check
+    # The caller will handle reconnection if needed
+    if persistent_connection is not None:
+        return persistent_connection
+
+    # Create a new connection
     password_token = await get_password_token()
 
     conn_params = {
@@ -286,21 +302,21 @@ async def create_connection(ctx):  # noqa: D103
         'sslmode': 'require',
     }
 
-    logger.info(f'Trying to create connection to {cluster_endpoint} as user {database_user}')
-    # Make a connection to the cluster
+    logger.info(f'Creating new connection to {cluster_endpoint} as user {database_user}')
     try:
-        conn = await psycopg.AsyncConnection.connect(**conn_params, autocommit=True)
+        persistent_connection = await psycopg.AsyncConnection.connect(
+            **conn_params, autocommit=True
+        )
+        return persistent_connection
     except Exception as e:
         logger.error(f'{ERROR_CREATE_CONNECTION} : {e}')
         await ctx.error(f'{ERROR_CREATE_CONNECTION} : {e}')
         raise e
 
-    return conn
-
 
 async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]:  # noqa: D103
     if conn_to_use is None:
-        conn = await create_connection(ctx)
+        conn = await get_connection(ctx)
     else:
         conn = conn_to_use
 
@@ -311,13 +327,29 @@ async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]
                 return []
             else:
                 return await cur.fetchall()
+    except (psycopg.OperationalError, psycopg.InterfaceError) as e:
+        # Connection issue - reconnect and retry
+        logger.warning(f'Connection error, reconnecting: {e}')
+        global persistent_connection
+        try:
+            if persistent_connection:
+                await persistent_connection.close()
+        except Exception:
+            pass  # Ignore errors when closing an already broken connection
+        persistent_connection = None
+
+        # Get a fresh connection and retry
+        conn = await get_connection(ctx)
+        async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:  # pyright: ignore[reportAttributeAccessIssue]
+            await cur.execute(query, params)  # pyright: ignore[reportArgumentType]
+            if cur.rownumber is None:
+                return []
+            else:
+                return await cur.fetchall()
     except Exception as e:
         logger.error(f'{ERROR_EXECUTE_QUERY} : {e}')
         await ctx.error(f'{ERROR_EXECUTE_QUERY} : {e}')
         raise e
-    finally:
-        if conn_to_use is None:
-            await conn.close()
 
 
 def main():
@@ -337,6 +369,10 @@ def main():
         action='store_true',
         help='Allow use of tools that may perform write operations such as transact',
     )
+    parser.add_argument(
+        '--profile',
+        help='AWS profile to use for credentials',
+    )
     args = parser.parse_args()
 
     global cluster_endpoint
@@ -351,19 +387,25 @@ def main():
     global read_only
     read_only = not args.allow_writes
 
+    global aws_profile
+    aws_profile = args.profile
+
     logger.info(
-        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}',
+        'Aurora DSQL MCP init with CLUSTER_ENDPOINT:{}, REGION: {}, DATABASE_USER:{}, ALLOW-WRITES:{}, AWS_PROFILE:{}',
         cluster_endpoint,
         region,
         database_user,
         args.allow_writes,
+        aws_profile or 'default',
     )
 
     global dsql_client
-    dsql_client = boto3.client('dsql', region_name=region)
+    session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
+    dsql_client = session.client('dsql', region_name=region)
 
     try:
-        logger.info('Validating connection to cluster')
+        # Validate connection by trying to execute a simple query directly
+        # Connection errors will be handled in execute_query
         ctx = NoOpCtx()
         asyncio.run(execute_query(ctx, None, 'SELECT 1'))
     except Exception as e:

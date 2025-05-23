@@ -5,21 +5,25 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 ## Features
 
 - Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora DSQL database.
-- Read-only mode via --read-only
+- Read-only by default, transactions enabled with `--allow-writes`
+- Connection reuse between requests for improved performance
 
 ## Prerequisites
 
-1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python using `uv python install 3.10`
-3. An AWS account with an [Aurora DSQL Cluster](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/getting-started.html)
-4. This MCP server can only be run locally on the same host as your LLM client.
-5. Set up AWS credentials with access to AWS services
+1. An AWS account with an [Aurora DSQL Cluster](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/getting-started.html)
+1. This MCP server can only be run locally on the same host as your LLM client.
+1. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
 
 ## Installation
 
-Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
+### Using `uv`
+
+1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
+2. Install Python using `uv python install 3.10`
+
+Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
@@ -27,13 +31,14 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
     "awslabs.aurora-dsql-mcp-server": {
       "command": "uvx",
       "args": [
-         "awslabs.aurora-dsql-mcp-server@latest",
-         "--cluster_endpoint",
-         "[your dsql cluster endpoint]",
-         "--region",
-         "[your dsql cluster region, e.g. us-east-1]",
-         "--database_user",
-         "[your dsql username]"
+        "awslabs.aurora-dsql-mcp-server@latest",
+        "--cluster_endpoint",
+        "[your dsql cluster endpoint]",
+        "--region",
+        "[your dsql cluster region, e.g. us-east-1]",
+        "--database_user",
+        "[your dsql username]",
+        "--profile", "default"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -45,14 +50,28 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 }
 ```
 
-### Build and install docker image locally on the same host of your LLM client
+### Using Docker
 
 1. 'git clone https://github.com/awslabs/mcp.git'
 2. Go to sub-directory 'src/aurora-dsql-mcp-server/'
 3. Run 'docker build -t awslabs/aurora-dsql-mcp-server:latest .'
+4. Create a env file with tempoary credentials:
 
-### Add or update your LLM client's config with following:
-<pre><code>
+Either manually:
+```file
+# ficticious `.env` file with AWS temporary credentials
+AWS_ACCESS_KEY_ID=<from the profile you set up>
+AWS_SECRET_ACCESS_KEY=<from the profile you set up>
+AWS_SESSION_TOKEN=<from the profile you set up>
+```
+
+Or using `aws configure`:
+
+```bash
+aws configure export-credentials --profile your-profile-name --format env > temp_aws_credentials.env | sed 's/^export //' > temp_aws_credentials.env
+```
+
+```json
 {
   "mcpServers": {
     "awslabs.aurora-dsql-mcp-server": {
@@ -61,9 +80,8 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
         "run",
         "-i",
         "--rm",
-        "-e", "AWS_ACCESS_KEY_ID=[your data]",
-        "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
-        "-e", "AWS_REGION=[your data]",
+        "--env-file",
+        "/full/path/to/file/above/.env",
         "awslabs/aurora-dsql-mcp-server:latest",
         "--cluster_endpoint", "[your data]",
         "--database_user", "[your data]",
@@ -72,15 +90,41 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
     }
   }
 }
-</code></pre>
+```
 
+## Server Configuration options
 
-NOTE: By default, mcp server does not allow write operations. Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing --allow-writes parameter.
+### `--allow-writes`
 
-The MCP server can use the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
+By default, the dsql mcp server does not allow write operations. Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing `--allow-writes` parameter.
+
+### `--cluster_endpoint`
+
+This is mandatory parameter to specify the cluster to connect to. This should be the full endpoint of your cluster, e.g., `01abc2ldefg3hijklmnopqurstu.dsql.us-east-1.on.aws`
+
+### `--database_user`
+
+This is a mandatory parameter to specify the user to connect as. For example
+`admin`, or `my_user`. Note that the AWS credentials you are using must have
+permission to login as that user. For more information on setting up and using
+database roles in DSQL, see [Using database roles with IAM roles](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/using-database-and-iam-roles.html).
+
+### `--profile`
+
+You can specify the aws profile to use for your credentials. Note that this is
+not supported for docker installation.
+
+Using the `AWS_PROFILE` environment variable in your MCP configuration is also
+supported:
 
 ```json
 "env": {
   "AWS_PROFILE": "your-aws-profile"
 }
 ```
+
+If neither is provided, the MCP server defaults to using the "default" profile in your AWS configuration file.
+
+### `--region`
+
+This is a mandatory parameter to specify the region of your DSQL database.
