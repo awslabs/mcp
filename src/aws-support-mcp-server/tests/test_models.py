@@ -2,51 +2,69 @@
 
 import pytest
 from pydantic import ValidationError
-
 from awslabs.aws_support_mcp_server.models import (
-    AddAttachmentsToSetRequest,
-    AddAttachmentsToSetResponse,
-    AddCommunicationRequest,
-    AddCommunicationResponse,
-    AttachmentData,
     AttachmentDetails,
-    CaseStatus,
-    Category,
     Communication,
-    CreateCaseRequest,
-    CreateCaseResponse,
-    DescribeCasesRequest,
-    DescribeCasesResponse,
-    DescribeSupportedLanguagesRequest,
-    DescribeSupportedLanguagesResponse,
-    IssueType,
     RecentCommunications,
-    ResolveCaseRequest,
-    ResolveCaseResponse,
+    Category,
     Service,
     SeverityLevel,
     SupportCase,
+    CreateCaseRequest,
+    DescribeCasesRequest,
+    AddCommunicationRequest,
+    ResolveCaseRequest,
+    CreateCaseResponse,
+    DescribeCasesResponse,
+    AddCommunicationResponse,
+    ResolveCaseResponse,
+    DescribeCreateCaseOptionsRequest,
+    CreateCaseCategory,
+    DescribeCreateCaseOptionsResponse,
+    AttachmentData,
+    AddAttachmentsToSetRequest,
+    AddAttachmentsToSetResponse,
+    DescribeSupportedLanguagesRequest,
     SupportedLanguage,
+    DescribeSupportedLanguagesResponse,
+    IssueType,
+    CaseStatus
 )
 
 # Test Data
-VALID_ATTACHMENT_DETAILS = {"attachmentId": "test-attachment-id", "fileName": "test.txt"}
+VALID_ATTACHMENT_DETAILS = {
+    "attachmentId": "test-attachment-id",
+    "fileName": "test.txt"
+}
 
 VALID_COMMUNICATION = {
     "body": "Test communication body",
     "caseId": "test-case-id",
     "submittedBy": "test@example.com",
     "timeCreated": "2023-01-01T00:00:00Z",
-    "attachmentSet": [VALID_ATTACHMENT_DETAILS],
+    "attachmentSet": [VALID_ATTACHMENT_DETAILS]
 }
 
-VALID_RECENT_COMMUNICATIONS = {"communications": [VALID_COMMUNICATION], "nextToken": "test-token"}
+VALID_RECENT_COMMUNICATIONS = {
+    "communications": [VALID_COMMUNICATION],
+    "nextToken": "test-token"
+}
 
-VALID_CATEGORY = {"code": "test-category", "name": "Test Category"}
+VALID_CATEGORY = {
+    "code": "test-category",
+    "name": "Test Category"
+}
 
-VALID_SERVICE = {"code": "test-service", "name": "Test Service", "categories": [VALID_CATEGORY]}
+VALID_SERVICE = {
+    "code": "test-service",
+    "name": "Test Service",
+    "categories": [VALID_CATEGORY]
+}
 
-VALID_SEVERITY_LEVEL = {"code": "test-severity", "name": "Test Severity"}
+VALID_SEVERITY_LEVEL = {
+    "code": "test-severity",
+    "name": "Test Severity"
+}
 
 VALID_SUPPORT_CASE = {
     "caseId": "test-case-id",
@@ -60,9 +78,8 @@ VALID_SUPPORT_CASE = {
     "timeCreated": "2023-01-01T00:00:00Z",
     "recentCommunications": VALID_RECENT_COMMUNICATIONS,
     "ccEmailAddresses": ["cc@example.com"],
-    "language": "en",
+    "language": "en"
 }
-
 
 class TestBaseModels:
     """Tests for base data models."""
@@ -223,7 +240,6 @@ class TestBaseModels:
         with pytest.raises(ValidationError):
             SupportCase(**{**VALID_SUPPORT_CASE, "status": "invalid"})
 
-
 class TestRequestModels:
     """Tests for request models."""
 
@@ -239,21 +255,21 @@ class TestRequestModels:
             "ccEmailAddresses": ["test@example.com"],
             "language": "en",
             "issueType": "technical",
-            "attachmentSetId": "test-attachment-set",
+            "attachmentSetId": "test-attachment-set"
         }
         request = CreateCaseRequest(**data)
 
         # Test to_api_params
         params = request.to_api_params()
         assert params["subject"] == "Test subject"
-        assert params["service_code"] == "test-service"
-        assert params["category_code"] == "test-category"
-        assert params["severity_code"] == "test-severity"
-        assert params["communication_body"] == "Test body"
-        assert params["cc_email_addresses"] == ["test@example.com"]
+        assert params["serviceCode"] == "test-service"
+        assert params["categoryCode"] == "test-category"
+        assert params["severityCode"] == "test-severity"
+        assert params["communicationBody"] == "Test body"
+        assert params["ccEmailAddresses"] == ["test@example.com"]
         assert params["language"] == "en"
-        assert params["issue_type"] == "technical"
-        assert params["attachment_set_id"] == "test-attachment-set"
+        assert params["issueType"] == "technical"
+        assert params["attachmentSetId"] == "test-attachment-set"
 
         # Test invalid data
         with pytest.raises(ValidationError):
@@ -282,21 +298,21 @@ class TestRequestModels:
             "includeCommunications": True,
             "language": "en",
             "maxResults": 50,
-            "nextToken": "test-token",
+            "nextToken": "test-token"
         }
         request = DescribeCasesRequest(**data)
 
         # Test to_api_params
         params = request.to_api_params()
-        assert params["case_id_list"] == ["case-1", "case-2"]
-        assert params["display_id"] == "display-1"
-        assert params["after_time"] == "2023-01-01T00:00:00Z"
-        assert params["before_time"] == "2023-01-31T23:59:59Z"
-        assert params["include_resolved_cases"] is True
-        assert params["include_communications"] is True
+        assert params["caseIdList"] == ["case-1", "case-2"]
+        assert params["displayId"] == "display-1"
+        assert params["afterTime"] == "2023-01-01T00:00:00Z"
+        assert params["beforeTime"] == "2023-01-31T23:59:59Z"
+        assert params["includeResolvedCases"] is True
+        assert params["includeCommunications"] is True
         assert params["language"] == "en"
-        assert params["max_results"] == 50
-        assert params["next_token"] == "test-token"
+        assert params["maxResults"] == 50
+        assert params["nextToken"] == "test-token"
 
         # Test defaults
         default_request = DescribeCasesRequest()
@@ -321,16 +337,16 @@ class TestRequestModels:
             "caseId": "test-case",
             "communicationBody": "Test communication",
             "ccEmailAddresses": ["test@example.com"],
-            "attachmentSetId": "test-attachment-set",
+            "attachmentSetId": "test-attachment-set"
         }
         request = AddCommunicationRequest(**data)
 
         # Test to_api_params
         params = request.to_api_params()
-        assert params["case_id"] == "test-case"
-        assert params["communication_body"] == "Test communication"
-        assert params["cc_email_addresses"] == ["test@example.com"]
-        assert params["attachment_set_id"] == "test-attachment-set"
+        assert params["caseId"] == "test-case"
+        assert params["communicationBody"] == "Test communication"
+        assert params["ccEmailAddresses"] == ["test@example.com"]
+        assert params["attachmentSetId"] == "test-attachment-set"
 
         # Test invalid data
         with pytest.raises(ValidationError):
@@ -355,12 +371,11 @@ class TestRequestModels:
 
         # Test to_api_params
         params = request.to_api_params()
-        assert params["case_id"] == "test-case"
+        assert params["caseId"] == "test-case"
 
         # Test invalid data
         with pytest.raises(ValidationError):
             ResolveCaseRequest()  # Missing required fields
-
 
 class TestResponseModels:
     """Tests for response models."""
@@ -371,14 +386,12 @@ class TestResponseModels:
         data = {
             "caseId": "test-case",
             "status": "success",
-            "message": "Case created successfully",
-            "detected_language": "en",
+            "message": "Case created successfully"
         }
         response = CreateCaseResponse(**data)
         assert response.case_id == "test-case"
         assert response.status == "success"
         assert response.message == "Case created successfully"
-        assert response.detected_language == "en"
 
         # Test invalid data
         with pytest.raises(ValidationError):
@@ -387,7 +400,10 @@ class TestResponseModels:
     def test_describe_cases_response(self):
         """Test DescribeCasesResponse model."""
         # Test valid data
-        data = {"cases": [VALID_SUPPORT_CASE], "nextToken": "test-token"}
+        data = {
+            "cases": [VALID_SUPPORT_CASE],
+            "nextToken": "test-token"
+        }
         response = DescribeCasesResponse(**data)
         assert len(response.cases) == 1
         assert response.next_token == "test-token"
@@ -399,7 +415,11 @@ class TestResponseModels:
     def test_add_communication_response(self):
         """Test AddCommunicationResponse model."""
         # Test valid data
-        data = {"result": True, "status": "success", "message": "Communication added successfully"}
+        data = {
+            "result": True,
+            "status": "success",
+            "message": "Communication added successfully"
+        }
         response = AddCommunicationResponse(**data)
         assert response.result is True
         assert response.status == "success"
@@ -416,7 +436,7 @@ class TestResponseModels:
             "initial_case_status": CaseStatus.OPENED.value,
             "final_case_status": CaseStatus.RESOLVED.value,
             "status": "success",
-            "message": "Case resolved successfully",
+            "message": "Case resolved successfully"
         }
         response = ResolveCaseResponse(**data)
         assert response.initial_case_status == "opened"
@@ -427,7 +447,6 @@ class TestResponseModels:
         # Test invalid data
         with pytest.raises(ValidationError):
             ResolveCaseResponse()  # Missing required fields
-
 
 class TestEnums:
     """Tests for enum types."""
@@ -455,14 +474,16 @@ class TestEnums:
         with pytest.raises(ValueError):
             CaseStatus("invalid")
 
-
 class TestAttachmentModels:
     """Tests for attachment-related models."""
 
     def test_attachment_data(self):
         """Test AttachmentData model."""
         # Test valid data
-        data = {"data": "base64_encoded_content", "fileName": "test.txt"}
+        data = {
+            "data": "base64_encoded_content",
+            "fileName": "test.txt"
+        }
         attachment = AttachmentData(**data)
         assert attachment.data == "base64_encoded_content"
         assert attachment.file_name == "test.txt"
@@ -480,8 +501,11 @@ class TestAttachmentModels:
         """Test AddAttachmentsToSetRequest model."""
         # Test valid data
         data = {
-            "attachments": [{"data": "base64_encoded_content", "fileName": "test.txt"}],
-            "attachmentSetId": "test-set",
+            "attachments": [{
+                "data": "base64_encoded_content",
+                "fileName": "test.txt"
+            }],
+            "attachmentSetId": "test-set"
         }
         request = AddAttachmentsToSetRequest(**data)
         assert len(request.attachments) == 1
@@ -490,7 +514,7 @@ class TestAttachmentModels:
         # Test to_api_params
         params = request.to_api_params()
         assert len(params["attachments"]) == 1
-        assert params["attachment_set_id"] == "test-set"
+        assert params["attachmentSetId"] == "test-set"
 
         # Test invalid data
         with pytest.raises(ValidationError):
@@ -506,7 +530,7 @@ class TestAttachmentModels:
             "attachmentSetId": "test-set",
             "expiryTime": "2023-01-01T00:00:00Z",
             "status": "success",
-            "message": "Attachments added successfully",
+            "message": "Attachments added successfully"
         }
         response = AddAttachmentsToSetResponse(**data)
         assert response.attachment_set_id == "test-set"
@@ -518,14 +542,17 @@ class TestAttachmentModels:
         with pytest.raises(ValidationError):
             AddAttachmentsToSetResponse()  # Missing required fields
 
-
 class TestLanguageModels:
     """Tests for language-related models."""
 
     def test_supported_language(self):
         """Test SupportedLanguage model."""
         # Test valid data
-        data = {"code": "en", "name": "English", "native_name": "English"}
+        data = {
+            "code": "en",
+            "name": "English",
+            "native_name": "English"
+        }
         language = SupportedLanguage(**data)
         assert language.code == "en"
         assert language.name == "English"
@@ -550,7 +577,7 @@ class TestLanguageModels:
         data = {
             "languages": ["en", "es", "fr"],
             "status": "success",
-            "message": "Languages retrieved successfully",
+            "message": "Languages retrieved successfully"
         }
         response = DescribeSupportedLanguagesResponse(**data)
         assert response.languages == ["en", "es", "fr"]

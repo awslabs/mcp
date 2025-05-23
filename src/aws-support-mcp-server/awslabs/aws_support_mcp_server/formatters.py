@@ -14,7 +14,7 @@
 """Response formatting utilities for the AWS Support MCP Server."""
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from awslabs.aws_support_mcp_server.consts import (
     CASE_SUMMARY_TEMPLATE,
@@ -43,17 +43,18 @@ def format_case(case_data: Dict[str, Any], include_communications: bool = True) 
     """
     # Create a SupportCase model from the raw data
     case = SupportCase(
-        case_id=case_data.get("caseId", ""),
-        display_id=case_data.get("displayId"),
+        caseId=case_data.get("caseId", ""),
+        displayId=case_data.get("displayId", None),
         subject=case_data.get("subject", ""),
         status=case_data.get("status", ""),
-        service_code=case_data.get("serviceCode", ""),
-        category_code=case_data.get("categoryCode", ""),
-        severity_code=case_data.get("severityCode", ""),
-        submitted_by=case_data.get("submittedBy", ""),
-        time_created=case_data.get("timeCreated", ""),
-        cc_email_addresses=case_data.get("ccEmailAddresses"),
+        serviceCode=case_data.get("serviceCode", ""),
+        categoryCode=case_data.get("categoryCode", ""),
+        severityCode=case_data.get("severityCode", ""),
+        submittedBy=case_data.get("submittedBy", ""),
+        timeCreated=case_data.get("timeCreated", ""),
+        ccEmailAddresses=case_data.get("ccEmailAddresses"),
         language=case_data.get("language"),
+        recentCommunications=None  # Initialize as None, will be set later if needed
     )
 
     # Format recent communications if present and requested
@@ -63,39 +64,37 @@ def format_case(case_data: Dict[str, Any], include_communications: bool = True) 
 
         for comm_data in recent_comms.get("communications", []):
             # Format attachments if present
-            attachment_set = None
+            attachmentSet = None
             if "attachmentSet" in comm_data:
-                attachment_set = [
+                attachmentSet = [
                     AttachmentDetails(
-                        attachment_id=att.get("attachmentId", ""),
-                        file_name=att.get("fileName", ""),
+                        attachmentId=att.get("attachmentId", ""),
+                        fileName=att.get("fileName", "")
                     )
-                    for att in comm_data["attachmentSet"]
+                    for att in comm_data.get("attachmentSet", [])
                 ]
 
             # Create a Communication model
             comm = Communication(
                 body=comm_data.get("body", ""),
-                case_id=comm_data.get("caseId"),
-                submitted_by=comm_data.get("submittedBy"),
-                time_created=comm_data.get("timeCreated"),
-                attachment_set=attachment_set,
+                caseId=comm_data.get("caseId"),
+                submittedBy=comm_data.get("submittedBy"),
+                timeCreated=comm_data.get("timeCreated"),
+                attachmentSet=attachmentSet
             )
             communications.append(comm)
 
         # Create a RecentCommunications model
         case.recent_communications = RecentCommunications(
             communications=communications,
-            next_token=recent_comms.get("nextToken"),
+            nextToken=recent_comms.get("nextToken")
         )
 
     # Convert the model to a dictionary
     return case.model_dump()
 
 
-def format_cases(
-    cases_data: List[Dict[str, Any]], include_communications: bool = True
-) -> List[Dict[str, Any]]:
+def format_cases(cases_data: List[Dict[str, Any]], include_communications: bool = True) -> List[Dict[str, Any]]:
     """Format multiple support cases for user display.
 
     Args:
@@ -117,26 +116,30 @@ def format_communications(communications_data: Dict[str, Any]) -> Dict[str, Any]
     Returns:
         A dictionary with formatted communications
     """
-    result = {"communications": [], "next_token": communications_data.get("nextToken")}
+    result = {
+        "communications": [],
+        "nextToken": communications_data.get("nextToken")
+    }
 
     for comm_data in communications_data.get("communications", []):
         # Format attachments if present
-        attachment_set = None
-        if "attachmentSet" in comm_data:
-            attachment_set = [
+        attachmentSet = None
+        if "attachmentSet" in comm_data and comm_data["attachmentSet"]:
+            attachmentSet = [
                 AttachmentDetails(
-                    attachment_id=att.get("attachmentId", ""), file_name=att.get("fileName", "")
+                    attachmentId=att.get("attachmentId", ""),
+                    fileName=att.get("fileName", "")
                 )
-                for att in comm_data["attachmentSet"]
+                for att in comm_data.get("attachmentSet", [])
             ]
 
         # Create a Communication model
         comm = Communication(
             body=comm_data.get("body", ""),
-            case_id=comm_data.get("caseId"),
-            submitted_by=comm_data.get("submittedBy"),
-            time_created=comm_data.get("timeCreated"),
-            attachment_set=attachment_set,
+            caseId=comm_data.get("caseId"),
+            submittedBy=comm_data.get("submittedBy"),
+            timeCreated=comm_data.get("timeCreated"),
+            attachmentSet=attachmentSet
         )
 
         # Convert the model to a dictionary
@@ -162,7 +165,10 @@ def format_services(services_data: List[Dict[str, Any]]) -> Dict[str, Any]:
             code=service_data.get("code", ""),
             name=service_data.get("name", ""),
             categories=[
-                Category(code=cat.get("code", ""), name=cat.get("name", ""))
+                Category(
+                    code=cat.get("code", ""),
+                    name=cat.get("name", "")
+                )
                 for cat in service_data.get("categories", [])
             ],
         )
@@ -228,7 +234,7 @@ def format_markdown_case_summary(case: Dict[str, Any]) -> str:
         f"- **Category**: {case['categoryCode']}",
         f"- **Severity**: {case['severityCode']}",
         f"- **Created By**: {case['submittedBy']}",
-        f"- **Created On**: {case['timeCreated']}",
+        f"- **Created On**: {case['timeCreated']}"
     ]
 
     markdown = CASE_SUMMARY_TEMPLATE.format(case_details="\n".join(case_details))
@@ -237,7 +243,7 @@ def format_markdown_case_summary(case: Dict[str, Any]) -> str:
         markdown += "\n## Recent Communications\n\n"
         for comm in case["recentCommunications"].get("communications", []):
             comm_header = f"### {comm['submittedBy']} - {comm['timeCreated']}"
-            comm_body = comm["body"]
+            comm_body = comm['body']
             markdown += f"{comm_header}\n\n{comm_body}\n\n"
 
             if comm.get("attachmentSet"):
@@ -248,44 +254,6 @@ def format_markdown_case_summary(case: Dict[str, Any]) -> str:
                 ]
                 markdown += "\n".join(attachments) + "\n\n"
     return markdown
-
-
-def format_markdown_supported_languages(languages: List[str]) -> str:
-    """Format supported languages as Markdown.
-
-    Args:
-        languages: List of supported language codes
-
-    Returns:
-        Markdown formatted string
-    """
-    sections = ["# AWS Support Supported Languages\n"]
-    sections.append("The following languages are supported for AWS Support cases:\n")
-    sections.append("| Code | Language | Native Name |")
-    sections.append("|------|----------|-------------|")
-
-    # Sort languages by code
-    languages.sort()
-
-    for lang_code in languages:
-        # Get language names, default to code if not in mapping
-        names = LANGUAGE_NAMES.get(lang_code, (lang_code, lang_code))
-        sections.append(f"| {lang_code} | {names[0]} | {names[1]} |")
-
-    sections.extend(
-        [
-            "\n## Notes\n",
-            "1. Language support may vary by:",
-            "   - Service code",
-            "   - Category code",
-            "   - Issue type\n",
-            "2. If a language is not supported for a specific combination, the system will:",
-            "   - Fall back to the closest supported language, or",
-            "   - Use English as the default language",
-        ]
-    )
-
-    return "\n".join(sections)
 
 
 def format_markdown_services(services: Dict[str, Any]) -> str:

@@ -21,11 +21,9 @@ DEFAULT_RETRY_MODE = "standard"
 DEFAULT_CONNECT_TIMEOUT = 30  # seconds
 DEFAULT_READ_TIMEOUT = 10  # seconds
 
-
 # Case status values
 class CaseStatus(str, Enum):
     """Status values for AWS Support cases."""
-
     OPENED = "opened"
     PENDING_CUSTOMER_ACTION = "pending-customer-action"
     RESOLVED = "resolved"
@@ -33,27 +31,22 @@ class CaseStatus(str, Enum):
     WORK_IN_PROGRESS = "work-in-progress"
     CLOSED = "closed"
 
-
 # Issue types
 class IssueType(str, Enum):
     """Issue types for AWS Support cases."""
-
     TECHNICAL = "technical"
     ACCOUNT_AND_BILLING = "account-and-billing"
     SERVICE_LIMIT = "service-limit"
 
-
 # Error codes
 class ErrorCode(str, Enum):
     """AWS Support API error codes."""
-
     SUBSCRIPTION_REQUIRED = "SubscriptionRequiredException"
     ACCESS_DENIED = "AccessDeniedException"
     CASE_NOT_FOUND = "CaseIdNotFound"
     THROTTLING = "ThrottlingException"
     TOO_MANY_REQUESTS = "TooManyRequestsException"
     INTERNAL_SERVER = "InternalServerError"
-
 
 # Default values
 DEFAULT_REGION = "us-east-1"
@@ -82,7 +75,8 @@ API_TIMEOUT = 30  # seconds
 
 # Error messages
 ERROR_SUBSCRIPTION_REQUIRED = (
-    "AWS Support API access requires a Business, Enterprise On-Ramp, or Enterprise Support plan."
+    "AWS Support API access requires a Business, Enterprise On-Ramp, or "
+    "Enterprise Support plan."
 )
 ERROR_AUTHENTICATION_FAILED = "Failed to authenticate with AWS Support API."
 ERROR_CASE_NOT_FOUND = "The specified support case could not be found."
