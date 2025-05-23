@@ -284,23 +284,12 @@ async def get_connection(ctx):  # noqa: D103
     """
     global persistent_connection
 
-    # Check if we have a valid connection
+    # Return the existing connection without health check
+    # The caller will handle reconnection if needed
     if persistent_connection is not None:
-        try:
-            # Test if the connection is still valid
-            async with persistent_connection.cursor() as cur:
-                await cur.execute('SELECT 1')
-                await cur.fetchone()
-            logger.debug('Reusing existing database connection')
-            return persistent_connection
-        except Exception as e:
-            logger.warning(f'Existing connection is no longer valid, creating a new one: {e}')
-            try:
-                await persistent_connection.close()
-            except Exception:
-                pass  # Ignore errors when closing an already broken connection
-            persistent_connection = None
+        return persistent_connection
 
+    # Create a new connection
     password_token = await get_password_token()
 
     conn_params = {
@@ -332,6 +321,24 @@ async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]
         conn = conn_to_use
 
     try:
+        async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:  # pyright: ignore[reportAttributeAccessIssue]
+            await cur.execute(query, params)  # pyright: ignore[reportArgumentType]
+            if cur.rownumber is None:
+                return []
+            else:
+                return await cur.fetchall()
+    except (psycopg.OperationalError, psycopg.InterfaceError) as e:
+        # Connection issue - reconnect and retry
+        logger.warning(f'Connection error, reconnecting: {e}')
+        global persistent_connection
+        try:
+            await persistent_connection.close()
+        except Exception:
+            pass  # Ignore errors when closing an already broken connection
+        persistent_connection = None
+
+        # Get a fresh connection and retry
+        conn = await get_connection(ctx)
         async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:  # pyright: ignore[reportAttributeAccessIssue]
             await cur.execute(query, params)  # pyright: ignore[reportArgumentType]
             if cur.rownumber is None:
@@ -396,7 +403,8 @@ def main():
     dsql_client = session.client('dsql', region_name=region)
 
     try:
-        logger.info('Validating connection to cluster')
+        # Validate connection by trying to execute a simple query directly
+        # Connection errors will be handled in execute_query
         ctx = NoOpCtx()
         asyncio.run(execute_query(ctx, None, 'SELECT 1'))
     except Exception as e:
