@@ -42,6 +42,27 @@ from psycopg.errors import ReadOnlySqlTransaction
 ctx = AsyncMock()
 
 
+def create_mock_connection():
+    """Create a mock connection with cursor context manager."""
+    mock_conn = AsyncMock()
+    mock_cursor = AsyncMock()
+    mock_cursor.__aenter__ = AsyncMock(return_value=mock_cursor)
+    mock_cursor.__aexit__ = AsyncMock(return_value=None)
+    mock_cursor.execute = AsyncMock()
+    mock_conn.cursor = MagicMock(return_value=mock_cursor)
+    mock_conn.closed = False
+    return mock_conn, mock_cursor
+
+
+@pytest.fixture
+async def reset_persistent_connection():
+    """Reset the persistent connection before and after each test."""
+    import awslabs.aurora_dsql_mcp_server.server as server
+    server.persistent_connection = None
+    yield
+    server.persistent_connection = None
+
+
 async def test_readonly_query_throws_exception_on_empty_input():
     with pytest.raises(ValueError) as excinfo:
         await readonly_query('', ctx)
@@ -98,15 +119,17 @@ async def test_get_password_token_for_non_admin_user(mocker):
 
 @patch('awslabs.aurora_dsql_mcp_server.server.database_user', 'admin')
 @patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'test_ce')
-async def test_get_connection(mocker):
+async def test_get_connection(mocker, reset_persistent_connection):
     mock_auth = mocker.patch('awslabs.aurora_dsql_mcp_server.server.get_password_token')
     mock_auth.return_value = 'auth_token'
     mock_connect = mocker.patch('psycopg.AsyncConnection.connect')
-    mock_conn = AsyncMock()
+
+    # Create mock connection with working cursor
+    mock_conn, mock_cursor = create_mock_connection()
     mock_connect.return_value = mock_conn
 
     result = await get_connection(ctx)
-    assert result == mock_conn
+    assert result is mock_conn
 
     conn_params = {
         'dbname': DSQL_DB_NAME,
@@ -123,8 +146,7 @@ async def test_get_connection(mocker):
 
 @patch('awslabs.aurora_dsql_mcp_server.server.database_user', 'admin')
 @patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'test_ce')
-@patch('awslabs.aurora_dsql_mcp_server.server.persistent_connection', None)
-async def test_get_connection_failure(mocker):
+async def test_get_connection_failure(mocker, reset_persistent_connection):
     mock_auth = mocker.patch('awslabs.aurora_dsql_mcp_server.server.get_password_token')
     mock_auth.return_value = 'auth_token'
     mock_connect = mocker.patch('psycopg.AsyncConnection.connect')
