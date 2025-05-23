@@ -409,6 +409,8 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 ### Amazon DynamoDB MCP Server
 
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.dynamodb-mcp-server.svg)](https://pypi.org/project/awslabs.dynamodb-mcp-server/)
+
 A server for interacting with Amazon DynamoDB
 
 - Control Plane operations like table creation, table update, global secondary index, streams, global table management, backup, restore, etc.
@@ -545,7 +547,6 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       "disabled": false,
       "autoApprove": []
     },
-
     "awslabs.valkey-mcp-server": {
       "command": "uvx",
       "args": [
@@ -801,7 +802,8 @@ For every new project, always look at your MCP servers and use mcp-core as the s
     - This makes MCP servers available in all your Cursor workspaces.
 
 #### `.cursor/mcp.json`
- ```json
+
+```json
  {
   "mcpServers": {
     "awslabs.core-mcp-server": {
@@ -1002,65 +1004,7 @@ For every new project, always look at your MCP servers and use mcp-core as the s
     }
   }
 }
-
-      "awslabs.valkey-mcp-server": {
-        "command": "uvx",
-        "args": ["awslabs.valkey-mcp-server@latest"],
-        "env": {
-          "VALKEY_HOST": "127.0.0.1",
-          "VALKEY_PORT": "6379",
-          "FASTMCP_LOG_LEVEL": "ERROR"
-        },
-        "autoApprove": [],
-        "disabled": false
-      },
-    "awslabs.aws-location-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.aws-location-mcp-server@latest"],
-       "env": {
-         "AWS_PROFILE": "your-aws-profile",
-         "AWS_REGION": "us-east-1",
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
-    },
-    "awslabs.memcached-mcp-server": {
-        "command": "uvx",
-        "args": ["awslabs.memcached-mcp-server@latest"],
-        "env": {
-          "MEMCACHED_HOST": "127.0.0.1",
-          "MEMCACHED_PORT": "11211",
-          "FASTMCP_LOG_LEVEL": "ERROR"
-        },
-        "autoApprove": [],
-        "disabled": false
-    },
-    "awslabs.git-repo-research-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.git-repo-research-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "GITHUB_TOKEN": "your-github-token"
-      },
-      "disabled": false,
-      "autoApprove": []
-    },
-    "awslabs.cloudformation": {
-      "command": "uvx",
-      "args": ["awslabs.cfn-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-
- ```
+```
 
 3. **Using MCP in Chat** The Composer Agent will automatically use any MCP tools that are listed under Available Tools on the MCP settings page if it determines them to be relevant. To prompt tool usage intentionally, please prompt Cursor to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
 
