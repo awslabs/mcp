@@ -1,22 +1,20 @@
 """Tests for the Finch MCP server."""
 
-import os
+import pytest
 from awslabs.finch_mcp_server.consts import STATUS_ERROR, STATUS_SUCCESS
 from awslabs.finch_mcp_server.models import (
     BuildImageRequest,
     CreateEcrRepoRequest,
     PushImageRequest,
-    Result,
 )
 from awslabs.finch_mcp_server.server import (
     ensure_vm_running,
+    finch_build_container_image,
+    finch_create_ecr_repo,
+    finch_push_image,
     sensitive_data_filter,
 )
 from unittest.mock import MagicMock, patch
-
-
-# Set test environment variable for sensitive_data_filter
-os.environ['FINCH_TEST_ENV'] = 'true'
 
 
 class TestSensitiveDataFilter:
@@ -24,12 +22,14 @@ class TestSensitiveDataFilter:
 
     def test_filter_aws_access_key(self):
         """Test filtering AWS access keys."""
-        record = {'message': 'AWS Access Key: AKIAIOSFODNN7EXAMPLE is sensitive'}
+        record = {
+            'message': 'AWS Access Key: AKIAIOSFODNN7EXAMPLE is sensitive'  # pragma: allowlist secret
+        }
 
         sensitive_data_filter(record)
 
         assert 'AWS_ACCESS_KEY_REDACTED' in record['message']
-        assert 'AKIAIOSFODNN7EXAMPLE' not in record['message']
+        assert 'AKIAIOSFODNN7EXAMPLE' not in record['message']  # pragma: allowlist secret
 
     def test_filter_aws_secret_key(self):
         """Test filtering AWS secret keys."""
@@ -40,11 +40,16 @@ class TestSensitiveDataFilter:
         sensitive_data_filter(record)
 
         assert 'AWS_SECRET_KEY_REDACTED' in record['message']
-        assert 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY' not in record['message']
+        assert (
+            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'  # pragma: allowlist secret
+            not in record['message']
+        )
 
     def test_filter_api_key(self):
         """Test filtering API keys."""
-        record = {'message': "api_key='secret123'"}
+        record = {
+            'message': "api_key='secret123'"  # pragma: allowlist secret
+        }
 
         sensitive_data_filter(record)
 
@@ -53,7 +58,9 @@ class TestSensitiveDataFilter:
 
     def test_filter_password(self):
         """Test filtering passwords."""
-        record = {'message': "password='mypassword'"}
+        record = {
+            'message': "password='mypassword'"  # pragma: allowlist secret
+        }
 
         sensitive_data_filter(record)
 
@@ -62,11 +69,16 @@ class TestSensitiveDataFilter:
 
     def test_filter_url_with_credentials(self):
         """Test filtering URLs with credentials."""
-        record = {'message': 'Connection URL: https://username:password@example.com'}
+        record = {
+            'message': 'Connection URL: https://username:password@example.com'  # pragma: allowlist secret
+        }
 
         sensitive_data_filter(record)
 
-        assert 'https://REDACTED:REDACTED@example.com' in record['message']
+        assert (
+            'https://REDACTED:REDACTED@example.com'  # pragma: allowlist secret
+            in record['message']
+        )
         assert 'username:password' not in record['message']
 
 
@@ -106,7 +118,6 @@ class TestEnsureVmRunning:
         mock_initialize_vm.assert_not_called()
         mock_start_vm.assert_not_called()
 
-        # Reset mocks
         mock_format_result.reset_mock()
         mock_initialize_vm.reset_mock()
         mock_start_vm.reset_mock()
@@ -124,7 +135,6 @@ class TestEnsureVmRunning:
         mock_start_vm.assert_called_once()
         mock_initialize_vm.assert_not_called()
 
-        # Reset mocks
         mock_format_result.reset_mock()
         mock_initialize_vm.reset_mock()
         mock_start_vm.reset_mock()
@@ -142,7 +152,6 @@ class TestEnsureVmRunning:
         mock_initialize_vm.assert_called_once()
         mock_start_vm.assert_not_called()
 
-        # Reset mocks
         mock_format_result.reset_mock()
         mock_initialize_vm.reset_mock()
         mock_start_vm.reset_mock()
@@ -159,12 +168,10 @@ class TestEnsureVmRunning:
         mock_start_vm.assert_called_once()
         mock_initialize_vm.assert_not_called()
 
-        # Reset mocks
         mock_format_result.reset_mock()
         mock_initialize_vm.reset_mock()
         mock_start_vm.reset_mock()
 
-        # Test case 5: VM initialization fails
         mock_is_nonexistent.return_value = True
         mock_is_stopped.return_value = False
         mock_is_running.return_value = False
@@ -195,26 +202,12 @@ class TestEnsureVmRunning:
         mock_format_result.assert_called_with(STATUS_SUCCESS, 'No VM operation required on Linux.')
 
 
-class TestFinchOperations:
+class TestFinchTools:
     """Tests for Finch operations in the server."""
 
-    @patch('awslabs.finch_mcp_server.server.check_finch_installation')
-    @patch('awslabs.finch_mcp_server.server.contains_ecr_reference')
-    @patch('awslabs.finch_mcp_server.server.configure_ecr')
-    @patch('awslabs.finch_mcp_server.server.stop_vm')
-    @patch('awslabs.finch_mcp_server.server.ensure_vm_running')
-    @patch('awslabs.finch_mcp_server.server.build_image')
-    def test_finch_build_container_image(
-        self,
-        mock_build_image,
-        mock_ensure_vm,
-        mock_stop_vm,
-        mock_configure_ecr,
-        mock_contains_ecr,
-        mock_check_finch,
-    ):
-        """Test finch_build_container_image tool."""
-        # Setup test data
+    @pytest.mark.asyncio
+    async def test_finch_build_container_image_success(self):
+        """Test successful finch_build_container_image operation."""
         request = BuildImageRequest(
             dockerfile_path='/path/to/Dockerfile',
             context_path='/path/to/context',
@@ -224,279 +217,401 @@ class TestFinchOperations:
             pull=True,
         )
 
-        # Mock the async function to return a Result object
-        mock_result = Result(status=STATUS_SUCCESS, message='Successfully built image')
-        mock_build_image.return_value = {
-            'status': STATUS_SUCCESS,
-            'message': 'Successfully built image',
-        }
-
-        # Test case 1: Successful build without ECR reference
-        mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-        mock_contains_ecr.return_value = False
-        mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
-
-        # Mock the async function
-        finch_build_container_image_mock = MagicMock(return_value=mock_result)
-        with patch(
-            'awslabs.finch_mcp_server.server.finch_build_container_image',
-            finch_build_container_image_mock,
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.contains_ecr_reference') as mock_contains_ecr,
+            patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
+            patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+            patch('awslabs.finch_mcp_server.server.build_image') as mock_build_image,
         ):
-            result = finch_build_container_image_mock(request)
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_contains_ecr.return_value = False
+            mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
+            mock_build_image.return_value = {
+                'status': STATUS_SUCCESS,
+                'message': 'Successfully built image',
+            }
 
-        assert result.status == STATUS_SUCCESS
-        assert result.message == 'Successfully built image'
+            result = await finch_build_container_image(request)
 
-        # Test case 2: Successful build with ECR reference
-        mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-        mock_contains_ecr.return_value = True
-        mock_configure_ecr.return_value = {'status': STATUS_SUCCESS, 'changed': True}
-        mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
+            assert result.status == STATUS_SUCCESS
+            assert result.message == 'Successfully built image'
 
-        # Mock the async function
-        finch_build_container_image_mock = MagicMock(return_value=mock_result)
-        with patch(
-            'awslabs.finch_mcp_server.server.finch_build_container_image',
-            finch_build_container_image_mock,
+            mock_check_finch.assert_called_once()
+            mock_contains_ecr.assert_called_once_with(request.dockerfile_path)
+            mock_ensure_vm.assert_called_once()
+            mock_build_image.assert_called_once()
+            mock_configure_ecr.assert_not_called()
+            mock_stop_vm.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_finch_build_container_image_with_ecr(self):
+        """Test finch_build_container_image with ECR reference."""
+        request = BuildImageRequest(
+            dockerfile_path='/path/to/Dockerfile',
+            context_path='/path/to/context',
+            tags=['123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'],
+        )
+
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.contains_ecr_reference') as mock_contains_ecr,
+            patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
+            patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+            patch('awslabs.finch_mcp_server.server.build_image') as mock_build_image,
         ):
-            result = finch_build_container_image_mock(request)
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_contains_ecr.return_value = True
+            mock_configure_ecr.return_value = {'status': STATUS_SUCCESS, 'changed': True}
+            mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
+            mock_build_image.return_value = {
+                'status': STATUS_SUCCESS,
+                'message': 'Successfully built image',
+            }
 
-        assert result.status == STATUS_SUCCESS
-        assert result.message == 'Successfully built image'
+            result = await finch_build_container_image(request)
 
-        # Test case 3: Finch not installed
-        mock_check_finch.return_value = {'status': STATUS_ERROR, 'message': 'Finch not installed'}
-        mock_error_result = Result(status=STATUS_ERROR, message='Finch not installed')
+            assert result.status == STATUS_SUCCESS
+            assert result.message == 'Successfully built image'
 
-        # Mock the async function
-        finch_build_container_image_mock = MagicMock(return_value=mock_error_result)
-        with patch(
-            'awslabs.finch_mcp_server.server.finch_build_container_image',
-            finch_build_container_image_mock,
+            mock_check_finch.assert_called_once()
+            mock_contains_ecr.assert_called_once_with(request.dockerfile_path)
+            mock_configure_ecr.assert_called_once()
+            mock_stop_vm.assert_called_once_with(force=True)
+            mock_ensure_vm.assert_called_once()
+            mock_build_image.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_finch_build_container_image_finch_not_installed(self):
+        """Test finch_build_container_image when Finch is not installed."""
+        request = BuildImageRequest(
+            dockerfile_path='/path/to/Dockerfile',
+            context_path='/path/to/context',
+        )
+
+        with patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch:
+            mock_check_finch.return_value = {
+                'status': STATUS_ERROR,
+                'message': 'Finch not installed',
+            }
+
+            result = await finch_build_container_image(request)
+
+            assert result.status == STATUS_ERROR
+            assert result.message == 'Finch not installed'
+
+            mock_check_finch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_finch_build_container_image_vm_error(self):
+        """Test finch_build_container_image when VM fails to start."""
+        request = BuildImageRequest(
+            dockerfile_path='/path/to/Dockerfile',
+            context_path='/path/to/context',
+        )
+
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.contains_ecr_reference') as mock_contains_ecr,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
         ):
-            result = finch_build_container_image_mock(request)
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_contains_ecr.return_value = False
+            mock_ensure_vm.return_value = {'status': STATUS_ERROR, 'message': 'Failed to start VM'}
 
-        assert result.status == STATUS_ERROR
-        assert result.message == 'Finch not installed'
+            result = await finch_build_container_image(request)
 
-        # Test case 4: VM startup fails
-        mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-        mock_contains_ecr.return_value = False
-        mock_ensure_vm.return_value = {'status': STATUS_ERROR, 'message': 'Failed to start VM'}
-        mock_error_result = Result(status=STATUS_ERROR, message='Failed to start VM')
+            assert result.status == STATUS_ERROR
+            assert result.message == 'Failed to start VM'
 
-        # Mock the async function
-        finch_build_container_image_mock = MagicMock(return_value=mock_error_result)
-        with patch(
-            'awslabs.finch_mcp_server.server.finch_build_container_image',
-            finch_build_container_image_mock,
+            mock_check_finch.assert_called_once()
+            mock_contains_ecr.assert_called_once_with(request.dockerfile_path)
+            mock_ensure_vm.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_finch_build_container_image_build_error(self):
+        """Test finch_build_container_image when build fails."""
+        request = BuildImageRequest(
+            dockerfile_path='/path/to/Dockerfile',
+            context_path='/path/to/context',
+        )
+
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.contains_ecr_reference') as mock_contains_ecr,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+            patch('awslabs.finch_mcp_server.server.build_image') as mock_build_image,
         ):
-            result = finch_build_container_image_mock(request)
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_contains_ecr.return_value = False
+            mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
+            mock_build_image.return_value = {'status': STATUS_ERROR, 'message': 'Build failed'}
 
-        assert result.status == STATUS_ERROR
-        assert result.message == 'Failed to start VM'
+            result = await finch_build_container_image(request)
 
-        # Test case 5: Build fails
-        mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-        mock_contains_ecr.return_value = False
-        mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
-        mock_build_image.return_value = {'status': STATUS_ERROR, 'message': 'Build failed'}
-        mock_error_result = Result(status=STATUS_ERROR, message='Build failed')
+            assert result.status == STATUS_ERROR
+            assert result.message == 'Build failed'
 
-        # Mock the async function
-        finch_build_container_image_mock = MagicMock(return_value=mock_error_result)
-        with patch(
-            'awslabs.finch_mcp_server.server.finch_build_container_image',
-            finch_build_container_image_mock,
-        ):
-            result = finch_build_container_image_mock(request)
+            mock_check_finch.assert_called_once()
+            mock_contains_ecr.assert_called_once_with(request.dockerfile_path)
+            mock_ensure_vm.assert_called_once()
+            mock_build_image.assert_called_once()
 
-        assert result.status == STATUS_ERROR
-        assert result.message == 'Build failed'
+    @pytest.mark.asyncio
+    async def test_finch_build_container_image_exception(self):
+        """Test finch_build_container_image when an exception occurs."""
+        request = BuildImageRequest(
+            dockerfile_path='/path/to/Dockerfile',
+            context_path='/path/to/context',
+        )
 
-    @patch('awslabs.finch_mcp_server.server.check_finch_installation')
-    @patch('awslabs.finch_mcp_server.server.is_ecr_repository')
-    @patch('awslabs.finch_mcp_server.server.configure_ecr')
-    @patch('awslabs.finch_mcp_server.server.stop_vm')
-    @patch('awslabs.finch_mcp_server.server.ensure_vm_running')
-    @patch('awslabs.finch_mcp_server.server.push_image')
-    def test_finch_push_image(
-        self,
-        mock_push_image,
-        mock_ensure_vm,
-        mock_stop_vm,
-        mock_configure_ecr,
-        mock_is_ecr,
-        mock_check_finch,
-    ):
-        """Test finch_push_image tool."""
-        # Setup test data
+        with patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch:
+            mock_check_finch.side_effect = Exception('Unexpected error')
+
+            result = await finch_build_container_image(request)
+
+            assert result.status == STATUS_ERROR
+            assert 'Error building Docker image: Unexpected error' in result.message
+
+            mock_check_finch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_finch_push_image_success(self):
+        """Test successful finch_push_image operation."""
         request = PushImageRequest(
             image='123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
         )
 
-        # Mock the async function to return a Result object
-        mock_result = Result(status=STATUS_SUCCESS, message='Successfully pushed image')
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
+            patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
+            patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+            patch('awslabs.finch_mcp_server.server.push_image') as mock_push_image,
+        ):
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_is_ecr.return_value = True
+            mock_configure_ecr.return_value = {'status': STATUS_SUCCESS, 'changed': True}
+            mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
+            mock_push_image.return_value = {
+                'status': STATUS_SUCCESS,
+                'message': 'Successfully pushed image',
+            }
 
-        # Test case 1: Successful push to ECR
-        mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-        mock_is_ecr.return_value = True
-        mock_configure_ecr.return_value = {'status': STATUS_SUCCESS, 'changed': True}
-        mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
-        mock_push_image.return_value = {
-            'status': STATUS_SUCCESS,
-            'message': 'Successfully pushed image',
-        }
+            result = await finch_push_image(request)
 
-        # Mock the async function
-        finch_push_image_mock = MagicMock(return_value=mock_result)
-        with patch('awslabs.finch_mcp_server.server.finch_push_image', finch_push_image_mock):
-            result = finch_push_image_mock(request)
+            assert result.status == STATUS_SUCCESS
+            assert result.message == 'Successfully pushed image'
 
-        assert result.status == STATUS_SUCCESS
-        assert result.message == 'Successfully pushed image'
+            mock_check_finch.assert_called_once()
+            mock_is_ecr.assert_called_once_with(request.image)
+            mock_configure_ecr.assert_called_once()
+            mock_stop_vm.assert_called_once_with(force=True)
+            mock_ensure_vm.assert_called_once()
+            mock_push_image.assert_called_once_with(request.image)
 
-        # Test case 2: Successful push to non-ECR repository
-        mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-        mock_is_ecr.return_value = False
-        mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
-        mock_push_image.return_value = {
-            'status': STATUS_SUCCESS,
-            'message': 'Successfully pushed image',
-        }
-
+    @pytest.mark.asyncio
+    async def test_finch_push_image_non_ecr(self):
+        """Test finch_push_image with non-ECR repository."""
         request = PushImageRequest(image='docker.io/library/nginx:latest')
 
-        # Mock the async function
-        finch_push_image_mock = MagicMock(return_value=mock_result)
-        with patch('awslabs.finch_mcp_server.server.finch_push_image', finch_push_image_mock):
-            result = finch_push_image_mock(request)
-
-        assert result.status == STATUS_SUCCESS
-        assert result.message == 'Successfully pushed image'
-
-        # Test case 3: Finch not installed
-        mock_check_finch.return_value = {'status': STATUS_ERROR, 'message': 'Finch not installed'}
-        mock_error_result = Result(status=STATUS_ERROR, message='Finch not installed')
-
-        # Mock the async function
-        finch_push_image_mock = MagicMock(return_value=mock_error_result)
-        with patch('awslabs.finch_mcp_server.server.finch_push_image', finch_push_image_mock):
-            result = finch_push_image_mock(request)
-
-        assert result.status == STATUS_ERROR
-        assert result.message == 'Finch not installed'
-
-        # Test case 4: VM startup fails
-        mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-        mock_is_ecr.return_value = False
-        mock_ensure_vm.return_value = {'status': STATUS_ERROR, 'message': 'Failed to start VM'}
-        mock_error_result = Result(status=STATUS_ERROR, message='Failed to start VM')
-
-        # Mock the async function
-        finch_push_image_mock = MagicMock(return_value=mock_error_result)
-        with patch('awslabs.finch_mcp_server.server.finch_push_image', finch_push_image_mock):
-            result = finch_push_image_mock(request)
-
-        assert result.status == STATUS_ERROR
-        assert result.message == 'Failed to start VM'
-
-        # Test case 5: Push fails
-        mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-        mock_is_ecr.return_value = False
-        mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
-        mock_push_image.return_value = {'status': STATUS_ERROR, 'message': 'Push failed'}
-        mock_error_result = Result(status=STATUS_ERROR, message='Push failed')
-
-        # Mock the async function
-        finch_push_image_mock = MagicMock(return_value=mock_error_result)
-        with patch('awslabs.finch_mcp_server.server.finch_push_image', finch_push_image_mock):
-            result = finch_push_image_mock(request)
-
-        assert result.status == STATUS_ERROR
-        assert result.message == 'Push failed'
-
-    @patch('awslabs.finch_mcp_server.server.create_ecr_repository')
-    def test_finch_create_ecr_repo(self, mock_create_ecr):
-        """Test finch_create_ecr_repo tool."""
-        # Setup test data
-        request = CreateEcrRepoRequest(app_name='test-repo')
-
-        # Mock the async function to return a Result object
-        mock_result = Result(
-            status=STATUS_SUCCESS, message="Successfully created ECR repository 'test-repo'."
-        )
-
-        # Test case 1: Repository created successfully
-        mock_create_ecr.return_value = {
-            'status': STATUS_SUCCESS,
-            'message': "Successfully created ECR repository 'test-repo'.",
-            'repository_uri': '123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo',
-            'exists': False,
-        }
-
-        # Mock the async function
-        finch_create_ecr_repo_mock = MagicMock(return_value=mock_result)
-        with patch(
-            'awslabs.finch_mcp_server.server.finch_create_ecr_repo', finch_create_ecr_repo_mock
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
+            patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
+            patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+            patch('awslabs.finch_mcp_server.server.push_image') as mock_push_image,
         ):
-            result = finch_create_ecr_repo_mock(request)
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_is_ecr.return_value = False
+            mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
+            mock_push_image.return_value = {
+                'status': STATUS_SUCCESS,
+                'message': 'Successfully pushed image',
+            }
 
-        assert result.status == STATUS_SUCCESS
-        assert result.message == "Successfully created ECR repository 'test-repo'."
+            result = await finch_push_image(request)
 
-        # Test case 2: Repository already exists
-        mock_create_ecr.return_value = {
-            'status': STATUS_SUCCESS,
-            'message': "ECR repository 'test-repo' already exists.",
-            'repository_uri': '123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo',
-            'exists': True,
-        }
-        mock_result = Result(
-            status=STATUS_SUCCESS, message="ECR repository 'test-repo' already exists."
-        )
+            assert result.status == STATUS_SUCCESS
+            assert result.message == 'Successfully pushed image'
 
-        # Mock the async function
-        finch_create_ecr_repo_mock = MagicMock(return_value=mock_result)
-        with patch(
-            'awslabs.finch_mcp_server.server.finch_create_ecr_repo', finch_create_ecr_repo_mock
+            mock_check_finch.assert_called_once()
+            mock_is_ecr.assert_called_once_with(request.image)
+            mock_configure_ecr.assert_not_called()
+            mock_stop_vm.assert_not_called()
+            mock_ensure_vm.assert_called_once()
+            mock_push_image.assert_called_once_with(request.image)
+
+    @pytest.mark.asyncio
+    async def test_finch_push_image_finch_not_installed(self):
+        """Test finch_push_image when Finch is not installed."""
+        request = PushImageRequest(image='docker.io/library/nginx:latest')
+
+        with patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch:
+            mock_check_finch.return_value = {
+                'status': STATUS_ERROR,
+                'message': 'Finch not installed',
+            }
+
+            result = await finch_push_image(request)
+
+            assert result.status == STATUS_ERROR
+            assert result.message == 'Finch not installed'
+
+            mock_check_finch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_finch_push_image_vm_error(self):
+        """Test finch_push_image when VM fails to start."""
+        request = PushImageRequest(image='docker.io/library/nginx:latest')
+
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
         ):
-            result = finch_create_ecr_repo_mock(request)
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_is_ecr.return_value = False
+            mock_ensure_vm.return_value = {'status': STATUS_ERROR, 'message': 'Failed to start VM'}
 
-        assert result.status == STATUS_SUCCESS
-        assert result.message == "ECR repository 'test-repo' already exists."
+            result = await finch_push_image(request)
 
-        # Test case 3: Error creating repository
-        mock_create_ecr.return_value = {
-            'status': STATUS_ERROR,
-            'message': 'Failed to create ECR repository: Access denied',
-        }
-        mock_error_result = Result(
-            status=STATUS_ERROR, message='Failed to create ECR repository: Access denied'
-        )
+            assert result.status == STATUS_ERROR
+            assert result.message == 'Failed to start VM'
 
-        # Mock the async function
-        finch_create_ecr_repo_mock = MagicMock(return_value=mock_error_result)
-        with patch(
-            'awslabs.finch_mcp_server.server.finch_create_ecr_repo', finch_create_ecr_repo_mock
+            mock_check_finch.assert_called_once()
+            mock_is_ecr.assert_called_once_with(request.image)
+            mock_ensure_vm.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_finch_push_image_push_error(self):
+        """Test finch_push_image when push fails."""
+        request = PushImageRequest(image='docker.io/library/nginx:latest')
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+            patch('awslabs.finch_mcp_server.server.push_image') as mock_push_image,
         ):
-            result = finch_create_ecr_repo_mock(request)
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_is_ecr.return_value = False
+            mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
+            mock_push_image.return_value = {'status': STATUS_ERROR, 'message': 'Push failed'}
 
-        assert result.status == STATUS_ERROR
-        assert result.message == 'Failed to create ECR repository: Access denied'
+            result = await finch_push_image(request)
 
-        # Test case 4: Exception during creation
-        mock_create_ecr.side_effect = Exception('Unexpected error')
-        mock_error_result = Result(
-            status=STATUS_ERROR, message='Error checking/creating ECR repository: Unexpected error'
-        )
+            assert result.status == STATUS_ERROR
+            assert result.message == 'Push failed'
 
-        # Mock the async function
-        finch_create_ecr_repo_mock = MagicMock(return_value=mock_error_result)
+            mock_check_finch.assert_called_once()
+            mock_is_ecr.assert_called_once_with(request.image)
+            mock_ensure_vm.assert_called_once()
+            mock_push_image.assert_called_once_with(request.image)
+
+    @pytest.mark.asyncio
+    async def test_finch_push_image_exception(self):
+        """Test finch_push_image when an exception occurs."""
+        request = PushImageRequest(image='docker.io/library/nginx:latest')
+
+        with patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch:
+            mock_check_finch.side_effect = Exception('Unexpected error')
+
+            result = await finch_push_image(request)
+
+            assert result.status == STATUS_ERROR
+            assert 'Error pushing image: Unexpected error' in result.message
+
+            mock_check_finch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_finch_create_ecr_repo_success(self):
+        """Test successful finch_create_ecr_repo operation."""
+        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+
         with patch(
-            'awslabs.finch_mcp_server.server.finch_create_ecr_repo', finch_create_ecr_repo_mock
-        ):
-            result = finch_create_ecr_repo_mock(request)
+            'awslabs.finch_mcp_server.server.create_ecr_repository'
+        ) as mock_create_ecr_repository:
+            mock_create_ecr_repository.return_value = {
+                'status': STATUS_SUCCESS,
+                'message': "Successfully created ECR repository 'test-repo'.",
+                'repository_uri': '123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo',
+                'exists': False,
+            }
 
-        assert result.status == STATUS_ERROR
-        assert 'Error checking/creating ECR repository' in result.message
+            result = await finch_create_ecr_repo(request)
+
+            assert result.status == STATUS_SUCCESS
+            assert "Successfully created ECR repository 'test-repo'" in result.message
+
+            mock_create_ecr_repository.assert_called_once_with(
+                app_name='test-repo', region='us-west-2'
+            )
+
+    @pytest.mark.asyncio
+    async def test_finch_create_ecr_repo_already_exists(self):
+        """Test finch_create_ecr_repo when repository already exists."""
+        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+
+        with patch(
+            'awslabs.finch_mcp_server.server.create_ecr_repository'
+        ) as mock_create_ecr_repository:
+            mock_create_ecr_repository.return_value = {
+                'status': STATUS_SUCCESS,
+                'message': "ECR repository 'test-repo' already exists.",
+                'repository_uri': '123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo',
+                'exists': True,
+            }
+
+            result = await finch_create_ecr_repo(request)
+
+            assert result.status == STATUS_SUCCESS
+            assert 'already exists' in result.message
+
+            mock_create_ecr_repository.assert_called_once_with(
+                app_name='test-repo', region='us-west-2'
+            )
+
+    @pytest.mark.asyncio
+    async def test_finch_create_ecr_repo_error(self):
+        """Test finch_create_ecr_repo when creation fails."""
+        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+
+        with patch(
+            'awslabs.finch_mcp_server.server.create_ecr_repository'
+        ) as mock_create_ecr_repository:
+            mock_create_ecr_repository.return_value = {
+                'status': STATUS_ERROR,
+                'message': "Failed to create ECR repository 'test-repo': Access denied",
+            }
+
+            result = await finch_create_ecr_repo(request)
+
+            assert result.status == STATUS_ERROR
+            assert 'Failed to create ECR repository' in result.message
+
+            mock_create_ecr_repository.assert_called_once_with(
+                app_name='test-repo', region='us-west-2'
+            )
+
+    @pytest.mark.asyncio
+    async def test_finch_create_ecr_repo_exception(self):
+        """Test finch_create_ecr_repo when an exception occurs."""
+        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+
+        with patch(
+            'awslabs.finch_mcp_server.server.create_ecr_repository'
+        ) as mock_create_ecr_repository:
+            mock_create_ecr_repository.side_effect = Exception('Unexpected error')
+
+            result = await finch_create_ecr_repo(request)
+
+            assert result.status == STATUS_ERROR
+            assert 'Error checking/creating ECR repository: Unexpected error' in result.message
+
+            mock_create_ecr_repository.assert_called_once_with(
+                app_name='test-repo', region='us-west-2'
+            )

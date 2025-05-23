@@ -47,12 +47,12 @@ def build_image(
     tags: Optional[List[str]] = None,
     platforms: Optional[List[str]] = None,
     target: Optional[str] = None,
-    no_cache: bool = False,
-    pull: bool = False,
+    no_cache: Optional[bool] = False,
+    pull: Optional[bool] = False,
     build_contexts: Optional[List[str]] = None,
     outputs: Optional[str] = None,
     cache_from: Optional[List[str]] = None,
-    quiet: bool = False,
+    quiet: Optional[bool] = False,
     progress: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build a container image using Finch.
@@ -126,17 +126,15 @@ def build_image(
         build_result = execute_command(command)
 
         if build_result.returncode == 0:
+            # Log stdout for debugging
+            logger.debug(f'STDOUT from build: {build_result.stdout}')
             return format_result(
-                STATUS_SUCCESS,
-                f'Successfully built image from {dockerfile_path}',
-                stdout=build_result.stdout,
+                STATUS_SUCCESS, f'Successfully built image from {dockerfile_path}'
             )
         else:
-            return format_result(
-                STATUS_ERROR,
-                f'Failed to build image: {build_result.stderr}',
-                stderr=build_result.stderr,
-            )
+            # Log stderr for debugging
+            logger.debug(f'STDERR from build: {build_result.stderr}')
+            return format_result(STATUS_ERROR, f'Failed to build image: {build_result.stderr}')
 
     except Exception as e:
         logger.error(f'Error building image: {str(e)}')

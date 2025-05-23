@@ -44,7 +44,6 @@ class TestGetImageHash:
     @patch('awslabs.finch_mcp_server.utils.push.format_result')
     def test_get_image_hash_success(self, mock_format_result, mock_execute_command):
         """Test successful retrieval of image hash."""
-        # Setup mocks
         mock_process = MagicMock()
         mock_process.returncode = 0
         mock_process.stdout = (
@@ -54,18 +53,14 @@ class TestGetImageHash:
         mock_format_result.return_value = {
             'status': STATUS_SUCCESS,
             'message': 'Successfully retrieved hash for image myimage:latest',
-            'hash': 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         }
 
-        # Call function
-        result = get_image_hash('myimage:latest')
+        result, image_hash = get_image_hash('myimage:latest')
 
-        # Verify results
         assert result['status'] == STATUS_SUCCESS
         assert 'Successfully retrieved hash' in result['message']
         assert (
-            result['hash']
-            == 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+            image_hash == 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
         )
         mock_execute_command.assert_called_once_with(
             ['finch', 'image', 'inspect', 'myimage:latest']
@@ -75,23 +70,22 @@ class TestGetImageHash:
     @patch('awslabs.finch_mcp_server.utils.push.format_result')
     def test_get_image_hash_command_failure(self, mock_format_result, mock_execute_command):
         """Test handling of command failure when getting image hash."""
-        # Setup mocks
         mock_process = MagicMock()
         mock_process.returncode = 1
         mock_process.stderr = 'Error: No such image: myimage:latest'
         mock_execute_command.return_value = mock_process
-        mock_format_result.return_value = {
+        error_result = {
             'status': STATUS_ERROR,
             'message': 'Failed to get hash for image myimage:latest: Error: No such image: myimage:latest',
             'stderr': 'Error: No such image: myimage:latest',
         }
+        mock_format_result.return_value = error_result
 
-        # Call function
-        result = get_image_hash('myimage:latest')
+        result, image_hash = get_image_hash('myimage:latest')
 
-        # Verify results
         assert result['status'] == STATUS_ERROR
         assert 'Failed to get hash' in result['message']
+        assert image_hash == ''
         mock_execute_command.assert_called_once_with(
             ['finch', 'image', 'inspect', 'myimage:latest']
         )
@@ -100,22 +94,21 @@ class TestGetImageHash:
     @patch('awslabs.finch_mcp_server.utils.push.format_result')
     def test_get_image_hash_no_hash_found(self, mock_format_result, mock_execute_command):
         """Test handling of missing hash in command output."""
-        # Setup mocks
         mock_process = MagicMock()
         mock_process.returncode = 0
         mock_process.stdout = '{"Config": {"Labels": {}}}'  # No Id field
         mock_execute_command.return_value = mock_process
-        mock_format_result.return_value = {
+        error_result = {
             'status': STATUS_ERROR,
             'message': 'Could not find hash in image inspect output for myimage:latest',
         }
+        mock_format_result.return_value = error_result
 
-        # Call function
-        result = get_image_hash('myimage:latest')
+        result, image_hash = get_image_hash('myimage:latest')
 
-        # Verify results
         assert result['status'] == STATUS_ERROR
         assert 'Could not find hash' in result['message']
+        assert image_hash == ''
         mock_execute_command.assert_called_once_with(
             ['finch', 'image', 'inspect', 'myimage:latest']
         )
@@ -131,11 +124,11 @@ class TestPushImage:
         self, mock_format_result, mock_execute_command, mock_get_image_hash
     ):
         """Test successful image push."""
-        # Setup mocks
-        mock_get_image_hash.return_value = {
-            'status': STATUS_SUCCESS,
-            'hash': 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        }
+        success_result = {'status': STATUS_SUCCESS, 'message': 'Successfully retrieved hash'}
+        mock_get_image_hash.return_value = (
+            success_result,
+            'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        )
 
         mock_tag_process = MagicMock()
         mock_tag_process.returncode = 0
@@ -152,30 +145,25 @@ class TestPushImage:
             'stdout': 'Successfully pushed image',
         }
 
-        # Call function
         result = push_image('myrepo:latest')
 
-        # Verify results
         assert result['status'] == STATUS_SUCCESS
         assert 'Successfully pushed image' in result['message']
 
-        # Verify command calls
         assert mock_execute_command.call_count == 2
         mock_execute_command.assert_any_call(['finch', 'image', 'push', 'myrepo:1234567890ab'])
 
     @patch('awslabs.finch_mcp_server.utils.push.get_image_hash')
     def test_push_image_hash_failure(self, mock_get_image_hash):
         """Test handling of failure to get image hash."""
-        # Setup mocks
-        mock_get_image_hash.return_value = {
+        error_result = {
             'status': STATUS_ERROR,
             'message': 'Failed to get hash for image myrepo:latest',
         }
+        mock_get_image_hash.return_value = (error_result, '')
 
-        # Call function
         result = push_image('myrepo:latest')
 
-        # Verify results
         assert result['status'] == STATUS_ERROR
         assert 'Failed to get hash' in result['message']
 
@@ -186,11 +174,11 @@ class TestPushImage:
         self, mock_format_result, mock_execute_command, mock_get_image_hash
     ):
         """Test handling of failure to tag image."""
-        # Setup mocks
-        mock_get_image_hash.return_value = {
-            'status': STATUS_SUCCESS,
-            'hash': 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        }
+        success_result = {'status': STATUS_SUCCESS, 'message': 'Successfully retrieved hash'}
+        mock_get_image_hash.return_value = (
+            success_result,
+            'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        )
 
         mock_tag_process = MagicMock()
         mock_tag_process.returncode = 1
@@ -204,10 +192,8 @@ class TestPushImage:
             'stderr': 'Error tagging image',
         }
 
-        # Call function
         result = push_image('myrepo:latest')
 
-        # Verify results
         assert result['status'] == STATUS_ERROR
         assert 'Failed to tag image' in result['message']
 
@@ -218,11 +204,11 @@ class TestPushImage:
         self, mock_format_result, mock_execute_command, mock_get_image_hash
     ):
         """Test handling of failure to push image."""
-        # Setup mocks
-        mock_get_image_hash.return_value = {
-            'status': STATUS_SUCCESS,
-            'hash': 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        }
+        success_result = {'status': STATUS_SUCCESS, 'message': 'Successfully retrieved hash'}
+        mock_get_image_hash.return_value = (
+            success_result,
+            'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        )
 
         mock_tag_process = MagicMock()
         mock_tag_process.returncode = 0
@@ -239,14 +225,11 @@ class TestPushImage:
             'stderr': 'Error pushing image',
         }
 
-        # Call function
         result = push_image('myrepo:latest')
 
-        # Verify results
         assert result['status'] == STATUS_ERROR
         assert 'Failed to push image' in result['message']
 
-        # Verify command calls
         assert mock_execute_command.call_count == 2
         mock_execute_command.assert_any_call(
             ['finch', 'image', 'tag', 'myrepo:latest', 'myrepo:1234567890ab']
@@ -260,11 +243,11 @@ class TestPushImage:
         self, mock_format_result, mock_execute_command, mock_get_image_hash
     ):
         """Test pushing an image without a tag."""
-        # Setup mocks
-        mock_get_image_hash.return_value = {
-            'status': STATUS_SUCCESS,
-            'hash': 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        }
+        success_result = {'status': STATUS_SUCCESS, 'message': 'Successfully retrieved hash'}
+        mock_get_image_hash.return_value = (
+            success_result,
+            'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        )
 
         mock_tag_process = MagicMock()
         mock_tag_process.returncode = 0
@@ -281,14 +264,11 @@ class TestPushImage:
             'stdout': 'Successfully pushed image',
         }
 
-        # Call function
         result = push_image('myrepo')
 
-        # Verify results
         assert result['status'] == STATUS_SUCCESS
         assert 'Successfully pushed image' in result['message']
 
-        # Verify command calls
         assert mock_execute_command.call_count == 2
         mock_execute_command.assert_any_call(
             ['finch', 'image', 'tag', 'myrepo', 'myrepo:1234567890ab']

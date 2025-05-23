@@ -79,7 +79,6 @@ class TestBuildImage:
         mock_format_result.return_value = {
             'status': STATUS_SUCCESS,
             'message': 'Successfully built image from /path/to/Dockerfile',
-            'stdout': 'Successfully built image',
         }
 
         # Call function
@@ -141,7 +140,6 @@ class TestBuildImage:
         mock_format_result.return_value = {
             'status': STATUS_ERROR,
             'message': 'Failed to build image: Build failed: error in Dockerfile',
-            'stderr': 'Build failed: error in Dockerfile',
         }
 
         # Call function
