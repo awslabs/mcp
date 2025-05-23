@@ -450,14 +450,18 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
   "mcpServers": {
     "awslabs.core-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": [
+        "awslabs.core-mcp-server@latest"
+      ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.nova-canvas-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.nova-canvas-mcp-server@latest"],
+      "args": [
+        "awslabs.nova-canvas-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -466,7 +470,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.bedrock-kb-retrieval-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.bedrock-kb-retrieval-mcp-server@latest"],
+      "args": [
+        "awslabs.bedrock-kb-retrieval-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -475,7 +481,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cost-analysis-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.cost-analysis-mcp-server@latest"],
+      "args": [
+        "awslabs.cost-analysis-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -483,14 +491,18 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cdk-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.cdk-mcp-server@latest"],
+      "args": [
+        "awslabs.cdk-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "args": [
+        "awslabs.aws-documentation-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -499,7 +511,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.lambda-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.lambda-mcp-server@latest"],
+      "args": [
+        "awslabs.lambda-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -510,80 +524,72 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       }
     },
     "awslabs.terraform-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.terraform-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
-     },
+      "command": "uvx",
+      "args": [
+        "awslabs.terraform-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
     "awslabs.frontend-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.frontend-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
-     },
-      "awslabs.valkey-mcp-server": {
-        "command": "uvx",
-        "args": ["awslabs.valkey-mcp-server@latest"],
-        "env": {
-          "VALKEY_HOST": "127.0.0.1",
-          "VALKEY_PORT": "6379",
-          "FASTMCP_LOG_LEVEL": "ERROR"
-        },
-        "autoApprove": [],
-        "disabled": false
-      "awslabs.valkey-mcp-server": {
-        "command": "uvx",
-        "args": ["awslabs.valkey-mcp-server@latest"],
-        "env": {
-          "VALKEY_HOST": "127.0.0.1",
-          "VALKEY_PORT": "6379",
-          "FASTMCP_LOG_LEVEL": "ERROR"
-        },
-        "autoApprove": [],
-        "disabled": false
+      "command": "uvx",
+      "args": [
+        "awslabs.frontend-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+
+    "awslabs.valkey-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.valkey-mcp-server@latest"
+      ],
+      "env": {
+        "VALKEY_HOST": "127.0.0.1",
+        "VALKEY_PORT": "6379",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "autoApprove": [],
+      "disabled": false
+    },
     "awslabs.aws-location-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.aws-location-mcp-server@latest"],
-       "env": {
-         "AWS_PROFILE": "your-aws-profile",
-         "AWS_REGION": "us-east-1",
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-location-mcp-server@latest"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
     },
     "awslabs.memcached-mcp-server": {
-        "command": "uvx",
-        "args": ["awslabs.memcached-mcp-server@latest"],
-        "env": {
-          "MEMCACHED_HOST": "127.0.0.1",
-          "MEMCACHED_PORT": "11211",
-          "FASTMCP_LOG_LEVEL": "ERROR"
-        },
-        "autoApprove": [],
-        "disabled": false
-    }
-    "awslabs.git-repo-research-mcp-server": {
-    "awslabs.memcached-mcp-server": {
-        "command": "uvx",
-        "args": ["awslabs.memcached-mcp-server@latest"],
-        "env": {
-          "MEMCACHED_HOST": "127.0.0.1",
-          "MEMCACHED_PORT": "11211",
-          "FASTMCP_LOG_LEVEL": "ERROR"
-        },
-        "autoApprove": [],
-        "disabled": false
-    }
+      "command": "uvx",
+      "args": [
+        "awslabs.memcached-mcp-server@latest"
+      ],
+      "env": {
+        "MEMCACHED_HOST": "127.0.0.1",
+        "MEMCACHED_PORT": "11211",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "autoApprove": [],
+      "disabled": false
+    },
     "awslabs.git-repo-research-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.git-repo-research-mcp-server@latest"],
+      "args": [
+        "awslabs.git-repo-research-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -595,7 +601,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cloudformation": {
       "command": "uvx",
-      "args": ["awslabs.cfn-mcp-server@latest"],
+      "args": [
+        "awslabs.cfn-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
       },
@@ -1130,10 +1138,6 @@ Documentation for each server:
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 - [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
 - [Amazon ElastiCache/MemoryDB Valkey MCP Server](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
-erver/)
-- [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
-- [Amazon ElastiCache/MemoryDB Valkey MCP Server](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
-erver/)
 - [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 - [Git Repo Research MCP Server](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
 - [CloudFormation MCP Server](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
