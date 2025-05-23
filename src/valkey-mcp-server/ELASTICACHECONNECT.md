@@ -1,5 +1,9 @@
 # How to connect to an Amazon ElastiCache Valkey datastore
 
+Your Amazon ElastiCache instances are designed to be accessed through an Amazon EC2 instance. You can access your ElastiCache instance from an Amazon EC2 instance in the same Amazon VPC, or by using VPC peering, you can access your ElastiCache instance from an Amazon EC2 in a different Amazon VPC.
+
+The following instructions will help you create an EC2 instance in the same VPN as your cache instance, and will guide you to configure the security groups required to access the cache from your desktop through an SSH tunnel.
+
 ## Launch and configure the EC2 instance
 
 Complete the following steps:
