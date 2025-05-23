@@ -14,7 +14,7 @@
 """AWS Support API client for the AWS Support MCP Server."""
 
 import asyncio
-from typing import Any, Dict, List, Optional, Callable, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -22,11 +22,11 @@ from botocore.exceptions import ClientError
 from loguru import logger
 
 from awslabs.aws_support_mcp_server.consts import (
+    API_TIMEOUT,
     DEFAULT_REGION,
     ERROR_CASE_NOT_FOUND,
     ERROR_SUBSCRIPTION_REQUIRED,
     MAX_RESULTS_PER_PAGE,
-    API_TIMEOUT,
 )
 
 
@@ -52,7 +52,9 @@ class SupportClient:
             ClientError: If there is an error creating the boto3 client
         """
         try:
-            logger.info(f"Initializing AWS Support client with region={region_name}, profile={profile_name}")
+            logger.info(
+                f"Initializing AWS Support client with region={region_name}, profile={profile_name}"
+            )
 
             session_kwargs = {"region_name": region_name}
             if profile_name:
@@ -65,7 +67,9 @@ class SupportClient:
             try:
                 credentials = session.get_credentials()
                 if credentials:
-                    logger.info(f"AWS credentials found: access_key_id={credentials.access_key[:4]}***")
+                    logger.info(
+                        f"AWS credentials found: access_key_id={credentials.access_key[:4]}***"
+                    )
                 else:
                     logger.warning("No AWS credentials found in session")
             except Exception as cred_err:
@@ -75,7 +79,7 @@ class SupportClient:
             retry_config = BotoConfig(
                 retries={"max_attempts": 3, "mode": "standard"},
                 connect_timeout=API_TIMEOUT,
-                read_timeout=10
+                read_timeout=10,
             )
             logger.debug("Creating support client with retry configuration")
             self.client = session.client("support", config=retry_config)
@@ -87,13 +91,19 @@ class SupportClient:
             error_message = e.response["Error"]["Message"]
 
             if error_code == "SubscriptionRequiredException":
-                logger.error(f"{ERROR_SUBSCRIPTION_REQUIRED} - AWS Business Support or higher is required")
+                logger.error(
+                    f"{ERROR_SUBSCRIPTION_REQUIRED} - AWS Business Support or higher is required"
+                )
                 raise
             else:
-                logger.error(f"Failed to initialize AWS Support client: {error_code} - {error_message}")
+                logger.error(
+                    f"Failed to initialize AWS Support client: {error_code} - {error_message}"
+                )
                 raise
         except Exception as e:
-            logger.error(f"Unexpected error initializing AWS Support client: {str(e)}", exc_info=True)
+            logger.error(
+                f"Unexpected error initializing AWS Support client: {str(e)}", exc_info=True
+            )
             raise
 
     async def _run_in_executor(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
@@ -112,21 +122,19 @@ class SupportClient:
             Exception: If there is an unexpected error
         """
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, lambda: func(*args, **kwargs)
-        )
+        return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
 
     async def create_case(
-            self,
-            subject: str,
-            service_code: str,
-            category_code: str,
-            severity_code: str,
-            communication_body: str,
-            cc_email_addresses: Optional[List[str]] = None,
-            language: str = "en",
-            issue_type: str = "technical",
-            attachment_set_id: Optional[str] = None,
+        self,
+        subject: str,
+        service_code: str,
+        category_code: str,
+        severity_code: str,
+        communication_body: str,
+        cc_email_addresses: Optional[List[str]] = None,
+        language: str = "en",
+        issue_type: str = "technical",
+        attachment_set_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new support case.
 
@@ -166,9 +174,7 @@ class SupportClient:
                 kwargs["attachmentSetId"] = attachment_set_id
 
             logger.debug(f"Creating support case: {subject}")
-            response = await self._run_in_executor(
-                self.client.create_case, **kwargs
-            )
+            response = await self._run_in_executor(self.client.create_case, **kwargs)
 
             logger.info(f"Created support case: {response['caseId']}")
             return response
@@ -183,16 +189,16 @@ class SupportClient:
             raise
 
     async def describe_cases(
-            self,
-            case_id_list: Optional[List[str]] = None,
-            display_id: Optional[str] = None,
-            after_time: Optional[str] = None,
-            before_time: Optional[str] = None,
-            include_resolved_cases: bool = False,
-            include_communications: bool = True,
-            language: str = "en",
-            max_results: Optional[int] = None,
-            next_token: Optional[str] = None,
+        self,
+        case_id_list: Optional[List[str]] = None,
+        display_id: Optional[str] = None,
+        after_time: Optional[str] = None,
+        before_time: Optional[str] = None,
+        include_resolved_cases: bool = False,
+        include_communications: bool = True,
+        language: str = "en",
+        max_results: Optional[int] = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Retrieve information about support cases.
 
@@ -236,9 +242,7 @@ class SupportClient:
                 kwargs["nextToken"] = next_token
 
             logger.debug(f"Describing support cases: {kwargs}")
-            response = await self._run_in_executor(
-                self.client.describe_cases, **kwargs
-            )
+            response = await self._run_in_executor(self.client.describe_cases, **kwargs)
 
             logger.info(f"Retrieved {len(response.get('cases', []))} support cases")
             return response
@@ -270,9 +274,7 @@ class SupportClient:
         """
         try:
             logger.debug(f"Resolving support case: {case_id}")
-            response = await self._run_in_executor(
-                self.client.resolve_case, caseId=case_id
-            )
+            response = await self._run_in_executor(self.client.resolve_case, caseId=case_id)
 
             logger.info(f"Resolved support case: {case_id}")
             return response
@@ -290,11 +292,11 @@ class SupportClient:
             raise
 
     async def add_communication_to_case(
-            self,
-            case_id: str,
-            communication_body: str = "",
-            cc_email_addresses: Optional[List[str]] = None,
-            attachment_set_id: Optional[str] = None,
+        self,
+        case_id: str,
+        communication_body: str = "",
+        cc_email_addresses: Optional[List[str]] = None,
+        attachment_set_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Add communication to a support case.
 
@@ -324,9 +326,7 @@ class SupportClient:
                 kwargs["attachmentSetId"] = attachment_set_id
 
             logger.debug(f"Adding communication to support case: {case_id}")
-            response = await self._run_in_executor(
-                self.client.add_communication_to_case, **kwargs
-            )
+            response = await self._run_in_executor(self.client.add_communication_to_case, **kwargs)
 
             logger.info(f"Added communication to support case: {case_id}")
             return response
@@ -337,19 +337,21 @@ class SupportClient:
             if error_code == "CaseIdNotFound":
                 logger.error(ERROR_CASE_NOT_FOUND)
             else:
-                logger.error(f"Failed to add communication to support case: {error_code} - {error_message}")
+                logger.error(
+                    f"Failed to add communication to support case: {error_code} - {error_message}"
+                )
             raise
         except Exception as e:
             logger.error(f"Unexpected error adding communication to support case: {str(e)}")
             raise
 
     async def describe_communications(
-            self,
-            case_id: str,
-            after_time: Optional[str] = None,
-            before_time: Optional[str] = None,
-            max_results: Optional[int] = None,
-            next_token: Optional[str] = None,
+        self,
+        case_id: str,
+        after_time: Optional[str] = None,
+        before_time: Optional[str] = None,
+        max_results: Optional[int] = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Retrieve communications for a support case.
 
@@ -382,11 +384,11 @@ class SupportClient:
                 kwargs["nextToken"] = next_token
 
             logger.debug(f"Describing communications for support case: {case_id}")
-            response = await self._run_in_executor(
-                self.client.describe_communications, **kwargs
-            )
+            response = await self._run_in_executor(self.client.describe_communications, **kwargs)
 
-            logger.info(f"Retrieved {len(response.get('communications', []))} communications for support case: {case_id}")
+            logger.info(
+                f"Retrieved {len(response.get('communications', []))} communications for support case: {case_id}"
+            )
             return response
         except ClientError as e:
             error_code = e.response["Error"]["Code"]
@@ -395,14 +397,16 @@ class SupportClient:
             if error_code == "CaseIdNotFound":
                 logger.error(ERROR_CASE_NOT_FOUND)
             else:
-                logger.error(f"Failed to describe communications for support case: {error_code} - {error_message}")
+                logger.error(
+                    f"Failed to describe communications for support case: {error_code} - {error_message}"
+                )
             raise
         except Exception as e:
             logger.error(f"Unexpected error describing communications for support case: {str(e)}")
             raise
 
     async def describe_services(
-            self, service_code_list: Optional[List[str]] = None, language: str = "en"
+        self, service_code_list: Optional[List[str]] = None, language: str = "en"
     ) -> Dict[str, Any]:
         """Retrieve available AWS services.
 
@@ -426,9 +430,7 @@ class SupportClient:
                 kwargs["serviceCodeList"] = service_code_list
 
             logger.debug("Describing AWS services")
-            response = await self._run_in_executor(
-                self.client.describe_services, **kwargs
-            )
+            response = await self._run_in_executor(self.client.describe_services, **kwargs)
 
             logger.info(f"Retrieved {len(response.get('services', []))} AWS services")
             return response
@@ -485,9 +487,7 @@ class SupportClient:
         """
         try:
             logger.debug("Describing supported languages")
-            response = await self._run_in_executor(
-                self.client.describe_supported_languages
-            )
+            response = await self._run_in_executor(self.client.describe_supported_languages)
 
             logger.info(f"Retrieved {len(response.get('languages', []))} supported languages")
             return response
@@ -501,7 +501,9 @@ class SupportClient:
             logger.error(f"Unexpected error describing supported languages: {str(e)}")
             raise
 
-    async def describe_create_case_options(self, service_code: str, language: str = "en") -> Dict[str, Any]:
+    async def describe_create_case_options(
+        self, service_code: str, language: str = "en"
+    ) -> Dict[str, Any]:
         """Retrieve available options for creating a support case for a specific service.
 
         Args:
@@ -537,18 +539,16 @@ class SupportClient:
             error_code = e.response["Error"]["Code"]
             error_message = e.response["Error"]["Message"]
 
-            logger.error(
-                f"Failed to describe create case options: {error_code} - {error_message}"
-            )
+            logger.error(f"Failed to describe create case options: {error_code} - {error_message}")
             raise
         except Exception as e:
             logger.error(f"Unexpected error describing create case options: {str(e)}")
             raise
 
     async def add_attachments_to_set(
-            self,
-            attachments: List[Dict[str, str]],
-            attachment_set_id: Optional[str] = None,
+        self,
+        attachments: List[Dict[str, str]],
+        attachment_set_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Add one or more attachments to an attachment set.
 
@@ -596,9 +596,7 @@ class SupportClient:
                 f"Adding {len(attachments)} attachments to "
                 f"{'new set' if not attachment_set_id else f'set {attachment_set_id}'}"
             )
-            response = await self._run_in_executor(
-                self.client.add_attachments_to_set, **kwargs
-            )
+            response = await self._run_in_executor(self.client.add_attachments_to_set, **kwargs)
 
             logger.info(f"Added attachments to set: {response['attachmentSetId']}")
             return response
@@ -611,7 +609,9 @@ class SupportClient:
             logger.error(f"Unexpected error adding attachments to set: {str(e)}")
             raise
 
-    async def _retry_with_backoff(self, func: Callable[..., Any], *args: Any, max_retries: int = 3, **kwargs: Any) -> Any:
+    async def _retry_with_backoff(
+        self, func: Callable[..., Any], *args: Any, max_retries: int = 3, **kwargs: Any
+    ) -> Any:
         """Retry a function with exponential backoff.
 
         Args:
@@ -630,13 +630,16 @@ class SupportClient:
         retries = 0
         while True:
             try:
-                func_kwargs = {k: v for k, v in kwargs.items() if k != 'max_retries'}
+                func_kwargs = {k: v for k, v in kwargs.items() if k != "max_retries"}
                 return await func(*args, **func_kwargs)
             except ClientError as e:
                 error_code = e.response["Error"]["Code"]
 
-                if error_code in ["ThrottlingException", "TooManyRequestsException"] and retries < max_retries:
-                    wait_time = 2 ** retries
+                if (
+                    error_code in ["ThrottlingException", "TooManyRequestsException"]
+                    and retries < max_retries
+                ):
+                    wait_time = 2**retries
                     logger.warning(f"Rate limit exceeded. Retrying in {wait_time} seconds...")
                     await asyncio.sleep(wait_time)
                     retries += 1

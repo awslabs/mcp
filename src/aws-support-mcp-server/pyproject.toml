@@ -11,6 +11,7 @@ dependencies = [
     "loguru>=0.7.0",
     "markdownify>=0.13.1",
     "mcp[cli]>=1.8.0",
+    "pre-commit>=4.2.0",
     "protego>=0.3.1",
     "pydantic>=2.0.0",
     "pytest>=8.3.5",

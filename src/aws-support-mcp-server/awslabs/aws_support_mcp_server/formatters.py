@@ -14,11 +14,10 @@
 """Response formatting utilities for the AWS Support MCP Server."""
 
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from awslabs.aws_support_mcp_server.consts import (
     CASE_SUMMARY_TEMPLATE,
-    LANGUAGE_NAMES,
 )
 from awslabs.aws_support_mcp_server.models import (
     AttachmentDetails,
@@ -54,7 +53,7 @@ def format_case(case_data: Dict[str, Any], include_communications: bool = True) 
         timeCreated=case_data.get("timeCreated", ""),
         ccEmailAddresses=case_data.get("ccEmailAddresses"),
         language=case_data.get("language"),
-        recentCommunications=None  # Initialize as None, will be set later if needed
+        recentCommunications=None,  # Initialize as None, will be set later if needed
     )
 
     # Format recent communications if present and requested
@@ -68,8 +67,7 @@ def format_case(case_data: Dict[str, Any], include_communications: bool = True) 
             if "attachmentSet" in comm_data:
                 attachmentSet = [
                     AttachmentDetails(
-                        attachmentId=att.get("attachmentId", ""),
-                        fileName=att.get("fileName", "")
+                        attachmentId=att.get("attachmentId", ""), fileName=att.get("fileName", "")
                     )
                     for att in comm_data.get("attachmentSet", [])
                 ]
@@ -80,21 +78,22 @@ def format_case(case_data: Dict[str, Any], include_communications: bool = True) 
                 caseId=comm_data.get("caseId"),
                 submittedBy=comm_data.get("submittedBy"),
                 timeCreated=comm_data.get("timeCreated"),
-                attachmentSet=attachmentSet
+                attachmentSet=attachmentSet,
             )
             communications.append(comm)
 
         # Create a RecentCommunications model
         case.recent_communications = RecentCommunications(
-            communications=communications,
-            nextToken=recent_comms.get("nextToken")
+            communications=communications, nextToken=recent_comms.get("nextToken")
         )
 
     # Convert the model to a dictionary
     return case.model_dump()
 
 
-def format_cases(cases_data: List[Dict[str, Any]], include_communications: bool = True) -> List[Dict[str, Any]]:
+def format_cases(
+    cases_data: List[Dict[str, Any]], include_communications: bool = True
+) -> List[Dict[str, Any]]:
     """Format multiple support cases for user display.
 
     Args:
@@ -116,10 +115,7 @@ def format_communications(communications_data: Dict[str, Any]) -> Dict[str, Any]
     Returns:
         A dictionary with formatted communications
     """
-    result = {
-        "communications": [],
-        "nextToken": communications_data.get("nextToken")
-    }
+    result = {"communications": [], "nextToken": communications_data.get("nextToken")}
 
     for comm_data in communications_data.get("communications", []):
         # Format attachments if present
@@ -127,8 +123,7 @@ def format_communications(communications_data: Dict[str, Any]) -> Dict[str, Any]
         if "attachmentSet" in comm_data and comm_data["attachmentSet"]:
             attachmentSet = [
                 AttachmentDetails(
-                    attachmentId=att.get("attachmentId", ""),
-                    fileName=att.get("fileName", "")
+                    attachmentId=att.get("attachmentId", ""), fileName=att.get("fileName", "")
                 )
                 for att in comm_data.get("attachmentSet", [])
             ]
@@ -139,7 +134,7 @@ def format_communications(communications_data: Dict[str, Any]) -> Dict[str, Any]
             caseId=comm_data.get("caseId"),
             submittedBy=comm_data.get("submittedBy"),
             timeCreated=comm_data.get("timeCreated"),
-            attachmentSet=attachmentSet
+            attachmentSet=attachmentSet,
         )
 
         # Convert the model to a dictionary
@@ -165,10 +160,7 @@ def format_services(services_data: List[Dict[str, Any]]) -> Dict[str, Any]:
             code=service_data.get("code", ""),
             name=service_data.get("name", ""),
             categories=[
-                Category(
-                    code=cat.get("code", ""),
-                    name=cat.get("name", "")
-                )
+                Category(code=cat.get("code", ""), name=cat.get("name", ""))
                 for cat in service_data.get("categories", [])
             ],
         )
@@ -234,7 +226,7 @@ def format_markdown_case_summary(case: Dict[str, Any]) -> str:
         f"- **Category**: {case['categoryCode']}",
         f"- **Severity**: {case['severityCode']}",
         f"- **Created By**: {case['submittedBy']}",
-        f"- **Created On**: {case['timeCreated']}"
+        f"- **Created On**: {case['timeCreated']}",
     ]
 
     markdown = CASE_SUMMARY_TEMPLATE.format(case_details="\n".join(case_details))
@@ -243,7 +235,7 @@ def format_markdown_case_summary(case: Dict[str, Any]) -> str:
         markdown += "\n## Recent Communications\n\n"
         for comm in case["recentCommunications"].get("communications", []):
             comm_header = f"### {comm['submittedBy']} - {comm['timeCreated']}"
-            comm_body = comm['body']
+            comm_body = comm["body"]
             markdown += f"{comm_header}\n\n{comm_body}\n\n"
 
             if comm.get("attachmentSet"):

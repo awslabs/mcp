@@ -3,7 +3,7 @@
 import time
 import traceback
 from functools import wraps
-from typing import Any, Callable, Dict, TypeVar, Union, cast, Awaitable, Protocol, TypeVar, ParamSpec
+from typing import Any, Callable, Dict, ParamSpec, Protocol, TypeVar, Union, cast
 
 from loguru import logger
 
@@ -107,7 +107,7 @@ class DiagnosticsTracker:
                     "min_time": data["min_time"],
                     "max_time": data["max_time"],
                     "last_call": data["last_call"],
-                    "total_time": total_time
+                    "total_time": total_time,
                 }
 
         return {
@@ -124,17 +124,20 @@ class DiagnosticsTracker:
 diagnostics = DiagnosticsTracker()
 
 # Type variable for generic function types
-P = ParamSpec('P')
-R = TypeVar('R', covariant=True)
+P = ParamSpec("P")
+R = TypeVar("R", covariant=True)
+
 
 class AsyncCallable(Protocol[P, R]):
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R: ...
 
+
 def track_performance(func: AsyncCallable[P, R]) -> AsyncCallable[P, R]:
     """Decorator to track function performance."""
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        func_name = getattr(func, '__name__', str(func))
+        func_name = getattr(func, "__name__", str(func))
         start_time = time.time()
         try:
             result = await func(*args, **kwargs)
@@ -150,9 +153,10 @@ def track_performance(func: AsyncCallable[P, R]) -> AsyncCallable[P, R]:
 
 def track_errors(func: AsyncCallable[P, R]) -> AsyncCallable[P, R]:
     """Decorator to track function errors."""
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        func_name = getattr(func, '__name__', str(func))
+        func_name = getattr(func, "__name__", str(func))
         try:
             return await func(*args, **kwargs)
         except Exception as e:
@@ -168,6 +172,7 @@ def track_errors(func: AsyncCallable[P, R]) -> AsyncCallable[P, R]:
 
 def track_request(request_type: str) -> Callable[[AsyncCallable[P, R]], AsyncCallable[P, R]]:
     """Decorator to track request counts by type."""
+
     def decorator(func: AsyncCallable[P, R]) -> AsyncCallable[P, R]:
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -175,7 +180,9 @@ def track_request(request_type: str) -> Callable[[AsyncCallable[P, R]], AsyncCal
             if diagnostics.enabled:
                 logger.debug(f"Request: {request_type}")
             return await func(*args, **kwargs)
+
         return cast(AsyncCallable[P, R], wrapper)
+
     return decorator
 
 

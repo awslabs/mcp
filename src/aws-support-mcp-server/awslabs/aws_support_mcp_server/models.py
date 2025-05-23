@@ -23,18 +23,22 @@ from awslabs.aws_support_mcp_server.consts import DEFAULT_ISSUE_TYPE, DEFAULT_LA
 
 class IssueType(str, Enum):
     """Issue types for AWS Support cases."""
+
     TECHNICAL = "technical"
     ACCOUNT_AND_BILLING = "account-and-billing"
     SERVICE_LIMIT = "service-limit"
 
+
 class CaseStatus(str, Enum):
     """Status values for AWS Support cases."""
+
     OPENED = "opened"
     PENDING_CUSTOMER_ACTION = "pending-customer-action"
     RESOLVED = "resolved"
     UNASSIGNED = "unassigned"
     WORK_IN_PROGRESS = "work-in-progress"
     CLOSED = "closed"
+
 
 # Type variables and type definitions
 T = TypeVar("T")
@@ -60,67 +64,51 @@ ApiParams = Dict[str, Union[str, List[Dict[str, str]], None]]
 class AttachmentDetails(BaseModel):
     """Details of an attachment to a support case communication."""
 
-    attachment_id: str = Field(
-        ...,
-        description="The ID of the attachment",
-        alias="attachmentId"
-    )
-    file_name: str = Field(
-        ...,
-        description="The file name of the attachment",
-        alias="fileName"
-    )
+    attachment_id: str = Field(..., description="The ID of the attachment", alias="attachmentId")
+    file_name: str = Field(..., description="The file name of the attachment", alias="fileName")
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def model_dump(self) -> Dict[str, JsonValue]:
         """Convert model to dictionary."""
         return {
             "attachmentId": cast(JsonValue, self.attachment_id),
-            "fileName": cast(JsonValue, self.file_name)
+            "fileName": cast(JsonValue, self.file_name),
         }
+
 
 class Communication(BaseModel):
     """A communication in a support case."""
 
     body: str = Field(
-        ...,
-        description="The text of the communication",
-        min_length=1,
-        max_length=8000
+        ..., description="The text of the communication", min_length=1, max_length=8000
     )
-    case_id: Optional[str] = Field(
-        None,
-        description="The ID of the support case",
-        alias="caseId"
-    )
+    case_id: Optional[str] = Field(None, description="The ID of the support case", alias="caseId")
     submitted_by: Optional[str] = Field(
         None,
         description="The identity of the account that submitted the communication",
-        alias="submittedBy"
+        alias="submittedBy",
     )
     time_created: Optional[str] = Field(
-        None,
-        description="The time the communication was created",
-        alias="timeCreated"
+        None, description="The time the communication was created", alias="timeCreated"
     )
     attachment_set: Optional[List[AttachmentDetails]] = Field(
         None,
         description="Information about the attachments to the case communication",
-        alias="attachmentSet"
+        alias="attachmentSet",
     )
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def model_dump(self) -> Dict[str, JsonValue]:
         """Convert model to dictionary."""
-        result: Dict[str, JsonValue] = {
-            "body": cast(JsonValue, self.body)
-        }
+        result: Dict[str, JsonValue] = {"body": cast(JsonValue, self.body)}
 
         if self.case_id:
             result["caseId"] = cast(JsonValue, self.case_id)
@@ -139,16 +127,15 @@ class RecentCommunications(BaseModel):
 
     communications: List[Communication] = Field(
         default_factory=list,
-        description="The five most recent communications associated with the case"
+        description="The five most recent communications associated with the case",
     )
     next_token: Optional[str] = Field(
-        None,
-        description="A resumption point for pagination",
-        alias="nextToken"
+        None, description="A resumption point for pagination", alias="nextToken"
     )
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def model_dump(self) -> Dict[str, JsonValue]:
@@ -166,41 +153,31 @@ class RecentCommunications(BaseModel):
 class Category(BaseModel):
     """A category for an AWS service."""
 
-    code: str = Field(
-        ..., description="The category code for the support case"
-    )
-    name: str = Field(
-        ..., description="The category name for the support case"
-    )
+    code: str = Field(..., description="The category code for the support case")
+    name: str = Field(..., description="The category name for the support case")
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def model_dump(self) -> Dict[str, JsonValue]:
         """Convert model to dictionary."""
-        return {
-            "code": cast(JsonValue, self.code),
-            "name": cast(JsonValue, self.name)
-        }
+        return {"code": cast(JsonValue, self.code), "name": cast(JsonValue, self.name)}
 
 
 class Service(BaseModel):
     """An AWS service."""
 
-    code: str = Field(
-        ..., description="The code for the AWS service"
-    )
-    name: str = Field(
-        ..., description="The name of the AWS service"
-    )
+    code: str = Field(..., description="The code for the AWS service")
+    name: str = Field(..., description="The name of the AWS service")
     categories: List[Category] = Field(
-        default_factory=list,
-        description="The categories for the AWS service"
+        default_factory=list, description="The categories for the AWS service"
     )
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def model_dump(self) -> Dict[str, JsonValue]:
@@ -208,92 +185,61 @@ class Service(BaseModel):
         return {
             "code": cast(JsonValue, self.code),
             "name": cast(JsonValue, self.name),
-            "categories": [cast(JsonDict, c.model_dump()) for c in self.categories]
+            "categories": [cast(JsonDict, c.model_dump()) for c in self.categories],
         }
 
 
 class SeverityLevel(BaseModel):
     """A severity level for a support case."""
 
-    code: str = Field(
-        ..., description="The code for the severity level"
-    )
-    name: str = Field(
-        ..., description="The name of the severity level"
-    )
+    code: str = Field(..., description="The code for the severity level")
+    name: str = Field(..., description="The name of the severity level")
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def model_dump(self) -> Dict[str, JsonValue]:
         """Convert model to dictionary."""
-        return {
-            "code": cast(JsonValue, self.code),
-            "name": cast(JsonValue, self.name)
-        }
+        return {"code": cast(JsonValue, self.code), "name": cast(JsonValue, self.name)}
 
 
 class SupportCase(BaseModel):
     """An AWS Support case."""
 
-    case_id: str = Field(
-        ...,
-        description="The ID of the support case",
-        alias="caseId"
-    )
+    case_id: str = Field(..., description="The ID of the support case", alias="caseId")
     display_id: Optional[str] = Field(
-        None,
-        description="The display ID of the support case",
-        alias="displayId"
+        None, description="The display ID of the support case", alias="displayId"
     )
-    subject: str = Field(
-        ..., description="The subject of the support case"
-    )
-    status: CaseStatus = Field(
-        ..., description="The status of the support case"
-    )
-    service_code: str = Field(
-        ...,
-        description="The code for the AWS service",
-        alias="serviceCode"
-    )
+    subject: str = Field(..., description="The subject of the support case")
+    status: CaseStatus = Field(..., description="The status of the support case")
+    service_code: str = Field(..., description="The code for the AWS service", alias="serviceCode")
     category_code: str = Field(
-        ...,
-        description="The category code for the issue",
-        alias="categoryCode"
+        ..., description="The category code for the issue", alias="categoryCode"
     )
     severity_code: str = Field(
-        ...,
-        description="The severity code for the issue",
-        alias="severityCode"
+        ..., description="The severity code for the issue", alias="severityCode"
     )
     submitted_by: str = Field(
-        ...,
-        description="The email address of the submitter",
-        alias="submittedBy"
+        ..., description="The email address of the submitter", alias="submittedBy"
     )
     time_created: str = Field(
-        ...,
-        description="The time the case was created",
-        alias="timeCreated"
+        ..., description="The time the case was created", alias="timeCreated"
     )
     recent_communications: Optional[RecentCommunications] = Field(
-        None,
-        description="Recent communications on the case",
-        alias="recentCommunications"
+        None, description="Recent communications on the case", alias="recentCommunications"
     )
     cc_email_addresses: Optional[List[str]] = Field(
         None,
         description="Email addresses that receive copies of case correspondence",
-        alias="ccEmailAddresses"
+        alias="ccEmailAddresses",
     )
-    language: Optional[str] = Field(
-        None, description="The language of the case"
-    )
+    language: Optional[str] = Field(None, description="The language of the case")
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def model_dump(self) -> Dict[str, JsonValue]:
@@ -306,13 +252,15 @@ class SupportCase(BaseModel):
             "categoryCode": cast(JsonValue, self.category_code),
             "severityCode": cast(JsonValue, self.severity_code),
             "submittedBy": cast(JsonValue, self.submitted_by),
-            "timeCreated": cast(JsonValue, self.time_created)
+            "timeCreated": cast(JsonValue, self.time_created),
         }
 
         if self.display_id:
             result["displayId"] = cast(JsonValue, self.display_id)
         if self.recent_communications:
-            result["recentCommunications"] = cast(JsonDict, self.recent_communications.model_dump())
+            result["recentCommunications"] = cast(
+                JsonDict, self.recent_communications.model_dump()
+            )
         if self.cc_email_addresses:
             result["ccEmailAddresses"] = cast(JsonValue, self.cc_email_addresses)
         if self.language:
@@ -323,57 +271,46 @@ class SupportCase(BaseModel):
 
 # Request Models
 
+
 class CreateCaseRequest(BaseModel):
     """Request model for creating a support case."""
 
-    subject: str = Field(
-        ..., description="The subject of the support case"
-    )
-    service_code: str = Field(
-        ...,
-        description="The code for the AWS service",
-        alias="serviceCode"
-    )
+    subject: str = Field(..., description="The subject of the support case")
+    service_code: str = Field(..., description="The code for the AWS service", alias="serviceCode")
     category_code: str = Field(
-        ...,
-        description="The category code for the issue",
-        alias="categoryCode"
+        ..., description="The category code for the issue", alias="categoryCode"
     )
     severity_code: str = Field(
-        ...,
-        description="The severity code for the issue",
-        alias="severityCode"
+        ..., description="The severity code for the issue", alias="severityCode"
     )
     communication_body: str = Field(
         ...,
         description="The initial communication for the case",
         min_length=1,
         max_length=8000,
-        alias="communicationBody"
+        alias="communicationBody",
     )
     cc_email_addresses: Optional[List[str]] = Field(
         None,
         description="Email addresses to CC on the case",
         max_length=10,
-        alias="ccEmailAddresses"
+        alias="ccEmailAddresses",
     )
     language: str = Field(
-        DEFAULT_LANGUAGE,
-        description="The language of the case (ISO 639-1 code)"
+        DEFAULT_LANGUAGE, description="The language of the case (ISO 639-1 code)"
     )
     issue_type: str = Field(
         DEFAULT_ISSUE_TYPE,
         description="The type of issue: technical, account-and-billing, or service-limit",
-        alias="issueType"
+        alias="issueType",
     )
     attachment_set_id: Optional[str] = Field(
-        None,
-        description="The ID of the attachment set",
-        alias="attachmentSetId"
+        None, description="The ID of the attachment set", alias="attachmentSetId"
     )
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def to_api_params(self) -> Dict[str, JsonValue]:
@@ -385,7 +322,7 @@ class CreateCaseRequest(BaseModel):
             "severityCode": cast(JsonValue, self.severity_code),
             "communicationBody": cast(JsonValue, self.communication_body),
             "language": cast(JsonValue, self.language),
-            "issueType": cast(JsonValue, self.issue_type)
+            "issueType": cast(JsonValue, self.issue_type),
         }
 
         if self.cc_email_addresses:
@@ -400,35 +337,22 @@ class DescribeCasesRequest(BaseModel):
     """Request model for describing support cases."""
 
     case_id_list: Optional[List[str]] = Field(
-        None,
-        description="List of case IDs to retrieve",
-        max_length=100,
-        alias="caseIdList"
+        None, description="List of case IDs to retrieve", max_length=100, alias="caseIdList"
     )
     display_id: Optional[str] = Field(
-        None,
-        description="The display ID of the case",
-        alias="displayId"
+        None, description="The display ID of the case", alias="displayId"
     )
     after_time: Optional[str] = Field(
-        None,
-        description="The start date for a filtered date search",
-        alias="afterTime"
+        None, description="The start date for a filtered date search", alias="afterTime"
     )
     before_time: Optional[str] = Field(
-        None,
-        description="The end date for a filtered date search",
-        alias="beforeTime"
+        None, description="The end date for a filtered date search", alias="beforeTime"
     )
     include_resolved_cases: bool = Field(
-        False,
-        description="Include resolved cases in the results",
-        alias="includeResolvedCases"
+        False, description="Include resolved cases in the results", alias="includeResolvedCases"
     )
     include_communications: bool = Field(
-        True,
-        description="Include communications in the results",
-        alias="includeCommunications"
+        True, description="Include communications in the results", alias="includeCommunications"
     )
     language: str = Field(
         DEFAULT_LANGUAGE, description="The language of the case (ISO 639-1 code)"
@@ -438,16 +362,15 @@ class DescribeCasesRequest(BaseModel):
         description="The maximum number of results to return",
         ge=10,
         le=100,
-        alias="maxResults"
+        alias="maxResults",
     )
     next_token: Optional[str] = Field(
-        None,
-        description="A resumption point for pagination",
-        alias="nextToken"
+        None, description="A resumption point for pagination", alias="nextToken"
     )
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def to_api_params(self) -> Dict[str, JsonValue]:
@@ -455,7 +378,7 @@ class DescribeCasesRequest(BaseModel):
         params: Dict[str, JsonValue] = {
             "includeResolvedCases": cast(JsonValue, self.include_resolved_cases),
             "includeCommunications": cast(JsonValue, self.include_communications),
-            "language": cast(JsonValue, self.language)
+            "language": cast(JsonValue, self.language),
         }
 
         if self.case_id_list:
@@ -473,42 +396,38 @@ class DescribeCasesRequest(BaseModel):
 
         return params
 
+
 class AddCommunicationRequest(BaseModel):
     """Request model for adding communication to a case."""
 
-    case_id: str = Field(
-        ...,
-        description="The ID of the support case",
-        alias="caseId"
-    )
+    case_id: str = Field(..., description="The ID of the support case", alias="caseId")
     communication_body: str = Field(
         ...,
         description="The text of the communication",
         min_length=1,
         max_length=8000,
-        alias="communicationBody"
+        alias="communicationBody",
     )
     cc_email_addresses: Optional[List[str]] = Field(
         None,
         description="Email addresses to CC on the communication",
         max_length=10,
-        alias="ccEmailAddresses"
+        alias="ccEmailAddresses",
     )
     attachment_set_id: Optional[str] = Field(
-        None,
-        description="The ID of the attachment set",
-        alias="attachmentSetId"
+        None, description="The ID of the attachment set", alias="attachmentSetId"
     )
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def to_api_params(self) -> Dict[str, JsonValue]:
         """Convert to AWS API parameters."""
         params: Dict[str, JsonValue] = {
             "caseId": cast(JsonValue, self.case_id),
-            "communicationBody": cast(JsonValue, self.communication_body)
+            "communicationBody": cast(JsonValue, self.communication_body),
         }
 
         if self.cc_email_addresses:
@@ -518,14 +437,11 @@ class AddCommunicationRequest(BaseModel):
 
         return params
 
+
 class ResolveCaseRequest(BaseModel):
     """Request model for resolving a support case."""
 
-    case_id: str = Field(
-        ...,
-        description="The ID of the support case",
-        alias="caseId"
-    )
+    case_id: str = Field(..., description="The ID of the support case", alias="caseId")
 
     class Config:
         """Pydantic model configuration."""
@@ -534,27 +450,18 @@ class ResolveCaseRequest(BaseModel):
 
     def to_api_params(self) -> Dict[str, Any]:
         """Convert to AWS API parameters."""
-        return {
-            "caseId": self.case_id
-        }
+        return {"caseId": self.case_id}
 
 
 # Response Models
 
+
 class CreateCaseResponse(BaseModel):
     """Response model for creating a support case."""
 
-    case_id: str = Field(
-        ...,
-        description="The ID of the created support case",
-        alias="caseId"
-    )
-    status: str = Field(
-        "success", description="The status of the operation"
-    )
-    message: str = Field(
-        ..., description="A message describing the result of the operation"
-    )
+    case_id: str = Field(..., description="The ID of the created support case", alias="caseId")
+    status: str = Field("success", description="The status of the operation")
+    message: str = Field(..., description="A message describing the result of the operation")
 
     class Config:
         """Pydantic model configuration."""
@@ -565,17 +472,14 @@ class CreateCaseResponse(BaseModel):
 class DescribeCasesResponse(BaseModel):
     """Response model for describing support cases."""
 
-    cases: List[SupportCase] = Field(
-        ..., description="The list of support cases"
-    )
+    cases: List[SupportCase] = Field(..., description="The list of support cases")
     next_token: Optional[str] = Field(
-        None,
-        description="A resumption point for pagination",
-        alias="nextToken"
+        None, description="A resumption point for pagination", alias="nextToken"
     )
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def model_dump(self) -> Dict[str, JsonValue]:
@@ -589,18 +493,13 @@ class DescribeCasesResponse(BaseModel):
 
         return result
 
+
 class AddCommunicationResponse(BaseModel):
     """Response model for adding communication to a case."""
 
-    result: bool = Field(
-        ..., description="Whether the operation was successful"
-    )
-    status: str = Field(
-        "success", description="The status of the operation"
-    )
-    message: str = Field(
-        ..., description="A message describing the result of the operation"
-    )
+    result: bool = Field(..., description="Whether the operation was successful")
+    status: str = Field("success", description="The status of the operation")
+    message: str = Field(..., description="A message describing the result of the operation")
 
     class Config:
         """Pydantic model configuration."""
@@ -612,21 +511,13 @@ class ResolveCaseResponse(BaseModel):
     """Response model for resolving a support case."""
 
     initial_case_status: str = Field(
-        ...,
-        description="The status of the case before resolving",
-        alias="initialCaseStatus"
+        ..., description="The status of the case before resolving", alias="initialCaseStatus"
     )
     final_case_status: str = Field(
-        ...,
-        description="The status of the case after resolving",
-        alias="finalCaseStatus"
+        ..., description="The status of the case after resolving", alias="finalCaseStatus"
     )
-    status: str = Field(
-        "success", description="The status of the operation"
-    )
-    message: str = Field(
-        ..., description="A message describing the result of the operation"
-    )
+    status: str = Field("success", description="The status of the operation")
+    message: str = Field(..., description="A message describing the result of the operation")
 
     class Config:
         """Pydantic model configuration."""
@@ -637,15 +528,8 @@ class ResolveCaseResponse(BaseModel):
 class DescribeCreateCaseOptionsRequest(BaseModel):
     """Request model for describing create case options."""
 
-    service_code: str = Field(
-        ...,
-        description="The code for the AWS service",
-        alias="serviceCode"
-    )
-    language: str = Field(
-        DEFAULT_LANGUAGE,
-        description="The language to use (ISO 639-1 code)"
-    )
+    service_code: str = Field(..., description="The code for the AWS service", alias="serviceCode")
+    language: str = Field(DEFAULT_LANGUAGE, description="The language to use (ISO 639-1 code)")
 
     class Config:
         """Pydantic model configuration."""
@@ -654,23 +538,14 @@ class DescribeCreateCaseOptionsRequest(BaseModel):
 
     def to_api_params(self) -> Dict[str, JsonValue]:
         """Convert to AWS API parameters."""
-        return {
-            "serviceCode": self.service_code,
-            "language": self.language
-        }
+        return {"serviceCode": self.service_code, "language": self.language}
 
 
 class CreateCaseCategory(BaseModel):
     """Model for a category in create case options."""
 
-    code: str = Field(
-        ...,
-        description="The code for the category"
-    )
-    name: str = Field(
-        ...,
-        description="The name of the category"
-    )
+    code: str = Field(..., description="The code for the category")
+    name: str = Field(..., description="The name of the category")
 
     class Config:
         """Pydantic model configuration."""
@@ -679,10 +554,7 @@ class CreateCaseCategory(BaseModel):
 
     def model_dump(self) -> Dict[str, JsonValue]:
         """Convert model to dictionary."""
-        return {
-            "code": self.code,
-            "name": self.name
-        }
+        return {"code": self.code, "name": self.name}
 
 
 class DescribeCreateCaseOptionsResponse(BaseModel):
@@ -691,21 +563,15 @@ class DescribeCreateCaseOptionsResponse(BaseModel):
     category_list: List[CreateCaseCategory] = Field(
         ...,
         description="The list of available categories for the specified service",
-        alias="categoryList"
+        alias="categoryList",
     )
     severity_levels: List[SeverityLevel] = Field(
         ...,
         description="The list of available severity levels for the specified service",
-        alias="severityLevels"
+        alias="severityLevels",
     )
-    status: str = Field(
-        "success",
-        description="The status of the operation"
-    )
-    message: str = Field(
-        ...,
-        description="A message describing the result of the operation"
-    )
+    status: str = Field("success", description="The status of the operation")
+    message: str = Field(..., description="A message describing the result of the operation")
 
     class Config:
         """Pydantic model configuration."""
@@ -716,34 +582,24 @@ class DescribeCreateCaseOptionsResponse(BaseModel):
         """Convert model to dictionary."""
         return {
             "categoryList": [cat.model_dump() for cat in self.category_list],
-            "severityLevels": [sev.model_dump() for sev in self.severity_levels]
+            "severityLevels": [sev.model_dump() for sev in self.severity_levels],
         }
-
 
 
 class AttachmentData(BaseModel):
     """Model for attachment data."""
 
-    data: str = Field(
-        ...,
-        description="The base64-encoded contents of the attachment"
-    )
-    file_name: str = Field(
-        ...,
-        description="The name of the attachment file",
-        alias="fileName"
-    )
+    data: str = Field(..., description="The base64-encoded contents of the attachment")
+    file_name: str = Field(..., description="The name of the attachment file", alias="fileName")
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def model_dump(self) -> Dict[str, JsonValue]:
         """Convert model to dictionary."""
-        return {
-            "data": cast(JsonValue, self.data),
-            "fileName": cast(JsonValue, self.file_name)
-        }
+        return {"data": cast(JsonValue, self.data), "fileName": cast(JsonValue, self.file_name)}
 
 
 class AddAttachmentsToSetRequest(BaseModel):
@@ -752,28 +608,27 @@ class AddAttachmentsToSetRequest(BaseModel):
     attachments: List[AttachmentData] = Field(
         ...,
         description="The list of attachments to add. Each attachment must be base64-encoded and "
-                    "less than 5MB in size.",
-        min_length=1
+        "less than 5MB in size.",
+        min_length=1,
     )
     attachment_set_id: Optional[str] = Field(
         None,
         description="The ID of an existing attachment set to add to. If not specified, "
-                    "a new attachment set will be created.",
-        alias="attachmentSetId"
+        "a new attachment set will be created.",
+        alias="attachmentSetId",
     )
 
     class Config:
         """Pydantic model configuration."""
+
         populate_by_name = True
 
     def to_api_params(self) -> Dict[str, JsonValue]:
         """Convert to AWS API parameters."""
         params: Dict[str, JsonValue] = {
             "attachments": [
-                {
-                    "data": cast(JsonValue, a.data),
-                    "fileName": cast(JsonValue, a.file_name)
-                } for a in self.attachments
+                {"data": cast(JsonValue, a.data), "fileName": cast(JsonValue, a.file_name)}
+                for a in self.attachments
             ]
         }
 
@@ -782,25 +637,20 @@ class AddAttachmentsToSetRequest(BaseModel):
 
         return params
 
+
 class AddAttachmentsToSetResponse(BaseModel):
     """Response model for adding attachments to a set."""
 
     attachment_set_id: str = Field(
-        ...,
-        description="The ID of the attachment set",
-        alias="attachmentSetId"
+        ..., description="The ID of the attachment set", alias="attachmentSetId"
     )
     expiry_time: str = Field(
         ...,
         description="The time when the attachment set expires (ISO 8601 format)",
-        alias="expiryTime"
+        alias="expiryTime",
     )
-    status: str = Field(
-        "success", description="The status of the operation"
-    )
-    message: str = Field(
-        ..., description="A message describing the result of the operation"
-    )
+    status: str = Field("success", description="The status of the operation")
+    message: str = Field(..., description="A message describing the result of the operation")
 
     class Config:
         """Pydantic model configuration."""
@@ -828,14 +678,8 @@ class DescribeSupportedLanguagesRequest(BaseModel):
 class SupportedLanguage(BaseModel):
     """Model for a supported language."""
 
-    code: str = Field(
-        ...,
-        description="The ISO 639-1 language code (e.g., 'en' for English)"
-    )
-    name: str = Field(
-        ...,
-        description="The full name of the language in English"
-    )
+    code: str = Field(..., description="The ISO 639-1 language code (e.g., 'en' for English)")
+    name: str = Field(..., description="The full name of the language in English")
     native_name: Optional[str] = Field(
         None, description="The name of the language in its native script"
     )
@@ -844,17 +688,9 @@ class SupportedLanguage(BaseModel):
 class DescribeSupportedLanguagesResponse(BaseModel):
     """Response model for describing supported languages."""
 
-    languages: List[str] = Field(
-        ...,
-        description="The list of supported language codes"
-    )
-    status: str = Field(
-        "success",
-        description="The status of the operation"
-    )
-    message: str = Field(
-        ..., description="A message describing the result of the operation"
-    )
+    languages: List[str] = Field(..., description="The list of supported language codes")
+    status: str = Field("success", description="The status of the operation")
+    message: str = Field(..., description="A message describing the result of the operation")
 
     class Config:
         """Pydantic model configuration."""
