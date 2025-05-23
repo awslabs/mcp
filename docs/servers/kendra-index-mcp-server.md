@@ -1,5 +1,5 @@
 ---
-title: AWS Kendra Index MCP Server
+title: Amazon Kendra Index MCP Server
 ---
 
 {%include "../../src/amazon-kendra-index-mcp-server/README.md"%}

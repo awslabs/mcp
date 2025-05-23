@@ -1,5 +1,5 @@
 ---
-title: CloudFormation MCP Server
+title: AWS CloudFormation MCP Server
 ---
 
 {% include "../../src/cfn-mcp-server/README.md" %}
