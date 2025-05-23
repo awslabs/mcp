@@ -417,6 +417,21 @@ def test_handle_request_notification():
     assert resp['headers']['Content-Type'] == 'application/json'
 
 
+def test_handle_request_ping():
+    """Test handle_request with a ping (no response expected)."""
+    handler = MCPLambdaHandler('test-server')
+    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'ping'}
+    event = make_lambda_event(req)
+    context = None
+    resp = handler.handle_request(event, context)
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert body['jsonrpc'] == '2.0'
+    assert body['id'] == 1
+    assert body['result'] == {}
+    assert resp['headers']['Content-Type'] == 'application/json'
+
+
 def test_handle_request_delete_session():
     """Test handle_request for deleting a session."""
     handler = MCPLambdaHandler('test-server', session_store=NoOpSessionStore())
@@ -490,6 +505,47 @@ def test_tool_decorator_no_docstring():
 
     assert 'bar' in handler.tools
     assert handler.tools['bar']['description'] == ''
+
+
+def test_tool_decorator_enum_type():
+    """Test tool decorator with Enum type hint."""
+    from enum import Enum
+
+    class Color(Enum):
+        RED = 'red'
+        BLUE = 'blue'
+        GREEN = 'green'
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def paint(color: Color) -> str:
+        """Test tool with enum parameter.
+
+        Args:
+            color: The color to paint with
+        """
+        return f'Painted with {color.value}'
+
+    # Verify the schema includes enum values
+    schema = handler.tools['paint']
+    assert schema['inputSchema']['properties']['color']['type'] == 'string'
+    assert set(schema['inputSchema']['properties']['color']['enum']) == {'red', 'blue', 'green'}
+
+    # Test tool execution with enum conversion
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {'name': 'paint', 'arguments': {'color': 'blue'}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    # Verify the response
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    assert body['result']['content'][0]['text'] == 'Painted with blue'
 
 
 def test_tool_decorator_type_hints():
