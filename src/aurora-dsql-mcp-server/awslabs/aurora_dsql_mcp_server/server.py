@@ -332,7 +332,8 @@ async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]
         logger.warning(f'Connection error, reconnecting: {e}')
         global persistent_connection
         try:
-            await persistent_connection.close()
+            if persistent_connection:
+                await persistent_connection.close()
         except Exception:
             pass  # Ignore errors when closing an already broken connection
         persistent_connection = None
