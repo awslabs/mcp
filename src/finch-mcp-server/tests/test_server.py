@@ -92,8 +92,8 @@ class TestEnsureVmRunning:
     @patch('awslabs.finch_mcp_server.server.initialize_vm')
     @patch('awslabs.finch_mcp_server.server.start_stopped_vm')
     @patch('awslabs.finch_mcp_server.server.format_result')
-    @patch('sys.platform', 'darwin')  # Mock as macOS for testing
-    def test_ensure_vm_running_on_macos(
+    @patch('sys.platform', 'darwin')
+    def test_ensure_vm_running_already_running(
         self,
         mock_format_result,
         mock_start_vm,
@@ -103,8 +103,8 @@ class TestEnsureVmRunning:
         mock_is_nonexistent,
         mock_get_status,
     ):
-        """Test ensure_vm_running function on macOS."""
-        # Test case 1: VM is running
+        """Test ensure_vm_running function on macOS when VM is already running."""
+        # VM is running
         mock_get_status.return_value = MagicMock()
         mock_is_nonexistent.return_value = False
         mock_is_stopped.return_value = False
@@ -118,11 +118,27 @@ class TestEnsureVmRunning:
         mock_initialize_vm.assert_not_called()
         mock_start_vm.assert_not_called()
 
-        mock_format_result.reset_mock()
-        mock_initialize_vm.reset_mock()
-        mock_start_vm.reset_mock()
-
-        # Test case 2: VM is stopped
+    @patch('awslabs.finch_mcp_server.server.get_vm_status')
+    @patch('awslabs.finch_mcp_server.server.is_vm_nonexistent')
+    @patch('awslabs.finch_mcp_server.server.is_vm_stopped')
+    @patch('awslabs.finch_mcp_server.server.is_vm_running')
+    @patch('awslabs.finch_mcp_server.server.initialize_vm')
+    @patch('awslabs.finch_mcp_server.server.start_stopped_vm')
+    @patch('awslabs.finch_mcp_server.server.format_result')
+    @patch('sys.platform', 'darwin')
+    def test_ensure_vm_running_stopped(
+        self,
+        mock_format_result,
+        mock_start_vm,
+        mock_initialize_vm,
+        mock_is_running,
+        mock_is_stopped,
+        mock_is_nonexistent,
+        mock_get_status,
+    ):
+        """Test ensure_vm_running function on macOS when VM is stopped."""
+        # VM is stopped
+        mock_get_status.return_value = MagicMock()
         mock_is_nonexistent.return_value = False
         mock_is_stopped.return_value = True
         mock_is_running.return_value = False
@@ -135,11 +151,27 @@ class TestEnsureVmRunning:
         mock_start_vm.assert_called_once()
         mock_initialize_vm.assert_not_called()
 
-        mock_format_result.reset_mock()
-        mock_initialize_vm.reset_mock()
-        mock_start_vm.reset_mock()
-
-        # Test case 3: VM is nonexistent
+    @patch('awslabs.finch_mcp_server.server.get_vm_status')
+    @patch('awslabs.finch_mcp_server.server.is_vm_nonexistent')
+    @patch('awslabs.finch_mcp_server.server.is_vm_stopped')
+    @patch('awslabs.finch_mcp_server.server.is_vm_running')
+    @patch('awslabs.finch_mcp_server.server.initialize_vm')
+    @patch('awslabs.finch_mcp_server.server.start_stopped_vm')
+    @patch('awslabs.finch_mcp_server.server.format_result')
+    @patch('sys.platform', 'darwin')
+    def test_ensure_vm_running_nonexistent(
+        self,
+        mock_format_result,
+        mock_start_vm,
+        mock_initialize_vm,
+        mock_is_running,
+        mock_is_stopped,
+        mock_is_nonexistent,
+        mock_get_status,
+    ):
+        """Test ensure_vm_running function on macOS when VM is nonexistent."""
+        # VM is nonexistent
+        mock_get_status.return_value = MagicMock()
         mock_is_nonexistent.return_value = True
         mock_is_stopped.return_value = False
         mock_is_running.return_value = False
@@ -152,11 +184,27 @@ class TestEnsureVmRunning:
         mock_initialize_vm.assert_called_once()
         mock_start_vm.assert_not_called()
 
-        mock_format_result.reset_mock()
-        mock_initialize_vm.reset_mock()
-        mock_start_vm.reset_mock()
-
-        # Test case 4: VM start fails
+    @patch('awslabs.finch_mcp_server.server.get_vm_status')
+    @patch('awslabs.finch_mcp_server.server.is_vm_nonexistent')
+    @patch('awslabs.finch_mcp_server.server.is_vm_stopped')
+    @patch('awslabs.finch_mcp_server.server.is_vm_running')
+    @patch('awslabs.finch_mcp_server.server.initialize_vm')
+    @patch('awslabs.finch_mcp_server.server.start_stopped_vm')
+    @patch('awslabs.finch_mcp_server.server.format_result')
+    @patch('sys.platform', 'darwin')  # Mock as macOS for testing
+    def test_ensure_vm_running_failures(
+        self,
+        mock_format_result,
+        mock_start_vm,
+        mock_initialize_vm,
+        mock_is_running,
+        mock_is_stopped,
+        mock_is_nonexistent,
+        mock_get_status,
+    ):
+        """Test ensure_vm_running function on macOS when operations fail."""
+        # Test VM start failure
+        mock_get_status.return_value = MagicMock()
         mock_is_nonexistent.return_value = False
         mock_is_stopped.return_value = True
         mock_is_running.return_value = False
@@ -168,10 +216,12 @@ class TestEnsureVmRunning:
         mock_start_vm.assert_called_once()
         mock_initialize_vm.assert_not_called()
 
+        # Reset mocks for the next test
         mock_format_result.reset_mock()
         mock_initialize_vm.reset_mock()
         mock_start_vm.reset_mock()
 
+        # Test VM initialization failure
         mock_is_nonexistent.return_value = True
         mock_is_stopped.return_value = False
         mock_is_running.return_value = False
