@@ -261,7 +261,6 @@ A server for interacting with AWS DynamoDB
 
 [Learn more about the AWS DynamoDB MCP Server](servers/dynamodb-mcp-server.md)
 
-
 ### AWS DocumentDB MCP Server
 
 The DocumentDB MCP Server enables AI assistants to interact with Amazon DocumentDB databases, providing secure query capabilities and database operations.
@@ -276,6 +275,29 @@ The DocumentDB MCP Server enables AI assistants to interact with Amazon Document
 
 [Learn more about the DocumentDB MCP Server](servers/documentdb-mcp-server.md)
 
+### Synthetic Data MCP Server
+
+A server for generating, validating, and managing synthetic data.
+
+- Business-Driven Generation: Generate synthetic data instructions based on business descriptions
+- Safe Pandas Code Execution: Run pandas code in a restricted environment with automatic DataFrame detection
+- JSON Lines Validation: Validate and convert JSON Lines data to CSV format
+- Data Validation: Validate data structure, referential integrity, and save as CSV files
+- Referential Integrity Checking: Validate relationships between tables
+- Data Quality Assessment: Identify potential issues in data models (3NF validation)
+- Storage Integration: Load data to various storage targets (S3) with support for multiple formats and configurations
+
+[Learn more about the Synthetic Data MCP Server](servers/syntheticdata-mcp-server.md)
+
+### Amazon Neptune MCP Server
+
+A server for interacting with Amazon Neptune graph database.
+
+- Run openCypher/Gremlin queries on a Neptune Database
+- Run openCypher queries on Neptune Analytics
+- Get the schema of the graph
+
+[Learn more](servers/amazon-neptune-mcp-server.md)
 
 ## Installation and Setup
 
