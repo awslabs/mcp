@@ -32,7 +32,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS Location Service MCP Server](#aws-location-service-mcp-server)
     - [Git Repo Research MCP Server](#git-repo-research-mcp-server)
     - [Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)
-    - [Postgres MCP Server](#postgres-mcp-server)
+    - [Amazon Aurora Postgres MCP Server](#amazon-aurora-postgres-mcp-server)
+    - [Amazon Aurora MySql MCP Server](#amazon-aurora-mysql-mcp-server)
     - [Amazon MQ MCP Server](#amazon-mq-mcp-server)
     - [Synthetic Data MCP Server](#synthetic-data-mcp-server)
     - [AWS DynamoDB MCP Server](#aws-dynamodb-mcp-server)
@@ -318,7 +319,7 @@ A server that automatically generates comprehensive documentation for code repos
 
 [Learn more](src/code-doc-gen-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/code-doc-gen-mcp-server/)
 
-### Postgres MCP Server
+### Amazon Aurora Postgres MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.postgres-mcp-server.svg)](https://pypi.org/project/awslabs.postgres-mcp-server/)
 
@@ -328,6 +329,17 @@ A server for Aurora Postgres.
 - Fetch table columns and comments from Postgres using RDS Data API
 
 [Learn more](src/postgres-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/postgres-mcp-server/)
+
+### Amazon Aurora MySql MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.mysql-mcp-server.svg)](https://pypi.org/project/awslabs.mysql-mcp-server/)
+
+A server for Aurora MySql.
+
+- Converting human-readable questions and commands into structured MySQL-compatible SQL queries and executing them against the configured Aurora MySQL database.
+- Fetch table schema
+
+[Learn more](src/mysql-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/mysql-mcp-server/)
 
 ### Amazon Neptune MCP Server
 
