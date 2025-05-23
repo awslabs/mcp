@@ -181,6 +181,9 @@ env.bak/
 venv.bak/
 .direnv/
 
+# Certificates
+awslabs/certs
+
 # Spyder project settings
 .spyderproject
 .spyproject

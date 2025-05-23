@@ -82,6 +82,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Amazon MQ MCP Server](#amazon-mq-mcp-server)
     - [Synthetic Data MCP Server](#synthetic-data-mcp-server)
     - [AWS DynamoDB MCP Server](#aws-dynamodb-mcp-server)
+    - [Amazon Keyspaces MCP Server](#amazon-keyspaces-mcp-server)
     - [Amazon Neptune MCP Server](#amazon-neptune-mcp-server)
     - [MCP Lambda Handler Module](#mcp-lambda-handler-module)
   - [Use Cases for the Servers](#use-cases-for-the-servers)
@@ -415,6 +416,17 @@ A server for Aurora Postgres.
 - Fetch table columns and comments from Postgres using RDS Data API
 
 [Learn more](src/postgres-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/postgres-mcp-server/)
+
+### Amazon Keyspaces MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-keyspaces-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-keyspaces-mcp-server/)
+
+A server for interacting with Amazon Keyspaces (for Apache Cassandra).
+
+- Explore keyspaces and tables
+- Execute CQL SELECT queries
+- Analyze schema design and query performance
+- Cassandra-compatible 
 
 ### Amazon Neptune MCP Server
 

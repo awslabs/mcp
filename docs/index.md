@@ -261,7 +261,6 @@ A server for interacting with AWS DynamoDB
 
 [Learn more about the AWS DynamoDB MCP Server](servers/dynamodb-mcp-server.md)
 
-
 ### AWS DocumentDB MCP Server
 
 The DocumentDB MCP Server enables AI assistants to interact with Amazon DocumentDB databases, providing secure query capabilities and database operations.
@@ -275,6 +274,18 @@ The DocumentDB MCP Server enables AI assistants to interact with Amazon Document
 - Automatic connection cleanup and resource management
 
 [Learn more about the DocumentDB MCP Server](servers/documentdb-mcp-server.md)
+
+### Amazon Keyspaces (for Apache Cassandra) MCP Server
+
+An Amazon Keyspaces (for Apache Cassandra) MCP server enables AI assistants to interact with Amazon Keyspaces and Apache Cassandra.
+
+**Features:**
+- Explore keyspaces and tables.
+- Execute CQL SELECT queries against the configured database.
+- Get feedback and suggestions for improving query performance.
+- Use with Amazon Keyspaces, or with Apache Cassandra.
+
+[Learn more about the Amazon Keysapces MCP Server](servers/amazon-keyspaces-mcp-server.md)
 
 
 ## Installation and Setup
