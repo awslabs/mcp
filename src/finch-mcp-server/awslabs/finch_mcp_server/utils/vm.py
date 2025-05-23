@@ -23,7 +23,7 @@ from ..consts import (
 from .common import execute_command, format_result
 from loguru import logger
 from shutil import which
-from typing import Any, Dict, Literal
+from typing import Dict, Literal
 
 
 def get_vm_status() -> subprocess.CompletedProcess:
@@ -94,7 +94,7 @@ def is_vm_running(status_result: subprocess.CompletedProcess) -> bool:
     return 'running' in status_result.stdout.lower() or 'running' in status_result.stderr.lower()
 
 
-def initialize_vm() -> Dict[str, Any]:
+def initialize_vm() -> Dict[str, str]:
     """Initialize a new Finch VM.
 
     This function runs 'finch vm init' to create a new Finch VM instance.
@@ -119,7 +119,7 @@ def initialize_vm() -> Dict[str, Any]:
         return format_result(STATUS_ERROR, f'Failed to initialize Finch VM: {init_result.stderr}')
 
 
-def start_stopped_vm() -> Dict[str, Any]:
+def start_stopped_vm() -> Dict[str, str]:
     """Start a stopped Finch VM.
 
     This function runs 'finch vm start' to start a VM that exists but is
@@ -146,7 +146,7 @@ def start_stopped_vm() -> Dict[str, Any]:
         return format_result(STATUS_ERROR, f'Failed to start Finch VM: {start_result.stderr}')
 
 
-def stop_vm(force: bool = False) -> Dict[str, Any]:
+def stop_vm(force: bool = False) -> Dict[str, str]:
     """Stop a running Finch VM.
 
     This function runs 'finch vm stop' to shut down a running VM.
@@ -179,7 +179,7 @@ def stop_vm(force: bool = False) -> Dict[str, Any]:
         return format_result(STATUS_ERROR, f'Failed to stop Finch VM: {stop_result.stderr}')
 
 
-def remove_vm(force: bool = False) -> Dict[str, Any]:
+def remove_vm(force: bool = False) -> Dict[str, str]:
     """Remove the Finch VM.
 
     This function runs 'finch vm rm' to remove the VM.
@@ -212,7 +212,7 @@ def remove_vm(force: bool = False) -> Dict[str, Any]:
         return format_result(STATUS_ERROR, f'Failed to remove Finch VM: {remove_result.stderr}')
 
 
-def restart_running_vm() -> Dict[str, Any]:
+def restart_running_vm() -> Dict[str, str]:
     """Restart a running Finch VM (stop then start).
 
     This function performs a full restart of the VM by first stopping it
@@ -240,7 +240,7 @@ def restart_running_vm() -> Dict[str, Any]:
     return start_result
 
 
-def check_finch_installation() -> Dict[str, Any]:
+def check_finch_installation() -> Dict[str, str]:
     """Check if the Finch CLI tool is installed on the system.
 
     This function uses 'which finch' on macOS/Linux to determine if the
@@ -262,7 +262,7 @@ def check_finch_installation() -> Dict[str, Any]:
         return format_result(STATUS_ERROR, f'Error checking Finch installation: {str(e)}')
 
 
-def configure_ecr() -> Dict[str, Any]:
+def configure_ecr() -> Dict[str, str]:
     """Configure Finch to use ECR (Amazon Elastic Container Registry).
 
     This function updates the Finch YAML configuration file:
@@ -332,7 +332,7 @@ def configure_ecr() -> Dict[str, Any]:
 
 def validate_vm_state(
     expected_state: Literal['running', 'stopped', 'nonexistent'],
-) -> Dict[str, Any]:
+) -> Dict[str, str]:
     """Validate that the Finch VM is in the expected state.
 
     This function checks the current state of the VM and compares it to the expected state.

@@ -11,13 +11,13 @@ from ..consts import STATUS_ERROR, STATUS_SUCCESS
 from .common import format_result
 from botocore.exceptions import ClientError
 from loguru import logger
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 
 def create_ecr_repository(
     app_name: str,
     region: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> Dict[str, str]:
     """Check if an ECR repository exists and create it if it doesn't.
 
     This function first checks if the specified ECR repository exists using boto3.

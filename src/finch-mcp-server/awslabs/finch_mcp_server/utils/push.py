@@ -11,7 +11,7 @@ import re
 from ..consts import ECR_REFERENCE_PATTERN, STATUS_ERROR, STATUS_SUCCESS
 from .common import execute_command, format_result
 from loguru import logger
-from typing import Any, Dict
+from typing import Dict
 
 
 def is_ecr_repository(repository: str) -> bool:
@@ -37,7 +37,7 @@ def is_ecr_repository(repository: str) -> bool:
     return bool(re.match(region_pattern, region))
 
 
-def get_image_hash(image: str) -> tuple[Dict[str, Any], str]:
+def get_image_hash(image: str) -> tuple[Dict[str, str], str]:
     """Get the hash (digest) of a container image.
 
     Args:
@@ -76,7 +76,7 @@ def get_image_hash(image: str) -> tuple[Dict[str, Any], str]:
     ), image_hash
 
 
-def push_image(image: str) -> Dict[str, Any]:
+def push_image(image: str) -> Dict[str, str]:
     """Push an image to a repository, replacing the tag with the image hash.
 
     Args:
