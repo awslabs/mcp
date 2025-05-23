@@ -22,9 +22,6 @@ STATUS_WARNING = 'warning'
 STATUS_INFO = 'info'
 
 # ECR repository pattern
-ECR_REPOSITORY_PATTERN = (
-    r'^(\d{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com/([a-zA-Z0-9._/-]+)(?::([a-zA-Z0-9._-]+))?$'
-)
 ECR_REFERENCE_PATTERN = r'(\d{12})\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com'
 
 # Configuration file paths

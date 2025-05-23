@@ -7,13 +7,11 @@ Note: These tools are intended for development and prototyping purposes only
 and are not meant for production use cases.
 """
 
-import json
 import os
 import subprocess
 import sys
 import yaml
 from ..consts import (
-    CONFIG_JSON_PATH,
     FINCH_YAML_PATH,
     STATUS_ERROR,
     STATUS_SUCCESS,
@@ -274,21 +272,13 @@ def configure_ecr() -> Dict[str, Any]:
     as it is automatically handled when adding the ecr-login credential helper in finch.yaml.
 
     Returns:
-        Dict[str, Any]: Result dictionary with:
+        Dict[str, str]: Result dictionary with:
             - status: "success" if the configuration was updated successfully, "error" otherwise
             - message: Details about the configuration result
-            - changed: Boolean indicating whether the configuration was changed
 
     """
     try:
         changed_yaml = False
-        config_dir = os.path.expanduser('~/.finch')
-
-        # Create the directory if it doesn't exist
-        if not os.path.exists(config_dir):
-            os.makedirs(config_dir)
-            logger.info(f'Created directory: {config_dir}')
-
         finch_yaml_path = os.path.expanduser(FINCH_YAML_PATH)
 
         if os.path.exists(finch_yaml_path):
@@ -317,132 +307,27 @@ def configure_ecr() -> Dict[str, Any]:
 
             except Exception as e:
                 logger.warning(f'Error updating {finch_yaml_path} with PyYAML: {str(e)}')
-                return format_result(STATUS_ERROR, f'Failed to update YAML file: {str(e)}')
+                return format_result(STATUS_ERROR, f'Failed to update finch YAML file: {str(e)}')
         else:
             return format_result(STATUS_ERROR, 'finch yaml file not found in ~/.finch/finch.yaml')
 
         if changed_yaml:
+            # Log the change status
+            logger.debug('ECR configuration was updated in finch.yaml')
             return format_result(
                 STATUS_SUCCESS,
                 'ECR configuration updated successfully in finch.yaml.',
-                changed=True,
             )
         else:
+            # Log that no changes were needed
+            logger.debug('ECR was already configured correctly in finch.yaml')
             return format_result(
                 STATUS_SUCCESS,
                 'ECR was already configured correctly in finch.yaml.',
-                changed=False,
             )
 
     except Exception as e:
         return format_result(STATUS_ERROR, f'Failed to configure ECR: {str(e)}')
-
-
-def is_ecr_credhelper_configured() -> Dict[str, Any]:
-    """Check if Finch is configured to use ECR credhelper (Amazon Elastic Container Registry).
-
-    This function examines two Finch configuration files:
-    1. ~/.finch/config.json - Checks if 'credsStore' is set to 'ecr-login'
-    2. ~/.finch/finch.yaml - Checks if 'ecr-login' is in the creds_helpers list
-
-    Returns:
-        Dict[str, Any]: Result dictionary with:
-            - status: "success" if the check completed successfully, "error" otherwise
-            - message: Details about the ECR credhelper configuration status
-            - configured: Boolean indicating whether ECR is properly configured
-            - config_json_status: Boolean indicating if config.json is properly configured
-            - finch_yaml_status: Boolean indicating if finch.yaml is properly configured
-
-    """
-    try:
-        config_json_configured = False
-        finch_yaml_configured = False
-
-        # Check config.json
-        config_json_path = os.path.expanduser(CONFIG_JSON_PATH)
-        if os.path.exists(config_json_path):
-            # TODO: Add support where configuration can have credhelpers with individual repositories configured to use ecr-login
-            try:
-                with open(config_json_path, 'r') as f:
-                    config_json = json.load(f)
-                    config_json_configured = config_json.get('credsStore') == 'ecr-login'
-            except Exception as e:
-                logger.warning(f'Error reading {config_json_path}: {str(e)}')
-
-        finch_yaml_path = os.path.expanduser(FINCH_YAML_PATH)
-        if os.path.exists(finch_yaml_path):
-            try:
-                with open(finch_yaml_path, 'r') as f:
-                    yaml_content = yaml.safe_load(f) or {}
-
-                    if 'creds_helpers' in yaml_content:
-                        if isinstance(yaml_content['creds_helpers'], list):
-                            finch_yaml_configured = 'ecr-login' in yaml_content['creds_helpers']
-                        else:
-                            finch_yaml_configured = yaml_content['creds_helpers'] == 'ecr-login'
-            except Exception as e:
-                logger.warning(f'Error reading {finch_yaml_path}: {str(e)}')
-
-        is_configured = config_json_configured and finch_yaml_configured
-
-        if is_configured:
-            message = 'ECR is properly configured in Finch.'
-        elif config_json_configured and not finch_yaml_configured:
-            message = 'ECR is partially configured: config.json is correct but finch.yaml is not configured.'
-        elif not config_json_configured and finch_yaml_configured:
-            message = 'ECR is partially configured: finch.yaml is correct but config.json is not configured.'
-        else:
-            message = 'ECR is not configured in Finch.'
-
-        return format_result(
-            STATUS_SUCCESS,
-            message,
-            configured=is_configured,
-            config_json_status=config_json_configured,
-            finch_yaml_status=finch_yaml_configured,
-        )
-
-    except Exception as e:
-        return format_result(STATUS_ERROR, f'Error checking ECR configuration: {str(e)}')
-
-
-def restart_vm_if_running() -> Dict[str, Any]:
-    """Restart the Finch VM if it's currently running.
-
-    This function checks if the Finch VM is running, and if so, stops and starts it
-    to pick up any configuration changes. If the VM is not running, it does nothing.
-
-    Returns:
-        Dict[str, Any]: Result dictionary with:
-            - status: "success" if the operation succeeded, "error" otherwise
-            - message: Details about the restart operation result
-            - restarted: Boolean indicating whether the VM was restarted
-
-    """
-    try:
-        status_result = get_vm_status()
-
-        if is_vm_running(status_result):
-            stop_result = stop_vm()
-            if stop_result['status'] == STATUS_ERROR:
-                return {**stop_result, 'restarted': False}
-
-            start_result = start_stopped_vm()
-            if start_result['status'] == STATUS_ERROR:
-                return {**start_result, 'restarted': False}
-
-            return format_result(
-                STATUS_SUCCESS,
-                'Finch VM has been restarted to apply new configuration.',
-                restarted=True,
-            )
-        else:
-            return format_result(
-                STATUS_SUCCESS, 'Finch VM is not running, no restart needed.', restarted=False
-            )
-
-    except Exception as e:
-        return format_result(STATUS_ERROR, f'Error checking or restarting Finch VM: {str(e)}')
 
 
 def validate_vm_state(
@@ -457,32 +342,31 @@ def validate_vm_state(
         expected_state: The state the VM should be in ("running", "stopped", or "nonexistent")
 
     Returns:
-        Dict[str, Any]: Result dictionary with:
+        Dict[str, str]: Result dictionary with:
             - status: "success" if the VM is in the expected state, "error" otherwise
             - message: Details about the validation result
-            - validated: Boolean indicating whether validation passed
 
     """
     try:
         status_result = get_vm_status()
 
         if expected_state == VM_STATE_RUNNING and is_vm_running(status_result):
+            logger.debug('VM state validation passed: running')
             return format_result(
                 STATUS_SUCCESS,
                 'Validation passed: Finch VM is running as expected.',
-                validated=True,
             )
         elif expected_state == VM_STATE_STOPPED and is_vm_stopped(status_result):
+            logger.debug('VM state validation passed: stopped')
             return format_result(
                 STATUS_SUCCESS,
                 'Validation passed: Finch VM is stopped as expected.',
-                validated=True,
             )
         elif expected_state == VM_STATE_NONEXISTENT and is_vm_nonexistent(status_result):
+            logger.debug('VM state validation passed: nonexistent')
             return format_result(
                 STATUS_SUCCESS,
                 'Validation passed: Finch VM is nonexistent as expected.',
-                validated=True,
             )
         else:
             actual_state = VM_STATE_UNKNOWN
@@ -493,10 +377,13 @@ def validate_vm_state(
             elif is_vm_nonexistent(status_result):
                 actual_state = VM_STATE_NONEXISTENT
 
+            logger.debug(
+                f'VM state validation failed: expected={expected_state}, actual={actual_state}'
+            )
             return format_result(
                 STATUS_ERROR,
                 f'Validation failed: Expected Finch VM to be {expected_state}, but it is {actual_state}.',
-                validated=False,
             )
     except Exception as e:
-        return format_result(STATUS_ERROR, f'Error validating VM state: {str(e)}', validated=False)
+        logger.error(f'Error during VM state validation: {str(e)}')
+        return format_result(STATUS_ERROR, f'Error validating VM state: {str(e)}')

@@ -111,19 +111,14 @@ def sensitive_data_filter(record):
     except Exception:
         pass
 
+    # Return True to allow the log record to be processed
     return True
 
 
-# Remove default logger
+# Remove all default handlers then add our own
 logger.remove()
 
-# Determine log level from environment
-log_level = 'INFO'
-server_log_level = os.environ.get('FASTMCP_LOG_LEVEL', '').upper()
-if server_log_level in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
-    log_level = server_log_level
-
-# Add file handler with rotation
+log_level = os.environ.get('FASTMCP_LOG_LEVEL', 'INFO').upper()
 logger.add(
     LOG_FILE,
     rotation='10 MB',
@@ -141,7 +136,6 @@ logger.add(
     filter=sensitive_data_filter,
 )
 
-# Configure logger with name
 logger = logger.bind(name=SERVER_NAME)
 
 mcp = FastMCP(SERVER_NAME)
@@ -196,8 +190,7 @@ def ensure_vm_running() -> Dict[str, Any]:
 async def finch_build_container_image(request: BuildImageRequest) -> Result:
     """Build a container image using Finch.
 
-    This tool first ensures that the Finch VM is running, starting it if necessary.
-    Then it builds a Docker image using the specified Dockerfile and context directory.
+    This tool builds a Docker image using the specified Dockerfile and context directory.
     It supports a range of build options including tags, platforms, and more.
     If the Dockerfile contains references to ECR repositories, it verifies that
     ecr login cred helper is properly configured before proceeding with the build.
@@ -275,9 +268,8 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
 async def finch_push_image(request: PushImageRequest) -> Result:
     """Push a container image to a repository using finch, replacing the tag with the image hash.
 
-    If the image URL is an ECR repository, it verifies that ECR login cred helper is  configured.
-    This tool first ensures that the Finch VM is running, starting it if necessary.
-    Then it gets the image hash, creates a new tag using the hash, and pushes the image with
+    If the image URL is an ECR repository, it verifies that ECR login cred helper is configured.
+    This tool  gets the image hash, creates a new tag using the hash, and pushes the image with
     the hash tag to the repository. If the image URL is an ECR repository, it verifies that
     ECR login is properly configured before proceeding with the push.
 

@@ -8,8 +8,9 @@ and are not meant for production use cases.
 """
 
 import re
-from ..consts import ECR_REPOSITORY_PATTERN, STATUS_ERROR, STATUS_SUCCESS
+from ..consts import ECR_REFERENCE_PATTERN, STATUS_ERROR, STATUS_SUCCESS
 from .common import execute_command, format_result
+from loguru import logger
 from typing import Any, Dict
 
 
@@ -26,8 +27,7 @@ def is_ecr_repository(repository: str) -> bool:
         bool: True if the repository is an ECR repository, False otherwise
 
     """
-    # Check if the repository matches the ECR pattern and has a valid region format
-    match = re.match(ECR_REPOSITORY_PATTERN, repository)
+    match = re.search(ECR_REFERENCE_PATTERN, repository)
     if not match:
         return False
 
@@ -37,36 +37,43 @@ def is_ecr_repository(repository: str) -> bool:
     return bool(re.match(region_pattern, region))
 
 
-def get_image_hash(image: str) -> Dict[str, Any]:
+def get_image_hash(image: str) -> tuple[Dict[str, Any], str]:
     """Get the hash (digest) of a container image.
 
     Args:
         image: The image name to get the hash for
 
     Returns:
-        Dict containing status, message, and the image hash if successful
+        A tuple containing:
+        - Dict with status and message
+        - The image hash as a string (empty string if operation failed)
 
     """
     inspect_result = execute_command(['finch', 'image', 'inspect', image])
 
     if inspect_result.returncode != 0:
-        return format_result(
+        # Log stderr for debugging
+        logger.debug(f'STDERR from image inspect: {inspect_result.stderr}')
+        error_result = format_result(
             STATUS_ERROR,
             f'Failed to get hash for image {image}: {inspect_result.stderr}',
-            stderr=inspect_result.stderr,
         )
+        return error_result, ''
 
     hash_match = re.search(r'"Id":\s*"(sha256:[a-f0-9]+)"', inspect_result.stdout)
 
     if not hash_match:
-        return format_result(
+        error_result = format_result(
             STATUS_ERROR, f'Could not find hash in image inspect output for {image}'
         )
+        return error_result, ''
 
     image_hash = hash_match.group(1)
+    logger.debug(f'Retrieved hash for image {image}: {image_hash}')
     return format_result(
-        STATUS_SUCCESS, f'Successfully retrieved hash for image {image}', hash=image_hash
-    )
+        STATUS_SUCCESS,
+        f'Successfully retrieved hash for image {image}',
+    ), image_hash
 
 
 def push_image(image: str) -> Dict[str, Any]:
@@ -79,12 +86,10 @@ def push_image(image: str) -> Dict[str, Any]:
         Result of the push task
 
     """
-    hash_result = get_image_hash(image)
+    hash_result, image_hash = get_image_hash(image)
 
     if hash_result['status'] != STATUS_SUCCESS:
         return hash_result
-
-    image_hash = hash_result['hash']
 
     tag_separator_index = image.rfind(':')
     if tag_separator_index > 0 and '/' not in image[tag_separator_index:]:
@@ -98,23 +103,24 @@ def push_image(image: str) -> Dict[str, Any]:
     tag_result = execute_command(['finch', 'image', 'tag', image, hash_tagged_image])
 
     if tag_result.returncode != 0:
+        # Log stderr for debugging
+        logger.debug(f'STDERR from image tag: {tag_result.stderr}')
         return format_result(
             STATUS_ERROR,
             f'Failed to tag image with hash: {tag_result.stderr}',
-            stderr=tag_result.stderr,
         )
 
     push_result = execute_command(['finch', 'image', 'push', hash_tagged_image])
 
     if push_result.returncode == 0:
+        logger.debug(f'STDOUT from image push: {push_result.stdout}')
         return format_result(
             STATUS_SUCCESS,
             f'Successfully pushed image {hash_tagged_image} (original: {image}).',
-            stdout=push_result.stdout,
         )
     else:
+        logger.debug(f'STDERR from image push: {push_result.stderr}')
         return format_result(
             STATUS_ERROR,
             f'Failed to push image {hash_tagged_image}: {push_result.stderr}',
-            stderr=push_result.stderr,
         )

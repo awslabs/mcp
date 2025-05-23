@@ -29,7 +29,6 @@ class TestCreateEcrRepository:
 
     def test_repository_already_exists(self, ecr_client):
         """Test handling of existing repository."""
-        # Create a repository first
         region = 'us-west-2'
         app_name = 'test-repo'
         ecr_client.create_repository(
@@ -38,36 +37,27 @@ class TestCreateEcrRepository:
             imageTagMutability='IMMUTABLE',
         )
 
-        # Now test the function with the existing repository
         result = create_ecr_repository(
             app_name=app_name,
             region=region,
         )
 
-        # Verify results
         assert result['status'] == STATUS_SUCCESS
         assert 'already exists' in result['message']
-        assert f'{region}.amazonaws.com/{app_name}' in result['repository_uri']
-        assert result['exists'] is True
 
     def test_repository_creation_success(self, ecr_client):
         """Test successful repository creation."""
         region = 'us-west-2'
         app_name = 'test-repo'
 
-        # Call function to create a new repository
         result = create_ecr_repository(
             app_name=app_name,
             region=region,
         )
 
-        # Verify results
         assert result['status'] == STATUS_SUCCESS
         assert 'Successfully created' in result['message']
-        assert f'{region}.amazonaws.com/{app_name}' in result['repository_uri']
-        assert result['exists'] is False
 
-        # Verify the repository was actually created
         response = ecr_client.describe_repositories(repositoryNames=[app_name])
         assert len(response['repositories']) == 1
         assert response['repositories'][0]['repositoryName'] == app_name
@@ -75,7 +65,6 @@ class TestCreateEcrRepository:
     @patch('boto3.client')
     def test_describe_error_not_repository_not_found(self, mock_boto3_client, ecr_client):
         """Test handling of describe error that is not RepositoryNotFoundException."""
-        # Setup mock to raise an AccessDeniedException
         mock_ecr_client = mock_boto3_client.return_value
         error_response = {
             'Error': {'Code': 'AccessDeniedException', 'Message': 'User is not authorized'}
@@ -84,21 +73,16 @@ class TestCreateEcrRepository:
             error_response, 'DescribeRepositories'
         )
 
-        # Call function
         result = create_ecr_repository(app_name='test-repo', region='us-west-2')
 
-        # Verify results
         assert result['status'] == STATUS_ERROR
         assert 'Error checking ECR repository' in result['message']
 
     @patch('boto3.client')
     def test_create_repository_failure(self, mock_boto3_client, ecr_client):
         """Test handling of repository creation failure."""
-        # Setup mock to allow describe_repositories to fail with RepositoryNotFoundException
-        # but then fail on create_repository with AccessDeniedException
         mock_ecr_client = mock_boto3_client.return_value
 
-        # First call to describe_repositories raises RepositoryNotFoundException
         describe_error = {
             'Error': {
                 'Code': 'RepositoryNotFoundException',
@@ -109,7 +93,6 @@ class TestCreateEcrRepository:
             describe_error, 'DescribeRepositories'
         )
 
-        # Second call to create_repository raises AccessDeniedException
         create_error = {
             'Error': {
                 'Code': 'AccessDeniedException',
@@ -120,12 +103,7 @@ class TestCreateEcrRepository:
             create_error, 'CreateRepository'
         )
 
-        # Call function
         result = create_ecr_repository(app_name='test-repo', region='us-west-2')
 
-        # Verify results
         assert result['status'] == STATUS_ERROR
         assert 'Failed to create ECR repository' in result['message']
-
-    # Removed test_with_custom_parameters as scan_on_push and image_tag_mutability
-    # are now hardcoded defaults and cannot be customized through the function

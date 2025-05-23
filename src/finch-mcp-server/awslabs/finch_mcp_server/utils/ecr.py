@@ -10,6 +10,7 @@ import boto3
 from ..consts import STATUS_ERROR, STATUS_SUCCESS
 from .common import format_result
 from botocore.exceptions import ClientError
+from loguru import logger
 from typing import Any, Dict, Optional
 
 
@@ -29,17 +30,13 @@ def create_ecr_repository(
 
     Returns:
         Dict[str, Any]: A dictionary containing:
-            - status (str): "success" if the operation succeeded, "error" otherwise
-            - message (str): A descriptive message about the result of the operation
-            - repository_uri (str, optional): The URI of the repository if successful
-            - exists (bool, optional): Whether the repository already existed
+            - status: "success" if the operation succeeded, "error" otherwise
+            - message: Details about the result of the operation
 
     """
     try:
-        # Create ECR client with optional region
         ecr_client = boto3.client('ecr', region_name=region) if region else boto3.client('ecr')
 
-        # Try to describe the repository to check if it exists
         try:
             response = ecr_client.describe_repositories(repositoryNames=[app_name])
 
@@ -47,23 +44,22 @@ def create_ecr_repository(
                 repository = response['repositories'][0]
                 repository_uri = repository.get('repositoryUri', '')
 
+                logger.debug(
+                    f"ECR repository '{app_name}' already exists with URI: {repository_uri}"
+                )
                 return format_result(
                     STATUS_SUCCESS,
                     f"ECR repository '{app_name}' already exists.",
-                    repository_uri=repository_uri,
-                    exists=True,
                 )
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code')
 
-            # If repository doesn't exist, we'll create it
             if error_code != 'RepositoryNotFoundException':
                 return format_result(
                     STATUS_ERROR,
                     f'Error checking ECR repository: {str(e)}',
                 )
 
-        # Repository doesn't exist, create it
         response = ecr_client.create_repository(
             repositoryName=app_name,
             imageScanningConfiguration={'scanOnPush': True},
@@ -73,11 +69,10 @@ def create_ecr_repository(
         repository = response.get('repository', {})
         repository_uri = repository.get('repositoryUri', '')
 
+        logger.debug(f"Created ECR repository '{app_name}' with URI: {repository_uri}")
         return format_result(
             STATUS_SUCCESS,
-            f"Successfully created ECR repository '{app_name}'.",
-            repository_uri=repository_uri,
-            exists=False,
+            f"Successfully created ECR repository '{app_name}' with URI: {repository_uri}.",
         )
 
     except ClientError as e:

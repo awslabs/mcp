@@ -12,7 +12,6 @@ This MCP server acts as a bridge between MCP clients and Finch, allowing generat
 - Push container images to repositories, including Amazon ECR
 - Check if ECR repositories exist and create them if needed
 - Automatic management of the Finch VM on macos and windows (initialization, starting, etc.)
-- Support for container build options
 - Automatic configuration of ECR credential helpers when needed (only modifies finch.yaml as config.json is automatically handled)
 
 ## Prerequisites
@@ -58,9 +57,9 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 Build a container image using Finch.
 
-This tool first ensures that the Finch VM is running, starting it if necessary. Then it builds a Docker image using the specified Dockerfile and context directory. It supports a range of build options including tags, platforms, and more.
+The tool builds a Docker image using the specified Dockerfile and context directory. It supports a range of build options including tags, platforms, and more.
 
-Parameters:
+Arguments:
 - `dockerfile_path` (str): Absolute path to the Dockerfile
 - `context_path` (str): Absolute path to the build context directory
 - `tags` (List[str], optional): List of tags to apply to the image (e.g., ["myimage:latest", "myimage:v1"])
@@ -78,14 +77,14 @@ Parameters:
 
 Push a container image to a repository using Finch, replacing the tag with the image hash.
 
-If the image URL is an ECR repository, it verifies that ECR login credential helper is configured. This tool first ensures that the Finch VM is running, starting it if necessary. Then it gets the image hash, creates a new tag using the hash, and pushes the image with the hash tag to the repository.
+If the image URL is an ECR repository, it verifies that ECR login credential helper is configured. This tool gets the image hash, creates a new tag using the hash, and pushes the image with the hash tag to the repository.
 
 The workflow is:
 1. Get the image hash using `finch image inspect`
 2. Create a new tag for the image using the short form of the hash (first 12 characters)
 3. Push the hash-tagged image to the repository
 
-Parameters:
+Arguments:
 - `image` (str): The full image name to push, including the repository URL and tag. For ECR repositories, it must follow the format: `<aws_account_id>.dkr.ecr.<region>.amazonaws.com/<repository_name>:<tag>`
 
 Example:
@@ -100,7 +99,7 @@ Check if an ECR repository exists and create it if it doesn't.
 
 This tool checks if the specified ECR repository exists using boto3. If the repository doesn't exist, it creates a new one with the given name with scan on push enabled and immutable tags for enhanced security. The tool requires appropriate AWS credentials configured.
 
-Parameters:
+Arguments:
 - `app_name` (str): The name of the application/repository to check or create in ECR
 - `region` (str, optional): AWS region for the ECR repository. If not provided, uses the default region from AWS configuration
 
@@ -116,16 +115,12 @@ Example:
 {
   "status": "success",
   "message": "ECR repository 'my-app' already exists.",
-  "repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app",
-  "exists": true
 }
 
 # Response if repository was created:
 {
   "status": "success",
   "message": "Successfully created ECR repository 'my-app'.",
-  "repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app",
-  "exists": false
 }
 ```
 
