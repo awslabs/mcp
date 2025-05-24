@@ -210,112 +210,110 @@ async def generate_image(request: ImageGenerationRequest) -> Dict[str, Any]:
 
         # Process with MCP client
         logger.info('Connecting to MCP server')
-        async with mcp_client as client:
-            # Get tools from the MCP server
-            logger.info('Getting tools from MCP server')
-            tools = client.get_tools()
-            tool_names = [tool.name for tool in tools]
-            logger.info(f'Retrieved {len(tools)} tools from MCP server: {tool_names}')
+        logger.info('Getting tools from MCP server')
+        tools = await mcp_client.get_tools()
+        tool_names = [tool.name for tool in tools]
+        logger.info(f'Retrieved {len(tools)} tools from MCP server: {tool_names}')
 
-            if not tools:
-                logger.warning('No tools were returned from the MCP server')
-                return {
-                    'status': 'error',
-                    'message': 'No tools available from the Nova Canvas server.',
-                    'image_paths': [],
-                }
+        if not tools:
+            logger.warning('No tools were returned from the MCP server')
+            return {
+                'status': 'error',
+                'message': 'No tools available from the Nova Canvas server.',
+                'image_paths': [],
+            }
 
-            # Determine which tool to use based on whether colors are provided
-            logger.info('Determining which tool to use based on request parameters')
-            if request.colors:
-                # Use color-guided generation
-                logger.info(f'Using color-guided generation with {len(request.colors)} colors')
-                tool_name = 'generate_image_with_colors'
-                tool_args = {
-                    'prompt': request.prompt,
-                    'colors': request.colors,
-                    'negative_prompt': request.negative_prompt,
-                    'width': request.width,
-                    'height': request.height,
-                    'quality': request.quality,
-                    'cfg_scale': request.cfg_scale,
-                    'seed': request.seed,
-                    'number_of_images': request.number_of_images,
-                    'workspace_dir': os.getcwd(),
-                }
+        # Determine which tool to use based on whether colors are provided
+        logger.info('Determining which tool to use based on request parameters')
+        if request.colors:
+            # Use color-guided generation
+            logger.info(f'Using color-guided generation with {len(request.colors)} colors')
+            tool_name = 'generate_image_with_colors'
+            tool_args = {
+                'prompt': request.prompt,
+                'colors': request.colors,
+                'negative_prompt': request.negative_prompt,
+                'width': request.width,
+                'height': request.height,
+                'quality': request.quality,
+                'cfg_scale': request.cfg_scale,
+                'seed': request.seed,
+                'number_of_images': request.number_of_images,
+                'workspace_dir': os.getcwd(),
+            }
+        else:
+            # Use standard text-to-image generation
+            logger.info('Using standard text-to-image generation')
+            tool_name = 'generate_image'
+            tool_args = {
+                'prompt': request.prompt,
+                'negative_prompt': request.negative_prompt,
+                'width': request.width,
+                'height': request.height,
+                'quality': request.quality,
+                'cfg_scale': request.cfg_scale,
+                'seed': request.seed,
+                'number_of_images': request.number_of_images,
+                'workspace_dir': os.getcwd(),
+            }
+
+        # Find the requested tool
+        requested_tool = None
+        for tool in tools:
+            if tool.name == tool_name:
+                requested_tool = tool
+                break
+
+        if not requested_tool:
+            logger.warning(f'Requested tool {tool_name} not found')
+            return {
+                'status': 'error',
+                'message': f'Tool {tool_name} not found',
+                'image_paths': [],
+            }
+
+        # Execute the tool
+        logger.info(f'Executing tool {tool_name}')
+        logger.info(f'Tool arguments: {tool_args}')
+        tool_result = await requested_tool.ainvoke(tool_args)
+        logger.info(f'Tool result: {tool_result}')
+
+        try:
+            # If tool_result is a string, try to parse it as JSON
+            if isinstance(tool_result, str):
+                tool_result = json.loads(tool_result)
+
+            # Access paths from the dictionary
+            if isinstance(tool_result, dict) and 'paths' in tool_result:
+                logger.info(f'Image paths: {tool_result["paths"]}')
             else:
-                # Use standard text-to-image generation
-                logger.info('Using standard text-to-image generation')
-                tool_name = 'generate_image'
-                tool_args = {
-                    'prompt': request.prompt,
-                    'negative_prompt': request.negative_prompt,
-                    'width': request.width,
-                    'height': request.height,
-                    'quality': request.quality,
-                    'cfg_scale': request.cfg_scale,
-                    'seed': request.seed,
-                    'number_of_images': request.number_of_images,
-                    'workspace_dir': os.getcwd(),
-                }
+                logger.error(f'No paths found in tool result: {tool_result}')
+        except Exception as e:
+            logger.error(f'Error processing tool result: {e}')
 
-            # Find the requested tool
-            requested_tool = None
-            for tool in tools:
-                if tool.name == tool_name:
-                    requested_tool = tool
-                    break
+        # Extract image paths from the result
+        if isinstance(tool_result, dict) and 'paths' in tool_result and tool_result['paths']:
+            # Convert file:// URLs to relative paths
+            image_paths = []
+            for path in tool_result['paths']:
+                if path.startswith('file://'):
+                    path = path[7:]  # Remove file:// prefix
+                image_paths.append(path)
 
-            if not requested_tool:
-                logger.warning(f'Requested tool {tool_name} not found')
-                return {
-                    'status': 'error',
-                    'message': f'Tool {tool_name} not found',
-                    'image_paths': [],
-                }
-
-            # Execute the tool
-            logger.info(f'Executing tool {tool_name}')
-            logger.info(f'Tool arguments: {tool_args}')
-            tool_result = await requested_tool.ainvoke(tool_args)
-            logger.info(f'Tool result: {tool_result}')
-
-            try:
-                # If tool_result is a string, try to parse it as JSON
-                if isinstance(tool_result, str):
-                    tool_result = json.loads(tool_result)
-
-                # Access paths from the dictionary
-                if isinstance(tool_result, dict) and 'paths' in tool_result:
-                    logger.info(f'Image paths: {tool_result["paths"]}')
-                else:
-                    logger.error(f'No paths found in tool result: {tool_result}')
-            except Exception as e:
-                logger.error(f'Error processing tool result: {e}')
-
-            # Extract image paths from the result
-            if isinstance(tool_result, dict) and 'paths' in tool_result and tool_result['paths']:
-                # Convert file:// URLs to relative paths
-                image_paths = []
-                for path in tool_result['paths']:
-                    if path.startswith('file://'):
-                        path = path[7:]  # Remove file:// prefix
-                    image_paths.append(path)
-
-                return {
-                    'status': 'success',
-                    'message': f'Generated {len(image_paths)} image(s)',
-                    'image_paths': image_paths,
-                    'improved_prompt': request.prompt,
-                }
-            else:
-                logger.error('No image paths found in tool result')
-                return {
-                    'status': 'error',
-                    'message': 'No images were generated',
-                    'image_paths': [],
-                    'improved_prompt': request.prompt,
-                }
+            return {
+                'status': 'success',
+                'message': f'Generated {len(image_paths)} image(s)',
+                'image_paths': image_paths,
+                'improved_prompt': request.prompt,
+            }
+        else:
+            logger.error('No image paths found in tool result')
+            return {
+                'status': 'error',
+                'message': 'No images were generated',
+                'image_paths': [],
+                'improved_prompt': request.prompt,
+            }
 
     except Exception as e:
         logger.error(f'Error in generate_image: {str(e)}')
