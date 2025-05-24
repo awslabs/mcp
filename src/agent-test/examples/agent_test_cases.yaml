@@ -1,0 +1,25 @@
+# Example test cases for agent tool testing
+# Each test case should have:
+# - input: The prompt to send to the agent
+# - expected_tools: A list of tool names that should be called
+# - description: Optional description of what's being tested
+
+- input: "What's the current time in Tokyo?"
+  expected_tools: ["get_current_time"]
+  description: "Testing the get_current_time tool"
+
+- input: "What time is it now in New York?"
+  expected_tools: ["get_current_time"]
+  description: "Testing the get_current_time tool for New York"
+
+- input: "When it's 3:00 PM in Los Angeles, what time is it in London?"
+  expected_tools: ["convert_time"]
+  description: "Testing the convert_time tool between LA and London"
+
+- input: "Convert 9:30 AM Tokyo time to Berlin time"
+  expected_tools: ["convert_time"]
+  description: "Testing time conversion between Tokyo and Berlin"
+
+- input: "What's the time difference between Sydney and Paris?"
+  expected_tools: ["get_current_time"]
+  description: "Testing time zone difference calculation"
