@@ -1,0 +1,14 @@
+{
+  "name": "prometheus",
+  "description": "A Command-Line Interface for AWS Prometheus Monitoring",
+  "version": "1.0.0",
+  "author": "Your Name",
+  "license": "Apache-2.0",
+  "main": "server.py",
+  "requirements": [
+    "boto3>=1.38.7",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.7.0",
+    "requests>=2.32.3"
+  ]
+}
