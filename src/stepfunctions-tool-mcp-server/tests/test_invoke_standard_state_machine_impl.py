@@ -8,14 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import invoke_standard_state_machine_impl
+    from awslabs.stepfunctions_tool_mcp_server.server import invoke_standard_state_machine_impl
 
 
 class TestStandardStateMachines:
     """Tests for Standard state machine functionality."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     async def test_standard_state_machine_success(self, mock_sfn_client):
         """Test successful execution of a Standard state machine."""
         # Set up test data
@@ -62,7 +62,7 @@ class TestStandardStateMachines:
         assert '"result": "success"' in result
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     async def test_standard_state_machine_failure(self, mock_sfn_client):
         """Test failed execution of a Standard state machine."""
         # Set up test data
@@ -112,7 +112,7 @@ class TestStandardStateMachines:
         assert 'cause: Something went wrong' in result
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     async def test_standard_state_machine_polling(self, mock_sfn_client):
         """Test polling behavior during state machine execution."""
         # Set up test data
@@ -174,7 +174,7 @@ class TestStandardStateMachines:
         assert '"result": "success"' in result
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     async def test_standard_state_machine_complex_input(self, mock_sfn_client):
         """Test Standard state machine with complex input and output."""
         # Set up test data
@@ -234,7 +234,7 @@ class TestStandardStateMachines:
         assert '"metadata": {' in result
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     async def test_standard_state_machine_other_statuses(self, mock_sfn_client):
         """Test handling of other execution statuses."""
         # Set up test data

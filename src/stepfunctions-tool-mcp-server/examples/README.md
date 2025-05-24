@@ -63,7 +63,7 @@ These Lambda functions serve as the building blocks for our state machines:
 1. Navigate to the sample functions directory:
 
    ```bash
-   cd src/stepfunctions-mcp-server/examples/sample_functions
+   cd src/stepfunctions-tool-mcp-server/examples/sample_functions
    ```
 
 2. Build the application:

@@ -1,4 +1,4 @@
-# AWS Step Functions MCP Server
+# AWS Step Functions Tool MCP Server
 
 A Model Context Protocol (MCP) server for AWS Step Functions to select and run state machines as MCP tools without code changes.
 
@@ -42,9 +42,9 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 ```json
 {
   "mcpServers": {
-    "awslabs.stepfunctions-mcp-server": {
+    "awslabs.stepfunctions-tool-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.stepfunctions-mcp-server@latest"],
+      "args": ["awslabs.stepfunctions-tool-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -59,7 +59,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
-or docker after a successful `docker build -t awslabs/stepfunctions-mcp-server .`:
+or docker after a successful `docker build -t awslabs/stepfunctions-tool-mcp-server .`:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials
@@ -71,7 +71,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
 ```json
   {
     "mcpServers": {
-      "awslabs.stepfunctions-mcp-server": {
+      "awslabs.stepfunctions-tool-mcp-server": {
         "command": "docker",
         "args": [
           "run",
@@ -91,7 +91,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
           "STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY=your-state-machine-tag-for-input-schema",
           "--env-file",
           "/full/path/to/file/above/.env",
-          "awslabs/stepfunctions-mcp-server:latest"
+          "awslabs/stepfunctions-tool-mcp-server:latest"
         ],
         "env": {},
         "disabled": false,

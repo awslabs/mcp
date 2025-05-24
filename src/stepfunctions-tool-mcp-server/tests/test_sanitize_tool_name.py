@@ -6,13 +6,13 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import sanitize_tool_name
+    from awslabs.stepfunctions_tool_mcp_server.server import sanitize_tool_name
 
 
 class TestSanitizeName:
     """Tests for the sanitize_tool_name function."""
 
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_PREFIX', 'prefix-')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_PREFIX', 'prefix-')
     def test_sanitize_name_prefix_removal(self):
         """Test removing prefix from state machine name."""
         # Set up test data
@@ -89,7 +89,7 @@ class TestSanitizeName:
             result = sanitize_tool_name(input_name)
             assert result == expected
 
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_PREFIX', 'prefix-')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_PREFIX', 'prefix-')
     def test_sanitize_name_complex_cases(self):
         """Test complex combinations of sanitization rules."""
         # Set up test cases

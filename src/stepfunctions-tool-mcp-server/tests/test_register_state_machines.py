@@ -7,15 +7,15 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import mcp, register_state_machines
+    from awslabs.stepfunctions_tool_mcp_server.server import mcp, register_state_machines
 
 
 class TestRegisterStateMachines:
     """Tests for the register_state_machines function."""
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_PREFIX', 'prefix-')
-    @patch('awslabs.stepfunctions_mcp_server.server.create_state_machine_tool')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_PREFIX', 'prefix-')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.create_state_machine_tool')
     def test_register_machines_with_prefix(self, mock_create_tool, mock_sfn_client):
         """Test registering state machines filtered by prefix."""
         # Set up test data
@@ -47,9 +47,11 @@ class TestRegisterStateMachines:
             None,
         )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_LIST', ['machine1', 'machine2'])
-    @patch('awslabs.stepfunctions_mcp_server.server.create_state_machine_tool')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
+    @patch(
+        'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_LIST', ['machine1', 'machine2']
+    )
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.create_state_machine_tool')
     def test_register_machines_with_list(self, mock_create_tool, mock_sfn_client):
         """Test registering state machines filtered by list."""
         # Set up test data
@@ -93,10 +95,10 @@ class TestRegisterStateMachines:
             None,
         )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_TAG_KEY', 'test-key')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_TAG_VALUE', 'test-value')
-    @patch('awslabs.stepfunctions_mcp_server.server.create_state_machine_tool')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_TAG_KEY', 'test-key')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_TAG_VALUE', 'test-value')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.create_state_machine_tool')
     def test_register_machines_with_tags(self, mock_create_tool, mock_sfn_client):
         """Test registering state machines filtered by tags."""
         # Set up test data
@@ -125,8 +127,8 @@ class TestRegisterStateMachines:
             None,
         )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
-    @patch('awslabs.stepfunctions_mcp_server.server.create_state_machine_tool')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.create_state_machine_tool')
     def test_register_machines_with_comments(self, mock_create_tool, mock_sfn_client):
         """Test registering state machines with workflow comments."""
         # Set up test data
@@ -156,9 +158,9 @@ class TestRegisterStateMachines:
             None,
         )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_TAG_KEY', 'test-key')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_TAG_VALUE', '')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_TAG_KEY', 'test-key')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_TAG_VALUE', '')
     def test_register_machines_incomplete_tag_config(self, mock_sfn_client, caplog):
         """Test registering state machines with incomplete tag configuration."""
         # Set up test data
@@ -174,7 +176,7 @@ class TestRegisterStateMachines:
                 in caplog.text
             )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     def test_register_machines_error_handling(self, mock_sfn_client, caplog):
         """Test error handling during state machine registration."""
         # Set up mock to raise an exception
@@ -191,7 +193,7 @@ class TestRegisterStateMachines:
     def test_mcp_server_initialization(self):
         """Test MCP server initialization."""
         # Verify server configuration
-        assert mcp.name == 'awslabs.stepfunctions-mcp-server'
+        assert mcp.name == 'awslabs.stepfunctions-tool-mcp-server'
         assert (
             mcp.instructions is not None
             and 'Use AWS Step Functions state machines' in mcp.instructions

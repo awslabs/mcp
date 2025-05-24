@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to run the stepfunctions-mcp-server tests
+# Script to run the stepfunctions-tool-mcp-server tests
 
 # Set the Python path to include the current directory and the parent directory
 export PYTHONPATH=$PYTHONPATH:$(pwd):$(pwd)/..
@@ -94,11 +94,11 @@ echo "Current directory: $(pwd)"
 echo "Python executable: $(which python)"
 echo "Pytest module location: $(python -c "import pytest; print(pytest.__file__)" 2>/dev/null || echo "Not found")"
 
-# Check if awslabs.stepfunctions_mcp_server module can be imported
-echo "Checking if awslabs.stepfunctions_mcp_server module can be imported..."
-python -c "import awslabs.stepfunctions_mcp_server; print(f'awslabs.stepfunctions_mcp_server module found at: {awslabs.stepfunctions_mcp_server.__file__}')" 2>/dev/null
+# Check if awslabs.stepfunctions_tool_mcp_server module can be imported
+echo "Checking if awslabs.stepfunctions_tool_mcp_server module can be imported..."
+python -c "import awslabs.stepfunctions_tool_mcp_server; print(f'awslabs.stepfunctions_tool_mcp_server module found at: {awslabs.stepfunctions_tool_mcp_server.__file__}')" 2>/dev/null
 if [ $? -ne 0 ]; then
-    echo "Warning: awslabs.stepfunctions_mcp_server module cannot be imported. This may cause test failures."
+    echo "Warning: awslabs.stepfunctions_tool_mcp_server module cannot be imported. This may cause test failures."
     echo "Installing the package in development mode..."
 
     # Check if uv is available
@@ -110,13 +110,13 @@ if [ $? -ne 0 ]; then
     else
         echo "Neither uv nor pip is available. Creating a symbolic link instead..."
         # Create a symbolic link to the module in the current directory
-        ln -sf $(pwd)/awslabs/stepfunctions_mcp_server $(pwd)/stepfunctions_mcp_server 2>/dev/null
+        ln -sf $(pwd)/awslabs/stepfunctions_tool_mcp_server $(pwd)/stepfunctions_tool_mcp_server 2>/dev/null
     fi
 
     echo "Trying again..."
-    python -c "import awslabs.stepfunctions_mcp_server; print(f'awslabs.stepfunctions_mcp_server module found at: {awslabs.stepfunctions_mcp_server.__file__}')" 2>/dev/null
+    python -c "import awslabs.stepfunctions_tool_mcp_server; print(f'awslabs.stepfunctions_tool_mcp_server module found at: {awslabs.stepfunctions_tool_mcp_server.__file__}')" 2>/dev/null
     if [ $? -ne 0 ]; then
-        echo "Still cannot import awslabs.stepfunctions_mcp_server module. Tests may fail."
+        echo "Still cannot import awslabs.stepfunctions_tool_mcp_server module. Tests may fail."
         echo "Directory structure:"
         ls -la
         echo "awslabs directory:"
@@ -150,9 +150,9 @@ if [ $? -ne 0 ]; then
 fi
 
 # If you want to run with coverage, uncomment the following line
-# $PYTEST_CMD --cov=awslabs.stepfunctions_mcp_server --cov-report=term-missing tests/
+# $PYTEST_CMD --cov=awslabs.stepfunctions_tool_mcp_server --cov-report=term-missing tests/
 
 # If you want to run with coverage and generate an HTML report, uncomment the following line
-# $PYTEST_CMD --cov=awslabs.stepfunctions_mcp_server --cov-report=html tests/
+# $PYTEST_CMD --cov=awslabs.stepfunctions_tool_mcp_server --cov-report=html tests/
 
 echo "Test run completed."

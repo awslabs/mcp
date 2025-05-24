@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import filter_state_machines_by_tag
+    from awslabs.stepfunctions_tool_mcp_server.server import filter_state_machines_by_tag
 
 
 class TestFilterStateMachines:
     """Tests for the filter_state_machines_by_tag function."""
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     def test_filter_state_machines_matching_tags(self, mock_sfn_client):
         """Test filtering state machines with matching tags."""
         # Set up test data
@@ -50,7 +50,7 @@ class TestFilterStateMachines:
         # Verify mock calls
         assert mock_sfn_client.list_tags_for_resource.call_count == 3
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     def test_filter_state_machines_no_matching_tags(self, mock_sfn_client):
         """Test filtering state machines with no matching tags."""
         # Set up test data
@@ -79,7 +79,7 @@ class TestFilterStateMachines:
         # Verify mock calls
         assert mock_sfn_client.list_tags_for_resource.call_count == 2
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     def test_filter_state_machines_error_handling(self, mock_sfn_client, caplog):
         """Test error handling when getting tags."""
         # Set up test data
@@ -107,7 +107,7 @@ class TestFilterStateMachines:
         # Verify mock calls
         mock_sfn_client.list_tags_for_resource.assert_called_once()
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     def test_filter_state_machines_mixed_responses(self, mock_sfn_client):
         """Test filtering state machines with mixed tag responses."""
         # Set up test data

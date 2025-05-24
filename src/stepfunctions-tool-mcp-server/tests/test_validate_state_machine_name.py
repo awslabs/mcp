@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import validate_state_machine_name
+    from awslabs.stepfunctions_tool_mcp_server.server import validate_state_machine_name
 
 
 class TestValidateName:
@@ -30,7 +30,7 @@ class TestValidateName:
             result = validate_state_machine_name(name)
             assert result is True
 
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_PREFIX', 'test-')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_PREFIX', 'test-')
     def test_validate_name_prefix_filter(self):
         """Test name validation with prefix filter."""
         # Set up test cases
@@ -50,7 +50,7 @@ class TestValidateName:
             assert result is expected
 
     @patch(
-        'awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_LIST',
+        'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_LIST',
         ['machine1', 'machine2', 'test-machine'],
     )
     def test_validate_name_list_filter(self):
@@ -70,8 +70,10 @@ class TestValidateName:
             result = validate_state_machine_name(name)
             assert result is expected
 
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_PREFIX', 'test-')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_LIST', ['machine1', 'machine2'])
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_PREFIX', 'test-')
+    @patch(
+        'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_LIST', ['machine1', 'machine2']
+    )
     def test_validate_name_both_filters(self):
         """Test name validation with both prefix and list filters."""
         # Set up test cases
@@ -99,7 +101,7 @@ class TestValidateName:
         assert validate_state_machine_name('\n') is True
 
         # Test with prefix
-        with patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_PREFIX', 'test-'):
+        with patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_PREFIX', 'test-'):
             assert validate_state_machine_name('') is False
             assert validate_state_machine_name(' ') is False
             assert validate_state_machine_name('test-') is True
@@ -107,15 +109,15 @@ class TestValidateName:
 
         # Test with list
         with patch(
-            'awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_LIST', ['name1', 'name2']
+            'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_LIST', ['name1', 'name2']
         ):
             assert validate_state_machine_name('') is False
             assert validate_state_machine_name(' ') is False
             assert validate_state_machine_name('name1 ') is False
             assert validate_state_machine_name(' name1') is False
 
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_PREFIX', '')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_LIST', [])
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_PREFIX', '')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_LIST', [])
     def test_validate_name_empty_filters(self):
         """Test name validation with explicitly empty filters."""
         # Set up test cases

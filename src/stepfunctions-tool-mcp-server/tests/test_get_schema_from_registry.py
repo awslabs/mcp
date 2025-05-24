@@ -7,13 +7,13 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import get_schema_from_registry
+    from awslabs.stepfunctions_tool_mcp_server.server import get_schema_from_registry
 
 
 class TestGetSchema:
     """Tests for EventBridge Schema Registry integration."""
 
-    @patch('awslabs.stepfunctions_mcp_server.server.schemas_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.schemas_client')
     def test_get_schema_success(self, mock_schemas_client):
         """Test successful schema retrieval with valid ARN."""
         # Set up test data
@@ -33,7 +33,7 @@ class TestGetSchema:
             SchemaName='schema-name',
         )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.schemas_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.schemas_client')
     def test_get_schema_invalid_arn(self, mock_schemas_client, caplog):
         """Test schema retrieval with invalid ARN format."""
         # Set up test data
@@ -50,7 +50,7 @@ class TestGetSchema:
         # Verify mock was not called
         mock_schemas_client.describe_schema.assert_not_called()
 
-    @patch('awslabs.stepfunctions_mcp_server.server.schemas_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.schemas_client')
     def test_get_schema_invalid_path(self, mock_schemas_client, caplog):
         """Test schema retrieval with invalid schema path in ARN."""
         # Set up test data
@@ -67,7 +67,7 @@ class TestGetSchema:
         # Verify mock was not called
         mock_schemas_client.describe_schema.assert_not_called()
 
-    @patch('awslabs.stepfunctions_mcp_server.server.schemas_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.schemas_client')
     def test_get_schema_client_error(self, mock_schemas_client, caplog):
         """Test error handling during schema retrieval."""
         # Set up test data
@@ -91,7 +91,7 @@ class TestGetSchema:
             SchemaName='schema-name',
         )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.schemas_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.schemas_client')
     def test_get_schema_complex_content(self, mock_schemas_client):
         """Test retrieval of schema with complex content structure."""
         # Set up test data

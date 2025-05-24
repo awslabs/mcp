@@ -8,14 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import invoke_express_state_machine_impl
+    from awslabs.stepfunctions_tool_mcp_server.server import invoke_express_state_machine_impl
 
 
 class TestExpressStateMachines:
     """Tests for Express state machine functionality."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     async def test_express_state_machine_success(self, mock_sfn_client):
         """Test successful execution of an Express state machine."""
         # Set up the mock
@@ -67,7 +67,7 @@ class TestExpressStateMachines:
         assert '"result": "success"' in result
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     async def test_express_state_machine_failure(self, mock_sfn_client):
         """Test failed execution of an Express state machine."""
         # Set up the mock
@@ -122,7 +122,7 @@ class TestExpressStateMachines:
         assert 'cause: Something went wrong' in result
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     async def test_express_state_machine_direct_invocation(self, mock_sfn_client):
         """Test direct invocation of an Express state machine."""
         # Set up the mock
@@ -163,7 +163,7 @@ class TestExpressStateMachines:
         assert '"result": "direct success"' in result
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     async def test_express_state_machine_complex_input(self, mock_sfn_client):
         """Test Express state machine with complex input and output."""
         # Set up complex input

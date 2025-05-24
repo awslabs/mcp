@@ -6,14 +6,14 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import main
+    from awslabs.stepfunctions_tool_mcp_server.server import main
 
 
 class TestMain:
     """Tests for the main function."""
 
-    @patch('awslabs.stepfunctions_mcp_server.server.register_state_machines')
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.register_state_machines')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_sse_transport(self, mock_parse_args, mock_mcp, mock_register):
         """Test main function with SSE transport."""
@@ -28,8 +28,8 @@ class TestMain:
         mock_mcp.run.assert_called_once_with(transport='sse')
         assert mock_mcp.settings.port == 8888
 
-    @patch('awslabs.stepfunctions_mcp_server.server.register_state_machines')
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.register_state_machines')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_stdio_transport(self, mock_parse_args, mock_mcp, mock_register):
         """Test main function with stdio transport."""
@@ -43,8 +43,8 @@ class TestMain:
         mock_register.assert_called_once()
         mock_mcp.run.assert_called_once_with()
 
-    @patch('awslabs.stepfunctions_mcp_server.server.register_state_machines')
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.register_state_machines')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_custom_port(self, mock_parse_args, mock_mcp, mock_register):
         """Test main function with custom port."""
@@ -60,8 +60,8 @@ class TestMain:
         mock_mcp.run.assert_called_once_with(transport='sse')
         assert mock_mcp.settings.port == custom_port
 
-    @patch('awslabs.stepfunctions_mcp_server.server.register_state_machines')
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.register_state_machines')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_default_port(self, mock_parse_args, mock_mcp, mock_register):
         """Test main function with default port."""
@@ -76,8 +76,8 @@ class TestMain:
         mock_mcp.run.assert_called_once_with(transport='sse')
         assert mock_mcp.settings.port == 8888
 
-    @patch('awslabs.stepfunctions_mcp_server.server.register_state_machines')
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.register_state_machines')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_argument_parsing(self, mock_parse_args, mock_mcp, mock_register):
         """Test argument parsing in main function."""

@@ -1,4 +1,4 @@
-"""awslabs Step Functions MCP Server implementation."""
+"""awslabs Step Functions Tool MCP Server implementation."""
 
 import argparse
 import asyncio
@@ -46,7 +46,7 @@ sfn_client = session.client('stepfunctions')
 schemas_client = session.client('schemas')
 
 mcp = FastMCP(
-    'awslabs.stepfunctions-mcp-server',
+    'awslabs.stepfunctions-tool-mcp-server',
     instructions="""Use AWS Step Functions state machines to improve your answers.
     These state machines give you additional capabilities and access to AWS services and resources in an AWS account.""",
     dependencies=['pydantic', 'boto3'],

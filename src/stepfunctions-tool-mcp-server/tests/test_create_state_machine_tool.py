@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import (
+    from awslabs.stepfunctions_tool_mcp_server.server import (
         create_state_machine_tool,
     )
 
@@ -19,12 +19,12 @@ class TestCreateTool:
     def setup_schema_env(self):
         """Set up schema environment for tests."""
         with patch(
-            'awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
+            'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
             'schema-arn-tag',
         ):
             yield
 
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
     def test_create_tool_basic(self, mock_mcp):
         """Test creating a basic Step Functions tool."""
         # Set up test data
@@ -47,8 +47,8 @@ class TestCreateTool:
         decorated_function = mock_decorator.call_args[0][0]
         assert decorated_function.__doc__ == description
 
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_PREFIX', 'test-')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_PREFIX', 'test-')
     def test_create_tool_with_prefix(self, mock_mcp):
         """Test creating a Step Functions tool with prefix."""
         # Set up test data
@@ -68,8 +68,8 @@ class TestCreateTool:
         # Verify results
         mock_mcp.tool.assert_called_once_with(name=state_machine_name.replace('-', '_'))
 
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
-    @patch('awslabs.stepfunctions_mcp_server.server.get_schema_from_registry')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.get_schema_from_registry')
     def test_create_tool_with_schema(self, mock_get_schema, mock_mcp):
         """Test creating tool with valid schema."""
         # Set up test data
@@ -94,8 +94,8 @@ class TestCreateTool:
         assert description in decorated_function.__doc__
         assert str(schema_content) in decorated_function.__doc__
 
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
-    @patch('awslabs.stepfunctions_mcp_server.server.get_schema_from_registry')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.get_schema_from_registry')
     def test_create_tool_schema_error(self, mock_get_schema, mock_mcp, caplog):
         """Test tool creation when schema fetch fails."""
         # Set up test data
@@ -120,9 +120,9 @@ class TestCreateTool:
             assert decorated_function.__doc__ == description
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.invoke_standard_state_machine_impl')
-    @patch('awslabs.stepfunctions_mcp_server.server.invoke_express_state_machine_impl')
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.invoke_standard_state_machine_impl')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.invoke_express_state_machine_impl')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
     async def test_create_tool_standard_impl(
         self, mock_mcp, mock_express_impl, mock_standard_impl
     ):
@@ -153,9 +153,9 @@ class TestCreateTool:
         mock_express_impl.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch('awslabs.stepfunctions_mcp_server.server.invoke_standard_state_machine_impl')
-    @patch('awslabs.stepfunctions_mcp_server.server.invoke_express_state_machine_impl')
-    @patch('awslabs.stepfunctions_mcp_server.server.mcp')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.invoke_standard_state_machine_impl')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.invoke_express_state_machine_impl')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.mcp')
     async def test_create_tool_express_impl(self, mock_mcp, mock_express_impl, mock_standard_impl):
         """Test that EXPRESS state machine uses express implementation."""
         # Set up test data

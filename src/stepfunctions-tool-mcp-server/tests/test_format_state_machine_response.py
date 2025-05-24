@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import format_state_machine_response
+    from awslabs.stepfunctions_tool_mcp_server.server import format_state_machine_response
 
 
 class TestFormatResponse:

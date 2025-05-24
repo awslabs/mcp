@@ -7,15 +7,15 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.stepfunctions_mcp_server.server import get_schema_arn_from_state_machine_arn
+    from awslabs.stepfunctions_tool_mcp_server.server import get_schema_arn_from_state_machine_arn
 
 
 class TestGetSchemaArn:
     """Tests for schema ARN retrieval from state machine tags."""
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     @patch(
-        'awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
+        'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
         'schema-arn-tag',
     )
     def test_get_schema_arn_success(self, mock_sfn_client):
@@ -38,8 +38,10 @@ class TestGetSchemaArn:
             resourceArn=state_machine_arn
         )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
-    @patch('awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY', None)
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
+    @patch(
+        'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY', None
+    )
     def test_get_schema_arn_no_tag_key(self, mock_sfn_client):
         """Test when schema ARN tag key is not configured."""
         # Set up test data
@@ -52,9 +54,9 @@ class TestGetSchemaArn:
         assert result is None
         mock_sfn_client.list_tags_for_resource.assert_not_called()
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     @patch(
-        'awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
+        'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
         'schema-arn-tag',
     )
     def test_get_schema_arn_tag_not_found(self, mock_sfn_client):
@@ -76,9 +78,9 @@ class TestGetSchemaArn:
             resourceArn=state_machine_arn
         )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     @patch(
-        'awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
+        'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
         'schema-arn-tag',
     )
     def test_get_schema_arn_error_handling(self, mock_sfn_client, caplog):
@@ -103,9 +105,9 @@ class TestGetSchemaArn:
             resourceArn=state_machine_arn
         )
 
-    @patch('awslabs.stepfunctions_mcp_server.server.sfn_client')
+    @patch('awslabs.stepfunctions_tool_mcp_server.server.sfn_client')
     @patch(
-        'awslabs.stepfunctions_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
+        'awslabs.stepfunctions_tool_mcp_server.server.STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY',
         'schema-arn-tag',
     )
     def test_get_schema_arn_empty_tags(self, mock_sfn_client):
