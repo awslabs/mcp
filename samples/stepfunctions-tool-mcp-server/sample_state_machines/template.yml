@@ -1,0 +1,224 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Sample functions for MCP servers.
+
+Resources:
+
+  CustomerInfoFromId:
+    Type: AWS::Serverless::Function
+    #checkov:skip=CKV_AWS_115:Because this is an example, there is no requirement to reserve concurrency
+    #checkov:skip=CKV_AWS_116:Because this is an example, there is no requirement for a DLQ
+    #checkov:skip=CKV_AWS_117:Because this is an example, there is no requirement to run within a VPC
+    Properties:
+      CodeUri: ./customer-info-from-id
+      Description: Customer status from { 'customerId' }
+      MemorySize: 128
+      Timeout: 3
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: "Because this is an example, there is no requirement to run within a VPC"
+          - id: W92
+            reason: "Because this is an example, there is no requirement to reserve concurrency"
+
+  CustomerIdFromEmail:
+    Type: AWS::Serverless::Function
+    #checkov:skip=CKV_AWS_115:Because this is an example, there is no requirement to reserve concurrency
+    #checkov:skip=CKV_AWS_116:Because this is an example, there is no requirement for a DLQ
+    #checkov:skip=CKV_AWS_117:Because this is an example, there is no requirement to run within a VPC
+    Properties:
+      CodeUri: ./customer-id-from-email
+      Description: Get customer ID from { 'email' }
+      MemorySize: 128
+      Timeout: 3
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: "Because this is an example, there is no requirement to run within a VPC"
+          - id: W92
+            reason: "Because this is an example, there is no requirement to reserve concurrency"
+
+  SchemaRegistry:
+    Type: AWS::EventSchemas::Registry
+    Properties:
+      Description: Registry for Lambda function input schemas
+
+  CustomerCreateSchema:
+    Type: AWS::EventSchemas::Schema
+    Properties:
+      RegistryName:
+        Fn::GetAtt: [SchemaRegistry, RegistryName]
+      Description: Input schema for creating a new customer
+      Type: JSONSchemaDraft4
+      Content: |
+        {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "title": "CustomerCreateInput",
+            "description": "Input schema for creating a new customer",
+            "required": ["name", "email", "phone"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Customer's full name"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Customer's email address"
+                },
+                "phone": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9]\\d{1,14}$",
+                    "description": "Customer's phone number in E.164 format"
+                },
+                "address": {
+                    "type": "object",
+                    "description": "Customer's address (optional)",
+                    "properties": {
+                        "street": {
+                            "type": "string",
+                            "description": "Street address"
+                        },
+                        "city": {
+                            "type": "string",
+                            "description": "City name"
+                        },
+                        "state": {
+                            "type": "string",
+                            "description": "State code"
+                        },
+                        "zipCode": {
+                            "type": "string",
+                            "pattern": "^\\d{5}(-\\d{4})?$",
+                            "description": "ZIP code"
+                        }
+                    },
+                    "required": ["street", "city", "state", "zipCode"],
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        }
+
+  CustomerCreate:
+    Type: AWS::Serverless::Function
+    #checkov:skip=CKV_AWS_115:Because this is an example, there is no requirement to reserve concurrency
+    #checkov:skip=CKV_AWS_116:Because this is an example, there is no requirement for a DLQ
+    #checkov:skip=CKV_AWS_117:Because this is an example, there is no requirement to run within a VPC
+    Properties:
+      CodeUri: ./customer-create
+      Description: Create a new customer
+      MemorySize: 128
+      Timeout: 3
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - arm64
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: "Because this is an example, there is no requirement to run within a VPC"
+          - id: W92
+            reason: "Because this is an example, there is no requirement to reserve concurrency"
+
+  # IAM Role for state machines
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+      RoleName:
+        Fn::Sub: ${AWS::StackName}-state-machine-role
+
+  # Express state machine for customer creation
+  CustomerCreateStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: EXPRESS
+      Definition:
+        StartAt: CreateCustomer
+        Comment: Create a new customer
+        States:
+          CreateCustomer:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [CustomerCreate, Arn]
+            End: true
+      Role:
+        Fn::GetAtt: [StateMachineRole, Arn]
+      Tags:
+        mcp:type: tool
+        tool-input-schema-arn:
+          Fn::GetAtt: [CustomerCreateSchema, SchemaArn]
+
+  # Standard state machine for customer info workflow
+  GetCustomerInfoWorkflowStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      Definition:
+        Comment: Get customer ID from { 'email' }
+        StartAt: GetCustomerId
+        States:
+          GetCustomerId:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [CustomerIdFromEmail, Arn]
+            ResultPath: "$.customerId"
+            Next: GetCustomerInfo
+          GetCustomerInfo:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [CustomerInfoFromId, Arn]
+            InputPath: "$.customerId"
+            End: true
+      Tags:
+        mcp:type: tool
+      Role:
+        Fn::GetAtt: [StateMachineRole, Arn]
+
+Outputs:
+
+  CustomerInfoFromId:
+    Description: "CustomerInfoFromId Function ARN"
+    Value:
+      Fn::GetAtt: [CustomerInfoFromId, Arn]
+
+  CustomerIdFromEmail:
+    Description: "CustomerIdFromEmail Function ARN"
+    Value:
+      Fn::GetAtt: [CustomerIdFromEmail, Arn]
+
+  CustomerCreate:
+    Description: "CustomerCreate Function ARN"
+    Value:
+      Fn::GetAtt: [CustomerCreate, Arn]
+
+  CustomerCreateStateMachine:
+    Description: "CustomerCreate State Machine ARN"
+    Value:
+      Fn::GetAtt: [CustomerCreateStateMachine, Arn]
+
+  GetCustomerInfoWorkflowStateMachine:
+    Description: "GetCustomerInfoWorkflow State Machine ARN"
+    Value:
+      Fn::GetAtt: [GetCustomerInfoWorkflowStateMachine, Arn]
