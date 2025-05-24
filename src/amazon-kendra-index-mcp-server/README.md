@@ -51,13 +51,8 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 {
       "mcpServers": {
             "awslabs.amazon-kendra-index-mcp-server": {
-                  "command": "uv",
-                  "args": [
-                    "--directory",
-                    "[absolute path to mcp repo]/src/amazon-kendra-index-mcp-server/awslabs/amazon_kendra_index_mcp_server",
-                    "run",
-                    "server.py"
-                  ],
+                  "command": "uvx",
+                  "args": ["awslabs.amazon-kendra-index-mcp-server"],
                   "env": {
                     "FASTMCP_LOG_LEVEL": "ERROR",
                     "KENDRA_INDEX_ID": "[Your Kendra Index Id]",
