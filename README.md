@@ -73,6 +73,14 @@ AWS MCP servers enable enhanced cloud-native development, infrastructure managem
 
 The Model Context Protocol is an open source project run by Anthropic, PBC. and open to contributions from the entire community. For more information on MCP, you can find further documentation [here](https://modelcontextprotocol.io/introduction)
 
+## Server Sent Events Support Removal
+
+**Important Notice:** On May 26th, 2025, Server Sent Events (SSE) support was removed from all MCP servers in their latest major versions. This change aligns with the Model Context Protocol specification's [backwards compatibility guidelines](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#backwards-compatibility).
+
+We are actively working towards supporting [Streamable HTTP](https://modelcontextprotocol.io/specification/draft/basic/transports#streamable-http), which will provide improved transport capabilities for future versions.
+
+For applications still requiring SSE support, please use the previous major version of the respective MCP server until you can migrate to alternative transport methods.
+
 ### Why MCP Servers?
 
 MCP servers enhance the capabilities of foundation models (FMs) in several key ways:
@@ -423,6 +431,7 @@ A server for interacting with Amazon DynamoDB
 A Python library for creating serverless HTTP handlers for the Model Context Protocol (MCP) using AWS Lambda. This module provides a flexible framework for building MCP HTTP endpoints with pluggable session management, including built-in DynamoDB support.
 
 **Features:**
+
 - Easy serverless MCP HTTP handler creation using AWS Lambda
 - Pluggable session management system
 - Built-in DynamoDB session backend support
@@ -615,8 +624,8 @@ See individual server READMEs for specific requirements and configuration option
 
 Using the _"@latest"_ suffix checks and downloads the latest MCP server package from pypi every time you start your MCP clients, but it comes with a cost of increased initial load times. If you want to minimize the initial load time, remove _"@latest"_ and manage your uv cache yourself using one of these approaches:
 
- - `uv cache clean <tool>`: where {tool} is the mcp server you want to delete from cache and install again (e.g.: "awslabs.lambda-mcp-server") (remember to remove the '<>').
- - `uvx <tool>@latest`: this will refresh the tool with the latest version and add it to the uv cache.
+- `uv cache clean <tool>`: where {tool} is the mcp server you want to delete from cache and install again (e.g.: "awslabs.lambda-mcp-server") (remember to remove the '<>').
+- `uvx <tool>@latest`: this will refresh the tool with the latest version and add it to the uv cache.
 
 ### Running MCP servers in containers
 
@@ -666,11 +675,11 @@ _This example uses docker with the "awslabs.nova-canvas-mcp-server and can be re
   ```
 
 ### Getting Started with Cline and Amazon Bedrock
+
 <details>
 <summary>Getting Started with Cline and Amazon Bedrock</summary>
 
 **IMPORTANT:** Following these instructions may incur costs and are subject to the [Amazon Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/). You are responsible for any associated costs. In addition to selecting the desired model in the Cline settings, ensure you have your selected model (e.g. `anthropic.claude-3-7-sonnet`) also enabled in Amazon Bedrock. For more information on this, see [these AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-modify.html) on enabling model access to Amazon Bedrock Foundation Models (FMs).
-
 
 1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
 
@@ -679,7 +688,6 @@ _This example uses docker with the "awslabs.nova-canvas-mcp-server and can be re
 <p align="center">
   <img src="./docs/images/root-readme/install-cline-extension.png" width="800" height="400"  />
 <p>
-
 
 3. Select the **MCP Servers** button.
 
@@ -695,7 +703,8 @@ _This example uses docker with the "awslabs.nova-canvas-mcp-server and can be re
 
  5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use some of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
 
- #### `cline_mcp_settings.json`
+#### `cline_mcp_settings.json`
+
  ```json
  {
    "mcpServers": {
@@ -739,9 +748,7 @@ _This example uses docker with the "awslabs.nova-canvas-mcp-server and can be re
   <img src="./docs/images/root-readme/cline-chat-interface.png" width="500" height="800"  />
 <p>
 
-
 7. By default, Cline will be set as the API provider, which has limits for the free tier. Next, let's update the API provider to be AWS Bedrock, so we can use the LLMs through Bedrock, which would have billing go through your connected AWS account.
-
 
 8. Click the settings gear to open up the Cline settings. Then under **API Provider**, switch this from `Cline` to `AWS Bedrock` and select `AWS Profile` for the authentication type. As a note, the `AWS Credentials` option works as well, however it uses a static credentials (Access Key ID and Secret Access Key) instead of temporary credentials that are automatically redistributed when the token expires, so the temporary credentials with an AWS Profile is the more secure and recommended method.
 
@@ -749,13 +756,11 @@ _This example uses docker with the "awslabs.nova-canvas-mcp-server and can be re
   <img src="./docs/images/root-readme/cline-select-bedrock.png" width="500" height="800"  />
 <p>
 
-
 9. Fill out the configuration based on the existing AWS Profile you wish to use, select the desired AWS Region, and enable cross-region inference.
 
 <p align="center">
   <img src="./docs/images/root-readme/cline-select-aws-profile.png" width="500" height="800"  />
 <p>
-
 
 <p align="center">
   <img src="./docs/images/root-readme/cline-api-provider-filled.png" width="500" height="800"  />
@@ -771,7 +776,6 @@ For every new project, always look at your MCP servers and use mcp-core as the s
   <img src="./docs/images/root-readme/cline-custom-instructions.png" width="500" height="800"  />
 <p>
 
-
 11. Once the custom prompt is pasted in, click **Done** to return to the chat interface.
 
 12. Now you can begin asking questions and testing out the functionality of your installed AWS MCP Servers. The default option in the chat interface is is `Plan` which will provide the output for you to take manual action on (e.g. providing you a sample configuration that you copy and paste into a file). However, you can optionally toggle this to `Act` which will allow Cline to act on your behalf (e.g. searching for content using a web browser, cloning a repository, executing code, etc). You can optionally toggle on the "Auto-approve" section to avoid having to click to approve the suggestions, however we recommend leaving this off during testing, especially if you have the Act toggle selected.
@@ -780,6 +784,7 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 </details>
 
 ### Getting Started with Cursor
+
 <details>
 <summary>Getting Started with Cursor</summary>
 
@@ -1007,6 +1012,7 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 </details>
 
 ### Getting Started with Windsurf
+
 <details>
 <summary>Getting Started with Windsurf</summary>
 
@@ -1025,6 +1031,7 @@ For every new project, always look at your MCP servers and use mcp-core as the s
    - You can also manually edit the MCP configuration file located at `~/.codeium/windsurf/mcp_config.json`
 
 #### `~/.codeium/windsurf/mcp_config.json`
+
  ```json
  {
    "mcpServers": {
@@ -1057,6 +1064,7 @@ For every new project, always look at your MCP servers and use mcp-core as the s
     }
   }
  ```
+
 </details>
 
 ## Samples
