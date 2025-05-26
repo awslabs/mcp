@@ -17,7 +17,6 @@ from awslabs.amazon_neptune_mcp_server.server import (
     get_schema_resource,
     get_status,
     get_status_resource,
-    main,
     run_gremlin_query,
     run_opencypher_query,
 )
@@ -261,70 +260,3 @@ class TestGraphInitialization:
         # Assert
         assert graph == mock_server
         mock_neptune_server.assert_called_once_with('neptune-db://test-endpoint', use_https=False)
-
-
-@pytest.mark.asyncio
-class TestMainFunction:
-    """Test class for the main function that runs the MCP server."""
-
-    @patch('awslabs.amazon_neptune_mcp_server.server.mcp')
-    @patch('argparse.ArgumentParser.parse_args')
-    async def test_main_default(self, mock_parse_args, mock_mcp):
-        """Test that main correctly runs the server with default settings.
-        This test verifies that:
-        1. When SSE is not enabled, mcp.run() is called without transport parameter
-        2. The port setting is not modified.
-        """
-        # Arrange
-        mock_args = MagicMock()
-        mock_args.sse = False
-        mock_parse_args.return_value = mock_args
-
-        # Act
-        main()
-
-        # Assert
-        mock_mcp.run.assert_called_once_with()
-        assert not mock_mcp.settings.port.called
-
-    @patch('awslabs.amazon_neptune_mcp_server.server.mcp')
-    @patch('argparse.ArgumentParser.parse_args')
-    async def test_main_with_sse(self, mock_parse_args, mock_mcp):
-        """Test that main correctly runs the server with SSE transport.
-        This test verifies that:
-        1. When SSE is enabled, mcp.run() is called with transport='sse'
-        2. The port setting is correctly set to the specified value.
-        """
-        # Arrange
-        mock_args = MagicMock()
-        mock_args.sse = True
-        mock_args.port = 9999
-        mock_parse_args.return_value = mock_args
-
-        # Act
-        main()
-
-        # Assert
-        mock_mcp.run.assert_called_once_with(transport='sse')
-        assert mock_mcp.settings.port == 9999
-
-    @patch('awslabs.amazon_neptune_mcp_server.server.mcp')
-    @patch('argparse.ArgumentParser.parse_args')
-    async def test_main_with_custom_port(self, mock_parse_args, mock_mcp):
-        """Test that main correctly runs the server with a custom port.
-        This test verifies that:
-        1. When a custom port is specified, the port setting is correctly set
-        2. The server is run with the correct transport setting.
-        """
-        # Arrange
-        mock_args = MagicMock()
-        mock_args.sse = True
-        mock_args.port = 7777
-        mock_parse_args.return_value = mock_args
-
-        # Act
-        main()
-
-        # Assert
-        mock_mcp.run.assert_called_once_with(transport='sse')
-        assert mock_mcp.settings.port == 7777

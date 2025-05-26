@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.amazon-neptune-mcp-server"
-version = "0.0.1"
+version = "1.0.9223372036854775807"
 description = "An Amazon Neptune MCP server that allows for fetching status, schema, and querying using openCypher, Gremlin, and SPARQL for Neptune Database and openCypher for Neptune Analytics."
 readme = "README.md"
 requires-python = ">=3.10"
