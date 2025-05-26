@@ -802,6 +802,25 @@ async def update_continuous_backups(
     return response['ContinuousBackupsDescription']
 
 
+@app.tool()
+@handle_exceptions
+async def list_imports(
+    next_token: str = Field(default=None, description='Token to fetch the next page of results.'),
+    region_name: str = Field(default=None, description='The aws region to run the tool'),
+) -> dict:
+    """Lists imports completed within the past 90 days."""
+    client = get_dynamodb_client(region_name)
+    params = {}
+    if next_token:
+        params['NextToken'] = next_token
+    params['PageSize'] = 25
+    response = client.list_imports(**params)
+    return {
+        'ImportSummaryList': response.get('ImportSummaryList', []),
+        'NextToken': response.get('NextToken'),
+    }
+
+
 def main():
     """Main entry point for the MCP server application."""
     app.run()
