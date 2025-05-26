@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.amazon-sns-sqs-mcp-server"
-version = "1.0.3"
+version = "2.0.0"
 description = "A Model Context Protocol server for Amazon SNS and SQS to provision and manage your messaging services"
 readme = "README.md"
 requires-python = ">=3.10"
