@@ -425,30 +425,10 @@ with pytest.MonkeyPatch().context() as CTX:
         @patch('awslabs.lambda_mcp_server.server.register_lambda_functions')
         @patch('awslabs.lambda_mcp_server.server.mcp')
         @patch('argparse.ArgumentParser.parse_args')
-        def test_main_sse(self, mock_parse_args, mock_mcp, mock_register_lambda_functions):
-            """Test main function with SSE transport."""
-            # Set up the mock
-            mock_parse_args.return_value = MagicMock(sse=True, port=8888)
-
-            # Call the function
-            main()
-
-            # Check that register_lambda_functions was called
-            mock_register_lambda_functions.assert_called_once()
-
-            # Check that mcp.run was called with the correct transport
-            mock_mcp.run.assert_called_once_with(transport='sse')
-
-            # Check that mcp.settings.port was set
-            assert mock_mcp.settings.port == 8888
-
-        @patch('awslabs.lambda_mcp_server.server.register_lambda_functions')
-        @patch('awslabs.lambda_mcp_server.server.mcp')
-        @patch('argparse.ArgumentParser.parse_args')
         def test_main_stdio(self, mock_parse_args, mock_mcp, mock_register_lambda_functions):
             """Test main function with stdio transport."""
             # Set up the mock
-            mock_parse_args.return_value = MagicMock(sse=False, port=8888)
+            mock_parse_args.return_value = MagicMock()
 
             # Call the function
             main()
