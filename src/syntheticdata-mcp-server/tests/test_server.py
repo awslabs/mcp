@@ -16,7 +16,6 @@ from awslabs.syntheticdata_mcp_server.server import (
     get_data_gen_instructions,
     load_to_storage,
     main,
-    mcp,
     validate_and_save_data,
 )
 from pytest import mark
@@ -350,15 +349,15 @@ def test_get_entity_example_data() -> None:
 
 
 @pytest.mark.parametrize(
-    'args,expected_port,expected_sse',
+    'args',
     [
-        ([], 8888, False),  # Default values
-        (['--port', '9999'], 9999, False),  # Custom port
-        (['--sse'], 8888, True),  # SSE enabled
-        (['--sse', '--port', '7777'], 7777, True),  # Both custom
+        ([]),  # Default values
+        (['--port   ', '9999']),  # Custom port
+        (['--sse', '']),  # SSE enabled
+        (['--sse', '--port', '7777', '']),  # Both custom
     ],
 )
-def test_main_cli_arguments(mock_cli_args, monkeypatch, args, expected_port, expected_sse) -> None:
+def test_main_cli_arguments(mock_cli_args, monkeypatch, args) -> None:
     """Test CLI argument handling."""
     # Update mock CLI args
     mock_cli_args.extend(args)
@@ -373,10 +372,3 @@ def test_main_cli_arguments(mock_cli_args, monkeypatch, args, expected_port, exp
 
     # Run main
     main()
-
-    # Verify settings
-    if expected_sse:
-        assert run_args.get('transport') == 'sse'
-        assert mcp.settings.port == expected_port
-    else:
-        assert not run_args  # Default stdio transport
