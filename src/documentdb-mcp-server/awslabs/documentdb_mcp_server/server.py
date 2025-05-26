@@ -92,9 +92,6 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for DocumentDB'
     )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-    parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to bind the server to')
     parser.add_argument(
         '--log-level',
         type=str,
@@ -124,7 +121,7 @@ def main():
         format='<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>',
     )
 
-    logger.info(f'Starting DocumentDB MCP Server on {args.host}:{args.port}')
+    logger.info('Starting DocumentDB MCP Server')
     logger.info(f'Log level: {args.log_level}')
 
     # Set connection timeout
@@ -139,15 +136,7 @@ def main():
         logger.info('Server is running with WRITE operations ENABLED. Database can be modified.')
 
     try:
-        # Run server with appropriate transport
-        if args.sse:
-            mcp.settings.port = args.port
-            mcp.settings.host = args.host
-            mcp.run(transport='sse')
-        else:
-            mcp.settings.port = args.port
-            mcp.settings.host = args.host
-            mcp.run()
+        mcp.run()
     except Exception as e:
         logger.critical(f'Failed to start server: {str(e)}')
     finally:
