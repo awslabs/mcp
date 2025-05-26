@@ -32,7 +32,7 @@ from awslabs.terraform_mcp_server.server import (
     terraform_aws_provider_resources_listing,
     terraform_awscc_provider_resources_listing,
 )
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 class TestMCPServer:
@@ -568,8 +568,25 @@ class TestResources:
 class TestMain:
     """Tests for the main function."""
 
+    @patch('awslabs.terraform_mcp_server.server.argparse.ArgumentParser')
     @patch('awslabs.terraform_mcp_server.server.mcp')
-    def test_main_default(self):
+    def test_main_default(self, mock_mcp, mock_argument_parser):
         """Test the main function with default arguments."""
+        # Set up the mock
+        mock_parser = MagicMock()
+        mock_args = MagicMock()
+        mock_args.sse = False
+        mock_parser.parse_args.return_value = mock_args
+        mock_argument_parser.return_value = mock_parser
+
         # Call the function
         main()
+
+        # Check that the parser was set up correctly
+        mock_argument_parser.assert_called_once_with(
+            description='A Model Context Protocol (MCP) server'
+        )
+       
+
+        # Check that mcp.run was called with the correct arguments
+        mock_mcp.run.assert_called_once_with()
