@@ -97,32 +97,20 @@ MCP servers should follow these guidelines for application entry points:
    - Handles command-line arguments
    - Sets up environment and logging
    - Initializes the MCP server
-   - Starts the server with appropriate transport
 
 Example:
 
 ```python
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='A Model Context Protocol (MCP) server')
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
     main()
 ```
 
-3. **Package Entry Point**: Configure the entry point in `pyproject.toml`:
+1. **Package Entry Point**: Configure the entry point in `pyproject.toml`:
 
 ```toml
 [project.scripts]
@@ -467,6 +455,7 @@ async def knowledgebases_resource() -> str:
 ```
 
 Resource guidelines:
+
 1. Use a consistent URI pattern: `resource://name`
 2. Specify the MIME type for proper content handling
 3. Return data in a format that tools can easily consume
@@ -490,6 +479,7 @@ async def mcp_generate_image(
 ```
 
 Tool guidelines:
+
 1. Use descriptive tool names in `camelCase` or `snake_case` consistently
 2. Include the Context parameter for error reporting
 3. Use detailed Field descriptions for all parameters
