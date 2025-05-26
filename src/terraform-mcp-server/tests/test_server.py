@@ -568,7 +568,6 @@ class TestResources:
 class TestMain:
     """Tests for the main function."""
 
-    @patch('awslabs.terraform_mcp_server.server.argparse.ArgumentParser')
     @patch('awslabs.terraform_mcp_server.server.mcp')
     def test_main_default(self, mock_mcp, mock_argument_parser):
         """Test the main function with default arguments."""
