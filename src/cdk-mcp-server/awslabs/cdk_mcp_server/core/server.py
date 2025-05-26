@@ -11,7 +11,6 @@
 
 """AWS CDK MCP server implementation."""
 
-import argparse
 import logging
 from awslabs.cdk_mcp_server.core import resources, tools
 from mcp.server.fastmcp import FastMCP
@@ -69,18 +68,7 @@ mcp.tool(name='LambdaLayerDocumentationProvider')(tools.lambda_layer_documentati
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='AWS CDK MCP Server')
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
