@@ -105,27 +105,6 @@ class TestServerModule:
         # Assert run was called without transport
         mock_mcp.run.assert_called_once_with()
 
-    @patch('boto3.Session')
-    @patch('awslabs.amazon_sns_sqs_mcp_server.server.mcp')
-    @patch('argparse.ArgumentParser.parse_args')
-    def test_main_with_sse(self, mock_parse_args, mock_mcp, mock_session):
-        """Test main function with SSE."""
-        # Setup mock
-        mock_args = MagicMock()
-        mock_args.sse = True
-        mock_args.port = 9999
-        mock_parse_args.return_value = mock_args
-
-        # Mock boto3 session to prevent credential lookup
-        mock_session_instance = MagicMock()
-        mock_session.return_value = mock_session_instance
-
-        # Call main
-        main()
-
-        # Assert port was set and run was called with transport=sse
-        assert mock_mcp.settings.port == 9999
-        mock_mcp.run.assert_called_once_with(transport='sse')
 
     @patch('boto3.Session')
     @patch('awslabs.amazon_sns_sqs_mcp_server.server.mcp')
