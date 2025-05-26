@@ -586,7 +586,6 @@ class TestMain:
         mock_argument_parser.assert_called_once_with(
             description='A Model Context Protocol (MCP) server'
         )
-       
 
         # Check that mcp.run was called with the correct arguments
         mock_mcp.run.assert_called_once_with()
