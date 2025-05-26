@@ -34,7 +34,7 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Model Context Protocol (MCP) server for Amazon SNS and SQS'
     )
-    
+
     parser.add_argument(
         '--allow-resource-creation',
         action='store_true',

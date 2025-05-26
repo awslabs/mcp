@@ -105,7 +105,6 @@ class TestServerModule:
         # Assert run was called without transport
         mock_mcp.run.assert_called_once_with()
 
-
     @patch('boto3.Session')
     @patch('awslabs.amazon_sns_sqs_mcp_server.server.mcp')
     @patch('awslabs.amazon_sns_sqs_mcp_server.server.register_sns_tools')
