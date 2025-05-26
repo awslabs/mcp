@@ -1,7 +1,6 @@
 """Tests for syntheticdata MCP server functionality."""
 
 import os
-import pytest
 from awslabs.syntheticdata_mcp_server.server import (
     ExecutePandasCodeInput,
     LoadToStorageInput,
@@ -348,27 +347,20 @@ def test_get_entity_example_data() -> None:
     assert all('description' in record for record in custom_data)
 
 
-@pytest.mark.parametrize(
-    'args',
-    [
-        ([]),  # Default values
-        (['--port   ', '9999']),  # Custom port
-        (['--sse', '']),  # SSE enabled
-        (['--sse', '--port', '7777', '']),  # Both custom
-    ],
-)
-def test_main_cli_arguments(mock_cli_args, monkeypatch, args) -> None:
-    """Test CLI argument handling."""
-    # Update mock CLI args
-    mock_cli_args.extend(args)
-
-    # Mock FastMCP.run to capture arguments
-    run_args = {}
+def test_main_cli_arguments(monkeypatch) -> None:
+    """Test that main() calls mcp.run() without arguments."""
+    # Mock FastMCP.run to verify it's called
+    run_called = False
 
     def mock_run(self, **kwargs):
-        run_args.update(kwargs)
+        nonlocal run_called
+        run_called = True
+        assert not kwargs  # Verify no arguments are passed
 
     monkeypatch.setattr('mcp.server.fastmcp.FastMCP.run', mock_run)
 
     # Run main
     main()
+
+    # Verify run was called
+    assert run_called
