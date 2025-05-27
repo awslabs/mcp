@@ -436,3 +436,14 @@ with pytest.MonkeyPatch().context() as CTX:
 
             # Check that mcp.run was called with no transport
             mock_mcp.run.assert_called_once_with()
+
+        @patch('awslabs.lambda_mcp_server.server.mcp.run')
+        @patch('sys.argv', ['awslabs.lambda-mcp-server'])
+        def test_main_default(self, mock_run):
+            """Test main function with default arguments."""
+            # Call the main function
+            main()
+
+            # Check that mcp.run was called with the correct arguments
+            mock_run.assert_called_once()
+            assert mock_run.call_args[1].get('transport') is None
