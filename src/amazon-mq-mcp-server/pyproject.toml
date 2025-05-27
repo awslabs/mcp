@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.amazon-mq-mcp-server"
-version = "1.0.1"
+version = "1.0.2"
 description = "A Model Context Protocol server for AmazonMQ to provision and manage your AMQ brokers"
 readme = "README.md"
 requires-python = ">=3.10"

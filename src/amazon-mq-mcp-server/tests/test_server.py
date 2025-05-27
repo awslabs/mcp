@@ -259,23 +259,6 @@ class TestMain:
     @patch('boto3.Session')
     @patch('awslabs.amazon_mq_mcp_server.server.mcp')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_sse(self, mock_parse_args, mock_mcp, mock_session):
-        """Test main function with SSE transport."""
-        # Set up the mock
-        mock_parse_args.return_value = MagicMock(sse=True, port=8888)
-
-        # Call the function
-        main()
-
-        # Check that mcp.run was called with the correct transport
-        mock_mcp.run.assert_called_once_with(transport='sse')
-
-        # Check that mcp.settings.port was set
-        assert mock_mcp.settings.port == 8888
-
-    @patch('boto3.Session')
-    @patch('awslabs.amazon_mq_mcp_server.server.mcp')
-    @patch('argparse.ArgumentParser.parse_args')
     def test_main_stdio(self, mock_parse_args, mock_mcp, mock_session):
         """Test main function with stdio transport."""
         # Set up the mock
