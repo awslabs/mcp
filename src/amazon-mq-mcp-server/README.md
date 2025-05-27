@@ -84,7 +84,7 @@ If you would like to specify a flag (for example, to allow creation of resources
 ```
 
 
-or docker after a succesful `docker build -t awslabs/amazon-mq-mcp-server .`:
+or docker after a successful `docker build -t awslabs/amazon-mq-mcp-server .`:
 
 ```file
 # ficticious `.env` file with AWS temporary credentials

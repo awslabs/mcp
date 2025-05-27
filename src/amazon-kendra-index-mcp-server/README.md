@@ -65,7 +65,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       }
 }
 ```
-or docker after a succesful `docker build -t awslabs/amazon-kendra-index-mcp-server.`:
+or docker after a successful `docker build -t awslabs/amazon-kendra-index-mcp-server.`:
 
 ```file
 # ficticious `.env` file with AWS temporary credentials

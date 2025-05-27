@@ -63,7 +63,7 @@ If you would like to prevent the MCP from taking any mutating actions (i.e. Crea
 }
 ```
 
-or docker after a succesful `docker build -t awslabs/cfn-mcp-server .`:
+or docker after a successful `docker build -t awslabs/cfn-mcp-server .`:
 
 ```file
 # ficticious `.env` file with AWS temporary credentials
