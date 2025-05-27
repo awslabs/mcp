@@ -17,6 +17,7 @@ from awslabs.amazon_neptune_mcp_server.server import (
     get_schema_resource,
     get_status,
     get_status_resource,
+    main,
     run_gremlin_query,
     run_opencypher_query,
 )
@@ -260,3 +261,19 @@ class TestGraphInitialization:
         # Assert
         assert graph == mock_server
         mock_neptune_server.assert_called_once_with('neptune-db://test-endpoint', use_https=False)
+
+
+@pytest.mark.asyncio
+class TestMainFunction:
+    """Test class for the main function that runs the MCP server."""
+
+    @patch('awslabs.amazon_neptune_mcp_server.server.mcp')
+    async def test_main_default(self, mock_mcp):
+        """Test that main correctly runs the server with default settings."""
+        # Arrange
+
+        # Act
+        main()
+
+        # Assert
+        assert mock_mcp.run.call_count == 1
