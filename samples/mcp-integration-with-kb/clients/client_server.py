@@ -126,22 +126,18 @@ async def process_query(query: str, kb_id: str) -> Dict[str, Any]:
         if not bedrock_runtime:
             raise ValueError('Bedrock client is not initialized')
 
-        # Process with MCP client
-        logger.info('Connecting to MCP server')
-        # Get tools from the MCP server directly without using context manager
+        # Get tools from the MCP server
         logger.info('Getting tools from MCP server')
-        original_tools = await mcp_client.get_tools()
-        tool_names = [tool.name for tool in original_tools]
-        logger.info(f'Retrieved {len(original_tools)} tools from MCP server: {tool_names}')
+        tools = await mcp_client.get_tools()
+        logger.info(
+            f'Retrieved {len(tools)} tools from MCP server: {[tool.name for tool in tools]}'
+        )
 
-        if not original_tools:
+        if not tools:
             logger.warning('No tools were returned from the MCP server')
             return {
                 'messages': [{'content': 'No tools available from the knowledge base server.'}]
             }
-
-        # We'll use the original tools
-        tools = original_tools
 
         # Create a ChatBedrock instance with tools
         logger.info('Creating ChatBedrock with tools')

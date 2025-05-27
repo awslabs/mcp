@@ -208,12 +208,12 @@ async def generate_image(request: ImageGenerationRequest) -> Dict[str, Any]:
             }
         )
 
-        # Process with MCP client
-        logger.info('Connecting to MCP server')
+        # Get tools from the MCP server
         logger.info('Getting tools from MCP server')
         tools = await mcp_client.get_tools()
-        tool_names = [tool.name for tool in tools]
-        logger.info(f'Retrieved {len(tools)} tools from MCP server: {tool_names}')
+        logger.info(
+            f'Retrieved {len(tools)} tools from MCP server: {[tool.name for tool in tools]}'
+        )
 
         if not tools:
             logger.warning('No tools were returned from the MCP server')
