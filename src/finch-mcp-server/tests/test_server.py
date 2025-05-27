@@ -13,6 +13,7 @@ from awslabs.finch_mcp_server.server import (
     finch_create_ecr_repo,
     finch_push_image,
     sensitive_data_filter,
+    set_enable_aws_resource_write,
 )
 from unittest.mock import MagicMock, patch
 
@@ -473,37 +474,44 @@ class TestFinchTools:
             image='123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
         )
 
-        with (
-            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
-            patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
-            patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
-            patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
-            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
-            patch('awslabs.finch_mcp_server.server.push_image') as mock_push_image,
-        ):
-            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-            mock_is_ecr.return_value = True
-            mock_configure_ecr.return_value = (
-                {'status': STATUS_SUCCESS, 'message': 'Success'},
-                True,
-            )
-            mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
-            mock_push_image.return_value = {
-                'status': STATUS_SUCCESS,
-                'message': 'Successfully pushed image',
-            }
+        set_enable_aws_resource_write(True)
 
-            result = await finch_push_image(request)
+        try:
+            with (
+                patch(
+                    'awslabs.finch_mcp_server.server.check_finch_installation'
+                ) as mock_check_finch,
+                patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
+                patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
+                patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
+                patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+                patch('awslabs.finch_mcp_server.server.push_image') as mock_push_image,
+            ):
+                mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+                mock_is_ecr.return_value = True
+                mock_configure_ecr.return_value = (
+                    {'status': STATUS_SUCCESS, 'message': 'Success'},
+                    True,
+                )
+                mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
+                mock_push_image.return_value = {
+                    'status': STATUS_SUCCESS,
+                    'message': 'Successfully pushed image',
+                }
 
-            assert result.status == STATUS_SUCCESS
-            assert result.message == 'Successfully pushed image'
+                result = await finch_push_image(request)
 
-            mock_check_finch.assert_called_once()
-            mock_is_ecr.assert_called_once_with(request.image)
-            mock_configure_ecr.assert_called_once()
-            mock_stop_vm.assert_called_once_with(force=True)
-            mock_ensure_vm.assert_called_once()
-            mock_push_image.assert_called_once_with(request.image)
+                assert result.status == STATUS_SUCCESS
+                assert result.message == 'Successfully pushed image'
+
+                mock_check_finch.assert_called_once()
+                mock_is_ecr.assert_called_once_with(request.image)
+                mock_configure_ecr.assert_called_once()
+                mock_stop_vm.assert_called_once_with(force=True)
+                mock_ensure_vm.assert_called_once()
+                mock_push_image.assert_called_once_with(request.image)
+        finally:
+            set_enable_aws_resource_write(False)
 
     @pytest.mark.asyncio
     async def test_finch_push_image_with_ecr_error(self):
@@ -512,32 +520,39 @@ class TestFinchTools:
             image='123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
         )
 
-        with (
-            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
-            patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
-            patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
-            patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
-            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
-            patch('awslabs.finch_mcp_server.server.push_image') as mock_push_image,
-        ):
-            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
-            mock_is_ecr.return_value = True
-            mock_configure_ecr.return_value = (
-                {'status': STATUS_ERROR, 'message': 'Failed to configure ECR'},
-                False,
-            )
+        set_enable_aws_resource_write(True)
 
-            result = await finch_push_image(request)
+        try:
+            with (
+                patch(
+                    'awslabs.finch_mcp_server.server.check_finch_installation'
+                ) as mock_check_finch,
+                patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
+                patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
+                patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
+                patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+                patch('awslabs.finch_mcp_server.server.push_image') as mock_push_image,
+            ):
+                mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+                mock_is_ecr.return_value = True
+                mock_configure_ecr.return_value = (
+                    {'status': STATUS_ERROR, 'message': 'Failed to configure ECR'},
+                    False,
+                )
 
-            assert result.status == STATUS_ERROR
-            assert result.message == 'Failed to configure ECR'
+                result = await finch_push_image(request)
 
-            mock_check_finch.assert_called_once()
-            mock_is_ecr.assert_called_once_with(request.image)
-            mock_configure_ecr.assert_called_once()
-            mock_stop_vm.assert_not_called()
-            mock_ensure_vm.assert_not_called()
-            mock_push_image.assert_not_called()
+                assert result.status == STATUS_ERROR
+                assert result.message == 'Failed to configure ECR'
+
+                mock_check_finch.assert_called_once()
+                mock_is_ecr.assert_called_once_with(request.image)
+                mock_configure_ecr.assert_called_once()
+                mock_stop_vm.assert_not_called()
+                mock_ensure_vm.assert_not_called()
+                mock_push_image.assert_not_called()
+        finally:
+            set_enable_aws_resource_write(False)
 
     @pytest.mark.asyncio
     async def test_finch_push_image_non_ecr(self):
@@ -643,101 +658,163 @@ class TestFinchTools:
         """Test finch_push_image when an exception occurs."""
         request = PushImageRequest(image='docker.io/library/nginx:latest')
 
-        with patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch:
-            mock_check_finch.side_effect = Exception('Unexpected error')
+        set_enable_aws_resource_write(True)
 
-            result = await finch_push_image(request)
+        try:
+            with patch(
+                'awslabs.finch_mcp_server.server.check_finch_installation'
+            ) as mock_check_finch:
+                mock_check_finch.side_effect = Exception('Unexpected error')
 
-            assert result.status == STATUS_ERROR
-            assert 'Error pushing image: Unexpected error' in result.message
+                result = await finch_push_image(request)
 
-            mock_check_finch.assert_called_once()
+                assert result.status == STATUS_ERROR
+                assert 'Error pushing image: Unexpected error' in result.message
+
+                mock_check_finch.assert_called_once()
+        finally:
+            set_enable_aws_resource_write(False)
 
     @pytest.mark.asyncio
     async def test_finch_create_ecr_repo_success(self):
         """Test successful finch_create_ecr_repo operation."""
         request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
 
-        with patch(
-            'awslabs.finch_mcp_server.server.create_ecr_repository'
-        ) as mock_create_ecr_repository:
-            mock_create_ecr_repository.return_value = {
-                'status': STATUS_SUCCESS,
-                'message': "Successfully created ECR repository 'test-repo'.",
-                'repository_uri': '123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo',
-                'exists': False,
-            }
+        set_enable_aws_resource_write(True)
 
-            result = await finch_create_ecr_repo(request)
+        try:
+            with patch(
+                'awslabs.finch_mcp_server.server.create_ecr_repository'
+            ) as mock_create_ecr_repository:
+                mock_create_ecr_repository.return_value = {
+                    'status': STATUS_SUCCESS,
+                    'message': "Successfully created ECR repository 'test-repo'.",
+                }
 
-            assert result.status == STATUS_SUCCESS
-            assert "Successfully created ECR repository 'test-repo'" in result.message
+                result = await finch_create_ecr_repo(request)
 
-            mock_create_ecr_repository.assert_called_once_with(
-                app_name='test-repo', region='us-west-2'
-            )
+                assert result.status == STATUS_SUCCESS
+                assert "Successfully created ECR repository 'test-repo'" in result.message
+
+                mock_create_ecr_repository.assert_called_once_with(
+                    app_name='test-repo', region='us-west-2'
+                )
+        finally:
+            set_enable_aws_resource_write(False)
 
     @pytest.mark.asyncio
     async def test_finch_create_ecr_repo_already_exists(self):
         """Test finch_create_ecr_repo when repository already exists."""
         request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
 
-        with patch(
-            'awslabs.finch_mcp_server.server.create_ecr_repository'
-        ) as mock_create_ecr_repository:
-            mock_create_ecr_repository.return_value = {
-                'status': STATUS_SUCCESS,
-                'message': "ECR repository 'test-repo' already exists.",
-                'repository_uri': '123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo',
-                'exists': True,
-            }
+        set_enable_aws_resource_write(True)
 
-            result = await finch_create_ecr_repo(request)
+        try:
+            with patch(
+                'awslabs.finch_mcp_server.server.create_ecr_repository'
+            ) as mock_create_ecr_repository:
+                mock_create_ecr_repository.return_value = {
+                    'status': STATUS_SUCCESS,
+                    'message': "ECR repository 'test-repo' already exists.",
+                    'repository_uri': '123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo',
+                    'exists': True,
+                }
 
-            assert result.status == STATUS_SUCCESS
-            assert 'already exists' in result.message
+                result = await finch_create_ecr_repo(request)
 
-            mock_create_ecr_repository.assert_called_once_with(
-                app_name='test-repo', region='us-west-2'
-            )
+                assert result.status == STATUS_SUCCESS
+                assert 'already exists' in result.message
+
+                mock_create_ecr_repository.assert_called_once_with(
+                    app_name='test-repo', region='us-west-2'
+                )
+        finally:
+            set_enable_aws_resource_write(False)
 
     @pytest.mark.asyncio
     async def test_finch_create_ecr_repo_error(self):
         """Test finch_create_ecr_repo when creation fails."""
         request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
 
-        with patch(
-            'awslabs.finch_mcp_server.server.create_ecr_repository'
-        ) as mock_create_ecr_repository:
-            mock_create_ecr_repository.return_value = {
-                'status': STATUS_ERROR,
-                'message': "Failed to create ECR repository 'test-repo': Access denied",
-            }
+        set_enable_aws_resource_write(True)
 
-            result = await finch_create_ecr_repo(request)
+        try:
+            with patch(
+                'awslabs.finch_mcp_server.server.create_ecr_repository'
+            ) as mock_create_ecr_repository:
+                mock_create_ecr_repository.return_value = {
+                    'status': STATUS_ERROR,
+                    'message': "Failed to create ECR repository 'test-repo': Access denied",
+                }
 
-            assert result.status == STATUS_ERROR
-            assert 'Failed to create ECR repository' in result.message
+                result = await finch_create_ecr_repo(request)
 
-            mock_create_ecr_repository.assert_called_once_with(
-                app_name='test-repo', region='us-west-2'
-            )
+                assert result.status == STATUS_ERROR
+                assert 'Failed to create ECR repository' in result.message
+
+                mock_create_ecr_repository.assert_called_once_with(
+                    app_name='test-repo', region='us-west-2'
+                )
+        finally:
+            set_enable_aws_resource_write(False)
 
     @pytest.mark.asyncio
     async def test_finch_create_ecr_repo_exception(self):
         """Test finch_create_ecr_repo when an exception occurs."""
         request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
 
-        with patch(
-            'awslabs.finch_mcp_server.server.create_ecr_repository'
-        ) as mock_create_ecr_repository:
-            mock_create_ecr_repository.side_effect = Exception('Unexpected error')
+        set_enable_aws_resource_write(True)
 
+        try:
+            with patch(
+                'awslabs.finch_mcp_server.server.create_ecr_repository'
+            ) as mock_create_ecr_repository:
+                mock_create_ecr_repository.side_effect = Exception('Unexpected error')
+
+                result = await finch_create_ecr_repo(request)
+
+                assert result.status == STATUS_ERROR
+                assert 'Error checking/creating ECR repository: Unexpected error' in result.message
+
+                mock_create_ecr_repository.assert_called_once_with(
+                    app_name='test-repo', region='us-west-2'
+                )
+        finally:
+            set_enable_aws_resource_write(False)
+
+    @pytest.mark.asyncio
+    async def test_finch_create_ecr_repo_readonly_mode(self):
+        """Test finch_create_ecr_repo when AWS resource write is disabled (which is the default)."""
+        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+
+        try:
             result = await finch_create_ecr_repo(request)
 
             assert result.status == STATUS_ERROR
-            assert 'Error checking/creating ECR repository: Unexpected error' in result.message
-
-            mock_create_ecr_repository.assert_called_once_with(
-                app_name='test-repo', region='us-west-2'
+            assert (
+                result.message == 'Server running in read-only mode, unable to perform the action'
             )
+        finally:
+            set_enable_aws_resource_write(False)
+
+    @pytest.mark.asyncio
+    async def test_finch_push_image_readonly_mode(self):
+        """Test finch_push_image when AWS resource write is disabled and pushing to ECR."""
+        request = PushImageRequest(
+            image='123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
+        )
+
+        with patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr:
+            mock_is_ecr.return_value = True
+
+            try:
+                result = await finch_push_image(request)
+
+                assert result.status == STATUS_ERROR
+                assert (
+                    result.message
+                    == 'Server running in read-only mode, unable to push to ECR repository'
+                )
+                mock_is_ecr.assert_called_once_with(request.image)
+            finally:
+                set_enable_aws_resource_write(False)

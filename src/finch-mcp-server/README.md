@@ -25,7 +25,11 @@ This MCP server acts as a bridge between MCP clients and Finch, allowing generat
 
 ### Installation
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration:
+
+### Default Mode (Read-only AWS Resources)
+
+By default, the server runs in a mode that prevents the creation of new AWS resources. This is useful for environments where you want to limit resource creation or for users who should only be able to build and push to existing repositories.
 
 ```json
 {
@@ -50,6 +54,40 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   }
 }
 ```
+
+In this default mode:
+- The `finch_build_container_image` tools will work normally
+- The `finch_create_ecr_repo`  and `finch_push_image` tool will return an error and will not create or modify AWS resources.
+
+## AWS Resource Write Mode
+
+The server can also be set to enable AWS resource creation and modification by using the `--enable-aws-resource-write` flag.
+
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "disabled": false,
+      "timeout": 1000,
+      "command": "uv",
+      "args": [
+        "--directory",
+        "<ABSOLUTE PATH>",
+        "--enable-aws-resource-write",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-west-2",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "transportType": "stdio"
+    }
+  }
+}
+```
+
 
 ## Available Tools
 
@@ -99,6 +137,8 @@ Check if an ECR repository exists and create it if it doesn't.
 
 This tool checks if the specified ECR repository exists using boto3. If the repository doesn't exist, it creates a new one with the given name with scan on push enabled and immutable tags for enhanced security. The tool requires appropriate AWS credentials configured.
 
+**Note:** When the server is running in readonly mode, this tool will return an error and will not create any AWS resources.
+
 Arguments:
 - `app_name` (str): The name of the application/repository to check or create in ECR
 - `region` (str, optional): AWS region for the ECR repository. If not provided, uses the default region from AWS configuration
@@ -121,6 +161,12 @@ Example:
 {
   "status": "success",
   "message": "Successfully created ECR repository 'my-app'.",
+}
+
+# Response if server is in readonly mode:
+{
+  "status": "error",
+  "message": "Server running in read-only mode, unable to perform the action"
 }
 ```
 

@@ -138,7 +138,9 @@ logger.add(
 
 logger = logger.bind(name=SERVER_NAME)
 
+# Initialize the MCP server
 mcp = FastMCP(SERVER_NAME)
+enable_aws_resource_write = False
 
 
 def ensure_vm_running() -> Dict[str, Any]:
@@ -278,6 +280,9 @@ async def finch_push_image(request: PushImageRequest) -> Result:
     'finch image inspect' to get the hash, 'finch image tag' to create a new tag,
     and 'finch image push' to perform the actual push operation.
 
+    When the server is in read-only mode (which is the default unless --enable-aws-resource-write
+    is specified), this tool will return an error when pushing to ECR repositories.
+
     Arguments:
         request (str): The full image name to push, including the repository URL and tag.
                     For ECR repositories, it must follow the format:
@@ -302,6 +307,16 @@ async def finch_push_image(request: PushImageRequest) -> Result:
 
         is_ecr = is_ecr_repository(request.image)
         if is_ecr:
+            # Check if AWS resource write is enabled for ECR pushes
+            if not enable_aws_resource_write:
+                logger.warning(
+                    f'Attempt to push image to ECR "{request.image}" without AWS resource write enabled'
+                )
+                error_result = format_result(
+                    'error', 'Server running in read-only mode, unable to push to ECR repository'
+                )
+                return Result(**error_result)
+
             logger.info('ECR repository detected, configuring ECR login')
             config_result, config_changed = configure_ecr()
             if config_result['status'] == 'error':
@@ -321,6 +336,21 @@ async def finch_push_image(request: PushImageRequest) -> Result:
         return Result(**error_result)
 
 
+def set_enable_aws_resource_write(enabled: bool):
+    """Set whether AWS resource creation/modification is enabled.
+
+    When AWS resource write is disabled, certain operations like creating ECR repositories
+    will return an error.
+
+    Args:
+        enabled (bool): True to enable AWS resource creation/modification, False to disable it
+
+    """
+    global enable_aws_resource_write
+    enable_aws_resource_write = enabled
+    logger.info(f'AWS resource write enabled: {enable_aws_resource_write}')
+
+
 @mcp.tool()
 async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
     """Check if an ECR repository exists and create it if it doesn't.
@@ -328,6 +358,9 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
     This tool checks if the specified ECR repository exists using boto3.
     If the repository doesn't exist, it creates a new one with the given name.
     The tool requires appropriate AWS credentials configured.
+
+    When the server is in read-only mode (which is the default unless --enable-aws-resource-write
+    is specified), this tool will return an error and will not create any repositories.
 
     Arguments:
         request: The request object of type CreateEcrRepoRequest containing:
@@ -339,8 +372,6 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
         Result: An object containing:
             - status (str): "success" if the operation succeeded, "error" otherwise
             - message (str): A descriptive message about the result of the operation
-            - repository_uri (str, optional): The URI of the repository if successful
-            - exists (bool, optional): Whether the repository already existed
 
     Example response:
         Result(status="success", message="Successfully created ECR repository 'my-app'.",
@@ -350,6 +381,16 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
     """
     logger.info('tool-name: finch_create_ecr_repo')
     logger.info(f'tool-args: app_name={request.app_name}')
+
+    # Check if AWS resource write is enabled
+    if not enable_aws_resource_write:
+        logger.warning(
+            f'Attempt to create ECR repo "{request.app_name}" without AWS resource write enabled'
+        )
+        error_result = format_result(
+            'error', 'Server running in read-only mode, unable to perform the action'
+        )
+        return Result(**error_result)
 
     try:
         result = create_ecr_repository(
@@ -362,12 +403,30 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
         return Result(**error_result)
 
 
-def main():
-    """Run the Finch MCP server."""
+def main(enable_aws_resource_write: bool = False):
+    """Run the Finch MCP server.
+
+    Args:
+        enable_aws_resource_write (bool, optional): Whether to enable AWS resource creation/modification. Defaults to False.
+
+    """
+    # Set AWS resource write mode
+    set_enable_aws_resource_write(enable_aws_resource_write)
+
     logger.info('Starting Finch MCP server')
     logger.info(f'Logs will be written to: {LOG_FILE}')
     mcp.run(transport='stdio')
 
 
 if __name__ == '__main__':
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Run the Finch MCP server')
+    parser.add_argument(
+        '--enable-aws-resource-write',
+        action='store_true',
+        help='Enable AWS resource creation and modification (disabled by default)',
+    )
+    args = parser.parse_args()
+
+    main(enable_aws_resource_write=args.enable_aws_resource_write)
