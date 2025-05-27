@@ -424,11 +424,9 @@ with pytest.MonkeyPatch().context() as CTX:
 
         @patch('awslabs.lambda_mcp_server.server.register_lambda_functions')
         @patch('awslabs.lambda_mcp_server.server.mcp')
-        @patch('argparse.ArgumentParser.parse_args')
-        def test_main_stdio(self, mock_parse_args, mock_mcp, mock_register_lambda_functions):
+        def test_main_stdio(self, mock_mcp, mock_register_lambda_functions):
             """Test main function with stdio transport."""
             # Set up the mock
-            mock_parse_args.return_value = MagicMock()
 
             # Call the function
             main()
