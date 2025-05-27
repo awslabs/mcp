@@ -59,7 +59,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 Either manually:
 ```file
-# ficticious `.env` file with AWS temporary credentials
+# fictitious `.env` file with AWS temporary credentials
 AWS_ACCESS_KEY_ID=<from the profile you set up>
 AWS_SECRET_ACCESS_KEY=<from the profile you set up>
 AWS_SESSION_TOKEN=<from the profile you set up>

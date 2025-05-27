@@ -632,7 +632,7 @@ _This example uses docker with the "awslabs.nova-canvas-mcp-server and can be re
 - Optionally save sensitive environmental variables in a file:
 
   ```.env
-  # contents of a .env file with ficticious AWS temporary credentials
+  # contents of a .env file with fictitious AWS temporary credentials
   AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
   AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
   AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
