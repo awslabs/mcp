@@ -262,7 +262,7 @@ def check_finch_installation() -> Dict[str, str]:
         return format_result(STATUS_ERROR, f'Error checking Finch installation: {str(e)}')
 
 
-def configure_ecr() -> Dict[str, str]:
+def configure_ecr() -> tuple[Dict[str, str], bool]:
     """Configure Finch to use ECR (Amazon Elastic Container Registry).
 
     This function updates the Finch YAML configuration file:
@@ -272,9 +272,11 @@ def configure_ecr() -> Dict[str, str]:
     as it is automatically handled when adding the ecr-login credential helper in finch.yaml.
 
     Returns:
-        Dict[str, str]: Result dictionary with:
-            - status: "success" if the configuration was updated successfully, "error" otherwise
-            - message: Details about the configuration result
+        tuple[Dict[str, str], bool]: A tuple containing:
+            - Result dictionary with:
+                - status: "success" if the configuration was updated successfully, "error" otherwise
+                - message: Details about the configuration result
+            - Boolean indicating if the configuration was changed (True if changed, False otherwise)
 
     """
     try:
@@ -307,27 +309,33 @@ def configure_ecr() -> Dict[str, str]:
 
             except Exception as e:
                 logger.warning(f'Error updating {finch_yaml_path} with PyYAML: {str(e)}')
-                return format_result(STATUS_ERROR, f'Failed to update finch YAML file: {str(e)}')
+                return format_result(
+                    STATUS_ERROR, f'Failed to update finch YAML file: {str(e)}'
+                ), False
         else:
-            return format_result(STATUS_ERROR, 'finch yaml file not found in ~/.finch/finch.yaml')
+            return format_result(
+                STATUS_ERROR, 'finch yaml file not found in ~/.finch/finch.yaml'
+            ), False
 
         if changed_yaml:
             # Log the change status
             logger.debug('ECR configuration was updated in finch.yaml')
-            return format_result(
+            result = format_result(
                 STATUS_SUCCESS,
                 'ECR configuration updated successfully in finch.yaml.',
             )
         else:
             # Log that no changes were needed
             logger.debug('ECR was already configured correctly in finch.yaml')
-            return format_result(
+            result = format_result(
                 STATUS_SUCCESS,
                 'ECR was already configured correctly in finch.yaml.',
             )
 
+        return result, changed_yaml
+
     except Exception as e:
-        return format_result(STATUS_ERROR, f'Failed to configure ECR: {str(e)}')
+        return format_result(STATUS_ERROR, f'Failed to configure ECR: {str(e)}'), False
 
 
 def validate_vm_state(

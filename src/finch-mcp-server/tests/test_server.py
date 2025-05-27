@@ -314,7 +314,10 @@ class TestFinchTools:
         ):
             mock_check_finch.return_value = {'status': STATUS_SUCCESS}
             mock_contains_ecr.return_value = True
-            mock_configure_ecr.return_value = {'status': STATUS_SUCCESS, 'changed': True}
+            mock_configure_ecr.return_value = (
+                {'status': STATUS_SUCCESS, 'message': 'Success'},
+                True,
+            )
             mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
             mock_build_image.return_value = {
                 'status': STATUS_SUCCESS,
@@ -332,6 +335,42 @@ class TestFinchTools:
             mock_stop_vm.assert_called_once_with(force=True)
             mock_ensure_vm.assert_called_once()
             mock_build_image.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_finch_build_container_image_with_ecr_error(self):
+        """Test finch_build_container_image with ECR reference when configure_ecr returns an error."""
+        request = BuildImageRequest(
+            dockerfile_path='/path/to/Dockerfile',
+            context_path='/path/to/context',
+            tags=['123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'],
+        )
+
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.contains_ecr_reference') as mock_contains_ecr,
+            patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
+            patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+            patch('awslabs.finch_mcp_server.server.build_image') as mock_build_image,
+        ):
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_contains_ecr.return_value = True
+            mock_configure_ecr.return_value = (
+                {'status': STATUS_ERROR, 'message': 'Failed to configure ECR'},
+                False,
+            )
+
+            result = await finch_build_container_image(request)
+
+            assert result.status == STATUS_ERROR
+            assert result.message == 'Failed to configure ECR'
+
+            mock_check_finch.assert_called_once()
+            mock_contains_ecr.assert_called_once_with(request.dockerfile_path)
+            mock_configure_ecr.assert_called_once()
+            mock_stop_vm.assert_not_called()
+            mock_ensure_vm.assert_not_called()
+            mock_build_image.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_finch_build_container_image_finch_not_installed(self):
@@ -444,7 +483,10 @@ class TestFinchTools:
         ):
             mock_check_finch.return_value = {'status': STATUS_SUCCESS}
             mock_is_ecr.return_value = True
-            mock_configure_ecr.return_value = {'status': STATUS_SUCCESS, 'changed': True}
+            mock_configure_ecr.return_value = (
+                {'status': STATUS_SUCCESS, 'message': 'Success'},
+                True,
+            )
             mock_ensure_vm.return_value = {'status': STATUS_SUCCESS}
             mock_push_image.return_value = {
                 'status': STATUS_SUCCESS,
@@ -462,6 +504,40 @@ class TestFinchTools:
             mock_stop_vm.assert_called_once_with(force=True)
             mock_ensure_vm.assert_called_once()
             mock_push_image.assert_called_once_with(request.image)
+
+    @pytest.mark.asyncio
+    async def test_finch_push_image_with_ecr_error(self):
+        """Test finch_push_image with ECR reference when configure_ecr returns an error."""
+        request = PushImageRequest(
+            image='123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
+        )
+
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
+            patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
+            patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+            patch('awslabs.finch_mcp_server.server.push_image') as mock_push_image,
+        ):
+            mock_check_finch.return_value = {'status': STATUS_SUCCESS}
+            mock_is_ecr.return_value = True
+            mock_configure_ecr.return_value = (
+                {'status': STATUS_ERROR, 'message': 'Failed to configure ECR'},
+                False,
+            )
+
+            result = await finch_push_image(request)
+
+            assert result.status == STATUS_ERROR
+            assert result.message == 'Failed to configure ECR'
+
+            mock_check_finch.assert_called_once()
+            mock_is_ecr.assert_called_once_with(request.image)
+            mock_configure_ecr.assert_called_once()
+            mock_stop_vm.assert_not_called()
+            mock_ensure_vm.assert_not_called()
+            mock_push_image.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_finch_push_image_non_ecr(self):

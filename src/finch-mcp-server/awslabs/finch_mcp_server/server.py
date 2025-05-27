@@ -234,9 +234,10 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
 
         if contains_ecr_reference(request.dockerfile_path):
             logger.info('ECR reference detected in Dockerfile, configuring ECR login')
-            config_result = configure_ecr()
-            changed = config_result.get('changed', False)
-            if changed:
+            config_result, config_changed = configure_ecr()
+            if config_result['status'] == 'error':
+                return Result(**config_result)
+            if config_changed:
                 logger.info('ECR configuration changed, restarting VM')
                 stop_vm(force=True)
 
@@ -302,9 +303,10 @@ async def finch_push_image(request: PushImageRequest) -> Result:
         is_ecr = is_ecr_repository(request.image)
         if is_ecr:
             logger.info('ECR repository detected, configuring ECR login')
-            config_result = configure_ecr()
-            changed = config_result.get('changed', False)
-            if changed:
+            config_result, config_changed = configure_ecr()
+            if config_result['status'] == 'error':
+                return Result(**config_result)
+            if config_changed:
                 logger.info('ECR configuration changed, restarting VM')
                 stop_vm(force=True)
 

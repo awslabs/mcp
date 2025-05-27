@@ -276,7 +276,7 @@ class TestEcrConfiguration:
         mock_expanduser.side_effect = lambda path: path.replace('~', '/home/user')
         mock_yaml_load.return_value = {'creds_helpers': ['ecr-login']}
 
-        result = configure_ecr()
+        result, changed = configure_ecr()
 
         mock_exists.assert_called()
         mock_expanduser.assert_called()
@@ -286,6 +286,7 @@ class TestEcrConfiguration:
 
         assert result['status'] == STATUS_SUCCESS
         assert 'ECR was already configured correctly' in result['message']
+        assert changed is False
 
     @patch('os.path.exists')
     @patch('os.path.expanduser')
@@ -305,7 +306,7 @@ class TestEcrConfiguration:
         mock_expanduser.side_effect = lambda path: path.replace('~', '/home/user')
         mock_yaml_load.return_value = {'creds_helpers': ['docker-credential-helper']}
 
-        result = configure_ecr()
+        result, changed = configure_ecr()
 
         mock_exists.assert_called()
         mock_expanduser.assert_called()
@@ -317,6 +318,7 @@ class TestEcrConfiguration:
 
         assert result['status'] == STATUS_SUCCESS
         assert 'ECR configuration updated successfully' in result['message']
+        assert changed is True
 
     @patch('os.path.exists')
     @patch('os.path.expanduser')
@@ -327,7 +329,7 @@ class TestEcrConfiguration:
         mock_expanduser.side_effect = lambda path: path.replace('~', '/home/user')
         mock_open.side_effect = Exception('File access error')
 
-        result = configure_ecr()
+        result, changed = configure_ecr()
 
         mock_exists.assert_called()
         mock_expanduser.assert_called()
@@ -335,6 +337,7 @@ class TestEcrConfiguration:
 
         assert result['status'] == STATUS_ERROR
         assert 'Failed to update finch YAML file' in result['message']
+        assert changed is False
 
 
 class TestVmStateValidation:
