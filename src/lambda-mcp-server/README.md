@@ -99,7 +99,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
 
 NOTE: Your credentials will need to be kept refreshed from your host
 
-The `AWS_PROFILE` and the `AWS_REGION` are optional, their defualt values are `default` and `us-east-1`.
+The `AWS_PROFILE` and the `AWS_REGION` are optional, their default values are `default` and `us-east-1`.
 
 You can specify `FUNCTION_PREFIX`, `FUNCTION_LIST`, or both. If both are empty, all functions pass the name check.
 After the name check, if both `FUNCTION_TAG_KEY` and `FUNCTION_TAG_VALUE` are set, functions are further filtered by tag (with key=value).
