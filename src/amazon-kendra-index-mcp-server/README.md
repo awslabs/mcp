@@ -40,7 +40,7 @@ An AWS Labs Model Context Protocol (MCP) server for Amazon Kendra. This MCP serv
 ### IAM Configuration
 
 1. Provision a user in your AWS account IAM
-2. Attach a policy that contains at a minimum the `kendra:Query` and `kendra:ListIndices` permissions. Alternatively the AWS Managed `AmazonKendraFullAccess` policy can be attached. Always follow the prinicpal or least priveledge when granting users permissions. See the [documentation](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonkendra.html) for more information on IAM permissions for Amazon Kendra.
+2. Attach a policy that contains at a minimum the `kendra:Query` and `kendra:ListIndices` permissions. Alternatively the AWS Managed `AmazonKendraFullAccess` policy can be attached. Always follow the principal or least priveledge when granting users permissions. See the [documentation](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonkendra.html) for more information on IAM permissions for Amazon Kendra.
 3. Use `aws configure` on your environment to configure the credentials (access ID and access key)
 
 ### Installation
