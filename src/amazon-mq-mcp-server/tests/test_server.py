@@ -261,9 +261,6 @@ class TestMain:
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_stdio(self, mock_parse_args, mock_mcp, mock_session):
         """Test main function with stdio transport."""
-        # Set up the mock
-        mock_parse_args.return_value = MagicMock(sse=False, port=8888)
-
         # Call the function
         main()
 
