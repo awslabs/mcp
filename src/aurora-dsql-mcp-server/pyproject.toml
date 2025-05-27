@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aurora-dsql-mcp-server"
-version = "0.0.1"
+version = "1.0.9223372036854775807"
 description = "An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -1,3 +1,4 @@
+import os
 from functools import wraps
 from typing import Any, Callable, Dict, List, Literal, Optional
 from typing_extensions import TypedDict
@@ -22,6 +23,19 @@ def handle_exceptions(func: Callable) -> Callable:
             return await func(*args, **kwargs)
         except Exception as e:
             return {'error': str(e)}
+
+    return wrapper
+
+
+def mutation_check(func):
+    """Decorator to block mutations if DDB-MCP-READONLY is set to true."""
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        readonly = os.environ.get('DDB-MCP-READONLY', '').lower()
+        if readonly in ('true', '1', 'yes'):  # treat these as true
+            return {'error': 'Mutation not allowed: DDB-MCP-READONLY is set to true.'}
+        return await func(*args, **kwargs)
 
     return wrapper
 
