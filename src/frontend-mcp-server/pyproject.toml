@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.frontend-mcp-server"
-version = "1.0.9223372036854775807"
+version = "1.0.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for frontend"
 readme = "README.md"
 requires-python = ">=3.10"
