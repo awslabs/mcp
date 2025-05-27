@@ -4,7 +4,6 @@ This server provides tools to generate diagrams using the Python diagrams packag
 It accepts Python code as a string and generates PNG diagrams without displaying them.
 """
 
-import argparse
 from awslabs.aws_diagram_mcp_server.diagrams_tools import (
     generate_diagram,
     get_diagram_examples,
@@ -263,20 +262,7 @@ async def mcp_list_diagram_icons(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An MCP server that seamlessly creates diagrams using the Python diagrams package DSL'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

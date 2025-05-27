@@ -74,6 +74,7 @@ Add the MCP to your favorite agentic tools. e.g. for Amazon Q Developer CLI MCP,
       "command": "uvx",
       "args": ["awslabs.dynamodb-mcp-server@latest"],
       "env": {
+        "DDB-MCP-READONLY": "true",
         "AWS_PROFILE": "default",
         "AWS_REGION": "us-west-2",
         "FASTMCP_LOG_LEVEL": "ERROR"

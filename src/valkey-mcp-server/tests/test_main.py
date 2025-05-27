@@ -19,7 +19,6 @@ class TestMain:
     """Tests for the main function."""
 
     @patch('awslabs.valkey_mcp_server.common.server.mcp.run')
-    @patch('sys.argv', ['awslabs.valkey-mcp-server'])
     def test_main_default(self, mock_run):
         """Test main function with default arguments."""
         # Call the main function
@@ -28,23 +27,6 @@ class TestMain:
 
         # Check that mcp.run was called with the correct arguments
         mock_run.assert_called_once()
-        assert mock_run.call_args[1].get('transport') is None
-
-    @patch('awslabs.valkey_mcp_server.common.server.mcp.run')
-    @patch('sys.argv', ['awslabs.valkey-mcp-server', '--sse', '--port', '9999'])
-    def test_main_sse(self, mock_run):
-        """Test main function with SSE transport."""
-        # Call the main function
-        main()
-
-        # Check that mcp.run was called with the correct arguments
-        mock_run.assert_called_once()
-        assert mock_run.call_args[1].get('transport') == 'sse'
-
-        # Check that the port was set correctly
-        from awslabs.valkey_mcp_server.common.server import mcp
-
-        assert mcp.settings.port == 9999
 
     def test_module_execution(self):
         """Test the module execution when run as __main__."""

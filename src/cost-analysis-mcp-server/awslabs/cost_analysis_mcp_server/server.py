@@ -14,7 +14,6 @@
 This server provides tools for analyzing AWS service costs across different user tiers.
 """
 
-import argparse
 import boto3
 import logging
 import os
@@ -591,18 +590,7 @@ async def generate_cost_report_wrapper(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='Analyze cost of AWS services')
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

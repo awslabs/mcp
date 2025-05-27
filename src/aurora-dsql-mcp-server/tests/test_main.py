@@ -59,9 +59,6 @@ class TestMain:
             '--region',
             'us-west-2',
             '--allow-writes',
-            '--sse',
-            '--port',
-            '9999',
         ],
     )
     def test_main_with_optional_arguments(self, mocker):
@@ -76,12 +73,6 @@ class TestMain:
 
         mock_execute_query.assert_called_once()
         mock_mcp_run.assert_called_once()
-        assert mock_mcp_run.call_args[1].get('transport') == 'sse'
-
-        # Check that the port was set correctly
-        from awslabs.aurora_dsql_mcp_server.server import mcp
-
-        assert mcp.settings.port == 9999
 
     def test_module_execution(self):
         """Test the module execution when run as __main__."""
