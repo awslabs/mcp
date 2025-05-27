@@ -11,7 +11,6 @@
 
 """awslabs cloudwatch-logs MCP Server implementation."""
 
-import argparse
 import asyncio
 import boto3
 import datetime
@@ -294,20 +293,7 @@ async def cancel_query_tool(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for cloudwatch-logs'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
     logger.info('CloudWatch Logs MCP server started')
 
