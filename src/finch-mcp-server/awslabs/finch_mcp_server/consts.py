@@ -3,6 +3,10 @@
 This module defines constants used throughout the Finch MCP server.
 """
 
+import os
+import sys
+
+
 # Server name
 SERVER_NAME = 'finch_mcp_server'
 
@@ -27,6 +31,10 @@ REGION_PATTERN = r'^[a-zA-Z0-9][a-zA-Z0-9-_]*$'
 # ECR repository pattern
 ECR_REFERENCE_PATTERN = r'(\d{12})\.dkr[-.]ecr(\-fips)?\.([a-zA-Z0-9][a-zA-Z0-9-_]*)\.(on\.aws|amazonaws\.com(\.cn)?|sc2s\.sgov\.gov|c2s\.ic\.gov|cloud\.adc-e\.uk|csp\.hci\.ic\.gov)'
 
-# Configuration file paths
-CONFIG_JSON_PATH = '~/.finch/config.json'
-FINCH_YAML_PATH = '~/.finch/finch.yaml'
+# Platform-specific configuration file paths
+if sys.platform == 'win32':
+    # Windows path using %LocalAppData%
+    FINCH_YAML_PATH = os.path.join(os.environ.get('LOCALAPPDATA', ''), '.finch', 'finch.yaml')
+else:
+    # macOS path
+    FINCH_YAML_PATH = '~/.finch/finch.yaml'

@@ -107,8 +107,8 @@ def initialize_vm() -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. No VM operation required')
-        return format_result(STATUS_SUCCESS, 'No VM operation required on Linux.')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     logger.warning('Finch VM non existent, Initializing a new vm instance...')
     init_result = execute_command(['finch', 'vm', 'init'])
@@ -132,8 +132,8 @@ def start_stopped_vm() -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. No VM operation required')
-        return format_result(STATUS_SUCCESS, 'No VM operation required on Linux.')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     logger.info('Finch VM is stopped. Starting it...')
     start_result = execute_command(['finch', 'vm', 'start'])
@@ -164,8 +164,8 @@ def stop_vm(force: bool = False) -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. No VM operation required')
-        return format_result(STATUS_SUCCESS, 'No VM operation required on Linux.')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     command = ['finch', 'vm', 'stop']
     if force:
@@ -197,8 +197,8 @@ def remove_vm(force: bool = False) -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. No VM operation required')
-        return format_result(STATUS_SUCCESS, 'No VM operation required on Linux.')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     command = ['finch', 'vm', 'rm']
     if force:
@@ -226,8 +226,8 @@ def restart_running_vm() -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. No VM operation required')
-        return format_result(STATUS_SUCCESS, 'No VM operation required on Linux.')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     logger.info('Finch VM is running. Restarting it...')
 
@@ -263,10 +263,13 @@ def check_finch_installation() -> Dict[str, str]:
 
 
 def configure_ecr() -> tuple[Dict[str, str], bool]:
-    """Configure Finch to use ECR (Amazon Elastic Container Registry).
+    r"""Configure Finch to use ECR (Amazon Elastic Container Registry).
 
     This function updates the Finch YAML configuration file:
-    ~/.finch/finch.yaml - Adds 'ecr-login' to the creds_helpers list while preserving other settings
+    - macOS: ~/.finch/finch.yaml
+    - Windows: %LocalAppData%\.finch\finch.yaml
+
+    It adds 'ecr-login' to the creds_helpers list while preserving other settings.
 
     This enables Finch to authenticate with Amazon ECR. The config.json file is not modified
     as it is automatically handled when adding the ecr-login credential helper in finch.yaml.
@@ -281,7 +284,11 @@ def configure_ecr() -> tuple[Dict[str, str], bool]:
     """
     try:
         changed_yaml = False
-        finch_yaml_path = os.path.expanduser(FINCH_YAML_PATH)
+        # For Windows, FINCH_YAML_PATH is already an absolute path
+        # For macOS, we need to expand the ~ in the path
+        finch_yaml_path = FINCH_YAML_PATH
+        if sys.platform != 'win32':
+            finch_yaml_path = os.path.expanduser(FINCH_YAML_PATH)
 
         if os.path.exists(finch_yaml_path):
             try:
@@ -313,9 +320,11 @@ def configure_ecr() -> tuple[Dict[str, str], bool]:
                     STATUS_ERROR, f'Failed to update finch YAML file: {str(e)}'
                 ), False
         else:
-            return format_result(
-                STATUS_ERROR, 'finch yaml file not found in ~/.finch/finch.yaml'
-            ), False
+            if sys.platform == 'win32':
+                error_msg = f'finch yaml file not found at {finch_yaml_path}'
+            else:
+                error_msg = 'finch yaml file not found in finch.yaml'
+            return format_result(STATUS_ERROR, error_msg), False
 
         if changed_yaml:
             # Log the change status

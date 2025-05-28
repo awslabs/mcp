@@ -9,7 +9,9 @@ and are not meant for production use cases.
 
 import os
 import subprocess
+import sys
 from loguru import logger
+from pathlib import Path
 from typing import Any, Dict
 
 
@@ -38,7 +40,15 @@ def execute_command(command: list, env=None) -> subprocess.CompletedProcess:
     """
     if env is None:
         env = os.environ.copy()
-        env['HOME'] = os.path.expanduser('~')
+        path = Path('~')
+        home_path = str(Path('~').expanduser())
+
+        if sys.platform == 'win32':
+            drive, path = os.path.splitdrive(home_path)
+            env['HOMEDRIVE'] = drive
+            env['HOMEPATH'] = path
+        else:
+            env['HOME'] = str(home_path)
 
     # Security check: Only allow finch commands
     if not command or command[0] != 'finch':

@@ -243,14 +243,14 @@ class TestEnsureVmRunning:
         """Test ensure_vm_running function on Linux."""
         mock_format_result.return_value = {
             'status': STATUS_SUCCESS,
-            'message': 'No VM operation required on Linux.',
+            'message': 'Finch does not use a VM on Linux..',
         }
 
         result = ensure_vm_running()
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['message'] == 'No VM operation required on Linux.'
-        mock_format_result.assert_called_with(STATUS_SUCCESS, 'No VM operation required on Linux.')
+        assert result['message'] == 'Finch does not use a VM on Linux..'
+        mock_format_result.assert_called_with(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
 
 class TestFinchTools:

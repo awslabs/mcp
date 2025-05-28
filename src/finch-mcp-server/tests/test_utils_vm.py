@@ -139,7 +139,7 @@ class TestVmOperations:
         result = initialize_vm()
 
         assert result['status'] == STATUS_SUCCESS
-        assert 'No VM operation required' in result['message']
+        assert 'Finch does not use a VM on Linux..' in result['message']
 
     @patch('sys.platform', 'darwin')  # Mock as macOS
     @patch('awslabs.finch_mcp_server.utils.vm.execute_command')
@@ -177,7 +177,7 @@ class TestVmOperations:
         result = start_stopped_vm()
 
         assert result['status'] == STATUS_SUCCESS
-        assert 'No VM operation required' in result['message']
+        assert 'Finch does not use a VM on Linux..' in result['message']
 
     @patch('sys.platform', 'darwin')  # Mock as macOS
     @patch('awslabs.finch_mcp_server.utils.vm.execute_command')
@@ -215,7 +215,7 @@ class TestVmOperations:
         result = stop_vm()
 
         assert result['status'] == STATUS_SUCCESS
-        assert 'No VM operation required' in result['message']
+        assert 'Finch does not use a VM on Linux..' in result['message']
 
 
 class TestFinchInstallation:
@@ -258,12 +258,13 @@ class TestFinchInstallation:
 class TestEcrConfiguration:
     """Tests for ECR configuration functions."""
 
+    @patch('sys.platform', 'darwin')  # Mock as macOS
     @patch('os.path.exists')
     @patch('os.path.expanduser')
     @patch('builtins.open', new_callable=mock_open)
     @patch('yaml.safe_load')
     @patch('yaml.dump')
-    def test_configure_ecr_existing_config(
+    def test_configure_ecr_existing_config_macos(
         self,
         mock_yaml_dump,
         mock_yaml_load,
@@ -271,7 +272,7 @@ class TestEcrConfiguration:
         mock_expanduser,
         mock_exists,
     ):
-        """Test configure_ecr with existing configuration files."""
+        """Test configure_ecr with existing configuration files on macOS."""
         mock_exists.return_value = True
         mock_expanduser.side_effect = lambda path: path.replace('~', '/home/user')
         mock_yaml_load.return_value = {'creds_helpers': ['ecr-login']}
@@ -288,12 +289,43 @@ class TestEcrConfiguration:
         assert 'ECR was already configured correctly' in result['message']
         assert changed is False
 
+    @patch('sys.platform', 'win32')  # Mock as Windows
+    @patch('os.environ.get')
+    @patch('os.path.exists')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load')
+    @patch('yaml.dump')
+    def test_configure_ecr_existing_config_windows(
+        self,
+        mock_yaml_dump,
+        mock_yaml_load,
+        mock_open,
+        mock_exists,
+        mock_environ_get,
+    ):
+        """Test configure_ecr with existing configuration files on Windows."""
+        mock_exists.return_value = True
+        mock_environ_get.return_value = 'C:\\Users\\user\\AppData\\Local'
+        mock_yaml_load.return_value = {'creds_helpers': ['ecr-login']}
+
+        result, changed = configure_ecr()
+
+        mock_exists.assert_called()
+        mock_yaml_load.assert_called_once()
+        mock_yaml_dump.assert_not_called()
+        mock_open.assert_called_once()
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'ECR was already configured correctly' in result['message']
+        assert changed is False
+
+    @patch('sys.platform', 'darwin')  # Mock as macOS
     @patch('os.path.exists')
     @patch('os.path.expanduser')
     @patch('builtins.open', new_callable=mock_open)
     @patch('yaml.safe_load')
     @patch('yaml.dump')
-    def test_configure_ecr_update_config(
+    def test_configure_ecr_update_config_macos(
         self,
         mock_yaml_dump,
         mock_yaml_load,
@@ -301,7 +333,7 @@ class TestEcrConfiguration:
         mock_expanduser,
         mock_exists,
     ):
-        """Test configure_ecr when updating existing configuration files."""
+        """Test configure_ecr when updating existing configuration files on macOS."""
         mock_exists.return_value = True
         mock_expanduser.side_effect = lambda path: path.replace('~', '/home/user')
         mock_yaml_load.return_value = {'creds_helpers': ['docker-credential-helper']}
@@ -320,11 +352,44 @@ class TestEcrConfiguration:
         assert 'ECR configuration updated successfully' in result['message']
         assert changed is True
 
+    @patch('sys.platform', 'win32')  # Mock as Windows
+    @patch('os.environ.get')
+    @patch('os.path.exists')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load')
+    @patch('yaml.dump')
+    def test_configure_ecr_update_config_windows(
+        self,
+        mock_yaml_dump,
+        mock_yaml_load,
+        mock_open,
+        mock_exists,
+        mock_environ_get,
+    ):
+        """Test configure_ecr when updating existing configuration files on Windows."""
+        mock_exists.return_value = True
+        mock_environ_get.return_value = 'C:\\Users\\user\\AppData\\Local'
+        mock_yaml_load.return_value = {'creds_helpers': ['docker-credential-helper']}
+
+        result, changed = configure_ecr()
+
+        mock_exists.assert_called()
+        mock_yaml_load.assert_called_once()
+        mock_yaml_dump.assert_called_once()
+
+        expected_yaml = {'creds_helpers': ['docker-credential-helper', 'ecr-login']}
+        assert mock_yaml_dump.call_args[0][0] == expected_yaml
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'ECR configuration updated successfully' in result['message']
+        assert changed is True
+
+    @patch('sys.platform', 'darwin')  # Mock as macOS
     @patch('os.path.exists')
     @patch('os.path.expanduser')
     @patch('builtins.open')
-    def test_configure_ecr_exception(self, mock_open, mock_expanduser, mock_exists):
-        """Test configure_ecr when an exception occurs."""
+    def test_configure_ecr_exception_macos(self, mock_open, mock_expanduser, mock_exists):
+        """Test configure_ecr when an exception occurs on macOS."""
         mock_exists.return_value = True
         mock_expanduser.side_effect = lambda path: path.replace('~', '/home/user')
         mock_open.side_effect = Exception('File access error')
@@ -337,6 +402,55 @@ class TestEcrConfiguration:
 
         assert result['status'] == STATUS_ERROR
         assert 'Failed to update finch YAML file' in result['message']
+        assert changed is False
+
+    @patch('sys.platform', 'win32')  # Mock as Windows
+    @patch('os.environ.get')
+    @patch('os.path.exists')
+    @patch('builtins.open')
+    def test_configure_ecr_exception_windows(self, mock_open, mock_exists, mock_environ_get):
+        """Test configure_ecr when an exception occurs on Windows."""
+        mock_exists.return_value = True
+        mock_environ_get.return_value = 'C:\\Users\\user\\AppData\\Local'
+        mock_open.side_effect = Exception('File access error')
+
+        result, changed = configure_ecr()
+
+        mock_exists.assert_called()
+        mock_open.assert_called_once()
+
+        assert result['status'] == STATUS_ERROR
+        assert 'Failed to update finch YAML file' in result['message']
+        assert changed is False
+
+    @patch('sys.platform', 'darwin')  # Mock as macOS
+    @patch('os.path.exists')
+    def test_configure_ecr_file_not_found_macos(self, mock_exists):
+        """Test configure_ecr when the config file doesn't exist on macOS."""
+        mock_exists.return_value = False
+
+        result, changed = configure_ecr()
+
+        mock_exists.assert_called()
+
+        assert result['status'] == STATUS_ERROR
+        assert 'finch yaml file not found in finch.yaml' in result['message']
+        assert changed is False
+
+    @patch('sys.platform', 'win32')  # Mock as Windows
+    @patch('os.environ.get')
+    @patch('os.path.exists')
+    def test_configure_ecr_file_not_found_windows(self, mock_exists, mock_environ_get):
+        """Test configure_ecr when the config file doesn't exist on Windows."""
+        mock_exists.return_value = False
+        mock_environ_get.return_value = 'C:\\Users\\user\\AppData\\Local'
+
+        result, changed = configure_ecr()
+
+        mock_exists.assert_called()
+
+        assert result['status'] == STATUS_ERROR
+        assert 'finch yaml file not found' in result['message']
         assert changed is False
 
 
