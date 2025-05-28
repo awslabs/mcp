@@ -37,6 +37,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/stepfunctions-tool-mcp-server    @mmouniro                        @awslabs/mcp-admins
 /src/terraform-mcp-server             @alexa-perlov                    @awslabs/mcp-admins
 /src/valkey-mcp-server                @seaofawareness                  @awslabs/mcp-admins
+/src/finch-mcp-server                 @shubhransh153 @pendo324         @awslabs/mcp-admins
 
 # Secure the CODEOWNERS file
 /.github/CODEOWNERS                   @awslabs/mcp-admins
