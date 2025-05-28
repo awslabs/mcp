@@ -83,7 +83,7 @@ async def describe_log_groups_tool(
         None,
         description=('The maximum number of log groups to return.'),
     ),
-) -> List[LogGroupMetadata]:
+) -> LogMetadata:
     """Lists AWS CloudWatch log groups and saved queries associated with them, optionally filtering by a name prefix.
 
     This tool retrieves information about log groups in the account, or log groups in accounts linked to this account as a monitoring account.
@@ -135,9 +135,6 @@ async def describe_log_groups_tool(
         while True:
             # TODO: Support other query language types
             kwargs = {'nextToken': next_token, 'queryLanguage': 'CWLI'}
-            if next_token:
-                kwargs
-
             response = logs_client.describe_query_definitions(**remove_null_values(kwargs))
             saved_queries.extend(response.get('queryDefinitions', []))
 

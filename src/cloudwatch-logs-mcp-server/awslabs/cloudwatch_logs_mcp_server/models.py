@@ -42,15 +42,16 @@ class LogGroupMetadata(BaseModel):
 class SavedQuery(BaseModel):
     """Represents a saved CloudWatch Logs Insights query."""
 
-    logGroupNames: Optional[Set[str]] = Field(
-        default=set, description='Log groups associated with the query, optional.'
+    logGroupNames: Set[str] = Field(
+        default_factory=set, description='Log groups associated with the query, optional.'
     )
     name: str = Field(..., description='Name of the saved query')
     queryString: str = Field(
         ..., description='The query string in the Cloudwatch Log Insights Query Language.'
     )
-    logGroupPrefixes: Optional[Set[str]] = Field(
-        default=set, description='Prefixes of log groups associated with the query, optional.'
+    logGroupPrefixes: Set[str] = Field(
+        default_factory=set,
+        description='Prefixes of log groups associated with the query, optional.',
     )
 
     @model_validator(mode='before')
