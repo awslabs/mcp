@@ -284,12 +284,15 @@ def configure_ecr() -> tuple[Dict[str, str], bool]:
     """
     try:
         if sys.platform == 'linux':
-            logger.info(
-                'Linux OS detected. config.json set in DOCKER_CONFIG is used for credentials'
+            (
+                logger.info(
+                    'Linux OS detected. config.json set in DOCKER_CONFIG is used for credentials'
+                ),
+                False,
             )
             return format_result(
                 'success', 'config.json set in DOCKER_CONFIG is used for credentials'
-            )
+            ), False
 
         changed_yaml = False
         # For Windows, FINCH_YAML_PATH is already an absolute path

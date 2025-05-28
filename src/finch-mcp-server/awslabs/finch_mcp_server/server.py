@@ -302,7 +302,7 @@ async def finch_push_image(request: PushImageRequest) -> Result:
             - message (str): A descriptive message about the result of the operation
 
     Example response:
-        Result(status="success", message="Successfully pushed image 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:latest to ECR.")
+        Result(status="success", message="Successfully pushed image 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:abcdef123456 to ECR.")
 
     """
     logger.info('tool-name: finch_push_image')

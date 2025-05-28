@@ -92,7 +92,7 @@ def push_image(image: str) -> Dict[str, str]:
         return hash_result
 
     tag_separator_index = image.rfind(':')
-    if tag_separator_index > 0 and '/' not in image[tag_separator_index:]:
+    if tag_separator_index > 0:
         repository = image[:tag_separator_index]
     else:
         repository = image
