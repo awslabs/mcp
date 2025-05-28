@@ -1,6 +1,5 @@
 """awslabs Step Functions Tool MCP Server implementation."""
 
-import argparse
 import asyncio
 import boto3
 import json
@@ -394,23 +393,9 @@ def register_state_machines():
 
 
 def main():
-    """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Model Context Protocol (MCP) server for Step Functions'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
+    """Run the MCP server."""
     register_state_machines()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
