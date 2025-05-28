@@ -14,7 +14,8 @@
 """AWS Support API client for the AWS Support MCP Server."""
 
 import asyncio
-from typing import Any, Callable, Dict, List, Optional, Union, Pattern, cast
+import re
+from typing import Any, Callable, Dict, List, Optional, Pattern, Union, cast
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -27,12 +28,10 @@ from awslabs.aws_support_mcp_server.consts import (
     ERROR_CASE_NOT_FOUND,
     ERROR_SUBSCRIPTION_REQUIRED,
     MAX_RESULTS_PER_PAGE,
-)
-from awslabs.aws_support_mcp_server.consts import (
-    IssueType, PERMITTED_LANGUAGE_CODES
+    PERMITTED_LANGUAGE_CODES,
+    IssueType,
 )
 
-import re
 
 class SupportClient:
     """Client for interacting with the AWS Support API.
@@ -44,6 +43,7 @@ class SupportClient:
         client: The boto3 Support client
         region_name: The AWS region name
     """
+
     _EMAIL_PATTERN: Pattern[str] = re.compile(
         r"^(?!.*\.\.)[a-zA-Z0-9](\.?[a-zA-Z0-9_\-+%])*@[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+$"
     )
@@ -177,7 +177,9 @@ class SupportClient:
             ValueError: If the language code is invalid
         """
         if language not in PERMITTED_LANGUAGE_CODES:
-            raise ValueError(f"Invalid language code: {language}. Must be one of: {', '.join(PERMITTED_LANGUAGE_CODES)}")
+            raise ValueError(
+                f"Invalid language code: {language}. Must be one of: {', '.join(PERMITTED_LANGUAGE_CODES)}"
+            )
 
     async def create_case(
         self,

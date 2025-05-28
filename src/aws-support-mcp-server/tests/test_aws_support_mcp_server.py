@@ -1436,11 +1436,7 @@ class TestSupportClient:
         client = SupportClient()
 
         # Test all valid issue types from IssueType enum
-        valid_types = [
-            "technical",
-            "account-and-billing",
-            "service-limit"
-        ]
+        valid_types = ["technical", "account-and-billing", "service-limit"]
 
         # Verify no exceptions are raised for valid types
         for issue_type in valid_types:
