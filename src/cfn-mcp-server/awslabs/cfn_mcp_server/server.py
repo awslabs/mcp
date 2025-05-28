@@ -358,8 +358,6 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for doing common cloudformation tasks and for managing your resources in your AWS account'
     )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
     parser.add_argument(
         '--readonly',
         action=argparse.BooleanOptionalAction,
@@ -368,13 +366,7 @@ def main():
 
     args = parser.parse_args()
     Context.initialize(args.readonly)
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

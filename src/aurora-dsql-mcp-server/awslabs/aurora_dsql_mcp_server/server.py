@@ -357,8 +357,6 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL'
     )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
     parser.add_argument(
         '--cluster_endpoint', required=True, help='Endpoint for your Aurora DSQL cluster'
     )
@@ -416,13 +414,8 @@ def main():
 
     logger.success('Successfully validated connection to Aurora DSQL Cluster')
 
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        logger.info('Starting Aurora DSQL MCP server')
-        mcp.run()
+    logger.info('Starting Aurora DSQL MCP server')
+    mcp.run()
 
 
 if __name__ == '__main__':
