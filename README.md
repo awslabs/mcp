@@ -582,17 +582,6 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       "autoApprove": [],
       "disabled": false
     },
-    "awslabs.memcached-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.memcached-mcp-server@latest"],
-      "env": {
-        "MEMCACHED_HOST": "127.0.0.1",
-        "MEMCACHED_PORT": "11211",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "autoApprove": [],
-      "disabled": false
-    },
     "awslabs.git-repo-research-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.git-repo-research-mcp-server@latest"],
