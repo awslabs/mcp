@@ -37,8 +37,8 @@ def is_ecr_repository(repository: str) -> bool:
     return bool(re.match(region_pattern, region))
 
 
-def get_image_hash(image: str) -> tuple[Dict[str, str], str]:
-    """Get the hash (digest) of a container image.
+def get_image_short_hash(image: str) -> tuple[Dict[str, str], str]:
+    """Get the short hash (digest) of a container image.
 
     Args:
         image: The image name to get the hash for
@@ -46,7 +46,7 @@ def get_image_hash(image: str) -> tuple[Dict[str, str], str]:
     Returns:
         A tuple containing:
         - Dict with status and message
-        - The image hash as a string (empty string if operation failed)
+        - The short hash as a string (empty string if operation failed)
 
     """
     inspect_result = execute_command(['finch', 'image', 'inspect', image])
@@ -69,11 +69,12 @@ def get_image_hash(image: str) -> tuple[Dict[str, str], str]:
         return error_result, ''
 
     image_hash = hash_match.group(1)
+    short_hash = image_hash[7:19] if image_hash.startswith('sha256:') else image_hash[:12]
     logger.debug(f'Retrieved hash for image {image}: {image_hash}')
     return format_result(
         STATUS_SUCCESS,
         f'Successfully retrieved hash for image {image}',
-    ), image_hash
+    ), short_hash
 
 
 def push_image(image: str) -> Dict[str, str]:
@@ -86,7 +87,7 @@ def push_image(image: str) -> Dict[str, str]:
         Result of the push task
 
     """
-    hash_result, image_hash = get_image_hash(image)
+    hash_result, short_hash = get_image_short_hash(image)
 
     if hash_result['status'] != STATUS_SUCCESS:
         return hash_result
@@ -97,7 +98,6 @@ def push_image(image: str) -> Dict[str, str]:
     else:
         repository = image
 
-    short_hash = image_hash[7:19] if image_hash.startswith('sha256:') else image_hash[:12]
     hash_tagged_image = f'{repository}:{short_hash}'
 
     tag_result = execute_command(['finch', 'image', 'tag', image, hash_tagged_image])
