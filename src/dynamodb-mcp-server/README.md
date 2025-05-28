@@ -86,7 +86,7 @@ Add the MCP to your favorite agentic tools. e.g. for Amazon Q Developer CLI MCP,
 }
 ```
 
-or docker after a succesful `docker build -t awslabs/dynamodb-mcp-server .`:
+or docker after a successful `docker build -t awslabs/dynamodb-mcp-server .`:
 
 ```json
   {
