@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.lambda-mcp-server"
-version = "0.1.6"
+version = "1.0.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Lambda"
 readme = "README.md"
 requires-python = ">=3.10"

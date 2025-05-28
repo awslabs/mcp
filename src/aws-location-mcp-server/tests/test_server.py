@@ -24,7 +24,7 @@ from awslabs.aws_location_server.server import (
     search_places,
     search_places_open_now,
 )
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 @pytest.mark.asyncio
@@ -971,23 +971,8 @@ def test_geo_routes_client_initialization_exception():
 def test_main_stdio():
     """Test the main function with stdio transport."""
     with patch('awslabs.aws_location_server.server.mcp.run') as mock_run:
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
-            mock_parse_args.return_value = MagicMock(sse=False, port=8888)
-            main()
-            mock_run.assert_called_once()
-            args, kwargs = mock_run.call_args
-            assert kwargs.get('transport') is None
-
-
-def test_main_sse():
-    """Test the main function with SSE transport."""
-    with patch('awslabs.aws_location_server.server.mcp.run') as mock_run:
-        with patch('argparse.ArgumentParser.parse_args') as mock_parse_args:
-            mock_parse_args.return_value = MagicMock(sse=True, port=9999)
-            main()
-            mock_run.assert_called_once()
-            args, kwargs = mock_run.call_args
-            assert kwargs.get('transport') == 'sse'
+        main()
+        mock_run.assert_called_once()
 
 
 @pytest.mark.asyncio
