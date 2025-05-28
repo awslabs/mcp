@@ -11,7 +11,6 @@
 
 """AWS syntheticdata MCP Server implementation."""
 
-import argparse
 import os
 import pandas as pd
 import re
@@ -756,20 +755,7 @@ def _validate_table_data(table_name: str, records: List[Dict]) -> Dict:
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='MCP server for generating synthetic data based on business use cases'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
