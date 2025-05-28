@@ -11,7 +11,6 @@
 
 """awslabs memcached MCP Server implementation."""
 
-import argparse
 from awslabs.memcached_mcp_server.common.server import mcp
 from awslabs.memcached_mcp_server.tools import cache  # noqa: F401
 from loguru import logger
@@ -32,35 +31,15 @@ async def health_check(request):
 class MemcachedMCPServer:
     """Memcached MCP Server wrapper."""
 
-    def __init__(self, sse=False, port=None):
-        """Initialize MCP Server wrapper."""
-        self.sse = sse
-        self.port = port
-
     def run(self):
         """Run server with appropriate transport."""
-        if self.sse:
-            mcp.settings.port = int(self.port) if self.port is not None else 8888
-            mcp.run(transport='sse')
-        else:
-            mcp.run()
+        mcp.run()
 
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for Amazon ElastiCache Memcached'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
     logger.info('Amazon ElastiCache Memcached MCP Server Started...')
-
-    # Run server with appropriate transport
-    server = MemcachedMCPServer(args.sse, args.port)
-    server.run()
+    MemcachedMCPServer().run()
 
 
 if __name__ == '__main__':

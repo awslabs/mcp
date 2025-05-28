@@ -372,8 +372,6 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
     )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
     parser.add_argument('--resource_arn', required=True, help='ARN of the RDS cluster')
     parser.add_argument(
         '--secret_arn',
@@ -420,13 +418,8 @@ def main():
 
     logger.success('Successfully validated RDS API db connection to Postgres')
 
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        logger.info('Starting Postgres MCP server')
-        mcp.run()
+    logger.info('Starting Postgres MCP server')
+    mcp.run()
 
 
 if __name__ == '__main__':

@@ -11,7 +11,6 @@
 
 """Amazon Location Service MCP Server implementation using geo-places client only."""
 
-import argparse
 import asyncio
 import boto3
 import botocore.config
@@ -766,20 +765,8 @@ async def optimize_waypoints(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for Amazon Location Service (geo-places)'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-    args = parser.parse_args()
-    logger.info('Starting Amazon Location Service MCP Server (geo-places)')
-    if args.sse:
-        logger.info(f'Using SSE transport on port {args.port}')
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        logger.info('Using standard stdio transport')
-        mcp.run()
+    logger.info('Using standard stdio transport')
+    mcp.run()
 
 
 if __name__ == '__main__':

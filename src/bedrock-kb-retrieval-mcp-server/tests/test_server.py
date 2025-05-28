@@ -20,7 +20,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.server import (
     query_knowledge_bases_tool,
 )
 from unittest import mock
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 class TestMCPServer:
@@ -131,65 +131,16 @@ class TestQueryKnowledgeBasesTool:
 class TestMain:
     """Tests for the main function."""
 
-    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.argparse.ArgumentParser')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.mcp')
-    def test_main_default(self, mock_mcp, mock_argument_parser):
+    def test_main_default(self, mock_mcp):
         """Test the main function with default arguments."""
         # Set up the mock
-        mock_parser = MagicMock()
-        mock_args = MagicMock()
-        mock_args.sse = False
-        mock_parser.parse_args.return_value = mock_args
-        mock_argument_parser.return_value = mock_parser
 
         # Call the function
         main()
-
-        # Check that the parser was set up correctly
-        mock_argument_parser.assert_called_once_with(
-            description='A Model Context Protocol (MCP) server'
-        )
-        mock_parser.add_argument.assert_any_call(
-            '--sse', action='store_true', help='Use SSE transport'
-        )
-        mock_parser.add_argument.assert_any_call(
-            '--port', type=int, default=8888, help='Port to run the server on'
-        )
 
         # Check that mcp.run was called with the correct arguments
         mock_mcp.run.assert_called_once_with()
-
-    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.argparse.ArgumentParser')
-    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.mcp')
-    def test_main_with_sse(self, mock_mcp, mock_argument_parser):
-        """Test the main function with SSE transport."""
-        # Set up the mock
-        mock_parser = MagicMock()
-        mock_args = MagicMock()
-        mock_args.sse = True
-        mock_args.port = 9999
-        mock_parser.parse_args.return_value = mock_args
-        mock_argument_parser.return_value = mock_parser
-
-        # Call the function
-        main()
-
-        # Check that the parser was set up correctly
-        mock_argument_parser.assert_called_once_with(
-            description='A Model Context Protocol (MCP) server'
-        )
-        mock_parser.add_argument.assert_any_call(
-            '--sse', action='store_true', help='Use SSE transport'
-        )
-        mock_parser.add_argument.assert_any_call(
-            '--port', type=int, default=8888, help='Port to run the server on'
-        )
-
-        # Check that mcp.settings.port was set correctly
-        assert mock_mcp.settings.port == 9999
-
-        # Check that mcp.run was called with the correct arguments
-        mock_mcp.run.assert_called_once_with(transport='sse')
 
 
 class TestServerIntegration:
