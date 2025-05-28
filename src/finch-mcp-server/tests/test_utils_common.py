@@ -1,7 +1,11 @@
 """Tests for the common utility module."""
 
 import pytest
-from awslabs.finch_mcp_server.utils.common import execute_command, format_result
+from awslabs.finch_mcp_server.utils.common import (
+    execute_command,
+    format_result,
+    get_dangerous_patterns,
+)
 from unittest.mock import MagicMock, patch
 
 
@@ -145,20 +149,58 @@ class TestFormatResult:
 
         assert result['status'] == 'success'
         assert result['message'] == 'Operation completed successfully'
-        assert len(result) == 2  # Only status and message
+        assert len(result) == 2
 
-    def test_format_result_with_additional_params(self):
-        """Test format_result with additional parameters."""
-        result = format_result('success', 'Operation completed successfully')
 
-        assert result['status'] == 'success'
-        assert result['message'] == 'Operation completed successfully'
-        assert len(result) == 2  # Only status and message
+class TestDangerousPatterns:
+    """Tests for the get_dangerous_patterns function."""
 
-    def test_format_result_with_error_status(self):
-        """Test format_result with error status."""
-        result = format_result('error', 'Operation failed: access denied')
+    def test_get_dangerous_patterns(self):
+        """Test that get_dangerous_patterns returns a non-empty list."""
+        patterns = get_dangerous_patterns()
+        assert isinstance(patterns, list)
+        assert len(patterns) > 0
+        assert '|' in patterns
+        assert 'sudo' in patterns
 
-        assert result['status'] == 'error'
-        assert result['message'] == 'Operation failed: access denied'
-        assert len(result) == 2  # Only status and message
+
+class TestCommandExecution:
+    """Tests for the execute_command function."""
+
+    @patch('subprocess.run')
+    def test_execute_command_with_safe_command(self, mock_subprocess_run):
+        """Test that execute_command works with safe commands."""
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.stdout = 'Finch version 1.0.0'
+        mock_process.stderr = ''
+        mock_subprocess_run.return_value = mock_process
+
+        try:
+            result = execute_command(['finch', 'version'])
+            assert result.returncode == 0
+            assert result.stdout == 'Finch version 1.0.0'
+            assert result.stderr == ''
+            mock_subprocess_run.assert_called_once()
+        except ValueError:
+            pytest.fail('execute_command raised ValueError unexpectedly with safe command')
+
+    @patch('subprocess.run')
+    def test_execute_command_with_dangerous_pattern(self, mock_subprocess_run):
+        """Test that execute_command raises ValueError with dangerous patterns."""
+        # The mock should not be called because the validation should fail before subprocess.run is called
+        with pytest.raises(ValueError) as excinfo:
+            execute_command(['finch', 'version', '|', 'grep', 'version'])
+        assert 'Security violation' in str(excinfo.value)
+        assert 'Potentially dangerous pattern' in str(excinfo.value)
+        mock_subprocess_run.assert_not_called()
+
+    @patch('subprocess.run')
+    def test_execute_command_with_non_finch_command(self, mock_subprocess_run):
+        """Test that execute_command raises ValueError with non-finch commands."""
+        # The mock should not be called because the validation should fail before subprocess.run is called
+        with pytest.raises(ValueError) as excinfo:
+            execute_command(['ls', '-la'])
+        assert 'Security violation' in str(excinfo.value)
+        assert 'Only finch commands are allowed' in str(excinfo.value)
+        mock_subprocess_run.assert_not_called()

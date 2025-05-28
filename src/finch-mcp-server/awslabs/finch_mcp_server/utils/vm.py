@@ -107,7 +107,7 @@ def initialize_vm() -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux...')
         return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     logger.warning('Finch VM non existent, Initializing a new vm instance...')
@@ -132,7 +132,7 @@ def start_stopped_vm() -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux...')
         return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     logger.info('Finch VM is stopped. Starting it...')
@@ -164,7 +164,7 @@ def stop_vm(force: bool = False) -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux...')
         return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     command = ['finch', 'vm', 'stop']
@@ -197,7 +197,7 @@ def remove_vm(force: bool = False) -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux...')
         return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     command = ['finch', 'vm', 'rm']
@@ -226,7 +226,7 @@ def restart_running_vm() -> Dict[str, str]:
 
     """
     if sys.platform == 'linux':
-        logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+        logger.debug('Linux OS detected. Finch does not use a VM on Linux...')
         return format_result(STATUS_SUCCESS, 'Finch does not use a VM on Linux..')
 
     logger.info('Finch VM is running. Restarting it...')
@@ -283,6 +283,14 @@ def configure_ecr() -> tuple[Dict[str, str], bool]:
 
     """
     try:
+        if sys.platform == 'linux':
+            logger.info(
+                'Linux OS detected. config.json set in DOCKER_CONFIG is used for credentials'
+            )
+            return format_result(
+                'success', 'config.json set in DOCKER_CONFIG is used for credentials'
+            )
+
         changed_yaml = False
         # For Windows, FINCH_YAML_PATH is already an absolute path
         # For macOS, we need to expand the ~ in the path

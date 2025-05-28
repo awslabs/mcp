@@ -168,7 +168,7 @@ def ensure_vm_running() -> Dict[str, Any]:
     """
     try:
         if sys.platform == 'linux':
-            logger.debug('Linux OS detected. Finch does not use a VM on Linux..')
+            logger.info('Linux OS detected. Finch does not use a VM on Linux...')
             return format_result('success', 'Finch does not use a VM on Linux..')
 
         status_result = get_vm_status()

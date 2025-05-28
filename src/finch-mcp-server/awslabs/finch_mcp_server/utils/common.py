@@ -8,11 +8,73 @@ and are not meant for production use cases.
 """
 
 import os
+import re
 import subprocess
 import sys
 from loguru import logger
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+
+def get_dangerous_patterns() -> List[str]:
+    """Get a list of dangerous patterns for command injection detection.
+
+    Returns:
+        List of dangerous patterns to check for
+
+    """
+    # Dangerous patterns that could indicate command injection attempts
+    # Separated by platform for better organization and maintainability
+    patterns = [
+        '|',
+        ';',
+        '&',
+        '&&',
+        '||',  # Command chaining
+        '>',
+        '>>',
+        '<',  # Redirection
+        '`',
+        '$(',  # Command substitution
+        '--',  # Double dash options
+        '/bin/',
+        '/usr/bin/',  # Path references
+        '../',
+        './',  # Directory traversal
+        # Unix/Linux specific dangerous patterns
+        'sudo',  # Privilege escalation
+        'chmod',
+        'chown',  # File permission changes
+        'su',  # Switch user
+        'bash',
+        'sh',
+        'zsh',  # Shell execution
+        'curl',
+        'wget',  # Network access
+        'ssh',
+        'scp',  # Remote access
+        'eval',  # Command evaluation
+        'source',  # Script sourcing
+        # Windows specific dangerous patterns
+        'cmd',
+        'powershell',
+        'pwsh',  # Command shells
+        'net',  # Network commands
+        'reg',  # Registry access
+        'runas',  # Privilege escalation
+        'del',
+        'rmdir',  # File deletion
+        'taskkill',  # Process termination
+        'sc',  # Service control
+        'schtasks',  # Scheduled tasks
+        'wmic',  # WMI commands
+        '%SYSTEMROOT%',
+        '%WINDIR%',  # System directories
+        '.bat',
+        '.cmd',
+        '.ps1',  # Script files
+    ]
+    return patterns
 
 
 def execute_command(command: list, env=None) -> subprocess.CompletedProcess:
@@ -36,6 +98,7 @@ def execute_command(command: list, env=None) -> subprocess.CompletedProcess:
 
     Raises:
         ValueError: If the command is not a finch command (doesn't start with 'finch')
+                   or if dangerous patterns are detected in the command
 
     """
     if env is None:
@@ -56,8 +119,20 @@ def execute_command(command: list, env=None) -> subprocess.CompletedProcess:
         logger.error(error_msg)
         raise ValueError(error_msg)
 
-    result = subprocess.run(command, capture_output=True, text=True, env=env)
+    dangerous_patterns = get_dangerous_patterns()
+    logger.debug(f'Checking for {len(dangerous_patterns)} dangerous patterns')
 
+    for pattern in dangerous_patterns:
+        for part in command:
+            escaped_pattern = re.escape(pattern)
+            regex_pattern = r'^' + escaped_pattern + r'$'
+
+            if re.search(regex_pattern, part):
+                error_msg = f'Security violation: Potentially dangerous pattern "{pattern}" detected in command: {part}'
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+
+    result = subprocess.run(command, capture_output=True, text=True, env=env)
     cmd_str = ' '.join(command)
     logger.debug(f'Command executed: {cmd_str}')
     logger.debug(f'Return code: {result.returncode}')
