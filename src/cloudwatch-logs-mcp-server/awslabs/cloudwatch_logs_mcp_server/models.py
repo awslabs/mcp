@@ -1,7 +1,7 @@
-import datetime
 import re
+from awslabs.cloudwatch_logs_mcp_server.common import epoch_ms_to_utc_iso
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 
 class LogGroupMetadata(BaseModel):
@@ -35,7 +35,7 @@ class LogGroupMetadata(BaseModel):
     def convert_to_iso8601(cls, v):
         """If value passed is an int of Unix Epoch, convert to an ISO timestamp string."""
         if isinstance(v, int):
-            return datetime.datetime.fromtimestamp(v / 1000.0).isoformat()
+            return epoch_ms_to_utc_iso(v)
         return v
 
 
@@ -82,6 +82,92 @@ class LogMetadata(BaseModel):
     )
     saved_queries: List[SavedQuery] = Field(
         ..., description='Saved queries associated with the log'
+    )
+
+
+class AnomalyDetector(BaseModel):
+    """Represents a CloudWatch Logs Anomaly Detector."""
+
+    anomalyDetectorArn: str = Field(..., description='The ARN of the anomaly detector')
+    detectorName: str = Field(..., description='The name of the anomaly detector')
+    anomalyDetectorStatus: str = Field(
+        ..., description='The current status of the anomaly detector'
+    )
+
+
+class LogAnomaly(BaseModel):
+    """Represents a detected log anomaly."""
+
+    anomalyDetectorArn: str = Field(
+        ..., description='The ARN of the detector that found this anomaly'
+    )
+    logGroupArnList: List[str] = Field(
+        ..., description='List of log group ARNs that match this anomaly'
+    )
+    firstSeen: str = Field(..., description='ISO 8601 timestamp when this pattern was first seen')
+    lastSeen: str = Field(..., description='ISO 8601 timestamp when this pattern was last seen')
+    description: str = Field(..., description='Description of the anomaly')
+    priority: str = Field(..., description='Priority of the anomaly')
+    patternRegex: str = Field(..., description='Regex pattern that matched this anomaly')
+    patternString: str = Field(..., description='String pattern that matched this anomaly')
+    logSamples: List[Dict[str, str]] = Field(
+        ..., description='Sample log messages that matched this anomaly'
+    )
+    histogram: Dict[str, int] = Field(
+        ..., description='Histogram of log message counts for this anomaly'
+    )
+
+    @field_validator('firstSeen', 'lastSeen', mode='before')
+    @classmethod
+    def convert_to_iso8601(cls, v):
+        """If value passed is an int of Unix Epoch, convert to an ISO timestamp string."""
+        if isinstance(v, int):
+            return epoch_ms_to_utc_iso(v)
+        return v
+
+    @field_validator('histogram', mode='before')
+    @classmethod
+    def convert_histogram_to_iso8601(cls, v):
+        """If value passed is an int of Unix Epoch, convert to an ISO timestamp string."""
+        return {epoch_ms_to_utc_iso(int(timestamp)): count for timestamp, count in v.items()}
+
+    @field_validator('logSamples', mode='before')
+    @classmethod
+    def convert_log_samples_to_iso8601(cls, v):
+        """If value passed is an int of Unix Epoch, convert to an ISO timestamp string, limit to 1.
+
+        LogSamples are limited to 1 to conserve context window tokens
+        """
+
+        def replace_timestamp_with_iso8601(sample: Dict):
+            sample['timestamp'] = epoch_ms_to_utc_iso(sample['timestamp'])
+            return sample
+
+        return [replace_timestamp_with_iso8601(sample) for sample in v[:1]]
+
+
+class LogAnomalyResults(BaseModel):
+    """Represents the results of a log anomaly query."""
+
+    anomaly_detectors: List[AnomalyDetector] = Field(
+        ..., description='List of anomaly detectors monitoring this log group'
+    )
+    anomalies: List[LogAnomaly] = Field(
+        ..., description='List of anomalies found in the specified time range'
+    )
+
+
+class LogAnalysisResult(BaseModel):
+    """Result of analyzing a log group."""
+
+    log_anomaly_results: LogAnomalyResults = Field(
+        ..., description='Results of looking for applicable log anomalies in the log group'
+    )
+    top_patterns: Dict[str, Any] = Field(
+        ..., description='Top message patterns found in the log group'
+    )
+    top_patterns_containing_errors: Dict[str, Any] = Field(
+        ..., description='Top error patterns for messages containing errors found in the log group'
     )
 
 

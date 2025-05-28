@@ -15,9 +15,17 @@ import asyncio
 import boto3
 import datetime
 import os
-from awslabs.cloudwatch_logs_mcp_server.common import filter_by_prefixes, remove_null_values
+from awslabs.cloudwatch_logs_mcp_server.common import (
+    clean_up_pattern,
+    filter_by_prefixes,
+    remove_null_values,
+)
 from awslabs.cloudwatch_logs_mcp_server.models import (
+    AnomalyDetector,
     CancelQueryResult,
+    LogAnalysisResult,
+    LogAnomaly,
+    LogAnomalyResults,
     LogGroupMetadata,
     LogMetadata,
     SavedQuery,
@@ -160,8 +168,130 @@ async def describe_log_groups_tool(
         return LogMetadata(log_group_metadata=log_groups, saved_queries=filtered_saved_queries)
 
     except Exception as e:
-        logger.error(f'Error in mcp_describe_log_groups: {str(e)}')
+        logger.error(f'Error in describe_log_groups_tool: {str(e)}')
         await ctx.error(f'Error in describing log groups: {str(e)}')
+        raise
+
+
+@mcp.tool(name='analyze_log_group')
+async def analyze_log_group_tool(
+    ctx: Context,
+    log_group_arn: str = Field(
+        ...,
+        description='The log group arn to look for anomalies in, as returned by the describe_log_groups tools',
+    ),
+    start_time: str = Field(
+        ...,
+        description=(
+            'ISO 8601 formatted start time for the CloudWatch Logs Insights query window (e.g., "2025-04-19T20:00:00+00:00").'
+        ),
+    ),
+    end_time: str = Field(
+        ...,
+        description=(
+            'ISO 8601 formatted end time for the CloudWatch Logs Insights query window (e.g., "2025-04-19T21:00:00+00:00").'
+        ),
+    ),
+) -> LogAnalysisResult:
+    """Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
+
+    This tool performs an analysis of the specified log group by:
+    1. Discovering and checking log anomaly detectors associated with the log group
+    2. Retrieving anomalies from those detectors that fall within the specified time range
+    3. Identifying the top 5 most common message patterns
+    4. Finding the top 5 patterns containing error-related terms
+
+    Usage: Use this tool to detect anomalies and understand common patterns in your log data, particularly
+    focusing on error patterns that might indicate issues. This can help identify potential problems and
+    understand the typical behavior of your application.
+
+    Returns:
+    --------
+    A LogAnalysisResult object containing:
+        - log_anomaly_results: Information about anomaly detectors and their findings
+            * anomaly_detectors: List of anomaly detectors for the log group
+            * anomalies: List of anomalies that fall within the specified time range
+        - top_patterns: Results of the query for most common message patterns
+        - top_patterns_containing_errors: Results of the query for patterns containing error-related terms
+            (error, exception, fail, timeout, fatal)
+    """
+
+    def is_applicable_anomaly(anomaly: LogAnomaly) -> bool:
+        # Must have overlap
+        if anomaly.firstSeen > end_time or anomaly.lastSeen < start_time:
+            return False
+        # Must be for this log group
+        return log_group_arn in anomaly.logGroupArnList
+
+    async def get_applicable_anomalies() -> LogAnomalyResults:
+        detectors: List[AnomalyDetector] = []
+        paginator = logs_client.get_paginator('list_log_anomaly_detectors')
+        for page in paginator.paginate(filterLogGroupArn=log_group_arn):
+            detectors.extend(
+                [AnomalyDetector.model_validate(d) for d in page.get('anomalyDetectors', [])]
+            )
+
+        logger.info(f'Found {len(detectors)} anomaly detectors for log group')
+
+        # 2 & 3. Get and filter anomalies for each detector
+        anomalies: List[LogAnomaly] = []
+        for detector in detectors:
+            paginator = logs_client.get_paginator('list_anomalies')
+
+            for page in paginator.paginate(
+                anomalyDetectorArn=detector.anomalyDetectorArn, suppressionState='UNSUPPRESSED'
+            ):
+                anomalies.extend(
+                    LogAnomaly.model_validate(anomaly) for anomaly in page.get('anomalies', [])
+                )
+
+        applicable_anomalies = [anomaly for anomaly in anomalies if is_applicable_anomaly(anomaly)]
+        logger.info(
+            f'Found {len(anomalies)} anomaly detectors for log group, {len(applicable_anomalies)} of which are applicable'
+        )
+
+        return LogAnomalyResults(anomaly_detectors=detectors, anomalies=applicable_anomalies)
+
+    try:
+        # Convert input times to timestamps for comparison
+        # 1. Get anomaly detectors for this log group
+
+        log_anomaly_results, pattern_query_result, error_pattern_result = await asyncio.gather(
+            get_applicable_anomalies(),
+            execute_log_insights_query_tool(
+                ctx,
+                log_group_names=None,
+                log_group_identifiers=[log_group_arn],
+                start_time=start_time,
+                end_time=end_time,
+                query_string='pattern @message | sort @sampleCount desc | limit 5',
+                limit=5,
+                max_timeout=30,
+            ),
+            execute_log_insights_query_tool(
+                ctx,
+                log_group_names=None,
+                log_group_identifiers=[log_group_arn],
+                start_time=start_time,
+                end_time=end_time,
+                query_string='fields @timestamp, @message | filter @message like /(?i)(error|exception|fail|timeout|fatal)/ | pattern @message | limit 5',
+                limit=5,
+                max_timeout=30,
+            ),
+        )
+
+        clean_up_pattern(pattern_query_result['results'])
+        clean_up_pattern(error_pattern_result['results'])
+
+        return LogAnalysisResult(
+            log_anomaly_results=log_anomaly_results,
+            top_patterns=pattern_query_result,
+            top_patterns_containing_errors=error_pattern_result,
+        )
+
+    except Exception as e:
+        logger.error(f'Error in analyze_log_group_tool: {str(e)}')
+        await ctx.error(f'Error analyzing log group: {str(e)}')
         raise
 
 
@@ -279,7 +409,7 @@ async def execute_log_insights_query_tool(
         }
 
     except Exception as e:
-        logger.error(f'Error in mcp_get_log_insights: {str(e)}')
+        logger.error(f'Error in execute_log_insights_query_tool: {str(e)}')
         await ctx.error(f'Error executing CloudWatch Logs Insights query: {str(e)}')
         raise
 
@@ -320,7 +450,7 @@ async def get_query_results_tool(
             ],
         }
     except Exception as e:
-        logger.error(f'Error in mcp_get_query_results: {str(e)}')
+        logger.error(f'Error in get_query_results_tool: {str(e)}')
         await ctx.error(f'Error retrieving CloudWatch Logs Insights query results: {str(e)}')
         raise
 
@@ -346,13 +476,13 @@ async def cancel_query_tool(
         response = logs_client.stop_query(queryId=query_id)
         return CancelQueryResult.model_validate(response)
     except Exception as e:
-        logger.error(f'Error in mcp_get_query_results: {str(e)}')
+        logger.error(f'Error in get_query_results_tool: {str(e)}')
         await ctx.error(f'Error retrieving CloudWatch Logs Insights query results: {str(e)}')
         raise
 
 
 def main():
-    """Run the MCP server with CLI argument support."""
+    """Run the MCP server."""
     mcp.run()
 
     logger.info('CloudWatch Logs MCP server started')

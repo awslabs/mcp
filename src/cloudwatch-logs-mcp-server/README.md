@@ -24,7 +24,9 @@ you more efficiently and effectively respond to operational issues.
    - Configure AWS credentials with `aws configure` or environment variables
 
 ## Available Tools
-* `describe_log_groups` - Describe log groups in the account and region. Supports Cross Account Observability.
+* `describe_log_groups` - Describe log groups in the account and region, including user saved queries applicable to them. Supports Cross Account Observability.
+* `analyze_log_group` - Analyzes a CloudWatch log group for anomalies, top message patterns, and top error patterns within a specified time window.
+Log group must have at least one [CloudWatch Log Anomaly Detector](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/LogsAnomalyDetection.html) configured to search for anomalies.
 * `execute_log_insights_query` - Execute a Log Insights query against one or more log groups. Will wait for the query to complete for a configurable timeout.
 * `get_query_results` - Get the results of a query previously started by `execute_log_insights_query`.
 * `cancel_query` - Cancel an ongoing query that was previously started by `execute_log_insights_query`.

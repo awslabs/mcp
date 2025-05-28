@@ -16,15 +16,18 @@ import pytest
 import pytest_asyncio
 from awslabs.cloudwatch_logs_mcp_server.models import (
     CancelQueryResult,
+    LogAnalysisResult,
     LogMetadata,
 )
 from awslabs.cloudwatch_logs_mcp_server.server import (
+    analyze_log_group_tool,
     cancel_query_tool,
     describe_log_groups_tool,
     execute_log_insights_query_tool,
     get_query_results_tool,
 )
 from moto import mock_aws
+from typing import Any
 from unittest.mock import AsyncMock
 
 
@@ -49,7 +52,23 @@ async def aws_credentials():
 async def logs_client(aws_credentials):
     """Create mocked logs client."""
     with mock_aws():
-        client = boto3.client('logs', region_name='us-west-2')
+        client: Any = boto3.client('logs', region_name='us-west-2')
+
+        # Mock start_query to handle logGroupIdentifier as moto only supports logGroupNames
+        original_start_query = client.start_query
+
+        def mock_start_query(**kwargs):
+            # Map logGroupIdentifier to logGroupName if present
+            if 'logGroupIdentifiers' in kwargs:
+                kwargs['logGroupNames'] = [
+                    ident.split(':log-group:')[1].split(':')[0]
+                    for ident in kwargs['logGroupIdentifiers']
+                ]
+            return original_start_query(**kwargs)
+
+        client.start_query = mock_start_query
+
+        # Patch into the server code
         awslabs.cloudwatch_logs_mcp_server.server.logs_client = client
         yield client
 
@@ -317,3 +336,153 @@ class TestCancelQuery:
         """Test canceling with invalid query ID."""
         with pytest.raises(Exception):
             await cancel_query_tool(ctx, query_id='invalid-id')
+
+
+@pytest.mark.asyncio
+class TestAnalyzeLogGroup:
+    """Tests for analyze_log_group_tool."""
+
+    async def test_basic_analysis(self, ctx, logs_client):
+        """Test basic log group analysis."""
+        # Create a test log group
+        log_group_name = '/aws/test/analysis'
+        logs_client.create_log_group(logGroupName=log_group_name)
+        log_group_arn = f'arn:aws:logs:us-west-2:123456789012:log-group:{log_group_name}'
+
+        # Mock anomaly detector response, not supported by moto
+        def mock_describe_anomaly_detectors(*args, **kwargs):
+            return {
+                'anomalyDetectors': [
+                    {
+                        'anomalyDetectorArn': f'{log_group_arn}:detector:test',
+                        'detectorName': 'test-detector',
+                        'anomalyDetectorStatus': 'ACTIVE',
+                    }
+                ]
+            }
+
+        # Mock anomalies response, not supported by moto
+        def mock_describe_log_anomalies(*args, **kwargs):
+            return {
+                'anomalies': [
+                    {
+                        'anomalyDetectorArn': f'{log_group_arn}:detector:test',
+                        'logGroupArnList': [log_group_arn],
+                        'firstSeen': 1622505600000,
+                        'lastSeen': 1622509200000,
+                        'description': 'Test anomaly description',
+                        'priority': 'HIGH',
+                        'patternRegex': '.*error.*',
+                        'patternString': 'error pattern',
+                        'logSamples': [
+                            {'timestamp': 1622505600000, 'message': 'Test error message'}
+                        ],
+                        'histogram': {'1622505600': 50, '1622509200': 50},
+                    },
+                    {
+                        'anomalyDetectorArn': f'{log_group_arn}:detector:test',
+                        'logGroupArnList': ['differentLogGroup'],
+                        'firstSeen': 1622505600000,
+                        'lastSeen': 1622509200000,
+                        'description': 'Anomaly that should not be included',
+                        'priority': 'HIGH',
+                        'patternRegex': '.*error.*',
+                        'patternString': 'error pattern',
+                        'logSamples': [
+                            {'timestamp': 1622505600000, 'message': 'Test error message'}
+                        ],
+                        'histogram': {'1622505600': 50, '1622509200': 50},
+                    },
+                ]
+            }
+
+        # Mock the methods
+        logs_client.get_paginator = lambda operation_name: type(
+            'Paginator',
+            (),
+            {
+                'paginate': lambda **kwargs: [
+                    mock_describe_anomaly_detectors()
+                    if operation_name == 'list_log_anomaly_detectors'
+                    else mock_describe_log_anomalies()
+                ]
+            },
+        )
+
+        original_get_query_results = logs_client.get_query_results
+
+        def mock_get_query_results(**kwargs):
+            # Map logGroupIdentifier to logGroupName if present
+            result = original_get_query_results(**kwargs)
+            result['results'] = [
+                [
+                    {'field': '@pattern', 'value': 'test_pattern'},
+                    {'field': '@visualization', 'value': 'test_visualization'},
+                    {'field': '@tokens', 'value': 'test_tokens'},
+                    {'field': '@logSamples', 'value': '[{"logSample1": {}}, {"logSample2": {}}]'},
+                ]
+            ]
+            return result
+
+        logs_client.get_query_results = mock_get_query_results
+
+        # Execute analysis
+        result = await analyze_log_group_tool(
+            ctx,
+            log_group_arn=log_group_arn,
+            start_time='2021-01-01T00:00:00+00:00',
+            end_time='2022-01-01T01:00:00+00:00',
+        )
+
+        # Verify results
+        assert isinstance(result, LogAnalysisResult)
+        assert len(result.log_anomaly_results.anomaly_detectors) == 1
+        assert len(result.log_anomaly_results.anomalies) == 1
+        assert result.log_anomaly_results.anomaly_detectors[0].detectorName == 'test-detector'
+        assert result.log_anomaly_results.anomaly_detectors[0].anomalyDetectorStatus == 'ACTIVE'
+        assert result.log_anomaly_results.anomalies[0].priority == 'HIGH'
+        assert result.log_anomaly_results.anomalies[0].patternString == 'error pattern'
+        assert isinstance(result.top_patterns, dict)
+        assert len(result.top_patterns['results'][0]['@logSamples']) == 1
+        assert isinstance(result.top_patterns_containing_errors, dict)
+
+    async def test_no_anomaly_detectors(self, ctx, logs_client):
+        """Test analysis when no anomaly detectors exist."""
+        log_group_name = '/aws/test/no-detectors'
+        logs_client.create_log_group(logGroupName=log_group_name)
+        log_group_arn = f'arn:aws:logs:us-west-2:123456789012:log-group:{log_group_name}'
+
+        # Mock empty detector response
+        def mock_describe_anomaly_detectors(*args, **kwargs):
+            return {'anomalyDetectors': []}
+
+        logs_client.get_paginator = lambda operation_name: type(
+            'Paginator',
+            (),
+            {'paginate': lambda **kwargs: [mock_describe_anomaly_detectors()]},
+        )
+
+        result = await analyze_log_group_tool(
+            ctx,
+            log_group_arn=log_group_arn,
+            start_time='2020-01-01T00:00:00+00:00',
+            end_time='2020-01-01T01:00:00+00:00',
+        )
+
+        assert isinstance(result, LogAnalysisResult)
+        assert len(result.log_anomaly_results.anomaly_detectors) == 0
+        assert len(result.log_anomaly_results.anomalies) == 0
+        assert isinstance(result.top_patterns, dict)
+        assert isinstance(result.top_patterns_containing_errors, dict)
+
+    async def test_invalid_time_format(self, ctx, logs_client):
+        """Test analysis with invalid time format."""
+        log_group_arn = 'arn:aws:logs:us-west-2:123456789012:log-group:/aws/test/invalid'
+
+        with pytest.raises(Exception):
+            await analyze_log_group_tool(
+                ctx,
+                log_group_arn=log_group_arn,
+                start_time='invalid-time',
+                end_time='2020-01-01T01:00:00+00:00',
+            )
