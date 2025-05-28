@@ -45,8 +45,8 @@ class PushImageRequest(BaseModel):
 class CreateEcrRepoRequest(BaseModel):
     """Request model for checking if an ECR repository exists and creating it if it doesn't."""
 
-    app_name: str = Field(
-        ..., description='The name of the application/repository to check or create in ECR'
+    repository_name: str = Field(
+        ..., description='The name of the repository to check or create in ECR'
     )
     region: Optional[str] = Field(
         default=None,

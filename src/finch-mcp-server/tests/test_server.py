@@ -678,7 +678,7 @@ class TestFinchTools:
     @pytest.mark.asyncio
     async def test_finch_create_ecr_repo_success(self):
         """Test successful finch_create_ecr_repo operation."""
-        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+        request = CreateEcrRepoRequest(repository_name='test-repo', region='us-west-2')
 
         set_enable_aws_resource_write(True)
 
@@ -697,7 +697,7 @@ class TestFinchTools:
                 assert "Successfully created ECR repository 'test-repo'" in result.message
 
                 mock_create_ecr_repository.assert_called_once_with(
-                    app_name='test-repo', region='us-west-2'
+                    repository_name='test-repo', region='us-west-2'
                 )
         finally:
             set_enable_aws_resource_write(False)
@@ -705,7 +705,7 @@ class TestFinchTools:
     @pytest.mark.asyncio
     async def test_finch_create_ecr_repo_already_exists(self):
         """Test finch_create_ecr_repo when repository already exists."""
-        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+        request = CreateEcrRepoRequest(repository_name='test-repo', region='us-west-2')
 
         set_enable_aws_resource_write(True)
 
@@ -726,7 +726,7 @@ class TestFinchTools:
                 assert 'already exists' in result.message
 
                 mock_create_ecr_repository.assert_called_once_with(
-                    app_name='test-repo', region='us-west-2'
+                    repository_name='test-repo', region='us-west-2'
                 )
         finally:
             set_enable_aws_resource_write(False)
@@ -734,7 +734,7 @@ class TestFinchTools:
     @pytest.mark.asyncio
     async def test_finch_create_ecr_repo_error(self):
         """Test finch_create_ecr_repo when creation fails."""
-        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+        request = CreateEcrRepoRequest(repository_name='test-repo', region='us-west-2')
 
         set_enable_aws_resource_write(True)
 
@@ -753,7 +753,7 @@ class TestFinchTools:
                 assert 'Failed to create ECR repository' in result.message
 
                 mock_create_ecr_repository.assert_called_once_with(
-                    app_name='test-repo', region='us-west-2'
+                    repository_name='test-repo', region='us-west-2'
                 )
         finally:
             set_enable_aws_resource_write(False)
@@ -761,7 +761,7 @@ class TestFinchTools:
     @pytest.mark.asyncio
     async def test_finch_create_ecr_repo_exception(self):
         """Test finch_create_ecr_repo when an exception occurs."""
-        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+        request = CreateEcrRepoRequest(repository_name='test-repo', region='us-west-2')
 
         set_enable_aws_resource_write(True)
 
@@ -777,7 +777,7 @@ class TestFinchTools:
                 assert 'Error checking/creating ECR repository: Unexpected error' in result.message
 
                 mock_create_ecr_repository.assert_called_once_with(
-                    app_name='test-repo', region='us-west-2'
+                    repository_name='test-repo', region='us-west-2'
                 )
         finally:
             set_enable_aws_resource_write(False)
@@ -785,7 +785,7 @@ class TestFinchTools:
     @pytest.mark.asyncio
     async def test_finch_create_ecr_repo_readonly_mode(self):
         """Test finch_create_ecr_repo when AWS resource write is disabled (which is the default)."""
-        request = CreateEcrRepoRequest(app_name='test-repo', region='us-west-2')
+        request = CreateEcrRepoRequest(repository_name='test-repo', region='us-west-2')
 
         try:
             result = await finch_create_ecr_repo(request)

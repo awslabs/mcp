@@ -364,7 +364,7 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
 
     Arguments:
         request: The request object of type CreateEcrRepoRequest containing:
-            - app_name (str): The name of the application/repository to check or create in ECR
+            - repository_name (str): The name of the repository to check or create in ECR
             - region (str, optional): AWS region for the ECR repository. If not provided, uses the default region
                                      from AWS configuration
 
@@ -380,12 +380,12 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
 
     """
     logger.info('tool-name: finch_create_ecr_repo')
-    logger.info(f'tool-args: app_name={request.app_name}')
+    logger.info(f'tool-args: repository_name={request.repository_name}')
 
     # Check if AWS resource write is enabled
     if not enable_aws_resource_write:
         logger.warning(
-            f'Attempt to create ECR repo "{request.app_name}" without AWS resource write enabled'
+            f'Attempt to create ECR repo "{request.repository_name}" without AWS resource write enabled'
         )
         error_result = format_result(
             'error', 'Server running in read-only mode, unable to perform the action'
@@ -394,7 +394,7 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
 
     try:
         result = create_ecr_repository(
-            app_name=request.app_name,
+            repository_name=request.repository_name,
             region=request.region,
         )
         return Result(**result)

@@ -30,15 +30,15 @@ class TestCreateEcrRepository:
     def test_repository_already_exists(self, ecr_client):
         """Test handling of existing repository."""
         region = 'us-west-2'
-        app_name = 'test-repo'
+        repository_name = 'test-repo'
         ecr_client.create_repository(
-            repositoryName=app_name,
+            repositoryName=repository_name,
             imageScanningConfiguration={'scanOnPush': True},
             imageTagMutability='IMMUTABLE',
         )
 
         result = create_ecr_repository(
-            app_name=app_name,
+            repository_name=repository_name,
             region=region,
         )
 
@@ -48,19 +48,19 @@ class TestCreateEcrRepository:
     def test_repository_creation_success(self, ecr_client):
         """Test successful repository creation."""
         region = 'us-west-2'
-        app_name = 'test-repo'
+        repository_name = 'test-repo'
 
         result = create_ecr_repository(
-            app_name=app_name,
+            repository_name=repository_name,
             region=region,
         )
 
         assert result['status'] == STATUS_SUCCESS
         assert 'Successfully created' in result['message']
 
-        response = ecr_client.describe_repositories(repositoryNames=[app_name])
+        response = ecr_client.describe_repositories(repositoryNames=[repository_name])
         assert len(response['repositories']) == 1
-        assert response['repositories'][0]['repositoryName'] == app_name
+        assert response['repositories'][0]['repositoryName'] == repository_name
 
     @patch('boto3.client')
     def test_describe_error_not_repository_not_found(self, mock_boto3_client, ecr_client):
@@ -73,7 +73,7 @@ class TestCreateEcrRepository:
             error_response, 'DescribeRepositories'
         )
 
-        result = create_ecr_repository(app_name='test-repo', region='us-west-2')
+        result = create_ecr_repository(repository_name='test-repo', region='us-west-2')
 
         assert result['status'] == STATUS_ERROR
         assert 'Error checking ECR repository' in result['message']
@@ -103,7 +103,7 @@ class TestCreateEcrRepository:
             create_error, 'CreateRepository'
         )
 
-        result = create_ecr_repository(app_name='test-repo', region='us-west-2')
+        result = create_ecr_repository(repository_name='test-repo', region='us-west-2')
 
         assert result['status'] == STATUS_ERROR
         assert 'Failed to create ECR repository' in result['message']
