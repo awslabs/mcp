@@ -11,7 +11,6 @@
 
 """awslabs neptune MCP Server implementation."""
 
-import argparse
 import os
 import sys
 from awslabs.amazon_neptune_mcp_server.models import GraphSchema
@@ -110,20 +109,7 @@ def run_gremlin_query(query: str) -> dict:
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs MCP server for interacting with Amazon Neptune'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

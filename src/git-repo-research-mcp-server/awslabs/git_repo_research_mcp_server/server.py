@@ -10,7 +10,6 @@
 # and limitations under the License.
 """awslabs git-repo-research MCP Server implementation."""
 
-import argparse
 import json
 import mimetypes
 import os
@@ -76,7 +75,7 @@ Perform semantic search within an indexed repository.
 ### delete_research_repository
 Delete an indexed repository.
 
-### search_research_repository_suggestions
+### search_repositories_on_github
 Search for GitHub repositories based on keywords, scoped to specific organizations.
 
 ### access_file
@@ -148,7 +147,7 @@ delete_research_repository(repository_name_or_path="repo_name")
 
 ### Searching for GitHub Repositories
 ```
-search_research_repository_suggestions(
+search_repositories_on_github(
     keywords=["serverless", "lambda"],
     num_results=10
 )
@@ -664,7 +663,7 @@ async def mcp_search_repository(
         raise
 
 
-@mcp.tool(name='search_research_repository_suggestions')
+@mcp.tool(name='search_repositories_on_github')
 async def mcp_search_github_repos(
     ctx: Context,
     keywords: List[str] = Field(description='List of keywords to search for GitHub repositories'),
@@ -894,20 +893,7 @@ async def mcp_delete_repository(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for researching git repositories'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

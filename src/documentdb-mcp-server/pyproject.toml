@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.documentdb-mcp-server"
-version = "0.0.1"
+version = "1.0.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for documentdb"
 readme = "README.md"
 requires-python = ">=3.10"
