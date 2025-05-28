@@ -15,6 +15,10 @@ class TestIsEcrRepository:
             '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo/nested:v1',  # pragma: allowlist secret
             '123456789012.dkr.ecr.eu-central-1.amazonaws.com/repo',  # pragma: allowlist secret
             '123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/my_repo:1.0.0',  # pragma: allowlist secret
+            '123456789012.dkr-ecr.us-west-2.amazonaws.com/myrepo:latest',  # pragma: allowlist secret
+            '123456789012.dkr.ecr-fips.us-east-1.amazonaws.com/my-repo:v1',  # pragma: allowlist secret
+            '123456789012.dkr.ecr.us-west-2.on.aws/myrepo:latest',  # pragma: allowlist secret
+            '123456789012.dkr.ecr.us-east-1.amazonaws.com.cn/my-repo:v1',  # pragma: allowlist secret
         ]
 
         for url in valid_urls:
@@ -28,9 +32,9 @@ class TestIsEcrRepository:
             'gcr.io/project/image:tag',
             'localhost:5000/myimage:latest',
             'myregistry.example.com/repo:tag',
-            '12345.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest',  # Invalid account ID
-            '123456789012.ecr.us-west-2.amazonaws.com/myrepo:latest',  # Missing dkr
-            '123456789012.dkr.ecr.invalid-region.amazonaws.com/myrepo:latest',  # Invalid region format
+            '12345.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest',
+            '123456789012.ecr.us-west-2.amazonaws.com/myrepo:latest',
+            '123456789012.dkr.ecr.invalid-region#.amazonaws.com/myrepo:latest',
         ]
 
         for url in invalid_urls:

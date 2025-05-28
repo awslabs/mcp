@@ -8,7 +8,7 @@ and are not meant for production use cases.
 """
 
 import re
-from ..consts import ECR_REFERENCE_PATTERN, STATUS_ERROR, STATUS_SUCCESS
+from ..consts import ECR_REFERENCE_PATTERN, REGION_PATTERN, STATUS_ERROR, STATUS_SUCCESS
 from .common import execute_command, format_result
 from loguru import logger
 from typing import Dict
@@ -32,9 +32,8 @@ def is_ecr_repository(repository: str) -> bool:
         return False
 
     # Validate that the region is a valid AWS region format (e.g., us-west-2, eu-central-1)
-    region = match.group(2)
-    region_pattern = r'^[a-z]{2}-[a-z]+-\d+$'
-    return bool(re.match(region_pattern, region))
+    region = match.group(3)
+    return bool(re.match(REGION_PATTERN, region))
 
 
 def get_image_short_hash(image: str) -> tuple[Dict[str, str], str]:
