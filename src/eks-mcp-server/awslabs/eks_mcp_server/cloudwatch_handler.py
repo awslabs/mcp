@@ -83,46 +83,89 @@ class CloudWatchHandler:
     async def get_cloudwatch_logs(
         self,
         ctx: Context,
-        resource_type: str = Field(..., description='Resource type (pod, node, container)'),
-        resource_name: str = Field(..., description='Resource name to search for in log messages'),
-        cluster_name: str = Field(..., description='Name of the EKS cluster'),
+        resource_type: str = Field(
+            ...,
+            description='Resource type to search logs for. Valid values: "pod", "node", "container". This determines how logs are filtered.',
+        ),
+        resource_name: str = Field(
+            ...,
+            description='Resource name to search for in log messages (e.g., pod name, node name, container name). Used to filter logs for the specific resource.',
+        ),
+        cluster_name: str = Field(
+            ...,
+            description='Name of the EKS cluster where the resource is located. Used to construct the CloudWatch log group name.',
+        ),
         log_type: str = Field(
             ...,
-            description='Log type (e.g., "application", "host", "performance", "control-plane", or custom log group name)',
+            description="""Log type to query. Options:
+            - "application": Container/application logs
+            - "host": Node-level system logs
+            - "performance": Performance metrics logs
+            - "control-plane": EKS control plane logs
+            - Or provide a custom CloudWatch log group name directly""",
         ),
-        minutes: int = Field(15, description='Number of minutes to look back'),
+        minutes: int = Field(
+            15,
+            description='Number of minutes to look back for logs. Default: 15. Ignored if start_time is provided. Use smaller values for recent issues, larger values for historical analysis.',
+        ),
         start_time: Optional[str] = Field(
-            None, description='Start time in ISO format (overrides minutes)'
+            None,
+            description='Start time in ISO format (e.g., "2023-01-01T00:00:00Z"). If provided, overrides the minutes parameter. IMPORTANT: Use this for precise time ranges.',
         ),
         end_time: Optional[str] = Field(
-            None, description='End time in ISO format (defaults to now)'
+            None,
+            description='End time in ISO format (e.g., "2023-01-01T01:00:00Z"). If not provided, defaults to current time. IMPORTANT: Use with start_time for precise time ranges.',
         ),
-        limit: int = Field(50, description='Maximum number of log entries to return'),
+        limit: int = Field(
+            50,
+            description='Maximum number of log entries to return. Use lower values (10-50) for faster queries, higher values (100-1000) for more comprehensive results. IMPORTANT: Higher values may impact performance.',
+        ),
         filter_pattern: Optional[str] = Field(
-            None, description='Additional CloudWatch Logs filter pattern to apply'
+            None,
+            description='Additional CloudWatch Logs filter pattern to apply. Uses CloudWatch Logs Insights syntax (e.g., "ERROR", "field=value"). IMPORTANT: Use this to narrow down results for specific issues.',
         ),
         fields: Optional[str] = Field(
             None,
-            description='Custom fields to include in the query results (defaults to "@timestamp, @message")',
+            description='Custom fields to include in the query results (defaults to "@timestamp, @message"). Use CloudWatch Logs Insights field syntax. IMPORTANT: Only specify if you need fields beyond the default timestamp and message.',
         ),
     ) -> CloudWatchLogsResponse:
         """Get logs from CloudWatch for a specific resource.
+
+        This tool retrieves logs from CloudWatch for Kubernetes resources in an EKS cluster,
+        allowing you to analyze application behavior, troubleshoot issues, and monitor system
+        health. It supports filtering by resource type, time range, and content for troubleshooting
+        application errors, investigating security incidents, and analyzing startup configuration issues.
+
+        ## Requirements
+        - The server must be run with the `--allow-sensitive-data-access` flag
+        - The EKS cluster must have CloudWatch logging enabled
+        - The resource must exist in the specified cluster
+
+        ## Response Information
+        The response includes resource details (type, name, cluster), log group information,
+        time range queried, and formatted log entries with timestamps and messages.
+
+        ## Usage Tips
+        - Start with a small time range (15-30 minutes) and expand if needed
+        - Use filter_pattern to narrow down results (e.g., "ERROR", "exception")
+        - For JSON logs, the tool automatically parses nested structures
+        - Combine with get_k8s_events for comprehensive troubleshooting
 
         Args:
             ctx: MCP context
             resource_type: Resource type (pod, node, container)
             resource_name: Resource name to search for in log messages
             cluster_name: Name of the EKS cluster
-            log_type: Log type (application, host, performance, dataplane, or custom log group name)
+            log_type: Log type (application, host, performance, control-plane, or custom)
             minutes: Number of minutes to look back
             start_time: Start time in ISO format (overrides minutes)
             end_time: End time in ISO format (defaults to now)
             limit: Maximum number of log entries to return
-            filter_pattern: Additional CloudWatch Logs filter pattern to apply
+            filter_pattern: Additional CloudWatch Logs filter pattern
             fields: Custom fields to include in the query results
 
         Returns:
-            Dictionary containing log entries
+            CloudWatchLogsResponse with log entries and resource information
         """
         try:
             # Check if sensitive data access is allowed
@@ -252,36 +295,91 @@ class CloudWatchHandler:
         self,
         ctx: Context,
         resource_type: str = Field(
-            ..., description='Resource type (pod, node, container, cluster)'
+            ...,
+            description='Resource type to retrieve metrics for. Valid values: "pod", "node", "container", "cluster", "service". Determines the CloudWatch dimensions.',
         ),
-        resource_name: str = Field(..., description='Resource name'),
-        cluster_name: str = Field(..., description='Name of the EKS cluster'),
+        resource_name: str = Field(
+            ...,
+            description='Name of the resource to retrieve metrics for (e.g., pod name, node name). Used as a dimension value in CloudWatch.',
+        ),
+        cluster_name: str = Field(
+            ...,
+            description='Name of the EKS cluster where the resource is located. Used as the ClusterName dimension in CloudWatch.',
+        ),
         metric_name: str = Field(
-            ..., description='Metric name (e.g., cpu_usage_total, memory_rss)'
+            ...,
+            description="""Metric name to retrieve. Common examples:
+            - cpu_usage_total: Total CPU usage
+            - memory_rss: Resident Set Size memory usage
+            - network_rx_bytes: Network bytes received
+            - network_tx_bytes: Network bytes transmitted""",
         ),
         namespace: str = Field(
             ...,
-            description='CloudWatch namespace (e.g., "ContainerInsights", "AWS/EC2", "AWS/EKS")',
+            description="""CloudWatch namespace where the metric is stored. Common values:
+            - "ContainerInsights": For container metrics
+            - "AWS/EC2": For EC2 instance metrics
+            - "AWS/EKS": For EKS control plane metrics""",
         ),
-        k8s_namespace: str = Field('default', description='Kubernetes namespace for the resource'),
-        minutes: int = Field(15, description='Number of minutes to look back'),
+        k8s_namespace: str = Field(
+            'default',
+            description='Kubernetes namespace for the resource. Used as the Namespace dimension in CloudWatch. Default: "default"',
+        ),
+        minutes: int = Field(
+            15,
+            description='Number of minutes to look back for metrics. Default: 15. Ignored if start_time is provided. IMPORTANT: Choose a time range appropriate for the metric resolution.',
+        ),
         start_time: Optional[str] = Field(
-            None, description='Start time in ISO format (overrides minutes)'
+            None,
+            description='Start time in ISO format (e.g., "2023-01-01T00:00:00Z"). If provided, overrides the minutes parameter. IMPORTANT: Use this for precise historical analysis.',
         ),
         end_time: Optional[str] = Field(
-            None, description='End time in ISO format (defaults to now)'
+            None,
+            description='End time in ISO format (e.g., "2023-01-01T01:00:00Z"). If not provided, defaults to current time. IMPORTANT: Use with start_time for precise time ranges.',
         ),
-        limit: int = Field(50, description='Maximum number of data points to return'),
-        period: int = Field(60, description='Period in seconds for the metric data points'),
+        limit: int = Field(
+            50,
+            description='Maximum number of data points to return. Higher values (100-1000) provide more granular data but may impact performance. IMPORTANT: Balance between granularity and performance.',
+        ),
+        period: int = Field(
+            60,
+            description='Period in seconds for the metric data points. Default: 60 (1 minute). Lower values (1-60) provide higher resolution but may be less available. IMPORTANT: Match to your monitoring needs.',
+        ),
         stat: str = Field(
             'Average',
-            description='Statistic to use for the metric (e.g., Average, Sum, Maximum, Minimum, SampleCount)',
+            description="""Statistic to use for the metric aggregation:
+            - Average: Mean value during the period
+            - Sum: Total value during the period
+            - Maximum: Highest value during the period
+            - Minimum: Lowest value during the period
+            - SampleCount: Number of samples during the period""",
         ),
         custom_dimensions: Optional[dict] = Field(
-            None, description='Custom dimensions to use instead of the default ones'
+            None,
+            description='Custom dimensions to use instead of the default ones. Provide as a dictionary of dimension name-value pairs. IMPORTANT: Only use this if you need to override the standard dimensions.',
         ),
     ) -> CloudWatchMetricsResponse:
         """Get metrics from CloudWatch for a specific resource.
+
+        This tool retrieves metrics from CloudWatch for Kubernetes resources in an EKS cluster,
+        allowing you to monitor performance, resource utilization, and system health. It supports
+        various resource types and metrics with flexible time ranges and aggregation options for
+        monitoring CPU/memory usage, analyzing network traffic, and identifying performance bottlenecks.
+
+        ## Requirements
+        - The EKS cluster must have CloudWatch Container Insights enabled
+        - The resource must exist in the specified cluster
+        - The metric must be available in the specified namespace
+
+        ## Response Information
+        The response includes resource details (type, name, cluster), metric information (name, namespace),
+        time range queried, and data points with timestamps and values.
+
+        ## Usage Tips
+        - Use appropriate statistics for different metrics (e.g., Average for CPU, Maximum for memory spikes)
+        - Match the period to your analysis needs (smaller for detailed graphs, larger for trends)
+        - For rate metrics like network traffic, Sum is often more useful than Average
+        - Combine with get_cloudwatch_logs to correlate metrics with log events
 
         Args:
             ctx: MCP context
@@ -297,10 +395,10 @@ class CloudWatchHandler:
             limit: Maximum number of data points to return
             period: Period in seconds for the metric data points
             stat: Statistic to use for the metric
-            custom_dimensions: Custom dimensions to use instead of the default ones
+            custom_dimensions: Custom dimensions to use instead of defaults
 
         Returns:
-            Dictionary containing metric data
+            CloudWatchMetricsResponse with metric data points and resource information
         """
         try:
             start_dt, end_dt = self.resolve_time_range(start_time, end_time, minutes)

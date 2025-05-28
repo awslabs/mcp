@@ -18,15 +18,25 @@ from typing import Any, Dict, List, Optional, Union
 
 
 class EventItem(BaseModel):
-    """Summary of a Kubernetes event."""
+    """Summary of a Kubernetes event.
 
-    first_timestamp: Optional[str] = Field(None, description='First timestamp of the event')
-    last_timestamp: Optional[str] = Field(None, description='Last timestamp of the event')
-    count: Optional[int] = Field(None, description='Count of occurrences')
-    message: str = Field(..., description='Event message')
-    reason: Optional[str] = Field(None, description='Reason for the event')
+    This model represents a Kubernetes event with timestamps, message, and metadata.
+    Events provide information about state changes and important occurrences in the cluster.
+    """
+
+    first_timestamp: Optional[str] = Field(
+        None, description='First timestamp of the event in ISO format'
+    )
+    last_timestamp: Optional[str] = Field(
+        None, description='Last timestamp of the event in ISO format'
+    )
+    count: Optional[int] = Field(None, description='Count of occurrences', ge=0)
+    message: str = Field(..., description='Event message describing what happened')
+    reason: Optional[str] = Field(
+        None, description='Short, machine-understandable reason for the event'
+    )
     reporting_component: Optional[str] = Field(
-        None, description='Component that reported the event'
+        None, description='Component that reported the event (e.g., kubelet, controller-manager)'
     )
     type: Optional[str] = Field(None, description='Event type (Normal, Warning)')
 
@@ -122,14 +132,22 @@ class EventsResponse(CallToolResult):
 
 
 class CloudWatchLogEntry(BaseModel):
-    """Model for a CloudWatch log entry."""
+    """Model for a CloudWatch log entry.
 
-    timestamp: str = Field(..., description='Timestamp of the log entry')
-    message: str = Field(..., description='Log message')
+    This model represents a single log entry from CloudWatch logs,
+    containing a timestamp and the log message.
+    """
+
+    timestamp: str = Field(..., description='Timestamp of the log entry in ISO format')
+    message: str = Field(..., description='Log message content')
 
 
 class CloudWatchLogsResponse(CallToolResult):
-    """Response model for fetch_logs tool."""
+    """Response model for get_cloudwatch_logs tool.
+
+    This model contains the response from a CloudWatch logs query,
+    including resource information, time range, and log entries.
+    """
 
     resource_type: str = Field(..., description='Resource type (pod, node, container)')
     resource_name: str = Field(..., description='Resource name')
@@ -140,27 +158,39 @@ class CloudWatchLogsResponse(CallToolResult):
     log_group: str = Field(..., description='CloudWatch log group name')
     start_time: str = Field(..., description='Start time in ISO format')
     end_time: str = Field(..., description='End time in ISO format')
-    log_entries: List[Dict[str, Any]] = Field(..., description='Log entries')
+    log_entries: List[Dict[str, Any]] = Field(
+        ..., description='Log entries with timestamps and messages'
+    )
 
 
 class CloudWatchDataPoint(BaseModel):
-    """Model for a CloudWatch metric data point."""
+    """Model for a CloudWatch metric data point.
 
-    timestamp: str = Field(..., description='Timestamp of the data point')
+    This model represents a single data point from CloudWatch metrics,
+    containing a timestamp and the corresponding metric value.
+    """
+
+    timestamp: str = Field(..., description='Timestamp of the data point in ISO format')
     value: float = Field(..., description='Metric value')
 
 
 class CloudWatchMetricsResponse(CallToolResult):
-    """Response model for fetch_metrics tool."""
+    """Response model for get_cloudwatch_metrics tool.
+
+    This model contains the response from a CloudWatch metrics query,
+    including resource information, metric details, time range, and data points.
+    """
 
     resource_type: str = Field(..., description='Resource type (pod, node, container, cluster)')
     resource_name: str = Field(..., description='Resource name')
     cluster_name: str = Field(..., description='Name of the EKS cluster')
-    metric_name: str = Field(..., description='Metric name')
-    namespace: str = Field(..., description='CloudWatch namespace')
+    metric_name: str = Field(..., description='Metric name (e.g., cpu_usage_total, memory_rss)')
+    namespace: str = Field(..., description='CloudWatch namespace (e.g., ContainerInsights)')
     start_time: str = Field(..., description='Start time in ISO format')
     end_time: str = Field(..., description='End time in ISO format')
-    data_points: List[Dict[str, Any]] = Field(..., description='Metric data points')
+    data_points: List[Dict[str, Any]] = Field(
+        ..., description='Metric data points with timestamps and values'
+    )
 
 
 class StackSummary(BaseModel):

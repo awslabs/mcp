@@ -13,19 +13,20 @@
 
 import requests
 from loguru import logger
+from pydantic import Field
 from requests_auth_aws_sigv4 import AWSSigV4
 
 
 # API endpoint for the EKS Knowledge Base
 API_ENDPOINT = 'https://mcpserver.eks-beta.us-west-2.api.aws/'
 AWS_REGION = 'us-west-2'
-AWS_SERVICE = 'execute-api'  # TODO: Update the service name before launch.
+AWS_SERVICE = 'eks-mcpserver'
 
 
 class EKSKnowledgeBaseHandler:
     """Handler for retriving troubleshooting guide from the EKS Knowledge Base.
 
-    This class provides tools for fetching step by step instructions to troubleshoot issues from the EKS Hosted service.
+    This class provides tools for fetching instructions to troubleshoot issues from the EKS Hosted MCP service.
     """
 
     def __init__(self, mcp):
@@ -41,20 +42,35 @@ class EKSKnowledgeBaseHandler:
 
     async def search_eks_troubleshoot_guide(
         self,
-        query: str,
+        query: str = Field(
+            ...,
+            description='Your specific question or issue description related to EKS troubleshooting',
+        ),
     ) -> str:
         """Search the EKS Troubleshoot Guide for troubleshooting information.
 
-        This tool provides detailed troubleshooting guidance for Amazon EKS issues.
-        The guide covers:
-        - EKS Auto mode node provisioning and bootstrap issues
-        - EKS Auto mode controllers failure modes and mitigations
+        This tool provides troubleshooting guidance for Amazon EKS issues by querying
+        a specialized knowledge base of EKS troubleshooting information. It helps identify
+        common problems and provides step-by-step solutions for resolving cluster creation issues,
+        node group management problems, workload deployment issues, and diagnosing error messages.
 
-        For each issue, the tool provides:
-        - Symptoms to identify the issue
-        - Step-by-step short and long-term fixes
+        ## Requirements
+        - Internet connectivity to access the EKS Knowledge Base API
+        - Valid AWS credentials with permissions to access the EKS Knowledge Base
+        - IAM permission: eks-mcpserver:QueryKnowledgeBase
 
-        The tool will return specific troubleshooting steps and solutions based on your query.
+        ## Response Information
+        The response includes bullet-point instructions for troubleshooting EKS issues.
+
+        ## Usage Tips
+        - Provide specific error messages or symptoms in your query
+        - Try running this tool 2-3 times with different phrasings or related queries to increase the chance of retrieving the most relevant guidance
+
+        Args:
+            query: Your specific question or issue description related to EKS troubleshooting
+
+        Returns:
+            str: Detailed troubleshooting guidance for the EKS issue
         """
         try:
             response = requests.post(

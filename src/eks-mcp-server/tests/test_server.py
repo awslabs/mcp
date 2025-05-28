@@ -52,7 +52,7 @@ async def test_command_line_args():
     with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
         # Test with default args (read-only mode by default)
         mock_parse_args.return_value = argparse.Namespace(
-            sse=False, port=6274, allow_write=False, allow_sensitive_data_access=False
+            allow_write=False, allow_sensitive_data_access=False
         )
 
         # Mock AWS client creation
@@ -76,7 +76,7 @@ async def test_command_line_args():
     # Test with write access enabled
     with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
         mock_parse_args.return_value = argparse.Namespace(
-            sse=False, port=6274, allow_write=True, allow_sensitive_data_access=False
+            allow_write=True, allow_sensitive_data_access=False
         )
 
         # Mock AWS client creation
@@ -117,7 +117,7 @@ async def test_command_line_args():
     # Test with sensitive data access enabled
     with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
         mock_parse_args.return_value = argparse.Namespace(
-            sse=False, port=6274, allow_write=False, allow_sensitive_data_access=True
+            allow_write=False, allow_sensitive_data_access=True
         )
 
         # Mock AWS client creation
@@ -158,7 +158,7 @@ async def test_command_line_args():
     # Test with both write access and sensitive data access enabled
     with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
         mock_parse_args.return_value = argparse.Namespace(
-            sse=False, port=6274, allow_write=True, allow_sensitive_data_access=True
+            allow_write=True, allow_sensitive_data_access=True
         )
 
         # Mock AWS client creation

@@ -40,32 +40,6 @@ class TestMain:
         mock_server.run.assert_called_once()
         assert mock_server.run.call_args[1].get('transport') is None
 
-    @patch('awslabs.eks_mcp_server.aws_helper.AwsHelper.create_boto3_client')
-    @patch('awslabs.eks_mcp_server.server.create_server')
-    @patch('sys.argv', ['awslabs.eks-mcp-server', '--sse', '--port', '9999'])
-    def test_main_sse(self, mock_create_server, mock_boto3_client):
-        """Test main function with SSE transport."""
-        # Create a mock AWS client
-        mock_client = MagicMock()
-        mock_boto3_client.return_value = mock_client
-
-        # Create a mock server
-        mock_server = MagicMock()
-        mock_create_server.return_value = mock_server
-
-        # Call the main function
-        main()
-
-        # Check that create_server was called
-        mock_create_server.assert_called_once()
-
-        # Check that run was called with the correct arguments
-        mock_server.run.assert_called_once()
-        assert mock_server.run.call_args[1].get('transport') == 'sse'
-
-        # Check that the port was set correctly
-        assert mock_server.settings.port == 9999
-
     def test_module_execution(self):
         """Test the module execution when run as __main__."""
         # This test directly executes the code in the if __name__ == '__main__': block

@@ -823,13 +823,68 @@ metadata:
             )
 
     @pytest.mark.asyncio
-    async def test_generate_app_manifest_success(self, mock_context, mock_mcp, mock_client_cache):
-        """Test generate_app_manifest with successful creation."""
-        # Initialize the K8s handler
+    async def test_generate_app_manifest_write_access_disabled(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test generate_app_manifest method with write access disabled."""
+        # Initialize the K8s handler with write access disabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=False)
+
+        # Generate manifest with write access disabled
+        result = await handler.generate_app_manifest(
+            mock_context,
+            app_name='test-app',
+            image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+            output_dir='/absolute/path/to/output',
+        )
+
+        # Verify the result
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert (
+            'Operation generate_app_manifest is not allowed without write access'
+            in result.content[0].text
+        )
+        assert result.output_file_path == ''
+
+    @pytest.mark.asyncio
+    async def test_generate_app_manifest_relative_path(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test generate_app_manifest method with a relative path."""
+        # Initialize the K8s handler with write access enabled
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
+
+        # Mock os.path.isabs to return False for relative paths
+        with patch('os.path.isabs', return_value=False):
+            # Generate manifest with a relative path
+            result = await handler.generate_app_manifest(
+                mock_context,
+                app_name='test-app',
+                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                output_dir='relative/path/to/output',
+            )
+
+            # Verify the result
+            assert result.isError
+            assert isinstance(result.content[0], TextContent)
+            assert 'Output directory path must be absolute' in result.content[0].text
+            assert 'relative/path/to/output' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_generate_app_manifest_success(self, mock_context, mock_mcp, mock_client_cache):
+        """Test generate_app_manifest with successful creation."""
+        # Initialize the K8s handler with write access enabled
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Prepare mock file content
         deployment_content = """apiVersion: apps/v1
@@ -852,74 +907,81 @@ metadata:
         mock_file.__enter__.return_value.read.side_effect = [deployment_content, service_content]
         mock_open.return_value = mock_file
 
-        # Mock os.makedirs to avoid creating directories
-        with patch('os.makedirs') as mock_makedirs:
-            with patch('builtins.open', mock_open):
-                # Mock os.path.abspath to return a predictable absolute path
-                with patch(
-                    'os.path.abspath',
-                    return_value='/absolute/path/test-output/test-app-manifest.yaml',
-                ):
-                    # Generate the manifest
-                    result = await handler.generate_app_manifest(
-                        mock_context,
-                        app_name='test-app',
-                        image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
-                        port=8080,
-                        replicas=3,
-                        cpu='250m',
-                        memory='256Mi',
-                        namespace='test-namespace',
-                        load_balancer_scheme='internet-facing',
-                        output_dir='test-output',
-                    )
+        # Mock os.path.isabs to return True for absolute paths
+        with patch('os.path.isabs', return_value=True):
+            # Mock os.makedirs to avoid creating directories
+            with patch('os.makedirs') as mock_makedirs:
+                with patch('builtins.open', mock_open):
+                    # Mock os.path.abspath to return a predictable absolute path
+                    with patch(
+                        'os.path.abspath',
+                        return_value='/absolute/path/test-output/test-app-manifest.yaml',
+                    ):
+                        # Generate the manifest
+                        result = await handler.generate_app_manifest(
+                            mock_context,
+                            app_name='test-app',
+                            image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                            port=8080,
+                            replicas=3,
+                            cpu='250m',
+                            memory='256Mi',
+                            namespace='test-namespace',
+                            load_balancer_scheme='internet-facing',
+                            output_dir='/absolute/path/test-output',
+                        )
 
-                    # Verify that os.makedirs was called with exist_ok=True
-                    mock_makedirs.assert_called_once_with('test-output', exist_ok=True)
+                        # Verify that os.makedirs was called with exist_ok=True
+                        mock_makedirs.assert_called_once_with(
+                            '/absolute/path/test-output', exist_ok=True
+                        )
 
-                    # Verify that open was called for reading templates and writing output
-                    assert mock_open.call_count == 3  # 2 reads + 1 write
+                        # Verify that open was called for reading templates and writing output
+                        assert mock_open.call_count == 3  # 2 reads + 1 write
 
-                    # Verify the result
-                    assert not result.isError
-                    assert isinstance(result.content[0], TextContent)
-                    assert 'Successfully generated YAML for test-app' in result.content[0].text
-                    assert (
-                        'with image 123456789012.dkr.ecr.region.amazonaws.com/repo:tag'
-                        in result.content[0].text
-                    )
+                        # Verify the result
+                        assert not result.isError
+                        assert isinstance(result.content[0], TextContent)
+                        assert 'Successfully generated YAML for test-app' in result.content[0].text
+                        assert (
+                            'with image 123456789012.dkr.ecr.region.amazonaws.com/repo:tag'
+                            in result.content[0].text
+                        )
 
-                    # Verify that the output path is absolute
-                    assert os.path.isabs(result.output_file_path)
-                    assert (
-                        result.output_file_path
-                        == '/absolute/path/test-output/test-app-manifest.yaml'
-                    )
+                        # Verify that the output path is absolute
+                        assert os.path.isabs(result.output_file_path)
+                        assert (
+                            result.output_file_path
+                            == '/absolute/path/test-output/test-app-manifest.yaml'
+                        )
 
     @pytest.mark.asyncio
     async def test_generate_app_manifest_error(self, mock_context, mock_mcp, mock_client_cache):
         """Test generate_app_manifest with an error."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
-        # Mock open function to raise an exception
-        with patch('builtins.open', side_effect=Exception('File error')):
-            # Generate the manifest
-            result = await handler.generate_app_manifest(
-                mock_context,
-                app_name='test-app',
-                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
-            )
+        # Mock os.path.isabs to return True for absolute paths
+        with patch('os.path.isabs', return_value=True):
+            # Mock open function to raise an exception
+            with patch('builtins.open', side_effect=Exception('File error')):
+                # Generate the manifest with an absolute path
+                result = await handler.generate_app_manifest(
+                    mock_context,
+                    app_name='test-app',
+                    image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                    output_dir='/absolute/path/to/output',  # Use an absolute path
+                )
 
-            # Verify the result
-            assert result.isError
-            assert isinstance(result.content[0], TextContent)
-            assert 'Failed to generate YAML' in result.content[0].text
-            assert 'File error' in result.content[0].text
-            assert result.output_file_path == ''
+                # Verify the result
+                assert result.isError
+                assert isinstance(result.content[0], TextContent)
+                assert 'Failed to generate YAML' in result.content[0].text
+                assert 'File error' in result.content[0].text
+                assert result.output_file_path == ''
 
     def test_load_yaml_template(self, mock_mcp, mock_client_cache):
         """Test _load_yaml_template method."""
@@ -956,58 +1018,111 @@ metadata:
             assert '---' in result
 
     @pytest.mark.asyncio
+    async def test_generate_app_manifest_with_absolute_path(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test generate_app_manifest with an absolute path."""
+        # Initialize the K8s handler with write access enabled
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_write=True)
+
+        # Mock the _load_yaml_template method to avoid template loading issues
+        with patch.object(handler, '_load_yaml_template', return_value='combined yaml content'):
+            # Mock os.path.isabs to return True for absolute paths
+            with patch('os.path.isabs', return_value=True):
+                # Mock os.makedirs to avoid creating directories
+                with patch('os.makedirs') as mock_makedirs:
+                    # Mock open for writing output
+                    with patch('builtins.open', mock_open()) as mocked_open:
+                        # Mock os.path.abspath to return a predictable absolute path
+                        with patch(
+                            'os.path.abspath',
+                            return_value='/path/to/output/test-app-manifest.yaml',
+                        ):
+                            # Generate the manifest with an absolute path
+                            result = await handler.generate_app_manifest(
+                                mock_context,
+                                app_name='test-app',
+                                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                                output_dir='/path/to/output',
+                            )
+
+                            # Verify that os.makedirs was called with exist_ok=True
+                            mock_makedirs.assert_called_once_with('/path/to/output', exist_ok=True)
+
+                            # Verify that open was called for writing output
+                            mocked_open.assert_called_once_with(
+                                '/path/to/output/test-app-manifest.yaml', 'w'
+                            )
+
+                            # Verify the output file path is absolute
+                            assert os.path.isabs(result.output_file_path)
+                            assert (
+                                result.output_file_path == '/path/to/output/test-app-manifest.yaml'
+                            )
+
+                            # Verify the result is successful
+                            assert not result.isError
+
+    @pytest.mark.asyncio
     async def test_generate_app_manifest_multiple_templates(
         self, mock_context, mock_mcp, mock_client_cache
     ):
         """Test generate_app_manifest with multiple templates."""
-        # Initialize the K8s handler
+        # Initialize the K8s handler with write access enabled
         with patch(
             'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
         ):
-            handler = K8sHandler(mock_mcp)
+            handler = K8sHandler(mock_mcp, allow_write=True)
 
         # Mock the _load_yaml_template method to avoid template loading issues
         with patch.object(handler, '_load_yaml_template', return_value='combined yaml content'):
-            # Mock os.makedirs to avoid creating directories
-            with patch('os.makedirs') as mock_makedirs:
-                # Mock open for writing output
-                with patch('builtins.open', mock_open()) as mocked_open:
-                    # Mock os.path.abspath to return a predictable absolute path
-                    with patch(
-                        'os.path.abspath',
-                        return_value='/absolute/path/output/test-app-manifest.yaml',
-                    ):
-                        # Generate the manifest with all required parameters explicitly specified
-                        result = await handler.generate_app_manifest(
-                            mock_context,
-                            app_name='test-app',
-                            image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
-                            port=80,
-                            replicas=2,
-                            cpu='100m',
-                            memory='128Mi',
-                            namespace='default',
-                            load_balancer_scheme='internal',  # Using the default value
-                            output_dir='output',
-                        )
+            # Mock os.path.isabs to return True for absolute paths
+            with patch('os.path.isabs', return_value=True):
+                # Mock os.makedirs to avoid creating directories
+                with patch('os.makedirs') as mock_makedirs:
+                    # Mock open for writing output
+                    with patch('builtins.open', mock_open()) as mocked_open:
+                        # Mock os.path.abspath to return a predictable absolute path
+                        with patch(
+                            'os.path.abspath',
+                            return_value='/absolute/path/output/test-app-manifest.yaml',
+                        ):
+                            # Generate the manifest with all required parameters explicitly specified
+                            result = await handler.generate_app_manifest(
+                                mock_context,
+                                app_name='test-app',
+                                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                                port=80,
+                                replicas=2,
+                                cpu='100m',
+                                memory='128Mi',
+                                namespace='default',
+                                load_balancer_scheme='internal',  # Using the default value
+                                output_dir='/absolute/path/output',
+                            )
 
-                        # Verify that os.makedirs was called with exist_ok=True
-                        mock_makedirs.assert_called_once_with('output', exist_ok=True)
+                            # Verify that os.makedirs was called with exist_ok=True
+                            mock_makedirs.assert_called_once_with(
+                                '/absolute/path/output', exist_ok=True
+                            )
 
-                        # Verify that open was called for writing output
-                        mocked_open.assert_called_once_with(
-                            '/absolute/path/output/test-app-manifest.yaml', 'w'
-                        )
+                            # Verify that open was called for writing output
+                            mocked_open.assert_called_once_with(
+                                '/absolute/path/output/test-app-manifest.yaml', 'w'
+                            )
 
-                        # Verify the output file path is absolute
-                        assert os.path.isabs(result.output_file_path)
-                        assert (
-                            result.output_file_path
-                            == '/absolute/path/output/test-app-manifest.yaml'
-                        )
+                            # Verify the output file path is absolute
+                            assert os.path.isabs(result.output_file_path)
+                            assert (
+                                result.output_file_path
+                                == '/absolute/path/output/test-app-manifest.yaml'
+                            )
 
-                        # Verify the result is successful
-                        assert not result.isError
+                            # Verify the result is successful
+                            assert not result.isError
 
     def test_init_with_get_pod_logs(self, mock_mcp, mock_client_cache):
         """Test initialization of K8sHandler with get_pod_logs tool."""

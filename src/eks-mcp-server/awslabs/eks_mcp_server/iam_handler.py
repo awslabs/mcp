@@ -51,14 +51,32 @@ class IAMHandler:
     async def get_policies_for_role(
         self,
         ctx: Context,
-        role_name: str = Field(..., description='Name of the IAM role to get policies for'),
+        role_name: str = Field(
+            ...,
+            description='Name of the IAM role to get policies for. The role must exist in your AWS account.',
+        ),
     ) -> RoleDescriptionResponse:
         """Get all policies attached to an IAM role.
 
-        This tool retrieves all policies associated with an IAM role, including:
-        - Assume role policy document
-        - Attached managed policies with their documents
-        - Embedded inline policies with their documents
+        This tool retrieves all policies associated with an IAM role, providing a comprehensive view
+        of the role's permissions and trust relationships. It helps you understand the current
+        permissions, identify missing or excessive permissions, troubleshoot EKS cluster issues,
+        and verify trust relationships for service roles.
+
+        ## Requirements
+        - The role must exist in your AWS account
+        - Valid AWS credentials with permissions to read IAM role information
+
+        ## Response Information
+        The response includes role ARN, assume role policy document (trust relationships),
+        role description, managed policies with their documents, and inline policies with
+        their documents.
+
+        ## Usage Tips
+        - Use this tool before adding new permissions to understand existing access
+        - Check the assume role policy to verify which services or roles can assume this role
+        - Look for overly permissive policies that might pose security risks
+        - Use with add_inline_policy to implement least-privilege permissions
 
         Args:
             ctx: The MCP context
@@ -119,38 +137,48 @@ class IAMHandler:
     async def add_inline_policy(
         self,
         ctx: Context,
-        policy_name: str = Field(..., description='Name of the inline policy to create'),
-        role_name: str = Field(..., description='Name of the role to add the policy to'),
+        policy_name: str = Field(
+            ..., description='Name of the inline policy to create. Must be unique within the role.'
+        ),
+        role_name: str = Field(
+            ..., description='Name of the IAM role to add the policy to. The role must exist.'
+        ),
         permissions: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(
-            ..., description='Permissions to include in the policy (in JSON format)'
+            ...,
+            description="""Permissions to include in the policy as IAM policy statements in JSON format.
+            Can be either a single statement object or an array of statement objects.""",
         ),
     ) -> AddInlinePolicyResponse:
         """Add a new inline policy to an IAM role.
 
         This tool creates a new inline policy with the specified permissions and adds it to an IAM role.
-        If the specified policy already exists, the request will be rejected with an error.
+        Inline policies are embedded within the role and cannot be attached to multiple roles. Commonly used
+        for granting EKS clusters access to AWS services, enabling worker nodes to access resources, and
+        configuring permissions for CloudWatch logging and ECR access.
 
+        ## Requirements
+        - The server must be run with the `--allow-write` flag
+        - The role must exist in your AWS account
+        - The policy name must be unique within the role
+        - You cannot modify existing policies with this tool
+
+        ## Permission Format
         The permissions parameter can be either a single policy statement or a list of statements.
-        For a single statement:
+
+        ### Single Statement Example
+        ```json
         {
             "Effect": "Allow",
             "Action": ["s3:GetObject", "s3:PutObject"],
             "Resource": "arn:aws:s3:::example-bucket/*"
         }
+        ```
 
-        For multiple statements:
-        [
-            {
-                "Effect": "Allow",
-                "Action": "s3:GetObject",
-                "Resource": "arn:aws:s3:::example-bucket/*"
-            },
-            {
-                "Effect": "Allow",
-                "Action": "s3:PutObject",
-                "Resource": "arn:aws:s3:::example-bucket/*"
-            }
-        ]
+        ## Usage Tips
+        - Follow the principle of least privilege by granting only necessary permissions
+        - Use specific resources rather than "*" whenever possible
+        - Consider using conditions to further restrict permissions
+        - Group related permissions into logical policies with descriptive names
 
         Args:
             ctx: The MCP context

@@ -97,9 +97,7 @@ If you would like to specify additional options, you can pass them to the args:
         "run",
         "server.py",
         "--allow-write", // Optional parameter if you would like to allow MCP to take mutating actions (i.e. Create/Update/Delete Resource)
-        "--allow-sensitive-data-access", // Optional parameter if you would like to allow MCP to access sensitive data such as logs, events, and Kubernetes Secrets
-        "--sse",
-        "--port", "6274"
+        "--allow-sensitive-data-access" // Optional parameter if you would like to allow MCP to access sensitive data such as logs, events, and Kubernetes Secrets
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
@@ -146,24 +144,6 @@ FASTMCP_LOG_LEVEL=INFO
 ## Server Configuration Options
 
 The Amazon EKS MCP Server supports several command-line arguments that can be used to configure its behavior:
-
-### `--sse`
-
-Use Server-Sent Events (SSE) transport instead of stdio. Default is False.
-
-Example:
-```bash
-uv --directory /path/to/awslabs/eks_mcp_server run server.py --sse
-```
-
-### `--port PORT`
-
-Specifies the port number on which the server will listen. Default is 6274.
-
-Example:
-```bash
-uv --directory /path/to/awslabs/eks_mcp_server run server.py --port 9000
-```
 
 ### `--allow-write`
 
@@ -260,7 +240,7 @@ The EKS MCP Server provides the following tools:
 ### Application Support
 
 - `generate_app_manifest`: Generates Kubernetes manifests for application deployment
-  - Parameters: app_name, image_uri, port (optional), replicas (optional), cpu (optional), memory (optional), namespace (optional), load_balancer_scheme (optional), output_dir (optional)
+  - Parameters: app_name, image_uri, output_dir, port (optional), replicas (optional), cpu (optional), memory (optional), namespace (optional), load_balancer_scheme (optional)
   - Returns: Path to the generated manifest file
 
 - `get_pod_logs`: Retrieves logs from pods in a Kubernetes cluster

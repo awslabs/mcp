@@ -9,7 +9,16 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-"""awslabs EKS MCP Server implementation."""
+"""awslabs EKS MCP Server implementation.
+
+This module implements the EKS MCP Server, which provides tools for managing Amazon EKS clusters
+and Kubernetes resources through the Model Context Protocol (MCP).
+
+Environment Variables:
+    AWS_REGION: AWS region to use for AWS API calls
+    AWS_PROFILE: AWS profile to use for credentials
+    FASTMCP_LOG_LEVEL: Log level (default: WARNING)
+"""
 
 import argparse
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
@@ -22,18 +31,46 @@ from mcp.server.fastmcp import FastMCP
 
 
 # Define server instructions and dependencies
-SERVER_INSTRUCTIONS = (
-    'EKS MCP Server provides tools for managing Amazon EKS clusters and is the preferred mechanism for creating new EKS clusters. '
-    'You can use these tools to create and manage EKS clusters with dedicated VPCs, '
-    'configure node groups, and set up the necessary networking components. '
-    'The server abstracts away the complexity of direct AWS API interactions and provides '
-    'higher-level tools for common EKS workflows. '
-    'You can also apply Kubernetes YAML manifests to your EKS clusters and '
-    'deploy container images from ECR as load-balanced applications. '
-    'The server includes API discovery capabilities to help you find the correct API versions for Kubernetes resources. '
-    'Additionally, you can retrieve and analyze CloudWatch logs and metrics '
-    'from your EKS clusters for effective monitoring and troubleshooting.'
-)
+SERVER_INSTRUCTIONS = """
+# Amazon EKS MCP Server
+
+This MCP server provides tools for managing Amazon EKS clusters and is the preferred mechanism for creating new EKS clusters.
+
+## Usage Notes
+
+- By default, the server runs in read-only mode. Use the `--allow-write` flag to enable write operations.
+- Access to sensitive data (logs, events, Kubernetes Secrets) requires the `--allow-sensitive-data-access` flag.
+- For safety reasons, CloudFormation stacks can only be modified by the tool that created them.
+- When creating or updating resources, always check for existing resources first to avoid conflicts.
+- Use the `list_api_versions` tool to find the correct apiVersion for Kubernetes resources.
+
+## Common Workflows
+
+### Creating and Deploying an Application
+1. Generate a CloudFormation template: `manage_eks_stacks(operation='generate', template_file='/path/to/template.yaml', cluster_name='my-cluster')`
+2. Deploy the CloudFormation stack: `manage_eks_stacks(operation='deploy', template_file='/path/to/template.yaml', cluster_name='my-cluster')`
+3. Generate an application manifest: `generate_app_manifest(app_name='my-app', image_uri='123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest')`
+4. Apply the manifest: `apply_yaml(yaml_path='/path/to/manifest.yaml', cluster_name='my-cluster', namespace='default')`
+5. Monitor the application: `get_pod_logs(cluster_name='my-cluster', namespace='default', pod_name='my-app-pod')`
+
+### Troubleshooting Application Issues
+1. Check pod status: `list_k8s_resources(cluster_name='my-cluster', kind='Pod', api_version='v1', namespace='default', field_selector='metadata.name=my-pod')`
+2. Get pod events: `get_k8s_events(cluster_name='my-cluster', kind='Pod', name='my-pod', namespace='default')`
+3. Check pod logs: `get_pod_logs(cluster_name='my-cluster', namespace='default', pod_name='my-pod')`
+4. Monitor metrics: `get_cloudwatch_metrics(resource_type='pod', resource_name='my-pod', cluster_name='my-cluster', metric_name='cpu_usage_total', namespace='ContainerInsights')`
+5. Search troubleshooting guide: `search_eks_troubleshoot_guide(query='pod pending')`
+
+## Best Practices
+
+- Use descriptive names for resources to make them easier to identify and manage.
+- Apply proper labels and annotations to Kubernetes resources for better organization.
+- Use namespaces to isolate resources and avoid naming conflicts.
+- Monitor resource usage with CloudWatch metrics to identify performance issues.
+- Check logs and events when troubleshooting issues with Kubernetes resources.
+- Follow the principle of least privilege when creating IAM policies.
+- Use the search_eks_troubleshoot_guide tool when encountering common EKS issues.
+- Always verify API versions with list_api_versions before creating resources.
+"""
 
 SERVER_DEPENDENCIES = [
     'pydantic',
@@ -66,8 +103,6 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for EKS'
     )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=6274, help='Port to run the server on')
     parser.add_argument(
         '--allow-write',
         action=argparse.BooleanOptionalAction,
@@ -106,12 +141,8 @@ def main():
     K8sHandler(mcp, allow_write, allow_sensitive_data_access)
     IAMHandler(mcp, allow_write)
 
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    # Run server
+    mcp.run()
 
     return mcp
 

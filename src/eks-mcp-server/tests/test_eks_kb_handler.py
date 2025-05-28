@@ -45,7 +45,7 @@ class TestEKSKnowledgeBaseHandler:
             mock_post.assert_called_once()
 
             # Verify that AWSSigV4 was initialized with the correct parameters
-            mock_aws_auth.assert_called_once_with('execute-api', region='us-west-2')
+            mock_aws_auth.assert_called_once_with('eks-mcpserver', region='us-west-2')
 
     @pytest.mark.asyncio
     @patch('awslabs.eks_mcp_server.eks_kb_handler.AWSSigV4')

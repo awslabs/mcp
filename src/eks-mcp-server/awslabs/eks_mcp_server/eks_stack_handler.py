@@ -112,46 +112,62 @@ class EksStackHandler:
         self,
         ctx: Context,
         operation: str = Field(
-            ..., description='Operation to perform: generate, deploy, describe, or delete'
+            ...,
+            description='Operation to perform: generate, deploy, describe, or delete. Choose "describe" for read-only operations when write access is disabled.',
         ),
         template_file: Optional[str] = Field(
             None,
-            description='Absolute path for the CloudFormation template (for generate and deploy operations)',
+            description="""Absolute path for the CloudFormation template (for generate and deploy operations).
+            IMPORTANT: Assistant must provide the full absolute path to the template file, as the MCP client and server might not run from the same location.""",
         ),
         cluster_name: Optional[str] = Field(
             None,
-            description='Name of the EKS cluster (for generate, deploy, describe and delete operations)',
+            description="""Name of the EKS cluster (for generate, deploy, describe and delete operations).
+            This name will be used to derive the CloudFormation stack name and will be embedded in the cluster resources.""",
         ),
     ) -> Union[
         GenerateTemplateResponse, DeployStackResponse, DescribeStackResponse, DeleteStackResponse
     ]:
         """Manage EKS CloudFormation stacks with both read and write operations.
 
-        This tool provides operations for managing EKS CloudFormation stacks:
+        This tool provides operations for managing EKS CloudFormation stacks, including creating templates,
+        deploying stacks, retrieving stack information, and deleting stacks. It serves as the primary
+        mechanism for creating and managing EKS clusters through CloudFormation, enabling standardized
+        cluster creation, configuration updates, and resource cleanup.
 
-        - generate: Create a CloudFormation template at the specified absolute path with the cluster name embedded.
-        - deploy: Deploy a CloudFormation template from the specified absolute path (creates a new stack or updates an existing one).
-        - describe: Get detailed information about a CloudFormation stack for a specific cluster.
-        - delete: Delete a CloudFormation stack for the specified cluster.
+        ## Requirements
+        - The server must be run with the `--allow-write` flag for generate, deploy, and delete operations
+        - For deploy and delete operations, the stack must have been created by this tool
+        - For template_file parameter, the path must be absolute and accessible to the server
 
-        The generated CloudFormation template creates a complete EKS environment including:
-        - A dedicated VPC with public and private subnets across two availability zones
-        - Internet Gateway and NAT Gateways for outbound connectivity
-        - Security groups for cluster communication
-        - IAM roles for the EKS cluster and worker nodes with appropriate permissions
-        - An EKS cluster in Auto Mode with:
-          - Compute configuration with general-purpose and system node pools
-          - Kubernetes network configuration with elastic load balancing
-          - Block storage configuration
-          - API authentication mode
+        ## Operations
+        - **generate**: Create a CloudFormation template at the specified absolute path with the cluster name embedded
+        - **deploy**: Deploy a CloudFormation template from the specified absolute path (creates a new stack or updates an existing one)
+        - **describe**: Get detailed information about a CloudFormation stack for a specific cluster
+        - **delete**: Delete a CloudFormation stack for the specified cluster
 
-        IMPORTANT: For safety reasons, this tool will only modify or delete CloudFormation stacks that were created by itself.
-        Stacks created through other means (AWS Console, CLI, other tools) will not be affected.
+        ## Response Information
+        The response type varies based on the operation:
+        - generate: Returns GenerateTemplateResponse with the template path
+        - deploy: Returns DeployStackResponse with stack name, ARN, and cluster name
+        - describe: Returns DescribeStackResponse with stack details, outputs, and status
+        - delete: Returns DeleteStackResponse with stack name, ID, and cluster name
 
-        Note: The template_file parameter must be an absolute path (e.g., '/home/user/templates/eks-template.yaml')
-        since the MCP client and server might not run from the same location.
+        ## Usage Tips
+        - Use the describe operation first to check if a cluster already exists
+        - For safety, this tool will only modify or delete stacks that it created
+        - Stack creation typically takes 15-20 minutes to complete
+        - Use absolute paths for template files (e.g., '/home/user/templates/eks-template.yaml')
+        - The cluster name is used to derive the CloudFormation stack name
+
+        Args:
+            ctx: MCP context
+            operation: Operation to perform (generate, deploy, describe, or delete)
+            template_file: Absolute path for the CloudFormation template (for generate and deploy operations)
+            cluster_name: Name of the EKS cluster (for all operations)
 
         Returns:
+            Union[GenerateTemplateResponse, DeployStackResponse, DescribeStackResponse, DeleteStackResponse]:
             Response specific to the operation performed
         """
         try:
