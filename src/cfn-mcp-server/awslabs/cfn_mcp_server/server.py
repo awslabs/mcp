@@ -31,11 +31,7 @@ mcp = FastMCP(
     1. Read and List all of your AWS resources by the CloudFormation type name (e.g. AWS::S3::Bucket)
     2. Create/Update/Delete your AWS resources
     """,
-    dependencies=[
-        'pydantic',
-        'loguru',
-        'boto3',
-    ],
+    dependencies=['pydantic', 'loguru', 'boto3', 'botocore'],
 )
 
 

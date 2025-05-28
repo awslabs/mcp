@@ -9,6 +9,7 @@ dependencies = [
     "pydantic>=2.10.6",
     "mcp[cli]>=1.6.0",
     "boto3>=1.34.0",
+    "botocore>=1.34.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
