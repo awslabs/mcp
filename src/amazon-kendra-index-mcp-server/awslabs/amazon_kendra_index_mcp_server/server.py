@@ -11,7 +11,6 @@
 
 """awslabs amazon-kendra-index-mcp-server MCP Server implementation."""
 
-import argparse
 import os
 from awslabs.amazon_kendra_index_mcp_server.util import get_kendra_client
 from mcp.server.fastmcp import FastMCP
@@ -164,20 +163,7 @@ async def kendra_query_tool(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for amazon-kendra-index-mcp-server'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

@@ -424,31 +424,9 @@ with pytest.MonkeyPatch().context() as CTX:
 
         @patch('awslabs.lambda_mcp_server.server.register_lambda_functions')
         @patch('awslabs.lambda_mcp_server.server.mcp')
-        @patch('argparse.ArgumentParser.parse_args')
-        def test_main_sse(self, mock_parse_args, mock_mcp, mock_register_lambda_functions):
-            """Test main function with SSE transport."""
-            # Set up the mock
-            mock_parse_args.return_value = MagicMock(sse=True, port=8888)
-
-            # Call the function
-            main()
-
-            # Check that register_lambda_functions was called
-            mock_register_lambda_functions.assert_called_once()
-
-            # Check that mcp.run was called with the correct transport
-            mock_mcp.run.assert_called_once_with(transport='sse')
-
-            # Check that mcp.settings.port was set
-            assert mock_mcp.settings.port == 8888
-
-        @patch('awslabs.lambda_mcp_server.server.register_lambda_functions')
-        @patch('awslabs.lambda_mcp_server.server.mcp')
-        @patch('argparse.ArgumentParser.parse_args')
-        def test_main_stdio(self, mock_parse_args, mock_mcp, mock_register_lambda_functions):
+        def test_main_stdio(self, mock_mcp, mock_register_lambda_functions):
             """Test main function with stdio transport."""
             # Set up the mock
-            mock_parse_args.return_value = MagicMock(sse=False, port=8888)
 
             # Call the function
             main()
@@ -458,3 +436,14 @@ with pytest.MonkeyPatch().context() as CTX:
 
             # Check that mcp.run was called with no transport
             mock_mcp.run.assert_called_once_with()
+
+        @patch('awslabs.lambda_mcp_server.server.mcp.run')
+        @patch('sys.argv', ['awslabs.lambda-mcp-server'])
+        def test_main_default(self, mock_run):
+            """Test main function with default arguments."""
+            # Call the main function
+            main()
+
+            # Check that mcp.run was called with the correct arguments
+            mock_run.assert_called_once()
+            assert mock_run.call_args[1].get('transport') is None

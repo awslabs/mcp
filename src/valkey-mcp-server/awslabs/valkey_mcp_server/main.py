@@ -11,7 +11,6 @@
 
 """awslabs valkey MCP Server implementation."""
 
-import argparse
 from awslabs.valkey_mcp_server.common.server import mcp
 from awslabs.valkey_mcp_server.tools import (
     bitmap,  # noqa: F401
@@ -44,39 +43,19 @@ async def health_check(request):
 class ValkeyMCPServer:
     """Valkey MCP Server wrapper."""
 
-    def __init__(self, sse=False, port=8888):
-        """Initialize MCP Server wrapper.
-
-        Args:
-            sse: Whether to use SSE transport
-            port: Port to run the server on (default: 8888)
-        """
-        self.sse = sse
-        self.port = port
+    def __init__(self):
+        """Initialize MCP Server wrapper."""
 
     def run(self):
         """Run server with appropriate transport."""
-        if self.sse:
-            if self.port is not None:
-                mcp.settings.port = self.port
-            mcp.run(transport='sse')
-        else:
-            mcp.run()
+        mcp.run()
 
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for valkey'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
     logger.info('Amazon ElastiCache/MemoryDB Valkey MCP Server Started...')
 
-    server = ValkeyMCPServer(args.sse, args.port)
+    server = ValkeyMCPServer()
     server.run()
 
 

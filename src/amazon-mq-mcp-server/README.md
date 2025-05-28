@@ -117,24 +117,6 @@ AWS_SESSION_TOKEN=<from the profile you set up>
 
 The Amazon MQ MCP Server supports several command-line arguments that can be used to configure its behavior:
 
-### `--sse`
-
-Use Server-Sent Events (SSE) transport instead of stdio. Default is False.
-
-Example:
-```bash
-uv run awslabs.amazon-mq-mcp-server --sse
-```
-
-### `--port PORT`
-
-Specifies the port number on which the server will listen. Default is 6274.
-
-Example:
-```bash
-uv run awslabs.amazon-mq-mcp-server --port 9000
-```
-
 ### `--allow-resource-creation`
 
 Allow tools that create resources in the user's AWS account. When this flag is enabled, the `create_broker` and `create_configuration` tools will be created for the MCP client, preventing the creation of new Amazon MQ resources. Default is False.

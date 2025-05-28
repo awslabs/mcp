@@ -34,28 +34,6 @@ class TestMain:
         mock_run.assert_called_once()
         assert mock_run.call_args[1].get('transport') is None
 
-    @patch('awslabs.amazon_neptune_mcp_server.server.mcp.run')
-    @patch('sys.argv', ['awslabs.amazon-neptune-mcp-server', '--sse', '--port', '9999'])
-    def test_main_sse(self, mock_run):
-        """Test main function with SSE transport.
-
-        This test verifies that:
-        1. The main function correctly processes command line arguments
-        2. The mcp.run method is called with transport='sse'
-        3. The port setting is correctly set to 9999
-        """
-        # Call the main function
-        main()
-
-        # Check that mcp.run was called with the correct arguments
-        mock_run.assert_called_once()
-        assert mock_run.call_args[1].get('transport') == 'sse'
-
-        # Check that the port was set correctly
-        from awslabs.amazon_neptune_mcp_server.server import mcp
-
-        assert mcp.settings.port == 9999
-
     def test_module_execution(self):
         """Test the module execution when run as __main__.
 
