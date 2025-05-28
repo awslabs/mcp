@@ -15,8 +15,13 @@ import asyncio
 import boto3
 import datetime
 import os
-from awslabs.cloudwatch_logs_mcp_server.common import remove_null_values
-from awslabs.cloudwatch_logs_mcp_server.models import CancelQueryResult, LogGroupMetadata
+from awslabs.cloudwatch_logs_mcp_server.common import filter_by_prefixes, remove_null_values
+from awslabs.cloudwatch_logs_mcp_server.models import (
+    CancelQueryResult,
+    LogGroupMetadata,
+    LogMetadata,
+    SavedQuery,
+)
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -26,10 +31,7 @@ from typing import Dict, List, Literal, Optional
 
 mcp = FastMCP(
     'awslabs.cloudwatch-logs-mcp-server',
-    instructions='Instructions for using this cloudwatch-logs MCP server. This can be used by clients to improve the LLM'
-    's understanding of available tools, resources, etc. It can be thought of like a '
-    'hint'
-    ' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.',
+    instructions='Use this MCP server to run read-only commands and analyze CloudWatchLogs. Supports discovering logs groups as well as running CloudWatch Log Insight Queries. With CloudWatch Logs Insights, you can interactively search and analyze your log data in Amazon CloudWatch Logs and perform queries to help you more efficiently and effectively respond to operational issues.',
     dependencies=[
         'pydantic',
         'loguru',
@@ -74,25 +76,27 @@ async def describe_log_groups_tool(
     log_group_name_prefix: Optional[str] = Field(
         None,
         description=(
-            'A string to filter log groups by name. Only log groups with names starting with this prefix will be returned.'
+            'An exact prefix to filter log groups by name. IMPORTANT: Only log groups with names starting with this prefix will be returned.'
         ),
     ),
     max_items: Optional[int] = Field(
-        100,
+        None,
         description=('The maximum number of log groups to return.'),
     ),
 ) -> List[LogGroupMetadata]:
-    """Lists AWS CloudWatch log groups, optionally filtering by a name prefix.
+    """Lists AWS CloudWatch log groups and saved queries associated with them, optionally filtering by a name prefix.
 
     This tool retrieves information about log groups in the account, or log groups in accounts linked to this account as a monitoring account.
     If a prefix is provided, only log groups with names starting with the specified prefix are returned.
 
-    Usage: Use this tool to discover log groups that you'd retrieve or query logs from.
+    Additionally returns any user saved queries that are associated with any of the returned log groups.
+
+    Usage: Use this tool to discover log groups that you'd retrieve or query logs from and queries that have been saved by the user.
 
     Returns:
     --------
-    List of log group metadata dictionaries
-        A list of log group metadata dictionaries, each containing details such as:
+    List of log group metadata dictionaries and saved queries associated with them
+       Each log group metadata contains details such as:
             - logGroupName: The name of the log group.
             - creationTime: Timestamp when the log group was created
             - retentionInDays: Retention period, if set
@@ -101,8 +105,10 @@ async def describe_log_groups_tool(
             - dataProtectionStatus: Displays whether this log group has a protection policy, or whether it had one in the past, if set
             - logGroupClass: Type of log group class
             - logGroupArn: The Amazon Resource Name (ARN) of the log group. This version of the ARN doesn't include a trailing :* after the log group name.
+        Any saved queries that are applicable to the returned log groups are also included.
     """
-    try:
+
+    def describe_log_groups() -> List[LogGroupMetadata]:
         paginator = logs_client.get_paginator('describe_log_groups')
         kwargs = {
             'accountIdentifiers': account_identifiers,
@@ -120,6 +126,42 @@ async def describe_log_groups_tool(
 
         logger.info(f'Log groups: {log_groups}')
         return [LogGroupMetadata.model_validate(lg) for lg in log_groups]
+
+    def get_filtered_saved_queries(log_groups: List[LogGroupMetadata]) -> List[SavedQuery]:
+        saved_queries = []
+        next_token = None
+
+        # No paginator for this API
+        while True:
+            # TODO: Support other query language types
+            kwargs = {'nextToken': next_token, 'queryLanguage': 'CWLI'}
+            if next_token:
+                kwargs
+
+            response = logs_client.describe_query_definitions(**remove_null_values(kwargs))
+            saved_queries.extend(response.get('queryDefinitions', []))
+
+            next_token = response.get('nextToken')
+            if not next_token:
+                break
+
+        logger.info(f'Saved queries: {saved_queries}')
+        modeled_queries = [SavedQuery.model_validate(saved_query) for saved_query in saved_queries]
+
+        log_group_targets = {lg.logGroupName for lg in log_groups}
+        # filter to only saved queries applicable to log groups we're looking at
+        return [
+            query
+            for query in modeled_queries
+            if (query.logGroupNames & log_group_targets)
+            or filter_by_prefixes(log_group_targets, query.logGroupPrefixes)
+        ]
+
+    try:
+        log_groups = describe_log_groups()
+        filtered_saved_queries = get_filtered_saved_queries(log_groups)
+        return LogMetadata(log_group_metadata=log_groups, saved_queries=filtered_saved_queries)
+
     except Exception as e:
         logger.error(f'Error in mcp_describe_log_groups: {str(e)}')
         await ctx.error(f'Error in describing log groups: {str(e)}')
@@ -142,20 +184,23 @@ async def execute_log_insights_query_tool(
     start_time: str = Field(
         ...,
         description=(
-            'ISO 8601 formatted start time for the CloudWatch Logs Insights query window (e.g., "2025-04-19T20:00:00").'
+            'ISO 8601 formatted start time for the CloudWatch Logs Insights query window (e.g., "2025-04-19T20:00:00+00:00").'
         ),
     ),
     end_time: str = Field(
         ...,
         description=(
-            'ISO 8601 formatted end time for the CloudWatch Logs Insights query window (e.g., "2025-04-19T21:00:00").'
+            'ISO 8601 formatted end time for the CloudWatch Logs Insights query window (e.g., "2025-04-19T21:00:00+00:00").'
         ),
     ),
     query_string: str = Field(
         ...,
         description='The query string in the Cloudwatch Log Insights Query Language. See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html.',
     ),
-    limit: Optional[int] = Field(None, description='The maximum number of log events to return.'),
+    limit: Optional[int] = Field(
+        None,
+        description='The maximum number of log events to return. It is critical to use either this parameter or a `| limit <int>` operator in the query to avoid consuming too many tokens of the agent.',
+    ),
     max_timeout: int = Field(
         30,
         description='Maximum time in second to poll for complete results before giving up',
@@ -163,7 +208,10 @@ async def execute_log_insights_query_tool(
 ) -> Dict:
     """Executes a CloudWatch Logs Insights query and waits for the results to be available.
 
-    CRITICAL: The operation must include exactly one of the following parameters: log_group_names, or log_group_identifiers.
+    IMPORTANT: The operation must include exactly one of the following parameters: log_group_names, or log_group_identifiers.
+
+    CRITICAL: The volume of returned logs can easily overwhelm the agent context window. Always include a limit in the query
+    (| limit 50) or using the limit parameter.
 
     Usage: Use to query, filter, collect statistics, or find patterns in one or more log groups. For example, the following
     query lists exceptions per hour.
@@ -212,9 +260,15 @@ async def execute_log_insights_query_tool(
 
             if status in {'Complete', 'Failed', 'Cancelled'}:
                 logger.info(f'Query {query_id} finished with status {status}')
-                del response['ResponseMetadata']
-                response['queryId'] = query_id
-                return response
+                return {
+                    'queryId': query_id,
+                    'status': status,
+                    'statistics': response.get('statistics', {}),
+                    'results': [
+                        {field['field']: field['value'] for field in line}
+                        for line in response.get('results', [])
+                    ],
+                }
 
             await asyncio.sleep(1)
 
@@ -258,7 +312,16 @@ async def get_query_results_tool(
         response = logs_client.get_query_results(queryId=query_id)
 
         logger.info(f'Retrieved results for query ID {query_id}')
-        return response
+
+        return {
+            'queryId': query_id,
+            'status': response['status'],
+            'statistics': response.get('statistics', {}),
+            'results': [
+                {field['field']: field['value'] for field in line}
+                for line in response.get('results', [])
+            ],
+        }
     except Exception as e:
         logger.error(f'Error in mcp_get_query_results: {str(e)}')
         await ctx.error(f'Error retrieving CloudWatch Logs Insights query results: {str(e)}')

@@ -1,6 +1,7 @@
 import datetime
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional
+import re
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import List, Optional, Set
 
 
 class LogGroupMetadata(BaseModel):
@@ -36,6 +37,51 @@ class LogGroupMetadata(BaseModel):
         if isinstance(v, int):
             return datetime.datetime.fromtimestamp(v / 1000.0).isoformat()
         return v
+
+
+class SavedQuery(BaseModel):
+    """Represents a saved CloudWatch Logs Insights query."""
+
+    logGroupNames: Optional[Set[str]] = Field(
+        default=set, description='Log groups associated with the query, optional.'
+    )
+    name: str = Field(..., description='Name of the saved query')
+    queryString: str = Field(
+        ..., description='The query string in the Cloudwatch Log Insights Query Language.'
+    )
+    logGroupPrefixes: Optional[Set[str]] = Field(
+        default=set, description='Prefixes of log groups associated with the query, optional.'
+    )
+
+    @model_validator(mode='before')
+    @classmethod
+    def extract_prefixes(cls, values):
+        """Extract log group prefixes by parsing the SOURCE command of the query string, if present."""
+        query_string = values['queryString']
+        if query_string:
+            # Match the SOURCE ... pattern and extract the content inside parentheses
+            source_match = re.search(r'SOURCE\s+logGroups\((.*?)\)', query_string)
+            if source_match:
+                content = source_match.group(1)
+                # Extract namePrefix and its values
+                prefix_match = re.search(r'namePrefix:\s*\[(.*?)\]', content)
+                if prefix_match:
+                    # Split the prefixes and strip whitespace and quotes
+                    values['logGroupPrefixes'] = {
+                        p.strip().strip('\'"') for p in prefix_match.group(1).split(',')
+                    }
+        return values
+
+
+class LogMetadata(BaseModel):
+    """Represents information about a CloudWatch log."""
+
+    log_group_metadata: List[LogGroupMetadata] = Field(
+        ..., description='List of metadata about log groups'
+    )
+    saved_queries: List[SavedQuery] = Field(
+        ..., description='Saved queries associated with the log'
+    )
 
 
 class CancelQueryResult(BaseModel):

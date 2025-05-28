@@ -14,7 +14,10 @@ import awslabs.cloudwatch_logs_mcp_server.server
 import boto3
 import pytest
 import pytest_asyncio
-from awslabs.cloudwatch_logs_mcp_server.models import CancelQueryResult, LogGroupMetadata
+from awslabs.cloudwatch_logs_mcp_server.models import (
+    CancelQueryResult,
+    LogMetadata,
+)
 from awslabs.cloudwatch_logs_mcp_server.server import (
     cancel_query_tool,
     describe_log_groups_tool,
@@ -60,6 +63,19 @@ class TestDescribeLogGroups:
         # Create a test log group
         logs_client.create_log_group(logGroupName='/aws/test/group1')
 
+        def mock_describe_query_definitions(*args, **kwargs):
+            return {
+                'queryDefinitions': [
+                    {
+                        'name': 'test-query',
+                        'queryString': 'fields @timestamp, @message | limit 1',
+                        'logGroupNames': ['/aws/test/group1'],
+                    }
+                ]
+            }
+
+        logs_client.describe_query_definitions = mock_describe_query_definitions
+
         # Call the tool
         result = await describe_log_groups_tool(
             ctx,
@@ -71,15 +87,29 @@ class TestDescribeLogGroups:
         )
 
         # Verify results
-        assert len(result) == 1
-        assert isinstance(result[0], LogGroupMetadata)
-        assert result[0].logGroupName == '/aws/test/group1'
+        assert isinstance(result, LogMetadata)
+        assert len(result.log_group_metadata) == 1
+        assert result.log_group_metadata[0].logGroupName == '/aws/test/group1'
+        assert len(result.saved_queries) == 1
 
     async def test_max_items_limit(self, ctx, logs_client):
         """Test max items limit."""
         # Create multiple log groups
         for i in range(3):
             logs_client.create_log_group(logGroupName=f'/aws/test/group{i}')
+
+        def mock_describe_query_definitions(*args, **kwargs):
+            return {
+                'queryDefinitions': [
+                    {
+                        'name': 'test-query',
+                        'queryString': 'SOURCE logGroups(namePrefix: ["different_prefix"]) | filter @message like "ERROR"',
+                        'logGroupNames': [],
+                    }
+                ]
+            }
+
+        logs_client.describe_query_definitions = mock_describe_query_definitions
 
         # Call with max_items=2
         result = await describe_log_groups_tool(
@@ -92,7 +122,43 @@ class TestDescribeLogGroups:
         )
 
         # Verify results
-        assert len(result) == 2
+        assert len(result.log_group_metadata) == 2
+        assert len(result.saved_queries) == 0
+
+    async def test_saved_query_with_prefix(self, ctx, logs_client):
+        """Test basic log group description."""
+        # Create a test log group
+        logs_client.create_log_group(logGroupName='/aws/test/group1')
+
+        def mock_describe_query_definitions(*args, **kwargs):
+            return {
+                'queryDefinitions': [
+                    {
+                        'name': 'test-query',
+                        'queryString': 'SOURCE logGroups(namePrefix: ["/aws/test/group", \'other_prefix\']) | filter @message like "ERROR"',
+                        'logGroupNames': [],
+                    }
+                ]
+            }
+
+        logs_client.describe_query_definitions = mock_describe_query_definitions
+
+        # Call the tool
+        result = await describe_log_groups_tool(
+            ctx,
+            account_identifiers=None,
+            include_linked_accounts=None,
+            log_group_class='STANDARD',
+            log_group_name_prefix='/aws',
+            max_items=None,
+        )
+
+        # Verify results
+        assert isinstance(result, LogMetadata)
+        assert len(result.log_group_metadata) == 1
+        assert result.log_group_metadata[0].logGroupName == '/aws/test/group1'
+        assert len(result.saved_queries) == 1
+        assert result.saved_queries[0].logGroupPrefixes == {'/aws/test/group', 'other_prefix'}
 
 
 @pytest.mark.asyncio
