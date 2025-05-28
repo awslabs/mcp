@@ -34,6 +34,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/postgres-mcp-server              @kennthhz                        @awslabs/mcp-admins
 /src/mysql-mcp-server                 @kennthhz                        @awslabs/mcp-admins
 /src/syntheticdata-mcp-server         @pranjbh                         @awslabs/mcp-admins
+/src/stepfunctions-tool-mcp-server    @mmouniro                        @awslabs/mcp-admins
 /src/terraform-mcp-server             @alexa-perlov                    @awslabs/mcp-admins
 /src/valkey-mcp-server                @seaofawareness                  @awslabs/mcp-admins
 
