@@ -27,7 +27,7 @@ This MCP server acts as a bridge between MCP clients and Finch, allowing generat
 
 Configure the MCP server in your MCP client configuration:
 
-### Default Mode (Read-only AWS Resources)
+#### Default Mode (Read-only AWS Resources)
 
 By default, the server runs in a mode that prevents the creation of new AWS resources. This is useful for environments where you want to limit resource creation or for users who should only be able to build and push to existing repositories.
 
@@ -35,21 +35,16 @@ By default, the server runs in a mode that prevents the creation of new AWS reso
 {
   "mcpServers": {
     "awslabs.finch-mcp-server": {
-      "disabled": false,
-      "timeout": 1000,
-      "command": "uv",
-      "args": [
-        "--directory",
-        "<ABSOLUTE PATH>",
-        "run",
-        "server.py"
-      ],
+      "command": "uvx",
+      "args": ["awslabs.finch-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "default",
         "AWS_REGION": "us-west-2",
         "FASTMCP_LOG_LEVEL": "INFO"
       },
-      "transportType": "stdio"
+      "transportType": "stdio",
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }
@@ -57,9 +52,9 @@ By default, the server runs in a mode that prevents the creation of new AWS reso
 
 In this default mode:
 - The `finch_build_container_image` tools will work normally
-- The `finch_create_ecr_repo`  and `finch_push_image` tool will return an error and will not create or modify AWS resources.
+- The `finch_create_ecr_repo` and `finch_push_image` tool will return an error and will not create or modify AWS resources.
 
-## AWS Resource Write Mode
+#### AWS Resource Write Mode
 
 The server can also be set to enable AWS resource creation and modification by using the `--enable-aws-resource-write` flag.
 
@@ -67,27 +62,23 @@ The server can also be set to enable AWS resource creation and modification by u
 {
   "mcpServers": {
     "awslabs.finch-mcp-server": {
-      "disabled": false,
-      "timeout": 1000,
-      "command": "uv",
+      "command": "uvx",
       "args": [
-        "--directory",
-        "<ABSOLUTE PATH>",
-        "--enable-aws-resource-write",
-        "run",
-        "server.py"
+        "awslabs.finch-mcp-server@latest",
+        "--enable-aws-resource-write"
       ],
       "env": {
         "AWS_PROFILE": "default",
         "AWS_REGION": "us-west-2",
         "FASTMCP_LOG_LEVEL": "INFO"
       },
-      "transportType": "stdio"
+      "transportType": "stdio",
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }
 ```
-
 
 ## Available Tools
 
