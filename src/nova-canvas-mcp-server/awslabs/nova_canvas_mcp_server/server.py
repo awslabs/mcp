@@ -10,7 +10,6 @@
 # and limitations under the License.
 """Nova Canvas MCP Server implementation."""
 
-import argparse
 import boto3
 import os
 import sys
@@ -316,24 +315,7 @@ async def mcp_generate_image_with_colors(
 def main():
     """Run the MCP server with CLI argument support."""
     logger.info('Starting nova-canvas-mcp-server MCP server')
-
-    parser = argparse.ArgumentParser(
-        description='MCP server for generating images using Amazon Nova Canvas'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-    logger.debug(f'Parsed arguments: sse={args.sse}, port={args.port}')
-
-    # Run server with appropriate transport
-    if args.sse:
-        logger.info(f'Using SSE transport on port {args.port}')
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        logger.info('Using standard stdio transport')
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
