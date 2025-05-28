@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server for Finch that enables generative AI model
 
 ## Features
 
-This MCP server acts as a bridge between MCP clients and Finch, allowing generative AI models to build and push container images. The server provides a secure way to interact with Finch, ensuring that the Finch VM is properly initialized and running before performing operations.
+This MCP server acts as a bridge between MCP clients and Finch, allowing generative AI models to build and push container images to repositories, and create ECR repositories as needed. The server provides a secure way to interact with Finch, ensuring that the Finch VM is properly initialized and running before performing operations.
 
 ## Key Capabilities
 
@@ -45,9 +45,9 @@ By default, the server runs in a mode that prevents the creation of new AWS reso
         "server.py"
       ],
       "env": {
-        "AWS_PROFILE": "your-aws-profile",
+        "AWS_PROFILE": "default",
         "AWS_REGION": "us-west-2",
-        "FASTMCP_LOG_LEVEL": "ERROR"
+        "FASTMCP_LOG_LEVEL": "INFO"
       },
       "transportType": "stdio"
     }
@@ -78,9 +78,9 @@ The server can also be set to enable AWS resource creation and modification by u
         "server.py"
       ],
       "env": {
-        "AWS_PROFILE": "your-aws-profile",
+        "AWS_PROFILE": "default",
         "AWS_REGION": "us-west-2",
-        "FASTMCP_LOG_LEVEL": "ERROR"
+        "FASTMCP_LOG_LEVEL": "INFO"
       },
       "transportType": "stdio"
     }
