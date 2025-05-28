@@ -68,7 +68,7 @@ class EKSKnowledgeBaseHandler:
 
         Args:
             query: Your specific question or issue description related to EKS troubleshooting. Question has to be less than 300 characters and can only
-            contain letters, numbers, comma, period, question marks, and spaces
+            contain letters, numbers, commas, periods, question marks, colons, and spaces.
 
         Returns:
             str: Detailed troubleshooting guidance for the EKS issue

@@ -1,6 +1,6 @@
 # Amazon EKS MCP Server
 
-The Amazon EKS MCP server provides AI code assistants with resource management tools and real-time cluster state visibility. This provides  large language models (LLMs) with essential tooling and contextual awareness, enabling AI code assistants to streamline application development through tailored guidance—from initial setup through production optimization and troubleshooting.
+The Amazon EKS MCP server provides AI code assistants with resource management tools and real-time cluster state visibility. This provides large language models (LLMs) with essential tooling and contextual awareness, enabling AI code assistants to streamline application development through tailored guidance — from initial setup through production optimization and troubleshooting.
 
 Integrating the EKS MCP server into AI code assistants enhances development workflow across all phases, from simplifying initial cluster setup with automated prerequisite creation and application of best practices. Further, it streamlines application deployment with high-level workflows and automated code generation. Finally, it accelerates troubleshooting through intelligent debugging tools and knowledge base access. All of this simplifies complex operations through natural language interactions in AI code assistants.
 
@@ -93,12 +93,12 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 	```
 	{
 	  "mcpServers": {
-	    "awslabs.eks_mcp_server": {
+	    "awslabs.eks-mcp-server": {
 	      "autoApprove": [],
 	      "disabled": false,
 	      "command": "uvx",
 	      "args": [
-	        "awslabs.eks_mcp_server@latest",
+	        "awslabs.eks-mcp-server@latest",
 	        "--allow-write"
 	      ],
 	      "env": {
@@ -151,7 +151,7 @@ The `args` field in the MCP server definition specifies the command-line argumen
     "awslabs.eks-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.eks_mcp_server@latest",
+        "awslabs.eks-mcp-server@latest",
         "--allow-write",
         "--allow-sensitive-data-access"
       ],
@@ -191,7 +191,7 @@ The `env` field in the MCP server definition allows you to configure environment
 ```
 {
   "mcpServers": {
-    "awslabs.eks_mcp_server": {
+    "awslabs.eks-mcp-server": {
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "my-profile",
@@ -221,7 +221,7 @@ Specifies the AWS profile to use for authentication.
 
 Specifies the AWS region where EKS clusters are managed, which will be used for all AWS service operations.
 
-* Default: "us-east-1"
+* Default: None (If not set, uses default AWS region).
 * Example: `"AWS_REGION": "us-west-2"`
 
 ## Tools
@@ -273,7 +273,7 @@ Features:
 
 Parameters:
 
-* yaml_path, cluster_name, namespace
+* yaml_path, cluster_name, namespace, force
 
 #### `list_k8s_resources`
 
@@ -344,7 +344,7 @@ Features:
 
 Parameters:
 
-* cluster_name, resource_kind, resource_name, namespace (optional)
+* cluster_name, kind, name, namespace (optional)
 
 ### CloudWatch Integration
 
@@ -361,7 +361,8 @@ Features:
 
 Parameters:
 
-* cluster_name, log_type (application, host, performance, control-plane, custom), resource_type (pod, node, container, cluster), resource_name, namespace (optional), time_range (optional), limit (optional)
+* cluster_name, log_type (application, host, performance, control-plane, custom), resource_type (pod, node, container, cluster),
+resource_name, minutes (optional), start_time (optional), end_time (optional), limit (optional), filter_pattern (optional), fields (optional)
 
 #### `get_cloudwatch_metrics`
 
@@ -376,7 +377,9 @@ Features:
 
 Parameters:
 
-* cluster_name, metric_name, resource_type (pod, node, container, cluster), resource_name, namespace (optional), statistic (optional), period (optional), time_range (optional)
+* cluster_name, metric_name, resource_type (pod, node, container, cluster), resource_name, namespace (optional), k8s_namespace
+(optional), minutes (optional), start_time (optional), end_time (optional), limit (optional), stat (optional), period (optional), custom_dimensions
+ (optional)
 
 ### IAM Integration
 
@@ -396,7 +399,7 @@ Parameters:
 
 #### `add_inline_policy`
 
-Adds a new inline policy with specified permissions to an IAM role; it will not modify existing policies. **Note**: This tool is only available when write access is enabled. It will only create new policies; it will reject requests to modify existing policies.
+Adds a new inline policy with specified permissions to an IAM role; it will not modify existing policies. It will only create new policies; it will reject requests to modify existing policies.
 
 Features:
 
@@ -457,7 +460,7 @@ When using the EKS MCP Server, consider the following:
 The EKS MCP Server can be used for production environments with proper security controls in place. The server runs in read-only mode by default, which is recommended and considered generally safer for production environments. Only explicitly enable write access when necessary. Below are the EKS MCP server tools available in read-only versus write-access mode:
 
 * **Read-only mode (default)**: `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`.
-* **Write-access mode**: (require `--allow-write` and proper IAM controls): `manage_eks_stacks` (with "generate", "deploy", "delete"), `manage_k8s_resource` (with "create", "replace", "patch", "delete"), `apply_yaml`, `generate_app_manifest`, `add_inline_policy`.
+* **Write-access mode**: (require `--allow-write`): `manage_eks_stacks` (with "generate", "deploy", "delete"), `manage_k8s_resource` (with "create", "replace", "patch", "delete"), `apply_yaml`, `generate_app_manifest`, `add_inline_policy`.
 
 #### `autoApprove` (optional)
 
@@ -469,7 +472,7 @@ An array within the MCP server definition that lists tool names to be automatica
     "awslabs.eks-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.eks_mcp_server@latest"
+        "awslabs.eks-mcp-server@latest"
       ],
       "env": {
         "AWS_PROFILE": "eks-mcp-readonly-profile",
@@ -495,7 +498,7 @@ An array within the MCP server definition that lists tool names to be automatica
 
 ### IAM Permissions Management
 
-When the `--allow-write` flag is enabled, the EKS MCP Server can create missing IAM permissions for EKS resources through the `add_inline_policy` tool. This flag enables the following:
+When the `--allow-write` flag is enabled, the EKS MCP Server can create missing IAM permissions for EKS resources through the `add_inline_policy` tool. This tool enables the following:
 
 * Only creates new inline policies; it never modifies existing policies.
 * Is useful for automatically fixing common permissions issues with EKS clusters.
@@ -549,7 +552,6 @@ In accordance with security best practices, we recommend the following:
 * **CloudFormation Errors**: Check the CloudFormation console for stack creation errors.
 * **Kubernetes API Errors**: Verify that the EKS cluster is running and accessible.
 * **Network Issues**: Check VPC and security group configurations.
-* **Timeout Errors**: Some operations (like cluster creation) can take 15-20 minutes to complete.
 * **Client Errors**: Verify that the MCP client is configured correctly.
 * **Log Level**: Increase the log level to DEBUG for more detailed logs.
 
