@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """terraform MCP server implementation."""
 
-import argparse
 from awslabs.terraform_mcp_server.impl.resources import (
     terraform_aws_provider_assets_listing_impl,
     terraform_awscc_provider_resources_listing_impl,
 )
 from awslabs.terraform_mcp_server.impl.tools import (
     execute_terraform_command_impl,
+    execute_terragrunt_command_impl,
     run_checkov_scan_impl,
     search_aws_provider_docs_impl,
     search_awscc_provider_docs_impl,
@@ -24,6 +24,8 @@ from awslabs.terraform_mcp_server.models import (
     TerraformAWSProviderDocsResult,
     TerraformExecutionRequest,
     TerraformExecutionResult,
+    TerragruntExecutionRequest,
+    TerragruntExecutionResult,
 )
 from awslabs.terraform_mcp_server.static import (
     AWS_TERRAFORM_BEST_PRACTICES,
@@ -82,6 +84,61 @@ async def execute_terraform_command(
         strip_ansi=strip_ansi,
     )
     return await execute_terraform_command_impl(request)
+
+
+@mcp.tool(name='ExecuteTerragruntCommand')
+async def execute_terragrunt_command(
+    command: Literal['init', 'plan', 'validate', 'apply', 'destroy', 'output', 'run-all'] = Field(
+        ..., description='Terragrunt command to execute'
+    ),
+    working_directory: str = Field(..., description='Directory containing Terragrunt files'),
+    variables: Optional[Dict[str, str]] = Field(None, description='Terraform variables to pass'),
+    aws_region: Optional[str] = Field(None, description='AWS region to use'),
+    strip_ansi: bool = Field(True, description='Whether to strip ANSI color codes from output'),
+    include_dirs: Optional[List[str]] = Field(
+        None, description='Directories to include in a multi-module run'
+    ),
+    exclude_dirs: Optional[List[str]] = Field(
+        None, description='Directories to exclude from a multi-module run'
+    ),
+    run_all: bool = Field(False, description='Run command on all modules in subdirectories'),
+    terragrunt_config: Optional[str] = Field(
+        None, description='Path to a custom terragrunt config file (not valid with run-all)'
+    ),
+) -> TerragruntExecutionResult:
+    """Execute Terragrunt workflow commands against an AWS account.
+
+    This tool runs Terragrunt commands (init, plan, validate, apply, destroy, run-all) in the
+    specified working directory, with optional variables and region settings. Terragrunt extends
+    Terraform's functionality by providing features like remote state management, dependencies
+    between modules, and the ability to execute Terraform commands on multiple modules at once.
+
+    Parameters:
+        command: Terragrunt command to execute
+        working_directory: Directory containing Terragrunt files
+        variables: Terraform variables to pass
+        aws_region: AWS region to use
+        strip_ansi: Whether to strip ANSI color codes from output
+        include_dirs: Directories to include in a multi-module run
+        exclude_dirs: Directories to exclude from a multi-module run
+        run_all: Run command on all modules in subdirectories
+        terragrunt_config: Path to a custom terragrunt config file (not valid with run-all)
+
+    Returns:
+        A TerragruntExecutionResult object containing command output and status
+    """
+    request = TerragruntExecutionRequest(
+        command=command,
+        working_directory=working_directory,
+        variables=variables,
+        aws_region=aws_region,
+        strip_ansi=strip_ansi,
+        include_dirs=include_dirs,
+        exclude_dirs=exclude_dirs,
+        run_all=run_all,
+        terragrunt_config=terragrunt_config,
+    )
+    return await execute_terragrunt_command_impl(request)
 
 
 @mcp.tool(name='SearchAwsProviderDocs')
@@ -362,18 +419,7 @@ async def terraform_aws_best_practices() -> str:
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='A Model Context Protocol (MCP) server')
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

@@ -14,12 +14,13 @@ on:
   schedule:
     - cron: '43 16 * * 1'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   detect-dockerfiles:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       dockerfiles: ${{ steps.find-dockerfiles.outputs.dockerfiles }}
     steps:
@@ -39,9 +40,8 @@ jobs:
         dockerfile: ${{ fromJson(needs.detect-dockerfiles.outputs.dockerfiles) }}
     name: Build ${{ matrix.dockerfile }}
     permissions:
-      contents: read # for actions/checkout to fetch code
-      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+      contents: read
+      security-events: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -60,6 +60,6 @@ jobs:
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3.28.17 #v3.28.15
+        uses: github/codeql-action/upload-sarif@v3.28.18 #v3.28.15
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'

@@ -4,13 +4,14 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-  pages: write
+permissions: {}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Configure Git Credentials
@@ -27,5 +28,5 @@ jobs:
           path: .cache
           restore-keys: |
             mkdocs-material-
-      - run: pip install mkdocs-material mkdocs-include-markdown-plugin
+      - run: pip install mkdocs-material mkdocs-include-markdown-plugin mkdocs-mermaid2-plugin
       - run: mkdocs gh-deploy --force

@@ -41,6 +41,12 @@ MCP server for Terraform on AWS best practices, infrastructure as code patterns,
   - Pass variables and specify AWS regions
   - Get formatted command output for analysis
 
+- **Terragrunt Workflow Execution** - Run Terragrunt commands directly
+  - Initialize, plan, validate, apply, run-all and destroy operations
+  - Pass variables and specify AWS regions
+  - Configure terragrunt-config and and include/exclude paths flags
+  - Get formatted command output for analysis
+
 ## Tools and Resources
 
 - **Terraform Development Workflow**: Follow security-focused development process via `terraform://workflow_guide`
@@ -75,7 +81,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
-or docker after a succesful `docker build -t awslabs/terraform-mcp-server .`:
+or docker after a successful `docker build -t awslabs/terraform-mcp-server .`:
 
 ```json
   {

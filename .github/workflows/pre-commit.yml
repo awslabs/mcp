@@ -4,10 +4,12 @@ on:
   pull_request:
   push:
     branches: [main]
-permissions: read-all
+permissions: {}
 jobs:
   detect-precommit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       precommits: ${{ steps.find-precommit.outputs.precommits }}
     steps:

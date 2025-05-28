@@ -24,6 +24,7 @@ from awslabs.terraform_mcp_server.models import (
     TerraformExecutionResult,
     TerraformOutput,
     TerraformVariable,
+    TerragruntExecutionResult,
 )
 from awslabs.terraform_mcp_server.server import (
     main,
@@ -31,7 +32,7 @@ from awslabs.terraform_mcp_server.server import (
     terraform_aws_provider_resources_listing,
     terraform_awscc_provider_resources_listing,
 )
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 class TestMCPServer:
@@ -372,6 +373,71 @@ class TestTools:
         assert request.version == '3.14.0'
         assert request.variables == {'name': 'my-vpc'}
 
+    def test_execute_terragrunt_command_registration(self):
+        """Test that the execute_terragrunt_command tool is registered correctly."""
+        tool = mcp._tool_manager.get_tool('ExecuteTerragruntCommand')
+        assert tool is not None
+        assert tool.name == 'ExecuteTerragruntCommand'
+        assert 'Execute Terragrunt workflow commands' in tool.description
+
+        # Verify the tool exists
+        assert tool is not None
+        assert tool.name == 'ExecuteTerragruntCommand'
+        assert 'Execute Terragrunt workflow commands' in tool.description
+
+    @pytest.mark.asyncio
+    @patch('awslabs.terraform_mcp_server.server.execute_terragrunt_command_impl')
+    async def test_execute_terragrunt_command(self, mock_execute_terragrunt_command_impl):
+        """Test the execute_terragrunt_command function."""
+        from awslabs.terraform_mcp_server.server import execute_terragrunt_command
+
+        # Use a secure temporary directory path instead of hardcoded /tmp
+        temp_dir = os.path.join(tempfile.gettempdir(), 'terragrunt_test_dir')
+
+        # Setup mock
+        mock_result = TerragruntExecutionResult(
+            command='init',
+            status='success',
+            return_code=0,
+            stdout='Terragrunt initialized',
+            stderr='',
+            working_directory=temp_dir,
+            error_message=None,
+            outputs=None,
+            affected_dirs=None,
+        )
+        mock_execute_terragrunt_command_impl.return_value = mock_result
+
+        # Call the function
+        result = await execute_terragrunt_command(
+            command='init',
+            working_directory=temp_dir,
+            variables={'foo': 'bar'},
+            aws_region='us-west-2',
+            strip_ansi=True,
+            include_dirs=['/path/to/module1'],
+            exclude_dirs=['/path/to/excluded'],
+            run_all=False,
+            terragrunt_config='custom-terragrunt.hcl',
+        )
+
+        # Verify the result
+        assert result == mock_result
+
+        # Verify the mock was called with the correct arguments
+        mock_execute_terragrunt_command_impl.assert_called_once()
+        args, _ = mock_execute_terragrunt_command_impl.call_args
+        request = args[0]
+        assert request.command == 'init'
+        assert request.working_directory == temp_dir
+        assert request.variables == {'foo': 'bar'}
+        assert request.aws_region == 'us-west-2'
+        assert request.strip_ansi is True
+        assert request.include_dirs == ['/path/to/module1']
+        assert request.exclude_dirs == ['/path/to/excluded']
+        assert request.run_all is False
+        assert request.terragrunt_config == 'custom-terragrunt.hcl'
+
 
 class TestResources:
     """Tests for the MCP resources."""
@@ -502,62 +568,13 @@ class TestResources:
 class TestMain:
     """Tests for the main function."""
 
-    @patch('awslabs.terraform_mcp_server.server.argparse.ArgumentParser')
     @patch('awslabs.terraform_mcp_server.server.mcp')
-    def test_main_default(self, mock_mcp, mock_argument_parser):
+    def test_main_default(self, mock_mcp):
         """Test the main function with default arguments."""
         # Set up the mock
-        mock_parser = MagicMock()
-        mock_args = MagicMock()
-        mock_args.sse = False
-        mock_parser.parse_args.return_value = mock_args
-        mock_argument_parser.return_value = mock_parser
 
         # Call the function
         main()
-
-        # Check that the parser was set up correctly
-        mock_argument_parser.assert_called_once_with(
-            description='A Model Context Protocol (MCP) server'
-        )
-        mock_parser.add_argument.assert_any_call(
-            '--sse', action='store_true', help='Use SSE transport'
-        )
-        mock_parser.add_argument.assert_any_call(
-            '--port', type=int, default=8888, help='Port to run the server on'
-        )
 
         # Check that mcp.run was called with the correct arguments
         mock_mcp.run.assert_called_once_with()
-
-    @patch('awslabs.terraform_mcp_server.server.argparse.ArgumentParser')
-    @patch('awslabs.terraform_mcp_server.server.mcp')
-    def test_main_with_sse(self, mock_mcp, mock_argument_parser):
-        """Test the main function with SSE transport."""
-        # Set up the mock
-        mock_parser = MagicMock()
-        mock_args = MagicMock()
-        mock_args.sse = True
-        mock_args.port = 9999
-        mock_parser.parse_args.return_value = mock_args
-        mock_argument_parser.return_value = mock_parser
-
-        # Call the function
-        main()
-
-        # Check that the parser was set up correctly
-        mock_argument_parser.assert_called_once_with(
-            description='A Model Context Protocol (MCP) server'
-        )
-        mock_parser.add_argument.assert_any_call(
-            '--sse', action='store_true', help='Use SSE transport'
-        )
-        mock_parser.add_argument.assert_any_call(
-            '--port', type=int, default=8888, help='Port to run the server on'
-        )
-
-        # Check that mcp.settings.port was set correctly
-        assert mock_mcp.settings.port == 9999
-
-        # Check that mcp.run was called with the correct arguments
-        mock_mcp.run.assert_called_once_with(transport='sse')

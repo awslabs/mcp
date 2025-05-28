@@ -10,6 +10,7 @@ You have access to specialized tools and resources through this MCP server that 
 1. Reference this workflow consistently throughout your interactions
 2. Leverage this MCP server's capabilities rather than relying solely on your general knowledge
 3. Explain the workflow steps to users as you assist them
+4. Choose the appropriate path—Terraform or Terragrunt—based on the user's project structure and tooling preferences
 
 ## Benefits to Emphasize
 When following this workflow and using these tools, you provide several advantages to users:
@@ -18,6 +19,7 @@ When following this workflow and using these tools, you provide several advantag
 - Identification of security vulnerabilities before deployment
 - Adherence to AWS best practices
 - Validation that code will work correctly when deployed
+- Support for layered, DRY configurations through Terragrunt when modularization and environment inheritance are needed
 
 By following this workflow guide and leveraging the provided tools and resources, you'll deliver consistent, high-quality assistance for Terraform development on AWS, helping users create infrastructure code that is syntactically valid, secure, and ready for review before deployment.
 
@@ -25,32 +27,33 @@ By following this workflow guide and leveraging the provided tools and resources
 
 ``` mermaid
 flowchart TD
-    start([Start Development]) --> edit[Edit Terraform Code]
+    start([Start Development]) --> detectConfig[Identify Project Type:\nTerraform or Terragrunt]
+
+    detectConfig --> edit[Edit Code]
 
     %% Initial Code Validation
-    edit --> tfValidate[Run terraform validate\nvia ExecuteTerraformCommand]
+    edit --> validate[Run Validation:\nterraform validate or terragrunt validate\nvia ExecuteTerraformCommand]
 
     %% Validation Flow
-    tfValidate -->|Passes| checkovScan[Run Security Scan\nvia RunCheckovScan]
-    tfValidate -->|Fails| fixValidation[Fix Configuration\nIssues]
+    validate -->|Passes| checkovScan[Run Security Scan\nvia RunCheckovScan]
+    validate -->|Fails| fixValidation[Fix Configuration\nIssues]
     fixValidation --> edit
 
     %% Checkov Flow
-    checkovScan -->|No Issues| tfInit[Run terraform init\nvia ExecuteTerraformCommand]
+    checkovScan -->|No Issues| initCmd[Run Init Command:\nterraform init or terragrunt init\nvia ExecuteTerraformCommand]
     checkovScan -->|Finds Issues| reviewIssues[Review Security\nIssues]
 
     reviewIssues --> manualFix[Fix Security Issues]
-
     manualFix --> edit
 
-    %% Terraform Init & Plan (No Apply)
-    tfInit -->|Success| tfPlan[Run terraform plan\nvia ExecuteTerraformCommand]
-    tfInit -->|Fails| fixInit[Fix Provider/Module\nIssues]
+    %% Init & Plan (No Apply)
+    initCmd -->|Success| planCmd[Run Plan Command:\nterraform plan or terragrunt plan\nvia ExecuteTerraformCommand]
+    initCmd -->|Fails| fixInit[Fix Provider/Module\nIssues]
     fixInit --> edit
 
     %% Final Review & Handoff to Developer
-    tfPlan -->|Plan Generated| reviewPlan[Review Planned Changes]
-    tfPlan -->|Issues Detected| edit
+    planCmd -->|Plan Generated| reviewPlan[Review Planned Changes]
+    planCmd -->|Issues Detected| edit
 
     reviewPlan --> codeReady[Valid, Secure Code Ready\nfor Developer Review]
 
@@ -72,17 +75,20 @@ flowchart TD
     class reviewIssues,reviewPlan warning
     class fixValidation,fixInit,manualFix error
     class edit process
-    class newChanges decision
-    class tfValidate,checkovScan,tfInit,tfPlan mcptool
+    class detectConfig,newChanges decision
+    class validate,checkovScan,initCmd,planCmd mcptool
     class handoff handoff
 ```
 
-1. Edit Terraform Code
-    - Write or modify Terraform configuration files for AWS resources
+1. Edit Terraform or Terragrunt Code
+    - Write or modify Terraform or Terragrunt configuration files for AWS resources
     - When writing code, follow this priority order:
         * FIRST check for specialized AWS-IA modules (`SearchSpecificAwsIaModules` tool)
         * If no suitable module exists, THEN use AWSCC provider resources (`SearchAwsccProviderDocs` tool)
         * ONLY fall back to traditional AWS provider (`SearchAwsProviderDocs` tool) when the above options don't meet requirements
+    - When using Terragrunt:
+        * Ensure that the terraform block references the correct module or configuration directory
+        * Use Terragrunt features such as locals, dependencies, generate, and inputs to manage DRY configuration
     - When a user provides a specific Terraform Registry module to use:
         * Use the `SearchUserProvidedModule` tool to analyze the module
         * Extract input variables, output variables, and README content
@@ -92,6 +98,7 @@ flowchart TD
         - Resources
             - *terraform_development_workflow* to consult this guide and to use it to ensure you're following the development workflow correctly
             - *terraform_aws_best_practices* for AWS best practices about security, code base structure and organization, AWS Provider version management, and usage of community modules
+            - *terragrunt_aws_best_practices* for AWS best practices about security, code base structure and organization, AWS Provider version management, and usage of community modules
             - *terraform_awscc_provider_resources_listing* for available AWS Cloud Control API resources
             - *terraform_aws_provider_resources_listing* for available AWS resources
         - Tools
@@ -100,10 +107,15 @@ flowchart TD
             - *SearchAwsccProviderDocs* tool to look up specific Cloud Control API resources
             - *SearchAwsProviderDocs* tool to look up specific resource documentation
 2. Validate Code
-    - Tool: *ExecuteTerraformCommand* with command="validate"
-        - Checks syntax and configuration validity without accessing AWS
-        - Identifies syntax errors, invalid resource configurations, and reference issues
-        - Example: ExecuteTerraformCommand(TerraformExecutionRequest(command="validate", working_directory="./my_project"))
+    - Tools:
+      - *ExecuteTerraformCommand* with command="validate"
+      - *ExecuteTerragruntCommand* with command="validate"
+    - Purpose:
+      - Checks syntax and configuration validity without accessing AWS
+      - Identifies syntax errors, invalid resource configurations, and reference issues
+    - Examples:
+      - ExecuteTerraformCommand(TerraformExecutionRequest(command="validate", working_directory="./my_project"))
+      - ExecuteTerragruntCommand(TerragruntExecutionRequest(command="validate", working_directory="./my_project"))
 3. Run Security Scan
     - Tool: *RunCheckovScan*
         - Scans code for security misconfigurations, compliance issues, and AWS best practice violations
@@ -113,14 +125,24 @@ flowchart TD
         - Edit the code to address security issues identified by the scan
         - Consult *terraform_aws_best_practices* resource for guidance
 5. Initialize Working Directory
-    - Tool: *ExecuteTerraformCommand* with command="init"
+    - Tools:
+      - Terraform: *ExecuteTerraformCommand* with command="init"
+      - Terragrunt: *ExecuteTerragruntCommand* with command="init"
+    - Purpose:
         - Downloads provider plugins and sets up modules
-        - Example: ExecuteTerraformCommand(TerraformExecutionRequest(command="init", working_directory="./my_project"))
+    - Example:
+      - ExecuteTerraformCommand(TerraformExecutionRequest(command="init", working_directory="./my_project"))
+      - ExecuteTerragruntCommand(TerragruntExecutionRequest(command="init", working_directory="./my_project"))
 6. Plan Changes
-    - Tool: *ExecuteTerraformCommand* with command="plan"
+    - Tools:
+      - *ExecuteTerraformCommand* with command="plan"
+      - *ExecuteTerragruntCommand* with command="plan"
+    - Purpose:
         - Creates an execution plan showing what changes would be made (without applying)
         - Verifies that the configuration is deployable
-        - Example: ExecuteTerraformCommand(TerraformExecutionRequest(command="plan", working_directory="./my_project", output_file="tfplan"))
+    - Examples:
+      - ExecuteTerraformCommand(TerraformExecutionRequest(command="plan", working_directory="./my_project", output_file="tfplan"))
+      - ExecuteTerragruntCommand(TerragruntExecutionRequest(command="plan", working_directory="./my_project", output_file="tfplan"))
 7. Review Plan & Code Ready
     - Review the plan output to ensure it reflects intended changes
     - Confirm all validation and security checks have passed
@@ -183,6 +205,110 @@ Options:
 Options:
 - `-auto-approve` - Skip interactive approval
 
+### Terragrunt Commands
+
+#### terragrunt init
+
+* Purpose: Initializes a Terragrunt working directory by preparing the underlying Terraform modules and provider plugins.
+* When to use: Before running any other commands in a new or updated Terragrunt configuration directory.
+
+Options:
+- `--terragrunt-config=PATH` - Path to the Terragrunt configuration file (default: terragrunt.hcl)
+
+```python
+ExecuteTerragruntCommand(TerragruntExecutionRequest(
+    command="init",
+    working_directory="./project_dir"
+))
+```
+
+#### terragrunt validate
+
+* Purpose: Validates the underlying Terraform configuration referenced by the Terragrunt wrapper.
+* When to use: After editing Terragrunt or Terraform configuration files, to check for syntax and reference issues.
+
+```python
+ExecuteTerragruntCommand(TerragruntExecutionRequest(
+    command="validate",
+    working_directory="./project_dir"
+))
+```
+Options:
+- `--terragrunt-config=PATH` - Path to the Terragrunt configuration file (default: `terragrunt.hcl`)
+
+#### terragrunt plan
+
+* Purpose: Creates an execution plan for infrastructure changes using the Terragrunt wrapper.
+* When to use: After validation passes, to preview changes before applying them.
+
+Options:
+- `-var 'name=value'` - Set variable (passed to Terraform)
+- `-var-file=filename` - Load variables from file (passed to Terraform)
+- `--terragrunt-config=PATH` - Path to the Terragrunt configuration file (default: `terragrunt.hcl`)
+
+```python
+ExecuteTerragruntCommand(TerragruntExecutionRequest(
+    command="plan",
+    working_directory="./project_dir",
+))
+```
+
+#### terragrunt apply
+
+* Purpose: Applies the planned changes using the Terragrunt wrapper.
+* When to use: After plan output is approved and developer chooses to proceed.
+
+>Note: This is typically executed by the developer after reviewing code and plan output.
+
+Options:
+- `-auto-approve` - Skip interactive approval
+- `--non-interactive` - Disables all interactive approval prompts (Terragrunt as well of Terraform)
+- `-var 'name=value'` - Set variable
+- `--terragrunt-config=PATH` - Use a specific Terragrunt configuration file
+
+```python
+ExecuteTerragruntCommand(TerragruntExecutionRequest(
+    command="apply",
+    working_directory="./project_dir"
+))
+```
+
+#### terragrunt destroy
+
+* Purpose: Destroys all infrastructure managed through the Terragrunt configuration.
+* When to use: When the infrastructure is no longer needed.
+
+>Note: This is typically executed by the developer once the application or environment is being decommissioned.
+
+Options:
+- `-auto-approve` - Skip interactive approval
+- `--non-interactive` - Disables all interactive approval prompts (Terragrunt as well of Terraform)
+- `--terragrunt-config=PATH` - Use a specific Terragrunt configuration file
+
+```python
+ExecuteTerragruntCommand(TerragruntExecutionRequest(
+    command="destroy",
+    working_directory="./project_dir"
+))
+```
+
+#### terragrunt run-all apply
+
+* Purpose: Recursively runs the `apply` command across all child Terragrunt modules in a directory tree.
+* When to use: To apply changes across an entire environment or stack, typically in a root coordination folder.
+
+Options:
+- `--non-interactive` - Disables all interactive approval prompts (Terragrunt as well of Terraform)
+- `--queue-exclude-dir` - Exclude glob path that should be excluded when issuing run-all commands. If a relative path is specified, it should be relative from working-dir.
+- `--queue-include-dir` - Include glob path that should be included when issuing run-all commands. If a relative path is specified, it should be relative from working-dir.
+
+```python
+ExecuteTerragruntCommand(TerragruntExecutionRequest(
+    command="run-all apply",
+    working_directory="./live/production"
+))
+```
+
 ### Checkov Commands
 
 These security scanning commands are available through dedicated tools:
@@ -200,5 +326,5 @@ These security scanning commands are available through dedicated tools:
 - **Cost Optimization**: Design resources to minimize costs while meeting requirements
 - **Operational Excellence**: Implement proper monitoring, logging, and observability
 - **Serverless-First**: Prefer serverless services when possible
-- **Infrastructure as Code**: Use Terraform to define all infrastructure
+- **Infrastructure as Code**: Define all infrastructure declaratively using Terraform (or Terragrunt where applicable)
 - **Regional Awareness**: Consider regional availability and constraints for services

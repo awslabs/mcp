@@ -10,7 +10,6 @@
 # and limitations under the License.
 """awslabs AWS Documentation MCP Server implementation."""
 
-import argparse
 import httpx
 import json
 import os
@@ -32,8 +31,8 @@ from awslabs.aws_documentation_mcp_server.util import (
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pydantic import AnyUrl, Field
-from typing import List, Union
+from pydantic import Field
+from typing import List
 
 
 # Set up logging
@@ -80,7 +79,7 @@ mcp = FastMCP(
 @mcp.tool()
 async def read_documentation(
     ctx: Context,
-    url: Union[AnyUrl, str] = Field(description='URL of the AWS documentation page to read'),
+    url: str = Field(description='URL of the AWS documentation page to read'),
     max_length: int = Field(
         default=5000,
         description='Maximum number of characters to return.',
@@ -307,9 +306,7 @@ async def search_documentation(
 @mcp.tool()
 async def recommend(
     ctx: Context,
-    url: Union[AnyUrl, str] = Field(
-        description='URL of the AWS documentation page to get recommendations for'
-    ),
+    url: str = Field(description='URL of the AWS documentation page to get recommendations for'),
 ) -> List[RecommendationResult]:
     """Get content recommendations for an AWS documentation page.
 
@@ -401,25 +398,11 @@ async def recommend(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for AWS Documentation'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
     # Log startup information
     logger.info('Starting AWS Documentation MCP Server')
 
     # Run server with appropriate transport
-    if args.sse:
-        logger.info(f'Using SSE transport on port {args.port}')
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        logger.info('Using standard stdio transport')
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
