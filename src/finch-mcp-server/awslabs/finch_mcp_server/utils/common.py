@@ -22,6 +22,7 @@ def execute_command(command: list, env=None) -> subprocess.CompletedProcess:
 
     Args:
         command: List of command parts to execute (e.g., ['finch', 'vm', 'status'])
+               Note: Currently only 'finch' commands are allowed for security reasons.
         env: Optional environment variables dictionary. If None, uses a copy of the
              current environment with HOME set to the user's home directory.
 
@@ -31,10 +32,19 @@ def execute_command(command: list, env=None) -> subprocess.CompletedProcess:
         - stdout: Standard output as text
         - stderr: Standard error as text
 
+    Raises:
+        ValueError: If the command is not a finch command (doesn't start with 'finch')
+
     """
     if env is None:
         env = os.environ.copy()
         env['HOME'] = os.path.expanduser('~')
+
+    # Security check: Only allow finch commands
+    if not command or command[0] != 'finch':
+        error_msg = f'Security violation: Only finch commands are allowed. Received: {command}'
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     result = subprocess.run(command, capture_output=True, text=True, env=env)
 

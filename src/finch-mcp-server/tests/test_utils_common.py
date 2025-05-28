@@ -1,5 +1,6 @@
 """Tests for the common utility module."""
 
+import pytest
 from awslabs.finch_mcp_server.utils.common import execute_command, format_result
 from unittest.mock import MagicMock, patch
 
@@ -19,13 +20,13 @@ class TestExecuteCommand:
         mock_process.stderr = ''
         mock_subprocess_run.return_value = mock_process
 
-        result = execute_command(['echo', 'hello'])
+        result = execute_command(['finch', 'vm', 'status'])
 
         assert result.returncode == 0
         assert result.stdout == 'Command output'
         assert result.stderr == ''
         mock_subprocess_run.assert_called_once_with(
-            ['echo', 'hello'], capture_output=True, text=True, env=mock_env
+            ['finch', 'vm', 'status'], capture_output=True, text=True, env=mock_env
         )
 
         assert 'HOME' in mock_env
@@ -40,12 +41,12 @@ class TestExecuteCommand:
         mock_process.stderr = ''
         mock_subprocess_run.return_value = mock_process
 
-        result = execute_command(['echo', 'hello'], env=custom_env)
+        result = execute_command(['finch', 'info'], env=custom_env)
 
         assert result.returncode == 0
 
         mock_subprocess_run.assert_called_once_with(
-            ['echo', 'hello'], capture_output=True, text=True, env=custom_env
+            ['finch', 'info'], capture_output=True, text=True, env=custom_env
         )
 
     @patch('subprocess.run')
@@ -65,13 +66,13 @@ class TestExecuteCommand:
         mock_subprocess_run.return_value = mock_process
 
         with patch('awslabs.finch_mcp_server.utils.common.logger') as mock_logger:
-            result = execute_command(['echo', 'hello'])
+            result = execute_command(['finch', 'version'])
 
         assert result.returncode == 0
         assert result.stdout == 'Command output'
         assert result.stderr == 'Warning message'
 
-        mock_logger.debug.assert_any_call('Command executed: echo hello')
+        mock_logger.debug.assert_any_call('Command executed: finch version')
         mock_logger.debug.assert_any_call('Return code: 0')
         mock_logger.debug.assert_any_call('STDOUT: Command output')
         mock_logger.debug.assert_any_call('STDERR: Warning message')
@@ -88,12 +89,51 @@ class TestExecuteCommand:
         mock_process.stderr = 'Command not found'
         mock_subprocess_run.return_value = mock_process
 
-        result = execute_command(['nonexistent_command'])
+        result = execute_command(['finch', 'nonexistent_subcommand'])
 
         assert result.returncode == 1
         assert result.stderr == 'Command not found'
 
         mock_subprocess_run.assert_called_once()
+
+    @patch('os.environ.copy')
+    def test_execute_command_rejects_non_finch_commands(self, mock_environ_copy):
+        """Test execute_command rejects non-finch commands."""
+        mock_env = {'PATH': '/usr/bin', 'USER': 'testuser'}
+        mock_environ_copy.return_value = mock_env
+
+        with patch('awslabs.finch_mcp_server.utils.common.logger') as mock_logger:
+            with pytest.raises(ValueError) as excinfo:
+                execute_command(['echo', 'hello'])
+
+        assert 'Security violation: Only finch commands are allowed' in str(excinfo.value)
+        mock_logger.error.assert_called_once()
+
+    @patch('os.environ.copy')
+    def test_execute_command_rejects_empty_command(self, mock_environ_copy):
+        """Test execute_command rejects empty command list."""
+        mock_env = {'PATH': '/usr/bin', 'USER': 'testuser'}
+        mock_environ_copy.return_value = mock_env
+
+        with patch('awslabs.finch_mcp_server.utils.common.logger') as mock_logger:
+            with pytest.raises(ValueError) as excinfo:
+                execute_command([])
+
+        assert 'Security violation: Only finch commands are allowed' in str(excinfo.value)
+        mock_logger.error.assert_called_once()
+
+    @patch('os.environ.copy')
+    def test_execute_command_rejects_docker_command(self, mock_environ_copy):
+        """Test execute_command rejects docker command."""
+        mock_env = {'PATH': '/usr/bin', 'USER': 'testuser'}
+        mock_environ_copy.return_value = mock_env
+
+        with patch('awslabs.finch_mcp_server.utils.common.logger') as mock_logger:
+            with pytest.raises(ValueError) as excinfo:
+                execute_command(['docker', 'run', '-it', 'ubuntu:latest', 'bash'])
+
+        assert 'Security violation: Only finch commands are allowed' in str(excinfo.value)
+        mock_logger.error.assert_called_once()
 
 
 class TestFormatResult:
