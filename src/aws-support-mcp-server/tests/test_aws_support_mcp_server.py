@@ -30,6 +30,7 @@ from awslabs.aws_support_mcp_server.consts import (
     ERROR_CASE_NOT_FOUND,
     ERROR_RATE_LIMIT_EXCEEDED,
     ERROR_SUBSCRIPTION_REQUIRED,
+    PERMITTED_LANGUAGE_CODES,
 )
 from awslabs.aws_support_mcp_server.errors import (
     create_error_response,
@@ -1320,6 +1321,92 @@ class TestSupportClient:
         assert result == {"result": True}
 
     @patch("boto3.Session")
+    def test_validate_email_addresses_valid(self, mock_session):
+        """Test that _validate_email_addresses accepts valid email addresses."""
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        client = SupportClient()
+
+        # Test valid email addresses
+        valid_emails = [
+            ["user@example.com"],
+            ["first.last@example.com"],
+            ["user+tag@example.com"],
+            ["user@subdomain.example.com"],
+            ["user@example-domain.com"],
+            ["user123@example.com"],
+            ["user@example.co.uk"],
+            ["first.middle.last@example.com"],
+            ["user@example.technology"],
+            ["user-name@example.com"],
+            ["user@example.com", "another@example.com"],  # Multiple valid emails
+        ]
+
+        # Verify no exceptions are raised for valid emails
+        for emails in valid_emails:
+            try:
+                client._validate_email_addresses(emails)
+            except ValueError as e:
+                pytest.fail(f"Validation failed for valid email(s) {emails}: {str(e)}")
+
+    @patch("boto3.Session")
+    def test_validate_email_addresses_invalid(self, mock_session):
+        """Test that _validate_email_addresses rejects invalid email addresses."""
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        client = SupportClient()
+
+        # Test cases with invalid email addresses
+        invalid_cases = [
+            ["plainaddress"],  # Missing @ and domain
+            ["@missinguser.com"],  # Missing username
+            ["user@"],  # Missing domain
+            ["user@.com"],  # Missing domain name
+            ["user@.com."],  # Trailing dot
+            ["user@com"],  # Missing dot in domain
+            ["user@example..com"],  # Double dots
+            ["user name@example.com"],  # Space in username
+            ["user@exam ple.com"],  # Space in domain
+            ["user@example.c"],  # TLD too short
+            ["user@@example.com"],  # Double @
+            ["user@example.com", "invalid@"],  # One valid, one invalid
+        ]
+
+        # Verify ValueError is raised for each invalid case
+        for emails in invalid_cases:
+            with pytest.raises(ValueError) as exc_info:
+                client._validate_email_addresses(emails)
+            assert "Invalid email address(es):" in str(exc_info.value)
+
+    @patch("boto3.Session")
+    def test_validate_email_addresses_empty_input(self, mock_session):
+        """Test that _validate_email_addresses handles empty input correctly."""
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        client = SupportClient()
+
+        # Test empty list
+        client._validate_email_addresses([])
+
+        # Test None
+        client._validate_email_addresses(None)
+
+    @patch("boto3.Session")
+    def test_validate_email_addresses_mixed_case(self, mock_session):
+        """Test that _validate_email_addresses handles mixed case email addresses."""
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        client = SupportClient()
+
+        # Test mixed case emails
+        mixed_case_emails = ["User@Example.COM", "UPPER@EXAMPLE.COM", "lower@example.com"]
+        client._validate_email_addresses(mixed_case_emails)
+
+    @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")
     async def test_add_communication_to_case_minimal(self, mock_run_in_executor, mock_session):
         """Test that add_communication_to_case calls the AWS Support API with minimal parameters."""
@@ -1339,6 +1426,94 @@ class TestSupportClient:
         # Verify
         mock_run_in_executor.assert_called_once()
         assert result == {"result": True}
+
+    @patch("boto3.Session")
+    def test_validate_issue_type_valid(self, mock_session):
+        """Test that _validate_issue_type accepts valid issue types."""
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        client = SupportClient()
+
+        # Test all valid issue types from IssueType enum
+        valid_types = [
+            "technical",
+            "account-and-billing",
+            "service-limit"
+        ]
+
+        # Verify no exceptions are raised for valid types
+        for issue_type in valid_types:
+            try:
+                client._validate_issue_type(issue_type)
+            except ValueError as e:
+                pytest.fail(f"Validation failed for valid issue type {issue_type}: {str(e)}")
+
+    @patch("boto3.Session")
+    def test_validate_issue_type_invalid(self, mock_session):
+        """Test that _validate_issue_type rejects invalid issue types."""
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        client = SupportClient()
+
+        # Test invalid issue types
+        invalid_types = [
+            "",  # Empty string
+            "invalid",  # Non-existent type
+            "TECHNICAL",  # Wrong case
+            "tech",  # Partial match
+            "billing",  # Partial match
+            " technical ",  # Extra whitespace
+        ]
+
+        # Verify ValueError is raised for each invalid type
+        for issue_type in invalid_types:
+            with pytest.raises(ValueError) as exc_info:
+                client._validate_issue_type(issue_type)
+            assert "Invalid issue type:" in str(exc_info.value)
+            assert "Must be one of:" in str(exc_info.value)
+
+    @patch("boto3.Session")
+    def test_validate_language_valid(self, mock_session):
+        """Test that _validate_language accepts valid language codes."""
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        client = SupportClient()
+
+        # Test all permitted language codes
+        for lang in PERMITTED_LANGUAGE_CODES:
+            try:
+                client._validate_language(lang)
+            except ValueError as e:
+                pytest.fail(f"Validation failed for valid language code {lang}: {str(e)}")
+
+    @patch("boto3.Session")
+    def test_validate_language_invalid(self, mock_session):
+        """Test that _validate_language rejects invalid language codes."""
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        client = SupportClient()
+
+        # Test invalid language codes
+        invalid_codes = [
+            "",  # Empty string
+            "eng",  # Wrong format
+            "EN",  # Wrong case
+            "zz",  # Non-existent code
+            " en ",  # Extra whitespace
+            "en-US",  # Wrong format
+            "english",  # Full name instead of code
+        ]
+
+        # Verify ValueError is raised for each invalid code
+        for lang in invalid_codes:
+            with pytest.raises(ValueError) as exc_info:
+                client._validate_language(lang)
+            assert "Invalid language code:" in str(exc_info.value)
+            assert "Must be one of:" in str(exc_info.value)
 
     @patch("boto3.Session")
     @patch("awslabs.aws_support_mcp_server.client.SupportClient._run_in_executor")

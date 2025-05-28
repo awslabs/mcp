@@ -670,7 +670,6 @@ def main():
         type=str,
         help="Path to save the log file. If not provided with --debug, logs to stderr only",
     )
-    parser.add_argument("--sse", action="store_true", help="Use SSE transport")
     parser.add_argument("--port", type=int, default=8888, help="Port to run the server on")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
@@ -729,15 +728,9 @@ def main():
     logger.debug("Starting awslabs_support_mcp_server MCP server")
 
     # Log the startup mode
-    if args.sse:
-        logger.info(f"Starting AWS Support MCP Server on 0.0.0.0:{args.port} with SSE transport")
-        # Run with SSE transport
-        mcp.settings.port = args.port
-        mcp.run(transport="sse")
-    else:
-        logger.info("Starting AWS Support MCP Server with stdio transport")
-        # Run with stdio transport
-        mcp.run(transport="stdio")
+    logger.info("Starting AWS Support MCP Server with stdio transport")
+    # Run with stdio transport
+    mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":

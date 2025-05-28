@@ -83,7 +83,6 @@ python -m awslabs.aws_support_mcp_server.server [options]
 ```
 
 Options:
-- `--sse`: Use SSE transport
 - `--port PORT`: Port to run the server on (default: 8888)
 - `--debug`: Enable debug logging
 - `--log-file`: Where to save the log file

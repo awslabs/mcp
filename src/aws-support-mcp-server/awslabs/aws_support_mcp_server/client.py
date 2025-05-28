@@ -14,7 +14,7 @@
 """AWS Support API client for the AWS Support MCP Server."""
 
 import asyncio
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, Pattern, cast
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -28,7 +28,11 @@ from awslabs.aws_support_mcp_server.consts import (
     ERROR_SUBSCRIPTION_REQUIRED,
     MAX_RESULTS_PER_PAGE,
 )
+from awslabs.aws_support_mcp_server.consts import (
+    IssueType, PERMITTED_LANGUAGE_CODES
+)
 
+import re
 
 class SupportClient:
     """Client for interacting with the AWS Support API.
@@ -40,6 +44,9 @@ class SupportClient:
         client: The boto3 Support client
         region_name: The AWS region name
     """
+    _EMAIL_PATTERN: Pattern[str] = re.compile(
+        r"^(?!.*\.\.)[a-zA-Z0-9](\.?[a-zA-Z0-9_\-+%])*@[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+$"
+    )
 
     def __init__(self, region_name: str = DEFAULT_REGION, profile_name: Optional[str] = None):
         """Initialize the Support client.
@@ -124,6 +131,54 @@ class SupportClient:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
 
+    def _validate_email_addresses(self, cc_email_addresses: List[str]) -> None:
+        """Validate a list of email addresses.
+
+        Args:
+            cc_email_addresses: List of email addresses to validate
+
+        Raises:
+            ValueError: If any email address is invalid
+        """
+        if not cc_email_addresses:
+            return
+
+        invalid_emails = [
+            email for email in cc_email_addresses if not self._EMAIL_PATTERN.match(email)
+        ]
+        if invalid_emails:
+            raise ValueError(f"Invalid email address(es): {', '.join(invalid_emails)}")
+
+    def _validate_issue_type(self, issue_type: str) -> None:
+        """Validate the issue type.
+
+        Args:
+            issue_type: The issue type to validate
+
+        Raises:
+            ValueError: If the issue type is invalid
+        """
+        try:
+            # This will raise ValueError if the issue_type is not a valid enum value
+            cast(str, IssueType(issue_type))
+        except ValueError:
+            valid_types = [t.value for t in IssueType]
+            raise ValueError(
+                f"Invalid issue type: {issue_type}. Must be one of: {', '.join(valid_types)}"
+            )
+
+    def _validate_language(self, language: str) -> None:
+        """Validate the language code.
+
+        Args:
+            language: The language code to validate
+
+        Raises:
+            ValueError: If the language code is invalid
+        """
+        if language not in PERMITTED_LANGUAGE_CODES:
+            raise ValueError(f"Invalid language code: {language}. Must be one of: {', '.join(PERMITTED_LANGUAGE_CODES)}")
+
     async def create_case(
         self,
         subject: str,
@@ -154,9 +209,17 @@ class SupportClient:
 
         Raises:
             ClientError: If there is an error calling the AWS Support API
+            ValueError: If any cc_email_addresses are invalid, or if issue_type or language is invalid
             Exception: If there is an unexpected error
         """
         try:
+            # Validate inputs
+            if cc_email_addresses:
+                self._validate_email_addresses(cc_email_addresses)
+
+            self._validate_issue_type(issue_type)
+            self._validate_language(language)
+
             kwargs: Dict[str, Any] = {
                 "subject": subject,
                 "serviceCode": service_code,
@@ -310,9 +373,13 @@ class SupportClient:
             A dictionary containing the result of the operation
 
         Raises:
+            ValueError: If any cc_email_addresses are invalid
             ClientError: If there is an error calling the AWS Support API
             Exception: If there is an unexpected error
         """
+        if cc_email_addresses:
+            self._validate_email_addresses(cc_email_addresses)
+
         try:
             kwargs: Dict[str, Union[str, List[str]]] = {
                 "caseId": case_id,
