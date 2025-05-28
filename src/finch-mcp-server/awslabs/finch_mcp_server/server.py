@@ -108,8 +108,16 @@ def sensitive_data_filter(record):
 
             record['message'] = message
 
-    except Exception:
-        pass
+    except Exception as e:
+        if 'message' in record:
+            record['message'] = (
+                f'{record["message"]} [SENSITIVE_DATA_FILTER_ERROR: Exception occurred during sensitive data filtering]'
+            )
+        else:
+            record['message'] = (
+                '[SENSITIVE_DATA_FILTER_ERROR: Exception occurred during sensitive data filtering]'
+            )
+        logger.debug(f'Error in sensitive_data_filter: {str(e)}')
 
     # Return True to allow the log record to be processed
     return True
