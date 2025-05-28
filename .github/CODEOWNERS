@@ -35,6 +35,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/mysql-mcp-server                 @kennthhz                        @awslabs/mcp-admins
 /src/syntheticdata-mcp-server         @pranjbh                         @awslabs/mcp-admins
 /src/terraform-mcp-server             @alexa-perlov                    @awslabs/mcp-admins
+/src/eks-mcp-server                   @patrick-yu-amzn @srhsrhsrhsrh   @awslabs/mcp-admins
 /src/valkey-mcp-server                @seaofawareness                  @awslabs/mcp-admins
 
 # Secure the CODEOWNERS file

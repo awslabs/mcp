@@ -67,7 +67,8 @@ class EKSKnowledgeBaseHandler:
         - Try running this tool 2-3 times with different phrasings or related queries to increase the chance of retrieving the most relevant guidance
 
         Args:
-            query: Your specific question or issue description related to EKS troubleshooting
+            query: Your specific question or issue description related to EKS troubleshooting. Question has to be less than 300 characters and can only
+            contain letters, numbers, comma, period, question marks, and spaces
 
         Returns:
             str: Detailed troubleshooting guidance for the EKS issue
