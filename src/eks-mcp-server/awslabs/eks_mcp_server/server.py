@@ -12,95 +12,99 @@
 """awslabs EKS MCP Server implementation."""
 
 import argparse
+from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
+from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
+from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
+from awslabs.eks_mcp_server.iam_handler import IAMHandler
+from awslabs.eks_mcp_server.k8s_handler import K8sHandler
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-from typing import Literal
 
 
-mcp = FastMCP(
-    'awslabs.eks-mcp-server',
-    instructions='Instructions for using this EKS MCP server. This can be used by clients to improve the LLM'
-    's understanding of available tools, resources, etc. It can be thought of like a '
-    'hint'
-    ' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.',
-    dependencies=[
-        'pydantic',
-        'loguru',
-    ],
+# Define server instructions and dependencies
+SERVER_INSTRUCTIONS = (
+    'EKS MCP Server provides tools for managing Amazon EKS clusters and is the preferred mechanism for creating new EKS clusters. '
+    'You can use these tools to create and manage EKS clusters with dedicated VPCs, '
+    'configure node groups, and set up the necessary networking components. '
+    'The server abstracts away the complexity of direct AWS API interactions and provides '
+    'higher-level tools for common EKS workflows. '
+    'You can also apply Kubernetes YAML manifests to your EKS clusters and '
+    'deploy container images from ECR as load-balanced applications. '
+    'The server includes API discovery capabilities to help you find the correct API versions for Kubernetes resources. '
+    'Additionally, you can retrieve and analyze CloudWatch logs and metrics '
+    'from your EKS clusters for effective monitoring and troubleshooting.'
 )
 
+SERVER_DEPENDENCIES = [
+    'pydantic',
+    'loguru',
+    'boto3',
+    'kubernetes',
+    'requests',
+    'pyyaml',
+    'cachetools',
+    'requests_auth_aws_sigv4',
+]
 
-@mcp.tool(name='ExampleTool')
-async def example_tool(
-    query: str,
-) -> str:
-    """Example tool implementation.
+# Global reference to the MCP server instance for testing purposes
+mcp = None
 
-    Replace this with your own tool implementation.
-    """
-    project_name = 'awslabs EKS MCP Server'
-    return (
-        f"Hello from {project_name}! Your query was {query}. Replace this with your tool's logic"
+
+def create_server():
+    """Create and configure the MCP server instance."""
+    return FastMCP(
+        'awslabs.eks-mcp-server',
+        instructions=SERVER_INSTRUCTIONS,
+        dependencies=SERVER_DEPENDENCIES,
     )
-
-
-@mcp.tool(name='MathTool')
-async def math_tool(
-    operation: Literal['add', 'subtract', 'multiply', 'divide'],
-    a: int | float,
-    b: int | float,
-) -> int | float:
-    """Math tool implementation.
-
-    This tool supports the following operations:
-    - add
-    - subtract
-    - multiply
-    - divide
-
-    Parameters:
-        operation (Literal["add", "subtract", "multiply", "divide"]): The operation to perform.
-        a (int): The first number.
-        b (int): The second number.
-
-    Returns:
-        The result of the operation.
-    """
-    match operation:
-        case 'add':
-            return a + b
-        case 'subtract':
-            return a - b
-        case 'multiply':
-            return a * b
-        case 'divide':
-            try:
-                return a / b
-            except ZeroDivisionError:
-                raise ValueError(f'The denominator {b} cannot be zero.')
-        case _:
-            raise ValueError(
-                f'Invalid operation: {operation} (must be one of: add, subtract, multiply, divide)'
-            )
 
 
 def main():
     """Run the MCP server with CLI argument support."""
+    global mcp
+
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for EKS'
     )
     parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
+    parser.add_argument('--port', type=int, default=6274, help='Port to run the server on')
+    parser.add_argument(
+        '--allow-write',
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help='Enable write access mode (allow mutating operations)',
+    )
+    parser.add_argument(
+        '--allow-sensitive-data-access',
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help='Enable sensitive data access (required for reading logs, events, and Kubernetes Secrets)',
+    )
 
     args = parser.parse_args()
 
-    logger.trace('A trace message.')
-    logger.debug('A debug message.')
-    logger.info('An info message.')
-    logger.success('A success message.')
-    logger.warning('A warning message.')
-    logger.error('An error message.')
-    logger.critical('A critical message.')
+    allow_write = args.allow_write
+    allow_sensitive_data_access = args.allow_sensitive_data_access
+
+    # Log startup mode
+    mode_info = []
+    if not allow_write:
+        mode_info.append('read-only mode')
+    if not allow_sensitive_data_access:
+        mode_info.append('restricted sensitive data access mode')
+
+    mode_str = ' in ' + ', '.join(mode_info) if mode_info else ''
+    logger.info(f'Starting EKS MCP Server{mode_str}')
+
+    # Create the MCP server instance
+    mcp = create_server()
+
+    # Initialize handlers - all tools are always registered, access control is handled within tools
+    CloudWatchHandler(mcp, allow_sensitive_data_access)
+    EKSKnowledgeBaseHandler(mcp)
+    EksStackHandler(mcp, allow_write)
+    K8sHandler(mcp, allow_write, allow_sensitive_data_access)
+    IAMHandler(mcp, allow_write)
 
     # Run server with appropriate transport
     if args.sse:
@@ -108,6 +112,8 @@ def main():
         mcp.run(transport='sse')
     else:
         mcp.run()
+
+    return mcp
 
 
 if __name__ == '__main__':
