@@ -12,12 +12,7 @@ import sys
 from awslabs.finch_mcp_server.consts import LOG_FILE, SERVER_NAME
 
 # Import Pydantic models for input validation
-from awslabs.finch_mcp_server.models import (
-    BuildImageRequest,
-    CreateEcrRepoRequest,
-    PushImageRequest,
-    Result,
-)
+from awslabs.finch_mcp_server.models import Result
 from awslabs.finch_mcp_server.utils.build import build_image, contains_ecr_reference
 from awslabs.finch_mcp_server.utils.common import format_result
 from awslabs.finch_mcp_server.utils.ecr import create_ecr_repository
@@ -37,7 +32,8 @@ from awslabs.finch_mcp_server.utils.vm import (
 )
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-from typing import Any, Dict
+from pydantic import Field
+from typing import Any, Dict, List, Optional
 
 
 # Configure loguru logger
@@ -197,7 +193,29 @@ def ensure_vm_running() -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def finch_build_container_image(request: BuildImageRequest) -> Result:
+async def finch_build_container_image(
+    dockerfile_path: str = Field(..., description='Absolute path to the Dockerfile'),
+    context_path: str = Field(..., description='Absolute path to the build context directory'),
+    tags: Optional[List[str]] = Field(
+        default=None,
+        description="List of tags to apply to the image (e.g., ['myimage:latest', 'myimage:v1'])",
+    ),
+    platforms: Optional[List[str]] = Field(
+        default=None, description="List of target platforms (e.g., ['linux/amd64', 'linux/arm64'])"
+    ),
+    target: Optional[str] = Field(default=None, description='Target build stage to build'),
+    no_cache: Optional[bool] = Field(default=False, description='Whether to disable cache'),
+    pull: Optional[bool] = Field(default=False, description='Whether to always pull base images'),
+    build_contexts: Optional[List[str]] = Field(
+        default=None, description='List of additional build contexts'
+    ),
+    outputs: Optional[str] = Field(default=None, description='Output destination'),
+    cache_from: Optional[List[str]] = Field(
+        default=None, description='List of external cache sources'
+    ),
+    quiet: Optional[bool] = Field(default=False, description='Whether to suppress build output'),
+    progress: Optional[str] = Field(default='auto', description='Type of progress output'),
+) -> Result:
     """Build a container image using Finch.
 
     This tool builds a Docker image using the specified Dockerfile and context directory.
@@ -207,21 +225,6 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
 
     Note: for ecr-login to work server needs access to AWS credentials/profile which are configured
     in the server mcp configuration file.
-
-    Arguments:
-        request : The request object of type BuildImageRequest containing all build parameters.
-            - dockerfile_path (str): Absolute path to the Dockerfile
-            - context_path (str): Absolute path to the build context directory
-            - tags (List[str], optional): List of tags to apply to the image (e.g., ["myimage:latest", "myimage:v1"])
-            - platforms (List[str], optional): List of target platforms (e.g., ["linux/amd64", "linux/arm64"])
-            - target (str, optional): Target build stage to build
-            - no_cache (bool, optional): Whether to disable cache. Defaults to False.
-            - pull (bool, optional): Whether to always pull base images. Defaults to False.
-            - build_contexts (List[str], optional): List of additional build contexts
-            - outputs (str, optional): Output destination
-            - cache_from (List[str], optional): List of external cache sources
-            - quiet (bool, optional): Whether to suppress build output. Defaults to False.
-            - progress (str, optional): Type of progress output. Defaults to "auto".
 
     Returns:
         Result: An object containing:
@@ -233,16 +236,14 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
 
     """
     logger.info('tool-name: finch_build_container_image')
-    logger.info(
-        f'tool-args: dockerfile_path={request.dockerfile_path}, context_path={request.context_path}'
-    )
+    logger.info(f'tool-args: dockerfile_path={dockerfile_path}, context_path={context_path}')
 
     try:
         finch_install_status = check_finch_installation()
         if finch_install_status['status'] == 'error':
             return Result(**finch_install_status)
 
-        if contains_ecr_reference(request.dockerfile_path):
+        if contains_ecr_reference(dockerfile_path):
             logger.info('ECR reference detected in Dockerfile, configuring ECR login')
             config_result, config_changed = configure_ecr()
             if config_result['status'] == 'error':
@@ -256,18 +257,18 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
             return Result(**vm_status)
 
         result = build_image(
-            dockerfile_path=request.dockerfile_path,
-            context_path=request.context_path,
-            tags=request.tags,
-            platforms=request.platforms,
-            target=request.target,
-            no_cache=request.no_cache,
-            pull=request.pull,
-            build_contexts=request.build_contexts,
-            outputs=request.outputs,
-            cache_from=request.cache_from,
-            quiet=request.quiet,
-            progress=request.progress,
+            dockerfile_path=dockerfile_path,
+            context_path=context_path,
+            tags=tags,
+            platforms=platforms,
+            target=target,
+            no_cache=no_cache,
+            pull=pull,
+            build_contexts=build_contexts,
+            outputs=outputs,
+            cache_from=cache_from,
+            quiet=quiet,
+            progress=progress,
         )
         return Result(**result)
     except Exception as e:
@@ -276,7 +277,11 @@ async def finch_build_container_image(request: BuildImageRequest) -> Result:
 
 
 @mcp.tool()
-async def finch_push_image(request: PushImageRequest) -> Result:
+async def finch_push_image(
+    image: str = Field(
+        ..., description='The full image name to push, including the repository URL and tag'
+    ),
+) -> Result:
     """Push a container image to a repository using finch, replacing the tag with the image hash.
 
     If the image URL is an ECR repository, it verifies that ECR login cred helper is configured.
@@ -291,11 +296,6 @@ async def finch_push_image(request: PushImageRequest) -> Result:
     When the server is in read-only mode (which is the default unless --enable-aws-resource-write
     is specified), this tool will return an error when pushing to ECR repositories.
 
-    Arguments:
-        request (str): The full image name to push, including the repository URL and tag.
-                    For ECR repositories, it must follow the format:
-                    <aws_account_id>.dkr.ecr.<region>.amazonaws.com/<repository_name>:<tag>
-
     Returns:
         Result: An object containing:
             - status (str): "success" if the operation succeeded, "error" otherwise
@@ -306,19 +306,19 @@ async def finch_push_image(request: PushImageRequest) -> Result:
 
     """
     logger.info('tool-name: finch_push_image')
-    logger.info(f'tool-args: image={request.image}')
+    logger.info(f'tool-args: image={image}')
 
     try:
         finch_install_status = check_finch_installation()
         if finch_install_status['status'] == 'error':
             return Result(**finch_install_status)
 
-        is_ecr = is_ecr_repository(request.image)
+        is_ecr = is_ecr_repository(image)
         if is_ecr:
             # Check if AWS resource write is enabled for ECR pushes
             if not enable_aws_resource_write:
                 logger.warning(
-                    f'Attempt to push image to ECR "{request.image}" without AWS resource write enabled'
+                    f'Attempt to push image to ECR "{image}" without AWS resource write enabled'
                 )
                 error_result = format_result(
                     'error', 'Server running in read-only mode, unable to push to ECR repository'
@@ -337,7 +337,7 @@ async def finch_push_image(request: PushImageRequest) -> Result:
         if vm_status['status'] == 'error':
             return Result(**vm_status)
 
-        result = push_image(request.image)
+        result = push_image(image)
         return Result(**result)
     except Exception as e:
         error_result = format_result('error', f'Error pushing image: {str(e)}')
@@ -360,7 +360,15 @@ def set_enable_aws_resource_write(enabled: bool):
 
 
 @mcp.tool()
-async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
+async def finch_create_ecr_repo(
+    repository_name: str = Field(
+        ..., description='The name of the repository to check or create in ECR'
+    ),
+    region: Optional[str] = Field(
+        default=None,
+        description='AWS region for the ECR repository. If not provided, uses the default region from AWS configuration',
+    ),
+) -> Result:
     """Check if an ECR repository exists and create it if it doesn't.
 
     This tool checks if the specified ECR repository exists using boto3.
@@ -369,12 +377,6 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
 
     When the server is in read-only mode (which is the default unless --enable-aws-resource-write
     is specified), this tool will return an error and will not create any repositories.
-
-    Arguments:
-        request: The request object of type CreateEcrRepoRequest containing:
-            - repository_name (str): The name of the repository to check or create in ECR
-            - region (str, optional): AWS region for the ECR repository. If not provided, uses the default region
-                                     from AWS configuration
 
     Returns:
         Result: An object containing:
@@ -388,12 +390,12 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
 
     """
     logger.info('tool-name: finch_create_ecr_repo')
-    logger.info(f'tool-args: repository_name={request.repository_name}')
+    logger.info(f'tool-args: repository_name={repository_name}')
 
     # Check if AWS resource write is enabled
     if not enable_aws_resource_write:
         logger.warning(
-            f'Attempt to create ECR repo "{request.repository_name}" without AWS resource write enabled'
+            f'Attempt to create ECR repo "{repository_name}" without AWS resource write enabled'
         )
         error_result = format_result(
             'error', 'Server running in read-only mode, unable to perform the action'
@@ -402,8 +404,8 @@ async def finch_create_ecr_repo(request: CreateEcrRepoRequest) -> Result:
 
     try:
         result = create_ecr_repository(
-            repository_name=request.repository_name,
-            region=request.region,
+            repository_name=repository_name,
+            region=region,
         )
         return Result(**result)
     except Exception as e:
