@@ -10,7 +10,6 @@ class TestIsEcrRepository:
 
     def test_valid_ecr_repository(self):
         """Test valid ECR repository URLs."""
-        # These are test AWS account IDs and not real secrets
         valid_urls = [
             '123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest',  # pragma: allowlist secret
             '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo/nested:v1',  # pragma: allowlist secret
@@ -58,7 +57,7 @@ class TestGetImageShortHash:
 
         assert result['status'] == STATUS_SUCCESS
         assert 'Successfully retrieved hash' in result['message']
-        assert short_hash == '1234567890ab'
+        assert short_hash == '1234567890ab'  # pragma: allowlist secret
         mock_execute_command.assert_called_once_with(
             ['finch', 'image', 'inspect', 'myimage:latest']
         )
@@ -184,9 +183,8 @@ class TestPushImage:
         mock_execute_command.return_value = mock_tag_process
 
         mock_format_result.return_value = {
-            'status': STATUS_SUCCESS,
-            'message': 'Successfully pushed image myrepo:1234567890abcd (original: myrepo:latest).',  # pragma: allowlist secret
-            'stdout': 'Successfully pushed image',
+            'status': STATUS_ERROR,
+            'message': 'Failed to tag image: Error tagging image',
         }
 
         result = push_image('myrepo:latest')

@@ -804,7 +804,15 @@ class TestFinchTools:
             image='123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
         )
 
-        with patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr:
+        with (
+            patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
+            patch('awslabs.finch_mcp_server.server.is_ecr_repository') as mock_is_ecr,
+            patch('awslabs.finch_mcp_server.server.configure_ecr') as mock_configure_ecr,
+            patch('awslabs.finch_mcp_server.server.stop_vm') as mock_stop_vm,
+            patch('awslabs.finch_mcp_server.server.ensure_vm_running') as mock_ensure_vm,
+            patch('awslabs.finch_mcp_server.server.push_image') as mock_push_image,
+        ):
+            mock_check_finch.return_value = {'status': 'success'}
             mock_is_ecr.return_value = True
 
             try:
@@ -815,6 +823,11 @@ class TestFinchTools:
                     result.message
                     == 'Server running in read-only mode, unable to push to ECR repository'
                 )
+                mock_check_finch.assert_called_once()
                 mock_is_ecr.assert_called_once_with(request.image)
+                mock_configure_ecr.assert_not_called()
+                mock_stop_vm.assert_not_called()
+                mock_ensure_vm.assert_not_called()
+                mock_push_image.assert_not_called()
             finally:
                 set_enable_aws_resource_write(False)
