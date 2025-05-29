@@ -11,4 +11,4 @@
 # and limitations under the License.
 #
 
-MCP_SERVER_VERSION = '2.0.0'
+MCP_SERVER_VERSION = '2.0.1'
