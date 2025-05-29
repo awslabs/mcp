@@ -89,9 +89,9 @@ The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS se
 
 [Learn more about the Cost Analysis MCP Server](servers/cost-analysis-mcp-server.md)
 
-### AWS Lambda MCP Server
+### AWS Lambda Tool MCP Server
 
-The AWS Lambda MCP Server enables AI assistants to select and run AWS Lambda functions as MCP tools.
+The AWS Lambda Tool MCP Server enables AI assistants to select and run AWS Lambda functions as MCP tools.
 
 **Features:**
 
@@ -100,7 +100,7 @@ The AWS Lambda MCP Server enables AI assistants to select and run AWS Lambda fun
 - Filter functions by name, tag, or both
 - Use AWS credentials to invoke the Lambda functions
 
-[Learn more about the AWS Lambda MCP Server](servers/lambda-mcp-server.md)
+[Learn more about the AWS Lambda Tool MCP Server](servers/lambda-tool-mcp-server.md)
 
 ### Amazon Aurora DSQL MCP Server
 

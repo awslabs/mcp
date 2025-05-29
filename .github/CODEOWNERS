@@ -20,6 +20,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/aws-diagram-mcp-server           @MichaelWalker-git               @awslabs/mcp-admins
 /src/aws-documentation-mcp-server     @Lavoiedavidw                    @awslabs/mcp-admins
 #/src/aws-location-mcp-server         @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/aws-serverless-mcp-server        @bx9900                          @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/cdk-mcp-server                   @jimini55                        @awslabs/mcp-admins
 /src/cfn-mcp-server                   @karamvsingh                     @awslabs/mcp-admins # @5herlocked @peternigh
@@ -28,6 +29,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/core-mcp-server                  @PaulVincent707                  @awslabs/mcp-admins
 #/src/cost-analysis-mcp-server        @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/dynamodb-mcp-server              @erbenmo                         @awslabs/mcp-admins
+/src/ecs-mcp-server                   @karanbokil @matthewgoodman13    @awslabs/mcp-admins
 /src/git-repo-research-mcp-server     @jonslo                          @awslabs/mcp-admins
 /src/lambda-mcp-server                @danilop @jsamuel1               @awslabs/mcp-admins
 /src/memcached-mcp-server             @seaofawareness                  @awslabs/mcp-admins

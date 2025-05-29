@@ -1,0 +1,36 @@
+# Prompts for ECS Task Exit Code Failure Scenario
+
+## Expected Observed Failure
+When running 02_validate.sh, you should see output similar to:
+```
+✅ Task has failed with exit code 1 as expected.
+Log group: /ecs/exit-code-cluster-abcde/exit-code-task-abcde
+
+Latest log events:
+Starting application...
+Checking required environment variables...
+ERROR: Required environment variable DATABASE_URL is not set
+ERROR: Application cannot start without database connection
+Application is shutting down
+
+✅ Found expected error about missing DATABASE_URL environment variable in logs.
+```
+
+## Test Prompts
+
+# Prompt 1: Basic Problem Statement
+I ran a task in ECS cluster "<CLUSTER_NAME>" and it exited immediately. The task ARN is "<TASK_ARN>". Can you help me figure out what's wrong?
+
+# Prompt 2: Technical User Scenario
+I'm running a containerized application in ECS Fargate and it's exiting with a non-zero code. The cluster is "<CLUSTER_NAME>" and the task ARN is "<TASK_ARN>". Can you use your tools to diagnose the issue and tell me what's causing the task to fail?
+
+# Prompt 3: Confused Beginner Scenario
+I'm new to AWS and ECS. I tried running an application as a "task" in a cluster called "<CLUSTER_NAME>", but it keeps failing and shutting down. The task ID is "<TASK_ARN>". I don't understand how to debug this - can you help me figure out what's happening and how to fix it?
+
+# Prompt 4: Specific Error Focus
+My ECS task is exiting with code 1 in cluster "<CLUSTER_NAME>". The task ARN is "<TASK_ARN>". I think there might be some error messages in the logs, but I'm not sure how to interpret them. Can you check what's happening and explain how to fix the issue?
+
+# Prompt 5: Minimal Information with Log Group
+My ECS task is failing. The log group is "<LOG_GROUP>". Help me understand what's wrong.
+
+IMPORTANT: Replace <CLUSTER_NAME>, <TASK_ARN>, and <LOG_GROUP> with the actual values generated during testing
