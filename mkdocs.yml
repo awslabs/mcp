@@ -38,6 +38,7 @@ nav:
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
     - AWS Lambda MCP Server: servers/lambda-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
+    - AWS Step Functions Tool MCP Server: servers/stepfunctions-tool-mcp-server.md
     - AWS Terraform MCP Server: servers/terraform-mcp-server.md
     - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
     - CloudFormation MCP Server: servers/cfn-mcp-server.md

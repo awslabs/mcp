@@ -25,6 +25,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS CloudFormation MCP Server](#aws-cloudformation-mcp-server)
     - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
     - [Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)
+    - [AWS Step Functions Tool MCP Server](#aws-step-functions-tool-mcp-server)
     - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
     - [Frontend MCP Server](#frontend-mcp-server)
     - [Amazon ElastiCache/MemoryDB Valkey for MCP Server](#amazon-elasticache--memorydb-for-valkey-mcp-server)
@@ -233,6 +234,20 @@ A server for Amazon SNS / SQS.
 - Modify Topic / Queue Attributes
 
 [Learn more](src/amazon-sns-sqs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-sns-sqs-mcp-server/)
+
+### AWS Step Functions Tool MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.stepfunctions-tool-mcp-server.svg)](https://pypi.org/project/awslabs.stepfunctions-tool-mcp-server/)
+
+A server that acts as a bridge between MCP clients and AWS Step Functions state machines, allowing AI models to execute and manage complex workflows.
+
+- Run AWS Step Functions state machines as MCP tools without code changes
+- Support for both Standard and Express workflows
+- EventBridge Schema Registry integration for input validation
+- IAM-based authentication and authorization
+- Comprehensive workflow documentation generation
+
+[Learn more](src/stepfunctions-tool-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/stepfunctions-tool-mcp-server/)
 
 ### AWS Terraform MCP Server
 
