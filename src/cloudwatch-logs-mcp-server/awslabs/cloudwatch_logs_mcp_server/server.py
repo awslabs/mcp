@@ -280,8 +280,8 @@ async def analyze_log_group_tool(
             ),
         )
 
-        clean_up_pattern(pattern_query_result['results'])
-        clean_up_pattern(error_pattern_result['results'])
+        clean_up_pattern(pattern_query_result.get('results', []))
+        clean_up_pattern(error_pattern_result.get('results', []))
 
         return LogAnalysisResult(
             log_anomaly_results=log_anomaly_results,
