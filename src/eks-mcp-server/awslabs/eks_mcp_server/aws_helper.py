@@ -13,6 +13,7 @@
 
 import boto3
 import os
+from botocore.config import Config
 from typing import Any, Optional
 
 
@@ -37,6 +38,9 @@ class AwsHelper:
     def create_boto3_client(cls, service_name: str, region_name: Optional[str] = None) -> Any:
         """Create a boto3 client with the appropriate profile and region.
 
+        The client is configured with a custom user agent suffix 'awslabs/mcp/eks-mcp-server/0.1.0'
+        to identify API calls made by the EKS MCP Server.
+
         Args:
             service_name: The AWS service name (e.g., 'ec2', 's3', 'eks')
             region_name: Optional region name override
@@ -50,15 +54,18 @@ class AwsHelper:
         # Get profile from environment if set
         profile = cls.get_aws_profile()
 
+        # Create config with user agent suffix
+        config = Config(user_agent_extra='awslabs/mcp/eks-mcp-server/0.1.0')
+
         # Create session with profile if specified
         if profile:
             session = boto3.Session(profile_name=profile)
             if region is not None:
-                return session.client(service_name, region_name=region)
+                return session.client(service_name, region_name=region, config=config)
             else:
-                return session.client(service_name)
+                return session.client(service_name, config=config)
         else:
             if region is not None:
-                return boto3.client(service_name, region_name=region)
+                return boto3.client(service_name, region_name=region, config=config)
             else:
-                return boto3.client(service_name)
+                return boto3.client(service_name, config=config)
