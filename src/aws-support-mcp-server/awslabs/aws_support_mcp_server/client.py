@@ -161,11 +161,11 @@ class SupportClient:
         try:
             # This will raise ValueError if the issue_type is not a valid enum value
             cast(str, IssueType(issue_type))
-        except ValueError:
+        except ValueError as err:
             valid_types = [t.value for t in IssueType]
             raise ValueError(
                 f"Invalid issue type: {issue_type}. Must be one of: {', '.join(valid_types)}"
-            )
+            ) from err
 
     def _validate_language(self, language: str) -> None:
         """Validate the language code.
