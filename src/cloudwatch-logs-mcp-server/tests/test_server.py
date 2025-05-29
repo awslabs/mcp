@@ -12,8 +12,11 @@
 
 import awslabs.cloudwatch_logs_mcp_server.server
 import boto3
+import importlib
+import os
 import pytest
 import pytest_asyncio
+import sys
 from awslabs.cloudwatch_logs_mcp_server.models import (
     CancelQueryResult,
     LogAnalysisResult,
@@ -28,7 +31,7 @@ from awslabs.cloudwatch_logs_mcp_server.server import (
 )
 from moto import mock_aws
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest_asyncio.fixture
@@ -40,8 +43,6 @@ async def ctx():
 @pytest_asyncio.fixture
 async def aws_credentials():
     """Mocked AWS Credentials for moto."""
-    import os
-
     os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
     os.environ['AWS_SECURITY_TOKEN'] = 'testing'
     os.environ['AWS_SESSION_TOKEN'] = 'testing'
@@ -178,6 +179,29 @@ class TestDescribeLogGroups:
         assert result.log_group_metadata[0].logGroupName == '/aws/test/group1'
         assert len(result.saved_queries) == 1
         assert result.saved_queries[0].logGroupPrefixes == {'/aws/test/group', 'other_prefix'}
+
+    async def test_describe_log_groups_exception_handling(self, ctx, logs_client):
+        """Test exception handling in describe_log_groups_tool."""
+
+        def mock_get_paginator(*args, **kwargs):
+            raise Exception('Test exception in describe_log_groups')
+
+        logs_client.get_paginator = mock_get_paginator
+
+        with pytest.raises(Exception, match='Test exception in describe_log_groups'):
+            await describe_log_groups_tool(
+                ctx,
+                account_identifiers=None,
+                include_linked_accounts=None,
+                log_group_class='STANDARD',
+                log_group_name_prefix='/aws',
+                max_items=None,
+            )
+
+        # Verify that ctx.error was called with the expected message
+        ctx.error.assert_called_once_with(
+            'Error in describing log groups: Test exception in describe_log_groups'
+        )
 
 
 @pytest.mark.asyncio
@@ -486,3 +510,71 @@ class TestAnalyzeLogGroup:
                 start_time='invalid-time',
                 end_time='2020-01-01T01:00:00+00:00',
             )
+
+
+class TestAWSProfileInitialization:
+    """Tests for AWS profile handling in server initialization."""
+
+    def test_logs_client_with_aws_profile(self, monkeypatch):
+        """Test logs client initialization when AWS_PROFILE is set."""
+        # Mock environment variables
+        monkeypatch.setenv('AWS_PROFILE', 'test-profile')
+        monkeypatch.setenv('AWS_REGION', 'us-west-2')
+
+        # Mock boto3.Session to capture the arguments
+        mock_session_class = MagicMock()
+        mock_session_instance = MagicMock()
+        mock_logs_client = MagicMock()
+
+        mock_session_class.return_value = mock_session_instance
+        mock_session_instance.client.return_value = mock_logs_client
+
+        with patch('boto3.Session', mock_session_class):
+            if 'awslabs.cloudwatch_logs_mcp_server.server' in sys.modules:
+                del sys.modules['awslabs.cloudwatch_logs_mcp_server.server']
+
+            # Re-import the module to trigger the initialization with mocked boto3.Session
+            importlib.import_module('awslabs.cloudwatch_logs_mcp_server.server')
+
+            mock_session_class.assert_called_with(
+                profile_name='test-profile', region_name='us-west-2'
+            )
+            mock_session_instance.client.assert_called_with('logs')
+
+    def test_logs_client_without_aws_profile(self, monkeypatch):
+        """Test logs client initialization when AWS_PROFILE is not set."""
+        monkeypatch.delenv('AWS_PROFILE', raising=False)
+        monkeypatch.setenv('AWS_REGION', 'us-east-1')
+
+        mock_session_class = MagicMock()
+        mock_session_instance = MagicMock()
+        mock_logs_client = MagicMock()
+
+        mock_session_class.return_value = mock_session_instance
+        mock_session_instance.client.return_value = mock_logs_client
+
+        with patch('boto3.Session', mock_session_class):
+            if 'awslabs.cloudwatch_logs_mcp_server.server' in sys.modules:
+                del sys.modules['awslabs.cloudwatch_logs_mcp_server.server']
+            importlib.import_module('awslabs.cloudwatch_logs_mcp_server.server')
+
+            mock_session_class.assert_called_with(region_name='us-east-1')
+
+            # Verify client method was called with 'logs'
+            mock_session_instance.client.assert_called_with('logs')
+
+    def test_logs_client_initialization_exception(self, monkeypatch):
+        """Test that initialization exception is properly raised and logged."""
+        monkeypatch.setenv('AWS_PROFILE', 'invalid-profile')
+        monkeypatch.setenv('AWS_REGION', 'us-west-2')
+
+        mock_session_class = MagicMock()
+        mock_session_class.side_effect = Exception('Invalid profile configuration')
+
+        with patch('boto3.Session', mock_session_class):
+            if 'awslabs.cloudwatch_logs_mcp_server.server' in sys.modules:
+                del sys.modules['awslabs.cloudwatch_logs_mcp_server.server']
+
+            # Verify that importing the module raises the exception
+            with pytest.raises(Exception, match='Invalid profile configuration'):
+                importlib.import_module('awslabs.cloudwatch_logs_mcp_server.server')

@@ -17,21 +17,21 @@ import re
 class TestInit:
     """Tests for the __init__.py module."""
 
-    def test_version(self):
-        """Test that __version__ is defined and follows semantic versioning."""
+    def test_mcp_version(self):
+        """Test that MCP_SERVER_VERSION is defined and follows semantic versioning."""
         # Import the module
         import awslabs.cloudwatch_logs_mcp_server
 
-        # Check that __version__ is defined
-        assert hasattr(awslabs.cloudwatch_logs_mcp_server, '__version__')
+        # Check that MCP_SERVER_VERSION is defined
+        assert hasattr(awslabs.cloudwatch_logs_mcp_server, 'MCP_SERVER_VERSION')
 
-        # Check that __version__ is a string
-        assert isinstance(awslabs.cloudwatch_logs_mcp_server.__version__, str)
+        # Check that MCP_SERVER_VERSION is a string
+        assert isinstance(awslabs.cloudwatch_logs_mcp_server.MCP_SERVER_VERSION, str)
 
         # Check that __version__ follows semantic versioning (major.minor.patch)
         version_pattern = r'^\d+\.\d+\.\d+$'
-        assert re.match(version_pattern, awslabs.cloudwatch_logs_mcp_server.__version__), (
-            f"Version '{awslabs.cloudwatch_logs_mcp_server.__version__}' does not follow semantic versioning"
+        assert re.match(version_pattern, awslabs.cloudwatch_logs_mcp_server.MCP_SERVER_VERSION), (
+            f"Version '{awslabs.cloudwatch_logs_mcp_server.MCP_SERVER_VERSION}' does not follow semantic versioning"
         )
 
     def test_module_reload(self):
@@ -40,10 +40,10 @@ class TestInit:
         import awslabs.cloudwatch_logs_mcp_server
 
         # Store the original version
-        original_version = awslabs.cloudwatch_logs_mcp_server.__version__
+        original_version = awslabs.cloudwatch_logs_mcp_server.MCP_SERVER_VERSION
 
         # Reload the module
         importlib.reload(awslabs.cloudwatch_logs_mcp_server)
 
         # Check that the version is still the same
-        assert awslabs.cloudwatch_logs_mcp_server.__version__ == original_version
+        assert awslabs.cloudwatch_logs_mcp_server.MCP_SERVER_VERSION == original_version

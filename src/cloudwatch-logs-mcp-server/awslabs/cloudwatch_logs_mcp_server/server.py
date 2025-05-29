@@ -15,6 +15,7 @@ import asyncio
 import boto3
 import datetime
 import os
+from awslabs.cloudwatch_logs_mcp_server import MCP_SERVER_VERSION
 from awslabs.cloudwatch_logs_mcp_server.common import (
     clean_up_pattern,
     filter_by_prefixes,
@@ -30,6 +31,7 @@ from awslabs.cloudwatch_logs_mcp_server.models import (
     LogMetadata,
     SavedQuery,
 )
+from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -48,6 +50,7 @@ mcp = FastMCP(
 
 # Initialize client
 aws_region: str = os.environ.get('AWS_REGION', 'us-east-1')
+config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-logs-mcp-server/{MCP_SERVER_VERSION}')
 
 try:
     if aws_profile := os.environ.get('AWS_PROFILE'):
