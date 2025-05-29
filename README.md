@@ -42,6 +42,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Amazon DocumentDB MCP Server](#amazon-documentdb-mcp-server)
     - [Amazon EKS MCP Server](#amazon-eks-mcp-server)
     - [Amazon ECS MCP Server](#amazon-ecs-mcp-server)
+    - [Finch MCP Server](#finch-mcp-server)
     - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
     - [Running MCP servers in containers](#running-mcp-servers-in-containers)
@@ -409,6 +410,20 @@ A Model Context Protocol (MCP) server for containerizing applications, deploying
 - Security Best Practices: Implement AWS security best practices for container deployments
 
 [Learn more](src/ecs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/ecs-mcp-server/)
+
+### Finch MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.finch-mcp-server.svg)](https://pypi.org/project/awslabs.finch-mcp-server/)
+
+A Model Context Protocol (MCP) server for Finch that enables generative AI models to build and push container images through Finch CLI leveraged MCP tools.
+
+- Build container images using Finch with support for various build options
+- Push container images to repositories, including Amazon ECR
+- Create ECR repositories if they don't exist
+- Automatic management of the Finch VM on macOS and Windows
+- Automatic configuration of ECR credential helpers when needed
+
+[Learn more](src/finch-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/finch-mcp-server/)
 
 ### Amazon MQ MCP Server
 
