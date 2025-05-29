@@ -1,4 +1,4 @@
-"""Additional tests to improve coverage for the server module of the lambda-mcp-server."""
+"""Additional tests to improve coverage for the server module of the lambda-tool-mcp-server."""
 
 import json
 import logging
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.lambda_mcp_server.server import (
+    from awslabs.lambda_tool_mcp_server.server import (
         filter_functions_by_tag,
         format_lambda_response,
         register_lambda_functions,
@@ -58,7 +58,7 @@ class TestFilterFunctionsByTagCoverage:
 
     def test_specific_error_getting_tags(self, caplog):
         """Test specific error handling when getting tags."""
-        with patch('awslabs.lambda_mcp_server.server.lambda_client') as mock_client:
+        with patch('awslabs.lambda_tool_mcp_server.server.lambda_client') as mock_client:
             # Make list_tags raise a specific exception type
             mock_client.list_tags.side_effect = Exception('Access denied')
 
@@ -84,14 +84,14 @@ class TestFilterFunctionsByTagCoverage:
 class TestRegisterLambdaFunctionsCoverage:
     """Additional tests for the register_lambda_functions function to improve coverage."""
 
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_KEY', 'test-key')
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_VALUE', '')
-    @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+    @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_KEY', 'test-key')
+    @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_VALUE', '')
+    @patch('awslabs.lambda_tool_mcp_server.server.create_lambda_tool')
     def test_register_with_incomplete_tag_config(
         self, mock_create_lambda_tool, mock_lambda_client, caplog
     ):
         """Test registering Lambda functions with incomplete tag configuration."""
-        with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+        with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
             with caplog.at_level(logging.WARNING):
                 # Call the function
                 register_lambda_functions()
@@ -105,14 +105,14 @@ class TestRegisterLambdaFunctionsCoverage:
                     in caplog.text
                 )
 
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_KEY', '')
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_VALUE', 'test-value')
-    @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+    @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_KEY', '')
+    @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_VALUE', 'test-value')
+    @patch('awslabs.lambda_tool_mcp_server.server.create_lambda_tool')
     def test_register_with_incomplete_tag_config_reversed(
         self, mock_create_lambda_tool, mock_lambda_client, caplog
     ):
         """Test registering Lambda functions with incomplete tag configuration (reversed case)."""
-        with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+        with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
             with caplog.at_level(logging.WARNING):
                 # Call the function
                 register_lambda_functions()
@@ -136,13 +136,13 @@ class TestValidateFunctionNameCoverage:
         assert validate_function_name('') is True  # When no filters are set
 
         # With prefix set
-        with patch('awslabs.lambda_mcp_server.server.FUNCTION_PREFIX', 'test-'):
+        with patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_PREFIX', 'test-'):
             assert validate_function_name('') is False
             assert validate_function_name('test-') is True
             assert validate_function_name('test') is False
 
         # With list set
-        with patch('awslabs.lambda_mcp_server.server.FUNCTION_LIST', ['func1', 'func2']):
+        with patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_LIST', ['func1', 'func2']):
             assert validate_function_name('') is False
             assert validate_function_name('func1') is True
             assert validate_function_name('func3') is False

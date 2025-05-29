@@ -1,4 +1,4 @@
-"""Integration tests for the lambda-mcp-server."""
+"""Integration tests for the lambda-tool-mcp-server."""
 
 import pytest
 from mcp.server.fastmcp import Context, FastMCP
@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.lambda_mcp_server.server import (
+    from awslabs.lambda_tool_mcp_server.server import (
         invoke_lambda_function_impl,
         mcp,
         register_lambda_functions,
@@ -16,11 +16,11 @@ with pytest.MonkeyPatch().context() as CTX:
     class TestServerIntegration:
         """Integration tests for the server module."""
 
-        @patch('awslabs.lambda_mcp_server.server.lambda_client')
+        @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
         def test_mcp_initialization(self, mock_lambda_client):
             """Test that the MCP server is initialized correctly."""
             # Check that the MCP server has the correct name
-            assert mcp.name == 'awslabs.lambda-mcp-server'
+            assert mcp.name == 'awslabs.lambda-tool-mcp-server'
 
             # Check that the MCP server has instructions
             assert 'Use AWS Lambda functions' in mcp.instructions if mcp.instructions else ''
@@ -29,8 +29,8 @@ with pytest.MonkeyPatch().context() as CTX:
             assert 'pydantic' in mcp.dependencies
             assert 'boto3' in mcp.dependencies
 
-        @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
-        @patch('awslabs.lambda_mcp_server.server.lambda_client')
+        @patch('awslabs.lambda_tool_mcp_server.server.create_lambda_tool')
+        @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
         def test_tool_registration(self, mock_lambda_client, mock_create_lambda_tool):
             """Test that Lambda functions are registered as tools."""
             # Set up the mock
@@ -53,7 +53,7 @@ with pytest.MonkeyPatch().context() as CTX:
             )
 
         @pytest.mark.asyncio
-        @patch('awslabs.lambda_mcp_server.server.lambda_client')
+        @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
         async def test_tool_invocation(self, mock_lambda_client):
             """Test invoking a Lambda function through the MCP tool."""
             # Set up the mock
@@ -86,7 +86,7 @@ with pytest.MonkeyPatch().context() as CTX:
         """Tests for the functionality of the Lambda tools."""
 
         @pytest.mark.asyncio
-        @patch('awslabs.lambda_mcp_server.server.lambda_client')
+        @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
         async def test_lambda_function_tool(self, mock_lambda_client):
             """Test the Lambda function tool."""
             # Set up the mock
@@ -110,7 +110,7 @@ with pytest.MonkeyPatch().context() as CTX:
             ctx.error = AsyncMock()
 
             # Call the function
-            with patch('awslabs.lambda_mcp_server.server.mcp', mock_mcp):
+            with patch('awslabs.lambda_tool_mcp_server.server.mcp', mock_mcp):
                 result = await mock_tool_function({'param': 'value'}, ctx)
 
             # Check that the Lambda function was invoked with the correct parameters
@@ -121,7 +121,7 @@ with pytest.MonkeyPatch().context() as CTX:
             assert '"result": "success"' in result
 
         @pytest.mark.asyncio
-        @patch('awslabs.lambda_mcp_server.server.lambda_client')
+        @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
         async def test_lambda_function_tool_error(self, mock_lambda_client):
             """Test the Lambda function tool with an error."""
             # Set up the mock
@@ -146,7 +146,7 @@ with pytest.MonkeyPatch().context() as CTX:
             ctx.error = AsyncMock()
 
             # Call the function
-            with patch('awslabs.lambda_mcp_server.server.mcp', mock_mcp):
+            with patch('awslabs.lambda_tool_mcp_server.server.mcp', mock_mcp):
                 result = await mock_tool_function({'param': 'value'}, ctx)
 
             # Check that the Lambda function was invoked with the correct parameters

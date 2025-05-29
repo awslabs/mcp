@@ -72,4 +72,4 @@ USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
-ENTRYPOINT ["awslabs.lambda-mcp-server"]
+ENTRYPOINT ["awslabs.lambda-tool-mcp-server"]

@@ -7,18 +7,18 @@ from unittest.mock import MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.lambda_mcp_server.server import register_lambda_functions
+    from awslabs.lambda_tool_mcp_server.server import register_lambda_functions
 
 
 class TestRegisterLambdaFunctionsSpecific:
     """Tests specifically for the register_lambda_functions function."""
 
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_KEY', 'test-key')
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_VALUE', '')
-    @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+    @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_KEY', 'test-key')
+    @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_VALUE', '')
+    @patch('awslabs.lambda_tool_mcp_server.server.create_lambda_tool')
     def test_register_with_only_tag_key(self, mock_create_lambda_tool, mock_lambda_client, caplog):
         """Test registering Lambda functions with only tag key set."""
-        with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+        with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
             with caplog.at_level(logging.WARNING):
                 # Call the function
                 register_lambda_functions()
@@ -32,14 +32,14 @@ class TestRegisterLambdaFunctionsSpecific:
                     in caplog.text
                 )
 
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_KEY', '')
-    @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_VALUE', 'test-value')
-    @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+    @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_KEY', '')
+    @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_VALUE', 'test-value')
+    @patch('awslabs.lambda_tool_mcp_server.server.create_lambda_tool')
     def test_register_with_only_tag_value(
         self, mock_create_lambda_tool, mock_lambda_client, caplog
     ):
         """Test registering Lambda functions with only tag value set."""
-        with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+        with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
             with caplog.at_level(logging.WARNING):
                 # Call the function
                 register_lambda_functions()

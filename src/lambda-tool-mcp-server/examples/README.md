@@ -37,7 +37,7 @@ The first two functions (`CustomerInfoFromId` and `CustomerIdFromEmail`) simulat
 1. Navigate to the sample functions directory:
 
    ```bash
-   cd src/lambda-mcp-server/Examples/sample_functions
+   cd src/lambda-tool-mcp-server/Examples/sample_functions
    ```
 
 2. Build the application:

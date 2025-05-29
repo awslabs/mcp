@@ -38,9 +38,9 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 ```json
 {
   "mcpServers": {
-    "awslabs.lambda-mcp-server": {
+    "awslabs.lambda-tool-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.lambda-mcp-server@latest"],
+      "args": ["awslabs.lambda-tool-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -67,7 +67,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
 ```json
   {
     "mcpServers": {
-      "awslabs.lambda-mcp-server": {
+      "awslabs.lambda-tool-mcp-server": {
         "command": "docker",
         "args": [
           "run",
@@ -87,7 +87,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
           "FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY=your-function-tag-for-input-schema",
           "--env-file",
           "/full/path/to/file/above/.env",
-          "awslabs/lambda-mcp-server:latest"
+          "awslabs/lambda-tool-mcp-server:latest"
         ],
         "env": {},
         "disabled": false,

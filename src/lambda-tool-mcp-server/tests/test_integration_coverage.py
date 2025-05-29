@@ -1,4 +1,4 @@
-"""Additional integration tests to improve coverage for the lambda-mcp-server."""
+"""Additional integration tests to improve coverage for the lambda-tool-mcp-server."""
 
 import json
 import pytest
@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.lambda_mcp_server.server import (
+    from awslabs.lambda_tool_mcp_server.server import (
         invoke_lambda_function_impl,
     )
 
@@ -17,7 +17,7 @@ class TestServerIntegrationCoverage:
     """Additional integration tests for the server module to improve coverage."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.lambda_mcp_server.server.lambda_client')
+    @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
     async def test_lambda_function_binary_response(self, mock_lambda_client):
         """Test the Lambda function with binary response."""
         # Set up the mock
@@ -47,7 +47,7 @@ class TestServerIntegrationCoverage:
         assert "b'\\x80\\x81\\x82\\x83'" in result
 
     @pytest.mark.asyncio
-    @patch('awslabs.lambda_mcp_server.server.lambda_client')
+    @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
     async def test_lambda_function_empty_response(self, mock_lambda_client):
         """Test the Lambda function with empty response."""
         # Set up the mock
@@ -77,7 +77,7 @@ class TestToolFunctionalityCoverage:
     """Additional tests for the functionality of the Lambda tools to improve coverage."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.lambda_mcp_server.server.lambda_client')
+    @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
     async def test_lambda_function_complex_json(self, mock_lambda_client):
         """Test the Lambda function with complex JSON response."""
         # Set up the mock with complex nested JSON
@@ -113,7 +113,7 @@ class TestToolFunctionalityCoverage:
         ctx.error = AsyncMock()
 
         # Call the function
-        with patch('awslabs.lambda_mcp_server.server.mcp', mock_mcp):
+        with patch('awslabs.lambda_tool_mcp_server.server.mcp', mock_mcp):
             result = await mock_tool_function({'param': 'value'}, ctx)
 
         # Check that the Lambda function was invoked with the correct parameters
