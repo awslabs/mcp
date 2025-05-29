@@ -13,9 +13,9 @@
 
 import os
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from awslabs.cfn_mcp_server.iac_generator import create_template
 from awslabs.cfn_mcp_server.errors import ClientError
+from awslabs.cfn_mcp_server.iac_generator import create_template
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def mock_get_aws_client():
 @pytest.mark.asyncio
 async def test_create_template_validation_error_no_name_or_id():
     """Test validation error when neither template_name nor template_id is provided."""
-    with pytest.raises(ClientError, match="Either template_name or template_id must be provided"):
+    with pytest.raises(ClientError, match='Either template_name or template_id must be provided'):
         await create_template(template_name=None, template_id=None)
 
 
@@ -43,21 +43,25 @@ async def test_create_template_validation_error_no_name_or_id():
 async def test_create_template_validation_error_invalid_output_format():
     """Test validation error when output_format is invalid."""
     with pytest.raises(ClientError, match="output_format must be either 'JSON' or 'YAML'"):
-        await create_template(template_name="test", output_format="XML")
+        await create_template(template_name='test', output_format='XML')
 
 
 @pytest.mark.asyncio
 async def test_create_template_validation_error_invalid_deletion_policy():
     """Test validation error when deletion_policy is invalid."""
-    with pytest.raises(ClientError, match="deletion_policy must be one of 'RETAIN', 'DELETE', or 'SNAPSHOT'"):
-        await create_template(template_name="test", deletion_policy="INVALID")
+    with pytest.raises(
+        ClientError, match="deletion_policy must be one of 'RETAIN', 'DELETE', or 'SNAPSHOT'"
+    ):
+        await create_template(template_name='test', deletion_policy='INVALID')
 
 
 @pytest.mark.asyncio
 async def test_create_template_validation_error_invalid_update_replace_policy():
     """Test validation error when update_replace_policy is invalid."""
-    with pytest.raises(ClientError, match="update_replace_policy must be one of 'RETAIN', 'DELETE', or 'SNAPSHOT'"):
-        await create_template(template_name="test", update_replace_policy="INVALID")
+    with pytest.raises(
+        ClientError, match="update_replace_policy must be one of 'RETAIN', 'DELETE', or 'SNAPSHOT'"
+    ):
+        await create_template(template_name='test', update_replace_policy='INVALID')
 
 
 @pytest.mark.asyncio
@@ -69,47 +73,40 @@ async def test_create_template_start_generation(mock_get_aws_client, mock_cfn_cl
     }
 
     result = await create_template(
-        template_name="test-template",
-        resources=[{"ResourceType": "AWS::S3::Bucket", "ResourceIdentifier": "test-bucket"}],
-        output_format="YAML",
-        deletion_policy="RETAIN",
-        update_replace_policy="RETAIN"
+        template_name='test-template',
+        resources=[{'ResourceType': 'AWS::S3::Bucket', 'ResourceIdentifier': 'test-bucket'}],
+        output_format='YAML',
+        deletion_policy='RETAIN',
+        update_replace_policy='RETAIN',
     )
 
     mock_cfn_client.create_generated_template.assert_called_once_with(
-        GeneratedTemplateName="test-template",
-        TemplateConfiguration={
-            'DeletionPolicy': "RETAIN",
-            'UpdateReplacePolicy': "RETAIN"
-        },
-        Resources=[
-            {"ResourceType": "AWS::S3::Bucket", "ResourceIdentifier": "test-bucket"}
-        ]
+        GeneratedTemplateName='test-template',
+        TemplateConfiguration={'DeletionPolicy': 'RETAIN', 'UpdateReplacePolicy': 'RETAIN'},
+        Resources=[{'ResourceType': 'AWS::S3::Bucket', 'ResourceIdentifier': 'test-bucket'}],
     )
 
-    assert result["status"] == "INITIATED"
-    assert result["template_id"] == "test-template-id"
-    assert "message" in result
+    assert result['status'] == 'INITIATED'
+    assert result['template_id'] == 'test-template-id'
+    assert 'message' in result
 
 
 @pytest.mark.asyncio
 async def test_create_template_check_status_in_progress(mock_get_aws_client, mock_cfn_client):
     """Test checking the status of a template generation process that is in progress."""
     mock_get_aws_client.return_value = mock_cfn_client
-    mock_cfn_client.describe_generated_template.return_value = {
-        'Status': 'IN_PROGRESS'
-    }
+    mock_cfn_client.describe_generated_template.return_value = {'Status': 'IN_PROGRESS'}
 
-    result = await create_template(template_id="test-template-id")
+    result = await create_template(template_id='test-template-id')
 
     mock_cfn_client.describe_generated_template.assert_called_once_with(
-        GeneratedTemplateName="test-template-id"
+        GeneratedTemplateName='test-template-id'
     )
     mock_cfn_client.get_generated_template.assert_not_called()
 
-    assert result["status"] == "IN_PROGRESS"
-    assert result["template_id"] == "test-template-id"
-    assert "message" in result
+    assert result['status'] == 'IN_PROGRESS'
+    assert result['template_id'] == 'test-template-id'
+    assert 'message' in result
 
 
 @pytest.mark.asyncio
@@ -119,28 +116,25 @@ async def test_create_template_retrieve_template(mock_get_aws_client, mock_cfn_c
     mock_cfn_client.describe_generated_template.return_value = {
         'Status': 'COMPLETE',
         'ResourceIdentifiers': [
-            {"ResourceType": "AWS::S3::Bucket", "ResourceIdentifier": "test-bucket"}
-        ]
+            {'ResourceType': 'AWS::S3::Bucket', 'ResourceIdentifier': 'test-bucket'}
+        ],
     }
-    mock_cfn_client.get_generated_template.return_value = {
-        'TemplateBody': 'template-content'
-    }
+    mock_cfn_client.get_generated_template.return_value = {'TemplateBody': 'template-content'}
 
-    result = await create_template(template_id="test-template-id")
+    result = await create_template(template_id='test-template-id')
 
     mock_cfn_client.describe_generated_template.assert_called_once_with(
-        GeneratedTemplateName="test-template-id"
+        GeneratedTemplateName='test-template-id'
     )
     mock_cfn_client.get_generated_template.assert_called_once_with(
-        GeneratedTemplateName="test-template-id",
-        Format="YAML"
+        GeneratedTemplateName='test-template-id', Format='YAML'
     )
 
-    assert result["status"] == "COMPLETED"
-    assert result["template_id"] == "test-template-id"
-    assert result["template"] == "template-content"
-    assert "resources" in result
-    assert "message" in result
+    assert result['status'] == 'COMPLETED'
+    assert result['template_id'] == 'test-template-id'
+    assert result['template'] == 'template-content'
+    assert 'resources' in result
+    assert 'message' in result
 
 
 @pytest.mark.asyncio
@@ -150,21 +144,18 @@ async def test_create_template_retrieve_json_template(mock_get_aws_client, mock_
     mock_cfn_client.describe_generated_template.return_value = {
         'Status': 'COMPLETE',
         'ResourceIdentifiers': [
-            {"ResourceType": "AWS::S3::Bucket", "ResourceIdentifier": "test-bucket"}
-        ]
+            {'ResourceType': 'AWS::S3::Bucket', 'ResourceIdentifier': 'test-bucket'}
+        ],
     }
-    mock_cfn_client.get_generated_template.return_value = {
-        'TemplateBody': 'template-content'
-    }
+    mock_cfn_client.get_generated_template.return_value = {'TemplateBody': 'template-content'}
 
-    result = await create_template(template_id="test-template-id", output_format="JSON")
+    await create_template(template_id='test-template-id', output_format='JSON')
 
     mock_cfn_client.describe_generated_template.assert_called_once_with(
-        GeneratedTemplateName="test-template-id"
+        GeneratedTemplateName='test-template-id'
     )
     mock_cfn_client.get_generated_template.assert_called_once_with(
-        GeneratedTemplateName="test-template-id",
-        Format="JSON"
+        GeneratedTemplateName='test-template-id', Format='JSON'
     )
 
 
@@ -174,27 +165,24 @@ async def test_create_template_save_to_file(mock_get_aws_client, mock_cfn_client
     mock_get_aws_client.return_value = mock_cfn_client
     mock_cfn_client.describe_generated_template.return_value = {
         'Status': 'COMPLETE',
-        'ResourceIdentifiers': []
+        'ResourceIdentifiers': [],
     }
-    mock_cfn_client.get_generated_template.return_value = {
-        'TemplateBody': 'template-content'
-    }
+    mock_cfn_client.get_generated_template.return_value = {'TemplateBody': 'template-content'}
 
-    file_path = os.path.join(tmpdir, "template.yaml")
+    file_path = os.path.join(tmpdir, 'template.yaml')
 
-    result = await create_template(template_id="test-template-id", save_to_file=file_path)
+    result = await create_template(template_id='test-template-id', save_to_file=file_path)
 
     assert os.path.exists(file_path)
     with open(file_path, 'r') as f:
         assert f.read() == 'template-content'
 
     mock_cfn_client.get_generated_template.assert_called_once_with(
-        GeneratedTemplateName="test-template-id",
-        Format="YAML"
+        GeneratedTemplateName='test-template-id', Format='YAML'
     )
 
-    assert result["status"] == "COMPLETED"
-    assert result["file_path"] == file_path
+    assert result['status'] == 'COMPLETED'
+    assert result['file_path'] == file_path
 
 
 @pytest.mark.asyncio
@@ -202,10 +190,12 @@ async def test_create_template_resource_validation_error(mock_get_aws_client, mo
     """Test validation error when resources are invalid."""
     mock_get_aws_client.return_value = mock_cfn_client
 
-    with pytest.raises(ClientError, match="Each resource must have 'ResourceType' and 'ResourceIdentifier'"):
+    with pytest.raises(
+        ClientError, match="Each resource must have 'ResourceType' and 'ResourceIdentifier'"
+    ):
         await create_template(
-            template_name="test-template",
-            resources=[{"ResourceType": "AWS::S3::Bucket"}]  # Missing ResourceIdentifier
+            template_name='test-template',
+            resources=[{'ResourceType': 'AWS::S3::Bucket'}],  # Missing ResourceIdentifier
         )
 
 
@@ -213,15 +203,17 @@ async def test_create_template_resource_validation_error(mock_get_aws_client, mo
 async def test_create_template_api_error(mock_get_aws_client, mock_cfn_client):
     """Test handling of API errors."""
     mock_get_aws_client.return_value = mock_cfn_client
-    mock_cfn_client.create_generated_template.side_effect = Exception("API Error")
+    mock_cfn_client.create_generated_template.side_effect = Exception('API Error')
 
     with patch('awslabs.cfn_mcp_server.iac_generator.handle_aws_api_error') as mock_handle_error:
-        mock_handle_error.side_effect = ClientError("Handled API Error")
+        mock_handle_error.side_effect = ClientError('Handled API Error')
 
-        with pytest.raises(ClientError, match="Handled API Error"):
+        with pytest.raises(ClientError, match='Handled API Error'):
             await create_template(
-                template_name="test-template",
-                resources=[{"ResourceType": "AWS::S3::Bucket", "ResourceIdentifier": "test-bucket"}]
+                template_name='test-template',
+                resources=[
+                    {'ResourceType': 'AWS::S3::Bucket', 'ResourceIdentifier': 'test-bucket'}
+                ],
             )
 
         mock_handle_error.assert_called_once()

@@ -15,13 +15,13 @@ from awslabs.cfn_mcp_server.context import Context
 from awslabs.cfn_mcp_server.errors import ClientError
 from awslabs.cfn_mcp_server.server import (
     create_resource,
+    create_template,
     delete_resource,
-    get_resource_request_status,
     get_resource,
+    get_resource_request_status,
     get_resource_schema_information,
     list_resources,
     update_resource,
-    create_template,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -292,26 +292,26 @@ class TestTools:
         """Testing create_template function."""
         # Setup the mock
         mock_create_template_impl.return_value = {
-            "status": "INITIATED",
-            "template_id": "test-template-id",
-            "message": "Template generation initiated."
+            'status': 'INITIATED',
+            'template_id': 'test-template-id',
+            'message': 'Template generation initiated.',
         }
 
         # Call the function
         result = await create_template(
-            template_name="test-template",
-            resources=[{"ResourceType": "AWS::S3::Bucket", "ResourceIdentifier": "test-bucket"}],
-            output_format="YAML",
-            deletion_policy="RETAIN",
-            update_replace_policy="RETAIN"
+            template_name='test-template',
+            resources=[{'ResourceType': 'AWS::S3::Bucket', 'ResourceIdentifier': 'test-bucket'}],
+            output_format='YAML',
+            deletion_policy='RETAIN',
+            update_replace_policy='RETAIN',
         )
 
         # Check the result
         assert result == {
-            "status": "INITIATED",
-            "template_id": "test-template-id",
-            "message": "Template generation initiated."
+            'status': 'INITIATED',
+            'template_id': 'test-template-id',
+            'message': 'Template generation initiated.',
         }
-        
+
         # Verify the implementation was called with the correct parameters
         mock_create_template_impl.assert_called_once()

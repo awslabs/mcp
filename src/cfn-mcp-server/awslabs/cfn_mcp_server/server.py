@@ -17,8 +17,8 @@ from awslabs.cfn_mcp_server.aws_client import get_aws_client
 from awslabs.cfn_mcp_server.cloud_control_utils import progress_event, validate_patch
 from awslabs.cfn_mcp_server.context import Context
 from awslabs.cfn_mcp_server.errors import ClientError, handle_aws_api_error
-from awslabs.cfn_mcp_server.schema_manager import schema_manager
 from awslabs.cfn_mcp_server.iac_generator import create_template as create_template_impl
+from awslabs.cfn_mcp_server.schema_manager import schema_manager
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -352,32 +352,28 @@ async def get_resource_request_status(
 
 @mcp.tool()
 async def create_template(
-    template_name: str = Field(
-        None, description="Name for the generated template"
-    ),
-    resources: list = Field(
+    template_name: str | None = Field(None, description='Name for the generated template'),
+    resources: list | None = Field(
         None,
-        description="List of resources to include in the template, each with 'ResourceType' and 'ResourceIdentifier'"
+        description="List of resources to include in the template, each with 'ResourceType' and 'ResourceIdentifier'",
     ),
     output_format: str = Field(
-        "YAML",
-        description="Output format for the template (JSON or YAML)"
+        'YAML', description='Output format for the template (JSON or YAML)'
     ),
     deletion_policy: str = Field(
-        "RETAIN",
-        description="Default DeletionPolicy for resources in the template (RETAIN, DELETE, or SNAPSHOT)"
+        'RETAIN',
+        description='Default DeletionPolicy for resources in the template (RETAIN, DELETE, or SNAPSHOT)',
     ),
     update_replace_policy: str = Field(
-        "RETAIN",
-        description="Default UpdateReplacePolicy for resources in the template (RETAIN, DELETE, or SNAPSHOT)"
+        'RETAIN',
+        description='Default UpdateReplacePolicy for resources in the template (RETAIN, DELETE, or SNAPSHOT)',
     ),
-    template_id: str = Field(
+    template_id: str | None = Field(
         None,
-        description="ID of an existing template generation process to check status or retrieve template"
+        description='ID of an existing template generation process to check status or retrieve template',
     ),
-    save_to_file: str = Field(
-        None,
-        description="Path to save the generated template to a file"
+    save_to_file: str | None = Field(
+        None, description='Path to save the generated template to a file'
     ),
     region: str | None = Field(
         description='The AWS region that the operation should be performed in', default=None
@@ -391,7 +387,6 @@ async def create_template(
     once it's complete. You can pass up to 500 resources at a time.
 
     Examples:
-
     1. Start template generation for an S3 bucket:
        create_template(
            template_name="my-template",
@@ -418,7 +413,7 @@ async def create_template(
         update_replace_policy=update_replace_policy,
         template_id=template_id,
         save_to_file=save_to_file,
-        region_name=region
+        region_name=region,
     )
 
 

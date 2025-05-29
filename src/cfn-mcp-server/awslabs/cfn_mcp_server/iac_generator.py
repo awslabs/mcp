@@ -12,24 +12,22 @@
 """CloudFormation IaC Generator tool implementation."""
 
 import os
-import json
-from typing import Dict, List, Optional
 from awslabs.cfn_mcp_server.aws_client import get_aws_client
 from awslabs.cfn_mcp_server.errors import ClientError, handle_aws_api_error
+from typing import Dict, List, Optional
 
 
 async def create_template(
     template_name: Optional[str] = None,
     resources: Optional[List[Dict[str, str]]] = None,
-    output_format: str = "YAML",
-    deletion_policy: str = "RETAIN",
-    update_replace_policy: str = "RETAIN",
+    output_format: str = 'YAML',
+    deletion_policy: str = 'RETAIN',
+    update_replace_policy: str = 'RETAIN',
     template_id: Optional[str] = None,
     save_to_file: Optional[str] = None,
     region_name: Optional[str] = None,
 ) -> Dict:
-    """
-    Create a CloudFormation template from existing resources using the IaC Generator API.
+    """Create a CloudFormation template from existing resources using the IaC Generator API.
 
     This function handles three main scenarios:
     1. Starting a new template generation process
@@ -51,15 +49,15 @@ async def create_template(
     """
     # Validate parameters
     if not template_id and not template_name:
-        raise ClientError("Either template_name or template_id must be provided")
+        raise ClientError('Either template_name or template_id must be provided')
 
-    if output_format not in ["JSON", "YAML"]:
+    if output_format not in ['JSON', 'YAML']:
         raise ClientError("output_format must be either 'JSON' or 'YAML'")
 
-    if deletion_policy not in ["RETAIN", "DELETE", "SNAPSHOT"]:
+    if deletion_policy not in ['RETAIN', 'DELETE', 'SNAPSHOT']:
         raise ClientError("deletion_policy must be one of 'RETAIN', 'DELETE', or 'SNAPSHOT'")
 
-    if update_replace_policy not in ["RETAIN", "DELETE", "SNAPSHOT"]:
+    if update_replace_policy not in ['RETAIN', 'DELETE', 'SNAPSHOT']:
         raise ClientError("update_replace_policy must be one of 'RETAIN', 'DELETE', or 'SNAPSHOT'")
 
     # Get CloudFormation client
@@ -73,23 +71,18 @@ async def create_template(
 
     # Case 2: Start a new template generation process
     return await _start_template_generation(
-        cfn_client,
-        template_name,
-        resources,
-        deletion_policy,
-        update_replace_policy
+        cfn_client, template_name, resources, deletion_policy, update_replace_policy
     )
 
 
 async def _start_template_generation(
     cfn_client,
-    template_name: str,
+    template_name: str | None,
     resources: Optional[List[Dict[str, str]]],
     deletion_policy: str,
-    update_replace_policy: str
+    update_replace_policy: str,
 ) -> Dict:
-    """
-    Start a new template generation process.
+    """Start a new template generation process.
 
     Args:
         cfn_client: Boto3 CloudFormation client
@@ -107,8 +100,8 @@ async def _start_template_generation(
         'GeneratedTemplateName': template_name,
         'TemplateConfiguration': {
             'DeletionPolicy': deletion_policy,
-            'UpdateReplacePolicy': update_replace_policy
-        }
+            'UpdateReplacePolicy': update_replace_policy,
+        },
     }
 
     # Add resources if provided
@@ -116,62 +109,60 @@ async def _start_template_generation(
         resource_identifiers = []
         for resource in resources:
             if 'ResourceType' not in resource or 'ResourceIdentifier' not in resource:
-                raise ClientError("Each resource must have 'ResourceType' and 'ResourceIdentifier'")
-            resource_identifiers.append({
-                'ResourceType': resource['ResourceType'],
-                'ResourceIdentifier': resource['ResourceIdentifier']
-            })
+                raise ClientError(
+                    "Each resource must have 'ResourceType' and 'ResourceIdentifier'"
+                )
+            resource_identifiers.append(
+                {
+                    'ResourceType': resource['ResourceType'],
+                    'ResourceIdentifier': resource['ResourceIdentifier'],
+                }
+            )
         params['Resources'] = resource_identifiers
 
     # Call the API
     try:
         response = cfn_client.create_generated_template(**params)
         return {
-            "status": "INITIATED",
-            "template_id": response['GeneratedTemplateId'],
-            "message": "Template generation initiated. Use the template_id to check status."
+            'status': 'INITIATED',
+            'template_id': response['GeneratedTemplateId'],
+            'message': 'Template generation initiated. Use the template_id to check status.',
         }
     except Exception as e:
         raise handle_aws_api_error(e)
 
 
 async def _handle_existing_template(
-    cfn_client,
-    template_id: str,
-    save_to_file: Optional[str],
-    output_format: str = "YAML"
+    cfn_client, template_id: str, save_to_file: Optional[str], output_format: str = 'YAML'
 ) -> Dict:
-    """
-    Handle an existing template generation process - check status or retrieve template.
+    """Handle an existing template generation process - check status or retrieve template.
 
     Args:
         cfn_client: Boto3 CloudFormation client
         template_id: ID of the template generation process
         save_to_file: Path to save the generated template to a file
+        output_format: Format of generated template. Either JSON or YAML
 
     Returns:
         A dictionary containing information about the template generation process or the generated template
     """
     # Check the status of the template generation process
     try:
-        status_response = cfn_client.describe_generated_template(
-            GeneratedTemplateName=template_id
-        )
+        status_response = cfn_client.describe_generated_template(GeneratedTemplateName=template_id)
 
         status = status_response['Status']
 
         # Return status information if the template is not yet complete
         if status != 'COMPLETE':
             return {
-                "status": status,
-                "template_id": template_id,
-                "message": f"Template generation {status.lower()}."
+                'status': status,
+                'template_id': template_id,
+                'message': f'Template generation {status.lower()}.',
             }
 
         # If the template is complete, retrieve it
         template_response = cfn_client.get_generated_template(
-            GeneratedTemplateName=template_id,
-            Format=output_format
+            GeneratedTemplateName=template_id, Format=output_format
         )
 
         template_content = template_response['TemplateBody']
@@ -189,19 +180,19 @@ async def _handle_existing_template(
                     f.write(template_content)
                 file_path = save_to_file
             except Exception as e:
-                raise ClientError(f"Failed to save template to file: {str(e)}")
+                raise ClientError(f'Failed to save template to file: {str(e)}')
 
         # Return the template and related information
         result = {
-            "status": "COMPLETED",
-            "template_id": template_id,
-            "template": template_content,
-            "resources": resources,
-            "message": "Template generation completed."
+            'status': 'COMPLETED',
+            'template_id': template_id,
+            'template': template_content,
+            'resources': resources,
+            'message': 'Template generation completed.',
         }
 
         if file_path:
-            result["file_path"] = file_path
+            result['file_path'] = file_path
 
         return result
 
