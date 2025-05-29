@@ -84,10 +84,10 @@ If you would like to specify a flag (for example, to allow creation of resources
 ```
 
 
-or docker after a succesful `docker build -t awslabs/amazon-mq-mcp-server .`:
+or docker after a successful `docker build -t awslabs/amazon-mq-mcp-server .`:
 
 ```file
-# ficticious `.env` file with AWS temporary credentials
+# fictitious `.env` file with AWS temporary credentials
 AWS_ACCESS_KEY_ID=<from the profile you set up>
 AWS_SECRET_ACCESS_KEY=<from the profile you set up>
 AWS_SESSION_TOKEN=<from the profile you set up>
@@ -96,7 +96,7 @@ AWS_SESSION_TOKEN=<from the profile you set up>
 ```json
   {
     "mcpServers": {
-      "awslabs.lambda-mcp-server": {
+      "awslabs.amazon-mq-mcp-server": {
         "command": "docker",
         "args": [
           "run",
@@ -116,24 +116,6 @@ AWS_SESSION_TOKEN=<from the profile you set up>
 ## Server Configuration Options
 
 The Amazon MQ MCP Server supports several command-line arguments that can be used to configure its behavior:
-
-### `--sse`
-
-Use Server-Sent Events (SSE) transport instead of stdio. Default is False.
-
-Example:
-```bash
-uv run awslabs.amazon-mq-mcp-server --sse
-```
-
-### `--port PORT`
-
-Specifies the port number on which the server will listen. Default is 6274.
-
-Example:
-```bash
-uv run awslabs.amazon-mq-mcp-server --port 9000
-```
 
 ### `--allow-resource-creation`
 

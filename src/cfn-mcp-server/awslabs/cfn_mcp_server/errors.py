@@ -86,6 +86,6 @@ class ServerError(Exception):
     def __init__(self, log):
         """Call super."""
         # Call the base class constructor with the parameters it needs
-        super().__init__('An internal error occured while processing your request')
+        super().__init__('An internal error occurred while processing your request')
         print(log)
         self.type = 'server'
