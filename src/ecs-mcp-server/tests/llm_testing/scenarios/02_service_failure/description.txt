@@ -1,0 +1,1 @@
+Tests ECS service failures due to image pull errors by creating a service with a non-existent container image. Tests the detect_image_pull_failures and fetch_service_events tools.
