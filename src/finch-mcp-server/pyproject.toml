@@ -1,7 +1,7 @@
 [project]
-name = "awslabs.amazon-sns-sqs-mcp-server"
-version = "2.0.1"
-description = "A Model Context Protocol server for Amazon SNS and SQS to provision and manage your messaging services"
+name = "awslabs.finch-mcp-server"
+version = "0.1.1"
+description = "A Model Context Protocol server for Finch to build and push container images"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
@@ -20,25 +20,22 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "markdownify>=0.13.1",
-    "mcp[cli]>=1.8.0",
-    "protego>=0.3.1",
+    "mcp[cli]>=1.6.0",
     "pydantic>=2.0.0",
-    "readabilipy>=0.2.0",
-    "requests>=2.32.3",
-    "boto3>=1.38.12",
-    "pytest>=8.3.5",
+    "boto3>=1.28.0",
+    "loguru>=0.7.0",
+    "PyYAML>=6.0",
 ]
 
 [project.scripts]
-"awslabs.amazon_sns_sqs_mcp_server" = "awslabs.amazon_sns_sqs_mcp_server.server:main"
+"awslabs.finch-mcp-server" = "awslabs.finch_mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/amazon-sns-sqs-mcp-server/"
+Documentation = "https://awslabs.github.io/mcp/servers/finch-mcp-server/"
 Source = "https://github.com/awslabs/mcp.git"
 "Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-sns-sqs-mcp-server/CHANGELOG.md"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/finch-mcp-server/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
@@ -50,6 +47,7 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    "moto>=4.2.0",
 ]
 
 [build-system]
@@ -64,11 +62,11 @@ packages = ["awslabs"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "2.0.0"
+version = "0.1.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/amazon_sns_sqs_mcp_server/__init__.py:__version__"
+    "awslabs/finch_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
@@ -114,7 +112,7 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "--cov=awslabs.amazon_sns_sqs_mcp_server --cov-report=term-missing"
+addopts = "--cov=awslabs.finch_mcp_server --cov-report=term-missing"
 markers = [
     "live: mark test as making live API calls",
     "asyncio: mark a test as an asyncio coroutine",
