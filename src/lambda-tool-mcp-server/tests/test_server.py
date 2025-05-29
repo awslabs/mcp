@@ -1,4 +1,4 @@
-"""Tests for the server module of the lambda-mcp-server."""
+"""Tests for the server module of the lambda-tool-mcp-server."""
 
 import json
 import pytest
@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.lambda_mcp_server.server import (
+    from awslabs.lambda_tool_mcp_server.server import (
         create_lambda_tool,
         filter_functions_by_tag,
         format_lambda_response,
@@ -25,21 +25,21 @@ with pytest.MonkeyPatch().context() as CTX:
             """Test with empty prefix and list."""
             assert validate_function_name('any-function') is True
 
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_PREFIX', 'test-')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_PREFIX', 'test-')
         def test_prefix_match(self):
             """Test with matching prefix."""
             assert validate_function_name('test-function') is True
             assert validate_function_name('other-function') is False
 
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_LIST', 'func1,func2,func3')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_LIST', 'func1,func2,func3')
         def test_list_match(self):
             """Test with function in list."""
             assert validate_function_name('func1') is True
             assert validate_function_name('func2') is True
             assert validate_function_name('other-func') is False
 
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_PREFIX', 'test-')
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_LIST', 'func1,func2')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_PREFIX', 'test-')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_LIST', 'func1,func2')
         def test_prefix_and_list(self):
             """Test with both prefix and list."""
             assert validate_function_name('test-function') is True
@@ -49,8 +49,8 @@ with pytest.MonkeyPatch().context() as CTX:
     class TestSanitizeToolName:
         """Tests for the sanitize_tool_name function."""
 
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_PREFIX', 'prefix-')
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_LIST', 'func1,func2')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_PREFIX', 'prefix-')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_LIST', 'func1,func2')
         def test_remove_prefix(self):
             """Test removing prefix from function name."""
             assert sanitize_tool_name('prefix-function') == 'function'
@@ -98,7 +98,7 @@ with pytest.MonkeyPatch().context() as CTX:
         @pytest.mark.asyncio
         async def test_successful_invocation(self, mock_lambda_client):
             """Test successful Lambda function invocation."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 ctx = AsyncMock()
                 result = await invoke_lambda_function_impl(
                     'test-function-1', {'param': 'value'}, ctx
@@ -121,7 +121,7 @@ with pytest.MonkeyPatch().context() as CTX:
         @pytest.mark.asyncio
         async def test_function_error(self, mock_lambda_client):
             """Test Lambda function invocation with error."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 ctx = AsyncMock()
                 result = await invoke_lambda_function_impl(
                     'error-function', {'param': 'value'}, ctx
@@ -137,7 +137,7 @@ with pytest.MonkeyPatch().context() as CTX:
         @pytest.mark.asyncio
         async def test_non_json_response(self, mock_lambda_client):
             """Test Lambda function invocation with non-JSON response."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 ctx = AsyncMock()
                 result = await invoke_lambda_function_impl(
                     'test-function-2', {'param': 'value'}, ctx
@@ -149,7 +149,7 @@ with pytest.MonkeyPatch().context() as CTX:
     class TestCreateLambdaTool:
         """Tests for the create_lambda_tool function."""
 
-        @patch('awslabs.lambda_mcp_server.server.mcp')
+        @patch('awslabs.lambda_tool_mcp_server.server.mcp')
         def test_create_tool(self, mock_mcp):
             """Test creating a Lambda tool."""
             # Set up the mock
@@ -173,8 +173,8 @@ with pytest.MonkeyPatch().context() as CTX:
             # Check that the function has the correct docstring
             assert decorated_function.__doc__ == description
 
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_PREFIX', 'test-')
-        @patch('awslabs.lambda_mcp_server.server.mcp')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_PREFIX', 'test-')
+        @patch('awslabs.lambda_tool_mcp_server.server.mcp')
         def test_create_tool_with_prefix(self, mock_mcp):
             """Test creating a Lambda tool with prefix."""
             # Set up the mock
@@ -194,7 +194,7 @@ with pytest.MonkeyPatch().context() as CTX:
 
         def test_matching_tags(self, mock_lambda_client):
             """Test filtering functions with matching tags."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 functions = [
                     {
                         'FunctionName': 'test-function-1',
@@ -219,7 +219,7 @@ with pytest.MonkeyPatch().context() as CTX:
 
         def test_no_matching_tags(self, mock_lambda_client):
             """Test filtering functions with no matching tags."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 functions = [
                     {
                         'FunctionName': 'test-function-1',
@@ -240,7 +240,7 @@ with pytest.MonkeyPatch().context() as CTX:
 
         def test_error_getting_tags(self, mock_lambda_client):
             """Test error handling when getting tags."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 # Make list_tags raise an exception
                 mock_lambda_client.list_tags.side_effect = Exception('Error getting tags')
 
@@ -260,12 +260,12 @@ with pytest.MonkeyPatch().context() as CTX:
     class TestRegisterLambdaFunctions:
         """Tests for the register_lambda_functions function."""
 
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_PREFIX', 'prefix-')
-        # @patch('awslabs.lambda_mcp_server.server.lambda_client')
-        @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_PREFIX', 'prefix-')
+        # @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
+        @patch('awslabs.lambda_tool_mcp_server.server.create_lambda_tool')
         def test_register_with_prefix(self, mock_create_lambda_tool, mock_lambda_client):
             """Test registering Lambda functions with prefix filter."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 # Call the function
                 register_lambda_functions()
 
@@ -275,28 +275,31 @@ with pytest.MonkeyPatch().context() as CTX:
                     'prefix-test-function-3', 'Test function 3 with prefix', None
                 )
 
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_LIST', 'test-function-1,test-function-2')
-        # @patch('awslabs.lambda_mcp_server.server.lambda_client')
-        @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+        @patch(
+            'awslabs.lambda_tool_mcp_server.server.FUNCTION_LIST',
+            'test-function-1,test-function-2',
+        )
+        # @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
+        @patch('awslabs.lambda_tool_mcp_server.server.create_lambda_tool')
         def test_register_with_list(self, mock_create_lambda_tool, mock_lambda_client):
             """Test registering Lambda functions with list filter."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 # Set environment variables
                 # monkeypatch = pytest.MonkeyPatch()
                 # monkeypatch.setattr(
-                #     awslabs.lambda_mcp_server.server, 'FUNCTION_PREFIX', '', raising=False
+                #     awslabs.lambda_tool_mcp_server.server, 'FUNCTION_PREFIX', '', raising=False
                 # )
                 # monkeypatch.setattr(
-                #     awslabs.lambda_mcp_server.server,
+                #     awslabs.lambda_tool_mcp_server.server,
                 #     'FUNCTION_LIST',
                 #     'test-function-1,test-function-2',
                 #     raising=False,
                 # )
                 # monkeypatch.setattr(
-                #     awslabs.lambda_mcp_server.server, 'FUNCTION_TAG_KEY', '', raising=False
+                #     awslabs.lambda_tool_mcp_server.server, 'FUNCTION_TAG_KEY', '', raising=False
                 # )
                 # monkeypatch.setattr(
-                #     awslabs.lambda_mcp_server.server, 'FUNCTION_TAG_VALUE', '', raising=False
+                #     awslabs.lambda_tool_mcp_server.server, 'FUNCTION_TAG_VALUE', '', raising=False
                 # )
                 # os.environ['FUNCTION_PREFIX'] = ''
                 # os.environ['FUNCTION_LIST'] = 'test-function-1,test-function-2'
@@ -318,41 +321,41 @@ with pytest.MonkeyPatch().context() as CTX:
                 # finally:
                 #     # Clean up environment variables
                 #     monkeypatch.setattr(
-                #         awslabs.lambda_mcp_server.server, 'FUNCTION_PREFIX', '', raising=False
+                #         awslabs.lambda_tool_mcp_server.server, 'FUNCTION_PREFIX', '', raising=False
                 #     )
                 #     monkeypatch.setattr(
-                #         awslabs.lambda_mcp_server.server, 'FUNCTION_LIST', '', raising=False
+                #         awslabs.lambda_tool_mcp_server.server, 'FUNCTION_LIST', '', raising=False
                 #     )
                 #     monkeypatch.setattr(
-                #         awslabs.lambda_mcp_server.server, 'FUNCTION_TAG_KEY', '', raising=False
+                #         awslabs.lambda_tool_mcp_server.server, 'FUNCTION_TAG_KEY', '', raising=False
                 #     )
                 #     monkeypatch.setattr(
-                #         awslabs.lambda_mcp_server.server, 'FUNCTION_TAG_VALUE', '', raising=False
+                #         awslabs.lambda_tool_mcp_server.server, 'FUNCTION_TAG_VALUE', '', raising=False
                 #     )
                 #     del os.environ['FUNCTION_PREFIX']
                 #     del os.environ['FUNCTION_LIST']
                 #     del os.environ['FUNCTION_TAG_KEY']
                 #     del os.environ['FUNCTION_TAG_VALUE']
 
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_KEY', 'test-key')
-        @patch('awslabs.lambda_mcp_server.server.FUNCTION_TAG_VALUE', 'test-value')
-        @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_KEY', 'test-key')
+        @patch('awslabs.lambda_tool_mcp_server.server.FUNCTION_TAG_VALUE', 'test-value')
+        @patch('awslabs.lambda_tool_mcp_server.server.create_lambda_tool')
         def test_register_with_tags(self, mock_create_lambda_tool, mock_lambda_client):
             """Test registering Lambda functions with tag filter."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 # Set environment variables
                 # monkeypatch = pytest.MonkeyPatch()
                 # monkeypatch.setattr(
-                #     awslabs.lambda_mcp_server.server, 'FUNCTION_PREFIX', '', raising=False
+                #     awslabs.lambda_tool_mcp_server.server, 'FUNCTION_PREFIX', '', raising=False
                 # )
                 # monkeypatch.setattr(
-                #     awslabs.lambda_mcp_server.server, 'FUNCTION_LIST', '', raising=False
+                #     awslabs.lambda_tool_mcp_server.server, 'FUNCTION_LIST', '', raising=False
                 # )
                 # monkeypatch.setattr(
-                #     awslabs.lambda_mcp_server.server, 'FUNCTION_TAG_KEY', 'test-key', raising=False
+                #     awslabs.lambda_tool_mcp_server.server, 'FUNCTION_TAG_KEY', 'test-key', raising=False
                 # )
                 # monkeypatch.setattr(
-                #     awslabs.lambda_mcp_server.server, 'FUNCTION_TAG_VALUE', 'test-value', raising=False
+                #     awslabs.lambda_tool_mcp_server.server, 'FUNCTION_TAG_VALUE', 'test-value', raising=False
                 # )
                 # os.environ['FUNCTION_PREFIX'] = ''
                 # os.environ['FUNCTION_LIST'] = ''
@@ -374,26 +377,26 @@ with pytest.MonkeyPatch().context() as CTX:
                 # finally:
                 #     # Clean up environment variables
                 #     monkeypatch.setattr(
-                #         awslabs.lambda_mcp_server.server, 'FUNCTION_PREFIX', '', raising=False
+                #         awslabs.lambda_tool_mcp_server.server, 'FUNCTION_PREFIX', '', raising=False
                 #     )
                 #     monkeypatch.setattr(
-                #         awslabs.lambda_mcp_server.server, 'FUNCTION_LIST', '', raising=False
+                #         awslabs.lambda_tool_mcp_server.server, 'FUNCTION_LIST', '', raising=False
                 #     )
                 #     monkeypatch.setattr(
-                #         awslabs.lambda_mcp_server.server, 'FUNCTION_TAG_KEY', '', raising=False
+                #         awslabs.lambda_tool_mcp_server.server, 'FUNCTION_TAG_KEY', '', raising=False
                 #     )
                 #     monkeypatch.setattr(
-                #         awslabs.lambda_mcp_server.server, 'FUNCTION_TAG_VALUE', '', raising=False
+                #         awslabs.lambda_tool_mcp_server.server, 'FUNCTION_TAG_VALUE', '', raising=False
                 #     )
                 #     del os.environ['FUNCTION_PREFIX']
                 #     del os.environ['FUNCTION_LIST']
                 #     del os.environ['FUNCTION_TAG_KEY']
                 #     del os.environ['FUNCTION_TAG_VALUE']
 
-        @patch('awslabs.lambda_mcp_server.server.create_lambda_tool')
+        @patch('awslabs.lambda_tool_mcp_server.server.create_lambda_tool')
         def test_register_with_no_filters(self, mock_create_lambda_tool, mock_lambda_client):
             """Test registering Lambda functions with no filters."""
-            with patch('awslabs.lambda_mcp_server.server.lambda_client', mock_lambda_client):
+            with patch('awslabs.lambda_tool_mcp_server.server.lambda_client', mock_lambda_client):
                 # Call the function
                 register_lambda_functions()
 
@@ -410,7 +413,7 @@ with pytest.MonkeyPatch().context() as CTX:
                 )
                 mock_create_lambda_tool.assert_any_call('other-function', '', None)
 
-        @patch('awslabs.lambda_mcp_server.server.lambda_client')
+        @patch('awslabs.lambda_tool_mcp_server.server.lambda_client')
         def test_register_error_handling(self, mock_lambda_client):
             """Test error handling in register_lambda_functions."""
             # Make list_functions raise an exception
@@ -422,8 +425,8 @@ with pytest.MonkeyPatch().context() as CTX:
     class TestMain:
         """Tests for the main function."""
 
-        @patch('awslabs.lambda_mcp_server.server.register_lambda_functions')
-        @patch('awslabs.lambda_mcp_server.server.mcp')
+        @patch('awslabs.lambda_tool_mcp_server.server.register_lambda_functions')
+        @patch('awslabs.lambda_tool_mcp_server.server.mcp')
         def test_main_stdio(self, mock_mcp, mock_register_lambda_functions):
             """Test main function with stdio transport."""
             # Set up the mock
@@ -437,8 +440,8 @@ with pytest.MonkeyPatch().context() as CTX:
             # Check that mcp.run was called with no transport
             mock_mcp.run.assert_called_once_with()
 
-        @patch('awslabs.lambda_mcp_server.server.mcp.run')
-        @patch('sys.argv', ['awslabs.lambda-mcp-server'])
+        @patch('awslabs.lambda_tool_mcp_server.server.mcp.run')
+        @patch('sys.argv', ['awslabs.lambda-tool-mcp-server'])
         def test_main_default(self, mock_run):
             """Test main function with default arguments."""
             # Call the main function

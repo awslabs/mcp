@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 with pytest.MonkeyPatch().context() as CTX:
     CTX.setattr('boto3.Session', MagicMock)
-    from awslabs.lambda_mcp_server.server import format_lambda_response
+    from awslabs.lambda_tool_mcp_server.server import format_lambda_response
 
 
 def test_format_lambda_response_unicode_decode_error():
