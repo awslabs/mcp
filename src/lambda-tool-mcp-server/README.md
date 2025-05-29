@@ -1,4 +1,4 @@
-# AWS Lambda MCP Server
+# AWS Lambda Tool MCP Server
 
 A Model Context Protocol (MCP) server for AWS Lambda to select and run Lambda function as MCP tools without code changes.
 
