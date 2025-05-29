@@ -60,10 +60,10 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
-or docker after a succesful `docker build -t awslabs/amazon-sns-sqs-mcp-server.`:
+or docker after a successful `docker build -t awslabs/amazon-sns-sqs-mcp-server.`:
 
 ```file
-# ficticious `.env` file with AWS temporary credentials
+# fictitious `.env` file with AWS temporary credentials
 AWS_ACCESS_KEY_ID=<from the profile you set up>
 AWS_SECRET_ACCESS_KEY=<from the profile you set up>
 AWS_SESSION_TOKEN=<from the profile you set up>

@@ -89,9 +89,9 @@ The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS se
 
 [Learn more about the Cost Analysis MCP Server](servers/cost-analysis-mcp-server.md)
 
-### AWS Lambda MCP Server
+### AWS Lambda Tool MCP Server
 
-The AWS Lambda MCP Server enables AI assistants to select and run AWS Lambda functions as MCP tools.
+The AWS Lambda Tool MCP Server enables AI assistants to select and run AWS Lambda functions as MCP tools.
 
 **Features:**
 
@@ -100,7 +100,7 @@ The AWS Lambda MCP Server enables AI assistants to select and run AWS Lambda fun
 - Filter functions by name, tag, or both
 - Use AWS credentials to invoke the Lambda functions
 
-[Learn more about the AWS Lambda MCP Server](servers/lambda-mcp-server.md)
+[Learn more about the AWS Lambda Tool MCP Server](servers/lambda-tool-mcp-server.md)
 
 ### Amazon Aurora DSQL MCP Server
 
@@ -286,6 +286,21 @@ The DocumentDB MCP Server enables AI assistants to interact with Amazon Document
 - Automatic connection cleanup and resource management
 
 [Learn more about the Amazon DocumentDB MCP Server](servers/documentdb-mcp-server.md)
+
+### Amazon EKS MCP Server
+
+A Model Context Protocol (MCP) server for Amazon EKS that enables generative AI models to create and manage Kubernetes clusters on AWS through MCP tools.
+
+**Features:**
+
+- EKS Cluster Management: Create and manage EKS clusters with dedicated VPCs, proper networking, and CloudFormation templates for reliable, repeatable deployments
+- Kubernetes Resource Management: Create, read, update, delete, and list Kubernetes resources with support for applying YAML manifests
+- Application Deployment: Generate and deploy Kubernetes manifests with customizable parameters for containerized applications
+- Operational Support: Access pod logs, Kubernetes events, and monitor cluster resources
+- CloudWatch Integration: Retrieve logs and metrics from CloudWatch for comprehensive monitoring
+- Security-First Design: Configurable read-only mode, sensitive data access controls, and IAM integration for proper permissions management
+
+[Learn more about the Amazon EKS MCP Server](servers/eks-mcp-server.md)
 
 ### Synthetic Data MCP Server
 

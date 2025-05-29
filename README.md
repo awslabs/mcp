@@ -40,6 +40,9 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Amazon DynamoDB MCP Server](#amazon-dynamodb-mcp-server)
     - [Amazon Neptune MCP Server](#amazon-neptune-mcp-server)
     - [Amazon DocumentDB MCP Server](#amazon-documentdb-mcp-server)
+    - [Amazon EKS MCP Server](#amazon-eks-mcp-server)
+    - [Amazon ECS MCP Server](#amazon-ecs-mcp-server)
+    - [Finch MCP Server](#finch-mcp-server)
     - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
     - [Running MCP servers in containers](#running-mcp-servers-in-containers)
@@ -378,6 +381,50 @@ A server for interacting with Amazon DocumentDB clusters, Amazon's MongoDB-compa
 
 [Learn more](src/documentdb-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/documentdb-mcp-server/)
 
+### Amazon EKS MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.eks-mcp-server.svg)](https://pypi.org/project/awslabs.eks-mcp-server/)
+
+A Model Context Protocol (MCP) server for Amazon EKS that enables generative AI models to create and manage Kubernetes clusters on AWS through MCP tools.
+
+- EKS Cluster Management: Create and manage EKS clusters with dedicated VPCs, proper networking, and CloudFormation templates for reliable, repeatable deployments
+- Kubernetes Resource Management: Create, read, update, delete, and list Kubernetes resources with support for applying YAML manifests
+- Application Deployment: Generate and deploy Kubernetes manifests with customizable parameters for containerized applications
+- Operational Support: Access pod logs, Kubernetes events, and monitor cluster resources
+- CloudWatch Integration: Retrieve logs and metrics from CloudWatch for comprehensive monitoring
+- Security-First Design: Configurable read-only mode, sensitive data access controls, and IAM integration for proper permissions management
+
+[Learn more](src/eks-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/eks-mcp-server/)
+
+### Amazon ECS MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.ecs-mcp-server.svg)](https://pypi.org/project/awslabs.ecs-mcp-server/)
+
+A Model Context Protocol (MCP) server for containerizing applications, deploying applications to Amazon Elastic Container Service (ECS), troubleshooting ECS deployments, and managing ECS resources.
+
+- Containerization Guidance: Generate Dockerfile and container configurations for web applications
+- ECS Deployment: Create AWS infrastructure needed to deploy containerized applications
+- Load Balancer Integration: Automatically configure Application Load Balancers (ALBs)
+- Resource Management: List and explore ECS resources such as task definitions, services, clusters, and tasks
+- Comprehensive Troubleshooting: Diagnose and resolve common ECS deployment issues
+- Security Best Practices: Implement AWS security best practices for container deployments
+
+[Learn more](src/ecs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/ecs-mcp-server/)
+
+### Finch MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.finch-mcp-server.svg)](https://pypi.org/project/awslabs.finch-mcp-server/)
+
+A Model Context Protocol (MCP) server for Finch that enables generative AI models to build and push container images through Finch CLI leveraged MCP tools.
+
+- Build container images using Finch with support for various build options
+- Push container images to repositories, including Amazon ECR
+- Create ECR repositories if they don't exist
+- Automatic management of the Finch VM on macOS and Windows
+- Automatic configuration of ECR credential helpers when needed
+
+[Learn more](src/finch-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/finch-mcp-server/)
+
 ### Amazon MQ MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-mq-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-mq-mcp-server/)
@@ -461,14 +508,18 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
   "mcpServers": {
     "awslabs.core-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": [
+        "awslabs.core-mcp-server@latest"
+      ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.nova-canvas-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.nova-canvas-mcp-server@latest"],
+      "args": [
+        "awslabs.nova-canvas-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -477,7 +528,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.bedrock-kb-retrieval-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.bedrock-kb-retrieval-mcp-server@latest"],
+      "args": [
+        "awslabs.bedrock-kb-retrieval-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -486,7 +539,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cost-analysis-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.cost-analysis-mcp-server@latest"],
+      "args": [
+        "awslabs.cost-analysis-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -494,14 +549,18 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cdk-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.cdk-mcp-server@latest"],
+      "args": [
+        "awslabs.cdk-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "args": [
+        "awslabs.aws-documentation-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -510,7 +569,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.lambda-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.lambda-mcp-server@latest"],
+      "args": [
+        "awslabs.lambda-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -521,17 +582,21 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       }
     },
     "awslabs.terraform-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.terraform-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
-     },
+      "command": "uvx",
+      "args": [
+        "awslabs.terraform-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
     "awslabs.frontend-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.frontend-mcp-server@latest"],
+      "args": [
+        "awslabs.frontend-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -540,18 +605,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.valkey-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.valkey-mcp-server@latest"],
-      "env": {
-        "VALKEY_HOST": "127.0.0.1",
-        "VALKEY_PORT": "6379",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "autoApprove": [],
-      "disabled": false
-    },
-    "awslabs.valkey-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.valkey-mcp-server@latest"],
+      "args": [
+        "awslabs.valkey-mcp-server@latest"
+      ],
       "env": {
         "VALKEY_HOST": "127.0.0.1",
         "VALKEY_PORT": "6379",
@@ -562,7 +618,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.aws-location-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-location-mcp-server@latest"],
+      "args": [
+        "awslabs.aws-location-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -573,18 +631,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.memcached-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.memcached-mcp-server@latest"],
-      "env": {
-        "MEMCACHED_HOST": "127.0.0.1",
-        "MEMCACHED_PORT": "11211",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "autoApprove": [],
-      "disabled": false
-    },
-    "awslabs.memcached-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.memcached-mcp-server@latest"],
+      "args": [
+        "awslabs.memcached-mcp-server@latest"
+      ],
       "env": {
         "MEMCACHED_HOST": "127.0.0.1",
         "MEMCACHED_PORT": "11211",
@@ -595,7 +644,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.git-repo-research-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.git-repo-research-mcp-server@latest"],
+      "args": [
+        "awslabs.git-repo-research-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -607,7 +658,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cloudformation": {
       "command": "uvx",
-      "args": ["awslabs.cfn-mcp-server@latest"],
+      "args": [
+        "awslabs.cfn-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
       },
@@ -641,7 +694,7 @@ _This example uses docker with the "awslabs.nova-canvas-mcp-server and can be re
 - Optionally save sensitive environmental variables in a file:
 
   ```.env
-  # contents of a .env file with ficticious AWS temporary credentials
+  # contents of a .env file with fictitious AWS temporary credentials
   AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
   AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
   AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
@@ -1108,10 +1161,6 @@ Documentation for each server:
 - [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
 - [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
 - [Amazon ElastiCache/MemoryDB Valkey MCP Server](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
-erver/)
-- [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
-- [Amazon ElastiCache/MemoryDB Valkey MCP Server](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
-erver/)
 - [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
 - [Git Repo Research MCP Server](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
 - [CloudFormation MCP Server](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
