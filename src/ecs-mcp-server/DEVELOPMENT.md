@@ -51,7 +51,7 @@ You can also run the MCP server directly from a local clone of the GitHub reposi
 
 ```bash
 # Clone the repository
-git clone https://github.com/awslabs/ecs-mcp-server.git
+git clone https://github.com/awslabs/mcp.git
 
 # Run the server directly using uv
 uv --directory /path/to/ecs-mcp-server/src/ecs-mcp-server/awslabs/ecs_mcp_server run main.py
