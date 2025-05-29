@@ -210,7 +210,7 @@ class RepositorySearcher:
                 index_path = self.repository_indexer._get_index_path(repository_name)
 
             # Load the index and chunk map
-            vector_store = self.repository_indexer.load_index_without_pickle(repository_name)
+            vector_store = self.repository_indexer.load_index_without_pickle(index_path)
             if vector_store is None:
                 logger.error(f'Index or chunk map not found for repository {repository_name}')
                 # Set repository_directory even if index is not found

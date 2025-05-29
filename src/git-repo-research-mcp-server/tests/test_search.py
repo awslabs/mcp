@@ -330,7 +330,7 @@ def test_search_with_repository_name():
 
         # Verify the mock calls
         mock_indexer._get_index_path.assert_called_once_with('test_repo')
-        mock_indexer.load_index_without_pickle.assert_called_once_with('test_repo')
+        mock_indexer.load_index_without_pickle.assert_called_once_with('/tmp/index/test_repo')
         mock_vector_store.similarity_search.assert_called_once_with('test query', k=10)
 
 
@@ -387,7 +387,7 @@ def test_search_with_directory_path():
         assert result.results[0].score == 1.0
 
         # Verify the mock calls
-        mock_indexer.load_index_without_pickle.assert_called_once_with('test_repo')
+        mock_indexer.load_index_without_pickle.assert_called_once_with('/tmp/index/test_repo')
 
 
 def test_search_with_similarity_search_with_score_fallback():
@@ -446,7 +446,7 @@ def test_search_with_similarity_search_with_score_fallback():
 
         # Verify the mock calls
         mock_indexer._get_index_path.assert_called_once_with('test_repo')
-        mock_indexer.load_index_without_pickle.assert_called_once_with('test_repo')
+        mock_indexer.load_index_without_pickle.assert_called_once_with('/tmp/index/test_repo')
         mock_vector_store.similarity_search.assert_called_once_with('test query', k=10)
         mock_vector_store.similarity_search_with_score.assert_called_once_with('test query', k=10)
         mock_logger_error.assert_called_once()
