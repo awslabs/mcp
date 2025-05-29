@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: {{ description }}
+
+Resources:
+  # API Gateway
+  ApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: {{ backend_configuration.stage }}
+      {% if backend_configuration.cors is equals(true) %}
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      {% endif %}
+
+  # Lambda Function with Web Adapter
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: {{ backend_configuration.built_artifacts_path }}
+      Handler: {{ backend_configuration.startup_script }}
+      Runtime: {{ backend_configuration.runtime }}
+      MemorySize: {{ backend_configuration.memory_size }}
+      Timeout: {{ backend_configuration.timeout }}
+      Architectures:
+        - {{ backend_configuration.architecture }}
+      Environment:
+        Variables:
+          PORT: {{ backend_configuration.port }}
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          {% if backend_configuration.environment %}
+          {% for key, value in backend_configuration.environment.items() %}
+          {{ key }}: {{ value }}
+          {% endfor %}
+          {% endif %}
+          {% if backend_configuration.database_configuration is exists %}
+          TABLE_NAME: {{ backend_configuration.database_configuration.table_name }}
+          {% endif %}
+      {% if backend_configuration.database_configuration is exists %}
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ApiDatabaseTable
+      {% endif %}
+      Layers:
+        {% if backend_configuration.architecture is equals("arm64") %}
+        - !Sub "arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerArm64:25"
+        {% else %}
+        - !Sub "arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerX86:25"
+        {% endif %}
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /{proxy+}
+            Method: ANY
+        RootApiEvent:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGateway
+            Path: /
+            Method: ANY
+
+  {% if backend_configuration.database_configuration is exists %}
+  # DynamoDB Table
+  ApiDatabaseTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: {{ backend_configuration.database_configuration.table_name }}
+      BillingMode: {% if backend_configuration.database_configuration.billing_mode is equals("PROVISIONED") %}PROVISIONED{% else %}PAY_PER_REQUEST{% endif %}
+      AttributeDefinitions:
+        {% for attr in backend_configuration.database_configuration.attribute_definitions %}
+        - AttributeName: {{ attr.name }}
+          AttributeType: {{ attr.type }}
+        {% endfor %}
+      KeySchema:
+        {% for key in backend_configuration.database_configuration.key_schema %}
+        - AttributeName: {{ key.name }}
+          KeyType: {{ key.type }}
+        {% endfor %}
+      {% if backend_configuration.database_configuration.billing_mode is equals("PROVISIONED") %}
+      ProvisionedThroughput:
+        ReadCapacityUnits: {{ backend_configuration.database_configuration.read_capacity }}
+        WriteCapacityUnits: {{ backend_configuration.database_configuration.write_capacity }}
+      {% endif %}
+  {% endif %}
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/{{ backend_configuration.stage }}/"
+
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt ApiFunction.Arn
+
+  FunctionName:
+    Description: Lambda function name
+    Value: !Ref ApiFunction
+
+  {% if backend_configuration.database_configuration is exists %}
+  table_name:
+    Description: Name of the DynamoDB table
+    Value: !Ref ApiDatabaseTable
+  {% endif %}
