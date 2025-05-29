@@ -1,6 +1,6 @@
 # Lambda MCP Server Tests
 
-This directory contains tests for the lambda-mcp-server. The tests are organized by module and cover all aspects of the server's functionality.
+This directory contains tests for the lambda-tool-mcp-server. The tests are organized by module and cover all aspects of the server's functionality.
 
 ## Test Structure
 
@@ -46,13 +46,13 @@ pytest -xvs tests/test_server.py::TestValidateFunctionName::test_empty_prefix_an
 To generate a test coverage report, use the following command:
 
 ```bash
-pytest --cov=awslabs.lambda_mcp_server tests/
+pytest --cov=awslabs.lambda_tool_mcp_server tests/
 ```
 
 For a more detailed HTML coverage report:
 
 ```bash
-pytest --cov=awslabs.lambda_mcp_server --cov-report=html tests/
+pytest --cov=awslabs.lambda_tool_mcp_server --cov-report=html tests/
 ```
 
 This will generate a coverage report in the `htmlcov` directory. Open `htmlcov/index.html` in a web browser to view the report.
