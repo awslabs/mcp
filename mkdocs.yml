@@ -31,18 +31,20 @@ nav:
   - Home: index.md
   - AWS MCP Servers:
     - Core MCP Server: servers/core-mcp-server.md
-    - Amazon EKS: servers/eks-mcp-server.md
-    - Amazon Bedrock Knowledge Base Retrieval: servers/bedrock-kb-retrieval-mcp-server.md
-    - AWS CDK: servers/cdk-mcp-server.md
-    - Cost Analysis: servers/cost-analysis-mcp-server.md
-    - Amazon Nova Canvas: servers/nova-canvas-mcp-server.md
-    - AWS Documentation: servers/aws-documentation-mcp-server.md
-    - AWS Lambda: servers/lambda-mcp-server.md
-    - AWS Diagram: servers/aws-diagram-mcp-server.md
-    - AWS Terraform: servers/terraform-mcp-server.md
-    - Git Repo Research: servers/git-repo-research-mcp-server.md
-    - CloudFormation: servers/cfn-mcp-server.md
-    - Finch: servers/finch-mcp-server.md
+    - Amazon Bedrock Knowledge Base Retrieval MCP Server: servers/bedrock-kb-retrieval-mcp-server.md
+    - AWS CDK MCP Server: servers/cdk-mcp-server.md
+    - Cost Analysis MCP Server: servers/cost-analysis-mcp-server.md
+    - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
+    - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
+    - AWS Lambda MCP Server: servers/lambda-mcp-server.md
+    - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
+    - AWS Terraform MCP Server: servers/terraform-mcp-server.md
+    - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
+    - CloudFormation MCP Server: servers/cfn-mcp-server.md
+    - AWS Serverless MCP Server: servers/aws-serverless-mcp-server.md
+    - Finch MCP Server: servers/finch-mcp-server.md
+    - Amazon EKS MCP Server: servers/eks-mcp-server.md
+    - Amazon ECS MCP Server: servers/ecs-mcp-server.md
   - Samples:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
