@@ -1,0 +1,90 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "awslabs.ecs-mcp-server"
+version = "0.1.1"
+description = "AWS ECS MCP Server for automating containerization and deployment of web applications to AWS ECS"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Amazon Web Services", email = "aws-mcp-servers@amazon.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "fastmcp>=0.1.0",
+    "boto3>=1.28.0",
+    "pydantic>=2.0.0",
+    "docker>=6.1.0",
+    "jinja2>=3.1.0",
+    "pyyaml>=6.0.0",
+    "gevent>=25.5.1",
+    "pytest-cov>=6.1.1",
+    "pyright>=1.1.401",
+    "ruff>=0.11.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=23.3.0",
+    "isort>=5.12.0",
+    "mypy>=1.3.0",
+    "pytest>=7.3.1",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.0.272",
+]
+
+[project.urls]
+Homepage = "https://github.com/awslabs/mcp"
+Documentation = "https://awslabs.github.io/mcp/servers/ecs-mcp-server/"
+Issues = "https://github.com/awslabs/mcp/issues"
+
+[project.scripts]
+ecs-mcp-server = "awslabs.ecs_mcp_server.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+markers = [
+    "asyncio",
+    "anyio",
+]
+
+[tool.coverage.run]
+concurrency = ["gevent"]
+omit = ["tests/*"]
