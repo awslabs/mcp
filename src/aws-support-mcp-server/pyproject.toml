@@ -1,5 +1,5 @@
 [project]
-name = "aws-support-mcp-server"
+name = "awslabs.aws-support-mcp-server"
 version = "0.1.1"
 description = "An Model Context Protocol (MCP) server for AWS SupportAPI."
 readme = "README.md"

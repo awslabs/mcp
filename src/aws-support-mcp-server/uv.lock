@@ -27,7 +27,7 @@ wheels = [
 ]
 
 [[package]]
-name = "aws-support-mcp-server"
+name = "awslabs.aws-support-mcp-server"
 version = "0.1.1"
 source = { virtual = "." }
 dependencies = [
