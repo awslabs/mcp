@@ -1,4 +1,4 @@
-"""Test fixtures for the lambda-mcp-server tests."""
+"""Test fixtures for the lambda-tool-mcp-server tests."""
 
 import json
 import pytest
