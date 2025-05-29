@@ -31,7 +31,7 @@ nav:
   - Home: index.md
   - AWS MCP Servers:
     - Core MCP Server: servers/core-mcp-server.md
-    - Amazon EKS: 
+    - Amazon EKS: servers/eks-mcp-server.md
     - Amazon Bedrock Knowledge Base Retrieval: servers/bedrock-kb-retrieval-mcp-server.md
     - AWS CDK: servers/cdk-mcp-server.md
     - Cost Analysis: servers/cost-analysis-mcp-server.md
