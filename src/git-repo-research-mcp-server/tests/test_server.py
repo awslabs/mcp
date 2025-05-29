@@ -10,7 +10,6 @@
 # and limitations under the License.
 """Comprehensive tests for Git Repository Research MCP Server."""
 
-import argparse
 import json
 import os
 import pytest
@@ -25,7 +24,6 @@ from awslabs.git_repo_research_mcp_server.server import (
     access_file_or_directory,
     list_repositories,
     main,
-    mcp,
     mcp_access_file,
     mcp_delete_repository,
     mcp_index_repository,
@@ -734,21 +732,12 @@ async def test_mcp_access_file(test_context):
 
 def test_main():
     """Test the main function."""
-    # Mock the argparse.ArgumentParser
     with (
-        patch('argparse.ArgumentParser.parse_args') as mock_parse_args,
         patch('awslabs.git_repo_research_mcp_server.server.mcp.run') as mock_run,
     ):
         # Test with default arguments
-        mock_parse_args.return_value = argparse.Namespace(sse=False, port=8888)
         main()
         mock_run.assert_called_once()
 
         # Reset mocks
         mock_run.reset_mock()
-
-        # Test with SSE transport
-        mock_parse_args.return_value = argparse.Namespace(sse=True, port=9999)
-        main()
-        assert mcp.settings.port == 9999, 'Port not set correctly'
-        mock_run.assert_called_once_with(transport='sse')

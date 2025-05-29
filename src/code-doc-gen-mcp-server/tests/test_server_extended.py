@@ -320,19 +320,6 @@ async def test_generate_documentation_error_handling(mock_doc_generator_class):
 
 
 @patch('awslabs.code_doc_gen_mcp_server.server.mcp')
-def test_main_with_sse(mock_mcp):
-    """Test main function with SSE transport."""
-    # Arrange
-    with patch('sys.argv', ['server.py', '--sse', '--port', '9999']):
-        # Act
-        main()
-
-    # Assert
-    assert mock_mcp.settings.port == 9999
-    mock_mcp.run.assert_called_once_with(transport='sse')
-
-
-@patch('awslabs.code_doc_gen_mcp_server.server.mcp')
 def test_main_without_sse(mock_mcp):
     """Test main function without SSE transport."""
     # Arrange

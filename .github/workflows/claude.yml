@@ -95,7 +95,7 @@ jobs:
       ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG || 'false' }}
       # Claude specific environmental variables
       CLAUDE_CODE_USE_BEDROCK: 1
-      ANTHROPIC_MODEL: us.anthropic.claude-3-7-sonnet-20250219-v1:0
+      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'us.anthropic.claude-3-7-sonnet-20250219-v1:0' }}
       DISABLE_PROMPT_CACHING: 1
       # Secrets aren't available for step `if` statements.
       IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME != '' }}

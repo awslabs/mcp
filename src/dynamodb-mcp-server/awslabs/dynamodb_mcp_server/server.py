@@ -30,6 +30,7 @@ from awslabs.dynamodb_mcp_server.common import (
     UpdateTableInput,
     WarmThroughput,
     handle_exceptions,
+    mutation_check,
 )
 from botocore.config import Config
 from mcp.server.fastmcp import FastMCP
@@ -99,6 +100,7 @@ resource_arn: str = Field(description='The Amazon Resource Name (ARN) of the Dyn
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def put_resource_policy(
     resource_arn: str = resource_arn,
     policy: Union[str, Dict[str, Any]] = Field(
@@ -236,6 +238,7 @@ async def query(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def update_item(
     table_name: str = table_name,
     key: Dict[str, KeyAttributeValue] = key,
@@ -303,6 +306,7 @@ async def get_item(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def put_item(
     table_name: str = table_name,
     item: Dict[str, AttributeValue] = Field(
@@ -337,6 +341,7 @@ async def put_item(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def delete_item(
     table_name: str = table_name,
     key: Dict[str, KeyAttributeValue] = key,
@@ -370,6 +375,7 @@ async def delete_item(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def update_time_to_live(
     table_name: str = table_name,
     time_to_live_specification: TimeToLiveSpecification = Field(
@@ -387,6 +393,7 @@ async def update_time_to_live(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def update_table(
     table_name: str = table_name,
     attribute_definitions: List[AttributeDefinition] = Field(
@@ -483,6 +490,7 @@ async def list_tables(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def create_table(
     table_name: str = Field(
         description='The name of the table to create.',
@@ -536,6 +544,7 @@ async def describe_table(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def create_backup(
     table_name: str = table_name,
     backup_name: str = Field(
@@ -602,6 +611,7 @@ async def list_backups(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def restore_table_from_backup(
     backup_arn: str = Field(
         description='The Amazon Resource Name (ARN) associated with the backup.',
@@ -717,6 +727,7 @@ async def describe_continuous_backups(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def untag_resource(
     resource_arn: str = resource_arn,
     tag_keys: List[str] = Field(description='List of tags to remove.', min_length=1),
@@ -730,6 +741,7 @@ async def untag_resource(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def tag_resource(
     resource_arn: str = resource_arn,
     tags: List[Tag] = Field(description='Tags to be assigned.'),
@@ -762,6 +774,7 @@ async def list_tags_of_resource(
 
 @app.tool()
 @handle_exceptions
+@mutation_check
 async def delete_table(
     table_name: str = table_name,
     region_name: str = Field(default=None, description='The aws region to run the tool'),
@@ -800,6 +813,25 @@ async def update_continuous_backups(
 
     response = client.update_continuous_backups(**params)
     return response['ContinuousBackupsDescription']
+
+
+@app.tool()
+@handle_exceptions
+async def list_imports(
+    next_token: str = Field(default=None, description='Token to fetch the next page of results.'),
+    region_name: str = Field(default=None, description='The aws region to run the tool'),
+) -> dict:
+    """Lists imports completed within the past 90 days."""
+    client = get_dynamodb_client(region_name)
+    params = {}
+    if next_token:
+        params['NextToken'] = next_token
+    params['PageSize'] = 25
+    response = client.list_imports(**params)
+    return {
+        'ImportSummaryList': response.get('ImportSummaryList', []),
+        'NextToken': response.get('NextToken'),
+    }
 
 
 def main():

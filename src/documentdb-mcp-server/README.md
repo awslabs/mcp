@@ -71,9 +71,6 @@ python -m awslabs.documentdb_mcp_server.server --allow-write
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--port` | Port to run the server on | 8888 |
-| `--host` | Host to bind the server to | 127.0.0.1 |
-| `--sse` | Use SSE transport | False |
 | `--log-level` | Set logging level (TRACE, DEBUG, INFO, etc.) | INFO |
 | `--connection-timeout` | Idle connection timeout in minutes | 30 |
 | `--allow-write` | Enable write operations (otherwise defaults to read-only mode) | False |

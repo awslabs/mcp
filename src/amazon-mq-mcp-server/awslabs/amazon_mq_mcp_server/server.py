@@ -110,14 +110,11 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Model Context Protocol (MCP) server for Lambda'
     )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
     parser.add_argument(
         '--allow-resource-creation',
         action='store_true',
         help='Hide tools that create resources on user AWS account',
     )
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
     args = parser.parse_args()
 
     tool_configuration = {
@@ -157,11 +154,7 @@ def main():
     )
     generator.generate()
 
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
