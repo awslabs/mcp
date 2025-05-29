@@ -35,8 +35,8 @@ pip install awslabs.ecs-mcp-server
 You can also run the MCP server directly from a local clone of the GitHub repository:
 
 ```bash
-# Clone the repository
-git clone https://github.com/awslabs/ecs-mcp-server.git
+# Clone the awslabs repository
+git clone https://github.com/awslabs/mcp.git
 
 # Run the server directly using uv
 uv --directory /path/to/ecs-mcp-server/src/ecs-mcp-server/awslabs/ecs_mcp_server run main.py
@@ -107,7 +107,7 @@ Add the ECS MCP Server to your MCP client configuration:
   "mcpServers": {
     "awslabs.ecs-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.ecs-mcp-server@latest"],
+      "args": ["--from", "awslabs-ecs-mcp-server", "ecs-mcp-server"],
       "env": {
         "AWS_PROFILE": "your-aws-profile", // Optional - uses your local AWS configuration if not specified
         "AWS_REGION": "your-aws-region", // Optional - uses your local AWS configuration if not specified
