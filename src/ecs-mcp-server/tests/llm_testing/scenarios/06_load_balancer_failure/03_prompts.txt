@@ -1,0 +1,30 @@
+# Load Balancer Health Check Failure - Test Prompts
+
+The following prompts can be used to test Claude's ability to diagnose and troubleshoot ECS service load balancer health check issues.
+
+## General Troubleshooting Prompt
+
+I've deployed an ECS service "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]" that's integrated with a load balancer, but the service isn't accessible through the load balancer. When I access the load balancer URL, I get a 502 Bad Gateway error. The tasks seem to be running, but something is wrong with the load balancer integration. Can you help me troubleshoot this issue?
+
+## Testing get_ecs_troubleshooting_guidance Tool
+
+I need help diagnosing issues with my ECS service "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]". The service is running, but the load balancer health checks are failing. Can you use the get_ecs_troubleshooting_guidance tool to analyze what might be causing these health check failures?
+
+## Testing fetch_service_events Tool
+
+My ECS service "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]" appears to be having issues with load balancer health checks. Can you use the fetch_service_events tool to check if there are any events or messages that might explain why the health checks are failing?
+
+## Testing ecs_resource_management Tool
+
+I'm having issues with my ECS service "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]" which is integrated with a load balancer. The tasks are running but not being marked as healthy by the load balancer. Can you use the ecs_resource_management tool to examine the service and task definition configuration to identify any load balancer integration issues?
+
+## Testing Cross-Tool Integration
+
+My ECS Fargate service "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]" is running properly, but the load balancer health checks are failing, causing a 502 error when accessing the load balancer URL. Can you perform a comprehensive diagnosis using multiple tools to identify the issue with the load balancer health checks?
+
+## Expected Results
+
+Claude should identify:
+1. The target group health check is configured to check an incorrect path (/nonexistent-path) that doesn't exist in the nginx container
+2. The health check failures prevent traffic from being routed to the container
+3. The solution is to modify the target group's health check path to "/" or another valid path in the nginx container

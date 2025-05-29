@@ -1,0 +1,1 @@
+Tests ECS service load balancer integration failures by creating a service with misconfigured health check paths that always fail. Tests the get_ecs_troubleshooting_guidance and fetch_service_events tools.

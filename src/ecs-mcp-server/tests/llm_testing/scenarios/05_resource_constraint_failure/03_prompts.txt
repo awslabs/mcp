@@ -1,0 +1,35 @@
+# Resource Constraint Failure - Test Prompts
+
+The following prompts can be used to test Claude's ability to diagnose and troubleshoot ECS task resource constraint issues and dependency problems.
+
+## General Troubleshooting Prompt
+
+I've created a task definition "[TASK_FAMILY]" in cluster "[CLUSTER_NAME]", but when I try to run a task, it fails. The task logs show "sh: stress: command not found" and mentions attempting to allocate memory. Can you help me troubleshoot why this task won't run successfully?
+
+## Testing fetch_task_failures Tool
+
+My ECS task "[TASK_FAMILY]" in cluster "[CLUSTER_NAME]" is failing after starting. Can you use the fetch_task_failures tool to check what might be causing these failures? I see the container is trying to run stress tests but failing.
+
+## Testing get_ecs_troubleshooting_guidance Tool
+
+I need help diagnosing why my ECS task "[TASK_FAMILY]" in cluster "[CLUSTER_NAME]" is failing. The logs show "sh: stress: command not found" followed by "Failed to allocate memory". Can you use the get_ecs_troubleshooting_guidance tool to analyze the symptoms and recommend next steps?
+
+## Testing ecs_resource_management Tool
+
+Can you examine the task definition "[TASK_FAMILY]" in cluster "[CLUSTER_NAME]" to see if there are any issues with the resource specifications or container configuration that might be causing failures? The task starts but then exits with errors about missing commands and memory allocation.
+
+## Testing fetch_task_logs Tool
+
+My Fargate task "[TASK_FAMILY]" in cluster "[CLUSTER_NAME]" is failing. Can you look at the logs using the fetch_task_logs tool to help me understand what's happening? I think it might be failing to run a command or hitting resource limits.
+
+## Testing Cross-Tool Integration
+
+I'm having issues with a Fargate task "[TASK_FAMILY]" in cluster "[CLUSTER_NAME]". It starts but then fails quickly. I see errors about a missing "stress" command and memory allocation failures. Can you perform a comprehensive diagnosis using fetch_task_failures, fetch_task_logs, and ecs_resource_management to determine the exact issues and how to fix them?
+
+## Expected Results
+
+Claude should identify issues:
+**Resource Constraints**:
+   - The task definition is at the edge of Fargate resource limits (CPU: 16 vCPU, Memory: 120GB)
+   - The command is attempting to allocate 118GB of memory with the stress tool
+   - Solution: Either ensure the account has sufficient quotas or adjust the resources to more reasonable levels

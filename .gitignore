@@ -557,3 +557,6 @@ dist
 
 # End of https://www.toptal.com/developers/gitignore/api/jetbrains+all,pycharm+all,node
 samples/mcp-integration-with-nova-canvas/output/*
+
+memory-bank/*
+.clinerules
