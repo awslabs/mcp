@@ -247,9 +247,9 @@ class AWSToolGenerator:
             param_shape = input_shape.members[param_name]
             # Skip documentation if flag is set
             if self.skip_param_documentation:
-                param_documentation = ('',)
+                param_documentation = ''
             else:
-                param_documentation = (getattr(param_shape, 'documentation', ''),)
+                param_documentation = getattr(param_shape, 'documentation', '')
             is_required = param_name in input_shape.required_members
             res.append((param_name, param_shape.type_name, is_required, param_documentation))
         return res
