@@ -33,7 +33,7 @@ def validate_patch(patch_document: list):
             raise ClientError(f"The '{patch_op['op']}' operation requires a 'from' field")
 
 
-def progress_event(response_event) -> dict[str, str]:
+def progress_event(response_event, hooks_events) -> dict[str, str]:
     """Map a CloudControl API response to a standard output format for the MCP."""
     response = {
         'status': response_event['OperationStatus'],
@@ -45,8 +45,6 @@ def progress_event(response_event) -> dict[str, str]:
 
     if response_event.get('Identifier', None):
         response['identifier'] = response_event['Identifier']
-    if response_event.get('StatusMessage', None):
-        response['status_message'] = response_event['StatusMessage']
     if response_event.get('ResourceModel', None):
         response['resource_info'] = response_event['ResourceModel']
     if response_event.get('ErrorCode', None):
@@ -55,5 +53,22 @@ def progress_event(response_event) -> dict[str, str]:
         response['event_time'] = response_event['EventTime']
     if response_event.get('RetryAfter', None):
         response['retry_after'] = response_event['RetryAfter']
+
+    # CloudControl returns a list of hooks events which may also contain a message which should
+    # take precedent over the status message returned from CloudControl directly
+    hooks_status_message = None
+    if hooks_events:
+        failed_hook_event_messages = (
+            hook_event['HookStatusMessage']
+            for hook_event in hooks_events
+            if hook_event.get('HookStatus', None) == 'HOOK_COMPLETE_FAILED'
+            or hook_event.get('HookStatus', None) == 'HOOK_FAILED'
+        )
+        hooks_status_message = next(failed_hook_event_messages, None)
+
+    if hooks_status_message:
+        response['status_message'] = hooks_status_message
+    elif response_event.get('StatusMessage', None):
+        response['status_message'] = response_event['StatusMessage']
 
     return response
