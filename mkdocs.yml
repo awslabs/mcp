@@ -45,6 +45,7 @@ nav:
     - Finch MCP Server: servers/finch-mcp-server.md
     - Amazon EKS MCP Server: servers/eks-mcp-server.md
     - Amazon ECS MCP Server: servers/ecs-mcp-server.md
+    - AWS Support MCP Server: servers/aws-support-mcp-server.md
   - Samples:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
