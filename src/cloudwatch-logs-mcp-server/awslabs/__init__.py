@@ -9,6 +9,5 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-"""awslabs.cfn-mcp-server"""
-
-__version__ = '1.0.3'
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.
