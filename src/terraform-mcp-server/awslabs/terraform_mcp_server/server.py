@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """terraform MCP server implementation."""
 
-import argparse
 from awslabs.terraform_mcp_server.impl.resources import (
     terraform_aws_provider_assets_listing_impl,
     terraform_awscc_provider_resources_listing_impl,
@@ -420,18 +419,7 @@ async def terraform_aws_best_practices() -> str:
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='A Model Context Protocol (MCP) server')
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

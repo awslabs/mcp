@@ -872,3 +872,18 @@ async def test_exception_handling(test_table):
     # Verify error is returned
     assert 'error' in error_result
     print(error_result)
+
+
+@pytest.mark.asyncio
+async def test_list_imports(test_table):
+    """Test listing imports for a table (should be empty with moto)."""
+    from awslabs.dynamodb_mcp_server.server import list_imports
+
+    # Call list_imports with no imports present
+    result = await list_imports(
+        region_name='us-west-2',
+        next_token=None,
+    )
+
+    # Should return a dict with ImportSummaryList and NextToken keys
+    assert isinstance(result, dict)

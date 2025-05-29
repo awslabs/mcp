@@ -81,7 +81,7 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
-or docker after a succesful `docker build -t awslabs/terraform-mcp-server .`:
+or docker after a successful `docker build -t awslabs/terraform-mcp-server .`:
 
 ```json
   {

@@ -1,0 +1,49 @@
+# Kubernetes Deployment template for ECR images
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: APP_NAME
+  namespace: NAMESPACE
+  annotations:
+    checkov.io/skip1: CKV_K8S_20=This is a template file with placeholders, security context will be configured by the user
+    checkov.io/skip2: CKV_K8S_31=Seccomp profile will be configured by the user based on their specific requirements
+    checkov.io/skip3: CKV_K8S_23=Non-root user will be configured by the user based on their application needs
+    checkov.io/skip4: CKV_K8S_9=Readiness probe will be added by the user based on their application health check requirements
+    checkov.io/skip5: CKV_K8S_38=Service account token mounting will be configured by the user as needed
+    checkov.io/skip6: CKV_K8S_14=This is a template with IMAGE_URI placeholder, actual image tag will be provided by the user
+    checkov.io/skip7: CKV_K8S_43=This is a template with IMAGE_URI placeholder, actual image tag will be provided by the user
+    checkov.io/skip8: CKV_K8S_8=Liveness probe will be added by the user based on their application health check requirements
+    checkov.io/skip9: CKV_K8S_37=Container capabilities will be configured by the user based on their security requirements
+    checkov.io/skip10: CKV_K8S_29=Security context is partially configured with capabilities, full context will be added by the user
+    checkov.io/skip11: CKV_K8S_22=Read-only filesystem will be configured by the user based on their application requirements
+    checkov.io/skip12: CKV_K8S_40=UID will be configured by the user based on their security requirements
+    checkov.io/skip13: CKV2_K8S_6=NetworkPolicy will be configured by the user based on their network security requirements
+  labels:
+    app.kubernetes.io/name: APP_NAME
+spec:
+  replicas: REPLICAS
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: APP_NAME
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: APP_NAME
+    spec:
+      containers:
+      - name: APP_NAME
+        image: IMAGE_URI
+        imagePullPolicy: Always
+        ports:
+        - containerPort: PORT
+        securityContext:
+          capabilities:
+            drop:
+            - NET_RAW
+        resources:
+          requests:
+            cpu: CPU
+            memory: MEMORY
+          limits:
+            cpu: CPU
+            memory: MEMORY
