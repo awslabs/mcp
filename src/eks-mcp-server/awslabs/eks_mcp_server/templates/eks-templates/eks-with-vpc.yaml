@@ -1,0 +1,454 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Amazon EKS Auto Mode Cluster with dedicated VPC - Private and Public subnets'
+
+Parameters:
+  ClusterName:
+    Type: String
+    Description: Name of the EKS cluster
+    Default: eks-cluster
+
+  KubernetesVersion:
+    Type: String
+    Description: Kubernetes version to use for the EKS cluster
+    Default: 1.32
+    AllowedValues:
+      - 1.28
+      - 1.29
+      - 1.30
+      - 1.31
+      - 1.32
+
+  VpcBlock:
+    Type: String
+    Default: 192.168.0.0/16
+    Description: The CIDR range for the VPC. This should be a valid private (RFC 1918) CIDR range.
+
+  PublicSubnet01Block:
+    Type: String
+    Default: 192.168.0.0/18
+    Description: CidrBlock for public subnet 01 within the VPC
+
+  PublicSubnet02Block:
+    Type: String
+    Default: 192.168.64.0/18
+    Description: CidrBlock for public subnet 02 within the VPC
+
+  PrivateSubnet01Block:
+    Type: String
+    Default: 192.168.128.0/18
+    Description: CidrBlock for private subnet 01 within the VPC
+
+  PrivateSubnet02Block:
+    Type: String
+    Default: 192.168.192.0/18
+    Description: CidrBlock for private subnet 02 within the VPC
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "EKS Cluster Configuration"
+        Parameters:
+          - ClusterName
+          - KubernetesVersion
+      - Label:
+          default: "Worker Network Configuration"
+        Parameters:
+          - VpcBlock
+          - PublicSubnet01Block
+          - PublicSubnet02Block
+          - PrivateSubnet01Block
+          - PrivateSubnet02Block
+
+Resources:
+  # VPC Resources
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:
+        Ref: VpcBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: '${AWS::StackName}-VPC'
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+
+  VPCGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      InternetGatewayId:
+        Ref: InternetGateway
+      VpcId:
+        Ref: VPC
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: Public Subnets
+      - Key: Network
+        Value: Public
+
+  PrivateRouteTable01:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: Private Subnet AZ1
+      - Key: Network
+        Value: Private01
+
+  PrivateRouteTable02:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: Private Subnet AZ2
+      - Key: Network
+        Value: Private02
+
+  PublicRoute:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+
+  PrivateRoute01:
+    DependsOn:
+    - VPCGatewayAttachment
+    - NatGateway01
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTable01
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NatGateway01
+
+  PrivateRoute02:
+    DependsOn:
+    - VPCGatewayAttachment
+    - NatGateway02
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: PrivateRouteTable02
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: NatGateway02
+
+  NatGateway01:
+    DependsOn:
+    - NatGatewayEIP1
+    - PublicSubnet01
+    - VPCGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt: 'NatGatewayEIP1.AllocationId'
+      SubnetId:
+        Ref: PublicSubnet01
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: '${AWS::StackName}-NatGatewayAZ1'
+
+  NatGateway02:
+    DependsOn:
+    - NatGatewayEIP2
+    - PublicSubnet02
+    - VPCGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt: 'NatGatewayEIP2.AllocationId'
+      SubnetId:
+        Ref: PublicSubnet02
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: '${AWS::StackName}-NatGatewayAZ2'
+
+  NatGatewayEIP1:
+    DependsOn:
+    - VPCGatewayAttachment
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+
+  NatGatewayEIP2:
+    DependsOn:
+    - VPCGatewayAttachment
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+
+  PublicSubnet01:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet 01
+    Properties:
+      MapPublicIpOnLaunch: true
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: PublicSubnet01Block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: "${AWS::StackName}-PublicSubnet01"
+      - Key: kubernetes.io/role/elb
+        Value: 1
+
+  PublicSubnet02:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet 02
+    Properties:
+      MapPublicIpOnLaunch: true
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: PublicSubnet02Block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: "${AWS::StackName}-PublicSubnet02"
+      - Key: kubernetes.io/role/elb
+        Value: 1
+
+  PrivateSubnet01:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Subnet 03
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '0'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: PrivateSubnet01Block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: "${AWS::StackName}-PrivateSubnet01"
+      - Key: kubernetes.io/role/internal-elb
+        Value: 1
+
+  PrivateSubnet02:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      Comment: Private Subnet 02
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+        - '1'
+        - Fn::GetAZs:
+            Ref: AWS::Region
+      CidrBlock:
+        Ref: PrivateSubnet02Block
+      VpcId:
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Sub: "${AWS::StackName}-PrivateSubnet02"
+      - Key: kubernetes.io/role/internal-elb
+        Value: 1
+
+  PublicSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnet01
+      RouteTableId:
+        Ref: PublicRouteTable
+
+  PublicSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PublicSubnet02
+      RouteTableId:
+        Ref: PublicRouteTable
+
+  PrivateSubnet01RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PrivateSubnet01
+      RouteTableId:
+        Ref: PrivateRouteTable01
+
+  PrivateSubnet02RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PrivateSubnet02
+      RouteTableId:
+        Ref: PrivateRouteTable02
+
+  ControlPlaneSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Cluster communication with worker nodes
+      VpcId:
+        Ref: VPC
+
+  # EKS Cluster IAM Role with required policies for Auto Mode
+  EksClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - eks.amazonaws.com
+          Action:
+          - sts:AssumeRole
+          - sts:TagSession
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSComputePolicy
+        - arn:aws:iam::aws:policy/AmazonEKSBlockStoragePolicy
+        - arn:aws:iam::aws:policy/AmazonEKSLoadBalancingPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSNetworkingPolicy
+
+  # Node IAM Role with required policies for Auto Mode
+  NodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodeMinimalPolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly
+      Path: /
+
+  # EKS Auto Mode Cluster
+  EksCluster:
+    Type: AWS::EKS::Cluster
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_58
+            comment: "Secrets encryption is enabled by default in EKS 1.27+"
+    Properties:
+      Name:
+        Ref: ClusterName
+      Version:
+        Ref: KubernetesVersion
+      RoleArn:
+        Fn::GetAtt: EksClusterRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - Ref: ControlPlaneSecurityGroup
+        SubnetIds:
+          - Ref: PublicSubnet01
+          - Ref: PublicSubnet02
+          - Ref: PrivateSubnet01
+          - Ref: PrivateSubnet02
+        EndpointPublicAccess: true
+        EndpointPrivateAccess: true
+      # Auto Mode Configuration
+      ComputeConfig:
+        Enabled: true
+        NodeRoleArn:
+          Fn::GetAtt: NodeInstanceRole.Arn
+        NodePools:
+          - general-purpose
+          - system
+      KubernetesNetworkConfig:
+        ElasticLoadBalancing:
+          Enabled: true
+      StorageConfig:
+        BlockStorage:
+          Enabled: true
+      AccessConfig:
+        AuthenticationMode: API
+    DependsOn: [EksClusterRole, NodeInstanceRole, PublicSubnet01, PublicSubnet02, PrivateSubnet01, PrivateSubnet02]
+
+Outputs:
+  SubnetIds:
+    Description: Subnets IDs in the VPC
+    Value:
+      Fn::Join:
+        - ","
+        - - Ref: PublicSubnet01
+          - Ref: PublicSubnet02
+          - Ref: PrivateSubnet01
+          - Ref: PrivateSubnet02
+
+  SecurityGroups:
+    Description: Security group for the cluster control plane communication with worker nodes
+    Value:
+      Fn::Join:
+        - ","
+        - - Ref: ControlPlaneSecurityGroup
+
+  VpcId:
+    Description: The VPC Id
+    Value:
+      Ref: VPC
+
+  ClusterName:
+    Description: The name of the EKS cluster
+    Value:
+      Ref: EksCluster
+
+  ClusterArn:
+    Description: The ARN of the EKS cluster
+    Value:
+      Fn::GetAtt: EksCluster.Arn
+
+  ClusterEndpoint:
+    Description: The endpoint for the EKS cluster
+    Value:
+      Fn::GetAtt: EksCluster.Endpoint
+
+  ClusterSecurityGroupId:
+    Description: Security group for the cluster control plane communication with worker nodes
+    Value:
+      Fn::GetAtt: EksCluster.ClusterSecurityGroupId
+
+  NodeInstanceRoleArn:
+    Description: The node instance role ARN
+    Value:
+      Fn::GetAtt: NodeInstanceRole.Arn

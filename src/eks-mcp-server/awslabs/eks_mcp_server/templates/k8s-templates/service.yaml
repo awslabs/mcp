@@ -1,0 +1,18 @@
+# Kubernetes Service template for LoadBalancer services
+apiVersion: v1
+kind: Service
+metadata:
+  name: APP_NAME
+  namespace: NAMESPACE
+  labels:
+    app.kubernetes.io/name: APP_NAME
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: LOAD_BALANCER_SCHEME
+spec:
+  type: LoadBalancer
+  ports:
+  - port: PORT
+    targetPort: PORT
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: APP_NAME

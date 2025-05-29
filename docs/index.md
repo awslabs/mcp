@@ -287,6 +287,21 @@ The DocumentDB MCP Server enables AI assistants to interact with Amazon Document
 
 [Learn more about the Amazon DocumentDB MCP Server](servers/documentdb-mcp-server.md)
 
+### Amazon EKS MCP Server
+
+A Model Context Protocol (MCP) server for Amazon EKS that enables generative AI models to create and manage Kubernetes clusters on AWS through MCP tools.
+
+**Features:**
+
+- EKS Cluster Management: Create and manage EKS clusters with dedicated VPCs, proper networking, and CloudFormation templates for reliable, repeatable deployments
+- Kubernetes Resource Management: Create, read, update, delete, and list Kubernetes resources with support for applying YAML manifests
+- Application Deployment: Generate and deploy Kubernetes manifests with customizable parameters for containerized applications
+- Operational Support: Access pod logs, Kubernetes events, and monitor cluster resources
+- CloudWatch Integration: Retrieve logs and metrics from CloudWatch for comprehensive monitoring
+- Security-First Design: Configurable read-only mode, sensitive data access controls, and IAM integration for proper permissions management
+
+[Learn more about the Amazon EKS MCP Server](servers/eks-mcp-server.md)
+
 ### Synthetic Data MCP Server
 
 A server for generating, validating, and managing synthetic data.
