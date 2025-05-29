@@ -1,0 +1,766 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "ECS Infrastructure for Application",
+  "Outputs": {
+    "ALBAccessLogsBucketName": {
+      "Description": "S3 Bucket for ALB Access Logs",
+      "Value": {
+        "Ref": "ALBAccessLogsBucket"
+      }
+    },
+    "ClusterName": {
+      "Description": "ECS Cluster Name",
+      "Value": {
+        "Ref": "ECSCluster"
+      }
+    },
+    "DeploymentTimestamp": {
+      "Description": "Deployment Timestamp",
+      "Value": {
+        "Ref": "Timestamp"
+      }
+    },
+    "LoadBalancerDNS": {
+      "Description": "Load Balancer DNS Name",
+      "Value": {
+        "Fn::GetAtt": [
+          "ApplicationLoadBalancer",
+          "DNSName"
+        ]
+      }
+    },
+    "ServiceName": {
+      "Description": "ECS Service Name",
+      "Value": {
+        "Fn::Sub": "${AppName}-service"
+      }
+    },
+    "TaskDefinitionArn": {
+      "Description": "ECS Task Definition ARN",
+      "Value": {
+        "Ref": "ECSTaskDefinition"
+      }
+    },
+    "VPCEndpoints": {
+      "Description": "VPC Endpoints Created",
+      "Value": {
+        "Fn::Join": [
+          ", ",
+          [
+            "ECR API",
+            "ECR DKR",
+            "S3",
+            "CloudWatch Logs"
+          ]
+        ]
+      }
+    }
+  },
+  "Parameters": {
+    "AppName": {
+      "Description": "Name of the application",
+      "Type": "String"
+    },
+    "ContainerPort": {
+      "Default": 80,
+      "Description": "Port the container listens on",
+      "Type": "Number"
+    },
+    "DesiredCount": {
+      "Default": 1,
+      "Description": "Desired number of tasks",
+      "Type": "Number"
+    },
+    "HealthCheckPath": {
+      "Default": "/",
+      "Description": "Path for ALB health checks",
+      "Type": "String"
+    },
+    "ImageTag": {
+      "Description": "Tag of the container image to deploy",
+      "Type": "String"
+    },
+    "ImageUri": {
+      "Description": "URI of the container image repository",
+      "Type": "String"
+    },
+    "RouteTableIds": {
+      "Description": "List of route table IDs for S3 Gateway endpoint association",
+      "Type": "CommaDelimitedList"
+    },
+    "SubnetIds": {
+      "Description": "List of subnet IDs for deployment",
+      "Type": "CommaDelimitedList"
+    },
+    "TaskCpu": {
+      "Default": 256,
+      "Description": "CPU units for the task",
+      "Type": "Number"
+    },
+    "TaskMemory": {
+      "Default": 512,
+      "Description": "Memory (MB) for the task",
+      "Type": "Number"
+    },
+    "Timestamp": {
+      "Description": "Deployment timestamp for tracking purposes",
+      "Type": "String"
+    },
+    "VpcId": {
+      "Description": "VPC ID for deployment",
+      "Type": "String"
+    }
+  },
+  "Resources": {
+    "ALBAccessLogsBucket": {
+      "Properties": {
+        "AccessControl": "Private",
+        "BucketName": {
+          "Fn::Sub": "${AppName}-alb-access-logs-${AWS::AccountId}-${AWS::Region}"
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "ExpirationInDays": 90,
+              "Id": "DeleteOldLogs",
+              "Status": "Enabled"
+            }
+          ]
+        },
+        "LoggingConfiguration": {
+          "DestinationBucketName": {
+            "Ref": "ALBAccessLogsBucket"
+          },
+          "LogFilePrefix": "s3-access-logs/"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Sub": "${AppName}-alb-access-logs"
+            }
+          }
+        ],
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        }
+      },
+      "Type": "AWS::S3::Bucket"
+    },
+    "ALBAccessLogsBucketPolicy": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "ALBAccessLogsBucket"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:aws:s3:::${AppName}-alb-access-logs-${AWS::AccountId}-${AWS::Region}"
+                },
+                {
+                  "Fn::Sub": "arn:aws:s3:::${AppName}-alb-access-logs-${AWS::AccountId}-${AWS::Region}/*"
+                }
+              ]
+            },
+            {
+              "Action": "s3:PutObject",
+              "Condition": {
+                "StringEquals": {
+                  "s3:x-amz-acl": "bucket-owner-full-control"
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "logdelivery.elasticloadbalancing.amazonaws.com"
+              },
+              "Resource": {
+                "Fn::Sub": "arn:aws:s3:::${AppName}-alb-access-logs-${AWS::AccountId}-${AWS::Region}/AWSLogs/${AWS::AccountId}/*"
+              }
+            },
+            {
+              "Action": "s3:PutObject",
+              "Condition": {
+                "StringEquals": {
+                  "s3:x-amz-acl": "bucket-owner-full-control"
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "logging.s3.amazonaws.com"
+              },
+              "Resource": {
+                "Fn::Sub": "arn:aws:s3:::${AppName}-alb-access-logs-${AWS::AccountId}-${AWS::Region}/s3-access-logs/*"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::S3::BucketPolicy"
+    },
+    "ALBListener": {
+      "Metadata": {
+        "checkov": {
+          "skip": [
+            {
+              "comment": "Ensure that Load Balancer Listener is using at least TLS v1.2",
+              "id": "CKV_AWS_103"
+            },
+            {
+              "comment": "Ensure ALB protocol is HTTPS",
+              "id": "CKV_AWS_2"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "DefaultActions": [
+          {
+            "TargetGroupArn": {
+              "Ref": "ALBTargetGroup"
+            },
+            "Type": "forward"
+          }
+        ],
+        "LoadBalancerArn": {
+          "Ref": "ApplicationLoadBalancer"
+        },
+        "Port": 80,
+        "Protocol": "HTTP"
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::Listener"
+    },
+    "ALBSecurityGroup": {
+      "Metadata": {
+        "checkov": {
+          "skip": [
+            {
+              "comment": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 80",
+              "id": "CKV_AWS_260"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "GroupDescription": {
+          "Fn::Sub": "Security group for ${AppName} ALB"
+        },
+        "SecurityGroupIngress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow HTTP traffic from the internet",
+            "FromPort": 80,
+            "IpProtocol": "tcp",
+            "ToPort": 80
+          }
+        ],
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      },
+      "Type": "AWS::EC2::SecurityGroup"
+    },
+    "ALBTargetGroup": {
+      "Properties": {
+        "HealthCheckIntervalSeconds": 30,
+        "HealthCheckPath": {
+          "Ref": "HealthCheckPath"
+        },
+        "HealthCheckProtocol": "HTTP",
+        "HealthCheckTimeoutSeconds": 5,
+        "HealthyThresholdCount": 2,
+        "Name": {
+          "Fn::Sub": "${AppName}-tg"
+        },
+        "Port": 80,
+        "Protocol": "HTTP",
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "150"
+          }
+        ],
+        "TargetType": "ip",
+        "UnhealthyThresholdCount": 5,
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup"
+    },
+    "ApplicationLoadBalancer": {
+      "Properties": {
+        "LoadBalancerAttributes": [
+          {
+            "Key": "idle_timeout.timeout_seconds",
+            "Value": "60"
+          },
+          {
+            "Key": "routing.http.drop_invalid_header_fields.enabled",
+            "Value": "true"
+          },
+          {
+            "Key": "deletion_protection.enabled",
+            "Value": "false"
+          },
+          {
+            "Key": "access_logs.s3.enabled",
+            "Value": "true"
+          },
+          {
+            "Key": "access_logs.s3.bucket",
+            "Value": {
+              "Fn::Sub": "${AppName}-alb-access-logs-${AWS::AccountId}-${AWS::Region}"
+            }
+          },
+          {
+            "Key": "access_logs.s3.prefix",
+            "Value": ""
+          }
+        ],
+        "Name": {
+          "Fn::Sub": "${AppName}-alb"
+        },
+        "Scheme": "internet-facing",
+        "SecurityGroups": [
+          {
+            "Ref": "ALBSecurityGroup"
+          }
+        ],
+        "Subnets": {
+          "Ref": "SubnetIds"
+        }
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    },
+    "CloudWatchLogsGroup": {
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "LogsKMSKey",
+            "Arn"
+          ]
+        },
+        "LogGroupName": {
+          "Fn::Sub": "/ecs/${AppName}"
+        },
+        "RetentionInDays": 14
+      },
+      "Type": "AWS::Logs::LogGroup"
+    },
+    "ECRAPIEndpoint": {
+      "Properties": {
+        "PrivateDnsEnabled": true,
+        "SecurityGroupIds": [
+          {
+            "Ref": "VPCEndpointSecurityGroup"
+          }
+        ],
+        "ServiceName": {
+          "Fn::Sub": "com.amazonaws.${AWS::Region}.ecr.api"
+        },
+        "SubnetIds": {
+          "Ref": "SubnetIds"
+        },
+        "VpcEndpointType": "Interface",
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      },
+      "Type": "AWS::EC2::VPCEndpoint"
+    },
+    "ECRDKREndpoint": {
+      "Properties": {
+        "PrivateDnsEnabled": true,
+        "SecurityGroupIds": [
+          {
+            "Ref": "VPCEndpointSecurityGroup"
+          }
+        ],
+        "ServiceName": {
+          "Fn::Sub": "com.amazonaws.${AWS::Region}.ecr.dkr"
+        },
+        "SubnetIds": {
+          "Ref": "SubnetIds"
+        },
+        "VpcEndpointType": "Interface",
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      },
+      "Type": "AWS::EC2::VPCEndpoint"
+    },
+    "ECSCluster": {
+      "Properties": {
+        "ClusterName": {
+          "Fn::Sub": "${AppName}-cluster"
+        },
+        "ClusterSettings": [
+          {
+            "Name": "containerInsights",
+            "Value": "enabled"
+          }
+        ]
+      },
+      "Type": "AWS::ECS::Cluster"
+    },
+    "ECSSecurityGroup": {
+      "Properties": {
+        "GroupDescription": {
+          "Fn::Sub": "Security group for ${AppName} ECS tasks"
+        },
+        "SecurityGroupEgress": [
+          {
+            "CidrIp": "0.0.0.0/0",
+            "Description": "Allow all outbound traffic",
+            "IpProtocol": "-1"
+          }
+        ],
+        "SecurityGroupIngress": [
+          {
+            "Description": "Allow traffic from ALB to container port",
+            "FromPort": {
+              "Ref": "ContainerPort"
+            },
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "ALBSecurityGroup"
+            },
+            "ToPort": {
+              "Ref": "ContainerPort"
+            }
+          }
+        ],
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      },
+      "Type": "AWS::EC2::SecurityGroup"
+    },
+    "ECSService": {
+      "DependsOn": [
+        "ALBListener"
+      ],
+      "Properties": {
+        "CapacityProviderStrategy": [
+          {
+            "CapacityProvider": "FARGATE",
+            "Weight": 1
+          }
+        ],
+        "Cluster": {
+          "Ref": "ECSCluster"
+        },
+        "DeploymentConfiguration": {
+          "DeploymentCircuitBreaker": {
+            "Enable": true,
+            "Rollback": true
+          },
+          "MaximumPercent": 200,
+          "MinimumHealthyPercent": 100
+        },
+        "DesiredCount": {
+          "Ref": "DesiredCount"
+        },
+        "EnableECSManagedTags": true,
+        "EnableExecuteCommand": true,
+        "LoadBalancers": [
+          {
+            "ContainerName": {
+              "Fn::Sub": "${AppName}-container"
+            },
+            "ContainerPort": {
+              "Ref": "ContainerPort"
+            },
+            "TargetGroupArn": {
+              "Ref": "ALBTargetGroup"
+            }
+          }
+        ],
+        "NetworkConfiguration": {
+          "AwsvpcConfiguration": {
+            "AssignPublicIp": "DISABLED",
+            "SecurityGroups": [
+              {
+                "Ref": "ECSSecurityGroup"
+              }
+            ],
+            "Subnets": {
+              "Ref": "SubnetIds"
+            }
+          }
+        },
+        "ServiceName": {
+          "Fn::Sub": "${AppName}-service"
+        },
+        "Tags": [
+          {
+            "Key": "ecs-mcp-server",
+            "Value": {
+              "Ref": "Timestamp"
+            }
+          }
+        ],
+        "TaskDefinition": {
+          "Ref": "ECSTaskDefinition"
+        }
+      },
+      "Type": "AWS::ECS::Service"
+    },
+    "ECSTaskDefinition": {
+      "Properties": {
+        "ContainerDefinitions": [
+          {
+            "Essential": true,
+            "Image": {
+              "Fn::Sub": "${ImageUri}:${ImageTag}"
+            },
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": {
+                  "Fn::Sub": "/ecs/${AppName}"
+                },
+                "awslogs-region": {
+                  "Ref": "AWS::Region"
+                },
+                "awslogs-stream-prefix": {
+                  "Fn::Sub": "${AppName}-container"
+                }
+              }
+            },
+            "Name": {
+              "Fn::Sub": "${AppName}-container"
+            },
+            "PortMappings": [
+              {
+                "ContainerPort": {
+                  "Ref": "ContainerPort"
+                },
+                "Name": {
+                  "Fn::Sub": "${AppName}-port"
+                },
+                "Protocol": "tcp"
+              }
+            ]
+          }
+        ],
+        "Cpu": {
+          "Ref": "TaskCpu"
+        },
+        "ExecutionRoleArn": {
+          "Ref": "ECSTaskExecutionRole"
+        },
+        "Family": {
+          "Fn::Sub": "${AppName}-task"
+        },
+        "Memory": {
+          "Ref": "TaskMemory"
+        },
+        "NetworkMode": "awsvpc",
+        "RequiresCompatibilities": [
+          "FARGATE"
+        ],
+        "Tags": [
+          {
+            "Key": "ecs-mcp-server",
+            "Value": {
+              "Ref": "Timestamp"
+            }
+          }
+        ],
+        "TaskRoleArn": {
+          "Ref": "ECSTaskRole"
+        }
+      },
+      "Type": "AWS::ECS::TaskDefinition"
+    },
+    "ECSTaskExecutionRole": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+        ],
+        "RoleName": {
+          "Fn::Sub": "${AppName}-task-execution-role"
+        }
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "ECSTaskRole": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "RoleName": {
+          "Fn::Sub": "${AppName}-task-role"
+        }
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "LogsEndpoint": {
+      "Properties": {
+        "PrivateDnsEnabled": true,
+        "SecurityGroupIds": [
+          {
+            "Ref": "VPCEndpointSecurityGroup"
+          }
+        ],
+        "ServiceName": {
+          "Fn::Sub": "com.amazonaws.${AWS::Region}.logs"
+        },
+        "SubnetIds": {
+          "Ref": "SubnetIds"
+        },
+        "VpcEndpointType": "Interface",
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      },
+      "Type": "AWS::EC2::VPCEndpoint"
+    },
+    "LogsKMSKey": {
+      "Properties": {
+        "Description": "KMS key for encrypting CloudWatch Logs",
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Statement": [
+            {
+              "Action": "kms:*",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Resource": "*",
+              "Sid": "Enable IAM User Permissions"
+            },
+            {
+              "Action": [
+                "kms:Encrypt*",
+                "kms:Decrypt*",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*",
+                "kms:Describe*"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "logs.amazonaws.com"
+              },
+              "Resource": "*",
+              "Sid": "Allow CloudWatch Logs to use the key"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Sub": "${AppName}-logs-kms-key"
+            }
+          }
+        ]
+      },
+      "Type": "AWS::KMS::Key"
+    },
+    "LogsKMSKeyAlias": {
+      "Properties": {
+        "AliasName": {
+          "Fn::Sub": "alias/${AppName}-logs-kms-key"
+        },
+        "TargetKeyId": {
+          "Ref": "LogsKMSKey"
+        }
+      },
+      "Type": "AWS::KMS::Alias"
+    },
+    "S3Endpoint": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject",
+                "s3:ListBucket"
+              ],
+              "Effect": "Allow",
+              "Principal": "*",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "RouteTableIds": {
+          "Ref": "RouteTableIds"
+        },
+        "ServiceName": {
+          "Fn::Sub": "com.amazonaws.${AWS::Region}.s3"
+        },
+        "VpcEndpointType": "Gateway",
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      },
+      "Type": "AWS::EC2::VPCEndpoint"
+    },
+    "VPCEndpointSecurityGroup": {
+      "Properties": {
+        "GroupDescription": {
+          "Fn::Sub": "Security group for ${AppName} VPC Endpoints"
+        },
+        "SecurityGroupIngress": [
+          {
+            "Description": "Allow HTTPS traffic from ECS tasks to VPC endpoints",
+            "FromPort": 443,
+            "IpProtocol": "tcp",
+            "SourceSecurityGroupId": {
+              "Ref": "ECSSecurityGroup"
+            },
+            "ToPort": 443
+          }
+        ],
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      },
+      "Type": "AWS::EC2::SecurityGroup"
+    }
+  }
+}
