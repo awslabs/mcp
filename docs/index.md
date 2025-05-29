@@ -262,6 +262,19 @@ A server for Aurora MySql.
 
 [Learn more about the Amazon Aurora MySql MCP Server](servers/mysql-mcp-server.md)
 
+### Amazon CloudWatch Logs MCP Server
+
+An AWS Labs Model Context Protocol (MCP) server for Amazon Cloudwatch Logs.
+
+**Features:**
+
+- Discover log groups and their metadata
+- Execute CloudWatch Log Insights queries against log groups
+
+Use this MCP server to first discover available logs groups, then run queries on them to filter, analyze, aggregate, etc. logs.
+
+[Learn more about the Amazon CloudWatch Logs MCP Server](servers/cloudwatch-logs-mcp-server.md)
+
 ### Amazon DynamoDB MCP Server
 
 A server for interacting with Amazon DynamoDB
