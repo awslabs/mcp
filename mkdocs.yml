@@ -36,7 +36,7 @@ nav:
     - Cost Analysis MCP Server: servers/cost-analysis-mcp-server.md
     - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
-    - AWS Lambda MCP Server: servers/lambda-mcp-server.md
+    - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
     - AWS Step Functions Tool MCP Server: servers/stepfunctions-tool-mcp-server.md
     - AWS Terraform MCP Server: servers/terraform-mcp-server.md
