@@ -5,30 +5,30 @@
 The AWS Serverless Model Context Protocol (MCP) Server is an open-source tool that combines AI assistance with serverless expertise to streamline how developers build serverless applications. It provides contextual guidance specific to serverless development, helping developers make informed decisions about architecture, implementation, and deployment throughout the entire application development lifecycle. With AWS Serverless MCP, developers can build reliable, efficient, and production-ready serverless applications with confidence.
 
 Key benefits of the Serverless MCP Server include:
-* AI-powered serverless development: Provides rich contextual information to AI coding assistants to ensure your serverless application aligns with AWS best practices.
-* Comprehensive tooling: Offers tools for initialization, deployment, monitoring, and troubleshooting of serverless applications.
-* Architecture guidance: Helps evaluate design choices and select optimal serverless patterns based on application needs. Offers recommendations on event sources, function boundaries, and service integrations.
-* Operational best practices: Ensures alignment with AWS architectural principles. Suggests effective use of AWS services for event processing, data persistence, and service communication, and guides implementation of security controls, performance tuning, and cost optimization.
-* Security-first approach: Implements built-in guardrails with read-only defaults and controlled access to sensitive data.
+- AI-powered serverless development: Provides rich contextual information to AI coding assistants to ensure your serverless application aligns with AWS best practices.
+- Comprehensive tooling: Offers tools for initialization, deployment, monitoring, and troubleshooting of serverless applications.
+- Architecture guidance: Helps evaluate design choices and select optimal serverless patterns based on application needs. Offers recommendations on event sources, function boundaries, and service integrations.
+- Operational best practices: Ensures alignment with AWS architectural principles. Suggests effective use of AWS services for event processing, data persistence, and service communication, and guides implementation of security controls, performance tuning, and cost optimization.
+- Security-first approach: Implements built-in guardrails with read-only defaults and controlled access to sensitive data.
 
 ## Features
 The set of tools provided by the Serverless MCP server can be broken down into four categories:
 
 1. Serverless Application Lifecycle
-  - Intialize, build, and deploy Serverless Application Model (SAM) applications with SAM CLI
-  - Test Lambda functions locally and remotely
+    - Intialize, build, and deploy Serverless Application Model (SAM) applications with SAM CLI
+    - Test Lambda functions locally and remotely
 2. Web Application Deployment & Management
-  - Deploy fullstack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter.
-  - Update frontend assets and optionally invaliate CloudFront caches
-  - Create custom domain names, including certificate and DNS setup.
+    - Deploy fullstack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter.
+    - Update frontend assets and optionally invaliate CloudFront caches
+    - Create custom domain names, including certificate and DNS setup.
 3. Observability
-  - Retrieve and logs and metrics of serverless resources
+    - Retrieve and logs and metrics of serverless resources
 4. Guidance, Templates, and Deployment Help
-  - Provides guidance on AWS Lambda use-cases, selecting an IaC framework, and deployment process onto AWS Serverless
-  - Provides sample SAM templates for different serverless application types from [Serverless Land](https://serverlessland.com/)
-  - Provides schema types for different Lambda event sources and runtimes
-  - Provides schema registry management and discovery for AWS EventBridge events
-  - Enables type-safe Lambda function development with complete event schemas
+    - Provides guidance on AWS Lambda use-cases, selecting an IaC framework, and deployment process onto AWS Serverless
+    - Provides sample SAM templates for different serverless application types from [Serverless Land](https://serverlessland.com/)
+    - Provides schema types for different Lambda event sources and runtimes
+    - Provides schema registry management and discovery for AWS EventBridge events
+    - Enables type-safe Lambda function development with complete event schemas
 
 ## Prerequisites
 - Have an AWS account with [credentials configured](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html)
