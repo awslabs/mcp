@@ -38,7 +38,8 @@ def progress_event(response_event) -> dict[str, str]:
     response = {
         'status': response_event['OperationStatus'],
         'resource_type': response_event['TypeName'],
-        'is_complete': response_event['OperationStatus'] == 'SUCCESS',
+        'is_complete': response_event['OperationStatus'] == 'SUCCESS'
+        or response_event['OperationStatus'] == 'FAILED',
         'request_token': response_event['RequestToken'],
     }
 

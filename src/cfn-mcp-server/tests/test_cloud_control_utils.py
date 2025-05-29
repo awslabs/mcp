@@ -106,3 +106,32 @@ class TestUtils:
         }
 
         assert progress_event(request) == response
+
+    async def test_progress_event_failed(self):
+        """Testing mapping progress event with all props."""
+        request = {
+            'OperationStatus': 'FAILED',
+            'TypeName': 'AWS::CodeStarConnections::Connection',
+            'RequestToken': '25',
+            'Identifier': 'id',
+            'StatusMessage': 'good job',
+            'ResourceModel': 'model',
+            'ErrorCode': 'NONE',
+            'EventTime': '25',
+            'RetryAfter': '10',
+        }
+
+        response = {
+            'status': 'FAILED',
+            'resource_type': 'AWS::CodeStarConnections::Connection',
+            'is_complete': True,
+            'request_token': '25',
+            'identifier': 'id',
+            'status_message': 'good job',
+            'resource_info': 'model',
+            'error_code': 'NONE',
+            'event_time': '25',
+            'retry_after': '10',
+        }
+
+        assert progress_event(request) == response
