@@ -1,0 +1,32 @@
+# Prompts for ECS Service Image Pull Failure Scenario
+
+## Expected Observed Failure
+When running 02_validate.sh, you should see output similar to:
+```
+✅ Service has failed tasks as expected.
+Service events (showing image pull failures):
+[
+    "service failing-service-abcde was unable to place a task because no container instance met all of its requirements.",
+    "(deployment ecs-svc/9876543210987) Failed to start task: failed to pull the image configuration: pull access denied for non-existent-repo/non-existent-image",
+    "failed to register targets in target group arn:aws:elasticloadbalancing:..."
+]
+```
+
+## Test Prompts
+
+# Prompt 1: Basic Problem Statement
+I've deployed an ECS service named "<SERVICE_NAME>" in my cluster "<CLUSTER_NAME>", but it's not starting up properly. The tasks keep failing. Can you help me figure out what's wrong?
+
+# Prompt 2: Technical User Scenario
+I've got a Fargate service in ECS that's failing to pull the container image. The cluster is "<CLUSTER_NAME>" and service is "<SERVICE_NAME>". Can you use your tools to diagnose what's happening and explain how I can fix it?
+
+# Prompt 3: Confused Beginner Scenario
+I'm learning AWS and tried to run something called a "service" in ECS, but it keeps stopping immediately. The cluster is called "<CLUSTER_NAME>" and the service is "<SERVICE_NAME>". When I look at it in the console, it says something about tasks failing. What does this mean and how do I fix it?
+
+# Prompt 4: Specific Error Focus
+My ECS service "<SERVICE_NAME>" in cluster "<CLUSTER_NAME>" is having issues with the container image. I can see in the events that there's a problem, but I don't understand how to resolve it. Can you diagnose this?
+
+# Prompt 5: Minimal Information
+My ECS tasks keep failing in cluster "<CLUSTER_NAME>". Help me fix it.
+
+IMPORTANT: Replace <CLUSTER_NAME> and <SERVICE_NAME> with the actual names generated during testing

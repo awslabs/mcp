@@ -1,0 +1,37 @@
+# Prompts for CloudFormation Stack Failure Scenario
+
+## Expected Observed Failure
+When running 02_validate.sh, you should see output similar to:
+```
+✅ Stack has failed as expected.
+Fetching error details...
+---------------------------------------------------------------------------------------------------------
+|                                       DescribeStackEvents                                             |
++---------------------------+--------------------------------------------------------------------------|
+|         Resource          |                               Reason                                      |
++---------------------------+--------------------------------------------------------------------------|
+|  ECSService               |  Resource handler returned message: "Resource handler returned message:   |
+|                           |  "NetworkConfiguration is required for AWS::ECS::Service resources with   |
+|                           |  LaunchType FARGATE"" (RequestToken: 123abc-456def-789ghi,               |
+|                           |  HandlerErrorCode: InvalidRequest)                                        |
++---------------------------+--------------------------------------------------------------------------|
+```
+
+## Test Prompts
+
+# Prompt 1: Basic Problem Statement
+I deployed an ECS application using CloudFormation with a stack named "<STACK_NAME>", but the deployment failed. Can you help me troubleshoot what went wrong and how to fix it?
+
+# Prompt 2: Technical User Scenario
+I'm trying to deploy a Fargate service using CloudFormation (stack name: "<STACK_NAME>"), but I'm getting a rollback. Could you use your troubleshooting tools to diagnose the issue and tell me what's wrong with my template?
+
+# Prompt 3: Confused Beginner Scenario
+I'm new to AWS and trying to learn ECS. I followed a tutorial to deploy something called a "Fargate service" using CloudFormation, but it's not working. My stack is called "<STACK_NAME>" and it says something about a rollback. Can you explain what's happening in simple terms and how to fix it?
+
+# Prompt 4: Specific Error Focus
+My CloudFormation stack "<STACK_NAME>" failed during creation. I think there might be an issue with my ECS service configuration, but I'm not sure what exactly is wrong. Can you look into this?
+
+# Prompt 5: Minimal Information
+My stack "<STACK_NAME>" is broken. Help me fix it.
+
+IMPORTANT: Replace <STACK_NAME> with the actual stack name generated during testing
