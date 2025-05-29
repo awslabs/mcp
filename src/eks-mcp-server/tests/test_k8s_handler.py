@@ -1758,6 +1758,67 @@ metadata:
         result = handler.cleanup_resource_response(simple_input)
         assert result == simple_input
 
+    def test_remove_checkov_skip_annotations(self, mock_mcp, mock_client_cache):
+        """Test _remove_checkov_skip_annotations method directly to ensure line 807 is covered."""
+        # Initialize the K8s handler
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp)
+
+        # Test case 1: YAML with only checkov skip annotations (should remove annotations completely)
+        yaml_content = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: default
+  annotations:
+    checkov.io/skip1: "CKV_K8S_14=We're using a specific image version"
+    checkov.io/skip2: "CKV_K8S_43=Resource limits are set appropriately"
+spec:
+  replicas: 3"""
+
+        expected_result = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: default
+spec:
+  replicas: 3
+"""
+
+        result = handler._remove_checkov_skip_annotations(yaml_content)
+        # Normalize whitespace for comparison
+        result = result.replace(' ', '').replace('\n', '')
+        expected_result = expected_result.replace(' ', '').replace('\n', '')
+        assert result == expected_result
+
+        # Test case 2: YAML with mixed annotations (should keep non-checkov annotations)
+        yaml_content = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: default
+  annotations:
+    checkov.io/skip1: "CKV_K8S_14=We're using a specific image version"
+    other-annotation: "This should be preserved"
+spec:
+  replicas: 3"""
+
+        expected_result = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: default
+  annotations:
+    other-annotation: This should be preserved
+spec:
+  replicas: 3
+"""
+
+        result = handler._remove_checkov_skip_annotations(yaml_content)
+        assert 'other-annotation: This should be preserved' in result
+
     def test_filter_null_values(self, mock_mcp, mock_client_cache):
         """Test filter_null_values method for removing null values from data structures."""
         # Initialize the K8s handler
