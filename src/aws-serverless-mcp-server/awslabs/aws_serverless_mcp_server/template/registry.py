@@ -26,12 +26,6 @@ class Template:
         path (str): The filesystem path to the template.
         type (DeploymentTypes): The deployment type of the template.
         framework (Optional[str]): The framework associated with the template, if any.
-
-    Args:
-        name (str): The name of the template.
-        path (str): The filesystem path to the template.
-        type_ (DeploymentTypes): The deployment type of the template.
-        framework (Optional[str], optional): The framework associated with the template. Defaults to None.
     """
 
     def __init__(

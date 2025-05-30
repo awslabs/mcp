@@ -13,7 +13,7 @@
 
 import os
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 
 class TestAwsHelper:
@@ -56,7 +56,7 @@ class TestAwsHelper:
 
                     # Verify that boto3.client was called with the correct parameters
                     mock_boto3_client.assert_called_once_with(
-                        'cloudformation', region_name='us-west-2', config=ANY
+                        'cloudformation', region_name='us-west-2'
                     )
 
     @patch('boto3.client')
@@ -71,7 +71,7 @@ class TestAwsHelper:
                     AwsHelper.create_boto3_client('cloudformation')
 
                     # Verify that boto3.client was called without region_name
-                    mock_boto3_client.assert_called_once_with('cloudformation', config=ANY)
+                    mock_boto3_client.assert_called_once_with('cloudformation')
 
     @patch('boto3.Session')
     def test_create_boto3_client_with_profile_with_region(self, mock_boto3_session):
@@ -93,7 +93,7 @@ class TestAwsHelper:
 
                     # Verify that session.client was called with the correct parameters
                     mock_session.client.assert_called_once_with(
-                        'cloudformation', region_name='us-west-2', config=ANY
+                        'cloudformation', region_name='us-west-2'
                     )
 
     @patch('boto3.Session')
@@ -115,7 +115,7 @@ class TestAwsHelper:
                     mock_boto3_session.assert_called_once_with(profile_name='test-profile')
 
                     # Verify that session.client was called without region_name
-                    mock_session.client.assert_called_once_with('cloudformation', config=ANY)
+                    mock_session.client.assert_called_once_with('cloudformation')
 
     @patch('boto3.client')
     def test_create_boto3_client_with_region_override(self, mock_boto3_client):
@@ -126,9 +126,7 @@ class TestAwsHelper:
             AwsHelper.create_boto3_client('cloudformation', region_name='eu-west-1')
 
             # Verify that boto3.client was called with the correct parameters
-            mock_boto3_client.assert_called_once_with(
-                'cloudformation', region_name='eu-west-1', config=ANY
-            )
+            mock_boto3_client.assert_called_once_with('cloudformation', region_name='eu-west-1')
 
     def test_create_boto3_client_user_agent(self):
         """Test that create_boto3_client sets the user agent suffix correctly."""
