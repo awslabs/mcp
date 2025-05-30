@@ -27,7 +27,7 @@ from awslabs.aws_serverless_mcp_server.tools.webapps.utils.startup_script_genera
 )
 from awslabs.aws_serverless_mcp_server.utils.deployment_manager import DeploymentStatus
 from botocore.exceptions import ClientError
-from unittest.mock import ANY, AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 
 class TestDeployService:
@@ -635,7 +635,7 @@ class TestDeployService:
             result = await get_stack_outputs('test-stack')
 
             # Verify Session was created without region
-            mock_session.client.assert_called_once_with('cloudformation', config=ANY)
+            mock_session.client.assert_called_once_with('cloudformation')
             assert result == {}
 
     @pytest.mark.asyncio

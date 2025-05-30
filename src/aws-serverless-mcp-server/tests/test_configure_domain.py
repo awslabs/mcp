@@ -11,9 +11,8 @@
 """Tests for the configure_domain module."""
 
 import pytest
-from awslabs.aws_serverless_mcp_server.models import ConfigureDomainRequest
-from awslabs.aws_serverless_mcp_server.tools.webapps.configure_domain import configure_domain
-from unittest.mock import MagicMock, patch
+from awslabs.aws_serverless_mcp_server.tools.webapps.configure_domain import ConfigureDomainTool
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestConfigureDomain:
@@ -22,15 +21,6 @@ class TestConfigureDomain:
     @pytest.mark.asyncio
     async def test_configure_domain_with_existing_certificate_and_route53(self):
         """Test configuring a domain with existing certificate and Route53 record creation."""
-        # Create a mock request
-        request = ConfigureDomainRequest(
-            project_name='test-project',
-            domain_name='test.example.com',
-            create_certificate=False,
-            create_route53_record=True,
-            region='us-east-1',
-        )
-
         # Mock boto3 session and clients
         mock_session = MagicMock()
         mock_acm_client = MagicMock()
@@ -148,7 +138,14 @@ class TestConfigureDomain:
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await configure_domain(request)
+            result = await ConfigureDomainTool(MagicMock()).configure_domain(
+                AsyncMock(),
+                project_name='test-project',
+                domain_name='test.example.com',
+                create_certificate=False,
+                create_route53_record=True,
+                region='us-east-1',
+            )
 
             # Verify the result
             assert result['success'] is True
@@ -211,15 +208,6 @@ class TestConfigureDomain:
     @pytest.mark.asyncio
     async def test_configure_domain_with_new_certificate(self):
         """Test configuring a domain with new certificate creation."""
-        # Create a mock request
-        request = ConfigureDomainRequest(
-            project_name='test-project',
-            domain_name='test.example.com',
-            create_certificate=True,
-            create_route53_record=False,
-            region='us-east-1',
-        )
-
         # Mock boto3 session and clients
         mock_session = MagicMock()
         mock_acm_client = MagicMock()
@@ -313,7 +301,14 @@ class TestConfigureDomain:
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await configure_domain(request)
+            result = await ConfigureDomainTool(MagicMock()).configure_domain(
+                AsyncMock(),
+                project_name='test-project',
+                domain_name='test.example.com',
+                create_certificate=True,
+                create_route53_record=False,
+                region='us-east-1',
+            )
 
             # Verify the result
             assert result['success'] is True
@@ -362,15 +357,6 @@ class TestConfigureDomain:
     @pytest.mark.asyncio
     async def test_configure_domain_cloudfront_error(self):
         """Test configuring a domain with CloudFront error."""
-        # Create a mock request
-        request = ConfigureDomainRequest(
-            project_name='test-project',
-            domain_name='test.example.com',
-            create_certificate=False,
-            create_route53_record=False,
-            region='us-east-1',
-        )
-
         # Mock boto3 session and clients
         mock_session = MagicMock()
         mock_acm_client = MagicMock()
@@ -399,7 +385,14 @@ class TestConfigureDomain:
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await configure_domain(request)
+            result = await ConfigureDomainTool(MagicMock()).configure_domain(
+                AsyncMock(),
+                project_name='test-project',
+                domain_name='test.example.com',
+                create_certificate=False,
+                create_route53_record=False,
+                region='us-east-1',
+            )
 
             # Verify the result
             assert result['success'] is False
