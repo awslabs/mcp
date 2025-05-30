@@ -1,24 +1,21 @@
 [project]
-name = "awslabs.cfn-mcp-server"
-version = "1.0.4"
-description = "An AWS Labs Model Context Protocol (MCP) server for doing common cloudformation tasks and for managing your resources in your AWS account"
+name = "awslabs.cloudwatch-logs-mcp-server"
+version = "0.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for cloudwatch-logs"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "boto3>=1.38.22",
     "loguru>=0.7.0",
-    "pydantic>=2.10.6",
     "mcp[cli]>=1.6.0",
-    "boto3>=1.34.0",
-    "botocore>=1.34.0",
+    "pydantic>=2.10.6",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Karam Singh", email="karam.singh.vir@gmail.com"},
-    {name = "Brian Terry", email="brianter@amazon.com"},
-    {name = "Shardul Vaidya", email="cam.v737@gmail.com"},
+    {name = "Isaiah Lemmon", email="ilemmon@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -33,13 +30,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/cfn-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/cfn-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/cloudwatch-logs-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/cloudwatch-logs-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/cfn-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/cloudwatch-logs-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.cfn-mcp-server" = "awslabs.cfn_mcp_server.server:main"
+"awslabs.cloudwatch-logs-mcp-server" = "awslabs.cloudwatch_logs_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -51,6 +48,7 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    "moto>=5.1.4",
 ]
 
 [build-system]
@@ -108,7 +106,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/cfn_mcp_server/__init__.py:__version__"
+    "awslabs/cloudwatch_logs_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 

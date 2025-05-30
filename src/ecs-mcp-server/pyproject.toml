@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "awslabs.ecs-mcp-server"
-version = "0.1.1"
+version = "0.1.2"
 description = "AWS ECS MCP Server for automating containerization and deployment of web applications to AWS ECS"
 readme = "README.md"
 requires-python = ">=3.10"
