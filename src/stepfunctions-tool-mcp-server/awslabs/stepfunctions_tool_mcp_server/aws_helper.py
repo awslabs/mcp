@@ -3,7 +3,7 @@
 import boto3
 import botocore.config
 import os
-from typing import Optional
+from typing import Any, Optional
 
 
 class AwsHelper:
@@ -28,7 +28,7 @@ class AwsHelper:
         return os.environ.get('AWS_PROFILE')
 
     @staticmethod
-    def create_boto3_client(service_name: str, region_name: Optional[str] = None) -> boto3.client:
+    def create_boto3_client(service_name: str, region_name: Optional[str] = None) -> Any:
         """Create a boto3 client with the appropriate configuration.
 
         Args:
