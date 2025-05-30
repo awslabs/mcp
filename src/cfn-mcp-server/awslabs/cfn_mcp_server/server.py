@@ -202,7 +202,7 @@ async def update_resource(
     except Exception as e:
         raise handle_aws_api_error(e)
 
-    return progress_event(response['ProgressEvent'])
+    return progress_event(response['ProgressEvent'], None)
 
 
 @mcp.tool()
@@ -253,7 +253,7 @@ async def create_resource(
     except Exception as e:
         raise handle_aws_api_error(e)
 
-    return progress_event(response['ProgressEvent'])
+    return progress_event(response['ProgressEvent'], None)
 
 
 @mcp.tool()
@@ -305,7 +305,7 @@ async def delete_resource(
     except Exception as e:
         raise handle_aws_api_error(e)
 
-    return progress_event(response['ProgressEvent'])
+    return progress_event(response['ProgressEvent'], None)
 
 
 @mcp.tool()
@@ -347,7 +347,7 @@ async def get_resource_request_status(
     except Exception as e:
         raise handle_aws_api_error(e)
 
-    return progress_event(response['ProgressEvent'])
+    return progress_event(response['ProgressEvent'], response.get('HooksProgressEvent', None))
 
 
 @mcp.tool()
