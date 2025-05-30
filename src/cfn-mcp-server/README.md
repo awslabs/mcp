@@ -1,6 +1,6 @@
 # CloudFormation MCP Server
 
-Model Context Protocol (MCP) server that enables LLMs to directly create and manage over 1,100 AWS resources through natural language using AWS Cloud Control API with Infrastructure as Code best practices.
+Model Context Protocol (MCP) server that enables LLMs to directly create and manage over 1,100 AWS resources through natural language using AWS Cloud Control API and Iac Generator with Infrastructure as Code best practices.
 
 ## Features
 
@@ -12,6 +12,7 @@ Model Context Protocol (MCP) server that enables LLMs to directly create and man
 - **Schema Information**: Returns detailed CloudFormation schema for any resource to enable more effective operations
 - **Natural Language Interface**: Transform infrastructure-as-code from static authoring to dynamic conversations
 - **Partner Resource Support**: Works with both AWS-native and partner-defined resources
+- **Template Generation**: Generates a template on created/existing resources for a [subset of resource types](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resource-import-supported-resources.html)
 
 ## Prerequisites
 
@@ -123,8 +124,12 @@ Get schema information for an AWS CloudFormation resource.
 **Example**: Get the schema for AWS::S3::Bucket to understand all available properties.
 
 ### get_request_status
-Get the status of a mutation that was initiated by create/update/delete resource
-**Example**: Give me the status of the last request I made
+Get the status of a mutation that was initiated by create/update/delete resource.
+**Example**: Give me the status of the last request I made.
+
+### create_tempalte
+Create a Cloudformation template from created or listed resources.
+**Example**: Create a YAML template for those resources.
 
 ## Basic Usage
 
@@ -139,6 +144,7 @@ Examples of how to use the AWS Infrastructure as Code MCP Server:
 - "Configure CloudWatch alarms for all production resources"
 - "Implement cross-region replication for critical S3 buckets"
 - "Show me the schema for AWS::Lambda::Function"
+- "Create a template for all the resources we created and modified"
 
 ## Resource Type support
 Resources which are supported by this MCP and the supported operations can be found here: https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html
@@ -169,7 +175,10 @@ Ensure your AWS credentials have the following minimum permissions:
                 "cloudcontrol:GetResource",
                 "cloudcontrol:CreateResource",
                 "cloudcontrol:DeleteResource",
-                "cloudcontrol:UpdateResource"
+                "cloudcontrol:UpdateResource",
+                "cloudformation:CreateGeneratedTemplate",
+                "cloudformation:DescribeGeneratedTemplate",
+                "cloudformation:GetGeneratedTemplate"
             ],
             "Resource": "*"
         }
@@ -179,10 +188,11 @@ Ensure your AWS credentials have the following minimum permissions:
 
 ## Limitations
 
-- Operations are limited to resources supported by AWS Cloud Control API
+- Operations are limited to resources supported by AWS Cloud Control API and Iac Generator
 - Performance depends on the underlying AWS services' response times
 - Some complex resource relationships may require multiple operations
-- This MCP server can only manage resources in the AWS regions where Cloud Control API is available
+- This MCP server can only manage resources in the AWS regions where Cloud Control API and/or Iac Generator is available
 - Resource modification operations may be limited by service-specific constraints
 - Rate limiting may affect operations when managing many resources simultaneously
 - Some resource types might not support all operations (create, read, update, delete)
+- Generated templates are primarily intended for importing existing resources into a CloudFormation stack and may not always work for creating new resources (in another account or region)

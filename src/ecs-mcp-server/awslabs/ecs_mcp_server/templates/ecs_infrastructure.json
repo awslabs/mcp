@@ -113,6 +113,16 @@
   },
   "Resources": {
     "ALBAccessLogsBucket": {
+      "Metadata": {
+        "checkov": {
+          "skip": [
+            {
+              "comment": "S3 bucket causing circular dependency",
+              "id": "CKV_AWS_18"
+            }
+          ]
+        }
+      },
       "Properties": {
         "AccessControl": "Private",
         "BucketName": {
@@ -126,12 +136,6 @@
               "Status": "Enabled"
             }
           ]
-        },
-        "LoggingConfiguration": {
-          "DestinationBucketName": {
-            "Ref": "ALBAccessLogsBucket"
-          },
-          "LogFilePrefix": "s3-access-logs/"
         },
         "PublicAccessBlockConfiguration": {
           "BlockPublicAcls": true,
