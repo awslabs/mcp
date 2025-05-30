@@ -1,0 +1,1667 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://awslabs.github.io/mcp/servers/ecs-mcp-server/">
+      
+      
+        <link rel="prev" href="../eks-mcp-server/">
+      
+      
+        <link rel="next" href="../aws-support-mcp-server/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>Amazon ECS MCP Server - AWS MCP Servers</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="dracula" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#amazon-ecs-mcp-server" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="AWS MCP Servers" class="md-header__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AWS MCP Servers
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Amazon ECS MCP Server
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="dracula" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/awslabs/mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    awslabs/mcp
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="AWS MCP Servers" class="md-nav__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    AWS MCP Servers
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/awslabs/mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    awslabs/mcp
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    AWS MCP Servers
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            AWS MCP Servers
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Core MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bedrock-kb-retrieval-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Bedrock Knowledge Base Retrieval MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cdk-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS CDK MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cost-analysis-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cost Analysis MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nova-canvas-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Nova Canvas MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-documentation-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Documentation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lambda-tool-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Lambda Tool MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-diagram-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Diagram MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stepfunctions-tool-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Step Functions Tool MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Terraform MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-repo-research-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Git Repo Research MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cfn-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CloudFormation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-serverless-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Serverless MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../finch-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Finch MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eks-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon EKS MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Amazon ECS MCP Server
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ECS MCP Server
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-environments" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage Environments
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#production-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Production Considerations
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Production Considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allowlisted-actions-for-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      Allowlisted Actions for Production
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-consider-production-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to Consider Production Use
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-avoid-production-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to Avoid Production Use
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Controls
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security Controls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allow_write" class="md-nav__link">
+    <span class="md-ellipsis">
+      ALLOW_WRITE
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#allow_sensitive_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      ALLOW_SENSITIVE_DATA
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iam-best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      IAM Best Practices
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mcp-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      MCP Tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deployment-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deployment Tools
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting Tool
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Resource Management
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-prompts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example Prompts
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example Prompts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#containerization-and-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Containerization and Deployment
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Resource Management
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      Requirements
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      License
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-support-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Support MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Samples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Samples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samples/mcp-integration-with-kb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MCP Integration with Amazon Bedrock Knowledge Bases
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-environments" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage Environments
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#production-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Production Considerations
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Production Considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allowlisted-actions-for-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      Allowlisted Actions for Production
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-consider-production-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to Consider Production Use
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-avoid-production-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      When to Avoid Production Use
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Controls
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security Controls">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allow_write" class="md-nav__link">
+    <span class="md-ellipsis">
+      ALLOW_WRITE
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#allow_sensitive_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      ALLOW_SENSITIVE_DATA
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iam-best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      IAM Best Practices
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mcp-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      MCP Tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deployment-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deployment Tools
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting Tool
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Resource Management
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-prompts" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example Prompts
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example Prompts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#containerization-and-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Containerization and Deployment
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      Troubleshooting
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Resource Management
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      Requirements
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      License
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="amazon-ecs-mcp-server">Amazon ECS MCP Server</h1>
+<p><a href="https://pypi.org/project/awslabs.ecs-mcp-server/"><img alt="PyPI version" src="../../assets/external/img.shields.io/pypi/v/awslabs.ecs-mcp-server.svg"></a></p>
+<p>An MCP server for containerizing applications, deploying applications to Amazon Elastic Container Service (ECS), troubleshooting ECS deployments, and managing ECS resources. This server enables AI assistants to help users with the full lifecycle of containerized applications on AWS.</p>
+<h2 id="features">Features</h2>
+<ul>
+<li><strong>Containerization Guidance</strong>: Provides best practices and guidance for containerizing web applications</li>
+<li><strong>ECS Deployment</strong>: Deploy containerized applications to AWS ECS using Fargate</li>
+<li><strong>Load Balancer Integration</strong>: Automatically configure Application Load Balancers (ALBs) for web traffic</li>
+<li><strong>Infrastructure as Code</strong>: Generate and apply CloudFormation templates for ECS infrastructure</li>
+<li><strong>URL Management</strong>: Return public ALB URLs for immediate access to deployed applications</li>
+<li><strong>Circuit Breaker</strong>: Implement deployment circuit breaker with automatic rollback</li>
+<li><strong>Container Insights</strong>: Enable enhanced container insights for monitoring</li>
+<li><strong>VPC Endpoints</strong>: Configure VPC endpoints for secure access to AWS services without internet exposure</li>
+<li><strong>Security Best Practices</strong>: Implement AWS security best practices for container deployments</li>
+<li><strong>Resource Management</strong>: List and explore ECS resources such as task definitions, services, clusters, and tasks</li>
+<li><strong>ECR Integration</strong>: View repositories and container images in Amazon ECR</li>
+</ul>
+<p>Customers can use the <code>containerize_app</code> tool to help them containerize their applications with best practices and deploy them to Amazon ECS. The <code>create_ecs_infrastructure</code> tool automates infrastructure deployment using CloudFormation, while <code>get_deployment_status</code> returns the status of deployments and provide the URL of the set up Application Load Balancer. When resources are no longer needed, the <code>delete_ecs_infrastructure</code> tool allows for easy cleanup and removal of all deployed components.</p>
+<p>Customers can list and view their ECS resources (clusters, services, tasks, task definitions) and access their ECR resources (container images) using the <code>ecs_resource_management</code> tool. When running into ECS deployment issues, they can use the <code>ecs_troubleshooting_tool</code> to diagnose and resolve common problems.</p>
+<h2 id="installation">Installation</h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># Install using uv</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>awslabs.ecs-mcp-server
+
+<span class="c1"># Or install using pip</span>
+pip<span class="w"> </span>install<span class="w"> </span>awslabs.ecs-mcp-server
+</code></pre></div>
+<p>You can also run the MCP server directly from a local clone of the GitHub repository:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Clone the awslabs repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/awslabs/mcp.git
+
+<span class="c1"># Run the server directly using uv</span>
+uv<span class="w"> </span>--directory<span class="w"> </span>/path/to/ecs-mcp-server/src/ecs-mcp-server/awslabs/ecs_mcp_server<span class="w"> </span>run<span class="w"> </span>main.py
+</code></pre></div>
+<h2 id="usage-environments">Usage Environments</h2>
+<p>The ECS MCP Server is currently in development and is designed for the following environments:</p>
+<ul>
+<li><strong>Development and Prototyping</strong>: Ideal for local application development, testing containerization approaches, and rapidly iterating on deployment configurations.</li>
+<li><strong>Learning and Exploration</strong>: Excellent for users who want to learn about containerization, ECS, and AWS infrastructure.</li>
+<li><strong>Testing and Staging</strong>: Suitable for integration testing and pre-production validation in non-critical environments.</li>
+</ul>
+<p><strong>Not Recommended For</strong>:
+- <strong>Production Workloads</strong>: As this tool is still in active development, it is not suited for production deployments or business-critical applications.
+- <strong>Regulated or Sensitive Workloads</strong>: Not suitable for applications handling sensitive data or subject to regulatory compliance requirements.</p>
+<p><strong>Important Note on Troubleshooting Tools</strong>: Even the troubleshooting tools should be used with caution in production environments. Always set <code>ALLOW_SENSITIVE_DATA=false</code> and <code>ALLOW_WRITE=false</code> flags when connecting to production accounts to prevent accidental exposure of sensitive information or unintended infrastructure modifications.</p>
+<h2 id="production-considerations">Production Considerations</h2>
+<p>While the ECS MCP Server is primarily designed for development, testing, and non-critical environments, certain components can be considered for controlled production use with appropriate safeguards.</p>
+<h3 id="allowlisted-actions-for-production">Allowlisted Actions for Production</h3>
+<p>The following operations are read-only and relatively safe for production environments when used with appropriate IAM permissions. Note: they can return sensitive information, so ensure <code>ALLOW_SENSITIVE_DATA=false</code> is set in production configurations.</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Operation</th>
+<th>Production Safety</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ecs_resource_management</code></td>
+<td><code>list</code> operations (clusters, services, tasks)</td>
+<td>✅ Safe - Read-only</td>
+</tr>
+<tr>
+<td><code>ecs_resource_management</code></td>
+<td><code>describe</code> operations (clusters, services, tasks)</td>
+<td>✅ Safe - Read-only</td>
+</tr>
+<tr>
+<td><code>ecs_troubleshooting_tool</code></td>
+<td><code>fetch_service_events</code></td>
+<td>✅ Safe - Read-only</td>
+</tr>
+<tr>
+<td><code>ecs_troubleshooting_tool</code></td>
+<td><code>get_ecs_troubleshooting_guidance</code></td>
+<td>✅ Safe - Read-only</td>
+</tr>
+<tr>
+<td><code>get_deployment_status</code></td>
+<td>Status checking</td>
+<td>✅ Safe - Read-only</td>
+</tr>
+</tbody>
+</table>
+<p>The following operations modify resources and should be used with extreme caution in production:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Operation</th>
+<th>Production Safety</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>create_ecs_infrastructure</code></td>
+<td>Creating resources</td>
+<td>⚠️ High Risk - Creates infrastructure</td>
+</tr>
+<tr>
+<td><code>delete_ecs_infrastructure</code></td>
+<td>Deleting resources</td>
+<td>🛑 Dangerous - Deletes infrastructure</td>
+</tr>
+<tr>
+<td><code>containerize_app</code></td>
+<td>Generate container configs</td>
+<td>🟡 Medium Risk - Local changes only</td>
+</tr>
+</tbody>
+</table>
+<h3 id="when-to-consider-production-use">When to Consider Production Use</h3>
+<p>The ECS MCP Server may be appropriate for production environments in the following scenarios:</p>
+<ol>
+<li><strong>Read-only monitoring</strong>: Using resource management tools with read-only IAM policies</li>
+<li><strong>Troubleshooting non-critical issues</strong>: Using diagnostic tools to gather logs and status information</li>
+<li><strong>Sandbox or isolated environments</strong>: Using deployment tools in production-like environments that are isolated from core services</li>
+</ol>
+<h3 id="when-to-avoid-production-use">When to Avoid Production Use</h3>
+<p>Avoid using ECS MCP Server in production for:</p>
+<ol>
+<li>Critical business infrastructure</li>
+<li>Applications handling sensitive customer data</li>
+<li>High-throughput or high-availability services</li>
+<li>Regulated workloads with compliance requirements</li>
+<li>Infrastructure lacking proper backup and disaster recovery procedures</li>
+</ol>
+<h2 id="configuration">Configuration</h2>
+<p>Add the ECS MCP Server to your MCP client configuration:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.ecs-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uvx&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;--from&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;awslabs-ecs-mcp-server&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;ecs-mcp-server&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;AWS_PROFILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-profile&quot;</span><span class="p">,</span><span class="w"> </span><span class="c1">// Optional - uses your local AWS configuration if not specified</span>
+<span class="w">        </span><span class="nt">&quot;AWS_REGION&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-region&quot;</span><span class="p">,</span><span class="w"> </span><span class="c1">// Optional - uses your local AWS configuration if not specified</span>
+<span class="w">        </span><span class="nt">&quot;FASTMCP_LOG_LEVEL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ERROR&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;FASTMCP_LOG_FILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/ecs-mcp-server.log&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;ALLOW_WRITE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;false&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;ALLOW_SENSITIVE_DATA&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;false&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>If running from a local repository, configure the MCP client like this:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.ecs-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uv&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">&quot;--directory&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;/path/to/ecs-mcp-server/src/ecs-mcp-server/awslabs/ecs_mcp_server&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;run&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;main.py&quot;</span>
+<span class="w">      </span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;AWS_PROFILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-profile&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;AWS_REGION&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-region&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;FASTMCP_LOG_LEVEL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;DEBUG&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;FASTMCP_LOG_FILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/ecs-mcp-server.log&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;ALLOW_WRITE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;false&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;ALLOW_SENSITIVE_DATA&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;false&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="security-controls">Security Controls</h2>
+<p>The ECS MCP Server includes security controls in your MCP client configuration to prevent accidental changes to infrastructure and limit access to sensitive data:</p>
+<h3 id="allow_write">ALLOW_WRITE</h3>
+<p>Controls whether write operations (creating or deleting infrastructure) are allowed.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Enable write operations</span>
+<span class="s2">&quot;ALLOW_WRITE&quot;</span>:<span class="w"> </span><span class="s2">&quot;true&quot;</span>
+
+<span class="c1"># Disable write operations (default)</span>
+<span class="s2">&quot;ALLOW_WRITE&quot;</span>:<span class="w"> </span><span class="s2">&quot;false&quot;</span>
+</code></pre></div>
+<h3 id="allow_sensitive_data">ALLOW_SENSITIVE_DATA</h3>
+<p>Controls whether tools that return logs and detailed resource information are allowed.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Enable access to sensitive data</span>
+<span class="s2">&quot;ALLOW_SENSITIVE_DATA&quot;</span>:<span class="w"> </span><span class="s2">&quot;true&quot;</span>
+
+<span class="c1"># Disable access to sensitive data (default)</span>
+<span class="s2">&quot;ALLOW_SENSITIVE_DATA&quot;</span>:<span class="w"> </span><span class="s2">&quot;false&quot;</span>
+</code></pre></div>
+<h3 id="iam-best-practices">IAM Best Practices</h3>
+<p>We strongly recommend creating dedicated IAM roles with least-privilege permissions when using the ECS MCP Server:</p>
+<ol>
+<li><strong>Create a dedicated IAM role</strong> specifically for ECS MCP Server operations</li>
+<li><strong>Apply least-privilege permissions</strong> by attaching only the necessary policies based on your use case</li>
+<li><strong>Use scoped-down resource policies</strong> whenever possible</li>
+<li><strong>Apply a permission boundary</strong> to limit the maximum permissions</li>
+</ol>
+<p>For detailed example IAM policies tailored for different ECS MCP Server use cases (read-only monitoring, troubleshooting, deployment, and service-specific access), see <a href="EXAMPLE_IAM_POLICIES.md">EXAMPLE_IAM_POLICIES.md</a>.</p>
+<h2 id="mcp-tools">MCP Tools</h2>
+<h3 id="deployment-tools">Deployment Tools</h3>
+<p>These tools help you containerize applications and deploy them to Amazon ECS with proper infrastructure setup and monitoring.</p>
+<ul>
+<li><strong>containerize_app</strong>: Generates Dockerfile and container configurations for web applications</li>
+<li><strong>create_ecs_infrastructure</strong>: Creates AWS infrastructure needed to deploy your containerized application using ECS. This includes:</li>
+<li>Application Load Balancer (ALB) with public-facing endpoints</li>
+<li>Network security groups with appropriate inbound/outbound rules</li>
+<li>IAM roles and policies with least-privilege permissions</li>
+<li>VPC configurations with public and private subnets (if needed)</li>
+<li>S3 Gateway endpoint associations for ECR image pulls</li>
+<li>ECS cluster with capacity provider settings</li>
+<li>Task definition with CPU/memory allocations and container configs</li>
+<li>Service configuration with desired count and auto-scaling policies</li>
+<li>Health check configuration and deployment circuit breakers</li>
+<li><strong>get_deployment_status</strong>: Gets the status of an ECS deployment and returns the ALB URL</li>
+<li><strong>delete_ecs_infrastructure</strong>: Deletes the AWS infrastructure created by the ECS MCP Server</li>
+</ul>
+<h3 id="troubleshooting-tool">Troubleshooting Tool</h3>
+<p>The troubleshooting tool helps diagnose and resolve common ECS deployment issues stemming from infrastructure, service, task, and network configuration.</p>
+<ul>
+<li><strong>ecs_troubleshooting_tool</strong>: Consolidated tool with the following actions:</li>
+<li><strong>get_ecs_troubleshooting_guidance</strong>: Initial assessment and troubleshooting path recommendation</li>
+<li><strong>fetch_cloudformation_status</strong>: Infrastructure-level diagnostics for CloudFormation stacks</li>
+<li><strong>fetch_service_events</strong>: Service-level diagnostics for ECS services</li>
+<li><strong>fetch_task_failures</strong>: Task-level diagnostics for ECS task failures</li>
+<li><strong>fetch_task_logs</strong>: Application-level diagnostics through CloudWatch logs</li>
+<li><strong>detect_image_pull_failures</strong>: Specialized tool for detecting container image pull failures</li>
+<li><strong>fetch_network_configuration</strong>: Network-level diagnostics for ECS deployments including VPC, subnets, security groups, and load balancers</li>
+</ul>
+<h3 id="resource-management">Resource Management</h3>
+<p>This tool provides read-only access to Amazon ECS resources to help you monitor and understand your deployment environment.</p>
+<ul>
+<li><strong>ecs_resource_management</strong>: List and describe ECS resources including:</li>
+<li>Clusters: List all clusters, describe specific cluster details</li>
+<li>Services: List services in a cluster, describe service configuration</li>
+<li>Tasks: List running or stopped tasks, describe task details and status</li>
+<li>Task Definitions: List task definition families, describe specific task definition revisions</li>
+<li>Container Instances: List container instances, describe instance health and capacity</li>
+<li>Capacity Providers: List and describe capacity providers associated with clusters</li>
+<li>ECR repositories and container images</li>
+</ul>
+<h2 id="example-prompts">Example Prompts</h2>
+<h3 id="containerization-and-deployment">Containerization and Deployment</h3>
+<ul>
+<li>"Containerize this Node.js app and deploy it to AWS"</li>
+<li>"Deploy this Flask application to Amazon ECS"</li>
+<li>"Create an ECS deployment for this web application with auto-scaling"</li>
+<li>"Set up a containerized environment for this Django app on Amazon ECS"</li>
+<li>"List all my ECS clusters"</li>
+<li>"Show me details for my-cluster"</li>
+</ul>
+<h3 id="troubleshooting">Troubleshooting</h3>
+<ul>
+<li>"Help me troubleshoot my ECS deployment"</li>
+<li>"My ECS tasks keep failing, can you diagnose the issue?"</li>
+<li>"The ALB health check is failing for my ECS service"</li>
+<li>"Why can't I access my deployed application?"</li>
+<li>"Check what's wrong with my CloudFormation stack"</li>
+</ul>
+<h3 id="resource-management_1">Resource Management</h3>
+<ul>
+<li>"Show me my ECS clusters"</li>
+<li>"List all running tasks in my ECS cluster"</li>
+<li>"Describe my ECS service configuration"</li>
+<li>"Get information about my task definition"</li>
+</ul>
+<h2 id="requirements">Requirements</h2>
+<ul>
+<li>Python 3.10+</li>
+<li>AWS credentials with permissions for ECS, ECR, CloudFormation, and related services</li>
+<li>Docker (for local containerization testing)</li>
+</ul>
+<h2 id="license">License</h2>
+<p>This project is licensed under the Apache-2.0 License.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; Amazon Web Services, Inc. or its affiliates. All rights reserved.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["search.suggest", "search.highlight", "navigation.instant"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+    
+  </body>
+</html>

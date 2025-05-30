@@ -1,0 +1,2261 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server/">
+      
+      
+        <link rel="prev" href="../cfn-mcp-server/">
+      
+      
+        <link rel="next" href="../finch-mcp-server/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>AWS Serverless MCP Server - AWS MCP Servers</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="dracula" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#aws-serverless-mcp-server" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="AWS MCP Servers" class="md-header__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AWS MCP Servers
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              AWS Serverless MCP Server
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="dracula" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/awslabs/mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    awslabs/mcp
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="AWS MCP Servers" class="md-nav__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    AWS MCP Servers
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/awslabs/mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    awslabs/mcp
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    AWS MCP Servers
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            AWS MCP Servers
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Core MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bedrock-kb-retrieval-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Bedrock Knowledge Base Retrieval MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cdk-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS CDK MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cost-analysis-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cost Analysis MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nova-canvas-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Nova Canvas MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-documentation-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Documentation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lambda-tool-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Lambda Tool MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-diagram-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Diagram MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stepfunctions-tool-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Step Functions Tool MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Terraform MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-repo-research-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Git Repo Research MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cfn-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CloudFormation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    AWS Serverless MCP Server
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Serverless MCP Server
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prerequisites
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-temporary-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using temporary credentials
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serverless-mcp-server-configuration-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Serverless MCP Server configuration options
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Serverless MCP Server configuration options">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-allow-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      --allow-write
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-allow-sensitive-data-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      --allow-sensitive-data-access
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#local-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local development
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment variables
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#available-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Available resources
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Available resources">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#template-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Template resources
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deployment-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deployment resources
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#available-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Available tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Available tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sam_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_init
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sam_build" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_build
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sam_deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_deploy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sam_logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_logs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sam_local_invoke" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_local_invoke
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_iac_guidance" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_iac_guidance
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_lambda_event_schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_lambda_event_schemas
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_lambda_guidance" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_lambda_guidance
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploy_webapp" class="md-nav__link">
+    <span class="md-ellipsis">
+      deploy_webapp
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configure_domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      configure_domain
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webapp_deployment_help" class="md-nav__link">
+    <span class="md-ellipsis">
+      webapp_deployment_help
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_metrics
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update_webapp_frontend" class="md-nav__link">
+    <span class="md-ellipsis">
+      update_webapp_frontend
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploy_serverless_app_help" class="md-nav__link">
+    <span class="md-ellipsis">
+      deploy_serverless_app_help
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_serverless_templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_serverless_templates
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schema-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Schema Tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_registries" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_registries
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#search_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      search_schema
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#describe_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      describe_schema
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creating-a-lambda-function-with-sam" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating a Lambda Function with SAM
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploying-a-web-application" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deploying a Web Application
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#working-with-eventbridge-schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      Working with EventBridge Schemas
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security considerations
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#production-use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Production use cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-scoping-recommendations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Role scoping recommendations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sensitive-information-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sensitive information handling
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#links" class="md-nav__link">
+    <span class="md-ellipsis">
+      Links
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      License
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../finch-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Finch MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eks-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon EKS MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ecs-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ECS MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-support-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Support MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Samples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Samples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samples/mcp-integration-with-kb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MCP Integration with Amazon Bedrock Knowledge Bases
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      Prerequisites
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#using-temporary-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using temporary credentials
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serverless-mcp-server-configuration-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Serverless MCP Server configuration options
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Serverless MCP Server configuration options">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#-allow-write" class="md-nav__link">
+    <span class="md-ellipsis">
+      --allow-write
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-allow-sensitive-data-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      --allow-sensitive-data-access
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#local-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local development
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment variables
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#available-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Available resources
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Available resources">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#template-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Template resources
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deployment-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deployment resources
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#available-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Available tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Available tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sam_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_init
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sam_build" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_build
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sam_deploy" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_deploy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sam_logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_logs
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sam_local_invoke" class="md-nav__link">
+    <span class="md-ellipsis">
+      sam_local_invoke
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_iac_guidance" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_iac_guidance
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_lambda_event_schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_lambda_event_schemas
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_lambda_guidance" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_lambda_guidance
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploy_webapp" class="md-nav__link">
+    <span class="md-ellipsis">
+      deploy_webapp
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configure_domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      configure_domain
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webapp_deployment_help" class="md-nav__link">
+    <span class="md-ellipsis">
+      webapp_deployment_help
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_metrics
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update_webapp_frontend" class="md-nav__link">
+    <span class="md-ellipsis">
+      update_webapp_frontend
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploy_serverless_app_help" class="md-nav__link">
+    <span class="md-ellipsis">
+      deploy_serverless_app_help
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_serverless_templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_serverless_templates
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schema-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Schema Tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_registries" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_registries
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#search_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      search_schema
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#describe_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      describe_schema
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Example usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#creating-a-lambda-function-with-sam" class="md-nav__link">
+    <span class="md-ellipsis">
+      Creating a Lambda Function with SAM
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploying-a-web-application" class="md-nav__link">
+    <span class="md-ellipsis">
+      Deploying a Web Application
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#working-with-eventbridge-schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      Working with EventBridge Schemas
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security considerations
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#production-use-cases" class="md-nav__link">
+    <span class="md-ellipsis">
+      Production use cases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-scoping-recommendations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Role scoping recommendations
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sensitive-information-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Sensitive information handling
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#links" class="md-nav__link">
+    <span class="md-ellipsis">
+      Links
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      License
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="aws-serverless-mcp-server">AWS Serverless MCP Server</h1>
+<h2 id="overview">Overview</h2>
+<p>The AWS Serverless Model Context Protocol (MCP) Server is an open-source tool that combines AI assistance with serverless expertise to streamline how developers build serverless applications. It provides contextual guidance specific to serverless development, helping developers make informed decisions about architecture, implementation, and deployment throughout the entire application development lifecycle. With AWS Serverless MCP, developers can build reliable, efficient, and production-ready serverless applications with confidence.</p>
+<p>Key benefits of the Serverless MCP Server include:
+- AI-powered serverless development: Provides rich contextual information to AI coding assistants to ensure your serverless application aligns with AWS best practices.
+- Comprehensive tooling: Offers tools for initialization, deployment, monitoring, and troubleshooting of serverless applications.
+- Architecture guidance: Helps evaluate design choices and select optimal serverless patterns based on application needs. Offers recommendations on event sources, function boundaries, and service integrations.
+- Operational best practices: Ensures alignment with AWS architectural principles. Suggests effective use of AWS services for event processing, data persistence, and service communication, and guides implementation of security controls, performance tuning, and cost optimization.
+- Security-first approach: Implements built-in guardrails with read-only defaults and controlled access to sensitive data.</p>
+<h2 id="features">Features</h2>
+<p>The set of tools provided by the Serverless MCP server can be broken down into four categories:</p>
+<ol>
+<li>Serverless Application Lifecycle<ul>
+<li>Intialize, build, and deploy Serverless Application Model (SAM) applications with SAM CLI</li>
+<li>Test Lambda functions locally and remotely</li>
+</ul>
+</li>
+<li>Web Application Deployment &amp; Management<ul>
+<li>Deploy fullstack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter.</li>
+<li>Update frontend assets and optionally invaliate CloudFront caches</li>
+<li>Create custom domain names, including certificate and DNS setup.</li>
+</ul>
+</li>
+<li>Observability<ul>
+<li>Retrieve and logs and metrics of serverless resources</li>
+</ul>
+</li>
+<li>Guidance, Templates, and Deployment Help<ul>
+<li>Provides guidance on AWS Lambda use-cases, selecting an IaC framework, and deployment process onto AWS Serverless</li>
+<li>Provides sample SAM templates for different serverless application types from <a href="https://serverlessland.com/">Serverless Land</a></li>
+<li>Provides schema types for different Lambda event sources and runtimes</li>
+<li>Provides schema registry management and discovery for AWS EventBridge events</li>
+<li>Enables type-safe Lambda function development with complete event schemas</li>
+</ul>
+</li>
+</ol>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li>Have an AWS account with <a href="https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html">credentials configured</a></li>
+<li>Install uv from <a href="https://docs.astral.sh/uv/getting-started/installation/">Astral</a> or the <a href="https://github.com/astral-sh/uv#installation">GitHub README</a></li>
+<li>Install Python 3.10 or newer using uv python install 3.10 (or a more recent version)</li>
+<li>Install <a href="https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html">AWS SAM CLI</a></li>
+<li>Install <a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html">AWS CLI</a></li>
+</ul>
+<h2 id="installation">Installation</h2>
+<p>You can download the AWS Serverless MCP Server from GitHub. To get started using your favorite code assistant with MCP support, like Q Developer, Cursor or Cline.</p>
+<p>Add the following code to your MCP client configuration. The Serverless MCP server uses the default AWS profile by default. Specify a value in AWS_PROFILE if you want to use a different profile. Similarly, adjust the AWS Region and log level values as needed.
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.aws-serverless-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uvx&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">&quot;awslabs.aws-serverless-mcp-server@latest&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;--allow-write&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;--allow-sensitive-data-access&quot;</span>
+<span class="w">      </span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;AWS_PROFILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-profile&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;AWS_REGION&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;us-east-1&quot;</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;disabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;autoApprove&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">      </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">60</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></p>
+<h3 id="using-temporary-credentials">Using temporary credentials</h3>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.aws-serverless-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uvx&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;awslabs.aws-serverless-mcp-server@latest&quot;</span><span class="p">],</span>
+<span class="w">        </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;AWS_ACCESS_KEY_ID&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-temporary-access-key&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;AWS_SECRET_ACCESS_KEY&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-temporary-secret-key&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;AWS_SESSION_TOKEN&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-session-token&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;AWS_REGION&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;us-east-1&quot;</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;disabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;autoApprove&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">        </span><span class="nt">&quot;timeout&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">60</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="serverless-mcp-server-configuration-options">Serverless MCP Server configuration options</h2>
+<h3 id="-allow-write"><code>--allow-write</code></h3>
+<p>Enables write access mode, which allows mutating operations and creation of public resources. By default, the server runs in read-only mode, which restricts operations to only perform read actions, preventing any changes to AWS resources.</p>
+<p>Mutating operations:
+* sam_deploy: Deploys a SAM application into AWS Cloud using CloudFormation
+* deploy_webapp: Generates SAM template and deploys a web application into AWS CloudFormation. Creates public resources, including Route 53 DNS records, and CloudFront distributions</p>
+<h3 id="-allow-sensitive-data-access"><code>--allow-sensitive-data-access</code></h3>
+<p>Enables access to sensitive data such as logs. By default, the server restricts access to sensitive data.</p>
+<p>Operations returning sensitive data:
+* sam_logs: Returns Lambda function logs and API Gateway logs</p>
+<h2 id="local-development">Local development</h2>
+<p>To make changes to this MCP locally and run it:</p>
+<ol>
+<li>
+<p>Clone this repository:
+   <div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/awslabs/mcp.git
+<span class="nb">cd</span><span class="w"> </span>mcp/src/aws-serverless-mcp-server
+</code></pre></div></p>
+</li>
+<li>
+<p>Install dependencies:
+   <div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</code></pre></div></p>
+</li>
+<li>
+<p>Configure AWS credentials:</p>
+</li>
+<li>Ensure you have AWS credentials configured in <code>~/.aws/credentials</code> or set the appropriate environment variables.</li>
+<li>
+<p>You can also set the AWS_PROFILE and AWS_REGION environment variables.</p>
+</li>
+<li>
+<p>Run the server:
+   <div class="highlight"><pre><span></span><code>python<span class="w"> </span>-m<span class="w"> </span>awslabs.aws_serverless_mcp_server.server
+</code></pre></div></p>
+</li>
+<li>
+<p>To use this MCP server with AI clients, add the following to your MCP configuration:
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.aws-serverless-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;mcp/src/aws-serverless-mcp-server/bin/awslabs.aws-serverless-mcp-server/&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;AWS_PROFILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-profile&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;AWS_REGION&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;us-east-1&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;disabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;autoApprove&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div></p>
+</li>
+</ol>
+<h2 id="environment-variables">Environment variables</h2>
+<p>By default, the default AWS profile is used. However, the server can be configured through environment variables in the MCP configuration:</p>
+<ul>
+<li><code>AWS_PROFILE</code>: AWS CLI profile to use for credentials</li>
+<li><code>AWS_REGION</code>: AWS region to use (default: us-east-1)</li>
+<li><code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code>: Explicit AWS credentials (alternative to AWS_PROFILE)</li>
+<li><code>AWS_SESSION_TOKEN</code>: Session token for temporary credentials (used with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)</li>
+<li><code>FASTMCP_LOG_LEVEL</code>: Logging level (ERROR, WARNING, INFO, DEBUG)</li>
+</ul>
+<h2 id="available-resources">Available resources</h2>
+<p>The server provides the following resources:</p>
+<h3 id="template-resources">Template resources</h3>
+<ul>
+<li><code>template://list</code>: List of available deployment templates.</li>
+<li><code>template://{template_name}</code>: Details of a specific deployment template.</li>
+</ul>
+<h3 id="deployment-resources">Deployment resources</h3>
+<ul>
+<li><code>deployment://list</code>: List of all AWS deployments managed by the MCP server.</li>
+<li><code>deployment://{project_name}</code>: Details about a specific deployment.</li>
+</ul>
+<h2 id="available-tools">Available tools</h2>
+<p>The server exposes deployment capabilities as tools:</p>
+<h3 id="sam_init">sam_init</h3>
+<p>Initializes a serverless application using AWS SAM (Serverless Application Model) CLI.
+This tool creates a new SAM project that consists of:
+- An AWS SAM template to define your infrastructure code
+- A folder structure that organizes your application
+- Configuration for your AWS Lambda functions
+You should have AWS SAM CLI installed and configured in your environment.</p>
+<p><strong>Parameters:</strong>
+- <code>project_name</code> (required): Name of the SAM project to create
+- <code>runtime</code> (required): Runtime environment for the Lambda function
+- <code>project_directory</code> (required): Absolute path to directory where the SAM application will be initialized
+- <code>dependency_manager</code> (required): Dependency manager for the Lambda function
+- <code>architecture</code> (default: x86_64): Architecture for the Lambda function
+- <code>package_type</code> (default: Zip): Package type for the Lambda function
+- <code>application_template</code> (default: hello-world): Template for the SAM application, e.g., hello-world, quick-start, etc.
+- <code>application_insights</code>: Activate Amazon CloudWatch Application Insights monitoring
+- <code>no_application_insights</code>: Deactivate Amazon CloudWatch Application Insights monitoring
+- <code>base_image</code>: Base image for the application when package type is Image
+- <code>config_env</code>: Environment name specifying default parameter values in the configuration file
+- <code>config_file</code>: Absolute path to configuration file containing default parameter values
+- <code>debug</code>: Turn on debug logging
+- <code>extra_content</code>: Override custom parameters in the template's cookiecutter.json
+- <code>location</code>: Template or application location (Git, HTTP/HTTPS, zip file path)
+- <code>save_params</code>: Save parameters to the SAM configuration file
+- <code>tracing</code>: Activate AWS X-Ray tracing for Lambda functions
+- <code>no_tracing</code>: Deactivate AWS X-Ray tracing for Lambda functions</p>
+<h3 id="sam_build">sam_build</h3>
+<p>Builds a serverless application using AWS SAM (Serverless Application Model) CLI.
+This command compiles your Lambda function code, creates deployment artifacts, and prepares your application for deployment.
+Before running this tool, the application should already be initialized with 'sam_init' tool.
+You should have AWS SAM CLI installed and configured in your environment.</p>
+<p><strong>Parameters:</strong>
+- <code>project_directory</code> (required): Absolute path to directory containing the SAM project
+- <code>template_file</code>: Absolute path to the template file (defaults to template.yaml)
+- <code>base_dir</code>: Resolve relative paths to function's source code with respect to this folder
+- <code>build_dir</code>: The absolute path to a directory where the built artifacts are stored
+- <code>use_container</code> (default: false): Use a container to build the function
+- <code>no_use_container</code> (default: false): Run build in local machine instead of Docker container
+- <code>container_env_vars</code>: Environment variables to pass to the build container
+- <code>container_env_var_file</code>: Absolute path to a JSON file containing container environment variables
+- <code>build_image</code>: The URI of the container image that you want to pull for the build
+- <code>debug</code> (default: false): Turn on debug logging
+- <code>manifest</code>: Absolute path to a custom dependency manifest file (e.g., package.json) instead of the default
+- <code>parameter_overrides</code>: CloudFormation parameter overrides encoded as key-value pairs
+- <code>region</code>: AWS Region to deploy to (e.g., us-east-1)
+- <code>save_params</code> (default: false): Save parameters to the SAM configuration file
+- <code>profile</code>: AWS profile to use</p>
+<h3 id="sam_deploy">sam_deploy</h3>
+<p>Deploys a serverless application using AWS SAM (Serverless Application Model) CLI.
+This command deploys your application to AWS CloudFormation.
+Every time an appplication is deployed, it should be built with 'sam_build' tool before.
+You should have AWS SAM CLI installed and configured in your environment.</p>
+<p><strong>Parameters:</strong>
+- <code>application_name</code> (required): Name of the application to be deployed
+- <code>project_directory</code> (required): Absolute path to directory containing the SAM project (defaults to current directory)
+- <code>template_file</code>: Absolute path to the template file (defaults to template.yaml)
+- <code>s3_bucket</code>: S3 bucket to deploy artifacts to
+- <code>s3_prefix</code>: S3 prefix for the artifacts
+- <code>region</code>: AWS region to deploy to
+- <code>profile</code>: AWS profile to use
+- <code>parameter_overrides</code>: CloudFormation parameter overrides encoded as key-value pairs
+- <code>capabilities</code> (default: ["CAPABILITY_IAM"]): IAM capabilities required for the deployment
+- <code>config_file</code>: Absolute path to the SAM configuration file
+- <code>config_env</code>: Environment name specifying default parameter values in the configuration file
+- <code>metadata</code>: Metadata to include with the stack
+- <code>tags</code>: Tags to apply to the stack
+- <code>resolve_s3</code> (default: false): Automatically create an S3 bucket for deployment artifacts
+- <code>debug</code> (default: false): Turn on debug logging</p>
+<h3 id="sam_logs">sam_logs</h3>
+<p>Fetches CloudWatch logs that are generated by resources in a SAM application. Use this tool
+to help debug invocation failures and find root causes.</p>
+<p><strong>Parameters:</strong>
+- <code>resource_name</code>: Name of the resource to fetch logs for (logical ID in CloudFormation/SAM template)
+- <code>stack_name</code>: Name of the CloudFormation stack
+- <code>start_time</code>: Fetch logs starting from this time (format: 5mins ago, tomorrow, or YYYY-MM-DD HH:MM:SS)
+- <code>end_time</code>: Fetch logs up until this time (format: 5mins ago, tomorrow, or YYYY-MM-DD HH:MM:SS)
+- <code>output</code> (default: text): Output format (text or json)
+- <code>region</code>: AWS region to use (e.g., us-east-1)
+- <code>profile</code>: AWS profile to use
+- <code>cw_log_group</code>: CloudWatch Logs log groups to fetch logs from
+- <code>config_env</code>: Environment name specifying default parameter values in the configuration file
+- <code>config_file</code>: Absolute path to configuration file containing default parameter values
+- <code>save_params</code> (default: false): Save parameters to the SAM configuration file</p>
+<h3 id="sam_local_invoke">sam_local_invoke</h3>
+<p>Locally invokes a Lambda function using AWS SAM CLI.
+This command runs your Lambda function locally in a Docker container that simulates the AWS Lambda environment.
+You can use this tool to test your Lambda functions before deploying them to AWS. Docker must be installed and running in your environment.</p>
+<p><strong>Parameters:</strong>
+- <code>project_directory</code> (required): Absolute path to directory containing the SAM project
+- <code>resource_name</code> (required): Name of the Lambda function to invoke locally
+- <code>template_file</code>: Absolute path to the SAM template file (defaults to template.yaml)
+- <code>event_file</code>: Absolute path to a JSON file containing event data
+- <code>event_data</code>: JSON string containing event data (alternative to event_file)
+- <code>environment_variables_file</code>: Absolute path to a JSON file containing environment variables to pass to the function
+- <code>docker_network</code>: Docker network to run the Lambda function in
+- <code>container_env_vars</code>: Environment variables to pass to the container
+- <code>parameter</code>: Override parameters from the template file
+- <code>log_file</code>: Absolute path to a file where the function logs will be written
+- <code>layer_cache_basedir</code>: Directory where the layers will be cached
+- <code>region</code>: AWS region to use (e.g., us-east-1)
+- <code>profile</code>: AWS profile to use</p>
+<h3 id="get_iac_guidance">get_iac_guidance</h3>
+<p>Returns guidance on selecting an infrastructure as code (IaC) platform to deploy Serverless application to AWS.
+Choices include AWS SAM, CDK, and CloudFormation. Use this tool to decide which IaC tool to use for your Lambda deployments
+based on your specific use case and requirements.</p>
+<p><strong>Parameters:</strong>
+- <code>iac_tool</code> (default: CloudFormation): IaC tool to use (CloudFormation, SAM, CDK, Terraform)
+- <code>include_examples</code> (default: true): Whether to include examples</p>
+<h3 id="get_lambda_event_schemas">get_lambda_event_schemas</h3>
+<p>Returns AWS Lambda event schemas for different event sources (e.g. s3, sns, apigw) and programming languages.  Each Lambda event source defines its own schema and language-specific types, which should be used in
+the Lambda function handler to correctly parse the event data. If you cannot find a schema for your event source, you can directly parse
+the event data as a JSON object. For EventBridge events,
+you must use the list_registries, search_schema, and describe_schema tools to access the schema registry directly, get schema definitions,
+and generate code processing logic.</p>
+<p><strong>Parameters:</strong>
+- <code>event_source</code> (required): Event source (e.g., api-gw, s3, sqs, sns, kinesis, eventbridge, dynamodb)
+- <code>runtime</code> (required): Programming language for the schema references (e.g., go, nodejs, python, java)</p>
+<h3 id="get_lambda_guidance">get_lambda_guidance</h3>
+<p>Use this tool to determine if AWS Lambda is suitable platform to deploy an application.
+Returns a comprehensive guide on when to choose AWS Lambda as a deployment platform.
+It includes scenarios when to use and not use Lambda, advantages and disadvantages,
+decision criteria, and specific guidance for various use cases.</p>
+<p><strong>Parameters:</strong>
+- <code>use_case</code> (required): Description of the use case
+- <code>include_examples</code> (default: true): Whether to include examples</p>
+<h3 id="deploy_webapp">deploy_webapp</h3>
+<p>Deploy web applications to AWS Serverless, including Lambda as compute, DynamoDB as databases, API GW, ACM Certificates, and Route 53 DNS records.
+This tool uses the Lambda Web Adapter framework so that applications can be written in a standard web framework like Express or Next.js can be easily
+deployed to Lambda. You do not need to use integrate the code with any adapter framework when using this tool.</p>
+<p><strong>Parameters:</strong>
+- <code>deployment_type</code> (required): Type of deployment (backend, frontend, fullstack)
+- <code>project_name</code> (required): Project name
+- <code>project_root</code> (required): Absolute path to the project root directory
+- <code>region</code>: AWS Region to deploy to (e.g., us-east-1)
+- <code>backend_configuration</code>: Backend configuration
+- <code>frontend_configuration</code>: Frontend configuration</p>
+<h3 id="configure_domain">configure_domain</h3>
+<p>Configures a custom domain for a deployed web application on AWS Serverless.
+This tool sets up Route 53 DNS records, ACM certificates, and CloudFront custom domain mappings as needed.
+Use this tool after deploying your web application to associate it with your own domain name.</p>
+<p><strong>Parameters:</strong>
+- <code>project_name</code> (required): Project name
+- <code>domain_name</code> (required): Custom domain name
+- <code>create_certificate</code> (default: true): Whether to create a ACM certificate
+- <code>create_route53_record</code> (default: true): Whether to create a Route 53 record
+- <code>region</code>: AWS region to use (e.g., us-east-1)</p>
+<h3 id="webapp_deployment_help">webapp_deployment_help</h3>
+<p>Get help information about using the deploy_webapp to perform web application deployments.
+If deployment_type is provided, returns help information for that deployment type.
+Otherwise, returns a list of deployments and general help information.</p>
+<p><strong>Parameters:</strong>
+- <code>deployment_type</code> (required): Type of deployment to get help information for (backend, frontend, fullstack)</p>
+<h3 id="get_metrics">get_metrics</h3>
+<p>Retrieves CloudWatch metrics from a deployed web application. Use this tool get metrics
+on error rates, latency, concurrency, etc.</p>
+<p><strong>Parameters:</strong>
+- <code>project_name</code> (required): Project name
+- <code>start_time</code>: Start time for metrics (ISO format)
+- <code>end_time</code>: End time for metrics (ISO format)
+- <code>period</code> (default: 60): Period for metrics in seconds
+- <code>resources</code> (default: ["lambda", "apiGateway"]): Resources to get metrics for
+- <code>region</code>: AWS region to use (e.g., us-east-1)
+- <code>stage</code> (default: "prod"): API Gateway stage</p>
+<h3 id="update_webapp_frontend">update_webapp_frontend</h3>
+<p>Update the frontend assets of a deployed web application.
+This tool uploads new frontend assets to S3 and optionally invalidates the CloudFront cache.</p>
+<p><strong>Parameters:</strong>
+- <code>project_name</code> (required): Project name
+- <code>project_root</code> (required): Project root
+- <code>built_assets_path</code> (required): Absolute path to pre-built frontend assets
+- <code>invalidate_cache</code> (default: true): Whether to invalidate the CloudFront cache
+- <code>region</code>: AWS region to use (e.g., us-east-1)</p>
+<h3 id="deploy_serverless_app_help">deploy_serverless_app_help</h3>
+<p>Provides instructions on how to deploy a serverless application to AWS Lambda.
+Deploying a Lambda application requires generating IaC templates, building the code, packaging
+the code, selecting a deployment tool, and executing the deployment commands. For deploying
+web applications specifically, use the deploy_webapp tool.</p>
+<p><strong>Parameters:</strong>
+- <code>application_type</code> (required): Type of application to deploy (event_driven, backend, fullstack)</p>
+<h3 id="get_serverless_templates">get_serverless_templates</h3>
+<p>Returns example SAM templates from the Serverless Land GitHub repo. Use this tool to get
+examples for building serverless applications with AWS Lambda and best practices of serverless architecture.</p>
+<p><strong>Parameters:</strong>
+- <code>template_type</code> (required): Template type (e.g., API, ETL, Web)
+- <code>runtime</code>: Lambda runtime (e.g., nodejs22.x, python3.13)</p>
+<h3 id="schema-tools">Schema Tools</h3>
+<h4 id="list_registries">list_registries</h4>
+<p>Lists the registries in your account.</p>
+<p><strong>Parameters:</strong>
+- <code>registry_name_prefix</code>: Limits results to registries starting with this prefix
+- <code>scope</code>: Filter by registry scope (LOCAL or AWS)
+- <code>limit</code>: Maximum number of results to return (1-100)
+- <code>next_token</code>: Pagination token for subsequent requests</p>
+<h4 id="search_schema">search_schema</h4>
+<p>Search for schemas in a registry using keywords.</p>
+<p><strong>Parameters:</strong>
+- <code>keywords</code> (required): Keywords to search for (prefix with "aws." for service events)
+- <code>registry_name</code> (required): Registry to search in (use "aws.events" for AWS service events)
+- <code>limit</code>: Maximum number of results (1-100)
+- <code>next_token</code>: Pagination token</p>
+<h4 id="describe_schema">describe_schema</h4>
+<p>Retrieve the schema definition for the specified schema version.</p>
+<p><strong>Parameters:</strong>
+- <code>registry_name</code> (required): Registry containing the schema (use "aws.events" for AWS service events)
+- <code>schema_name</code> (required): Name of schema to retrieve (e.g., "aws.s3@ObjectCreated" for S3 events)
+- <code>schema_version</code>: Version number of schema (latest by default)</p>
+<h2 id="example-usage">Example usage</h2>
+<h3 id="creating-a-lambda-function-with-sam">Creating a Lambda Function with SAM</h3>
+<p>Example user prompt:</p>
+<div class="highlight"><pre><span></span><code>I want to build a simple backend for a todo app using Python and deploy it to the cloud with AWS Serverless. Can you help me create a new project called my-todo-app. It should include basic functionality to add and list todos. Once it&#39;s set up, please build and deploy it with all the necessary permissions. I don’t need to review the changeset before deployment.
+</code></pre></div>
+<p>This prompt would trigger the AI assistant to:
+1. Initialize a new SAM project using a template.
+2. Make modifications to code and infra for a todo app.
+3. Build the SAM application
+4. Deploy the application with CAPABILITY_IAM permissions</p>
+<h3 id="deploying-a-web-application">Deploying a Web Application</h3>
+<p>Example user prompt:</p>
+<div class="highlight"><pre><span></span><code>I have a full-stack web app built with Node.js called my-web-app, and I want to deploy it to the cloud using AWS. Everything’s ready — both frontend and backend. Can you set it up and deploy it with AWS Lambda so it&#39;s live and works smoothly?
+</code></pre></div>
+<p>This prompt would trigger the AI assistant to use the deploy_webapp to deploy the full stack application with the specified configuration.</p>
+<h3 id="working-with-eventbridge-schemas">Working with EventBridge Schemas</h3>
+<p>Example user prompt:</p>
+<div class="highlight"><pre><span></span><code>I need to create a Lambda function that processes autoscaling events. Can you help me find the right event schema and implement type-safe event handling?
+</code></pre></div>
+<p>This prompt would trigger the AI assistant to:
+1. Search for autoscaling event schemas in aws.events registry using search_schema
+2. Retrieve complete schema definition using describe_schema
+3. Generate type-safe handler code based on schema structure
+4. Implement validation for required fields</p>
+<h2 id="security-features">Security features</h2>
+<ol>
+<li><strong>AWS Authentication</strong>: Uses AWS credentials from the environment for secure authentication</li>
+<li><strong>TLS Verification</strong>: Enforces TLS verification for all AWS API calls</li>
+<li><strong>Resource Tagging</strong>: Tags all created resources for traceability</li>
+<li><strong>Least Privilege</strong>: Uses IAM roles with appropriate permissions for CloudFormation templates</li>
+</ol>
+<h2 id="security-considerations">Security considerations</h2>
+<h3 id="production-use-cases">Production use cases</h3>
+<p>The AWS Serverless MCP Server can be used for production environments with proper security controls in place. For production use cases, consider the following:</p>
+<ul>
+<li><strong>Read-Only Mode by Default</strong>: The server runs in read-only mode by default, which is safer for production environments. Only explicitly enable write access when necessary.</li>
+<li><strong>Disable auto-approve</strong>: Require the user to approve each time the AI assitant executes a tool</li>
+</ul>
+<h3 id="role-scoping-recommendations">Role scoping recommendations</h3>
+<p>To follow security best practices:</p>
+<ol>
+<li><strong>Create dedicated IAM roles</strong> to be used by the AWS Serverless MCP Server with the principle of least privilege</li>
+<li><strong>Use separate roles</strong> for read-only and write operations</li>
+<li><strong>Implement resource tagging</strong> to limit actions to resources created by the server</li>
+<li><strong>Enable AWS CloudTrail</strong> to audit all API calls made by the server</li>
+<li><strong>Regularly review</strong> the permissions granted to the server's IAM role</li>
+<li><strong>Use IAM Access Analyzer</strong> to identify unused permissions that can be removed</li>
+</ol>
+<h3 id="sensitive-information-handling">Sensitive information handling</h3>
+<p><strong>IMPORTANT</strong>: Do not pass secrets or sensitive information via allowed input mechanisms:</p>
+<ul>
+<li>Do not include secrets or credentials in CloudFormation templates</li>
+<li>Do not pass sensitive information directly in the prompt to the model</li>
+</ul>
+<h2 id="links">Links</h2>
+<ul>
+<li><a href="https://awslabs.github.io/mcp/">Homepage</a></li>
+<li><a href="https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server/">Documentation</a></li>
+<li><a href="https://github.com/awslabs/mcp.git">Source Code</a></li>
+<li><a href="https://github.com/awslabs/mcp/issues">Bug Tracker</a></li>
+<li><a href="https://github.com/awslabs/mcp/blob/main/src/aws-serverless-mcp-server/CHANGELOG.md">Changelog</a></li>
+</ul>
+<h2 id="license">License</h2>
+<p>Apache-2.0</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; Amazon Web Services, Inc. or its affiliates. All rights reserved.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["search.suggest", "search.highlight", "navigation.instant"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+    
+  </body>
+</html>
