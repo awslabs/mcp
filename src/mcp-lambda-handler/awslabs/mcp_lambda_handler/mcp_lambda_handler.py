@@ -14,7 +14,18 @@ from awslabs.mcp_lambda_handler.types import (
     TextContent,
 )
 from contextvars import ContextVar
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union, get_type_hints
+from enum import Enum
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    TypeVar,
+    Union,
+    get_type_hints,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -172,13 +183,18 @@ class MCPLambdaHandler:
 
             # Build properties from type hints
             for param_name, param_type in hints.items():
-                param_schema = {'type': 'string'}  # Default to string
+                param_schema: Dict[str, Union[str, List[str]]] = {
+                    'type': 'string'
+                }  # Default to string
                 if param_type is int:
                     param_schema['type'] = 'integer'
                 elif param_type is float:
                     param_schema['type'] = 'number'
                 elif param_type is bool:
                     param_schema['type'] = 'boolean'
+                elif isinstance(param_type, type) and issubclass(param_type, Enum):
+                    param_schema['type'] = 'string'
+                    param_schema['enum'] = [e.value for e in param_type]
 
                 if param_name in arg_descriptions:
                     param_schema['description'] = arg_descriptions[param_name]
@@ -359,7 +375,19 @@ class MCPLambdaHandler:
                     )
 
                 try:
-                    result = self.tool_implementations[tool_name](**tool_args)
+                    # Convert enum string values to enum objects
+                    converted_args = {}
+                    tool_func = self.tool_implementations[tool_name]
+                    hints = get_type_hints(tool_func)
+
+                    for arg_name, arg_value in tool_args.items():
+                        arg_type = hints.get(arg_name)
+                        if isinstance(arg_type, type) and issubclass(arg_type, Enum):
+                            converted_args[arg_name] = arg_type(arg_value)
+                        else:
+                            converted_args[arg_name] = arg_value
+
+                    result = tool_func(**converted_args)
                     content = [TextContent(text=str(result)).model_dump()]
                     return self._create_success_response(
                         {'content': content}, request.id, session_id
@@ -374,6 +402,10 @@ class MCPLambdaHandler:
                         error_content,
                         session_id,
                     )
+
+            # Handle pings
+            if request.method == 'ping':
+                return self._create_success_response({}, request.id, session_id)
 
             # Handle unknown methods
             return self._create_error_response(
