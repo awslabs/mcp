@@ -25,7 +25,7 @@ class AwsHelper:
         Returns:
             str: AWS profile if set in environment, None otherwise
         """
-        return os.environ.get('AWS_PROFILE', 'default')
+        return os.environ.get('AWS_PROFILE')
 
     @staticmethod
     def create_boto3_client(service_name: str, region_name: Optional[str] = None) -> boto3.client:
@@ -49,5 +49,9 @@ class AwsHelper:
         profile = AwsHelper.get_aws_profile()
         region = region_name or AwsHelper.get_aws_region()
 
-        session = boto3.Session(profile_name=profile)
-        return session.client(service_name, region_name=region, config=config)
+        # Create client with or without profile
+        if profile:
+            session = boto3.Session(profile_name=profile)
+            return session.client(service_name, region_name=region, config=config)
+        else:
+            return boto3.client(service_name, region_name=region, config=config)
