@@ -37,10 +37,14 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Amazon MQ MCP Server](#amazon-mq-mcp-server)
     - [Synthetic Data MCP Server](#synthetic-data-mcp-server)
     - [Amazon Aurora DSQL MCP Server](#amazon-aurora-dsql-mcp-server)
+    - [Amazon Cloudwatch Logs MCP Server](#amazon-cloudwatch-logs-mcp-server)
     - [Amazon DynamoDB MCP Server](#amazon-dynamodb-mcp-server)
     - [Amazon Neptune MCP Server](#amazon-neptune-mcp-server)
     - [Amazon DocumentDB MCP Server](#amazon-documentdb-mcp-server)
     - [Amazon EKS MCP Server](#amazon-eks-mcp-server)
+    - [AWS Serverless MCP Server](#aws-serverless-mcp-server)
+    - [Amazon ECS MCP Server](#amazon-ecs-mcp-server)
+    - [Finch MCP Server](#finch-mcp-server)
     - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
     - [Running MCP servers in containers](#running-mcp-servers-in-containers)
@@ -394,6 +398,35 @@ A Model Context Protocol (MCP) server for Amazon EKS that enables generative AI 
 
 [Learn more](src/eks-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/eks-mcp-server/)
 
+### Amazon ECS MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.ecs-mcp-server.svg)](https://pypi.org/project/awslabs.ecs-mcp-server/)
+
+A Model Context Protocol (MCP) server for containerizing applications, deploying applications to Amazon Elastic Container Service (ECS), troubleshooting ECS deployments, and managing ECS resources.
+
+- Containerization Guidance: Generate Dockerfile and container configurations for web applications
+- ECS Deployment: Create AWS infrastructure needed to deploy containerized applications
+- Load Balancer Integration: Automatically configure Application Load Balancers (ALBs)
+- Resource Management: List and explore ECS resources such as task definitions, services, clusters, and tasks
+- Comprehensive Troubleshooting: Diagnose and resolve common ECS deployment issues
+- Security Best Practices: Implement AWS security best practices for container deployments
+
+[Learn more](src/ecs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/ecs-mcp-server/)
+
+### Finch MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.finch-mcp-server.svg)](https://pypi.org/project/awslabs.finch-mcp-server/)
+
+A Model Context Protocol (MCP) server for Finch that enables generative AI models to build and push container images through Finch CLI leveraged MCP tools.
+
+- Build container images using Finch with support for various build options
+- Push container images to repositories, including Amazon ECR
+- Create ECR repositories if they don't exist
+- Automatic management of the Finch VM on macOS and Windows
+- Automatic configuration of ECR credential helpers when needed
+
+[Learn more](src/finch-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/finch-mcp-server/)
+
 ### Amazon MQ MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-mq-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-mq-mcp-server/)
@@ -431,6 +464,16 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 [Learn more](src/aurora-dsql-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aurora-dsql-mcp-server/)
 
+### Amazon Cloudwatch Logs MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.cloudwatch-logs-mcp-server.svg)](https://pypi.org/project/awslabs.cloudwatch-logs-mcp-server/)
+
+An AWS Labs Model Context Protocol (MCP) server for CloudWatch Logs
+
+- Read-only operations for discovering log groups and running CloudWatch Log Insights Queries on them.
+
+[Learn more](src/cloudwatch-logs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cloudwatch-logs-mcp-server/)
+
 ### Amazon DynamoDB MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.dynamodb-mcp-server.svg)](https://pypi.org/project/awslabs.dynamodb-mcp-server/)
@@ -441,6 +484,19 @@ A server for interacting with Amazon DynamoDB
 - Data Plane operations like put, get, update, query and scan.
 
 [Learn more](src/dynamodb-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/dynamodb-mcp-server/)
+
+### AWS Serverless MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-serverless-mcp-server.svg)](https://pypi.org/project/awslabs.aws-serverless-mcp-server/)
+
+A server for interacting with AWS Serverless
+
+- Serverless Application Lifecycle: Intialize, build, deploy, and test Serverless Application Model (SAM) applications with SAM CLI
+- Web Application Deployment & Management: Deploy fullstack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter.
+- Observability: Retrieve and logs and metrics of serverless resources
+- Guidance, Templates, and Deployment Help: Provides guidance on AWS Lambda use-cases, selecting an IaC framework, and deployment process onto AWS Serverless
+
+[Learn more](src/aws-serverless-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server/)
 
 ## MCP AWS Lambda Handler Module
 

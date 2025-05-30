@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: scenario-01-cluster
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: scenario-01-task
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: 256
+      Memory: 512
+      ContainerDefinitions:
+        - Name: scenario-01-container
+          # Invalid image name will cause failure
+          Image: "scenario-01-image:latest"
+          Essential: true
+
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: scenario-01-service
+      Cluster:
+        Ref: ECSCluster
+      TaskDefinition:
+        Ref: TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      # Missing required NetworkConfiguration will cause failure
