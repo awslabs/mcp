@@ -56,7 +56,7 @@ SUSPICIOUS_PATTERNS = [
     r'(?i)\bdrop\b',  # DROP statement
     r'(?i)\btruncate\b',  # TRUNCATE
     r'(?i)\bgrant\b|\brevoke\b',  # GRANT or REVOKE
-    r'(?i);',  # stacked queries
+    r'(?i);(?=\s*\S)',  # stacked queries
     r'(?i)\bsleep\s*\(',  # delay-based probes
     r'(?i)\bpg_sleep\s*\(',
     r'(?i)\bload_file\s*\(',
