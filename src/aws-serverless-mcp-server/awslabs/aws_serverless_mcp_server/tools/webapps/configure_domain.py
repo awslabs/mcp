@@ -25,7 +25,7 @@ class ConfigureDomainTool:
 
     def __init__(self, mcp: FastMCP):
         """Initialize the ConfigureDomainTool with a FastMCP instance."""
-        mcp.tool(name='configure_domain_tool')(self.configure_domain)
+        mcp.tool(name='configure_domain')(self.configure_domain)
 
     async def configure_domain(
         self,

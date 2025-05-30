@@ -23,7 +23,7 @@ class SamInitTool:
 
     def __init__(self, mcp: FastMCP):
         """Initialize the SAM init tool."""
-        mcp.tool(name='sam_init_tool')(self.handle_sam_init)
+        mcp.tool(name='sam_init')(self.handle_sam_init)
 
     async def handle_sam_init(
         self,

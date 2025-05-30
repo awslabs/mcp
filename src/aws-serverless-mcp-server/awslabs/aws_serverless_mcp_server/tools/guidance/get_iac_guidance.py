@@ -122,7 +122,7 @@ class GetIaCGuidanceTool:
 
     def __init__(self, mcp: FastMCP):
         """Initialize the IaC guidance tool."""
-        mcp.tool(name='get_iac_guidance_tool')(self.get_iac_guidance_tool)
+        mcp.tool(name='get_iac_guidance')(self.get_iac_guidance_tool)
 
     async def get_iac_guidance_tool(
         self,

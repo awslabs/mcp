@@ -25,7 +25,7 @@ class SamLogsTool:
 
     def __init__(self, mcp: FastMCP, allow_sensitive_data_access):
         """Initialize the SAM logs tool."""
-        mcp.tool(name='sam_logs_tool')(self.handle_sam_logs)
+        mcp.tool(name='sam_logs')(self.handle_sam_logs)
         self.allow_sensitive_data_access = allow_sensitive_data_access
 
     async def handle_sam_logs(

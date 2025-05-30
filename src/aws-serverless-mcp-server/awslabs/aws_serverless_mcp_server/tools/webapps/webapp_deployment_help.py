@@ -24,7 +24,7 @@ class WebappDeploymentHelpTool:
 
     def __init__(self, mcp: FastMCP):
         """Initialize the webapp deployment help tool."""
-        mcp.tool(name='webapp_deployment_help_tool')(self.webapp_deployment_help_tool)
+        mcp.tool(name='webapp_deployment_help')(self.webapp_deployment_help_tool)
 
     async def webapp_deployment_help_tool(
         self,

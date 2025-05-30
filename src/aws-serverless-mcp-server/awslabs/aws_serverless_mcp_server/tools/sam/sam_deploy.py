@@ -22,7 +22,7 @@ class SamDeployTool:
 
     def __init__(self, mcp: FastMCP, allow_write: bool):
         """Initialize the SAM deploy tool."""
-        mcp.tool(name='sam_deploy_tool')(self.handle_sam_deploy)
+        mcp.tool(name='sam_deploy')(self.handle_sam_deploy)
         self.allow_write = allow_write
 
     async def handle_sam_deploy(

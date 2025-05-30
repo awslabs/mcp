@@ -40,7 +40,7 @@ class DeployWebAppTool:
 
     def __init__(self, mcp: FastMCP, allow_write):
         """Initialize the DeployWebAppTool with a FastMCP instance."""
-        mcp.tool(name='deploy_webapp_tool')(self.deploy_webapp)
+        mcp.tool(name='deploy_webapp')(self.deploy_webapp)
         self.allow_write = allow_write
 
     async def deploy_webapp(

@@ -33,7 +33,7 @@ class DeployServerlessAppHelpTool:
 
     def __init__(self, mcp: FastMCP):
         """Initialize the DeployServerlessAppHelpTool."""
-        mcp.tool(name='deploy_serverless_app_help_tool')(self.deploy_serverless_app_help_tool)
+        mcp.tool(name='deploy_serverless_app_help')(self.deploy_serverless_app_help_tool)
 
     async def deploy_serverless_app_help_tool(
         self,

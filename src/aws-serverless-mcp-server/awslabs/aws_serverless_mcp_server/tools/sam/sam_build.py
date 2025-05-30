@@ -23,7 +23,7 @@ class SamBuildTool:
 
     def __init__(self, mcp: FastMCP):
         """Initialize the SAM build tool."""
-        mcp.tool(name='sam_build_tool')(self.handle_sam_build)
+        mcp.tool(name='sam_build')(self.handle_sam_build)
 
     async def handle_sam_build(
         self,

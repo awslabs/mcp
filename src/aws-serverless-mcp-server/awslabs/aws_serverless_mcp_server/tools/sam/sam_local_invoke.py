@@ -28,7 +28,7 @@ class SamLocalInvokeTool:
 
     def __init__(self, mcp: FastMCP):
         """Initialize the SAM local invoke tool."""
-        mcp.tool(name='sam_local_invoke_tool')(self.handle_sam_local_invoke)
+        mcp.tool(name='sam_local_invoke')(self.handle_sam_local_invoke)
 
     async def handle_sam_local_invoke(
         self,

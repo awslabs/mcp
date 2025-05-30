@@ -32,7 +32,7 @@ class UpdateFrontendTool:
 
     def __init__(self, mcp: FastMCP):
         """Initialize the update frontend tool."""
-        mcp.tool(name='update_webapp_frontend_tool')(self.update_webapp_frontend_tool)
+        mcp.tool(name='update_webapp_frontend')(self.update_webapp_frontend_tool)
 
     async def update_webapp_frontend_tool(
         self,
