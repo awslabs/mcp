@@ -505,6 +505,16 @@ class TestEksStackHandler:
           ClusterName:
             Type: String
             Default: my-cluster
+        Resources:
+          EksCluster:
+            Type: AWS::EKS::Cluster
+            Metadata:
+              checkov:
+                skip:
+                  - id: CKV_AWS_58
+                  - comment: "Secrets encryption is enabled by default in EKS 1.27+"
+            Properties:
+              Name: my-cluster
         """
         mock_yaml_content = yaml.safe_load(mock_template_content)
 
@@ -530,6 +540,76 @@ class TestEksStackHandler:
             assert len(result.content) == 1
             assert result.content[0].type == 'text'
             assert 'template generated' in result.content[0].text
+
+            # Verify that the Metadata section was removed from the EksCluster resource
+            # because it only contained checkov metadata which was removed
+            assert 'Resources' in mock_yaml_content
+            assert 'EksCluster' in mock_yaml_content['Resources']
+            assert 'Metadata' not in mock_yaml_content['Resources']['EksCluster']
+
+    @pytest.mark.asyncio
+    async def test_generate_template_with_other_metadata(self):
+        """Test that _generate_template only removes checkov metadata and keeps other metadata."""
+        # Create a mock MCP server
+        mock_mcp = MagicMock()
+
+        # Initialize the EKS handler with the mock MCP server
+        handler = EksStackHandler(mock_mcp)
+
+        # Create a mock context
+        mock_ctx = MagicMock(spec=Context)
+
+        # Mock the open function to return a mock file with both checkov and other metadata
+        mock_template_content = """
+        Parameters:
+          ClusterName:
+            Type: String
+            Default: my-cluster
+        Resources:
+          EksCluster:
+            Type: AWS::EKS::Cluster
+            Metadata:
+              checkov:
+                skip:
+                  - id: CKV_AWS_58
+                  - comment: "Secrets encryption is enabled by default in EKS 1.27+"
+              other_metadata:
+                key: value
+            Properties:
+              Name: my-cluster
+        """
+        # Create a deep copy of the YAML content that we can modify
+        mock_yaml_content = yaml.safe_load(mock_template_content)
+
+        # Mock the necessary functions
+        with (
+            patch('builtins.open', mock_open(read_data=mock_template_content)),
+            patch('os.path.dirname', return_value='/mock/path'),
+            patch('os.path.join', return_value='/mock/path/template.yaml'),
+            patch('os.makedirs', return_value=None),
+            patch('yaml.safe_load', return_value=mock_yaml_content),
+            patch('yaml.dump', return_value=mock_template_content),
+        ):
+            # Call the _generate_template method
+            result = await handler._generate_template(
+                ctx=mock_ctx,
+                template_path='/path/to/output/template.yaml',
+                cluster_name='test-cluster',
+            )
+
+            # Verify the result
+            assert not result.isError
+            assert result.template_path == '/path/to/output/template.yaml'
+
+            # Verify that only the checkov metadata was removed
+            assert 'Resources' in mock_yaml_content
+            assert 'EksCluster' in mock_yaml_content['Resources']
+            assert 'Metadata' in mock_yaml_content['Resources']['EksCluster']
+            assert 'checkov' not in mock_yaml_content['Resources']['EksCluster']['Metadata']
+            assert 'other_metadata' in mock_yaml_content['Resources']['EksCluster']['Metadata']
+            assert mock_yaml_content['Resources']['EksCluster']['Metadata']['other_metadata'] == {
+                'key': 'value'
+            }
 
     @pytest.mark.asyncio
     async def test_manage_eks_stacks_generate(self):

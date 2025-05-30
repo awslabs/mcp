@@ -36,7 +36,7 @@ from awslabs.eks_mcp_server.models import (
 from mcp.server.fastmcp import Context
 from mcp.types import EmbeddedResource, ImageContent, TextContent
 from pydantic import Field
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 
 class EksStackHandler:
@@ -345,6 +345,10 @@ class EksStackHandler:
             if 'Parameters' in template_yaml and 'ClusterName' in template_yaml['Parameters']:
                 template_yaml['Parameters']['ClusterName']['Default'] = cluster_name
 
+            # Remove checkov metadata from the EKS cluster resource
+            if 'Resources' in template_yaml and 'EksCluster' in template_yaml['Resources']:
+                self._remove_checkov_metadata(template_yaml['Resources']['EksCluster'])
+
             # Convert back to YAML
             modified_template = yaml.dump(template_yaml, default_flow_style=False)
 
@@ -588,6 +592,22 @@ class EksStackHandler:
                 stack_status='',
                 outputs={},
             )
+
+    def _remove_checkov_metadata(self, resource: Dict[str, Any]) -> None:
+        """Remove checkov metadata from a resource and clean up empty Metadata sections.
+
+        Args:
+            resource: The resource dictionary to process
+        """
+        if 'Metadata' in resource:
+            # Check if there's checkov metadata
+            if 'checkov' in resource['Metadata']:
+                # Remove only the checkov metadata
+                del resource['Metadata']['checkov']
+
+                # If Metadata is now empty, remove it entirely
+                if not resource['Metadata']:
+                    del resource['Metadata']
 
     async def _delete_stack(
         self, ctx: Context, stack_name: str, cluster_name: str
