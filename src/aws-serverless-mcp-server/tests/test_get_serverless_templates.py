@@ -11,11 +11,10 @@
 """Tests for the get_serverless_templates module."""
 
 import pytest
-from awslabs.aws_serverless_mcp_server.models import GetServerlessTemplatesRequest
 from awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates import (
-    get_serverless_templates,
+    GetServerlessTemplatesTool,
 )
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestGetServerlessTemplates:
@@ -25,7 +24,6 @@ class TestGetServerlessTemplates:
     async def test_get_serverless_templates_with_runtime(self):
         """Test getting serverless templates with specific runtime."""
         # Create a mock request
-        request = GetServerlessTemplatesRequest(template_type='API', runtime='nodejs18.x')
 
         # Call the function
         mock_tree_response = {
@@ -49,7 +47,9 @@ class TestGetServerlessTemplates:
             'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
         ) as mock_fetch:
             mock_fetch.side_effect = side_effect
-            result = await get_serverless_templates(request)
+            result = await GetServerlessTemplatesTool(MagicMock()).get_serverless_templates(
+                AsyncMock(), template_type='API', runtime='nodejs18.x'
+            )
 
             # Initialize templates variable
             templates = []
@@ -73,7 +73,6 @@ class TestGetServerlessTemplates:
     async def test_get_serverless_templates_without_runtime(self):
         """Test getting serverless templates without specific runtime."""
         # Create a mock request without runtime
-        request = GetServerlessTemplatesRequest(template_type='ETL', runtime=None)
 
         # Mock GitHub API responses
         mock_tree_response = {
@@ -97,7 +96,9 @@ class TestGetServerlessTemplates:
             'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
         ) as mock_fetch:
             mock_fetch.side_effect = side_effect
-            result = await get_serverless_templates(request)
+            result = await GetServerlessTemplatesTool(MagicMock()).get_serverless_templates(
+                AsyncMock(), template_type='ETL', runtime=None
+            )
 
             # Success or error case
             if 'templates' in result:
@@ -112,28 +113,47 @@ class TestGetServerlessTemplates:
         """Test serverless templates for various template types."""
         template_types = ['API', 'ETL', 'Web', 'Event', 'Lambda']
 
-        for template_type in template_types:
-            # Provide a runtime argument for each request
-            request = GetServerlessTemplatesRequest(
-                template_type=template_type, runtime='python3.9'
-            )
+        mock_tree_response = {
+            'tree': [
+                {'path': 'lambda-nodejs18.x', 'type': 'tree'},
+                {'path': 'README.md', 'type': 'blob'},
+            ]
+        }
+        mock_readme_response = {
+            'content': 'IyBMYW1iZGEgTm9kZWpzIEV4YW1wbGU='  # Base64 encoded "# Lambda Nodejs Example" # pragma: allowlist secret
+        }
 
-            # Call the function
-            result = await get_serverless_templates(request)
+        def side_effect(url):
+            if 'trees/main' in url:
+                return mock_tree_response
+            elif 'README.md' in url:
+                return mock_readme_response
+            return {}
 
-            # Success or error case
-            if 'templates' in result:
-                templates = result['templates']
-                assert isinstance(templates, list)
-            else:
-                assert result.get('success') is False
-                assert 'No serverless templates found' in result.get('message', '')
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
+        ) as mock_fetch:
+            mock_fetch.side_effect = side_effect
+
+            for template_type in template_types:
+                # Provide a runtime argument for each request
+
+                # Call the function
+                result = await GetServerlessTemplatesTool(MagicMock()).get_serverless_templates(
+                    AsyncMock(), template_type=template_type, runtime='python3.9'
+                )
+
+                # Success or error case
+                if 'templates' in result:
+                    templates = result['templates']
+                    assert isinstance(templates, list)
+                else:
+                    assert result.get('success') is False
+                    assert 'No serverless templates found' in result.get('message', '')
 
     @pytest.mark.asyncio
     async def test_get_serverless_templates_content_structure(self):
         """Test that serverless templates contain expected content structure."""
-        request = GetServerlessTemplatesRequest(template_type='lambda', runtime='nodejs18.x')
-
         # Mock GitHub API responses
         mock_tree_response = {
             'tree': [
@@ -156,7 +176,9 @@ class TestGetServerlessTemplates:
             'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
         ) as mock_fetch:
             mock_fetch.side_effect = side_effect
-            result = await get_serverless_templates(request)
+            result = await GetServerlessTemplatesTool(MagicMock()).get_serverless_templates(
+                AsyncMock(), template_type='lambda', runtime='nodejs18.x'
+            )
 
             # Success case
             assert 'templates' in result
@@ -181,99 +203,77 @@ class TestGetServerlessTemplates:
     @pytest.mark.asyncio
     async def test_get_serverless_templates_no_matches(self):
         """Test serverless templates with no matching results."""
-        request = GetServerlessTemplatesRequest(
-            template_type='NonExistentType', runtime='unsupported-runtime'
-        )
-
         # Mock empty GitHub response
         mock_tree_response = {'tree': []}
 
-        # Reset the global repo_tree variable
         with patch(
-            'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.repo_tree',
-            None,
-        ):
-            with patch(
-                'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
-            ) as mock_fetch:
-                mock_fetch.return_value = mock_tree_response
+            'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
+        ) as mock_fetch:
+            mock_fetch.return_value = mock_tree_response
 
-                # Call the function
-                result = await get_serverless_templates(request)
+            # Call the function
+            result = await GetServerlessTemplatesTool(MagicMock()).get_serverless_templates(
+                AsyncMock(), template_type='NonExistentType', runtime='unsupported-runtime'
+            )
+            # Should return error when no templates found
+            assert 'success' in result
+            assert result['success'] is False
+            assert 'message' in result
+            assert 'No serverless templates found' in result['message']
 
-                # Should return error when no templates found
-                assert 'success' in result
-                assert result['success'] is False
-                assert 'message' in result
-                assert 'No serverless templates found' in result['message']
-
-                # Verify GitHub API was called
-                mock_fetch.assert_called_once()
+            # Verify GitHub API was called
+            mock_fetch.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_serverless_templates_github_error(self):
         """Test serverless templates with GitHub API error."""
-        request = GetServerlessTemplatesRequest(template_type='API', runtime='nodejs18.x')
-
-        # Reset the global repo_tree variable
+        # Mock GitHub API error
         with patch(
-            'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.repo_tree',
-            None,
-        ):
-            # Mock GitHub API error
-            with patch(
-                'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
-            ) as mock_fetch:
-                mock_fetch.side_effect = Exception('GitHub API error')
+            'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
+        ) as mock_fetch:
+            mock_fetch.side_effect = Exception('GitHub API error')
 
-                # Call the function
-                result = await get_serverless_templates(request)
+            # Call the function
+            result = await GetServerlessTemplatesTool(MagicMock()).get_serverless_templates(
+                AsyncMock(), template_type='API', runtime='nodejs18.x'
+            )
 
-                # Should return error
-                assert 'success' in result
-                assert result['success'] is False
-                assert 'message' in result
-                assert 'error' in result
-                assert 'GitHub API error' in str(result['error'])
+            # Should return error
+            assert 'success' in result
+            assert result['success'] is False
+            assert 'message' in result
+            assert 'error' in result
+            assert 'GitHub API error' in str(result['error'])
 
     @pytest.mark.asyncio
     async def test_get_serverless_templates_caching(self):
         """Test that repository tree is cached between calls."""
-        request1 = GetServerlessTemplatesRequest(template_type='API', runtime='python3.9')
-        request2 = GetServerlessTemplatesRequest(template_type='Lambda', runtime='nodejs18.x')
-
         mock_tree_response = {
             'tree': []  # Empty tree to avoid README fetches
         }
 
-        # Reset the global repo_tree variable
         with patch(
-            'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.repo_tree',
-            None,
-        ):
-            with patch(
-                'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
-            ) as mock_fetch:
-                mock_fetch.return_value = mock_tree_response
+            'awslabs.aws_serverless_mcp_server.tools.guidance.get_serverless_templates.fetch_github_content'
+        ) as mock_fetch:
+            mock_fetch.return_value = mock_tree_response
+            tool = GetServerlessTemplatesTool(MagicMock())
+            # First call
+            await tool.get_serverless_templates(
+                AsyncMock(), template_type='API', runtime='python3.9'
+            )
 
-                # First call
-                await get_serverless_templates(request1)
+            # Second call
+            await tool.get_serverless_templates(
+                AsyncMock(), template_type='API', runtime='nodejs18.x'
+            )
 
-                # Second call
-                await get_serverless_templates(request2)
-
-                # Tree should only be fetched once due to caching
-                assert mock_fetch.call_count == 1
-                mock_fetch.assert_called_once()
+            # Tree should only be fetched once due to caching
+            assert mock_fetch.call_count == 1
+            mock_fetch.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_serverless_templates_limit(self):
         """Test that template results are limited to avoid excessive API calls."""
-        request = GetServerlessTemplatesRequest(
-            template_type='lambda',  # This should match many templates
-            runtime='python3.9',
-        )
-
         # Mock many matching templates
         mock_tree_response = {
             'tree': [{'path': f'lambda-example-{i}', 'type': 'tree'} for i in range(10)]
@@ -306,7 +306,9 @@ class TestGetServerlessTemplates:
             mock_fetch.side_effect = side_effect
 
             # Call the function
-            result = await get_serverless_templates(request)
+            result = await GetServerlessTemplatesTool(MagicMock()).get_serverless_templates(
+                AsyncMock(), template_type='lambda', runtime='python3.9'
+            )
 
             # Should limit results
             if 'templates' in result:
@@ -319,8 +321,6 @@ class TestGetServerlessTemplates:
     @pytest.mark.asyncio
     async def test_get_serverless_templates_search_filtering(self):
         """Test that templates are filtered based on search terms."""
-        request = GetServerlessTemplatesRequest(template_type='API', runtime='python')
-
         mock_tree_response = {
             'tree': [
                 {'path': 'apigw-lambda-nodejs18.x', 'type': 'tree'},  # Should match both terms
@@ -357,7 +357,9 @@ class TestGetServerlessTemplates:
             mock_fetch.side_effect = side_effect
 
             # Call the function
-            result = await get_serverless_templates(request)
+            result = await GetServerlessTemplatesTool(MagicMock()).get_serverless_templates(
+                AsyncMock(), template_type='API', runtime='python'
+            )
 
             # Should filter based on search terms
             # Templates found
