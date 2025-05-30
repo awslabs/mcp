@@ -14,8 +14,9 @@ import json
 import pytest
 from awslabs.aws_serverless_mcp_server.tools.guidance.deploy_serverless_app_help import (
     ApplicationType,
-    deploy_serverless_app_help,
+    DeployServerlessAppHelpTool,
 )
+from unittest.mock import AsyncMock, MagicMock
 
 
 class TestDeployServerlessAppHelp:
@@ -25,7 +26,9 @@ class TestDeployServerlessAppHelp:
     async def test_deploy_serverless_app_help_event_driven(self):
         """Test getting deployment help for event-driven applications."""
         # Call the function with event-driven application type
-        result = await deploy_serverless_app_help(ApplicationType.EVENT_DRIVEN)
+        result = await DeployServerlessAppHelpTool(MagicMock()).deploy_serverless_app_help_tool(
+            AsyncMock(), ApplicationType.EVENT_DRIVEN
+        )
 
         # Verify the result
         assert 'content' in result
@@ -55,7 +58,9 @@ class TestDeployServerlessAppHelp:
     async def test_deploy_serverless_app_help_backend(self):
         """Test getting deployment help for backend applications."""
         # Call the function with backend application type
-        result = await deploy_serverless_app_help(ApplicationType.BACKEND)
+        result = await DeployServerlessAppHelpTool(MagicMock()).deploy_serverless_app_help_tool(
+            AsyncMock(), ApplicationType.BACKEND
+        )
 
         # Verify the result
         assert 'content' in result
@@ -83,7 +88,9 @@ class TestDeployServerlessAppHelp:
     async def test_deploy_serverless_app_help_fullstack(self):
         """Test getting deployment help for fullstack applications."""
         # Call the function with fullstack application type
-        result = await deploy_serverless_app_help(ApplicationType.FULLSTACK)
+        result = await DeployServerlessAppHelpTool(MagicMock()).deploy_serverless_app_help_tool(
+            AsyncMock(), ApplicationType.FULLSTACK
+        )
 
         # Verify the result
         assert 'content' in result
@@ -111,7 +118,9 @@ class TestDeployServerlessAppHelp:
     async def test_deploy_serverless_app_help_step_structure(self):
         """Test the structure of deployment steps."""
         # Test with backend application type
-        result = await deploy_serverless_app_help(ApplicationType.BACKEND)
+        result = await DeployServerlessAppHelpTool(MagicMock()).deploy_serverless_app_help_tool(
+            AsyncMock(), ApplicationType.BACKEND
+        )
 
         # Verify deployment steps structure
         assert 'content' in result
@@ -145,7 +154,9 @@ class TestDeployServerlessAppHelp:
 
         for app_type in application_types:
             # Call the function
-            result = await deploy_serverless_app_help(app_type)
+            result = await DeployServerlessAppHelpTool(
+                MagicMock()
+            ).deploy_serverless_app_help_tool(AsyncMock(), app_type.value)
 
             # Verify the result
             assert 'content' in result
@@ -173,7 +184,9 @@ class TestDeployServerlessAppHelp:
 
         results = []
         for app_type in application_types:
-            result = await deploy_serverless_app_help(app_type)
+            result = await DeployServerlessAppHelpTool(
+                MagicMock()
+            ).deploy_serverless_app_help_tool(AsyncMock(), app_type.value)
             content = json.loads(result['content'])
             results.append(content)
 
@@ -192,7 +205,9 @@ class TestDeployServerlessAppHelp:
     async def test_deploy_serverless_app_help_sam_integration(self):
         """Test that deployment help properly integrates SAM CLI guidance."""
         # Test with event-driven application type
-        result = await deploy_serverless_app_help(ApplicationType.EVENT_DRIVEN)
+        result = await DeployServerlessAppHelpTool(MagicMock()).deploy_serverless_app_help_tool(
+            AsyncMock(), ApplicationType.EVENT_DRIVEN
+        )
 
         # Verify SAM CLI is mentioned in the help
         assert 'content' in result
@@ -210,7 +225,9 @@ class TestDeployServerlessAppHelp:
     async def test_deploy_serverless_app_help_lambda_web_adapter_mention(self):
         """Test that Lambda Web Adapter is mentioned for web frameworks."""
         # Test with backend application type
-        result = await deploy_serverless_app_help(ApplicationType.BACKEND)
+        result = await DeployServerlessAppHelpTool(MagicMock()).deploy_serverless_app_help_tool(
+            AsyncMock(), ApplicationType.BACKEND
+        )
 
         # Verify Lambda Web Adapter is mentioned
         assert 'content' in result
@@ -226,7 +243,9 @@ class TestDeployServerlessAppHelp:
     async def test_deploy_serverless_app_help_iac_guidance(self):
         """Test that IaC guidance is included."""
         # Test with fullstack application type
-        result = await deploy_serverless_app_help(ApplicationType.FULLSTACK)
+        result = await DeployServerlessAppHelpTool(MagicMock()).deploy_serverless_app_help_tool(
+            AsyncMock(), ApplicationType.FULLSTACK
+        )
 
         # Verify IaC guidance is included
         assert 'content' in result
@@ -243,7 +262,9 @@ class TestDeployServerlessAppHelp:
     async def test_deploy_serverless_app_help_deployment_artifacts(self):
         """Test that deployment artifact guidance is included."""
         # Test with backend application type
-        result = await deploy_serverless_app_help(ApplicationType.BACKEND)
+        result = await DeployServerlessAppHelpTool(MagicMock()).deploy_serverless_app_help_tool(
+            AsyncMock(), ApplicationType.BACKEND
+        )
 
         # Verify deployment artifact guidance is included
         assert 'content' in result
@@ -260,7 +281,9 @@ class TestDeployServerlessAppHelp:
     async def test_deploy_serverless_app_help_step_order(self):
         """Test that deployment steps are in logical order."""
         # Test with event-driven application type
-        result = await deploy_serverless_app_help(ApplicationType.EVENT_DRIVEN)
+        result = await DeployServerlessAppHelpTool(MagicMock()).deploy_serverless_app_help_tool(
+            AsyncMock(), ApplicationType.EVENT_DRIVEN
+        )
 
         # Verify step order makes sense
         assert 'content' in result

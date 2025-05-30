@@ -1,6 +1,4 @@
 import boto3
-from awslabs.aws_serverless_mcp_server import __version__
-from botocore.config import Config
 from typing import Any, Optional
 
 
@@ -18,6 +16,5 @@ def get_aws_client(service_name: str, region: Optional[str]) -> Any:
         - The client is configured with a custom user agent string for identification.
         - Requires valid AWS credentials to be configured in the environment.
     """
-    boto_config = Config(user_agent_extra=f'awslabs/mcp/aws-serverless-mcp-server/{__version__}')
     session = boto3.Session(region_name=region) if region else boto3.Session()
-    return session.client(service_name, config=boto_config)
+    return session.client(service_name)

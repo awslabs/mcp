@@ -21,7 +21,7 @@ from awslabs.aws_serverless_mcp_server.tools.webapps.utils.frontend_uploader imp
     upload_to_s3,
 )
 from botocore.exceptions import BotoCoreError, ClientError
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 
 class TestFrontendUploader:
@@ -217,7 +217,7 @@ class TestFrontendUploader:
             await upload_to_s3('/dir/source', 'test-bucket', 'us-east-1')
 
             # Verify S3 client was created with correct region
-            mock_session.client.assert_called_once_with('s3', config=ANY)
+            mock_session.client.assert_called_once_with('s3')
 
             # Verify files were uploaded
             expected_calls = [
@@ -251,7 +251,7 @@ class TestFrontendUploader:
             await upload_to_s3('/dir/source', 'test-bucket')
 
             # Verify Session was created without region
-            mock_session.client.assert_called_once_with('s3', config=ANY)
+            mock_session.client.assert_called_once_with('s3')
 
     @pytest.mark.asyncio
     async def test_upload_to_s3_client_error(self):
