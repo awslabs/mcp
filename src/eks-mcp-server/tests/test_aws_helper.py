@@ -12,6 +12,7 @@
 """Tests for the AWS Helper."""
 
 import os
+from awslabs.eks_mcp_server import __version__
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from unittest.mock import ANY, MagicMock, patch
 
@@ -131,7 +132,7 @@ class TestAwsHelper:
             )
 
     def test_create_boto3_client_user_agent(self):
-        """Test that create_boto3_client sets the user agent suffix correctly."""
+        """Test that create_boto3_client sets the user agent suffix correctly using the package version."""
         # Create a real Config object to inspect
         with patch.object(AwsHelper, 'get_aws_profile', return_value=None):
             with patch.object(AwsHelper, 'get_aws_region', return_value=None):
@@ -143,6 +144,7 @@ class TestAwsHelper:
                     _, kwargs = mock_client.call_args
                     config = kwargs.get('config')
 
-                    # Verify the user agent suffix
+                    # Verify the user agent suffix uses the version from __init__.py
                     assert config is not None
-                    assert config.user_agent_extra == 'awslabs/mcp/eks-mcp-server/0.1.0'
+                    expected_user_agent = f'awslabs/mcp/eks-mcp-server/{__version__}'
+                    assert config.user_agent_extra == expected_user_agent
