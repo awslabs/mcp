@@ -12,13 +12,13 @@
 
 import json
 import pytest
-from awslabs.aws_serverless_mcp_server.models import GetIaCGuidanceRequest
 from awslabs.aws_serverless_mcp_server.tools.guidance.get_iac_guidance import (
     ComparisonTable,
+    GetIaCGuidanceTool,
     IaCToolInfo,
     ToolSpecificGuidance,
-    get_iac_guidance,
 )
+from unittest.mock import AsyncMock, MagicMock
 
 
 class TestIaCToolInfo:
@@ -95,9 +95,9 @@ class TestGetIaCGuidance:
     @pytest.mark.asyncio
     async def test_get_iac_guidance_basic(self):
         """Test getting basic IaC guidance."""
-        request = GetIaCGuidanceRequest(iac_tool='CloudFormation', include_examples=False)
-
-        result = await get_iac_guidance(request)
+        result = await GetIaCGuidanceTool(MagicMock()).get_iac_guidance_tool(
+            AsyncMock(), iac_tool='CloudFormation', include_examples=False
+        )
 
         # Check basic structure
         assert 'title' in result
@@ -128,9 +128,9 @@ class TestGetIaCGuidance:
     @pytest.mark.asyncio
     async def test_get_iac_guidance_with_examples(self):
         """Test getting IaC guidance with examples."""
-        request = GetIaCGuidanceRequest(iac_tool='CloudFormation', include_examples=True)
-
-        result = await get_iac_guidance(request)
+        result = await GetIaCGuidanceTool(MagicMock()).get_iac_guidance_tool(
+            AsyncMock(), iac_tool='CloudFormation', include_examples=True
+        )
 
         # Parse JSON string
         tools = json.loads(result['tools'])
@@ -143,9 +143,9 @@ class TestGetIaCGuidance:
     @pytest.mark.asyncio
     async def test_get_iac_guidance_without_examples(self):
         """Test getting IaC guidance without examples."""
-        request = GetIaCGuidanceRequest(iac_tool='CloudFormation', include_examples=False)
-
-        result = await get_iac_guidance(request)
+        result = await GetIaCGuidanceTool(MagicMock()).get_iac_guidance_tool(
+            AsyncMock(), iac_tool='CloudFormation', include_examples=False
+        )
 
         # Parse JSON string
         tools = json.loads(result['tools'])
@@ -157,9 +157,9 @@ class TestGetIaCGuidance:
     @pytest.mark.asyncio
     async def test_get_iac_guidance_specific_tool_sam(self):
         """Test getting IaC guidance for SAM."""
-        request = GetIaCGuidanceRequest(iac_tool='SAM', include_examples=False)
-
-        result = await get_iac_guidance(request)
+        result = await GetIaCGuidanceTool(MagicMock()).get_iac_guidance_tool(
+            AsyncMock(), iac_tool='SAM', include_examples=False
+        )
 
         # Check that tool-specific guidance is included
         assert 'toolSpecificGuidance' in result
@@ -171,9 +171,9 @@ class TestGetIaCGuidance:
     @pytest.mark.asyncio
     async def test_get_iac_guidance_specific_tool_cdk(self):
         """Test getting IaC guidance for CDK."""
-        request = GetIaCGuidanceRequest(iac_tool='CDK', include_examples=False)
-
-        result = await get_iac_guidance(request)
+        result = await GetIaCGuidanceTool(MagicMock()).get_iac_guidance_tool(
+            AsyncMock(), iac_tool='CDK', include_examples=False
+        )
 
         # Check that tool-specific guidance is included
         assert 'toolSpecificGuidance' in result
@@ -185,9 +185,9 @@ class TestGetIaCGuidance:
     @pytest.mark.asyncio
     async def test_get_iac_guidance_specific_tool_cloudformation(self):
         """Test getting IaC guidance for CloudFormation."""
-        request = GetIaCGuidanceRequest(iac_tool='CloudFormation', include_examples=True)
-
-        result = await get_iac_guidance(request)
+        result = await GetIaCGuidanceTool(MagicMock()).get_iac_guidance_tool(
+            AsyncMock(), iac_tool='CloudFormation', include_examples=True
+        )
 
         # Check that tool-specific guidance is included
         assert 'toolSpecificGuidance' in result
