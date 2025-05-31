@@ -339,6 +339,19 @@ A server for interacting with Amazon Neptune graph database.
 
 [Learn more about the Amazon Neptune MCP Server](servers/amazon-neptune-mcp-server.md)
 
+### AWS Bedrock Data Automation MCP Server
+
+A Model Context Protocol (MCP) server for Amazon Bedrock Data Automation that enables AI assistants to analyze documents, images, videos, and audio files using Amazon Bedrock Data Automation projects.
+
+**Features:**
+
+- Project Management: List and get details about Bedrock Data Automation projects
+- Asset Analysis: Extract insights from unstructured content using Bedrock Data Automation
+- Support for Multiple Content Types: Process documents, images, videos, and audio files
+- Integration with Amazon S3: Seamlessly upload and download assets and results
+
+[Learn more about the AWS Bedrock Data Automation MCP Server](servers/aws-bedrock-data-automation-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
