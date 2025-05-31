@@ -1,0 +1,32 @@
+# Network Configuration Failure - Test Prompts
+
+The following prompts can be used to test Claude's ability to diagnose and troubleshoot ECS service network configuration issues.
+
+## General Troubleshooting Prompt
+
+I've deployed an ECS service named "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]", but the tasks are failing to start. The service is unable to pull the container image and seems to be having connectivity issues. Can you help me troubleshoot what's causing these network failures?
+
+## Testing get_ecs_troubleshooting_guidance Tool
+
+I need help diagnosing a network issue with my ECS service "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]". The service was just created but tasks are failing to start. Can you use the get_ecs_troubleshooting_guidance tool to analyze the symptoms and recommend next steps?
+
+## Testing fetch_service_events Tool
+
+My ECS service "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]" is having deployment issues. Can you use fetch_service_events to check the service events and see if there are any network-related error messages that might explain what's happening?
+
+## Testing ecs_resource_management Tool
+
+I think my ECS service "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]" has security group issues. Can you examine the service's network configuration and security groups to see if there are any restrictions preventing outbound traffic?
+
+## Testing Cross-Tool Integration
+
+My ECS Fargate service "[SERVICE_NAME]" in cluster "[CLUSTER_NAME]" can't pull container images and is failing to start tasks. I suspect it might be a network configuration issue. Can you perform a comprehensive diagnosis, starting with get_ecs_troubleshooting_guidance, then examining service events, and finally checking the network configuration?
+
+## Expected Results
+
+Claude should identify:
+1. The security group has no outbound rules, blocking all outbound traffic
+2. This prevents the ECS task from:
+   - Pulling the container image from the internet
+   - Establishing connections to other services
+3. The solution is to add appropriate outbound rules to the security group

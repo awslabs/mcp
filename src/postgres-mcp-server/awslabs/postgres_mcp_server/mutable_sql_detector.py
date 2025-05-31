@@ -78,8 +78,6 @@ def check_sql_injection_risk(sql: str) -> list[dict]:
         dictionaries containing detected security issue
     """
     issues = []
-    print(f"Suspicious patterns are ${SUSPICIOUS_PATTERNS}")
-    # raise ValueError("Suspicious patterns are ${SUSPICIOUS_PATTERNS}")
     for pattern in SUSPICIOUS_PATTERNS:
         if re.search(pattern, sql):
             issues.append(

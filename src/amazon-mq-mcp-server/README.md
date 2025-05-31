@@ -96,7 +96,7 @@ AWS_SESSION_TOKEN=<from the profile you set up>
 ```json
   {
     "mcpServers": {
-      "awslabs.lambda-mcp-server": {
+      "awslabs.amazon-mq-mcp-server": {
         "command": "docker",
         "args": [
           "run",
