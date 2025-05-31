@@ -89,8 +89,6 @@ SYSTEM_REGEX = re.compile(
 
 # -- Suspicious pattern detection (SQL injection, stacked queries, etc.) --
 SUSPICIOUS_PATTERNS = [
-    r'--.*$',  # single-line comment
-    r'/\*.*?\*/',  # multi-line comment
     r"(?i)'.*?--",  # comment injection
     r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology
     r"(?i)\bor\b\s*'[^']+'\s*=\s*'[^']+'",  # string tautology
@@ -98,7 +96,7 @@ SUSPICIOUS_PATTERNS = [
     r'(?i)\bdrop\b',  # DROP
     r'(?i)\btruncate\b',  # TRUNCATE
     r'(?i)\bgrant\b|\brevoke\b',  # GRANT or REVOKE
-    r'(?i);',  # stacked queries
+    r';\s*(?!($|\s*--|\s*/\*))(?=\S)',  # stacked queries, excluding semicolons followed by comments or whitespace
     r'(?i)\bsleep\s*\(',  # time-based injection
     r'(?i)\bload_file\s*\(',  # file read
     r'(?i)\binto\s+outfile\b',  # file write
