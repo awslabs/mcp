@@ -780,6 +780,37 @@ class K8sHandler:
                 output_file_path='',
             )
 
+    def _remove_checkov_skip_annotations(self, content: str) -> str:
+        """Remove checkov skip annotations from YAML content.
+
+        Args:
+            content: YAML content as string
+
+        Returns:
+            YAML content with checkov skip annotations removed
+        """
+        # Use yaml to parse and modify the content
+        yaml_content = yaml.safe_load(content)
+        if (
+            yaml_content
+            and 'metadata' in yaml_content
+            and 'annotations' in yaml_content['metadata']
+        ):
+            # Remove all checkov skip annotations
+            annotations = yaml_content['metadata']['annotations']
+            checkov_keys = [key for key in annotations.keys() if key.startswith('checkov.io/skip')]
+            for key in checkov_keys:
+                del annotations[key]
+
+            # If annotations is now empty, remove it
+            if not annotations:
+                del yaml_content['metadata']['annotations']
+
+            # Convert back to YAML string
+            content = yaml.dump(yaml_content, default_flow_style=False)
+
+        return content
+
     def _load_yaml_template(self, template_files: list, values: Dict[str, Any]) -> str:
         """Load and process Kubernetes template files.
 
@@ -803,6 +834,10 @@ class K8sHandler:
             # Replace variables in the template
             for key, value in values.items():
                 content = content.replace(key, value)
+
+            # Remove checkov skip annotations if present
+            if template_file == 'deployment.yaml':
+                content = self._remove_checkov_skip_annotations(content)
 
             template_contents.append(content)
 

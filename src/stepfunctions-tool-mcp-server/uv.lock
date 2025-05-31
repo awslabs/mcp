@@ -37,7 +37,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-stepfunctions-tool-mcp-server"
-version = "0.1.3"
+version = "0.1.5"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
@@ -55,6 +55,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-mock" },
     { name = "ruff" },
+    { name = "tomli" },
 ]
 
 [package.metadata]
@@ -74,6 +75,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-mock", specifier = ">=3.12.0" },
     { name = "ruff", specifier = ">=0.9.7" },
+    { name = "tomli", specifier = ">=2.0.1" },
 ]
 
 [[package]]
