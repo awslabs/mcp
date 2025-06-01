@@ -308,5 +308,9 @@ async def get_cost_and_usage(
         logger.error(f"Error generating cost report: {e}")
         return {'error': f'Error generating cost report: {str(e)}'}
 
-if __name__ == "__main__":
+def main():
+    """Run the MCP server with CLI argument support."""
     app.run()
+
+if __name__ == "__main__":
+    main()
