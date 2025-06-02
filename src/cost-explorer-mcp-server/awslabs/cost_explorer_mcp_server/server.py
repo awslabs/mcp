@@ -75,7 +75,7 @@ class DimensionKey(BaseModel):
 
 
 # Create FastMCP server
-app = FastMCP(title="Cost Explorer MCP Server")
+mcp = FastMCP(title="Cost Explorer MCP Server")
 
 
 @app.tool("get_today_date")
