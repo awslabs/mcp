@@ -55,30 +55,35 @@ For read operations, the following permissions are required:
 
 ### Write Operations Policy
 
-For write operations, the following permissions are required:
-
-```
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "cloudformation:CreateStack",
-        "cloudformation:UpdateStack",
-        "cloudformation:DeleteStack",
-        "iam:PutRolePolicy"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:RequestTag/CreatedBy": "EksMcpServer"
-        }
+For write operations, we recommend the following IAM policies to ensure successful deployment of EKS clusters using the CloudFormation template in `/awslabs/eks_mcp_server/templates/eks-templates/eks-with-vpc.yaml`:
+- [**IAMFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/IAMFullAccess.html): Enables creation and management of IAM roles and policies required for cluster operation
+- [**AmazonVPCFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonVPCFullAccess.html): Allows creation and configuration of VPC resources including subnets, route tables, internet gateways, and NAT gateways
+- [**AWSCloudFormationFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSCloudFormationFullAccess.html): Provides permissions to create, update, and delete CloudFormation stacks that orchestrate the deployment
+- **EKS Full Access (provided below)**: Required for creating and managing EKS clusters, including control plane configuration, node groups, and add-ons
+   ```
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "eks:*",
+        "Resource": "*"
       }
-    }
-  ]
-}
-```
+    ]
+  }
+   ```
+
+
+**Important Security Note**: Users should exercise caution when `--allow-write` and `--allow-sensitive-data-access` modes are enabled with these broad permissions, as this combination grants significant privileges to the MCP server. Only enable these flags when necessary and in trusted environments. For production use, consider creating more restrictive custom policies.
+
+### Kubernetes API Access Requirements
+
+All Kubernetes API operations will only work when one of the following conditions is met:
+
+1. The user's principal (IAM role/user) actually created the EKS cluster being accessed
+2. An EKS Access Entry has been configured for the user's principal
+
+If you encounter authorization errors when using Kubernetes API operations, verify that an access entry has been properly configured for your principal.
 
 ## Quickstart
 
