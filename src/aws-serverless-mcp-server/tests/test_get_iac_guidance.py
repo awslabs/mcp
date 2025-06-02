@@ -10,7 +10,6 @@
 # and limitations under the License.
 """Tests for the get_iac_guidance module."""
 
-import json
 import pytest
 from awslabs.aws_serverless_mcp_server.tools.guidance.get_iac_guidance import (
     ComparisonTable,
@@ -105,9 +104,8 @@ class TestGetIaCGuidance:
         assert 'tools' in result
         assert 'comparisonTable' in result
 
-        # Parse JSON strings
-        tools = json.loads(result['tools'])
-        comparison_table = json.loads(result['comparisonTable'])
+        tools = result['tools']
+        comparison_table = result['comparisonTable']
 
         # Check tools
         assert len(tools) > 0
@@ -132,8 +130,7 @@ class TestGetIaCGuidance:
             AsyncMock(), iac_tool='CloudFormation', include_examples=True
         )
 
-        # Parse JSON string
-        tools = json.loads(result['tools'])
+        tools = result['tools']
 
         # Check that examples are included
         for tool in tools:
@@ -147,8 +144,7 @@ class TestGetIaCGuidance:
             AsyncMock(), iac_tool='CloudFormation', include_examples=False
         )
 
-        # Parse JSON string
-        tools = json.loads(result['tools'])
+        tools = result['tools']
 
         # Check that examples are not included or are empty
         for tool in tools:
@@ -164,8 +160,7 @@ class TestGetIaCGuidance:
         # Check that tool-specific guidance is included
         assert 'toolSpecificGuidance' in result
 
-        # Parse JSON string
-        tool_specific_guidance = json.loads(result['toolSpecificGuidance'])
+        tool_specific_guidance = result['toolSpecificGuidance']
         assert tool_specific_guidance['title'] == 'AWS SAM Deployment Guide'
 
     @pytest.mark.asyncio
@@ -178,8 +173,7 @@ class TestGetIaCGuidance:
         # Check that tool-specific guidance is included
         assert 'toolSpecificGuidance' in result
 
-        # Parse JSON string
-        tool_specific_guidance = json.loads(result['toolSpecificGuidance'])
+        tool_specific_guidance = result['toolSpecificGuidance']
         assert tool_specific_guidance['title'] == 'AWS CDK Deployment Guide'
 
     @pytest.mark.asyncio
@@ -192,6 +186,5 @@ class TestGetIaCGuidance:
         # Check that tool-specific guidance is included
         assert 'toolSpecificGuidance' in result
 
-        # Parse JSON string
-        tool_specific_guidance = json.loads(result['toolSpecificGuidance'])
+        tool_specific_guidance = result['toolSpecificGuidance']
         assert tool_specific_guidance['title'] == 'AWS CloudFormation Deployment Guide'

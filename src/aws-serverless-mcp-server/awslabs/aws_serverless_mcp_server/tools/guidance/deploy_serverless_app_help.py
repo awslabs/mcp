@@ -13,7 +13,6 @@
 
 """Deploy serverless app help tool for AWS Serverless MCP Server."""
 
-import json
 from enum import Enum
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -119,4 +118,4 @@ class DeployServerlessAppHelpTool:
             },
         ]
 
-        return {'content': json.dumps(result)}
+        return {'content': result}

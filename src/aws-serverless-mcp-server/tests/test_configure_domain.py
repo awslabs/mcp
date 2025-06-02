@@ -138,7 +138,7 @@ class TestConfigureDomain:
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await ConfigureDomainTool(MagicMock()).configure_domain(
+            result = await ConfigureDomainTool(MagicMock(), True).configure_domain(
                 AsyncMock(),
                 project_name='test-project',
                 domain_name='test.example.com',
@@ -301,7 +301,7 @@ class TestConfigureDomain:
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await ConfigureDomainTool(MagicMock()).configure_domain(
+            result = await ConfigureDomainTool(MagicMock(), True).configure_domain(
                 AsyncMock(),
                 project_name='test-project',
                 domain_name='test.example.com',
@@ -384,8 +384,9 @@ class TestConfigureDomain:
         mock_cloudfront_client.list_distributions.side_effect = Exception(error_message)
 
         with patch('boto3.Session', return_value=mock_session):
-            # Call the function
-            result = await ConfigureDomainTool(MagicMock()).configure_domain(
+            # Call the func
+            # tion
+            result = await ConfigureDomainTool(MagicMock(), True).configure_domain(
                 AsyncMock(),
                 project_name='test-project',
                 domain_name='test.example.com',
@@ -397,3 +398,24 @@ class TestConfigureDomain:
             # Verify the result
             assert result['success'] is False
             assert error_message in result['error']
+
+    @pytest.mark.asyncio
+    async def test_configure_domain_allow_write_false(self):
+        """Test configure_domain with allow_write=False."""
+        # Initialize the tool with allow_write=False
+        tool = ConfigureDomainTool(MagicMock(), allow_write=False)
+
+        # Call the method and expect an exception
+        with pytest.raises(Exception) as excinfo:
+            await tool.configure_domain(
+                AsyncMock(),
+                project_name='test-project',
+                domain_name='test.example.com',
+                create_certificate=True,
+                create_route53_record=True,
+                region='us-east-1',
+            )
+
+        # Verify the exception message
+        assert 'Write operations are not allowed' in str(excinfo.value)
+        assert 'Set --allow-write flag to true to enable write operations' in str(excinfo.value)

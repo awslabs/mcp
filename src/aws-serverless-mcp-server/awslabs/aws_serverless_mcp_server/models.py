@@ -34,7 +34,8 @@ class BackendConfiguration(BaseModel):
         None, description='Application entry point file (e.g., app.js, app.py)'
     )
     generate_startup_script: Optional[bool] = Field(
-        False, description='Whether to automatically generate a startup script'
+        False,
+        description='Whether to automatically generate a startup script. Must set this to true if startup_script is not provided.',
     )
     architecture: Optional[Literal['x86_64', 'arm64']] = Field(
         'x86_64', description='Lambda architecture'

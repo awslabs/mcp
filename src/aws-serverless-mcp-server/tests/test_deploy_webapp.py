@@ -375,40 +375,42 @@ class TestDeployWebapp:
         # Create the tool with allow_write set to False
         tool = DeployWebAppTool(MagicMock(), allow_write=False)
 
-        # Call the function
-        result = await tool.deploy_webapp(
-            AsyncMock(),
-            deployment_type='fullstack',
-            project_name='test-project',
-            project_root=os.path.join(tempfile.gettempdir(), 'test-project'),
-            region=None,
-            backend_configuration=BackendConfiguration(
-                built_artifacts_path=os.path.join(tempfile.gettempdir(), 'test-project/dist'),
-                runtime='nodejs18.x',
-                port=3000,
-                framework=None,
-                startup_script=None,
-                entry_point=None,
-                generate_startup_script=None,
-                architecture=None,
-                memory_size=None,
-                timeout=None,
-                stage=None,
-                cors=None,
-                environment=None,
-                database_configuration=None,
-            ),
-            frontend_configuration=FrontendConfiguration(
-                built_assets_path=os.path.join(tempfile.gettempdir(), 'test-project/build'),
-                framework=None,
-                index_document=None,
-                error_document=None,
-                custom_domain=None,
-                certificate_arn=None,
-            ),
-        )
+        # Call the function and verify that an exception is raised
+        with pytest.raises(Exception) as exc_info:
+            await tool.deploy_webapp(
+                AsyncMock(),
+                deployment_type='fullstack',
+                project_name='test-project',
+                project_root=os.path.join(tempfile.gettempdir(), 'test-project'),
+                region=None,
+                backend_configuration=BackendConfiguration(
+                    built_artifacts_path=os.path.join(tempfile.gettempdir(), 'test-project/dist'),
+                    runtime='nodejs18.x',
+                    port=3000,
+                    framework=None,
+                    startup_script=None,
+                    entry_point=None,
+                    generate_startup_script=None,
+                    architecture=None,
+                    memory_size=None,
+                    timeout=None,
+                    stage=None,
+                    cors=None,
+                    environment=None,
+                    database_configuration=None,
+                ),
+                frontend_configuration=FrontendConfiguration(
+                    built_assets_path=os.path.join(tempfile.gettempdir(), 'test-project/build'),
+                    framework=None,
+                    index_document=None,
+                    error_document=None,
+                    custom_domain=None,
+                    certificate_arn=None,
+                ),
+            )
 
-        # Verify the result
-        assert result['success'] is False
-        assert 'Write operations are not allowed' in result['error']
-        assert '--allow-write flag' in result['error']
+        # Verify the exception message
+        assert (
+            'Write operations are not allowed. Set --allow-write flag to true to enable write operations.'
+            in str(exc_info.value)
+        )

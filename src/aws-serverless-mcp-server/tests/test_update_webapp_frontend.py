@@ -46,7 +46,7 @@ class TestUpdateWebappFrontend:
             patch('os.path.isdir', side_effect=mock_isdir),
             patch('os.path.join', side_effect=mock_join),
         ):
-            files = await UpdateFrontendTool(MagicMock())._get_all_files('/dir/source')
+            files = await UpdateFrontendTool(MagicMock(), True)._get_all_files('/dir/source')
 
             # Check that all files were found
             assert len(files) == 3
@@ -58,7 +58,7 @@ class TestUpdateWebappFrontend:
     async def test_get_all_files_empty_directory(self):
         """Test get_all_files with an empty directory."""
         with patch('os.listdir', return_value=[]):
-            files = await UpdateFrontendTool(MagicMock())._get_all_files('/dir/empty')
+            files = await UpdateFrontendTool(MagicMock(), True)._get_all_files('/dir/empty')
             assert len(files) == 0
 
     @pytest.mark.asyncio
@@ -66,7 +66,7 @@ class TestUpdateWebappFrontend:
         """Test get_all_files with an exception."""
         with patch('os.listdir', side_effect=Exception('Test error')):
             with pytest.raises(Exception, match='Test error'):
-                await UpdateFrontendTool(MagicMock())._get_all_files('/dir/source')
+                await UpdateFrontendTool(MagicMock(), True)._get_all_files('/dir/source')
 
     @pytest.mark.asyncio
     async def test_upload_file_to_s3(self):
@@ -77,7 +77,7 @@ class TestUpdateWebappFrontend:
             patch('builtins.open', mock_open(read_data=b'test content')),
             patch('mimetypes.guess_type', return_value=('text/plain', None)),
         ):
-            await UpdateFrontendTool(MagicMock())._upload_file_to_s3(
+            await UpdateFrontendTool(MagicMock(), True)._upload_file_to_s3(
                 mock_s3_client, '/dir/source/file.txt', 'test-bucket', '/dir/source'
             )
 
@@ -98,7 +98,7 @@ class TestUpdateWebappFrontend:
             patch('builtins.open', mock_open(read_data=b'test content')),
             patch('mimetypes.guess_type', return_value=('application/javascript', None)),
         ):
-            await UpdateFrontendTool(MagicMock())._upload_file_to_s3(
+            await UpdateFrontendTool(MagicMock(), True)._upload_file_to_s3(
                 mock_s3_client, '/dir/source/subdir/file.js', 'test-bucket', '/dir/source'
             )
 
@@ -121,7 +121,7 @@ class TestUpdateWebappFrontend:
             patch('mimetypes.guess_type', return_value=('text/plain', None)),
             pytest.raises(Exception, match='Test error'),
         ):
-            await UpdateFrontendTool(MagicMock())._upload_file_to_s3(
+            await UpdateFrontendTool(MagicMock(), True)._upload_file_to_s3(
                 mock_s3_client, '/dir/source/file.txt', 'test-bucket', '/dir/source'
             )
 
@@ -151,7 +151,7 @@ class TestUpdateWebappFrontend:
             patch.object(UpdateFrontendTool, '_get_all_files', return_value=local_files),
             patch.object(UpdateFrontendTool, '_upload_file_to_s3') as mock_upload,
         ):
-            await UpdateFrontendTool(MagicMock())._sync_directory_to_s3(
+            await UpdateFrontendTool(MagicMock(), True)._sync_directory_to_s3(
                 mock_s3_client, '/dir/source', 'test-bucket'
             )
 
@@ -178,7 +178,7 @@ class TestUpdateWebappFrontend:
             patch.object(UpdateFrontendTool, '_get_all_files', return_value=local_files),
             patch.object(UpdateFrontendTool, '_upload_file_to_s3') as mock_upload,
         ):
-            await UpdateFrontendTool(MagicMock())._sync_directory_to_s3(
+            await UpdateFrontendTool(MagicMock(), True)._sync_directory_to_s3(
                 mock_s3_client, '/dir/source', 'test-bucket'
             )
 
@@ -213,7 +213,7 @@ class TestUpdateWebappFrontend:
             patch.object(UpdateFrontendTool, '_get_all_files', return_value=local_files),
             patch.object(UpdateFrontendTool, '_upload_file_to_s3') as mock_upload,
         ):
-            await UpdateFrontendTool(MagicMock())._sync_directory_to_s3(
+            await UpdateFrontendTool(MagicMock(), True)._sync_directory_to_s3(
                 mock_s3_client, '/dir/source', 'test-bucket'
             )
 
@@ -235,7 +235,7 @@ class TestUpdateWebappFrontend:
     async def test_update_webapp_frontend_built_assets_not_found(self):
         """Test update_webapp_frontend with non-existent built assets path."""
         with patch('os.path.exists', return_value=False):
-            tool = UpdateFrontendTool(MagicMock())
+            tool = UpdateFrontendTool(MagicMock(), True)
             result = await tool.update_webapp_frontend_tool(
                 AsyncMock(),
                 project_name='test-project',
@@ -266,7 +266,7 @@ class TestUpdateWebappFrontend:
             patch('os.path.exists', return_value=True),
             patch('boto3.Session', return_value=mock_session),
         ):
-            tool = UpdateFrontendTool(MagicMock())
+            tool = UpdateFrontendTool(MagicMock(), True)
             result = await tool.update_webapp_frontend_tool(
                 AsyncMock(),
                 project_name='test-project',
@@ -298,7 +298,7 @@ class TestUpdateWebappFrontend:
             patch('os.path.exists', return_value=True),
             patch('boto3.Session', return_value=mock_session),
         ):
-            tool = UpdateFrontendTool(MagicMock())
+            tool = UpdateFrontendTool(MagicMock(), True)
             result = await tool.update_webapp_frontend_tool(
                 AsyncMock(),
                 project_name='test-project',
@@ -333,7 +333,7 @@ class TestUpdateWebappFrontend:
             patch('boto3.Session', return_value=mock_session),
             patch.object(UpdateFrontendTool, '_sync_directory_to_s3') as mock_sync,
         ):
-            result = await UpdateFrontendTool(MagicMock()).update_webapp_frontend_tool(
+            result = await UpdateFrontendTool(MagicMock(), True).update_webapp_frontend_tool(
                 AsyncMock(),
                 project_name='test-project',
                 project_root='/dir/test-project',
@@ -390,7 +390,7 @@ class TestUpdateWebappFrontend:
             # Mock timestamp for invalidation
             mock_datetime.now.return_value.timestamp.return_value = 1234567890
 
-            tool = UpdateFrontendTool(MagicMock())
+            tool = UpdateFrontendTool(MagicMock(), True)
             result = await tool.update_webapp_frontend_tool(
                 AsyncMock(),
                 project_name='test-project',
@@ -450,7 +450,7 @@ class TestUpdateWebappFrontend:
             patch('boto3.Session', return_value=mock_session),
             patch.object(UpdateFrontendTool, '_sync_directory_to_s3') as mock_sync,
         ):
-            tool = UpdateFrontendTool(MagicMock())
+            tool = UpdateFrontendTool(MagicMock(), True)
             result = await tool.update_webapp_frontend_tool(
                 AsyncMock(),
                 project_name='test-project',
@@ -495,7 +495,7 @@ class TestUpdateWebappFrontend:
                 UpdateFrontendTool, '_sync_directory_to_s3', side_effect=Exception('Sync error')
             ),
         ):
-            tool = UpdateFrontendTool(MagicMock())
+            tool = UpdateFrontendTool(MagicMock(), True)
             result = await tool.update_webapp_frontend_tool(
                 AsyncMock(),
                 project_name='test-project',
@@ -534,7 +534,7 @@ class TestUpdateWebappFrontend:
             patch('boto3.Session', return_value=mock_session),
             patch.object(UpdateFrontendTool, '_sync_directory_to_s3') as mock_sync,
         ):
-            tool = UpdateFrontendTool(MagicMock())
+            tool = UpdateFrontendTool(MagicMock(), True)
             result = await tool.update_webapp_frontend_tool(
                 AsyncMock(),
                 project_name='test-project',
@@ -576,7 +576,7 @@ class TestUpdateWebappFrontend:
             patch('boto3.Session', return_value=mock_session) as mock_session_constructor,
             patch.object(UpdateFrontendTool, '_sync_directory_to_s3') as mock_sync,
         ):
-            tool = UpdateFrontendTool(MagicMock())
+            tool = UpdateFrontendTool(MagicMock(), True)
             result = await tool.update_webapp_frontend_tool(
                 AsyncMock(),
                 project_name='test-project',
@@ -595,3 +595,24 @@ class TestUpdateWebappFrontend:
             # Verify success response
             assert result['status'] == 'success'
             assert 'Frontend assets updated successfully' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_update_webapp_frontend_allow_write_false(self):
+        """Test update_webapp_frontend with allow_write=False."""
+        # Initialize the tool with allow_write=False
+        tool = UpdateFrontendTool(MagicMock(), allow_write=False)
+
+        # Call the method and expect an exception
+        with pytest.raises(Exception) as excinfo:
+            await tool.update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='/dir/build',
+                invalidate_cache=True,
+                region='us-east-1',
+            )
+
+        # Verify the exception message
+        assert 'Write operations are not allowed' in str(excinfo.value)
+        assert 'Set --allow-write flag to true to enable write operations' in str(excinfo.value)

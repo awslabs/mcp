@@ -10,6 +10,7 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 #
+from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -17,11 +18,12 @@ from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
 
-class SamDeployTool:
+class SamDeployTool(BaseTool):
     """Tool to deploy AWS Serverless Application Model (SAM) applications using the 'sam deploy' command."""
 
     def __init__(self, mcp: FastMCP, allow_write: bool):
         """Initialize the SAM deploy tool."""
+        super().__init__(allow_write=allow_write)
         mcp.tool(name='sam_deploy')(self.handle_sam_deploy)
         self.allow_write = allow_write
 
@@ -37,7 +39,8 @@ class SamDeployTool:
             description='Absolute path to the template file (defaults to template.yaml)',
         ),
         s3_bucket: Optional[str] = Field(
-            default=None, description='S3 bucket to deploy artifacts to'
+            default=None,
+            description='S3 bucket to deploy artifacts to. You cannot set both s3_bucket and resolve_s3 parameters',
         ),
         s3_prefix: Optional[str] = Field(default=None, description='S3 prefix for the artifacts'),
         region: Optional[str] = Field(default=None, description='AWS region to deploy to'),
@@ -65,28 +68,28 @@ class SamDeployTool:
             default=None, description='Tags to apply to the stack'
         ),
         resolve_s3: bool = Field(
-            default=False, description='Automatically create an S3 bucket for deployment artifacts'
+            default=False,
+            description='Automatically create an S3 bucket for deployment artifacts.  You cannot set both s3_bucket and resolve_s3 parameters',
         ),
         debug: bool = Field(default=False, description='Turn on debug logging'),
     ) -> Dict[str, Any]:
-        """Deploys a serverless application using AWS SAM (Serverless Application Model) CLI.
+        """Deploys a serverless application onto AWS Cloud using AWS SAM (Serverless Application Model) CLI and CloudFormation.
 
         Requirements:
-        - AWS SAM CLI installed and configured in your environment
-        - SAM project is initialized using sam_init tool and built with sam_build.
+        - AWS SAM CLI MUST be installed and configured in your environment
+        - SAM project MUST be initialized using sam_init tool and built with sam_build.
 
         This command deploys your SAM application's build artifacts located in the .aws-sam directory
-        to AWS Cloud using AWS CloudFormation. When you make changes to your application's original files,
-        run sam build to update the .aws-sam directory before deploying.
+        to AWS Cloud using AWS CloudFormation. The only required parmeter is project_directory. SAM will automatically
+        create a S3 bucket where build artifacts are uploaded and referenced by the SAM template.
+
+        Usage tips:
+        - When you make changes to your application's original files, run sam build to update the .aws-sam directory before deploying.
 
         Returns:
             Dict: SAM deploy command output
         """
-        if not self.allow_write:
-            return {
-                'success': False,
-                'error': 'Write operations are not allowed. Set --allow-write flag to true to enable write operations.',
-            }
+        self.checkToolAccess()
 
         cmd = ['sam', 'deploy']
 

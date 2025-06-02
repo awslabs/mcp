@@ -154,9 +154,9 @@ class TestServer:
         mock_describe_schema.assert_called_once()
 
         mock_get_metrics.assert_called_once_with(mock_mcp)
-        mock_configure_domain.assert_called_once_with(mock_mcp)
+        mock_configure_domain.assert_called_once_with(mock_mcp, True)
         mock_deploy_webapp.assert_called_once_with(mock_mcp, True)  # allow_write=True
-        mock_update_frontend.assert_called_once_with(mock_mcp)
+        mock_update_frontend.assert_called_once_with(mock_mcp, True)
 
         # Verify MCP server is run
         mock_mcp.run.assert_called_once()

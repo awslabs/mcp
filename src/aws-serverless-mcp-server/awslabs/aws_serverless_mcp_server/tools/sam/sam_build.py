@@ -29,7 +29,7 @@ class SamBuildTool:
         self,
         ctx: Context,
         project_directory: str = Field(
-            description='Absolute path to directory containing the SAM project (defaults to current directory)'
+            description='Absolute path to directory containing the SAM project'
         ),
         template_file: Optional[str] = Field(
             default=None,
@@ -48,22 +48,40 @@ class SamBuildTool:
         ),
         use_container: bool = Field(
             default=False,
-            description='Use a container to build the function. Use this option if your function requires a specific runtime environmentor dependencies that are not available on the local machine. Docker must be installed.',
+            description="""Use a Lambda-like container to build the function. Use this option if your function requires a specific
+                runtime environment or dependencies that are not available on the local machine. Docker must be installed""",
         ),
         no_use_container: bool = Field(
             default=False,
-            description="""Run build in local machine instead of Docker container.
-                You can specify this option multiple times. Each instance of this option takes a key-value pair,
-                where the key is the resource and environment variable, and the value is the environment variable's value.
-                For example: --container-env-var Function1.GITHUB_TOKEN=TOKEN1 --container-env-var Function2.GITHUB_TOKEN=TOKEN2.""",
+            description="""Run build in local machine instead of Docker container.""",
         ),
         container_env_vars: Optional[Dict[str, str]] = Field(
-            default=None, description='Environment variables to pass to the build container.'
+            default=None,
+            description="""Environment variables to pass to the build container.
+                Each instance takes a key-value pair, where the key is the resource and environment variable, and the
+                value is the environment variable's value.
+                For example: --container-env-var Function1.GITHUB_TOKEN=TOKEN1 --container-env-var Function2.GITHUB_TOKEN=TOKEN2.""",
         ),
         container_env_var_file: Optional[str] = Field(
             default=None,
-            description="""Absolute path to a JSON file containing container environment variables.
-                For more information about container environment variable files, see Container environment variable file.""",
+            description="""Absolute path to a JSON file containing container environment variables. You can provide a single environment variable that applies to all serverless resources,
+                or different environment variables for each resource.
+                For example, for all resources:
+                {
+                    "Parameters": {
+                        "GITHUB_TOKEN": "TOKEN_GLOBAL"
+                    }
+                }
+                For individual resources:
+                {
+                    "MyFunction1": {
+                        "GITHUB_TOKEN": "TOKEN1"
+                    },
+                    "MyFunction2": {
+                        "GITHUB_TOKEN": "TOKEN2"
+                    }
+                }
+                """,
         ),
         build_image: Optional[str] = Field(
             default=None,
@@ -92,13 +110,15 @@ class SamBuildTool:
         """Builds a serverless application using AWS SAM (Serverless Application Model) CLI.
 
         Requirements:
-        - You must have AWS SAM CLI installed and configured in your environment.
-        - Your application should already be initialized with 'sam_init' tool to create sam project structure.
+        - AWS SAM CLI MUST be installed and configured in your environment
+        - An application MUST already be initialized with 'sam_init' tool to create sam project structure.
 
-        This command compiles your Lambda function code, creates deployment artifacts, and prepares your application for deployment and local testing.
-        It creates a .aws-sam directory that structures your application in a format and location that sam local and sam deploy require.
+        This command compiles your Lambda function and layer code, creates deployment artifacts, and prepares your application for deployment and local testing.
+        It creates a .aws-sam directory that structures your application in a format and location that sam local and sam deploy require. For Zip
+        functions, a .zip file archive is created, which contains your application code and its dependencies. For Image functions, a container image is created,
+        which includes the base operating system, runtime, and extensions, in addition to your application code and its dependencies.
 
-        Best Practices:
+        Usage tips:
         - Don’t edit any code under the .aws-sam/build directory. Instead, update your original source code in
         your project folder and run sam build to update the .aws-sam/build directory.
         - When you modify your original files, run sam build to update the .aws-sam/build directory.
