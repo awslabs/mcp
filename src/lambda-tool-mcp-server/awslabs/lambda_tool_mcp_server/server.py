@@ -299,9 +299,9 @@ def register_lambda_functions():
 
 def main():
     """Run the MCP server with CLI argument support."""
-    mcp.run()
-
     register_lambda_functions()
+
+    mcp.run()
 
 
 if __name__ == '__main__':
