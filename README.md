@@ -25,6 +25,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS CloudFormation MCP Server](#aws-cloudformation-mcp-server)
     - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
     - [Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)
+    - [AWS Step Functions Tool MCP Server](#aws-step-functions-tool-mcp-server)
     - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
     - [Frontend MCP Server](#frontend-mcp-server)
     - [Amazon ElastiCache/MemoryDB Valkey for MCP Server](#amazon-elasticache--memorydb-for-valkey-mcp-server)
@@ -37,10 +38,12 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Amazon MQ MCP Server](#amazon-mq-mcp-server)
     - [Synthetic Data MCP Server](#synthetic-data-mcp-server)
     - [Amazon Aurora DSQL MCP Server](#amazon-aurora-dsql-mcp-server)
+    - [Amazon Cloudwatch Logs MCP Server](#amazon-cloudwatch-logs-mcp-server)
     - [Amazon DynamoDB MCP Server](#amazon-dynamodb-mcp-server)
     - [Amazon Neptune MCP Server](#amazon-neptune-mcp-server)
     - [Amazon DocumentDB MCP Server](#amazon-documentdb-mcp-server)
     - [Amazon EKS MCP Server](#amazon-eks-mcp-server)
+    - [AWS Serverless MCP Server](#aws-serverless-mcp-server)
     - [Amazon ECS MCP Server](#amazon-ecs-mcp-server)
     - [Finch MCP Server](#finch-mcp-server)
     - [Use Cases for the Servers](#use-cases-for-the-servers)
@@ -235,6 +238,20 @@ A server for Amazon SNS / SQS.
 - Modify Topic / Queue Attributes
 
 [Learn more](src/amazon-sns-sqs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-sns-sqs-mcp-server/)
+
+### AWS Step Functions Tool MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.stepfunctions-tool-mcp-server.svg)](https://pypi.org/project/awslabs.stepfunctions-tool-mcp-server/)
+
+A server that acts as a bridge between MCP clients and AWS Step Functions state machines, allowing AI models to execute and manage complex workflows.
+
+- Run AWS Step Functions state machines as MCP tools without code changes
+- Support for both Standard and Express workflows
+- EventBridge Schema Registry integration for input validation
+- IAM-based authentication and authorization
+- Comprehensive workflow documentation generation
+
+[Learn more](src/stepfunctions-tool-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/stepfunctions-tool-mcp-server/)
 
 ### AWS Terraform MCP Server
 
@@ -462,6 +479,16 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 [Learn more](src/aurora-dsql-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aurora-dsql-mcp-server/)
 
+### Amazon Cloudwatch Logs MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.cloudwatch-logs-mcp-server.svg)](https://pypi.org/project/awslabs.cloudwatch-logs-mcp-server/)
+
+An AWS Labs Model Context Protocol (MCP) server for CloudWatch Logs
+
+- Read-only operations for discovering log groups and running CloudWatch Log Insights Queries on them.
+
+[Learn more](src/cloudwatch-logs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cloudwatch-logs-mcp-server/)
+
 ### Amazon DynamoDB MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.dynamodb-mcp-server.svg)](https://pypi.org/project/awslabs.dynamodb-mcp-server/)
@@ -472,6 +499,19 @@ A server for interacting with Amazon DynamoDB
 - Data Plane operations like put, get, update, query and scan.
 
 [Learn more](src/dynamodb-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/dynamodb-mcp-server/)
+
+### AWS Serverless MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-serverless-mcp-server.svg)](https://pypi.org/project/awslabs.aws-serverless-mcp-server/)
+
+A server for interacting with AWS Serverless
+
+- Serverless Application Lifecycle: Intialize, build, deploy, and test Serverless Application Model (SAM) applications with SAM CLI
+- Web Application Deployment & Management: Deploy fullstack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter.
+- Observability: Retrieve and logs and metrics of serverless resources
+- Guidance, Templates, and Deployment Help: Provides guidance on AWS Lambda use-cases, selecting an IaC framework, and deployment process onto AWS Serverless
+
+[Learn more](src/aws-serverless-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server/)
 
 ## MCP AWS Lambda Handler Module
 
@@ -489,7 +529,6 @@ See [`src/mcp-lambda-handler/README.md`](src/mcp-lambda-handler/README.md) for f
 
 ## Use Cases for the Servers
 
-For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What would be the estimated monthly cost for this CDK project before I deploy it?" or "Can you help me understand the potential AWS service expenses for this infrastructure design?" and receive detailed cost estimations and budget planning insights. The **Valkey MCP Server** enables natural language interaction with Valkey data stores, allowing AI assistants to efficiently manage data operations through a simple conversational interface.
 For example, you can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What would be the estimated monthly cost for this CDK project before I deploy it?" or "Can you help me understand the potential AWS service expenses for this infrastructure design?" and receive detailed cost estimations and budget planning insights. The **Valkey MCP Server** enables natural language interaction with Valkey data stores, allowing AI assistants to efficiently manage data operations through a simple conversational interface.
 
 ## Installation and Setup
