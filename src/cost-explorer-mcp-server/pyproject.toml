@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.cost-explorer-mcp-server"
-version = "1.0.0"
+version = "0.0.2"
 description = "MCP server for analyzing AWS costs and usage data through the AWS Cost Explorer API"
 readme = "README.md"
 requires-python = ">=3.10"

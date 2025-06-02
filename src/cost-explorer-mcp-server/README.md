@@ -98,6 +98,18 @@ The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment v
 ```
 
 Make sure the AWS profile has permissions to access the AWS Cost Explorer API. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+
+## Cost Considerations
+
+**Important:** AWS Cost Explorer API incurs charges on a per-request basis. Each API call made by this MCP server will result in charges to your AWS account.
+
+- **Cost Explorer API Pricing:** The AWS Cost Explorer API lets you directly access the interactive, ad-hoc query engine that powers AWS Cost Explorer. Each request will incur a cost of $0.01.
+- Each tool invocation that queries Cost Explorer (get_dimension_values, get_tag_values, get_cost_and_usage) will generate at least one billable API request
+- Complex queries with multiple filters or large date ranges may result in multiple API calls
+
+For current pricing information, please refer to the [AWS Cost Explorer Pricing page](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/).
+
+
 ## Security Considerations
 
 ### Required IAM Permissions
@@ -106,22 +118,7 @@ The following IAM permissions are required for this MCP server:
 - ce:GetDimensionValues
 - ce:GetTags
 
-Example IAM policy:
-json
-{
-   "Version": "2012-10-17",
-   "Statement": [
-       {
-           "Effect": "Allow",
-           "Action": [
-               "ce:GetCostAndUsage",
-               "ce:GetDimensionValues",
-               "ce:GetTags"
-           ],
-           "Resource": "*"
-       }
-   ]
-}
+
 
 ## Available Tools
 
