@@ -12,10 +12,10 @@
 
 import json
 import pytest
-from awslabs.aws_serverless_mcp_server.models import GetLambdaGuidanceRequest
 from awslabs.aws_serverless_mcp_server.tools.guidance.get_lambda_guidance import (
-    get_lambda_guidance,
+    GetLambdaGuidanceTool,
 )
+from unittest.mock import AsyncMock, MagicMock
 
 
 class TestGetLambdaGuidance:
@@ -24,11 +24,10 @@ class TestGetLambdaGuidance:
     @pytest.mark.asyncio
     async def test_get_lambda_guidance_with_examples(self):
         """Test getting Lambda guidance with examples included."""
-        # Create a mock request
-        request = GetLambdaGuidanceRequest(use_case='web-app', include_examples=True)
-
         # Call the function
-        result = await get_lambda_guidance(request)
+        result = await GetLambdaGuidanceTool(MagicMock()).get_lambda_guidance(
+            AsyncMock(), use_case='web-app', include_examples=True
+        )
 
         # Verify the result structure
         assert 'title' in result
@@ -54,11 +53,10 @@ class TestGetLambdaGuidance:
     @pytest.mark.asyncio
     async def test_get_lambda_guidance_without_examples(self):
         """Test getting Lambda guidance without examples."""
-        # Create a mock request without examples
-        request = GetLambdaGuidanceRequest(use_case='data-processing', include_examples=False)
-
         # Call the function
-        result = await get_lambda_guidance(request)
+        result = await GetLambdaGuidanceTool(MagicMock()).get_lambda_guidance(
+            AsyncMock(), use_case='data-processing', include_examples=False
+        )
 
         # Verify the result structure
         assert 'title' in result
@@ -82,11 +80,10 @@ class TestGetLambdaGuidance:
     @pytest.mark.asyncio
     async def test_get_lambda_guidance_default_examples(self):
         """Test getting Lambda guidance with default examples setting."""
-        # Create a mock request with default include_examples (should be True)
-        request = GetLambdaGuidanceRequest(use_case='api', include_examples=True)
-
         # Call the function
-        result = await get_lambda_guidance(request)
+        result = await GetLambdaGuidanceTool(MagicMock()).get_lambda_guidance(
+            AsyncMock(), use_case='api', include_examples=True
+        )
 
         # Verify the result structure
         assert 'title' in result
@@ -118,10 +115,10 @@ class TestGetLambdaGuidance:
         ]
 
         for use_case in use_cases:
-            request = GetLambdaGuidanceRequest(use_case=use_case, include_examples=True)
-
             # Call the function
-            result = await get_lambda_guidance(request)
+            result = await GetLambdaGuidanceTool(MagicMock()).get_lambda_guidance(
+                AsyncMock(), use_case=use_case, include_examples=True
+            )
 
             # Verify the result structure
             assert 'title' in result
@@ -141,10 +138,10 @@ class TestGetLambdaGuidance:
     @pytest.mark.asyncio
     async def test_get_lambda_guidance_content_structure(self):
         """Test that Lambda guidance contains expected content structure."""
-        request = GetLambdaGuidanceRequest(use_case='api', include_examples=True)
-
         # Call the function
-        result = await get_lambda_guidance(request)
+        result = await GetLambdaGuidanceTool(MagicMock()).get_lambda_guidance(
+            AsyncMock(), use_case='api', include_examples=True
+        )
 
         # Verify the result structure
         assert 'title' in result
@@ -176,10 +173,10 @@ class TestGetLambdaGuidance:
     @pytest.mark.asyncio
     async def test_get_lambda_guidance_empty_use_case(self):
         """Test Lambda guidance with empty use case."""
-        request = GetLambdaGuidanceRequest(use_case='', include_examples=False)
-
         # Call the function
-        result = await get_lambda_guidance(request)
+        result = await GetLambdaGuidanceTool(MagicMock()).get_lambda_guidance(
+            AsyncMock(), use_case='', include_examples=False
+        )
 
         # Should still provide general guidance
         assert 'title' in result
@@ -196,10 +193,10 @@ class TestGetLambdaGuidance:
     @pytest.mark.asyncio
     async def test_get_lambda_guidance_unknown_use_case(self):
         """Test Lambda guidance with unknown use case."""
-        request = GetLambdaGuidanceRequest(use_case='unknown-use-case', include_examples=True)
-
         # Call the function
-        result = await get_lambda_guidance(request)
+        result = await GetLambdaGuidanceTool(MagicMock()).get_lambda_guidance(
+            AsyncMock(), use_case='unknown-use-case', include_examples=True
+        )
 
         # Should still provide general guidance
         assert 'title' in result
