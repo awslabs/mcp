@@ -11,8 +11,7 @@
 """Utility functions for AWS China Documentation MCP Server."""
 
 import markdownify
-
-
+from bs4 import BeautifulSoup
 def extract_content_from_html(html: str) -> str:
     """Extract and convert HTML content to Markdown format.
 
