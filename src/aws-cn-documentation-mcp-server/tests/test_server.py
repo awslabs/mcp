@@ -34,10 +34,12 @@ class TestExtractContentFromHTML:
     def test_extract_content_from_html(self):
         """Test extracting content from HTML."""
         html = '<html><body><h1>Test</h1><p>This is a test.</p></body></html>'
-        with patch('bs4.BeautifulSoup') as mock_bs:
+        with patch('awslabs.aws_cn_documentation_mcp_server.util.BeautifulSoup') as mock_bs:
             mock_soup = MagicMock()
             mock_bs.return_value = mock_soup
-            with patch('markdownify.markdownify') as mock_markdownify:
+            with patch(
+                'awslabs.aws_cn_documentation_mcp_server.util.markdownify.markdownify'
+            ) as mock_markdownify:
                 mock_markdownify.return_value = '# Test\n\nThis is a test.'
                 result = extract_content_from_html(html)
                 assert result == '# Test\n\nThis is a test.'
@@ -47,7 +49,7 @@ class TestExtractContentFromHTML:
     def test_extract_content_from_html_no_content(self):
         """Test extracting content from HTML with no content."""
         html = '<html><body></body></html>'
-        with patch('bs4.BeautifulSoup') as mock_bs:
+        with patch('awslabs.aws_cn_documentation_mcp_server.util.BeautifulSoup') as mock_bs:
             mock_soup = MagicMock()
             mock_bs.return_value = mock_soup
             mock_soup.body = None

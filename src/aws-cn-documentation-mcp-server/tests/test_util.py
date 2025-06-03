@@ -119,8 +119,8 @@ class TestFormatDocumentationResult:
 class TestExtractContentFromHtml:
     """Tests for extract_content_from_html function."""
 
-    @patch('bs4.BeautifulSoup')
-    @patch('markdownify.markdownify')
+    @patch('awslabs.aws_cn_documentation_mcp_server.util.BeautifulSoup')
+    @patch('awslabs.aws_cn_documentation_mcp_server.util.markdownify.markdownify')
     def test_successful_extraction(self, mock_markdownify, mock_soup):
         """Test successful HTML content extraction."""
         # Setup mocks
@@ -137,7 +137,7 @@ class TestExtractContentFromHtml:
         mock_soup.assert_called_once()
         mock_markdownify.assert_called_once()
 
-    @patch('bs4.BeautifulSoup')
+    @patch('awslabs.aws_cn_documentation_mcp_server.util.BeautifulSoup')
     def test_empty_content(self, mock_soup):
         """Test extraction with empty content."""
         # Call function with empty content
