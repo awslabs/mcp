@@ -1,12 +1,12 @@
 [project]
 name = "awslabs.cost-explorer-mcp-server"
-version = "0.0.2"
+version = "0.0.3"
 description = "MCP server for analyzing AWS costs and usage data through the AWS Cost Explorer API"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.36.20",
-    "fastmcp>=0.1.0",
+    "mcp[cli]>=1.6.0",
     "pandas>=2.2.3",
     "pydantic>=2.10.6",
 ]
@@ -38,19 +38,15 @@ Source = "https://github.com/awslabs/mcp.git"
 "Bug Tracker" = "https://github.com/awslabs/mcp/issues"
 Changelog = "https://github.com/awslabs/mcp/blob/main/src/cost-explorer-mcp-server/CHANGELOG.md"
 
-
-
 [dependency-groups]
 dev = [
-    "black>=23.1.0",
-    "isort>=5.12.0",
-    "mypy>=1.0.1",
-    "pytest>=7.2.2",
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
-    "ruff>=0.0.254",
 ]
-
-
 
 [build-system]
 requires = ["hatchling"]
@@ -59,35 +55,8 @@ build-backend = "hatchling.build"
 [tool.hatch.metadata]
 allow-direct-references = true
 
-[tool.hatch.version]
-path = "awslabs/__init__.py"
-
-[tool.hatch.build.targets.wheel]
-packages = ["awslabs"]
-
-[tool.black]
-line-length = 100
-target-version = ["py310"]
-
-[tool.isort]
-profile = "black"
-line_length = 100
-
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-
 [tool.ruff]
-line-length = 100
-target-version = "py310"
-select = ["E", "F", "I"]
-ignore = []
-
-
-
+line-length = 99
 extend-include = ["*.ipynb"]
 exclude = [
     ".venv",
@@ -134,9 +103,18 @@ version_files = [
 ]
 update_changelog_on_bump = true
 
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=awslabs.cost_explorer_mcp_server --cov-report=term-missing"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 
 [tool.bandit]
-exclude_dirs = ["venv"]
+exclude_dirs = ["venv","tests"]
 
 [tool.coverage.run]
 source = ["awslabs"]
