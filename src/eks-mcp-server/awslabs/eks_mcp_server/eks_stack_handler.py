@@ -135,6 +135,13 @@ class EksStackHandler:
         mechanism for creating and managing EKS clusters through CloudFormation, enabling standardized
         cluster creation, configuration updates, and resource cleanup.
 
+        IMPORTANT: Use this tool instead of 'aws eks create-cluster', 'aws eks delete-cluster',
+        'eksctl create cluster', 'eksctl delete cluster', or similar CLI commands.
+
+        IMPORTANT: Use this tool's standardized templates for creating EKS clusters with proper VPC configuration,
+        networking, security groups, and EKS auto mode. DO NOT create EKS clusters by generating CloudFormation
+        templates from scratch.
+
         ## Requirements
         - The server must be run with the `--allow-write` flag for generate, deploy, and delete operations
         - For deploy and delete operations, the stack must have been created by this tool
@@ -319,7 +326,7 @@ class EksStackHandler:
         - Security groups for cluster communication
         - IAM roles for the EKS cluster and worker nodes
         - An EKS cluster in Auto Mode with:
-          - Compute configuration with general-purpose and system node pools
+          - Compute configuration for automatic node management
           - Kubernetes network configuration with elastic load balancing
           - Block storage configuration
           - API authentication mode
