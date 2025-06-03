@@ -1,0 +1,12 @@
+[
+    {
+        "include": [
+            "**/*.py"
+        ],
+        "exclude": [
+            "**/tests/**",
+            ".venv/**"
+        ],
+        "license": "./.github/workflows/check-license-header-hash.txt"
+    }
+]
