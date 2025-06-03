@@ -123,11 +123,13 @@ async def read_documentation(
     # Validate that URL is from docs.amazonaws.cn and ends with .html
     url_str = str(url)
     if not re.match(r'^https?://docs\.amazonaws\.cn/', url_str):
-        await ctx.error(f'Invalid URL: {url_str}. URL must be from the docs.amazonaws.cn domain')
-        raise ValueError('URL must be from the docs.amazonaws.cn domain')
+        error_msg = f'Invalid URL: {url_str}. URL must be from the docs.amazonaws.cn domain'
+        await ctx.error(error_msg)
+        return error_msg
     if not url_str.endswith('.html'):
-        await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise ValueError('URL must end with .html')
+        error_msg = f'Invalid URL: {url_str}. URL must end with .html'
+        await ctx.error(error_msg)
+        return error_msg
 
     logger.debug(f'Fetching documentation from {url_str}')
 
