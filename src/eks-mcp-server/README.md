@@ -56,10 +56,11 @@ For read operations, the following permissions are required:
 ### Write Operations Policy
 
 For write operations, we recommend the following IAM policies to ensure successful deployment of EKS clusters using the CloudFormation template in `/awslabs/eks_mcp_server/templates/eks-templates/eks-with-vpc.yaml`:
-- [**IAMFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/IAMFullAccess.html): Enables creation and management of IAM roles and policies required for cluster operation
-- [**AmazonVPCFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonVPCFullAccess.html): Allows creation and configuration of VPC resources including subnets, route tables, internet gateways, and NAT gateways
-- [**AWSCloudFormationFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSCloudFormationFullAccess.html): Provides permissions to create, update, and delete CloudFormation stacks that orchestrate the deployment
-- **EKS Full Access (provided below)**: Required for creating and managing EKS clusters, including control plane configuration, node groups, and add-ons
+
+* [**IAMFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/IAMFullAccess.html): Enables creation and management of IAM roles and policies required for cluster operation
+* [**AmazonVPCFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonVPCFullAccess.html): Allows creation and configuration of VPC resources including subnets, route tables, internet gateways, and NAT gateways
+* [**AWSCloudFormationFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSCloudFormationFullAccess.html): Provides permissions to create, update, and delete CloudFormation stacks that orchestrate the deployment
+* **EKS Full Access (provided below)**: Required for creating and managing EKS clusters, including control plane configuration, node groups, and add-ons
    ```
   {
     "Version": "2012-10-17",
