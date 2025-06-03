@@ -55,6 +55,10 @@ class SamBuildTool:
             default=False,
             description="""Run build in local machine instead of Docker container.""",
         ),
+        parallel: bool = Field(
+            default=True,
+            description='Build your AWS SAM application in parallel.',
+        ),
         container_env_vars: Optional[Dict[str, str]] = Field(
             default=None,
             description="""Environment variables to pass to the build container.
@@ -118,11 +122,13 @@ class SamBuildTool:
         functions, a .zip file archive is created, which contains your application code and its dependencies. For Image functions, a container image is created,
         which includes the base operating system, runtime, and extensions, in addition to your application code and its dependencies.
 
+        By default, the functions and layers are built in parallel for faster builds.
+
         Usage tips:
-        - Don’t edit any code under the .aws-sam/build directory. Instead, update your original source code in
+        - Don't edit any code under the .aws-sam/build directory. Instead, update your original source code in
         your project folder and run sam build to update the .aws-sam/build directory.
         - When you modify your original files, run sam build to update the .aws-sam/build directory.
-        - You may want the AWS SAM CLI to reference your project’s original root directory
+        - You may want the AWS SAM CLI to reference your project's original root directory
         instead of the .aws-sam directory, such as when developing and testing with sam local. Delete the .aws-sam directory
         or the AWS SAM template in the .aws-sam directory to have the AWS SAM CLI recognize your original project directory as
         the root project directory. When ready, run sam build again to create the .aws-sam directory.
@@ -155,6 +161,8 @@ class SamBuildTool:
             cmd.append('--no-use-container')
         if use_container:
             cmd.append('--use-container')
+        if parallel:
+            cmd.append('--parallel')
         if parameter_overrides:
             cmd.extend(['--parameter-overrides', parameter_overrides])
         if region:
