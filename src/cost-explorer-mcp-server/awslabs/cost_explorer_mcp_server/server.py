@@ -444,11 +444,11 @@ async def get_cost_and_usage(
         result = {'GroupedCosts': df.to_dict()}
 
         # Convert all keys to strings for JSON serialization
-        def stringify_keys(d):
+        def stringify_keys(d: Any) -> Any:
             if isinstance(d, dict):
                 return {str(k): stringify_keys(v) for k, v in d.items()}
             elif isinstance(d, list):
-                return [stringify_keys(i) for i in d]
+                return [{} if i is None else stringify_keys(i) for i in d]  # Handle None values
             else:
                 return d
 
