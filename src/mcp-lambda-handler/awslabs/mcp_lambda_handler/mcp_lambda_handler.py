@@ -24,6 +24,8 @@ from typing import (
     Optional,
     TypeVar,
     Union,
+    get_args,
+    get_origin,
     get_type_hints,
 )
 
@@ -181,20 +183,51 @@ class MCPLambdaHandler:
                             arg_name, arg_desc = line.split(':', 1)
                             arg_descriptions[arg_name.strip()] = arg_desc.strip()
 
+            def get_type_schema(type_hint: Any) -> Dict[str, Any]:
+                # Handle basic types
+                if type_hint is int:
+                    return {'type': 'integer'}
+                elif type_hint is float:
+                    return {'type': 'number'}
+                elif type_hint is bool:
+                    return {'type': 'boolean'}
+                elif type_hint is str:
+                    return {'type': 'string'}
+
+                # Handle Enums
+                if isinstance(type_hint, type) and issubclass(type_hint, Enum):
+                    return {'type': 'string', 'enum': [e.value for e in type_hint]}
+
+                # Get origin type (e.g., Dict from Dict[str, int])
+                origin = get_origin(type_hint)
+                if origin is None:
+                    return {'type': 'string'}  # Default for unknown types
+
+                # Handle Dict types
+                if origin is dict or origin is Dict:
+                    args = get_args(type_hint)
+                    if not args:
+                        return {'type': 'object', 'additionalProperties': True}
+
+                    # Get value type schema (args[1] is value type)
+                    value_schema = get_type_schema(args[1])
+                    return {'type': 'object', 'additionalProperties': value_schema}
+
+                # Handle List types
+                if origin is list or origin is List:
+                    args = get_args(type_hint)
+                    if not args:
+                        return {'type': 'array', 'items': {}}
+
+                    item_schema = get_type_schema(args[0])
+                    return {'type': 'array', 'items': item_schema}
+
+                # Default for unknown complex types
+                return {'type': 'string'}
+
             # Build properties from type hints
             for param_name, param_type in hints.items():
-                param_schema: Dict[str, Union[str, List[str]]] = {
-                    'type': 'string'
-                }  # Default to string
-                if param_type is int:
-                    param_schema['type'] = 'integer'
-                elif param_type is float:
-                    param_schema['type'] = 'number'
-                elif param_type is bool:
-                    param_schema['type'] = 'boolean'
-                elif isinstance(param_type, type) and issubclass(param_type, Enum):
-                    param_schema['type'] = 'string'
-                    param_schema['enum'] = [e.value for e in param_type]
+                param_schema = get_type_schema(param_type)
 
                 if param_name in arg_descriptions:
                     param_schema['description'] = arg_descriptions[param_name]
