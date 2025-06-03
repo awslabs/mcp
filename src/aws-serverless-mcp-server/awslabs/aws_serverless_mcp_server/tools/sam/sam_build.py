@@ -57,6 +57,10 @@ class SamBuildTool:
                 where the key is the resource and environment variable, and the value is the environment variable's value.
                 For example: --container-env-var Function1.GITHUB_TOKEN=TOKEN1 --container-env-var Function2.GITHUB_TOKEN=TOKEN2.""",
         ),
+        parallel: bool = Field(
+            default=True,
+            description='Build your AWS SAM application in parallel.',
+        ),
         container_env_vars: Optional[Dict[str, str]] = Field(
             default=None, description='Environment variables to pass to the build container.'
         ),
@@ -98,11 +102,13 @@ class SamBuildTool:
         This command compiles your Lambda function code, creates deployment artifacts, and prepares your application for deployment and local testing.
         It creates a .aws-sam directory that structures your application in a format and location that sam local and sam deploy require.
 
+        By default, the functions and layers are built in parallel for faster builds.
+
         Best Practices:
-        - Don’t edit any code under the .aws-sam/build directory. Instead, update your original source code in
+        - Don't edit any code under the .aws-sam/build directory. Instead, update your original source code in
         your project folder and run sam build to update the .aws-sam/build directory.
         - When you modify your original files, run sam build to update the .aws-sam/build directory.
-        - You may want the AWS SAM CLI to reference your project’s original root directory
+        - You may want the AWS SAM CLI to reference your project's original root directory
         instead of the .aws-sam directory, such as when developing and testing with sam local. Delete the .aws-sam directory
         or the AWS SAM template in the .aws-sam directory to have the AWS SAM CLI recognize your original project directory as
         the root project directory. When ready, run sam build again to create the .aws-sam directory.
@@ -135,6 +141,8 @@ class SamBuildTool:
             cmd.append('--no-use-container')
         if use_container:
             cmd.append('--use-container')
+        if parallel:
+            cmd.append('--parallel')
         if parameter_overrides:
             cmd.extend(['--parameter-overrides', parameter_overrides])
         if region:

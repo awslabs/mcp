@@ -192,3 +192,92 @@ class TestSamBuild:
             assert result['success'] is False
             assert 'Failed to build SAM project' in result['message']
             assert error_message in result['message']
+
+    @pytest.mark.asyncio
+    async def test_sam_build_with_parallel_default(self):
+        """Test SAM build with default parallel parameter (True)."""
+        # Mock the subprocess.run function
+        mock_result = MagicMock()
+        mock_result.stdout = b'Successfully built SAM project'
+        mock_result.stderr = b''
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_build.run_command',
+            return_value=(mock_result.stdout, mock_result.stderr),
+        ) as mock_run:
+            # Call the function with default parallel parameter (True)
+            result = await SamBuildTool(MagicMock()).handle_sam_build(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                base_dir=None,
+                build_dir=None,
+                use_container=False,
+                no_use_container=False,
+                container_env_vars=None,
+                container_env_var_file=None,
+                build_image=None,
+                debug=False,
+                manifest=None,
+                parameter_overrides=None,
+                region=None,
+                save_params=False,
+                profile=None,
+            )
+
+            # Verify the result
+            assert result['success'] is True
+            assert 'SAM project built successfully' in result['message']
+
+            # Verify run_command was called with the correct arguments
+            mock_run.assert_called_once()
+            args, kwargs = mock_run.call_args
+            cmd = args[0]
+
+            # Check that --parallel flag is included by default
+            assert '--parallel' in cmd
+
+    @pytest.mark.asyncio
+    async def test_sam_build_with_parallel_disabled(self):
+        """Test SAM build with parallel parameter set to False."""
+        # Mock the subprocess.run function
+        mock_result = MagicMock()
+        mock_result.stdout = b'Successfully built SAM project'
+        mock_result.stderr = b''
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_build.run_command',
+            return_value=(mock_result.stdout, mock_result.stderr),
+        ) as mock_run:
+            # Call the function with parallel=False
+            result = await SamBuildTool(MagicMock()).handle_sam_build(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                base_dir=None,
+                build_dir=None,
+                use_container=False,
+                no_use_container=False,
+                parallel=False,
+                container_env_vars=None,
+                container_env_var_file=None,
+                build_image=None,
+                debug=False,
+                manifest=None,
+                parameter_overrides=None,
+                region=None,
+                save_params=False,
+                profile=None,
+            )
+
+            # Verify the result
+            assert result['success'] is True
+            assert 'SAM project built successfully' in result['message']
+
+            # Verify run_command was called with the correct arguments
+            mock_run.assert_called_once()
+            args, kwargs = mock_run.call_args
+            cmd = args[0]
+
+            # Check that --parallel flag is NOT included when disabled
+            assert '--parallel' not in cmd

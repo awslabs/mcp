@@ -210,6 +210,7 @@ You should have AWS SAM CLI installed and configured in your environment.
 - `build_dir`: The absolute path to a directory where the built artifacts are stored
 - `use_container` (default: false): Use a container to build the function
 - `no_use_container` (default: false): Run build in local machine instead of Docker container
+- `parallel` (default: true): Build your AWS SAM application in parallel
 - `container_env_vars`: Environment variables to pass to the build container
 - `container_env_var_file`: Absolute path to a JSON file containing container environment variables
 - `build_image`: The URI of the container image that you want to pull for the build
