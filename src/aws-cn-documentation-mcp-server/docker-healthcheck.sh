@@ -7,6 +7,3 @@ else
   echo -n "Zero awslabs.* streams found";
   exit 1;
 fi;
-
-echo -n "Never should reach here";
-exit 99;
