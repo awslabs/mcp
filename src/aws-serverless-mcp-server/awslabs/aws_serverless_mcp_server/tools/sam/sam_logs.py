@@ -56,7 +56,8 @@ class SamLogsTool(BaseTool):
         profile: Optional[str] = Field(default=None, description='AWS profile to use'),
         cw_log_group: Optional[List[str]] = Field(
             default=None,
-            description='Use AWS CloudWatch to fetch logs. Includes logs from the CloudWatch Logs log groups that you specify\n            If you specify this option along with name, AWS SAM includes logs from the specified log groups in addition to logs\n            from the named resources.',
+            description="""Use AWS CloudWatch to fetch logs. Includes logs from the CloudWatch Logs log groups that you specify.
+                If you specify this option along with name, AWS SAM includes logs from the specified log groups in addition to logs from the named resources.""",
         ),
         config_env: Optional[str] = Field(
             default=None,
@@ -74,7 +75,7 @@ class SamLogsTool(BaseTool):
 
         Requirements:
         - AWS SAM CLI MUST be installed and configured in your environment
-        - Your SAM application MUST be deployed and recieving traffic
+        - Your SAM application MUST be deployed and receiving traffic
 
         After deploying your serverless application, you can use this tool to monitor it to provide insights on
         its operations and detect anomalies. Use this tool to help troubleshoot invocation failures, and function code errors

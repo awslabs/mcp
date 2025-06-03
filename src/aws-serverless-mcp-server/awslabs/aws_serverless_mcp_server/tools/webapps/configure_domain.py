@@ -44,7 +44,7 @@ class ConfigureDomainTool(BaseTool):
         create_route53_record: Optional[bool] = Field(
             default=True,
             description="""Whether to create a Route 53 record. When set to True, this tool creates a DNS A record
-                that points to the CloudFront distribution associated with this proejct""",
+                that points to the CloudFront distribution associated with this project""",
         ),
         region: Optional[str] = Field(
             default=None, description='AWS region to use (e.g., us-east-1)'

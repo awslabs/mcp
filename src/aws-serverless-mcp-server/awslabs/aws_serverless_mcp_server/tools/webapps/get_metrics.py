@@ -48,7 +48,7 @@ class GetMetricsTool(BaseTool):
         function_name: Optional[str] = Field(
             default=None,
             description="""Lambda function to get metrics for. Set this
-                        parameter if resources parameter contains 'lambda' and the function name is not same as the project_name. Typically, SAM appends aa random id suffix to function names.
+                        parameter if resources parameter contains 'lambda' and the function name is not same as the project_name. Typically, SAM appends a random id suffix to function names.
                         Find the name from CFN stack output. If function_name is not specified, project_name is used as function name.""",
         ),
         distribution_id: Optional[str] = Field(
@@ -63,8 +63,8 @@ class GetMetricsTool(BaseTool):
     ) -> Dict[str, Any]:
         """Retrieves CloudWatch metrics from a deployed web application.
 
-        Use this tool get metrics on error rates, latency, throttles, etc. of Lambda functions, API Gateways, or CloudFront disributions.
-        This tool can help provide insights into anomolies and monitor operations, which can help with troubleshooting.
+        Use this tool get metrics on error rates, latency, throttles, etc. of Lambda functions, API Gateways, or CloudFront distributions.
+        This tool can help provide insights into anomalies and monitor operations, which can help with troubleshooting.
 
         Returns:
             Dict: Metrics retrieval result

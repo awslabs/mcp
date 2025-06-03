@@ -110,7 +110,7 @@ class SamInitTool:
         - A folder structure that organizes your application
         - Configuration for your AWS Lambda functions
 
-        Use this tool to intialize a new project when building a serverless application.
+        Use this tool to initialize a new project when building a serverless application.
         This tool generates a project based on a pre-defined template. After calling this tool,
         modify the code and infrastructure templates to fit the requirements of your application.
 

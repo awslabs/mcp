@@ -80,7 +80,7 @@ class SamDeployTool(BaseTool):
         - SAM project MUST be initialized using sam_init tool and built with sam_build.
 
         This command deploys your SAM application's build artifacts located in the .aws-sam directory
-        to AWS Cloud using AWS CloudFormation. The only required parmeter is project_directory. SAM will automatically
+        to AWS Cloud using AWS CloudFormation. The only required parameter is project_directory. SAM will automatically
         create a S3 bucket where build artifacts are uploaded and referenced by the SAM template.
 
         Usage tips:
