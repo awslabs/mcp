@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.0.1] - 2025-06-02
+
+### Fixed
+
+- Fix MCP user agent being added so users can identify requests from this server in CloudTrail
+
+## [0.0.0] - 2025-05-29
+
 ### Added
 
 - Initial project setup
