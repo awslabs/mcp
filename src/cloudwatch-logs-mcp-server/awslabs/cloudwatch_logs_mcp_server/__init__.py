@@ -11,4 +11,4 @@
 
 """awslabs.cloudwatch-logs-mcp-server"""
 
-MCP_SERVER_VERSION = '0.0.0'
+MCP_SERVER_VERSION = '0.0.1'
