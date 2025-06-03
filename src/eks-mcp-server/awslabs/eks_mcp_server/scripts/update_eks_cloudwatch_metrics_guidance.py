@@ -47,7 +47,7 @@ def fetch_documentation_page() -> str:
         str: HTML content of the documentation page
     """
     try:
-        response = requests.get(DOCS_URL)
+        response = requests.get(DOCS_URL, timeout=10)
         response.raise_for_status()
         return response.text
     except requests.RequestException as e:
