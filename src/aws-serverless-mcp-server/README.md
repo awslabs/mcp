@@ -15,12 +15,12 @@ Key benefits of the Serverless MCP Server include:
 The set of tools provided by the Serverless MCP server can be broken down into four categories:
 
 1. Serverless Application Lifecycle
-    - Intialize, build, and deploy Serverless Application Model (SAM) applications with SAM CLI
+    - Initialize, build, and deploy Serverless Application Model (SAM) applications with SAM CLI
     - Test Lambda functions locally and remotely
 2. Web Application Deployment & Management
-    - Deploy fullstack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter.
+    - Deploy full-stack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter
     - Update frontend assets and optionally invaliate CloudFront caches
-    - Create custom domain names, including certificate and DNS setup.
+    - Create custom domain names, including certificate and DNS setup
 3. Observability
     - Retrieve and logs and metrics of serverless resources
 4. Guidance, Templates, and Deployment Help
@@ -210,6 +210,7 @@ You should have AWS SAM CLI installed and configured in your environment.
 - `build_dir`: The absolute path to a directory where the built artifacts are stored
 - `use_container` (default: false): Use a container to build the function
 - `no_use_container` (default: false): Run build in local machine instead of Docker container
+- `parallel` (default: true): Build your AWS SAM application in parallel
 - `container_env_vars`: Environment variables to pass to the build container
 - `container_env_var_file`: Absolute path to a JSON file containing container environment variables
 - `build_image`: The URI of the container image that you want to pull for the build

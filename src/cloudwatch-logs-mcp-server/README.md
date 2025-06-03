@@ -88,3 +88,7 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
   }
 }
 ```
+
+## Contributing
+
+Contributions are welcome! Please see the [CONTRIBUTING.md](../../CONTRIBUTING.md) in the monorepo root for guidelines.
