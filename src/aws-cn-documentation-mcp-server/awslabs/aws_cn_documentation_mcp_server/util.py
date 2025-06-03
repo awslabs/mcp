@@ -12,6 +12,8 @@
 
 import markdownify
 from bs4 import BeautifulSoup
+
+
 def extract_content_from_html(html: str) -> str:
     """Extract and convert HTML content to Markdown format.
 
@@ -25,9 +27,6 @@ def extract_content_from_html(html: str) -> str:
         return '<e>Empty HTML content</e>'
 
     try:
-        # First use BeautifulSoup to clean up the HTML
-        from bs4 import BeautifulSoup
-
         # Parse HTML with BeautifulSoup
         soup = BeautifulSoup(html, 'html.parser')
 
