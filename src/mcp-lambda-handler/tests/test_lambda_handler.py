@@ -14,7 +14,7 @@ from awslabs.mcp_lambda_handler.types import (
     ServerInfo,
     TextContent,
 )
-from typing import Dict
+from typing import Dict, List
 from unittest.mock import MagicMock, patch
 
 
@@ -589,6 +589,24 @@ def test_tool_decorator_dictionary_type_hints():
         schema['inputSchema']['properties']['simple_dict']['additionalProperties']['type']
         == 'integer'
     )
+
+
+def test_tool_decorator_list_type_hints():
+    """Test tool decorator with list type hints."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def list_tool(numbers: List[int]) -> List[bool]:
+        """Test tool with list parameter.
+
+        Args:
+            numbers: A list of integers
+        """
+        return [n > 0 for n in numbers]
+
+    schema = handler.tools['listTool']
+    assert schema['inputSchema']['properties']['numbers']['type'] == 'array'
+    assert schema['inputSchema']['properties']['numbers']['items']['type'] == 'integer'
 
 
 def test_tool_decorator_recursive_dictionary_type_hints():
