@@ -10,7 +10,6 @@
 # and limitations under the License.
 """awslabs AWS China Documentation MCP Server implementation."""
 
-import argparse
 import httpx
 import os
 import re
@@ -232,25 +231,10 @@ async def get_available_services(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for AWS China Documentation'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
     # Log startup information
     logger.info('Starting AWS China Documentation MCP Server')
 
-    # Run server with appropriate transport
-    if args.sse:
-        logger.info(f'Using SSE transport on port {args.port}')
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        logger.info('Using standard stdio transport')
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
