@@ -31,7 +31,7 @@ from awslabs.cloudwatch_logs_mcp_server.server import (
 )
 from moto import mock_aws
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 
 @pytest_asyncio.fixture
@@ -539,7 +539,7 @@ class TestAWSProfileInitialization:
             mock_session_class.assert_called_with(
                 profile_name='test-profile', region_name='us-west-2'
             )
-            mock_session_instance.client.assert_called_with('logs')
+            mock_session_instance.client.assert_called_with('logs', config=ANY)
 
     def test_logs_client_without_aws_profile(self, monkeypatch):
         """Test logs client initialization when AWS_PROFILE is not set."""
@@ -561,7 +561,7 @@ class TestAWSProfileInitialization:
             mock_session_class.assert_called_with(region_name='us-east-1')
 
             # Verify client method was called with 'logs'
-            mock_session_instance.client.assert_called_with('logs')
+            mock_session_instance.client.assert_called_with('logs', config=ANY)
 
     def test_logs_client_initialization_exception(self, monkeypatch):
         """Test that initialization exception is properly raised and logged."""
