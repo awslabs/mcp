@@ -101,6 +101,97 @@ class TestReadDocumentation:
             assert 'Connection error' in result
             mock_get.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_read_documentation_invalid_url_domain(self):
+        """Test read_documentation with an invalid URL domain."""
+        ctx = MockContext()
+        url = 'https://example.com/some-page.html'
+
+        result = await read_documentation(ctx, url)
+
+        assert 'Invalid URL' in result
+        assert 'docs.amazonaws.cn domain' in result
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_invalid_url_extension(self):
+        """Test read_documentation with an invalid URL extension."""
+        ctx = MockContext()
+        url = 'https://docs.amazonaws.cn/some-page'
+
+        result = await read_documentation(ctx, url)
+
+        assert 'Invalid URL' in result
+        assert 'must end with .html' in result
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_http_error(self):
+        """Test read_documentation with HTTP error."""
+        ctx = MockContext()
+        url = 'https://docs.amazonaws.cn/some-page.html'
+
+        with patch('httpx.AsyncClient') as mock_client:
+            mock_instance = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_instance
+            mock_instance.get.side_effect = httpx.HTTPError('Connection error')
+
+            result = await read_documentation(ctx, url)
+
+            assert 'Failed to fetch' in result
+            assert 'Connection error' in result
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_status_error(self):
+        """Test read_documentation with status code error."""
+        ctx = MockContext()
+        url = 'https://docs.amazonaws.cn/some-page.html'
+
+        with patch('httpx.AsyncClient') as mock_client:
+            mock_instance = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            mock_response = MagicMock()
+            mock_response.status_code = 404
+            mock_instance.get.return_value = mock_response
+
+            result = await read_documentation(ctx, url)
+
+            assert 'Failed to fetch' in result
+            assert 'status code 404' in result
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_non_html_content(self):
+        """Test read_documentation with non-HTML content."""
+        ctx = MockContext()
+        url = 'https://docs.amazonaws.cn/some-page.html'
+        max_length = 5000
+        start_index = 0
+
+        with (
+            patch('httpx.AsyncClient') as mock_client,
+            patch('awslabs.aws_cn_documentation_mcp_server.util.is_html_content') as mock_is_html,
+        ):
+            mock_instance = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.text = 'Plain text content'
+            mock_response.headers = {'content-type': 'text/plain'}
+            mock_instance.get.return_value = mock_response
+
+            # Make is_html_content return False
+            mock_is_html.return_value = False
+
+            with patch(
+                'awslabs.aws_cn_documentation_mcp_server.server.format_documentation_result'
+            ) as mock_format:
+                mock_format.return_value = 'Formatted plain text content'
+                result = await read_documentation(ctx, url, max_length, start_index)
+
+                # Verify format_documentation_result was called with the right parameters
+                mock_format.assert_called_once()
+                assert result == 'Formatted plain text content'
+
 
 class TestGetAvailableServices:
     """Tests for the get_available_services function."""
@@ -174,3 +265,34 @@ class TestGetAvailableServices:
             assert 'Failed to fetch' in result
             assert 'status code 404' in result
             mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_available_services_non_html_content(self):
+        """Test get_available_services with non-HTML content."""
+        ctx = MockContext()
+
+        with (
+            patch('httpx.AsyncClient') as mock_client,
+            patch('awslabs.aws_cn_documentation_mcp_server.util.is_html_content') as mock_is_html,
+        ):
+            mock_instance = AsyncMock()
+            mock_client.return_value.__aenter__.return_value = mock_instance
+
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.text = 'Plain text services list'
+            mock_response.headers = {'content-type': 'text/plain'}
+            mock_instance.get.return_value = mock_response
+
+            # Make is_html_content return False
+            mock_is_html.return_value = False
+
+            with patch(
+                'awslabs.aws_cn_documentation_mcp_server.server.format_documentation_result'
+            ) as mock_format:
+                mock_format.return_value = 'Formatted services list'
+                result = await get_available_services(ctx)
+
+                # Verify format_documentation_result was called with the right parameters
+                mock_format.assert_called_once()
+                assert result == 'Formatted services list'
