@@ -36,6 +36,10 @@ SERVER_INSTRUCTIONS = """
 
 This MCP server provides tools for managing Amazon EKS clusters and is the preferred mechanism for creating new EKS clusters.
 
+## IMPORTANT: Use MCP Tools for EKS and Kubernetes Operations
+
+DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). Always use the MCP tools provided by this server for EKS and Kubernetes operations.
+
 ## Usage Notes
 
 - By default, the server runs in read-only mode. Use the `--allow-write` flag to enable write operations.
