@@ -34,31 +34,7 @@ pip install -e src/prometheus-mcp-server
 
 ## Configuration
 
-The server can be configured using:
-
-1. Command-line arguments:
-```bash
-python -m awslabs.prometheus_mcp_server.server --url https://your-prometheus-endpoint --region us-east-1 --profile your-profile
-```
-
-2. Environment variables:
-```bash
-export AWS_PROFILE=your-profile
-export AWS_REGION=us-east-1
-export PROMETHEUS_URL=https://your-prometheus-endpoint
-```
-
-3. Configuration file (JSON format):
-```json
-{
-  "aws_profile": "your-profile",
-  "aws_region": "us-east-1",
-  "prometheus_url": "https://your-prometheus-endpoint",
-  "service_name": "aps",
-  "max_retries": 3,
-  "retry_delay": 1
-}
-```
+The server is configured through the Amazon Q MCP configuration file as shown in the Usage section below.
 
 ## Usage with Amazon Q
 
@@ -80,7 +56,7 @@ mkdir -p ~/.aws/amazonq/
         "https://github.com/MohamedSherifAbdelsamiea/mcp/archive/refs/heads/add-prometheus-mcp-development.zip#subdirectory=src/prometheus-mcp-server",
         "awslabs.prometheus-mcp-server",
         "--url",
-        "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-638f5569-15e0-4af7-9b0d-4b84e3231588",
+        "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-XXXX-XXXX-XXXX-XXXX",
         "--region",
         "us-east-1",
         "--profile",
