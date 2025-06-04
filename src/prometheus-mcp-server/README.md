@@ -62,31 +62,33 @@ export PROMETHEUS_URL=https://your-prometheus-endpoint
 
 ## Usage with Amazon Q
 
-To use this MCP server with Amazon Q:
+Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon:
 
 1. Create a configuration file:
 ```bash
-mkdir -p ~/.aws/amazoq/
+mkdir -p ~/.aws/amazonq/
 ```
 
-2. Add the following to `~/.aws/amazoq/mcp.json`:
+2. Add the following to `~/.aws/amazonq/mcp.json`:
 ```json
 {
   "mcpServers": {
     "prometheus": {
-      "command": "python",
+      "command": "uvx",
       "args": [
-        "-m",
-        "awslabs.prometheus_mcp_server.server",
+        "--from",
+        "https://github.com/MohamedSherifAbdelsamiea/mcp/archive/refs/heads/add-prometheus-mcp-development.zip#subdirectory=src/prometheus-mcp-server",
+        "awslabs.prometheus-mcp-server",
         "--url",
-        "https://your-prometheus-endpoint",
+        "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-638f5569-15e0-4af7-9b0d-4b84e3231588",
         "--region",
         "us-east-1",
         "--profile",
-        "your-profile"
+        "amp"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
+        "FASTMCP_LOG_LEVEL": "DEBUG",
+        "AWS_PROFILE": "amp"
       }
     }
   }
