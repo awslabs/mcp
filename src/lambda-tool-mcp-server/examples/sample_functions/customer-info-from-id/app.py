@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 def lambda_handler(event: dict, context: dict) -> dict:
     """AWS Lambda function to retrieve customer information based on customer ID.
 

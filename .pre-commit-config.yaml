@@ -56,4 +56,3 @@ repos:
         args: [
             'exec', '--',
             'github:viperproject/check-license-header#v1', 'check', '--config', './.github/workflows/check-license-header.json']
-        verbose: true
