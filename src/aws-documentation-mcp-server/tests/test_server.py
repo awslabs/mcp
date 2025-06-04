@@ -12,7 +12,7 @@
 
 import httpx
 import pytest
-from awslabs.aws_documentation_mcp_server.server import (
+from awslabs.aws_documentation_mcp_server.server_global import (
     read_documentation,
     recommend,
     search_documentation,
@@ -74,7 +74,7 @@ class TestReadDocumentation:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server.extract_content_from_html'
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
             ) as mock_extract:
                 mock_extract.return_value = '# Test\n\nThis is a test.'
 
