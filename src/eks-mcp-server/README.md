@@ -95,6 +95,8 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 2. Click the gear icon (⚙️) in the top right to open the settings panel, click **MCP**, **Add new global MCP server**.
 3. Paste your MCP server definition. For example, this example shows how to configure the EKS MCP Server, including enabling mutating actions by adding the `--allow-write` flag to the server arguments:
 
+   **For Mac/Linux:**
+
 	```
 	{
 	  "mcpServers": {
@@ -115,6 +117,30 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 	}
 	```
 
+   **For Windows:**
+
+	```
+	{
+	  "mcpServers": {
+	    "awslabs.eks-mcp-server": {
+	      "autoApprove": [],
+	      "disabled": false,
+	      "command": "uvx",
+	      "args": [
+	        "--from",
+	        "awslabs.eks-mcp-server@latest",
+	        "awslabs.eks-mcp-server.exe",
+	        "--allow-write"
+	      ],
+	      "env": {
+	        "FASTMCP_LOG_LEVEL": "ERROR"
+	      },
+	      "transportType": "stdio"
+	    }
+	  }
+	}
+	```
+
 	After a few minutes, you should see a green indicator if your MCP server definition is valid.
 
 4. Open a chat panel in Cursor (e.g., `Ctrl/⌘ + L`).  In your Cursor chat window, enter your prompt. For example, "Create a new EKS cluster named 'my-test-cluster' in the 'us-west-2' region using Kubernetes version 1.31."
@@ -124,12 +150,32 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 1. Install the [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html) .
 2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html). For example:
 
+   **For Mac/Linux:**
+
 	```
 	{
 	  "mcpServers": {
 	    "awslabs.eks-mcp-server": {
 	      "command": "uvx",
 	      "args": ["awslabs.eks-mcp-server@latest"],
+	      "env": {
+	        "FASTMCP_LOG_LEVEL": "ERROR"
+	      },
+	      "autoApprove": [],
+	      "disabled": false
+	    }
+	  }
+	}
+	```
+
+   **For Windows:**
+
+	```
+	{
+	  "mcpServers": {
+	    "awslabs.eks-mcp-server": {
+	      "command": "uvx",
+	      "args": ["--from", "awslabs.eks-mcp-server@latest", "awslabs.eks-mcp-server.exe"],
 	      "env": {
 	        "FASTMCP_LOG_LEVEL": "ERROR"
 	      },
@@ -150,6 +196,7 @@ Note that this is a basic quickstart. You can enable additional capabilities, su
 
 The `args` field in the MCP server definition specifies the command-line arguments passed to the server when it starts. These arguments control how the server is executed and configured. For example:
 
+**For Mac/Linux:**
 ```
 {
   "mcpServers": {
@@ -169,11 +216,39 @@ The `args` field in the MCP server definition specifies the command-line argumen
 }
 ```
 
-#### `awslabs.eks-mcp-server@latest` (required)
+**For Windows:**
+```
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.eks-mcp-server@latest",
+        "awslabs.eks-mcp-server.exe",
+        "--allow-write",
+        "--allow-sensitive-data-access"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
 
-Specifies the latest package/version specifier for the MCP client config.
+#### Command Format
 
-* Enables MCP server startup and tool registration.
+The command format differs between operating systems:
+
+**For Mac/Linux:**
+* `awslabs.eks-mcp-server@latest` - Specifies the latest package/version specifier for the MCP client config.
+
+**For Windows:**
+* `--from awslabs.eks-mcp-server@latest awslabs.eks-mcp-server.exe` - Windows requires the `--from` flag to specify the package and the `.exe` extension.
+
+Both formats enable MCP server startup and tool registration.
 
 #### `--allow-write` (optional)
 
@@ -471,6 +546,7 @@ The EKS MCP Server can be used for production environments with proper security 
 
 An array within the MCP server definition that lists tool names to be automatically approved by the EKS MCP Server client, bypassing user confirmation for those specific tools. For example:
 
+**For Mac/Linux:**
 ```
 {
   "mcpServers": {
@@ -478,6 +554,39 @@ An array within the MCP server definition that lists tool names to be automatica
       "command": "uvx",
       "args": [
         "awslabs.eks-mcp-server@latest"
+      ],
+      "env": {
+        "AWS_PROFILE": "eks-mcp-readonly-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "INFO"
+      },
+      "autoApprove": [
+        "manage_eks_stacks",
+        "manage_k8s_resource",
+        "list_k8s_resources",
+        "get_pod_logs",
+        "get_k8s_events",
+        "get_cloudwatch_logs",
+        "get_cloudwatch_metrics",
+        "get_policies_for_role",
+        "search_eks_troubleshoot_guide",
+        "list_api_versions"
+      ]
+    }
+  }
+}
+```
+
+**For Windows:**
+```
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.eks-mcp-server@latest",
+        "awslabs.eks-mcp-server.exe"
       ],
       "env": {
         "AWS_PROFILE": "eks-mcp-readonly-profile",
