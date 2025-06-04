@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """CloudWatch handler for the EKS MCP Server."""
 
@@ -87,10 +90,6 @@ class CloudWatchHandler:
             ...,
             description='Resource type to search logs for. Valid values: "pod", "node", "container". This determines how logs are filtered.',
         ),
-        resource_name: str = Field(
-            ...,
-            description='Resource name to search for in log messages (e.g., pod name, node name, container name). Used to filter logs for the specific resource.',
-        ),
         cluster_name: str = Field(
             ...,
             description='Name of the EKS cluster where the resource is located. Used to construct the CloudWatch log group name.',
@@ -103,6 +102,10 @@ class CloudWatchHandler:
             - "performance": Performance metrics logs
             - "control-plane": EKS control plane logs
             - Or provide a custom CloudWatch log group name directly""",
+        ),
+        resource_name: Optional[str] = Field(
+            None,
+            description='Resource name to search for in log messages (e.g., pod name, node name, container name). Used to filter logs for the specific resource.',
         ),
         minutes: int = Field(
             15,
@@ -153,13 +156,14 @@ class CloudWatchHandler:
         - Use filter_pattern to narrow down results (e.g., "ERROR", "exception")
         - For JSON logs, the tool automatically parses nested structures
         - Combine with get_k8s_events for comprehensive troubleshooting
+        - Use resource_type="cluster" when querying cluster-level logs to avoid filtering by cluster name twice
 
         Args:
             ctx: MCP context
-            resource_type: Resource type (pod, node, container)
-            resource_name: Resource name to search for in log messages
+            resource_type: Resource type (pod, node, container, cluster). When "cluster" is specified, logs are not filtered by resource_name.
             cluster_name: Name of the EKS cluster
             log_type: Log type (application, host, performance, control-plane, or custom)
+            resource_name: Resource name to search for in log messages. Optional when resource_type is "cluster".
             minutes: Number of minutes to look back
             start_time: Start time in ISO format (overrides minutes)
             end_time: End time in ISO format (defaults to now)
@@ -210,8 +214,11 @@ class CloudWatchHandler:
             # Construct the base query
             query = f"""
             fields {query_fields}
-            | filter @message like '{resource_name}'
             """
+
+            # This prevents filtering by cluster name twice when the resource type is "cluster"
+            if resource_type != 'cluster' and resource_name is not None:
+                query += f"\n| filter @message like '{resource_name}'"
 
             # Add additional filter pattern if provided
             if filter_pattern:
@@ -220,10 +227,13 @@ class CloudWatchHandler:
             # Add sorting and limit
             query += f'\n| sort @timestamp desc\n| limit {limit}'
 
+            resource_str = (
+                f'{resource_type} {resource_name} in ' if resource_name is not None else ''
+            )
             log_with_request_id(
                 ctx,
                 LogLevel.INFO,
-                f'Starting CloudWatch Logs query for {resource_type} {resource_name} in cluster {cluster_name}',
+                f'Starting CloudWatch Logs query for {resource_str}cluster {cluster_name}',
                 log_group=log_group,
                 start_time=start_dt.isoformat(),
                 end_time=end_dt.isoformat(),
@@ -255,7 +265,7 @@ class CloudWatchHandler:
             log_with_request_id(
                 ctx,
                 LogLevel.INFO,
-                f'Retrieved {len(log_entries)} log entries for {resource_type} {resource_name}',
+                f'Retrieved {len(log_entries)} log entries for {resource_str}cluster {cluster_name}',
             )
 
             # Return the results
@@ -264,7 +274,7 @@ class CloudWatchHandler:
                 content=[
                     TextContent(
                         type='text',
-                        text=f'Successfully retrieved {len(log_entries)} log entries for {resource_type} {resource_name} in cluster {cluster_name}',
+                        text=f'Successfully retrieved {len(log_entries)} log entries for {resource_str}cluster {cluster_name}',
                     )
                 ],
                 resource_type=resource_type,
@@ -278,7 +288,8 @@ class CloudWatchHandler:
             )
 
         except Exception as e:
-            error_message = f'Failed to get logs for {resource_type} {resource_name}: {str(e)}'
+            resource_name_str = f' {resource_name}' if resource_name is not None else ''
+            error_message = f'Failed to get logs for {resource_type}{resource_name_str}: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CloudWatchLogsResponse(
@@ -297,17 +308,9 @@ class CloudWatchHandler:
     async def get_cloudwatch_metrics(
         self,
         ctx: Context,
-        resource_type: str = Field(
-            ...,
-            description='Resource type to retrieve metrics for. Valid values: "pod", "node", "container", "cluster", "service". Determines the CloudWatch dimensions.',
-        ),
-        resource_name: str = Field(
-            ...,
-            description='Name of the resource to retrieve metrics for (e.g., pod name, node name). Used as a dimension value in CloudWatch.',
-        ),
         cluster_name: str = Field(
             ...,
-            description='Name of the EKS cluster where the resource is located. Used as the ClusterName dimension in CloudWatch.',
+            description='Name of the EKS cluster to get metrics for.',
         ),
         metric_name: str = Field(
             ...,
@@ -324,9 +327,9 @@ class CloudWatchHandler:
             - "AWS/EC2": For EC2 instance metrics
             - "AWS/EKS": For EKS control plane metrics""",
         ),
-        k8s_namespace: str = Field(
-            'default',
-            description='Kubernetes namespace for the resource. Used as the Namespace dimension in CloudWatch. Default: "default"',
+        dimensions: dict = Field(
+            ...,
+            description='Dimensions to use for the CloudWatch metric query. Must include appropriate dimensions for the resource type and metric (e.g., ClusterName, PodName, Namespace).',
         ),
         minutes: int = Field(
             15,
@@ -357,10 +360,6 @@ class CloudWatchHandler:
             - Minimum: Lowest value during the period
             - SampleCount: Number of samples during the period""",
         ),
-        custom_dimensions: Optional[dict] = Field(
-            None,
-            description='Custom dimensions to use instead of the default ones. Provide as a dictionary of dimension name-value pairs. IMPORTANT: Only use this if you need to override the standard dimensions.',
-        ),
     ) -> CloudWatchMetricsResponse:
         """Get metrics from CloudWatch for a specific resource.
 
@@ -372,13 +371,20 @@ class CloudWatchHandler:
         IMPORTANT: Use this tool instead of 'aws cloudwatch get-metric-data', 'aws cloudwatch get-metric-statistics',
         or similar CLI commands.
 
+        IMPORTANT: Use the get_eks_metrics_guidance tool first to determine the correct dimensions for metric queries.
+        Do not try to infer which dimensions are needed for EKS ContainerInsights metrics.
+
+        IMPORTANT: When using pod metrics, note that `FullPodName` has the same prefix as `PodName` but includes a
+        suffix with a random string (e.g., "my-pod-abc123"). Always use the version without the suffix for `PodName`
+        dimension. The pod name returned by list_k8s_resources is the `FullPodName`.
+
         ## Requirements
         - The EKS cluster must have CloudWatch Container Insights enabled
         - The resource must exist in the specified cluster
         - The metric must be available in the specified namespace
 
         ## Response Information
-        The response includes resource details (type, name, cluster), metric information (name, namespace),
+        The response includes resource details (cluster), metric information (name, namespace),
         time range queried, and data points with timestamps and values.
 
         ## Usage Tips
@@ -389,19 +395,16 @@ class CloudWatchHandler:
 
         Args:
             ctx: MCP context
-            resource_type: Resource type (pod, node, container, cluster)
-            resource_name: Resource name
             cluster_name: Name of the EKS cluster
             metric_name: Metric name (e.g., cpu_usage_total, memory_rss)
             namespace: CloudWatch namespace
-            k8s_namespace: Kubernetes namespace for the resource
+            dimensions: Dimensions to use for the CloudWatch metric query
             minutes: Number of minutes to look back
             start_time: Start time in ISO format (overrides minutes)
             end_time: End time in ISO format (defaults to now)
             limit: Maximum number of data points to return
             period: Period in seconds for the metric data points
             stat: Statistic to use for the metric
-            custom_dimensions: Custom dimensions to use instead of defaults
 
         Returns:
             CloudWatchMetricsResponse with metric data points and resource information
@@ -412,39 +415,28 @@ class CloudWatchHandler:
             # Create CloudWatch client
             cloudwatch = AwsHelper.create_boto3_client('cloudwatch')
 
-            # Use custom dimensions if provided, otherwise determine based on resource_type
-            dimensions = {}
-
-            if isinstance(custom_dimensions, dict):
-                # Use the provided custom dimensions directly
-                dimensions = custom_dimensions
-            elif custom_dimensions is not None and not hasattr(custom_dimensions, 'default'):
-                # Try to convert to dict if possible
-                try:
-                    dimensions = dict(custom_dimensions)
-                except (TypeError, ValueError):
-                    # If conversion fails, use default dimensions
-                    dimensions = {'ClusterName': cluster_name}
-            else:
-                # Set default dimensions based on resource type
-                dimensions['ClusterName'] = cluster_name
-                dimensions['Namespace'] = k8s_namespace
-
-                if resource_type == 'pod':
-                    dimensions['PodName'] = resource_name
-                elif resource_type == 'node':
-                    dimensions['NodeName'] = resource_name
-                elif resource_type == 'container':
-                    dimensions['ContainerName'] = resource_name
-                elif resource_type == 'service':
-                    dimensions['Service'] = resource_name
+            # Validate that cluster_name matches ClusterName in dimensions if present
+            if 'ClusterName' in dimensions and dimensions['ClusterName'] != cluster_name:
+                error_message = f"Provided cluster_name '{cluster_name}' does not match ClusterName dimension '{dimensions['ClusterName']}'"
+                log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                return CloudWatchMetricsResponse(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                    metric_name=metric_name,
+                    namespace=namespace,
+                    cluster_name=cluster_name,
+                    start_time='',
+                    end_time='',
+                    data_points=[],
+                )
 
             log_with_request_id(
                 ctx,
                 LogLevel.INFO,
-                f'Getting CloudWatch metrics for {resource_type} {resource_name} in cluster {cluster_name}',
+                f'Getting CloudWatch metrics for {metric_name} in cluster {cluster_name}',
                 metric_name=metric_name,
                 namespace=namespace,
+                dimensions=str(dimensions),
                 start_time=start_dt.isoformat(),
                 end_time=end_dt.isoformat(),
             )
@@ -498,7 +490,7 @@ class CloudWatchHandler:
             log_with_request_id(
                 ctx,
                 LogLevel.INFO,
-                f'Retrieved {len(data_points)} metric data points for {resource_type} {resource_name}',
+                f'Retrieved {len(data_points)} metric data points for {metric_name}',
             )
 
             # Return the results
@@ -507,31 +499,27 @@ class CloudWatchHandler:
                 content=[
                     TextContent(
                         type='text',
-                        text=f'Successfully retrieved {len(data_points)} metric data points for {resource_type} {resource_name} in cluster {cluster_name}',
+                        text=f'Successfully retrieved {len(data_points)} metric data points for {metric_name} in cluster {cluster_name}',
                     )
                 ],
-                resource_type=resource_type,
-                resource_name=resource_name,
-                cluster_name=cluster_name,
                 metric_name=metric_name,
                 namespace=namespace,
+                cluster_name=cluster_name,
                 start_time=start_dt.isoformat(),
                 end_time=end_dt.isoformat(),
                 data_points=data_points,
             )
 
         except Exception as e:
-            error_message = f'Failed to get metrics for {resource_type} {resource_name}: {str(e)}'
+            error_message = f'Failed to get metrics: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CloudWatchMetricsResponse(
                 isError=True,
                 content=[TextContent(type='text', text=error_message)],
-                resource_type=resource_type,
-                resource_name=resource_name,
-                cluster_name=cluster_name,
                 metric_name=metric_name,
                 namespace=namespace,
+                cluster_name=cluster_name,
                 start_time='',
                 end_time='',
                 data_points=[],
@@ -573,6 +561,8 @@ class CloudWatchHandler:
             f'Polling for CloudWatch Logs query results (query_id: {query_id})',
         )
 
+        resource_name_str = f' {resource_name}' if resource_name is not None else ''
+
         while attempts < max_attempts:
             query_response = logs_client.get_query_results(queryId=query_id)
             status = query_response.get('status')
@@ -585,12 +575,14 @@ class CloudWatchHandler:
                 )
                 return query_response
             elif status == 'Failed':
-                error_message = f'CloudWatch Logs query failed for {resource_type} {resource_name}'
+                error_message = (
+                    f'CloudWatch Logs query failed for {resource_type}{resource_name_str}'
+                )
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 raise Exception(error_message)
             elif status == 'Cancelled':
                 error_message = (
-                    f'CloudWatch Logs query was cancelled for {resource_type} {resource_name}'
+                    f'CloudWatch Logs query was cancelled for {resource_type}{resource_name_str}'
                 )
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 raise Exception(error_message)
@@ -609,7 +601,7 @@ class CloudWatchHandler:
             attempts += 1
 
         # If we've exhausted all attempts, raise a timeout error
-        error_message = f'CloudWatch Logs query timed out after {max_attempts} attempts for {resource_type} {resource_name}'
+        error_message = f'CloudWatch Logs query timed out after {max_attempts} attempts for {resource_type}{resource_name_str}'
         log_with_request_id(ctx, LogLevel.ERROR, error_message)
         raise TimeoutError(error_message)
 

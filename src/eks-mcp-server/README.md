@@ -56,10 +56,11 @@ For read operations, the following permissions are required:
 ### Write Operations Policy
 
 For write operations, we recommend the following IAM policies to ensure successful deployment of EKS clusters using the CloudFormation template in `/awslabs/eks_mcp_server/templates/eks-templates/eks-with-vpc.yaml`:
-- [**IAMFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/IAMFullAccess.html): Enables creation and management of IAM roles and policies required for cluster operation
-- [**AmazonVPCFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonVPCFullAccess.html): Allows creation and configuration of VPC resources including subnets, route tables, internet gateways, and NAT gateways
-- [**AWSCloudFormationFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSCloudFormationFullAccess.html): Provides permissions to create, update, and delete CloudFormation stacks that orchestrate the deployment
-- **EKS Full Access (provided below)**: Required for creating and managing EKS clusters, including control plane configuration, node groups, and add-ons
+
+* [**IAMFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/IAMFullAccess.html): Enables creation and management of IAM roles and policies required for cluster operation
+* [**AmazonVPCFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonVPCFullAccess.html): Allows creation and configuration of VPC resources including subnets, route tables, internet gateways, and NAT gateways
+* [**AWSCloudFormationFullAccess**](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSCloudFormationFullAccess.html): Provides permissions to create, update, and delete CloudFormation stacks that orchestrate the deployment
+* **EKS Full Access (provided below)**: Required for creating and managing EKS clusters, including control plane configuration, node groups, and add-ons
    ```
   {
     "Version": "2012-10-17",
@@ -95,6 +96,8 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 2. Click the gear icon (⚙️) in the top right to open the settings panel, click **MCP**, **Add new global MCP server**.
 3. Paste your MCP server definition. For example, this example shows how to configure the EKS MCP Server, including enabling mutating actions by adding the `--allow-write` flag to the server arguments:
 
+   **For Mac/Linux:**
+
 	```
 	{
 	  "mcpServers": {
@@ -115,6 +118,30 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 	}
 	```
 
+   **For Windows:**
+
+	```
+	{
+	  "mcpServers": {
+	    "awslabs.eks-mcp-server": {
+	      "autoApprove": [],
+	      "disabled": false,
+	      "command": "uvx",
+	      "args": [
+	        "--from",
+	        "awslabs.eks-mcp-server@latest",
+	        "awslabs.eks-mcp-server.exe",
+	        "--allow-write"
+	      ],
+	      "env": {
+	        "FASTMCP_LOG_LEVEL": "ERROR"
+	      },
+	      "transportType": "stdio"
+	    }
+	  }
+	}
+	```
+
 	After a few minutes, you should see a green indicator if your MCP server definition is valid.
 
 4. Open a chat panel in Cursor (e.g., `Ctrl/⌘ + L`).  In your Cursor chat window, enter your prompt. For example, "Create a new EKS cluster named 'my-test-cluster' in the 'us-west-2' region using Kubernetes version 1.31."
@@ -124,12 +151,32 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 1. Install the [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html) .
 2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html). For example:
 
+   **For Mac/Linux:**
+
 	```
 	{
 	  "mcpServers": {
 	    "awslabs.eks-mcp-server": {
 	      "command": "uvx",
 	      "args": ["awslabs.eks-mcp-server@latest"],
+	      "env": {
+	        "FASTMCP_LOG_LEVEL": "ERROR"
+	      },
+	      "autoApprove": [],
+	      "disabled": false
+	    }
+	  }
+	}
+	```
+
+   **For Windows:**
+
+	```
+	{
+	  "mcpServers": {
+	    "awslabs.eks-mcp-server": {
+	      "command": "uvx",
+	      "args": ["--from", "awslabs.eks-mcp-server@latest", "awslabs.eks-mcp-server.exe"],
 	      "env": {
 	        "FASTMCP_LOG_LEVEL": "ERROR"
 	      },
@@ -150,6 +197,7 @@ Note that this is a basic quickstart. You can enable additional capabilities, su
 
 The `args` field in the MCP server definition specifies the command-line arguments passed to the server when it starts. These arguments control how the server is executed and configured. For example:
 
+**For Mac/Linux:**
 ```
 {
   "mcpServers": {
@@ -169,11 +217,39 @@ The `args` field in the MCP server definition specifies the command-line argumen
 }
 ```
 
-#### `awslabs.eks-mcp-server@latest` (required)
+**For Windows:**
+```
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.eks-mcp-server@latest",
+        "awslabs.eks-mcp-server.exe",
+        "--allow-write",
+        "--allow-sensitive-data-access"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
 
-Specifies the latest package/version specifier for the MCP client config.
+#### Command Format
 
-* Enables MCP server startup and tool registration.
+The command format differs between operating systems:
+
+**For Mac/Linux:**
+* `awslabs.eks-mcp-server@latest` - Specifies the latest package/version specifier for the MCP client config.
+
+**For Windows:**
+* `--from awslabs.eks-mcp-server@latest awslabs.eks-mcp-server.exe` - Windows requires the `--from` flag to specify the package and the `.exe` extension.
+
+Both formats enable MCP server startup and tool registration.
 
 #### `--allow-write` (optional)
 
@@ -367,24 +443,45 @@ Features:
 Parameters:
 
 * cluster_name, log_type (application, host, performance, control-plane, custom), resource_type (pod, node, container, cluster),
-resource_name, minutes (optional), start_time (optional), end_time (optional), limit (optional), filter_pattern (optional), fields (optional)
+resource_name (optional), minutes (optional), start_time (optional), end_time (optional), limit (optional), filter_pattern (optional), fields (optional)
 
 #### `get_cloudwatch_metrics`
 
-Retrieves metrics from CloudWatch for a specific EKS cluster resource.
+Retrieves metrics from CloudWatch for Kubernetes resources.
 
 Features:
 
-* Fetches metrics based on resource type (pod, node, container, cluster), resource name, and metric name.
-* Allows specification of CloudWatch namespace, Kubernetes namespace, and time range.
+* Fetches metrics based on metric name and dimensions.
+* Allows specification of CloudWatch namespace and time range.
 * Configurable period, statistic (Average, Sum, etc.), and limit for data points.
 * Supports providing custom dimensions for fine-grained metric querying.
 
 Parameters:
 
-* cluster_name, metric_name, resource_type (pod, node, container, cluster), resource_name, namespace (optional), k8s_namespace
-(optional), minutes (optional), start_time (optional), end_time (optional), limit (optional), stat (optional), period (optional), custom_dimensions
- (optional)
+* cluster_name, metric_name, namespace, dimensions, minutes (optional), start_time (optional), end_time (optional), limit (optional), stat (optional), period (optional)
+
+#### `get_eks_metrics_guidance`
+
+Provides guidance on available CloudWatch metrics for different resource types in EKS clusters.
+
+Features:
+
+* Returns a list of available Container Insights metrics for the specified resource type, including metric names, dimensions, and descriptions.
+* Helps determine the correct dimensions to use with the `get_cloudwatch_metrics` tool.
+* Supports the following resource types:
+  * `cluster`: Metrics for EKS clusters (e.g., cluster_node_count, cluster_failed_node_count)
+  * `node`: Metrics for EKS nodes (e.g., node_cpu_utilization, node_memory_utilization, node_network_total_bytes)
+  * `pod`: Metrics for Kubernetes pods (e.g., pod_cpu_utilization, pod_memory_utilization, pod_network_rx_bytes)
+  * `namespace`: Metrics for Kubernetes namespaces (e.g., namespace_number_of_running_pods)
+  * `service`: Metrics for Kubernetes services (e.g., service_number_of_running_pods)
+
+Parameters:
+
+* resource_type
+
+Implementation:
+
+The data in `/awslabs/eks_mcp_server/data/eks_cloudwatch_metrics_guidance.json` is generated by a Python script (`/awslabs/eks_mcp_server/scripts/update_eks_cloudwatch_metrics_guidance.py`) that scrapes the [Container Insights metrics table](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-metrics-EKS.html) from AWS documentation. Running the script requires installing BeautifulSoup (used for parsing HTML content) with uv: `uv pip install bs4`.
 
 ### IAM Integration
 
@@ -471,6 +568,7 @@ The EKS MCP Server can be used for production environments with proper security 
 
 An array within the MCP server definition that lists tool names to be automatically approved by the EKS MCP Server client, bypassing user confirmation for those specific tools. For example:
 
+**For Mac/Linux:**
 ```
 {
   "mcpServers": {
@@ -478,6 +576,39 @@ An array within the MCP server definition that lists tool names to be automatica
       "command": "uvx",
       "args": [
         "awslabs.eks-mcp-server@latest"
+      ],
+      "env": {
+        "AWS_PROFILE": "eks-mcp-readonly-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "INFO"
+      },
+      "autoApprove": [
+        "manage_eks_stacks",
+        "manage_k8s_resource",
+        "list_k8s_resources",
+        "get_pod_logs",
+        "get_k8s_events",
+        "get_cloudwatch_logs",
+        "get_cloudwatch_metrics",
+        "get_policies_for_role",
+        "search_eks_troubleshoot_guide",
+        "list_api_versions"
+      ]
+    }
+  }
+}
+```
+
+**For Windows:**
+```
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.eks-mcp-server@latest",
+        "awslabs.eks-mcp-server.exe"
       ],
       "env": {
         "AWS_PROFILE": "eks-mcp-readonly-profile",

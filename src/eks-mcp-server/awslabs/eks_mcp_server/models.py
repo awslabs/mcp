@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Data models for the EKS MCP Server."""
 
@@ -150,7 +153,7 @@ class CloudWatchLogsResponse(CallToolResult):
     """
 
     resource_type: str = Field(..., description='Resource type (pod, node, container)')
-    resource_name: str = Field(..., description='Resource name')
+    resource_name: Optional[str] = Field(None, description='Resource name')
     cluster_name: str = Field(..., description='Name of the EKS cluster')
     log_type: str = Field(
         ..., description='Log type (application, host, performance, control-plane, or custom)'
@@ -178,11 +181,9 @@ class CloudWatchMetricsResponse(CallToolResult):
     """Response model for get_cloudwatch_metrics tool.
 
     This model contains the response from a CloudWatch metrics query,
-    including resource information, metric details, time range, and data points.
+    including metric details, time range, and data points.
     """
 
-    resource_type: str = Field(..., description='Resource type (pod, node, container, cluster)')
-    resource_name: str = Field(..., description='Resource name')
     cluster_name: str = Field(..., description='Name of the EKS cluster')
     metric_name: str = Field(..., description='Metric name (e.g., cpu_usage_total, memory_rss)')
     namespace: str = Field(..., description='CloudWatch namespace (e.g., ContainerInsights)')
@@ -269,3 +270,16 @@ class AddInlinePolicyResponse(CallToolResult):
     permissions_added: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(
         ..., description='Permissions to include in the policy (in JSON format)'
     )
+
+
+class MetricsGuidanceResponse(CallToolResult):
+    """Response model for get_eks_metrics_guidance tool.
+
+    This model contains the response from a metrics guidance query,
+    including resource type and available metrics with their details.
+    """
+
+    resource_type: str = Field(
+        ..., description='Resource type (cluster, node, pod, namespace, service)'
+    )
+    metrics: List[Dict[str, Any]] = Field(..., description='List of metrics with their details')
