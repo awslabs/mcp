@@ -1,6 +1,7 @@
 import json
 import pytest
 import time
+import typing
 from awslabs.mcp_lambda_handler.mcp_lambda_handler import MCPLambdaHandler, SessionData
 from awslabs.mcp_lambda_handler.session import DynamoDBSessionStore, NoOpSessionStore
 from awslabs.mcp_lambda_handler.types import (
@@ -14,6 +15,7 @@ from awslabs.mcp_lambda_handler.types import (
     ServerInfo,
     TextContent,
 )
+from typing import Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 
@@ -553,20 +555,109 @@ def test_tool_decorator_type_hints():
     handler = MCPLambdaHandler('test-server')
 
     @handler.tool()
-    def foo(a: int, b: float, c: bool) -> str:
+    def foo(a: int, b: float, c: bool, d: str) -> str:
         """Test tool.
 
         Args:
             a: integer
             b: float
             c: bool
+            d: str
         """
-        return str(a + b) if c else str(a - b)
+        return str(a + b) + d if c else str(a - b) + d
 
     schema = handler.tools['foo']
     assert schema['inputSchema']['properties']['a']['type'] == 'integer'
     assert schema['inputSchema']['properties']['b']['type'] == 'number'
     assert schema['inputSchema']['properties']['c']['type'] == 'boolean'
+    assert schema['inputSchema']['properties']['d']['type'] == 'string'
+
+
+def test_tool_decorator_with_no_origin_type_hints():
+    """Test tool decorator with no origin or unsupported type hints. No origin or unsupported type hints default to String type."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(a: typing.Any, b: Optional[str]) -> str:
+        """Test tool.
+
+        Args:
+            a: Any (get_origin returns None)
+            b: Optional (get_origin returns Optional, but it is unsupported)
+        """
+        return a
+
+    schema = handler.tools['foo']
+    assert schema['inputSchema']['properties']['a']['type'] == 'string'
+    assert schema['inputSchema']['properties']['b']['type'] == 'string'
+
+
+def test_tool_decorator_dictionary_type_hints():
+    """Test tool decorator with dictionary type hints."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def dict_tool(simple_dict: Dict[str, int], no_arg_dict: Dict) -> Dict[str, bool]:
+        """Test tool with dictionary parameter.
+
+        Args:
+            simple_dict: A dictionary with string keys and integer values
+            no_arg_dict: A dictionary with no argument type hints
+        """
+        return {k: v > 0 for k, v in simple_dict.items()}
+
+    schema = handler.tools['dictTool']
+    assert schema['inputSchema']['properties']['simple_dict']['type'] == 'object'
+    assert schema['inputSchema']['properties']['no_arg_dict']['type'] == 'object'
+    assert (
+        schema['inputSchema']['properties']['simple_dict']['additionalProperties']['type']
+        == 'integer'
+    )
+    assert schema['inputSchema']['properties']['no_arg_dict']['additionalProperties']
+
+
+def test_tool_decorator_list_type_hints():
+    """Test tool decorator with list type hints."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def list_tool(numbers: List[int], no_arg_numbers: List) -> List[bool]:
+        """Test tool with list parameter.
+
+        Args:
+            numbers: A list of integers
+            no_arg_numbers: A list with no argument type hints
+        """
+        return [n > 0 for n in numbers]
+
+    schema = handler.tools['listTool']
+    assert schema['inputSchema']['properties']['numbers']['type'] == 'array'
+    assert schema['inputSchema']['properties']['no_arg_numbers']['type'] == 'array'
+    assert schema['inputSchema']['properties']['numbers']['items']['type'] == 'integer'
+    assert schema['inputSchema']['properties']['no_arg_numbers']['items'] == {}
+
+
+def test_tool_decorator_recursive_dictionary_type_hints():
+    """Test tool decorator with recursive dictionary type hints."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def nested_dict_tool(nested_dict: Dict[str, Dict[str, int]]) -> Dict[str, Dict[str, bool]]:
+        """Test tool with nested dictionary parameter.
+
+        Args:
+            nested_dict: A dictionary with string keys and dictionary values
+        """
+        result = {}
+        for k, v in nested_dict.items():
+            result[k] = {inner_k: inner_v > 0 for inner_k, inner_v in v.items()}
+        return result
+
+    schema = handler.tools['nestedDictTool']
+    assert schema['inputSchema']['properties']['nested_dict']['type'] == 'object'
+    value_schema = schema['inputSchema']['properties']['nested_dict']['additionalProperties']
+    assert value_schema['type'] == 'object'
+    assert value_schema['additionalProperties']['type'] == 'integer'
 
 
 def test_create_error_response_minimal():
