@@ -17,7 +17,6 @@ import sys
 import argparse
 from typing import Any, Dict, List, Optional
 import time
-import logging
 from urllib.parse import urlparse
 
 import boto3
@@ -26,17 +25,17 @@ from botocore.awsrequest import AWSRequest
 from botocore.exceptions import ClientError, NoCredentialsError
 from dotenv import load_dotenv
 import requests
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Context
 from pydantic import Field
+from loguru import logger
 
-from awslabs.prometheus_mcp_server.models import PrometheusConfig
+from awslabs.prometheus_mcp_server.models import PrometheusConfig, QueryResponse, MetricsList, ServerInfo, QueryResponse
 from awslabs.prometheus_mcp_server.consts import (
     DEFAULT_AWS_REGION,
     DEFAULT_SERVICE_NAME,
     DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_DELAY,
     API_VERSION_PATH,
-    LOG_FORMAT,
     ENV_AWS_PROFILE,
     ENV_AWS_REGION,
     ENV_PROMETHEUS_URL,
@@ -45,12 +44,9 @@ from awslabs.prometheus_mcp_server.consts import (
     SERVER_INSTRUCTIONS
 )
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format=LOG_FORMAT
-)
-logger = logging.getLogger(__name__)
+# Configure loguru
+logger.remove()
+logger.add(sys.stderr, level=os.getenv(ENV_LOG_LEVEL, "INFO"))
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -190,8 +186,23 @@ def setup_environment(config):
     
     return True
 
-def make_prometheus_request(endpoint: str, params: Dict = None, max_retries: int = 3) -> Any:
-    """Make a request to the Prometheus HTTP API with AWS SigV4 authentication."""
+async def make_prometheus_request(endpoint: str, params: Dict = None, max_retries: int = 3) -> Any:
+    """Make a request to the Prometheus HTTP API with AWS SigV4 authentication.
+    
+    Args:
+        endpoint: The Prometheus API endpoint to call
+        params: Query parameters to include in the request
+        max_retries: Maximum number of retry attempts
+        
+    Returns:
+        The data portion of the Prometheus API response
+        
+    Raises:
+        ValueError: If Prometheus URL or AWS credentials are not configured
+        RuntimeError: If the Prometheus API returns an error status
+        requests.RequestException: If there's a network or HTTP error
+        json.JSONDecodeError: If the response is not valid JSON
+    """
     if not config.prometheus_url:
         raise ValueError("Prometheus URL not configured")
 
@@ -258,11 +269,15 @@ def make_prometheus_request(endpoint: str, params: Dict = None, max_retries: int
         raise last_exception
     return None
 
-def test_prometheus_connection():
-    """Test the connection to Prometheus."""
+async def test_prometheus_connection():
+    """Test the connection to Prometheus.
+    
+    Returns:
+        bool: True if connection is successful, False otherwise
+    """
     logger.info("Testing Prometheus connection...")
     try:
-        make_prometheus_request("label/__name__/values")
+        await make_prometheus_request("label/__name__/values")
         logger.info("Successfully connected to Prometheus!")
         return True
     except ClientError as e:
@@ -293,13 +308,24 @@ def test_prometheus_connection():
         return False
 
 # Initialize MCP
-mcp = FastMCP(name="Prometheus MCP", instructions=SERVER_INSTRUCTIONS)
+mcp = FastMCP(
+    name="awslabs-prometheus-mcp-server",
+    instructions=SERVER_INSTRUCTIONS,
+    dependencies=[
+        'boto3',
+        'requests',
+        'pydantic',
+        'python-dotenv',
+        'loguru',
+    ]
+)
 
 # Global config object
 config = None
 
-@mcp.tool(description="Execute a PromQL instant query against Prometheus")
+@mcp.tool(name="ExecuteQuery")
 async def execute_query(
+    ctx: Context,
     query: str = Field(..., description="The PromQL query to execute"),
     time: Optional[str] = Field(
         None, 
@@ -318,14 +344,22 @@ async def execute_query(
     - `rate(node_cpu_seconds_total{mode="system"}[1m])` - CPU usage rate
     - `sum by(instance) (rate(node_network_receive_bytes_total[5m]))` - Network receive rate by instance
     """
-    params = {'query': query}
-    if time:
-        params['time'] = time
-    
-    return make_prometheus_request('query', params, config.max_retries)
+    try:
+        logger.info(f"Executing instant query: {query}")
+        params = {'query': query}
+        if time:
+            params['time'] = time
+        
+        return await make_prometheus_request('query', params, config.max_retries)
+    except Exception as e:
+        error_msg = f"Error executing query: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
 
-@mcp.tool(description="Execute a PromQL range query with start time, end time, and step interval")
+@mcp.tool(name="ExecuteRangeQuery")
 async def execute_range_query(
+    ctx: Context,
     query: str = Field(..., description="The PromQL query to execute"),
     start: str = Field(..., description="Start timestamp (RFC3339 or Unix timestamp)"),
     end: str = Field(..., description="End timestamp (RFC3339 or Unix timestamp)"),
@@ -346,17 +380,24 @@ async def execute_range_query(
     
     This will return CPU usage rate sampled every 5 minutes over a 1-hour period.
     """
-    params = {
-        'query': query,
-        'start': start,
-        'end': end,
-        'step': step
-    }
-    
-    return make_prometheus_request('query_range', params, config.max_retries)
+    try:
+        logger.info(f"Executing range query: {query} from {start} to {end} with step {step}")
+        params = {
+            'query': query,
+            'start': start,
+            'end': end,
+            'step': step
+        }
+        
+        return await make_prometheus_request('query_range', params, config.max_retries)
+    except Exception as e:
+        error_msg = f"Error executing range query: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
 
-@mcp.tool(description="List all available metrics in Prometheus")
-async def list_metrics() -> List[str]:
+@mcp.tool(name="ListMetrics")
+async def list_metrics(ctx: Context) -> MetricsList:
     """Get a list of all metric names.
     
     ## Usage
@@ -366,15 +407,22 @@ async def list_metrics() -> List[str]:
     
     ## Example
     ```
-    metrics = await list_metrics()
-    print("Available metrics:", metrics[:10])  # Show first 10 metrics
+    metrics_response = await list_metrics()
+    print("Available metrics:", metrics_response.metrics[:10])  # Show first 10 metrics
     ```
     """
-    data = make_prometheus_request('label/__name__/values', max_retries=config.max_retries)
-    return sorted(data)
+    try:
+        logger.info("Listing all available metrics")
+        data = await make_prometheus_request('label/__name__/values', max_retries=config.max_retries)
+        return MetricsList(metrics=sorted(data))
+    except Exception as e:
+        error_msg = f"Error listing metrics: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
 
-@mcp.tool(description="Get information about the Prometheus server configuration")
-async def get_server_info() -> Dict[str, Any]:
+@mcp.tool(name="GetServerInfo")
+async def get_server_info(ctx: Context) -> ServerInfo:
     """Get information about the Prometheus server configuration.
     
     ## Usage
@@ -385,15 +433,32 @@ async def get_server_info() -> Dict[str, Any]:
     ## Example
     ```
     info = await get_server_info()
-    print(f"Connected to Prometheus at {info['prometheus_url']} in region {info['aws_region']}")
+    print(f"Connected to Prometheus at {info.prometheus_url} in region {info.aws_region}")
     ```
     """
-    return {
-        "prometheus_url": config.prometheus_url,
-        "aws_region": config.aws_region,
-        "aws_profile": config.aws_profile or "default",
-        "service_name": config.service_name
-    }
+    try:
+        logger.info("Retrieving server configuration information")
+        return ServerInfo(
+            prometheus_url=config.prometheus_url,
+            aws_region=config.aws_region,
+            aws_profile=config.aws_profile or "default",
+            service_name=config.service_name
+        )
+    except Exception as e:
+        error_msg = f"Error retrieving server info: {str(e)}"
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
+
+async def async_main():
+    """Run the async initialization tasks."""
+    # Test connection
+    if not await test_prometheus_connection():
+        logger.error("Prometheus connection test failed")
+        sys.exit(1)
+    
+    logger.info("Prometheus connection successful")
+
 
 def main():
     """Run the MCP server with CLI argument support."""
@@ -418,11 +483,12 @@ def main():
     
     # Setup environment
     if not setup_environment(config_data):
+        logger.error("Environment setup failed")
         sys.exit(1)
     
-    # Test connection
-    if not test_prometheus_connection():
-        sys.exit(1)
+    # Run async initialization in an event loop
+    import asyncio
+    asyncio.run(async_main())
     
     logger.info("Starting server...")
     # Run with stdio transport

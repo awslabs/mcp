@@ -21,16 +21,7 @@ This MCP server is designed to be fully compatible with Amazon Q developer CLI, 
 - AWS credentials configured with appropriate permissions
 - AWS Managed Prometheus workspace
 
-### Installation Steps
 
-```bash
-# Clone the repository
-git clone https://github.com/awslabs/mcp.git
-cd mcp
-
-# Install the package
-pip install -e src/prometheus-mcp-server
-```
 
 ## Configuration
 
@@ -53,7 +44,7 @@ mkdir -p ~/.aws/amazonq/
       "command": "uvx",
       "args": [
         "--from",
-        "https://github.com/MohamedSherifAbdelsamiea/mcp/archive/refs/heads/add-prometheus-mcp-development.zip#subdirectory=src/prometheus-mcp-server",
+        "https://github.com/MohamedSherifAbdelsamiea/mcp/archive/refs/heads/add-prometheus-mcp.zip#subdirectory=src/prometheus-mcp-server",
         "awslabs.prometheus-mcp-server",
         "--url",
         "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-XXXX-XXXX-XXXX-XXXX",
