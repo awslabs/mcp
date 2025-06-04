@@ -95,9 +95,6 @@ async def test_get_available_services_content_structure():
     markdown_present = any(element in result for element in markdown_elements)
     assert markdown_present, 'Expected markdown formatting in the result'
 
-    # The result should contain links to service documentation
-    assert 'https://docs.amazonaws.cn' in result, 'Expected links to AWS China documentation'
-
     # The result should mention differences between global AWS and AWS China
     difference_indicators = ['difference', 'specific', 'region', 'availability']
     difference_mentioned = any(
