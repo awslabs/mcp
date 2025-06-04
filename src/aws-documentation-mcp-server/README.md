@@ -7,8 +7,9 @@ This MCP server provides tools to access AWS documentation, search for content, 
 ## Features
 
 - **Read Documentation**: Fetch and convert AWS documentation pages to markdown format
-- **Search Documentation**: Search AWS documentation using the official search API
-- **Recommendations**: Get content recommendations for AWS documentation pages
+- **Search Documentation**: Search AWS documentation using the official search API (global only)
+- **Recommendations**: Get content recommendations for AWS documentation pages (global only)
+- **Get Available Services List**: Get a list of available AWS services in China regions (China only)
 
 ## Prerequisites
 
@@ -28,7 +29,8 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
         "command": "uvx",
         "args": ["awslabs.aws-documentation-mcp-server@latest"],
         "env": {
-          "FASTMCP_LOG_LEVEL": "ERROR"
+          "FASTMCP_LOG_LEVEL": "ERROR",
+          "AWS_DOCUMENTATION_PARTITION": ""
         },
         "disabled": false,
         "autoApprove": []
@@ -36,6 +38,8 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
   }
 }
 ```
+
+> **Note**: Set `AWS_DOCUMENTATION_PARTITION` to `china` to query AWS China documentation instead of global AWS documentation.
 
 or docker after a successful `docker build -t awslabs/aws-documentation-mcp-server .`:
 
@@ -50,6 +54,8 @@ or docker after a successful `docker build -t awslabs/aws-documentation-mcp-serv
           "--interactive",
           "--env",
           "FASTMCP_LOG_LEVEL=ERROR",
+          "--env",
+          "AWS_DOCUMENTATION_PARTITION=",
           "awslabs/aws-documentation-mcp-server:latest"
         ],
         "env": {},
@@ -93,4 +99,12 @@ Gets content recommendations for an AWS documentation page.
 
 ```python
 recommend(url: str) -> list[dict]
+```
+
+### get_available_services (China only)
+
+Gets a list of available AWS services in China regions.
+
+```python
+get_available_services() -> str
 ```
