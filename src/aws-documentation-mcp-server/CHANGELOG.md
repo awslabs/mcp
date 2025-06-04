@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add environment variable `AWS_DOCUMENTATION_PARTITION` to select AWS documentation partition.
-- Add `get_available_services` and `read_documentation` when `AWS_DOCUMENTATION_PARTITION` is set to `china`.
+- Add `get_available_services` and `read_documentation` when `AWS_DOCUMENTATION_PARTITION` is set to `aws-cn`.
 
 ## [1.0.0] - 2025-05-26
 
