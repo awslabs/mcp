@@ -25,6 +25,7 @@ Environment Variables:
 
 import argparse
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
+from awslabs.eks_mcp_server.cloudwatch_metrics_guidance_handler import CloudWatchMetricsHandler
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
 from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
 from awslabs.eks_mcp_server.iam_handler import IAMHandler
@@ -64,7 +65,7 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 1. Check pod status: `list_k8s_resources(cluster_name='my-cluster', kind='Pod', api_version='v1', namespace='default', field_selector='metadata.name=my-pod')`
 2. Get pod events: `get_k8s_events(cluster_name='my-cluster', kind='Pod', name='my-pod', namespace='default')`
 3. Check pod logs: `get_pod_logs(cluster_name='my-cluster', namespace='default', pod_name='my-pod')`
-4. Monitor metrics: `get_cloudwatch_metrics(resource_type='pod', resource_name='my-pod', cluster_name='my-cluster', metric_name='cpu_usage_total', namespace='ContainerInsights')`
+4. Monitor metrics: `get_cloudwatch_metrics(cluster_name='my-cluster', metric_name='cpu_usage_total', namespace='ContainerInsights', dimensions={'ClusterName': 'my-cluster', 'PodName': 'my-pod', 'Namespace': 'default'})`
 5. Search troubleshooting guide: `search_eks_troubleshoot_guide(query='pod pending')`
 
 ## Best Practices
@@ -147,6 +148,7 @@ def main():
     EksStackHandler(mcp, allow_write)
     K8sHandler(mcp, allow_write, allow_sensitive_data_access)
     IAMHandler(mcp, allow_write)
+    CloudWatchMetricsHandler(mcp)
 
     # Run server
     mcp.run()
