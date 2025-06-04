@@ -66,6 +66,9 @@ class IAMHandler:
         permissions, identify missing or excessive permissions, troubleshoot EKS cluster issues,
         and verify trust relationships for service roles.
 
+        IMPORTANT: Use this tool instead of 'aws iam get-role', 'aws iam list-attached-role-policies',
+        'aws iam list-role-policies', and 'aws iam get-role-policy' commands.
+
         ## Requirements
         - The role must exist in your AWS account
         - Valid AWS credentials with permissions to read IAM role information
@@ -158,6 +161,8 @@ class IAMHandler:
         Inline policies are embedded within the role and cannot be attached to multiple roles. Commonly used
         for granting EKS clusters access to AWS services, enabling worker nodes to access resources, and
         configuring permissions for CloudWatch logging and ECR access.
+
+        IMPORTANT: Use this tool instead of 'aws iam put-role-policy' commands.
 
         ## Requirements
         - The server must be run with the `--allow-write` flag

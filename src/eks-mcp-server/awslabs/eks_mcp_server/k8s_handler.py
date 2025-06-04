@@ -114,6 +114,8 @@ class K8sHandler:
         and can create or update resources, useful for deploying applications, creating
         Kubernetes resources, and applying complete application stacks.
 
+        IMPORTANT: Use this tool instead of 'kubectl apply -f' commands.
+
         ## Requirements
         - The server must be run with the `--allow-write` flag
         - The YAML file must exist and be accessible to the server
@@ -337,6 +339,9 @@ class K8sHandler:
         custom resources, update specific fields, read detailed information, and delete
         resources that are no longer needed.
 
+        IMPORTANT: Use this tool instead of 'kubectl create', 'kubectl edit', 'kubectl patch',
+        'kubectl delete', or 'kubectl get' commands.
+
         ## Requirements
         - The server must be run with the `--allow-write` flag for mutating operations
         - The server must be run with the `--allow-sensitive-data-access` flag for Secret resources
@@ -536,6 +541,8 @@ class K8sHandler:
         of each resource including name, namespace, creation time, and metadata, useful
         for listing pods in a namespace, finding services with specific labels, or
         checking resources in a specific state.
+
+        IMPORTANT: Use this tool instead of 'kubectl get' commands.
 
         ## Response Information
         The response includes a summary of each resource with name, namespace, creation timestamp,
@@ -878,6 +885,8 @@ class K8sHandler:
         to filter by container, time range, and size. It's useful for debugging application
         issues, monitoring behavior, investigating crashes, and verifying startup configuration.
 
+        IMPORTANT: Use this tool instead of 'kubectl logs' commands.
+
         ## Requirements
         - The server must be run with the `--allow-sensitive-data-access` flag
         - The pod must exist and be accessible in the specified namespace
@@ -1002,6 +1011,8 @@ class K8sHandler:
         detailed information about what has happened to the resource over time. Events
         are useful for troubleshooting pod startup failures, investigating deployment issues,
         understanding resource modifications, and diagnosing scheduling problems.
+
+        IMPORTANT: Use this tool instead of 'kubectl describe' or 'kubectl get events' commands.
 
         ## Requirements
         - The server must be run with the `--allow-sensitive-data-access` flag

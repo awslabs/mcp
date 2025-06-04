@@ -139,6 +139,9 @@ class CloudWatchHandler:
         health. It supports filtering by resource type, time range, and content for troubleshooting
         application errors, investigating security incidents, and analyzing startup configuration issues.
 
+        IMPORTANT: Use this tool instead of 'aws logs get-log-events', 'aws logs filter-log-events',
+        or 'aws logs start-query' commands.
+
         ## Requirements
         - The server must be run with the `--allow-sensitive-data-access` flag
         - The EKS cluster must have CloudWatch logging enabled
@@ -368,6 +371,9 @@ class CloudWatchHandler:
         allowing you to monitor performance, resource utilization, and system health. It supports
         various resource types and metrics with flexible time ranges and aggregation options for
         monitoring CPU/memory usage, analyzing network traffic, and identifying performance bottlenecks.
+
+        IMPORTANT: Use this tool instead of 'aws cloudwatch get-metric-data', 'aws cloudwatch get-metric-statistics',
+        or similar CLI commands.
 
         ## Requirements
         - The EKS cluster must have CloudWatch Container Insights enabled
