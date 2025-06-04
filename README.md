@@ -224,7 +224,7 @@ A server to select and run AWS Lambda function as MCP tools without code changes
 - This approach allows an MCP client to use other AWS services, private networks, and the public internet.
 - The Lambda function description is used by MCP to describe the tool and should guide the FMs on when (what does the function provide?) and how (which parameters it needs? which syntax?) to use it.
 
-[Learn more](src/lambda-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/lambda-mcp-server/)
+[Learn more](src/lambda-tool-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/lambda-tool-mcp-server/)
 
 ### Amazon SNS / SQS MCP Server
 
