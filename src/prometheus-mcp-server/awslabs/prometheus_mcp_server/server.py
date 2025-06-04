@@ -126,7 +126,7 @@ def setup_environment(config):
             return False
         
         # Verify URL points to AWS Prometheus
-        if not ('amazonaws.com' in parsed_url.netloc and 'aps-workspaces' in parsed_url.netloc):
+        if not (parsed_url.netloc.endswith('.amazonaws.com') and 'aps-workspaces' in parsed_url.netloc):
             logger.warning(f"WARNING: URL doesn't appear to be an AWS Managed Prometheus endpoint: {config['prometheus_url']}")
             logger.warning("Expected format: https://aps-workspaces.[region].amazonaws.com/workspaces/ws-[id]")
     except Exception as e:
