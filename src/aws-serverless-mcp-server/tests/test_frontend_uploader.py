@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the frontend_uploader module."""
 
 import os
@@ -21,7 +24,7 @@ from awslabs.aws_serverless_mcp_server.tools.webapps.utils.frontend_uploader imp
     upload_to_s3,
 )
 from botocore.exceptions import BotoCoreError, ClientError
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 
 class TestFrontendUploader:
@@ -217,7 +220,7 @@ class TestFrontendUploader:
             await upload_to_s3('/dir/source', 'test-bucket', 'us-east-1')
 
             # Verify S3 client was created with correct region
-            mock_session.client.assert_called_once_with('s3', config=ANY)
+            mock_session.client.assert_called_once_with('s3')
 
             # Verify files were uploaded
             expected_calls = [
@@ -251,7 +254,7 @@ class TestFrontendUploader:
             await upload_to_s3('/dir/source', 'test-bucket')
 
             # Verify Session was created without region
-            mock_session.client.assert_called_once_with('s3', config=ANY)
+            mock_session.client.assert_called_once_with('s3')
 
     @pytest.mark.asyncio
     async def test_upload_to_s3_client_error(self):

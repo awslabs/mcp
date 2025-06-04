@@ -1,20 +1,23 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the webapp_deployment_help module."""
 
 import pytest
-from awslabs.aws_serverless_mcp_server.models import WebappDeploymentHelpRequest
 from awslabs.aws_serverless_mcp_server.tools.webapps.webapp_deployment_help import (
-    webapp_deployment_help,
+    WebappDeploymentHelpTool,
 )
+from unittest.mock import AsyncMock, MagicMock
 
 
 class TestDeploymentHelp:
@@ -24,10 +27,12 @@ class TestDeploymentHelp:
     async def test_deployment_help_general(self):
         """Test getting general deployment help."""
         # Create a mock request with no specific deployment type
-        request = WebappDeploymentHelpRequest(deployment_type='backend')
+        # request = WebappDeploymentHelpRequest(deployment_type='backend')
 
         # Call the function
-        result = await webapp_deployment_help(request)
+        result = await WebappDeploymentHelpTool(MagicMock()).webapp_deployment_help_tool(
+            AsyncMock(), deployment_type='backend'
+        )
 
         # Verify the result
         assert result['success'] is True
@@ -53,10 +58,12 @@ class TestDeploymentHelp:
     async def test_deployment_help_backend(self):
         """Test getting backend deployment help."""
         # Create a mock request for backend deployment type
-        request = WebappDeploymentHelpRequest(deployment_type='backend')
+        # request = WebappDeploymentHelpRequest(deployment_type='backend')
 
         # Call the function
-        result = await webapp_deployment_help(request)
+        result = await WebappDeploymentHelpTool(MagicMock()).webapp_deployment_help_tool(
+            AsyncMock(), deployment_type='backend'
+        )
 
         # Verify the result
         assert result['success'] is True
@@ -89,10 +96,11 @@ class TestDeploymentHelp:
     async def test_deployment_help_frontend(self):
         """Test getting frontend deployment help."""
         # Create a mock request for frontend deployment type
-        request = WebappDeploymentHelpRequest(deployment_type='frontend')
 
         # Call the function
-        result = await webapp_deployment_help(request)
+        result = await WebappDeploymentHelpTool(MagicMock()).webapp_deployment_help_tool(
+            AsyncMock(), deployment_type='frontend'
+        )
 
         # Verify the result
         assert result['success'] is True
@@ -124,10 +132,11 @@ class TestDeploymentHelp:
     async def test_deployment_help_fullstack(self):
         """Test getting fullstack deployment help."""
         # Create a mock request for fullstack deployment type
-        request = WebappDeploymentHelpRequest(deployment_type='fullstack')
 
         # Call the function
-        result = await webapp_deployment_help(request)
+        result = await WebappDeploymentHelpTool(MagicMock()).webapp_deployment_help_tool(
+            AsyncMock(), deployment_type='fullstack'
+        )
 
         # Verify the result
         assert result['success'] is True

@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """IAM handler for the EKS MCP Server."""
 
@@ -62,6 +65,9 @@ class IAMHandler:
         of the role's permissions and trust relationships. It helps you understand the current
         permissions, identify missing or excessive permissions, troubleshoot EKS cluster issues,
         and verify trust relationships for service roles.
+
+        IMPORTANT: Use this tool instead of 'aws iam get-role', 'aws iam list-attached-role-policies',
+        'aws iam list-role-policies', and 'aws iam get-role-policy' commands.
 
         ## Requirements
         - The role must exist in your AWS account
@@ -155,6 +161,8 @@ class IAMHandler:
         Inline policies are embedded within the role and cannot be attached to multiple roles. Commonly used
         for granting EKS clusters access to AWS services, enabling worker nodes to access resources, and
         configuring permissions for CloudWatch logging and ECR access.
+
+        IMPORTANT: Use this tool instead of 'aws iam put-role-policy' commands.
 
         ## Requirements
         - The server must be run with the `--allow-write` flag

@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Search functionality for Git Repository Research MCP Server.
 
 This module provides functionality for searching within indexed Git repositories
@@ -210,7 +213,7 @@ class RepositorySearcher:
                 index_path = self.repository_indexer._get_index_path(repository_name)
 
             # Load the index and chunk map
-            vector_store = self.repository_indexer.load_index_without_pickle(repository_name)
+            vector_store = self.repository_indexer.load_index_without_pickle(index_path)
             if vector_store is None:
                 logger.error(f'Index or chunk map not found for repository {repository_name}')
                 # Set repository_directory even if index is not found

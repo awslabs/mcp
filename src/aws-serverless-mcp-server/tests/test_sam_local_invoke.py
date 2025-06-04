@@ -1,21 +1,23 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the sam_local_invoke module."""
 
 import os
 import pytest
 import tempfile
-from awslabs.aws_serverless_mcp_server.models import SamLocalInvokeRequest
-from awslabs.aws_serverless_mcp_server.tools.sam.sam_local_invoke import handle_sam_local_invoke
-from unittest.mock import MagicMock, mock_open, patch
+from awslabs.aws_serverless_mcp_server.tools.sam.sam_local_invoke import SamLocalInvokeTool
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 
 class TestSamLocalInvoke:
@@ -24,23 +26,6 @@ class TestSamLocalInvoke:
     @pytest.mark.asyncio
     async def test_sam_local_invoke_success(self):
         """Test successful SAM local invoke."""
-        # Create a mock request
-        request = SamLocalInvokeRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            resource_name='test-function',
-            template_file=None,
-            event_file=None,
-            event_data=None,
-            environment_variables_file=None,
-            docker_network=None,
-            container_env_vars=None,
-            parameter=None,
-            log_file=None,
-            layer_cache_basedir=None,
-            region=None,
-            profile=None,
-        )
-
         # Mock the subprocess.run function
         mock_result = MagicMock()
         mock_result.stdout = b'{"statusCode": 200, "body": "Success"}'
@@ -51,7 +36,22 @@ class TestSamLocalInvoke:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await handle_sam_local_invoke(request)
+            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                resource_name='test-function',
+                template_file=None,
+                event_file=None,
+                event_data=None,
+                environment_variables_file=None,
+                docker_network=None,
+                container_env_vars=None,
+                parameter=None,
+                log_file=None,
+                layer_cache_basedir=None,
+                region=None,
+                profile=None,
+            )
 
             # Verify the result
             assert result['success'] is True
@@ -73,23 +73,6 @@ class TestSamLocalInvoke:
     @pytest.mark.asyncio
     async def test_sam_local_invoke_with_event_file(self):
         """Test SAM local invoke with event file."""
-        # Create a mock request with event file
-        request = SamLocalInvokeRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            resource_name='test-function',
-            template_file=None,
-            event_file=os.path.join(tempfile.gettempdir(), 'event.json'),
-            event_data=None,
-            environment_variables_file=None,
-            docker_network=None,
-            container_env_vars=None,
-            parameter=None,
-            log_file=None,
-            layer_cache_basedir=None,
-            region=None,
-            profile=None,
-        )
-
         # Mock the subprocess.run function
         mock_result = MagicMock()
         mock_result.stdout = b'{"statusCode": 200, "body": "Success"}'
@@ -100,7 +83,22 @@ class TestSamLocalInvoke:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await handle_sam_local_invoke(request)
+            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                resource_name='test-function',
+                template_file=None,
+                event_file=os.path.join(tempfile.gettempdir(), 'event.json'),
+                event_data=None,
+                environment_variables_file=None,
+                docker_network=None,
+                container_env_vars=None,
+                parameter=None,
+                log_file=None,
+                layer_cache_basedir=None,
+                region=None,
+                profile=None,
+            )
 
             # Verify the result
             assert result['success'] is True
@@ -117,23 +115,6 @@ class TestSamLocalInvoke:
     @pytest.mark.asyncio
     async def test_sam_local_invoke_with_event_data(self):
         """Test SAM local invoke with event data."""
-        # Create a mock request with event data
-        request = SamLocalInvokeRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            resource_name='test-function',
-            template_file=None,
-            event_file=None,
-            event_data='{"key": "value"}',
-            environment_variables_file=None,
-            docker_network=None,
-            container_env_vars=None,
-            parameter=None,
-            log_file=None,
-            layer_cache_basedir=None,
-            region=None,
-            profile=None,
-        )
-
         # Mock the subprocess.run function
         mock_result = MagicMock()
         mock_result.stdout = b'{"statusCode": 200, "body": "Success"}'
@@ -154,7 +135,22 @@ class TestSamLocalInvoke:
             ) as mock_run,
         ):
             # Call the function
-            result = await handle_sam_local_invoke(request)
+            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                resource_name='test-function',
+                template_file=None,
+                event_file=None,
+                event_data='{"key": "value"}',
+                environment_variables_file=None,
+                docker_network=None,
+                container_env_vars=None,
+                parameter=None,
+                log_file=None,
+                layer_cache_basedir=None,
+                region=None,
+                profile=None,
+            )
 
             # Verify the result
             assert result['success'] is True
@@ -183,23 +179,6 @@ class TestSamLocalInvoke:
     @pytest.mark.asyncio
     async def test_sam_local_invoke_with_optional_params(self):
         """Test SAM local invoke with optional parameters."""
-        # Create a mock request with optional parameters
-        request = SamLocalInvokeRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            resource_name='test-function',
-            template_file='template.yaml',
-            event_file=None,
-            event_data=None,
-            environment_variables_file=os.path.join(tempfile.gettempdir(), 'env.json'),
-            docker_network='my-network',
-            container_env_vars={'CONTAINER_ENV1': 'value1', 'CONTAINER_ENV2': 'value2'},
-            parameter={'param1': 'value1', 'param2': 'value2'},
-            log_file=os.path.join(tempfile.gettempdir(), 'log.txt'),
-            layer_cache_basedir=os.path.join(tempfile.gettempdir(), 'layer-cache'),
-            region='us-west-2',
-            profile='default',
-        )
-
         # Mock the subprocess.run function
         mock_result = MagicMock()
         mock_result.stdout = b'{"statusCode": 200, "body": "Success"}'
@@ -210,7 +189,22 @@ class TestSamLocalInvoke:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await handle_sam_local_invoke(request)
+            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                resource_name='test-function',
+                template_file='template.yaml',
+                event_file=None,
+                event_data=None,
+                environment_variables_file=os.path.join(tempfile.gettempdir(), 'env.json'),
+                docker_network='my-network',
+                container_env_vars={'CONTAINER_ENV1': 'value1', 'CONTAINER_ENV2': 'value2'},
+                parameter={'param1': 'value1', 'param2': 'value2'},
+                log_file=os.path.join(tempfile.gettempdir(), 'log.txt'),
+                layer_cache_basedir=os.path.join(tempfile.gettempdir(), 'layer-cache'),
+                region='us-west-2',
+                profile='default',
+            )
 
             # Verify the result
             assert result['success'] is True
@@ -240,23 +234,6 @@ class TestSamLocalInvoke:
     @pytest.mark.asyncio
     async def test_sam_local_invoke_non_json_output(self):
         """Test SAM local invoke with non-JSON output."""
-        # Create a mock request
-        request = SamLocalInvokeRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            resource_name='test-function',
-            template_file=None,
-            event_file=None,
-            event_data=None,
-            environment_variables_file=None,
-            docker_network=None,
-            container_env_vars=None,
-            parameter=None,
-            log_file=None,
-            layer_cache_basedir=None,
-            region=None,
-            profile=None,
-        )
-
         # Mock the subprocess.run function with non-JSON output
         mock_result = MagicMock()
         mock_result.stdout = b'This is not JSON'
@@ -267,7 +244,22 @@ class TestSamLocalInvoke:
             return_value=(mock_result.stdout, mock_result.stderr),
         ):
             # Call the function
-            result = await handle_sam_local_invoke(request)
+            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                resource_name='test-function',
+                template_file=None,
+                event_file=None,
+                event_data=None,
+                environment_variables_file=None,
+                docker_network=None,
+                container_env_vars=None,
+                parameter=None,
+                log_file=None,
+                layer_cache_basedir=None,
+                region=None,
+                profile=None,
+            )
 
             # Verify the result
             assert result['success'] is True
@@ -277,23 +269,6 @@ class TestSamLocalInvoke:
     @pytest.mark.asyncio
     async def test_sam_local_invoke_failure(self):
         """Test SAM local invoke failure."""
-        # Create a mock request
-        request = SamLocalInvokeRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            resource_name='test-function',
-            template_file=None,
-            event_file=None,
-            event_data=None,
-            environment_variables_file=None,
-            docker_network=None,
-            container_env_vars=None,
-            parameter=None,
-            log_file=None,
-            layer_cache_basedir=None,
-            region=None,
-            profile=None,
-        )
-
         # Mock the subprocess.run function to raise an exception
         error_message = 'Command failed with exit code 1'
         with patch(
@@ -301,7 +276,22 @@ class TestSamLocalInvoke:
             side_effect=Exception(error_message),
         ):
             # Call the function
-            result = await handle_sam_local_invoke(request)
+            result = await SamLocalInvokeTool(MagicMock()).handle_sam_local_invoke(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                resource_name='test-function',
+                template_file=None,
+                event_file=None,
+                event_data=None,
+                environment_variables_file=None,
+                docker_network=None,
+                container_env_vars=None,
+                parameter=None,
+                log_file=None,
+                layer_cache_basedir=None,
+                region=None,
+                profile=None,
+            )
 
             # Verify the result
             assert result['success'] is False

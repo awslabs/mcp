@@ -1,11 +1,28 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """awslabs Step Functions Tool MCP Server implementation."""
 
+# This version should match the version in pyproject.toml
+__version__ = '0.1.5'
+
 import asyncio
-import boto3
 import json
 import logging
 import os
 import re
+from awslabs.stepfunctions_tool_mcp_server.aws_helper import AwsHelper
 from mcp.server.fastmcp import Context, FastMCP
 from typing import Optional
 
@@ -14,11 +31,8 @@ from typing import Optional
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-AWS_PROFILE = os.environ.get('AWS_PROFILE', 'default')
-logger.info(f'AWS_PROFILE: {AWS_PROFILE}')
-
-AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-logger.info(f'AWS_REGION: {AWS_REGION}')
+logger.info(f'AWS_PROFILE: {AwsHelper.get_aws_profile()}')
+logger.info(f'AWS_REGION: {AwsHelper.get_aws_region()}')
 
 STATE_MACHINE_PREFIX = os.environ.get('STATE_MACHINE_PREFIX', '')
 logger.info(f'STATE_MACHINE_PREFIX: {STATE_MACHINE_PREFIX}')
@@ -40,9 +54,8 @@ STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY = os.environ.get('STATE_MACHINE_INPUT_SCH
 logger.info(f'STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY: {STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY}')
 
 # Initialize AWS clients
-session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
-sfn_client = session.client('stepfunctions')
-schemas_client = session.client('schemas')
+sfn_client = AwsHelper.create_boto3_client('stepfunctions')
+schemas_client = AwsHelper.create_boto3_client('schemas')
 
 mcp = FastMCP(
     'awslabs.stepfunctions-tool-mcp-server',

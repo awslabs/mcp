@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Kubernetes API client for the EKS MCP Server."""
 
@@ -407,22 +410,26 @@ class K8sApis:
             Pod logs as a string
         """
         try:
-            # Get the Pod resource using the dynamic client
-            pod_resource = self.dynamic_client.resources.get(api_version='v1', kind='Pod')
+            from kubernetes import client
 
-            # Prepare parameters for the log subresource
+            # Create CoreV1Api client
+            core_v1_api = client.CoreV1Api(self.api_client)
+
+            # Prepare parameters for the read_namespaced_pod_log method
             params = {}
             if container_name:
                 params['container'] = container_name
             if since_seconds:
-                params['sinceSeconds'] = since_seconds
+                params['since_seconds'] = since_seconds
             if tail_lines:
-                params['tailLines'] = tail_lines
+                params['tail_lines'] = tail_lines
             if limit_bytes:
-                params['limitBytes'] = limit_bytes
+                params['limit_bytes'] = limit_bytes
 
-            # Call the log subresource (note: singular 'log', not 'logs')
-            logs_response = pod_resource.log.get(name=pod_name, namespace=namespace, **params)
+            # Call the read_namespaced_pod_log method
+            logs_response = core_v1_api.read_namespaced_pod_log(
+                name=pod_name, namespace=namespace, **params
+            )
 
             return logs_response
 

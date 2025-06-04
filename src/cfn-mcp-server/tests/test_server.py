@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the cfn MCP Server."""
 
 import pytest
@@ -15,9 +18,10 @@ from awslabs.cfn_mcp_server.context import Context
 from awslabs.cfn_mcp_server.errors import ClientError
 from awslabs.cfn_mcp_server.server import (
     create_resource,
+    create_template,
     delete_resource,
-    get_request_status,
     get_resource,
+    get_resource_request_status,
     get_resource_schema_information,
     list_resources,
     update_resource,
@@ -284,32 +288,33 @@ class TestTools:
     async def test_get_request_type_no_token(self):
         """Testing no token."""
         with pytest.raises(ClientError):
-            await get_request_status(request_token='Token')
+            await get_resource_request_status(request_token='Token')
 
-    @patch('awslabs.cfn_mcp_server.server.get_aws_client')
-    async def test_get_request(self, mock_get_aws_client):
-        """Testing simple get request."""
+    @patch('awslabs.cfn_mcp_server.server.create_template_impl')
+    async def test_create_template(self, mock_create_template_impl):
+        """Testing create_template function."""
         # Setup the mock
-        response = {
-            'ProgressEvent': {
-                'OperationStatus': 'SUCCESS',
-                'TypeName': 'AWS::CodeStarConnections::Connection',
-                'RequestToken': 'RequestToken',
-            }
+        mock_create_template_impl.return_value = {
+            'status': 'INITIATED',
+            'template_id': 'test-template-id',
+            'message': 'Template generation initiated.',
         }
-        mock_get_resource_request_return_value = MagicMock(return_value=response)
-        mock_cloudcontrol_client = MagicMock(
-            get_resource_request_status=mock_get_resource_request_return_value
-        )
-        mock_get_aws_client.return_value = mock_cloudcontrol_client
 
         # Call the function
-        result = await get_request_status(request_token='Token')
+        result = await create_template(
+            template_name='test-template',
+            resources=[{'ResourceType': 'AWS::S3::Bucket', 'ResourceIdentifier': 'test-bucket'}],
+            output_format='YAML',
+            deletion_policy='RETAIN',
+            update_replace_policy='RETAIN',
+        )
 
         # Check the result
         assert result == {
-            'status': 'SUCCESS',
-            'resource_type': 'AWS::CodeStarConnections::Connection',
-            'is_complete': True,
-            'request_token': 'RequestToken',
+            'status': 'INITIATED',
+            'template_id': 'test-template-id',
+            'message': 'Template generation initiated.',
         }
+
+        # Verify the implementation was called with the correct parameters
+        mock_create_template_impl.assert_called_once()

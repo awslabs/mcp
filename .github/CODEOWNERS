@@ -24,13 +24,14 @@ NOTICE                                @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/cdk-mcp-server                   @jimini55                        @awslabs/mcp-admins
 /src/cfn-mcp-server                   @karamvsingh                     @awslabs/mcp-admins # @5herlocked @peternigh
+/src/cloudwatch_logs_mcp_server       @lemmoi @shri-tambe              @awslabs/mcp-admins
 /src/code-doc-gen-mcp-server          @jimini55                        @awslabs/mcp-admins
 /src/core-mcp-server                  @PaulVincent707                  @awslabs/mcp-admins
 #/src/cost-analysis-mcp-server        @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/dynamodb-mcp-server              @erbenmo                         @awslabs/mcp-admins
 /src/ecs-mcp-server                   @karanbokil @matthewgoodman13    @awslabs/mcp-admins
 /src/git-repo-research-mcp-server     @jonslo                          @awslabs/mcp-admins
-/src/lambda-mcp-server                @danilop @jsamuel1               @awslabs/mcp-admins
+/src/lambda-tool-mcp-server           @danilop @jsamuel1               @awslabs/mcp-admins
 /src/memcached-mcp-server             @seaofawareness                  @awslabs/mcp-admins
 #/src/nova-canvas-mcp-server          @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/postgres-mcp-server              @kennthhz                        @awslabs/mcp-admins

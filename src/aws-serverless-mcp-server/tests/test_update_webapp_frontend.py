@@ -1,25 +1,24 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the update_webapp_frontend module."""
 
 import pytest
-from awslabs.aws_serverless_mcp_server.models import UpdateFrontendRequest
 from awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend import (
-    get_all_files,
-    sync_directory_to_s3,
-    update_webapp_frontend,
-    upload_file_to_s3,
+    UpdateFrontendTool,
 )
 from botocore.exceptions import ClientError
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 
 class TestUpdateWebappFrontend:
@@ -50,7 +49,7 @@ class TestUpdateWebappFrontend:
             patch('os.path.isdir', side_effect=mock_isdir),
             patch('os.path.join', side_effect=mock_join),
         ):
-            files = await get_all_files('/dir/source')
+            files = await UpdateFrontendTool(MagicMock())._get_all_files('/dir/source')
 
             # Check that all files were found
             assert len(files) == 3
@@ -62,7 +61,7 @@ class TestUpdateWebappFrontend:
     async def test_get_all_files_empty_directory(self):
         """Test get_all_files with an empty directory."""
         with patch('os.listdir', return_value=[]):
-            files = await get_all_files('/dir/empty')
+            files = await UpdateFrontendTool(MagicMock())._get_all_files('/dir/empty')
             assert len(files) == 0
 
     @pytest.mark.asyncio
@@ -70,7 +69,7 @@ class TestUpdateWebappFrontend:
         """Test get_all_files with an exception."""
         with patch('os.listdir', side_effect=Exception('Test error')):
             with pytest.raises(Exception, match='Test error'):
-                await get_all_files('/dir/source')
+                await UpdateFrontendTool(MagicMock())._get_all_files('/dir/source')
 
     @pytest.mark.asyncio
     async def test_upload_file_to_s3(self):
@@ -81,7 +80,7 @@ class TestUpdateWebappFrontend:
             patch('builtins.open', mock_open(read_data=b'test content')),
             patch('mimetypes.guess_type', return_value=('text/plain', None)),
         ):
-            await upload_file_to_s3(
+            await UpdateFrontendTool(MagicMock())._upload_file_to_s3(
                 mock_s3_client, '/dir/source/file.txt', 'test-bucket', '/dir/source'
             )
 
@@ -102,7 +101,7 @@ class TestUpdateWebappFrontend:
             patch('builtins.open', mock_open(read_data=b'test content')),
             patch('mimetypes.guess_type', return_value=('application/javascript', None)),
         ):
-            await upload_file_to_s3(
+            await UpdateFrontendTool(MagicMock())._upload_file_to_s3(
                 mock_s3_client, '/dir/source/subdir/file.js', 'test-bucket', '/dir/source'
             )
 
@@ -125,7 +124,7 @@ class TestUpdateWebappFrontend:
             patch('mimetypes.guess_type', return_value=('text/plain', None)),
             pytest.raises(Exception, match='Test error'),
         ):
-            await upload_file_to_s3(
+            await UpdateFrontendTool(MagicMock())._upload_file_to_s3(
                 mock_s3_client, '/dir/source/file.txt', 'test-bucket', '/dir/source'
             )
 
@@ -152,15 +151,12 @@ class TestUpdateWebappFrontend:
         ]
 
         with (
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.get_all_files',
-                return_value=local_files,
-            ),
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.upload_file_to_s3'
-            ) as mock_upload,
+            patch.object(UpdateFrontendTool, '_get_all_files', return_value=local_files),
+            patch.object(UpdateFrontendTool, '_upload_file_to_s3') as mock_upload,
         ):
-            await sync_directory_to_s3(mock_s3_client, '/dir/source', 'test-bucket')
+            await UpdateFrontendTool(MagicMock())._sync_directory_to_s3(
+                mock_s3_client, '/dir/source', 'test-bucket'
+            )
 
             # Verify all local files were uploaded
             assert mock_upload.call_count == 3
@@ -182,15 +178,12 @@ class TestUpdateWebappFrontend:
         local_files = ['/dir/source/file1.txt', '/dir/source/file2.html']
 
         with (
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.get_all_files',
-                return_value=local_files,
-            ),
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.upload_file_to_s3'
-            ) as mock_upload,
+            patch.object(UpdateFrontendTool, '_get_all_files', return_value=local_files),
+            patch.object(UpdateFrontendTool, '_upload_file_to_s3') as mock_upload,
         ):
-            await sync_directory_to_s3(mock_s3_client, '/dir/source', 'test-bucket')
+            await UpdateFrontendTool(MagicMock())._sync_directory_to_s3(
+                mock_s3_client, '/dir/source', 'test-bucket'
+            )
 
             # Verify all local files were uploaded
             assert mock_upload.call_count == 2
@@ -220,15 +213,12 @@ class TestUpdateWebappFrontend:
         local_files = ['/dir/source/file1.txt', '/dir/source/new-file.js']
 
         with (
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.get_all_files',
-                return_value=local_files,
-            ),
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.upload_file_to_s3'
-            ) as mock_upload,
+            patch.object(UpdateFrontendTool, '_get_all_files', return_value=local_files),
+            patch.object(UpdateFrontendTool, '_upload_file_to_s3') as mock_upload,
         ):
-            await sync_directory_to_s3(mock_s3_client, '/dir/source', 'test-bucket')
+            await UpdateFrontendTool(MagicMock())._sync_directory_to_s3(
+                mock_s3_client, '/dir/source', 'test-bucket'
+            )
 
             # Verify all local files were uploaded
             assert mock_upload.call_count == 2
@@ -247,16 +237,16 @@ class TestUpdateWebappFrontend:
     @pytest.mark.asyncio
     async def test_update_webapp_frontend_built_assets_not_found(self):
         """Test update_webapp_frontend with non-existent built assets path."""
-        request = UpdateFrontendRequest(
-            project_name='test-project',
-            project_root='/dir/test-project',
-            built_assets_path='/dir/nonexistent',
-            invalidate_cache=True,
-            region='us-east-1',
-        )
-
         with patch('os.path.exists', return_value=False):
-            result = await update_webapp_frontend(request)
+            tool = UpdateFrontendTool(MagicMock())
+            result = await tool.update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='/dir/build',
+                invalidate_cache=True,
+                region='us-east-1',
+            )
 
             assert result['status'] == 'error'
             assert 'Built assets path not found' in result['message']
@@ -264,14 +254,6 @@ class TestUpdateWebappFrontend:
     @pytest.mark.asyncio
     async def test_update_webapp_frontend_stack_not_found(self):
         """Test update_webapp_frontend with non-existent CloudFormation stack."""
-        request = UpdateFrontendRequest(
-            project_name='test-project',
-            project_root='/dir/test-project',
-            built_assets_path='/dir/build',
-            invalidate_cache=True,
-            region='us-east-1',
-        )
-
         mock_cfn_client = MagicMock()
         mock_cfn_client.describe_stacks.side_effect = ClientError(
             {'Error': {'Code': 'ValidationError', 'Message': 'Stack does not exist'}},
@@ -279,7 +261,7 @@ class TestUpdateWebappFrontend:
         )
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service, config: {
+        mock_session.client.side_effect = lambda service: {
             'cloudformation': mock_cfn_client,
         }.get(service, MagicMock())
 
@@ -287,7 +269,15 @@ class TestUpdateWebappFrontend:
             patch('os.path.exists', return_value=True),
             patch('boto3.Session', return_value=mock_session),
         ):
-            result = await update_webapp_frontend(request)
+            tool = UpdateFrontendTool(MagicMock())
+            result = await tool.update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='/dir/build',
+                invalidate_cache=True,
+                region='us-east-1',
+            )
 
             assert result['status'] == 'error'
             assert 'does not exist' in result['message']
@@ -295,14 +285,6 @@ class TestUpdateWebappFrontend:
     @pytest.mark.asyncio
     async def test_update_webapp_frontend_no_website_bucket(self):
         """Test update_webapp_frontend with no WebsiteBucket output in stack."""
-        request = UpdateFrontendRequest(
-            project_name='test-project',
-            project_root='/dir/test-project',
-            built_assets_path='/dir/build',
-            invalidate_cache=True,
-            region='us-east-1',
-        )
-
         mock_cfn_client = MagicMock()
         mock_cfn_client.describe_stacks.return_value = {
             'Stacks': [
@@ -311,7 +293,7 @@ class TestUpdateWebappFrontend:
         }
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service, config: {
+        mock_session.client.side_effect = lambda service: {
             'cloudformation': mock_cfn_client,
         }.get(service, MagicMock())
 
@@ -319,22 +301,21 @@ class TestUpdateWebappFrontend:
             patch('os.path.exists', return_value=True),
             patch('boto3.Session', return_value=mock_session),
         ):
-            result = await update_webapp_frontend(request)
-
+            tool = UpdateFrontendTool(MagicMock())
+            result = await tool.update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='/dir/build',
+                invalidate_cache=True,
+                region='us-east-1',
+            )
             assert result['status'] == 'error'
             assert 'Could not find WebsiteBucket output' in result['message']
 
     @pytest.mark.asyncio
     async def test_update_webapp_frontend_success_no_cloudfront(self):
         """Test successful update_webapp_frontend without CloudFront."""
-        request = UpdateFrontendRequest(
-            project_name='test-project',
-            project_root='/dir/test-project',
-            built_assets_path='/dir/build',
-            invalidate_cache=True,
-            region='us-east-1',
-        )
-
         mock_cfn_client = MagicMock()
         mock_cfn_client.describe_stacks.return_value = {
             'Stacks': [{'Outputs': [{'OutputKey': 'WebsiteBucket', 'OutputValue': 'test-bucket'}]}]
@@ -344,7 +325,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service, config: {
+        mock_session.client.side_effect = lambda service: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -353,11 +334,16 @@ class TestUpdateWebappFrontend:
         with (
             patch('os.path.exists', return_value=True),
             patch('boto3.Session', return_value=mock_session),
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.sync_directory_to_s3'
-            ) as mock_sync,
+            patch.object(UpdateFrontendTool, '_sync_directory_to_s3') as mock_sync,
         ):
-            result = await update_webapp_frontend(request)
+            result = await UpdateFrontendTool(MagicMock()).update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='/dir/build',
+                invalidate_cache=True,
+                region='us-east-1',
+            )
 
             # Verify sync was called
             mock_sync.assert_called_once_with(mock_s3_client, '/dir/build', 'test-bucket')
@@ -373,14 +359,6 @@ class TestUpdateWebappFrontend:
     @pytest.mark.asyncio
     async def test_update_webapp_frontend_success_with_cloudfront(self):
         """Test successful update_webapp_frontend with CloudFront."""
-        request = UpdateFrontendRequest(
-            project_name='test-project',
-            project_root='/dir/test-project',
-            built_assets_path='/dir/build',
-            invalidate_cache=True,
-            region='us-east-1',
-        )
-
         mock_cfn_client = MagicMock()
         mock_cfn_client.describe_stacks.return_value = {
             'Stacks': [
@@ -400,7 +378,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service, config: {
+        mock_session.client.side_effect = lambda service: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -409,15 +387,21 @@ class TestUpdateWebappFrontend:
         with (
             patch('os.path.exists', return_value=True),
             patch('boto3.Session', return_value=mock_session),
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.sync_directory_to_s3'
-            ) as mock_sync,
+            patch.object(UpdateFrontendTool, '_sync_directory_to_s3') as mock_sync,
             patch('datetime.datetime') as mock_datetime,
         ):
             # Mock timestamp for invalidation
             mock_datetime.now.return_value.timestamp.return_value = 1234567890
 
-            result = await update_webapp_frontend(request)
+            tool = UpdateFrontendTool(MagicMock())
+            result = await tool.update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='/dir/build',
+                invalidate_cache=True,
+                region='us-east-1',
+            )
 
             # Verify sync was called
             mock_sync.assert_called_once_with(mock_s3_client, '/dir/build', 'test-bucket')
@@ -439,14 +423,6 @@ class TestUpdateWebappFrontend:
     @pytest.mark.asyncio
     async def test_update_webapp_frontend_success_with_cloudfront_url(self):
         """Test successful update_webapp_frontend with CloudFront URL but no ID."""
-        request = UpdateFrontendRequest(
-            project_name='test-project',
-            project_root='/dir/test-project',
-            built_assets_path='/dir/build',
-            invalidate_cache=True,
-            region='us-east-1',
-        )
-
         mock_cfn_client = MagicMock()
         mock_cfn_client.describe_stacks.return_value = {
             'Stacks': [
@@ -466,7 +442,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service, config: {
+        mock_session.client.side_effect = lambda service: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -475,12 +451,17 @@ class TestUpdateWebappFrontend:
         with (
             patch('os.path.exists', return_value=True),
             patch('boto3.Session', return_value=mock_session),
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.sync_directory_to_s3'
-            ) as mock_sync,
+            patch.object(UpdateFrontendTool, '_sync_directory_to_s3') as mock_sync,
         ):
-            result = await update_webapp_frontend(request)
-
+            tool = UpdateFrontendTool(MagicMock())
+            result = await tool.update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='/dir/build',
+                invalidate_cache=True,
+                region='us-east-1',
+            )
             # Verify sync was called
             mock_sync.assert_called_once_with(mock_s3_client, '/dir/build', 'test-bucket')
 
@@ -495,14 +476,6 @@ class TestUpdateWebappFrontend:
     @pytest.mark.asyncio
     async def test_update_webapp_frontend_sync_error(self):
         """Test update_webapp_frontend with sync error."""
-        request = UpdateFrontendRequest(
-            project_name='test-project',
-            project_root='/dir/test-project',
-            built_assets_path='/dir/build',
-            invalidate_cache=True,
-            region='us-east-1',
-        )
-
         mock_cfn_client = MagicMock()
         mock_cfn_client.describe_stacks.return_value = {
             'Stacks': [{'Outputs': [{'OutputKey': 'WebsiteBucket', 'OutputValue': 'test-bucket'}]}]
@@ -512,7 +485,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service, config: {
+        mock_session.client.side_effect = lambda service: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -521,13 +494,19 @@ class TestUpdateWebappFrontend:
         with (
             patch('os.path.exists', return_value=True),
             patch('boto3.Session', return_value=mock_session),
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.sync_directory_to_s3',
-                side_effect=Exception('Sync error'),
+            patch.object(
+                UpdateFrontendTool, '_sync_directory_to_s3', side_effect=Exception('Sync error')
             ),
         ):
-            result = await update_webapp_frontend(request)
-
+            tool = UpdateFrontendTool(MagicMock())
+            result = await tool.update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='/dir/build',
+                invalidate_cache=True,
+                region='us-east-1',
+            )
             # Verify error response
             assert result['status'] == 'error'
             assert 'Failed to update frontend assets' in result['message']
@@ -536,14 +515,6 @@ class TestUpdateWebappFrontend:
     @pytest.mark.asyncio
     async def test_update_webapp_frontend_relative_path(self):
         """Test update_webapp_frontend with relative built assets path."""
-        request = UpdateFrontendRequest(
-            project_name='test-project',
-            project_root='/dir/test-project',
-            built_assets_path='build',  # Relative path
-            invalidate_cache=True,
-            region='us-east-1',
-        )
-
         mock_cfn_client = MagicMock()
         mock_cfn_client.describe_stacks.return_value = {
             'Stacks': [{'Outputs': [{'OutputKey': 'WebsiteBucket', 'OutputValue': 'test-bucket'}]}]
@@ -553,7 +524,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service, config: {
+        mock_session.client.side_effect = lambda service: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -564,11 +535,17 @@ class TestUpdateWebappFrontend:
             patch('os.path.isabs', return_value=False),
             patch('os.path.join', return_value='/dir/test-project/build'),
             patch('boto3.Session', return_value=mock_session),
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.sync_directory_to_s3'
-            ) as mock_sync,
+            patch.object(UpdateFrontendTool, '_sync_directory_to_s3') as mock_sync,
         ):
-            result = await update_webapp_frontend(request)
+            tool = UpdateFrontendTool(MagicMock())
+            result = await tool.update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='build',  # Relative path
+                invalidate_cache=True,
+                region='us-east-1',
+            )
 
             # Verify sync was called with absolute path
             mock_sync.assert_called_once_with(
@@ -582,14 +559,6 @@ class TestUpdateWebappFrontend:
     @pytest.mark.asyncio
     async def test_update_webapp_frontend_no_region(self):
         """Test update_webapp_frontend without region."""
-        request = UpdateFrontendRequest(
-            project_name='test-project',
-            project_root='/dir/test-project',
-            built_assets_path='/dir/build',
-            invalidate_cache=True,
-            region=None,  # No region
-        )
-
         mock_cfn_client = MagicMock()
         mock_cfn_client.describe_stacks.return_value = {
             'Stacks': [{'Outputs': [{'OutputKey': 'WebsiteBucket', 'OutputValue': 'test-bucket'}]}]
@@ -599,7 +568,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service, config: {
+        mock_session.client.side_effect = lambda service: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -608,11 +577,17 @@ class TestUpdateWebappFrontend:
         with (
             patch('os.path.exists', return_value=True),
             patch('boto3.Session', return_value=mock_session) as mock_session_constructor,
-            patch(
-                'awslabs.aws_serverless_mcp_server.tools.webapps.update_webapp_frontend.sync_directory_to_s3'
-            ) as mock_sync,
+            patch.object(UpdateFrontendTool, '_sync_directory_to_s3') as mock_sync,
         ):
-            result = await update_webapp_frontend(request)
+            tool = UpdateFrontendTool(MagicMock())
+            result = await tool.update_webapp_frontend_tool(
+                AsyncMock(),
+                project_name='test-project',
+                project_root='/dir/test-project',
+                built_assets_path='/dir/build',
+                invalidate_cache=True,
+                region=None,  # No region
+            )
 
             # Verify boto3.Session was called without region
             assert mock_session_constructor.call_count == 3

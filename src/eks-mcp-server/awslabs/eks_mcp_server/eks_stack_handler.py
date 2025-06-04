@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """EKS stack handler for the EKS MCP Server."""
 
@@ -36,7 +39,7 @@ from awslabs.eks_mcp_server.models import (
 from mcp.server.fastmcp import Context
 from mcp.types import EmbeddedResource, ImageContent, TextContent
 from pydantic import Field
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 
 class EksStackHandler:
@@ -134,6 +137,13 @@ class EksStackHandler:
         deploying stacks, retrieving stack information, and deleting stacks. It serves as the primary
         mechanism for creating and managing EKS clusters through CloudFormation, enabling standardized
         cluster creation, configuration updates, and resource cleanup.
+
+        IMPORTANT: Use this tool instead of 'aws eks create-cluster', 'aws eks delete-cluster',
+        'eksctl create cluster', 'eksctl delete cluster', or similar CLI commands.
+
+        IMPORTANT: Use this tool's standardized templates for creating EKS clusters with proper VPC configuration,
+        networking, security groups, and EKS auto mode. DO NOT create EKS clusters by generating CloudFormation
+        templates from scratch.
 
         ## Requirements
         - The server must be run with the `--allow-write` flag for generate, deploy, and delete operations
@@ -319,7 +329,7 @@ class EksStackHandler:
         - Security groups for cluster communication
         - IAM roles for the EKS cluster and worker nodes
         - An EKS cluster in Auto Mode with:
-          - Compute configuration with general-purpose and system node pools
+          - Compute configuration for automatic node management
           - Kubernetes network configuration with elastic load balancing
           - Block storage configuration
           - API authentication mode
@@ -344,6 +354,10 @@ class EksStackHandler:
             # Find the ClusterName parameter and set its default value
             if 'Parameters' in template_yaml and 'ClusterName' in template_yaml['Parameters']:
                 template_yaml['Parameters']['ClusterName']['Default'] = cluster_name
+
+            # Remove checkov metadata from the EKS cluster resource
+            if 'Resources' in template_yaml and 'EksCluster' in template_yaml['Resources']:
+                self._remove_checkov_metadata(template_yaml['Resources']['EksCluster'])
 
             # Convert back to YAML
             modified_template = yaml.dump(template_yaml, default_flow_style=False)
@@ -588,6 +602,22 @@ class EksStackHandler:
                 stack_status='',
                 outputs={},
             )
+
+    def _remove_checkov_metadata(self, resource: Dict[str, Any]) -> None:
+        """Remove checkov metadata from a resource and clean up empty Metadata sections.
+
+        Args:
+            resource: The resource dictionary to process
+        """
+        if 'Metadata' in resource:
+            # Check if there's checkov metadata
+            if 'checkov' in resource['Metadata']:
+                # Remove only the checkov metadata
+                del resource['Metadata']['checkov']
+
+                # If Metadata is now empty, remove it entirely
+                if not resource['Metadata']:
+                    del resource['Metadata']
 
     async def _delete_stack(
         self, ctx: Context, stack_name: str, cluster_name: str

@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from awslabs.cfn_mcp_server.errors import ClientError
 
@@ -33,19 +36,18 @@ def validate_patch(patch_document: list):
             raise ClientError(f"The '{patch_op['op']}' operation requires a 'from' field")
 
 
-def progress_event(response_event) -> dict[str, str]:
+def progress_event(response_event, hooks_events) -> dict[str, str]:
     """Map a CloudControl API response to a standard output format for the MCP."""
     response = {
         'status': response_event['OperationStatus'],
         'resource_type': response_event['TypeName'],
-        'is_complete': response_event['OperationStatus'] == 'SUCCESS',
+        'is_complete': response_event['OperationStatus'] == 'SUCCESS'
+        or response_event['OperationStatus'] == 'FAILED',
         'request_token': response_event['RequestToken'],
     }
 
     if response_event.get('Identifier', None):
         response['identifier'] = response_event['Identifier']
-    if response_event.get('StatusMessage', None):
-        response['status_message'] = response_event['StatusMessage']
     if response_event.get('ResourceModel', None):
         response['resource_info'] = response_event['ResourceModel']
     if response_event.get('ErrorCode', None):
@@ -54,5 +56,22 @@ def progress_event(response_event) -> dict[str, str]:
         response['event_time'] = response_event['EventTime']
     if response_event.get('RetryAfter', None):
         response['retry_after'] = response_event['RetryAfter']
+
+    # CloudControl returns a list of hooks events which may also contain a message which should
+    # take precedent over the status message returned from CloudControl directly
+    hooks_status_message = None
+    if hooks_events:
+        failed_hook_event_messages = (
+            hook_event['HookStatusMessage']
+            for hook_event in hooks_events
+            if hook_event.get('HookStatus', None) == 'HOOK_COMPLETE_FAILED'
+            or hook_event.get('HookStatus', None) == 'HOOK_FAILED'
+        )
+        hooks_status_message = next(failed_hook_event_messages, None)
+
+    if hooks_status_message:
+        response['status_message'] = hooks_status_message
+    elif response_event.get('StatusMessage', None):
+        response['status_message'] = response_event['StatusMessage']
 
     return response

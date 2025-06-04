@@ -1,20 +1,22 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import base64
-from awslabs.aws_serverless_mcp_server.models import GetLambdaEventSchemasRequest
 from awslabs.aws_serverless_mcp_server.utils.github import fetch_github_content
 from loguru import logger
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import Field
 from typing import Any, Dict
 
 
@@ -128,65 +130,81 @@ EVENT_SOURCE_SCHEMAS = {
 }
 
 
-async def get_lambda_event_schemas(request: GetLambdaEventSchemasRequest) -> Dict[str, Any]:
-    """Get Lambda event schemas for different event sources and programming languages.
+class GetLambdaEventSchemasTool:
+    """Tool to get AWS Lambda event schemas for different event sources and programming languages."""
 
-    Args:
-        request: GetLambdaEventSchemasRequest object containing event source and runtime
+    def __init__(self, mcp: FastMCP):
+        """Initialize the GetLambdaEventSchemas tool."""
+        mcp.tool(name='get_lambda_event_schemas')(self.get_lambda_event_schemas)
 
-    Returns:
-        Dict: Lambda event schema information
-    """
-    event_source = request.event_source
-    runtime = request.runtime
+    async def get_lambda_event_schemas(
+        self,
+        ctx: Context,
+        event_source: str = Field(
+            description='Event source (e.g., api-gw, s3, sqs, sns, kinesis, eventbridge, dynamodb)'
+        ),
+        runtime: str = Field(
+            description='Programming language for the schema references (e.g., go, nodejs, python, java)'
+        ),
+    ) -> Dict[str, Any]:
+        """Returns AWS Lambda event schemas for different event sources (e.g. s3, sns, apigw) and programming languages.
 
-    # Check if runtime is supported
-    if runtime not in EVENT_SOURCE_SCHEMAS:
-        available_runtimes = ', '.join(EVENT_SOURCE_SCHEMAS.keys())
-        return {
-            'success': False,
-            'message': f"Event source schemas for '{runtime}' not found. Available runtimes: {available_runtimes}.",
-            'error': f'Unsupported runtime: {runtime}',
-        }
+        When a event source triggers a Lambda function, the request payload comes in a specific format.
+        Each Lambda event source defines its own schema and language-specific types, which should be used in
+        the Lambda function handler to correctly parse the event data. If you cannot find a schema for your event source, you can directly parse
+        the event data as a JSON object. For EventBridge events, you must use the list_registries, search_schema, and describe_schema
+        tools to access the schema registry directly, get schema definitions, and generate code processing logic.
 
-    schemas_for_runtime = EVENT_SOURCE_SCHEMAS[runtime]
+        Returns:
+            Dict: Lambda event schema source code file for the request runtime and event source
+        """
+        # Check if runtime is supported
+        if runtime not in EVENT_SOURCE_SCHEMAS:
+            available_runtimes = ', '.join(EVENT_SOURCE_SCHEMAS.keys())
+            return {
+                'success': False,
+                'message': f"Event source schemas for '{runtime}' not found. Available runtimes: {available_runtimes}.",
+                'error': f'Unsupported runtime: {runtime}',
+            }
 
-    # Check if event source is supported
-    if event_source not in schemas_for_runtime['event_sources']:
-        return {
-            'success': False,
-            'message': (
-                f"Event source '{event_source}' not found for runtime '{runtime}'. "
-                f'This tool only indexes a subset of event sources. '
-                f'Query the schema repository {schemas_for_runtime["event_schema_repo_link"]} for complete list of event sources.'
-            ),
-            'error': f'Unsupported event source: {event_source}',
-        }
-    schema_file = schemas_for_runtime['event_sources'][event_source]
+        schemas_for_runtime = EVENT_SOURCE_SCHEMAS[runtime]
 
-    try:
-        # Fetch schema content from GitHub
-        github_url = f'https://api.github.com/repos/{schemas_for_runtime["repo_name"]}/contents/{schemas_for_runtime["path"]}/{schema_file}'
-        schema_content = fetch_github_content(github_url)
+        # Check if event source is supported
+        if event_source not in schemas_for_runtime['event_sources']:
+            return {
+                'success': False,
+                'message': (
+                    f"Event source '{event_source}' not found for runtime '{runtime}'. "
+                    f'This tool only indexes a subset of event sources. '
+                    f'Query the schema repository {schemas_for_runtime["event_schema_repo_link"]} for complete list of event sources.'
+                ),
+                'error': f'Unsupported event source: {event_source}',
+            }
+        schema_file = schemas_for_runtime['event_sources'][event_source]
 
-        # Decode content from base64
-        decoded_content = base64.b64decode(schema_content['content']).decode('utf-8')
+        try:
+            # Fetch schema content from GitHub
+            github_url = f'https://api.github.com/repos/{schemas_for_runtime["repo_name"]}/contents/{schemas_for_runtime["path"]}/{schema_file}'
+            schema_content = fetch_github_content(github_url)
 
-        # Build response
-        return {
-            'eventSource': event_source,
-            'runtime': runtime,
-            'content': decoded_content,
-            'schemaReferences': {
-                'repoLink': schemas_for_runtime['event_schema_repo_link'],
-                'filePath': f'{schemas_for_runtime["path"]}/{schema_file}',
-            },
-        }
-    except Exception as e:
-        error_msg = f'Could not fetch schema content from GitHub: {str(e)}'
-        logger.error(error_msg)
-        return {
-            'success': False,
-            'message': f'Failed to fetch serverless templates: {str(e)}',
-            'error': str(e),
-        }
+            # Decode content from base64
+            decoded_content = base64.b64decode(schema_content['content']).decode('utf-8')
+
+            # Build response
+            return {
+                'eventSource': event_source,
+                'runtime': runtime,
+                'content': decoded_content,
+                'schemaReferences': {
+                    'repoLink': schemas_for_runtime['event_schema_repo_link'],
+                    'filePath': f'{schemas_for_runtime["path"]}/{schema_file}',
+                },
+            }
+        except Exception as e:
+            error_msg = f'Could not fetch schema content from GitHub: {str(e)}'
+            logger.error(error_msg)
+            return {
+                'success': False,
+                'message': f'Failed to fetch serverless templates: {str(e)}',
+                'error': str(e),
+            }

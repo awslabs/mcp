@@ -30,6 +30,8 @@ plugins:
 nav:
   - Home: index.md
   - AWS MCP Servers:
+    - Amazon MQ MCP Server: servers/amazon-mq-mcp-server.md
+    - AWS SNS SQS MCP Server: servers/amazon-sns-sqs-server.md
     - Core MCP Server: servers/core-mcp-server.md
     - Amazon Bedrock Knowledge Base Retrieval MCP Server: servers/bedrock-kb-retrieval-mcp-server.md
     - AWS CDK MCP Server: servers/cdk-mcp-server.md
@@ -38,6 +40,7 @@ nav:
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
     - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
+    - AWS Step Functions Tool MCP Server: servers/stepfunctions-tool-mcp-server.md
     - AWS Terraform MCP Server: servers/terraform-mcp-server.md
     - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
     - CloudFormation MCP Server: servers/cfn-mcp-server.md
@@ -45,6 +48,7 @@ nav:
     - Finch MCP Server: servers/finch-mcp-server.md
     - Amazon EKS MCP Server: servers/eks-mcp-server.md
     - Amazon ECS MCP Server: servers/ecs-mcp-server.md
+    - AWS Support MCP Server: servers/aws-support-mcp-server.md
   - Samples:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md

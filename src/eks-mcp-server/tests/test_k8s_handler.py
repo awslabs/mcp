@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ruff: noqa: D101, D102, D103
 """Tests for the K8sHandler class."""
 
@@ -131,6 +134,72 @@ class TestK8sHandler:
 
             # Verify that the client was returned
             assert client == mock_client_cache.get_client.return_value
+
+    def test_load_yaml_template_removes_checkov_annotations(self, mock_mcp, mock_client_cache):
+        """Test _load_yaml_template method removes checkov skip annotations from deployment template."""
+        # Initialize the K8s handler
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp)
+
+        # Create mock file content for templates with checkov skip annotations
+        deployment_template = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: APP_NAME
+  namespace: NAMESPACE
+  annotations:
+    checkov.io/skip1: "CKV_K8S_14=We're using a specific image version"
+    checkov.io/skip2: "CKV_K8S_43=Resource limits are set appropriately"
+    other-annotation: "This should be preserved"
+spec:
+  replicas: REPLICAS"""
+
+        service_template = """apiVersion: v1
+kind: Service
+metadata:
+  name: APP_NAME
+  namespace: NAMESPACE
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: LOAD_BALANCER_SCHEME"""
+
+        # Mock open to return our test templates
+        mock_open_func = mock_open()
+        mock_file = MagicMock()
+        mock_file.__enter__.return_value.read.side_effect = [deployment_template, service_template]
+        mock_open_func.return_value = mock_file
+
+        # Mock yaml.safe_load and yaml.dump to use real functions
+        with patch('builtins.open', mock_open_func):
+            # Test loading and processing templates
+            template_files = ['deployment.yaml', 'service.yaml']
+            values = {
+                'APP_NAME': 'test-app',
+                'NAMESPACE': 'test-namespace',
+                'REPLICAS': '3',
+                'LOAD_BALANCER_SCHEME': 'internal',
+            }
+
+            result = handler._load_yaml_template(template_files, values)
+
+            # Verify open was called for each template
+            assert mock_open_func.call_count == 2
+
+            # Verify template content was properly processed
+            assert 'kind: Deployment' in result
+            assert 'kind: Service' in result
+            assert 'name: test-app' in result
+            assert 'namespace: test-namespace' in result
+            assert 'replicas: 3' in result
+            assert 'service.beta.kubernetes.io/aws-load-balancer-scheme: internal' in result
+
+            # Verify checkov annotations were removed
+            assert 'checkov.io/skip1' not in result
+            assert 'checkov.io/skip2' not in result
+
+            # Verify other annotations were preserved
+            assert 'other-annotation: This should be preserved' in result
 
     @pytest.mark.asyncio
     async def test_apply_yaml_relative_path(self, mock_context, mock_mcp, mock_client_cache):
@@ -886,74 +955,61 @@ metadata:
         ):
             handler = K8sHandler(mock_mcp, allow_write=True)
 
-        # Prepare mock file content
-        deployment_content = """apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: APP_NAME
-  namespace: NAMESPACE"""
+        # Mock the _load_yaml_template method to avoid template loading issues
+        with patch.object(handler, '_load_yaml_template', return_value='combined yaml content'):
+            # Mock os.path.isabs to return True for absolute paths
+            with patch('os.path.isabs', return_value=True):
+                # Mock os.makedirs to avoid creating directories
+                with patch('os.makedirs') as mock_makedirs:
+                    # Mock open for writing output
+                    with patch('builtins.open', mock_open()) as mocked_open:
+                        # Mock os.path.abspath to return a predictable absolute path
+                        with patch(
+                            'os.path.abspath',
+                            return_value='/absolute/path/test-output/test-app-manifest.yaml',
+                        ):
+                            # Generate the manifest
+                            result = await handler.generate_app_manifest(
+                                mock_context,
+                                app_name='test-app',
+                                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                                port=8080,
+                                replicas=3,
+                                cpu='250m',
+                                memory='256Mi',
+                                namespace='test-namespace',
+                                load_balancer_scheme='internet-facing',
+                                output_dir='/absolute/path/test-output',
+                            )
 
-        service_content = """apiVersion: v1
-kind: Service
-metadata:
-  name: APP_NAME
-  namespace: NAMESPACE
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-scheme: LOAD_BALANCER_SCHEME"""
+                            # Verify that os.makedirs was called with exist_ok=True
+                            mock_makedirs.assert_called_once_with(
+                                '/absolute/path/test-output', exist_ok=True
+                            )
 
-        # Mock open function to return our test templates and for file writing
-        mock_open = MagicMock()
-        mock_file = MagicMock()
-        mock_file.__enter__.return_value.read.side_effect = [deployment_content, service_content]
-        mock_open.return_value = mock_file
+                            # Verify that open was called for writing output
+                            mocked_open.assert_called_once_with(
+                                '/absolute/path/test-output/test-app-manifest.yaml', 'w'
+                            )
 
-        # Mock os.path.isabs to return True for absolute paths
-        with patch('os.path.isabs', return_value=True):
-            # Mock os.makedirs to avoid creating directories
-            with patch('os.makedirs') as mock_makedirs:
-                with patch('builtins.open', mock_open):
-                    # Mock os.path.abspath to return a predictable absolute path
-                    with patch(
-                        'os.path.abspath',
-                        return_value='/absolute/path/test-output/test-app-manifest.yaml',
-                    ):
-                        # Generate the manifest
-                        result = await handler.generate_app_manifest(
-                            mock_context,
-                            app_name='test-app',
-                            image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
-                            port=8080,
-                            replicas=3,
-                            cpu='250m',
-                            memory='256Mi',
-                            namespace='test-namespace',
-                            load_balancer_scheme='internet-facing',
-                            output_dir='/absolute/path/test-output',
-                        )
+                            # Verify the result
+                            assert not result.isError
+                            assert isinstance(result.content[0], TextContent)
+                            assert (
+                                'Successfully generated YAML for test-app'
+                                in result.content[0].text
+                            )
+                            assert (
+                                'with image 123456789012.dkr.ecr.region.amazonaws.com/repo:tag'
+                                in result.content[0].text
+                            )
 
-                        # Verify that os.makedirs was called with exist_ok=True
-                        mock_makedirs.assert_called_once_with(
-                            '/absolute/path/test-output', exist_ok=True
-                        )
-
-                        # Verify that open was called for reading templates and writing output
-                        assert mock_open.call_count == 3  # 2 reads + 1 write
-
-                        # Verify the result
-                        assert not result.isError
-                        assert isinstance(result.content[0], TextContent)
-                        assert 'Successfully generated YAML for test-app' in result.content[0].text
-                        assert (
-                            'with image 123456789012.dkr.ecr.region.amazonaws.com/repo:tag'
-                            in result.content[0].text
-                        )
-
-                        # Verify that the output path is absolute
-                        assert os.path.isabs(result.output_file_path)
-                        assert (
-                            result.output_file_path
-                            == '/absolute/path/test-output/test-app-manifest.yaml'
-                        )
+                            # Verify that the output path is absolute
+                            assert os.path.isabs(result.output_file_path)
+                            assert (
+                                result.output_file_path
+                                == '/absolute/path/test-output/test-app-manifest.yaml'
+                            )
 
     @pytest.mark.asyncio
     async def test_generate_app_manifest_error(self, mock_context, mock_mcp, mock_client_cache):
@@ -1704,6 +1760,67 @@ metadata:
         simple_input = 'simple string'
         result = handler.cleanup_resource_response(simple_input)
         assert result == simple_input
+
+    def test_remove_checkov_skip_annotations(self, mock_mcp, mock_client_cache):
+        """Test _remove_checkov_skip_annotations method directly to ensure line 807 is covered."""
+        # Initialize the K8s handler
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp)
+
+        # Test case 1: YAML with only checkov skip annotations (should remove annotations completely)
+        yaml_content = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: default
+  annotations:
+    checkov.io/skip1: "CKV_K8S_14=We're using a specific image version"
+    checkov.io/skip2: "CKV_K8S_43=Resource limits are set appropriately"
+spec:
+  replicas: 3"""
+
+        expected_result = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: default
+spec:
+  replicas: 3
+"""
+
+        result = handler._remove_checkov_skip_annotations(yaml_content)
+        # Normalize whitespace for comparison
+        result = result.replace(' ', '').replace('\n', '')
+        expected_result = expected_result.replace(' ', '').replace('\n', '')
+        assert result == expected_result
+
+        # Test case 2: YAML with mixed annotations (should keep non-checkov annotations)
+        yaml_content = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: default
+  annotations:
+    checkov.io/skip1: "CKV_K8S_14=We're using a specific image version"
+    other-annotation: "This should be preserved"
+spec:
+  replicas: 3"""
+
+        expected_result = """apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-app
+  namespace: default
+  annotations:
+    other-annotation: This should be preserved
+spec:
+  replicas: 3
+"""
+
+        result = handler._remove_checkov_skip_annotations(yaml_content)
+        assert 'other-annotation: This should be preserved' in result
 
     def test_filter_null_values(self, mock_mcp, mock_client_cache):
         """Test filter_null_values method for removing null values from data structures."""

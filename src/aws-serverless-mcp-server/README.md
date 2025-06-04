@@ -5,30 +5,30 @@
 The AWS Serverless Model Context Protocol (MCP) Server is an open-source tool that combines AI assistance with serverless expertise to streamline how developers build serverless applications. It provides contextual guidance specific to serverless development, helping developers make informed decisions about architecture, implementation, and deployment throughout the entire application development lifecycle. With AWS Serverless MCP, developers can build reliable, efficient, and production-ready serverless applications with confidence.
 
 Key benefits of the Serverless MCP Server include:
-* AI-powered serverless development: Provides rich contextual information to AI coding assistants to ensure your serverless application aligns with AWS best practices.
-* Comprehensive tooling: Offers tools for initialization, deployment, monitoring, and troubleshooting of serverless applications.
-* Architecture guidance: Helps evaluate design choices and select optimal serverless patterns based on application needs. Offers recommendations on event sources, function boundaries, and service integrations.
-* Operational best practices: Ensures alignment with AWS architectural principles. Suggests effective use of AWS services for event processing, data persistence, and service communication, and guides implementation of security controls, performance tuning, and cost optimization.
-* Security-first approach: Implements built-in guardrails with read-only defaults and controlled access to sensitive data.
+- AI-powered serverless development: Provides rich contextual information to AI coding assistants to ensure your serverless application aligns with AWS best practices.
+- Comprehensive tooling: Offers tools for initialization, deployment, monitoring, and troubleshooting of serverless applications.
+- Architecture guidance: Helps evaluate design choices and select optimal serverless patterns based on application needs. Offers recommendations on event sources, function boundaries, and service integrations.
+- Operational best practices: Ensures alignment with AWS architectural principles. Suggests effective use of AWS services for event processing, data persistence, and service communication, and guides implementation of security controls, performance tuning, and cost optimization.
+- Security-first approach: Implements built-in guardrails with read-only defaults and controlled access to sensitive data.
 
 ## Features
 The set of tools provided by the Serverless MCP server can be broken down into four categories:
 
 1. Serverless Application Lifecycle
-  - Intialize, build, and deploy Serverless Application Model (SAM) applications with SAM CLI
-  - Test Lambda functions locally and remotely
+    - Initialize, build, and deploy Serverless Application Model (SAM) applications with SAM CLI
+    - Test Lambda functions locally and remotely
 2. Web Application Deployment & Management
-  - Deploy fullstack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter.
-  - Update frontend assets and optionally invaliate CloudFront caches
-  - Create custom domain names, including certificate and DNS setup.
+    - Deploy full-stack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter
+    - Update frontend assets and optionally invaliate CloudFront caches
+    - Create custom domain names, including certificate and DNS setup
 3. Observability
-  - Retrieve and logs and metrics of serverless resources
+    - Retrieve and logs and metrics of serverless resources
 4. Guidance, Templates, and Deployment Help
-  - Provides guidance on AWS Lambda use-cases, selecting an IaC framework, and deployment process onto AWS Serverless
-  - Provides sample SAM templates for different serverless application types from [Serverless Land](https://serverlessland.com/)
-  - Provides schema types for different Lambda event sources and runtimes
-  - Provides schema registry management and discovery for AWS EventBridge events
-  - Enables type-safe Lambda function development with complete event schemas
+    - Provides guidance on AWS Lambda use-cases, selecting an IaC framework, and deployment process onto AWS Serverless
+    - Provides sample SAM templates for different serverless application types from [Serverless Land](https://serverlessland.com/)
+    - Provides schema types for different Lambda event sources and runtimes
+    - Provides schema registry management and discovery for AWS EventBridge events
+    - Enables type-safe Lambda function development with complete event schemas
 
 ## Prerequisites
 - Have an AWS account with [credentials configured](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html)
@@ -90,7 +90,7 @@ Add the following code to your MCP client configuration. The Serverless MCP serv
 Enables write access mode, which allows mutating operations and creation of public resources. By default, the server runs in read-only mode, which restricts operations to only perform read actions, preventing any changes to AWS resources.
 
 Mutating operations:
-* sam_deploy_tool: Deploys a SAM application into AWS Cloud using CloudFormation
+* sam_deploy: Deploys a SAM application into AWS Cloud using CloudFormation
 * deploy_webapp: Generates SAM template and deploys a web application into AWS CloudFormation. Creates public resources, including Route 53 DNS records, and CloudFront distributions
 
 
@@ -98,7 +98,7 @@ Mutating operations:
 Enables access to sensitive data such as logs. By default, the server restricts access to sensitive data.
 
 Operations returning sensitive data:
-* sam_logs_tool: Returns Lambda function logs and API Gateway logs
+* sam_logs: Returns Lambda function logs and API Gateway logs
 
 ## Local development
 
@@ -167,7 +167,7 @@ The server provides the following resources:
 
 The server exposes deployment capabilities as tools:
 
-### sam_init_tool
+### sam_init
 
 Initializes a serverless application using AWS SAM (Serverless Application Model) CLI.
 This tool creates a new SAM project that consists of:
@@ -196,7 +196,7 @@ You should have AWS SAM CLI installed and configured in your environment.
 - `tracing`: Activate AWS X-Ray tracing for Lambda functions
 - `no_tracing`: Deactivate AWS X-Ray tracing for Lambda functions
 
-### sam_build_tool
+### sam_build
 
 Builds a serverless application using AWS SAM (Serverless Application Model) CLI.
 This command compiles your Lambda function code, creates deployment artifacts, and prepares your application for deployment.
@@ -210,6 +210,7 @@ You should have AWS SAM CLI installed and configured in your environment.
 - `build_dir`: The absolute path to a directory where the built artifacts are stored
 - `use_container` (default: false): Use a container to build the function
 - `no_use_container` (default: false): Run build in local machine instead of Docker container
+- `parallel` (default: true): Build your AWS SAM application in parallel
 - `container_env_vars`: Environment variables to pass to the build container
 - `container_env_var_file`: Absolute path to a JSON file containing container environment variables
 - `build_image`: The URI of the container image that you want to pull for the build
@@ -220,7 +221,7 @@ You should have AWS SAM CLI installed and configured in your environment.
 - `save_params` (default: false): Save parameters to the SAM configuration file
 - `profile`: AWS profile to use
 
-### sam_deploy_tool
+### sam_deploy
 
 Deploys a serverless application using AWS SAM (Serverless Application Model) CLI.
 This command deploys your application to AWS CloudFormation.
@@ -244,7 +245,7 @@ You should have AWS SAM CLI installed and configured in your environment.
 - `resolve_s3` (default: false): Automatically create an S3 bucket for deployment artifacts
 - `debug` (default: false): Turn on debug logging
 
-### sam_logs_tool
+### sam_logs
 
 Fetches CloudWatch logs that are generated by resources in a SAM application. Use this tool
 to help debug invocation failures and find root causes.
@@ -262,7 +263,7 @@ to help debug invocation failures and find root causes.
 - `config_file`: Absolute path to configuration file containing default parameter values
 - `save_params` (default: false): Save parameters to the SAM configuration file
 
-### sam_local_invoke_tool
+### sam_local_invoke
 
 Locally invokes a Lambda function using AWS SAM CLI.
 This command runs your Lambda function locally in a Docker container that simulates the AWS Lambda environment.
@@ -283,7 +284,7 @@ You can use this tool to test your Lambda functions before deploying them to AWS
 - `region`: AWS region to use (e.g., us-east-1)
 - `profile`: AWS profile to use
 
-### get_iac_guidance_tool
+### get_iac_guidance
 
 Returns guidance on selecting an infrastructure as code (IaC) platform to deploy Serverless application to AWS.
 Choices include AWS SAM, CDK, and CloudFormation. Use this tool to decide which IaC tool to use for your Lambda deployments
@@ -293,7 +294,7 @@ based on your specific use case and requirements.
 - `iac_tool` (default: CloudFormation): IaC tool to use (CloudFormation, SAM, CDK, Terraform)
 - `include_examples` (default: true): Whether to include examples
 
-### get_lambda_event_schemas_tool
+### get_lambda_event_schemas
 
 Returns AWS Lambda event schemas for different event sources (e.g. s3, sns, apigw) and programming languages.  Each Lambda event source defines its own schema and language-specific types, which should be used in
 the Lambda function handler to correctly parse the event data. If you cannot find a schema for your event source, you can directly parse
@@ -305,7 +306,7 @@ and generate code processing logic.
 - `event_source` (required): Event source (e.g., api-gw, s3, sqs, sns, kinesis, eventbridge, dynamodb)
 - `runtime` (required): Programming language for the schema references (e.g., go, nodejs, python, java)
 
-### get_lambda_guidance_tool
+### get_lambda_guidance
 
 Use this tool to determine if AWS Lambda is suitable platform to deploy an application.
 Returns a comprehensive guide on when to choose AWS Lambda as a deployment platform.
@@ -316,7 +317,7 @@ decision criteria, and specific guidance for various use cases.
 - `use_case` (required): Description of the use case
 - `include_examples` (default: true): Whether to include examples
 
-### deploy_webapp_tool
+### deploy_webapp
 
 Deploy web applications to AWS Serverless, including Lambda as compute, DynamoDB as databases, API GW, ACM Certificates, and Route 53 DNS records.
 This tool uses the Lambda Web Adapter framework so that applications can be written in a standard web framework like Express or Next.js can be easily
@@ -330,7 +331,7 @@ deployed to Lambda. You do not need to use integrate the code with any adapter f
 - `backend_configuration`: Backend configuration
 - `frontend_configuration`: Frontend configuration
 
-### configure_domain_tool
+### configure_domain
 
 Configures a custom domain for a deployed web application on AWS Serverless.
 This tool sets up Route 53 DNS records, ACM certificates, and CloudFront custom domain mappings as needed.
@@ -343,16 +344,16 @@ Use this tool after deploying your web application to associate it with your own
 - `create_route53_record` (default: true): Whether to create a Route 53 record
 - `region`: AWS region to use (e.g., us-east-1)
 
-### webapp_deployment_help_tool
+### webapp_deployment_help
 
-Get help information about using the deploy_webapp_tool to perform web application deployments.
+Get help information about using the deploy_webapp to perform web application deployments.
 If deployment_type is provided, returns help information for that deployment type.
 Otherwise, returns a list of deployments and general help information.
 
 **Parameters:**
 - `deployment_type` (required): Type of deployment to get help information for (backend, frontend, fullstack)
 
-### get_metrics_tool
+### get_metrics
 
 Retrieves CloudWatch metrics from a deployed web application. Use this tool get metrics
 on error rates, latency, concurrency, etc.
@@ -366,7 +367,7 @@ on error rates, latency, concurrency, etc.
 - `region`: AWS region to use (e.g., us-east-1)
 - `stage` (default: "prod"): API Gateway stage
 
-### update_webapp_frontend_tool
+### update_webapp_frontend
 
 Update the frontend assets of a deployed web application.
 This tool uploads new frontend assets to S3 and optionally invalidates the CloudFront cache.
@@ -378,7 +379,7 @@ This tool uploads new frontend assets to S3 and optionally invalidates the Cloud
 - `invalidate_cache` (default: true): Whether to invalidate the CloudFront cache
 - `region`: AWS region to use (e.g., us-east-1)
 
-### deploy_serverless_app_help_tool
+### deploy_serverless_app_help
 
 Provides instructions on how to deploy a serverless application to AWS Lambda.
 Deploying a Lambda application requires generating IaC templates, building the code, packaging
@@ -388,7 +389,7 @@ web applications specifically, use the deploy_webapp tool.
 **Parameters:**
 - `application_type` (required): Type of application to deploy (event_driven, backend, fullstack)
 
-### get_serverless_templates_tool
+### get_serverless_templates
 
 Returns example SAM templates from the Serverless Land GitHub repo. Use this tool to get
 examples for building serverless applications with AWS Lambda and best practices of serverless architecture.
@@ -452,7 +453,7 @@ Example user prompt:
 I have a full-stack web app built with Node.js called my-web-app, and I want to deploy it to the cloud using AWS. Everything’s ready — both frontend and backend. Can you set it up and deploy it with AWS Lambda so it's live and works smoothly?
 ```
 
-This prompt would trigger the AI assistant to use the deploy_webapp_tool to deploy the full stack application with the specified configuration.
+This prompt would trigger the AI assistant to use the deploy_webapp to deploy the full stack application with the specified configuration.
 
 ### Working with EventBridge Schemas
 
@@ -463,8 +464,8 @@ I need to create a Lambda function that processes autoscaling events. Can you he
 ```
 
 This prompt would trigger the AI assistant to:
-1. Search for autoscaling event schemas in aws.events registry using search_schema_tool
-2. Retrieve complete schema definition using describe_schema_tool
+1. Search for autoscaling event schemas in aws.events registry using search_schema
+2. Retrieve complete schema definition using describe_schema
 3. Generate type-safe handler code based on schema structure
 4. Implement validation for required fields
 

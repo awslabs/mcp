@@ -1,17 +1,21 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ruff: noqa: D101, D102, D103
 """Tests for the AWS Helper."""
 
 import os
+from awslabs.eks_mcp_server import __version__
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from unittest.mock import ANY, MagicMock, patch
 
@@ -131,7 +135,7 @@ class TestAwsHelper:
             )
 
     def test_create_boto3_client_user_agent(self):
-        """Test that create_boto3_client sets the user agent suffix correctly."""
+        """Test that create_boto3_client sets the user agent suffix correctly using the package version."""
         # Create a real Config object to inspect
         with patch.object(AwsHelper, 'get_aws_profile', return_value=None):
             with patch.object(AwsHelper, 'get_aws_region', return_value=None):
@@ -143,6 +147,7 @@ class TestAwsHelper:
                     _, kwargs = mock_client.call_args
                     config = kwargs.get('config')
 
-                    # Verify the user agent suffix
+                    # Verify the user agent suffix uses the version from __init__.py
                     assert config is not None
-                    assert config.user_agent_extra == 'awslabs/mcp/eks-mcp-server/0.1.0'
+                    expected_user_agent = f'awslabs/mcp/eks-mcp-server/{__version__}'
+                    assert config.user_agent_extra == expected_user_agent

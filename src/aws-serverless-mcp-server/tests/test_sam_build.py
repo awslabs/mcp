@@ -1,22 +1,24 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the sam_build module."""
 
 import os
 import pytest
 import subprocess
 import tempfile
-from awslabs.aws_serverless_mcp_server.models import SamBuildRequest
-from awslabs.aws_serverless_mcp_server.tools.sam.sam_build import handle_sam_build
-from unittest.mock import MagicMock, patch
+from awslabs.aws_serverless_mcp_server.tools.sam.sam_build import SamBuildTool
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestSamBuild:
@@ -25,25 +27,6 @@ class TestSamBuild:
     @pytest.mark.asyncio
     async def test_sam_build_success(self):
         """Test successful SAM build."""
-        # Create a mock request
-        request = SamBuildRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            template_file=None,
-            base_dir=None,
-            build_dir=None,
-            use_container=False,
-            no_use_container=False,
-            container_env_vars=None,
-            container_env_var_file=None,
-            build_image=None,
-            debug=False,
-            manifest=None,
-            parameter_overrides=None,
-            region=None,
-            save_params=False,
-            profile=None,
-        )
-
         # Mock the subprocess.run function
         mock_result = MagicMock()
         mock_result.stdout = b'Successfully built SAM project'
@@ -54,7 +37,24 @@ class TestSamBuild:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await handle_sam_build(request)
+            result = await SamBuildTool(MagicMock()).handle_sam_build(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                base_dir=None,
+                build_dir=None,
+                use_container=False,
+                no_use_container=False,
+                container_env_vars=None,
+                container_env_var_file=None,
+                build_image=None,
+                debug=False,
+                manifest=None,
+                parameter_overrides=None,
+                region=None,
+                save_params=False,
+                profile=None,
+            )
 
             # Verify the result
             assert result['success'] is True
@@ -74,25 +74,6 @@ class TestSamBuild:
     @pytest.mark.asyncio
     async def test_sam_build_with_optional_params(self):
         """Test SAM build with optional parameters."""
-        # Create a mock request with optional parameters
-        request = SamBuildRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            template_file='template.yaml',
-            base_dir=os.path.join(tempfile.gettempdir(), 'base-dir'),
-            build_dir=os.path.join(tempfile.gettempdir(), 'build-dir'),
-            use_container=True,
-            no_use_container=False,
-            container_env_vars={'ENV1': 'value1', 'ENV2': 'value2'},
-            container_env_var_file='env.json',
-            build_image=None,
-            debug=True,
-            manifest='package.json',
-            parameter_overrides='ParameterKey=Key1,ParameterValue=Value1',
-            region='us-west-2',
-            save_params=False,
-            profile=None,
-        )
-
         # Mock the subprocess.run function
         mock_result = MagicMock()
         mock_result.stdout = b'Successfully built SAM project'
@@ -103,8 +84,24 @@ class TestSamBuild:
             return_value=(mock_result.stdout, mock_result.stderr),
         ) as mock_run:
             # Call the function
-            result = await handle_sam_build(request)
-
+            result = await SamBuildTool(MagicMock()).handle_sam_build(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file='template.yaml',
+                base_dir=os.path.join(tempfile.gettempdir(), 'base-dir'),
+                build_dir=os.path.join(tempfile.gettempdir(), 'build-dir'),
+                use_container=True,
+                no_use_container=False,
+                container_env_vars={'ENV1': 'value1', 'ENV2': 'value2'},
+                container_env_var_file='env.json',
+                build_image=None,
+                debug=True,
+                manifest='package.json',
+                parameter_overrides='ParameterKey=Key1,ParameterValue=Value1',
+                region='us-west-2',
+                save_params=False,
+                profile=None,
+            )
             # Verify the result
             assert result['success'] is True
 
@@ -134,25 +131,6 @@ class TestSamBuild:
     @pytest.mark.asyncio
     async def test_sam_build_failure(self):
         """Test SAM build failure."""
-        # Create a mock request
-        request = SamBuildRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            template_file=None,
-            base_dir=None,
-            build_dir=None,
-            use_container=False,
-            no_use_container=False,
-            container_env_vars=None,
-            container_env_var_file=None,
-            build_image=None,
-            debug=False,
-            manifest=None,
-            parameter_overrides=None,
-            region=None,
-            save_params=False,
-            profile=None,
-        )
-
         # Mock the subprocess.run function to raise an exception
         error_message = b'Command failed with exit code 1'
         with patch(
@@ -160,7 +138,24 @@ class TestSamBuild:
             side_effect=subprocess.CalledProcessError(1, 'sam build', stderr=error_message),
         ):
             # Call the function
-            result = await handle_sam_build(request)
+            result = await SamBuildTool(MagicMock()).handle_sam_build(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                base_dir=None,
+                build_dir=None,
+                use_container=False,
+                no_use_container=False,
+                container_env_vars=None,
+                container_env_var_file=None,
+                build_image=None,
+                debug=False,
+                manifest=None,
+                parameter_overrides=None,
+                region=None,
+                save_params=False,
+                profile=None,
+            )
 
             # Verify the result
             assert result['success'] is False
@@ -170,25 +165,6 @@ class TestSamBuild:
     @pytest.mark.asyncio
     async def test_sam_build_general_exception(self):
         """Test SAM build with a general exception."""
-        # Create a mock request
-        request = SamBuildRequest(
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            template_file=None,
-            base_dir=None,
-            build_dir=None,
-            use_container=False,
-            no_use_container=False,
-            container_env_vars=None,
-            container_env_var_file=None,
-            build_image=None,
-            debug=False,
-            manifest=None,
-            parameter_overrides=None,
-            region=None,
-            save_params=False,
-            profile=None,
-        )
-
         # Mock the subprocess.run function to raise a general exception
         error_message = 'Some unexpected error'
         with patch(
@@ -196,9 +172,115 @@ class TestSamBuild:
             side_effect=Exception(error_message),
         ):
             # Call the function
-            result = await handle_sam_build(request)
+            result = await SamBuildTool(MagicMock()).handle_sam_build(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                base_dir=None,
+                build_dir=None,
+                use_container=False,
+                no_use_container=False,
+                container_env_vars=None,
+                container_env_var_file=None,
+                build_image=None,
+                debug=False,
+                manifest=None,
+                parameter_overrides=None,
+                region=None,
+                save_params=False,
+                profile=None,
+            )
 
             # Verify the result
             assert result['success'] is False
             assert 'Failed to build SAM project' in result['message']
             assert error_message in result['message']
+
+    @pytest.mark.asyncio
+    async def test_sam_build_with_parallel_default(self):
+        """Test SAM build with default parallel parameter (True)."""
+        # Mock the subprocess.run function
+        mock_result = MagicMock()
+        mock_result.stdout = b'Successfully built SAM project'
+        mock_result.stderr = b''
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_build.run_command',
+            return_value=(mock_result.stdout, mock_result.stderr),
+        ) as mock_run:
+            # Call the function with default parallel parameter (True)
+            result = await SamBuildTool(MagicMock()).handle_sam_build(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                base_dir=None,
+                build_dir=None,
+                use_container=False,
+                no_use_container=False,
+                container_env_vars=None,
+                container_env_var_file=None,
+                build_image=None,
+                debug=False,
+                manifest=None,
+                parameter_overrides=None,
+                region=None,
+                save_params=False,
+                profile=None,
+            )
+
+            # Verify the result
+            assert result['success'] is True
+            assert 'SAM project built successfully' in result['message']
+
+            # Verify run_command was called with the correct arguments
+            mock_run.assert_called_once()
+            args, kwargs = mock_run.call_args
+            cmd = args[0]
+
+            # Check that --parallel flag is included by default
+            assert '--parallel' in cmd
+
+    @pytest.mark.asyncio
+    async def test_sam_build_with_parallel_disabled(self):
+        """Test SAM build with parallel parameter set to False."""
+        # Mock the subprocess.run function
+        mock_result = MagicMock()
+        mock_result.stdout = b'Successfully built SAM project'
+        mock_result.stderr = b''
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.tools.sam.sam_build.run_command',
+            return_value=(mock_result.stdout, mock_result.stderr),
+        ) as mock_run:
+            # Call the function with parallel=False
+            result = await SamBuildTool(MagicMock()).handle_sam_build(
+                AsyncMock(),
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                base_dir=None,
+                build_dir=None,
+                use_container=False,
+                no_use_container=False,
+                parallel=False,
+                container_env_vars=None,
+                container_env_var_file=None,
+                build_image=None,
+                debug=False,
+                manifest=None,
+                parameter_overrides=None,
+                region=None,
+                save_params=False,
+                profile=None,
+            )
+
+            # Verify the result
+            assert result['success'] is True
+            assert 'SAM project built successfully' in result['message']
+
+            # Verify run_command was called with the correct arguments
+            mock_run.assert_called_once()
+            args, kwargs = mock_run.call_args
+            cmd = args[0]
+
+            # Check that --parallel flag is NOT included when disabled
+            assert '--parallel' not in cmd

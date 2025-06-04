@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # ruff: noqa: D101, D102, D103
 """Tests for the K8sApis class."""
 
@@ -419,69 +422,69 @@ class TestK8sApisOperations:
 
     def test_get_pod_logs(self, k8s_apis):
         """Test get_pod_logs method."""
-        # Mock the dynamic client and resources
-        mock_resource = MagicMock()
-        mock_log = MagicMock()
-        mock_resource.log = mock_log
-        mock_resources = MagicMock()
-        mock_resources.get.return_value = mock_resource
-        k8s_apis.dynamic_client.resources = mock_resources
+        # Mock the CoreV1Api client
+        with patch('kubernetes.client') as mock_client:
+            # Create mock CoreV1Api
+            mock_core_v1_api = MagicMock()
+            mock_client.CoreV1Api.return_value = mock_core_v1_api
 
-        # Mock log.get to return logs
-        mock_log.get.return_value = 'log line 1\nlog line 2\n'
+            # Mock read_namespaced_pod_log to return logs
+            mock_core_v1_api.read_namespaced_pod_log.return_value = 'log line 1\nlog line 2\n'
 
-        # Get pod logs with all parameters
-        logs = k8s_apis.get_pod_logs(
-            pod_name='test-pod',
-            namespace='test-namespace',
-            container_name='test-container',
-            since_seconds=60,
-            tail_lines=100,
-            limit_bytes=1024,
-        )
+            # Get pod logs with all parameters
+            logs = k8s_apis.get_pod_logs(
+                pod_name='test-pod',
+                namespace='test-namespace',
+                container_name='test-container',
+                since_seconds=60,
+                tail_lines=100,
+                limit_bytes=1024,
+            )
 
-        # Verify the result
-        assert logs == 'log line 1\nlog line 2\n'
+            # Verify the result
+            assert logs == 'log line 1\nlog line 2\n'
 
-        # Verify the dynamic client was used correctly
-        mock_resources.get.assert_called_once_with(api_version='v1', kind='Pod')
-        mock_log.get.assert_called_once_with(
-            name='test-pod',
-            namespace='test-namespace',
-            container='test-container',
-            sinceSeconds=60,
-            tailLines=100,
-            limitBytes=1024,
-        )
+            # Verify CoreV1Api was created with the correct API client
+            mock_client.CoreV1Api.assert_called_once_with(k8s_apis.api_client)
+
+            # Verify read_namespaced_pod_log was called with the correct parameters
+            mock_core_v1_api.read_namespaced_pod_log.assert_called_once_with(
+                name='test-pod',
+                namespace='test-namespace',
+                container='test-container',
+                since_seconds=60,
+                tail_lines=100,
+                limit_bytes=1024,
+            )
 
     def test_get_pod_logs_minimal(self, k8s_apis):
         """Test get_pod_logs method with minimal parameters."""
-        # Mock the dynamic client and resources
-        mock_resource = MagicMock()
-        mock_log = MagicMock()
-        mock_resource.log = mock_log
-        mock_resources = MagicMock()
-        mock_resources.get.return_value = mock_resource
-        k8s_apis.dynamic_client.resources = mock_resources
+        # Mock the CoreV1Api client
+        with patch('kubernetes.client') as mock_client:
+            # Create mock CoreV1Api
+            mock_core_v1_api = MagicMock()
+            mock_client.CoreV1Api.return_value = mock_core_v1_api
 
-        # Mock log.get to return logs
-        mock_log.get.return_value = 'log line 1\nlog line 2\n'
+            # Mock read_namespaced_pod_log to return logs
+            mock_core_v1_api.read_namespaced_pod_log.return_value = 'log line 1\nlog line 2\n'
 
-        # Get pod logs with minimal parameters
-        logs = k8s_apis.get_pod_logs(
-            pod_name='test-pod',
-            namespace='test-namespace',
-        )
+            # Get pod logs with minimal parameters
+            logs = k8s_apis.get_pod_logs(
+                pod_name='test-pod',
+                namespace='test-namespace',
+            )
 
-        # Verify the result
-        assert logs == 'log line 1\nlog line 2\n'
+            # Verify the result
+            assert logs == 'log line 1\nlog line 2\n'
 
-        # Verify the dynamic client was used correctly
-        mock_resources.get.assert_called_once_with(api_version='v1', kind='Pod')
-        mock_log.get.assert_called_once_with(
-            name='test-pod',
-            namespace='test-namespace',
-        )
+            # Verify CoreV1Api was created with the correct API client
+            mock_client.CoreV1Api.assert_called_once_with(k8s_apis.api_client)
+
+            # Verify read_namespaced_pod_log was called with the correct parameters
+            mock_core_v1_api.read_namespaced_pod_log.assert_called_once_with(
+                name='test-pod',
+                namespace='test-namespace',
+            )
 
     def _create_mock_event(self):
         """Create a mock event for testing."""

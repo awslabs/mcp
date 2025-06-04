@@ -1,23 +1,24 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the get_metrics module."""
 
 import datetime
 import pytest
-from awslabs.aws_serverless_mcp_server.models import GetMetricsRequest
 from awslabs.aws_serverless_mcp_server.tools.webapps.get_metrics import (
-    get_metrics,
-    get_unit_for_metric,
+    GetMetricsTool,
 )
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestGetMetrics:
@@ -25,26 +26,15 @@ class TestGetMetrics:
 
     def test_get_unit_for_metric(self):
         """Test the get_unit_for_metric helper function."""
-        assert get_unit_for_metric('Lambda Duration') == 'Milliseconds'
-        assert get_unit_for_metric('API Gateway Latency') == 'Milliseconds'
-        assert get_unit_for_metric('CloudFront Bytes Downloaded') == 'Bytes'
-        assert get_unit_for_metric('CloudFront Error Rate') == 'Percent'
-        assert get_unit_for_metric('Lambda Invocations') == 'Count'
+        assert GetMetricsTool.get_unit_for_metric('Lambda Duration') == 'Milliseconds'
+        assert GetMetricsTool.get_unit_for_metric('API Gateway Latency') == 'Milliseconds'
+        assert GetMetricsTool.get_unit_for_metric('CloudFront Bytes Downloaded') == 'Bytes'
+        assert GetMetricsTool.get_unit_for_metric('CloudFront Error Rate') == 'Percent'
+        assert GetMetricsTool.get_unit_for_metric('Lambda Invocations') == 'Count'
 
     @pytest.mark.asyncio
     async def test_get_metrics_success(self):
         """Test successful metrics retrieval."""
-        # Create a mock request
-        request = GetMetricsRequest(
-            project_name='test-project',
-            start_time=None,
-            end_time=None,
-            period=60,
-            resources=['lambda', 'apiGateway'],
-            region=None,
-            stage='prod',
-        )
-
         # Mock the boto3 session and CloudWatch client
         mock_session = MagicMock()
         mock_cloudwatch = MagicMock()
@@ -76,10 +66,20 @@ class TestGetMetrics:
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await get_metrics(request)
+            result = await GetMetricsTool(MagicMock()).get_metrics(
+                AsyncMock(),
+                project_name='test-project',
+                start_time=None,
+                end_time=None,
+                period=60,
+                resources=['lambda', 'apiGateway'],
+                region=None,
+                stage='prod',
+            )
 
             # Verify the result
             assert result['success'] is True
+            print(result)
             assert 'metrics' in result
             assert 'lambda' in result['metrics']
             assert 'invocations' in result['metrics']['lambda']
@@ -97,7 +97,7 @@ class TestGetMetrics:
             assert duration[0]['unit'] == 'Milliseconds'
 
             # Verify boto3 session was created with the correct parameters
-            mock_session.client.assert_called_once_with('cloudwatch', config=ANY)
+            mock_session.client.assert_called_once_with('cloudwatch')
 
             # Verify get_metric_data was called with the correct parameters
             mock_cloudwatch.get_metric_data.assert_called_once()
@@ -111,17 +111,6 @@ class TestGetMetrics:
     @pytest.mark.asyncio
     async def test_get_metrics_with_optional_params(self):
         """Test metrics retrieval with optional parameters."""
-        # Create a mock request with optional parameters
-        request = GetMetricsRequest(
-            project_name='test-project',
-            start_time='2023-05-20T00:00:00Z',
-            end_time='2023-05-21T23:59:59Z',
-            period=60,
-            resources=['lambda', 'apiGateway'],
-            region='us-west-2',
-            stage='prod',
-        )
-
         # Mock the boto3 session and CloudWatch client
         mock_session = MagicMock()
         mock_cloudwatch = MagicMock()
@@ -132,13 +121,22 @@ class TestGetMetrics:
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await get_metrics(request)
+            result = await GetMetricsTool(MagicMock()).get_metrics(
+                AsyncMock(),
+                project_name='test-project',
+                start_time='2023-05-20T00:00:00Z',
+                end_time='2023-05-21T23:59:59Z',
+                period=60,
+                resources=['lambda', 'apiGateway'],
+                region='us-west-2',
+                stage='prod',
+            )
 
             # Verify the result
             assert result['success'] is True
 
             # Verify boto3 session was created with the correct parameters
-            mock_session.client.assert_called_once_with('cloudwatch', config=ANY)
+            mock_session.client.assert_called_once_with('cloudwatch')
 
             # Verify get_metric_data was called with the correct parameters
             mock_cloudwatch.get_metric_data.assert_called_once()
@@ -160,23 +158,21 @@ class TestGetMetrics:
     @pytest.mark.asyncio
     async def test_get_metrics_no_valid_metrics(self):
         """Test metrics retrieval with no valid metrics."""
-        # Create a mock request with resources that don't exist
-        request = GetMetricsRequest(
-            project_name='test-project',
-            start_time=None,
-            end_time=None,
-            period=60,
-            resources=[],  # Empty resources list
-            region=None,
-            stage='prod',
-        )
-
         # Mock the boto3 session
         mock_session = MagicMock()
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await get_metrics(request)
+            result = await GetMetricsTool(MagicMock()).get_metrics(
+                AsyncMock(),
+                project_name='test-project',
+                start_time=None,
+                end_time=None,
+                period=60,
+                resources=[],  # Empty resources list
+                region=None,
+                stage='prod',
+            )
 
             # Verify the result
             assert result['success'] is False
@@ -185,17 +181,6 @@ class TestGetMetrics:
     @pytest.mark.asyncio
     async def test_get_metrics_boto3_exception(self):
         """Test metrics retrieval with boto3 exception."""
-        # Create a mock request
-        request = GetMetricsRequest(
-            project_name='test-project',
-            start_time=None,
-            end_time=None,
-            period=60,
-            resources=['lambda', 'apiGateway'],
-            region=None,
-            stage='prod',
-        )
-
         # Mock the boto3 session and CloudWatch client
         mock_session = MagicMock()
         mock_cloudwatch = MagicMock()
@@ -207,7 +192,16 @@ class TestGetMetrics:
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await get_metrics(request)
+            result = await GetMetricsTool(MagicMock()).get_metrics(
+                AsyncMock(),
+                project_name='test-project',
+                start_time=None,
+                end_time=None,
+                period=60,
+                resources=['lambda', 'apiGateway'],
+                region=None,
+                stage='prod',
+            )
 
             # Verify the result
             assert result['success'] is False
@@ -217,17 +211,6 @@ class TestGetMetrics:
     @pytest.mark.asyncio
     async def test_get_metrics_invalid_time_format(self):
         """Test metrics retrieval with invalid time format."""
-        # Create a mock request with invalid time formats
-        request = GetMetricsRequest(
-            project_name='test-project',
-            start_time='invalid-start-time',
-            end_time='invalid-end-time',
-            period=60,
-            resources=['lambda', 'apiGateway'],
-            region=None,
-            stage='prod',
-        )
-
         # Mock the boto3 session and CloudWatch client
         mock_session = MagicMock()
         mock_cloudwatch = MagicMock()
@@ -238,7 +221,16 @@ class TestGetMetrics:
 
         with patch('boto3.Session', return_value=mock_session):
             # Call the function
-            result = await get_metrics(request)
+            result = await GetMetricsTool(MagicMock()).get_metrics(
+                AsyncMock(),
+                project_name='test-project',
+                start_time='invalid-start-time',
+                end_time='invalid-end-time',
+                period=60,
+                resources=['lambda', 'apiGateway'],
+                region=None,
+                stage='prod',
+            )
 
             # Verify the result
             assert result['success'] is True

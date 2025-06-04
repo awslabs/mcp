@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """awslabs CFN MCP Server implementation."""
 
@@ -17,6 +20,7 @@ from awslabs.cfn_mcp_server.aws_client import get_aws_client
 from awslabs.cfn_mcp_server.cloud_control_utils import progress_event, validate_patch
 from awslabs.cfn_mcp_server.context import Context
 from awslabs.cfn_mcp_server.errors import ClientError, handle_aws_api_error
+from awslabs.cfn_mcp_server.iac_generator import create_template as create_template_impl
 from awslabs.cfn_mcp_server.schema_manager import schema_manager
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -169,7 +173,7 @@ async def update_resource(
             "identifier": The resource identifier
             "is_complete": Boolean indicating whether the operation is complete
             "status_message": Human-readable message describing the result
-            "request_token": A token that allows you to track long running operations via the get_request_status tool
+            "request_token": A token that allows you to track long running operations via the get_resource_request_status tool
             "resource_info": Optional information about the resource properties
         }
     """
@@ -201,7 +205,7 @@ async def update_resource(
     except Exception as e:
         raise handle_aws_api_error(e)
 
-    return progress_event(response['ProgressEvent'])
+    return progress_event(response['ProgressEvent'], None)
 
 
 @mcp.tool()
@@ -229,7 +233,7 @@ async def create_resource(
             "identifier": The resource identifier
             "is_complete": Boolean indicating whether the operation is complete
             "status_message": Human-readable message describing the result
-            "request_token": A token that allows you to track long running operations via the get_request_status tool
+            "request_token": A token that allows you to track long running operations via the get_resource_request_status tool
             "resource_info": Optional information about the resource properties
         }
     """
@@ -252,7 +256,7 @@ async def create_resource(
     except Exception as e:
         raise handle_aws_api_error(e)
 
-    return progress_event(response['ProgressEvent'])
+    return progress_event(response['ProgressEvent'], None)
 
 
 @mcp.tool()
@@ -282,7 +286,7 @@ async def delete_resource(
             "identifier": The resource identifier
             "is_complete": Boolean indicating whether the operation is complete
             "status_message": Human-readable message describing the result
-            "request_token": A token that allows you to track long running operations via the get_request_status tool
+            "request_token": A token that allows you to track long running operations via the get_resource_request_status tool
         }
     """
     if not resource_type:
@@ -304,11 +308,11 @@ async def delete_resource(
     except Exception as e:
         raise handle_aws_api_error(e)
 
-    return progress_event(response['ProgressEvent'])
+    return progress_event(response['ProgressEvent'], None)
 
 
 @mcp.tool()
-async def get_request_status(
+async def get_resource_request_status(
     request_token: str = Field(
         description='The request_token returned from the long running operation'
     ),
@@ -330,7 +334,7 @@ async def get_request_status(
             "identifier": The resource identifier
             "is_complete": Boolean indicating whether the operation is complete
             "status_message": Human-readable message describing the result
-            "request_token": A token that allows you to track long running operations via the get_request_status tool
+            "request_token": A token that allows you to track long running operations via the get_resource_request_status tool
             "error_code": A code associated with any errors if the request failed
             "retry_after": A duration to wait before retrying the request
         }
@@ -346,7 +350,74 @@ async def get_request_status(
     except Exception as e:
         raise handle_aws_api_error(e)
 
-    return progress_event(response['ProgressEvent'])
+    return progress_event(response['ProgressEvent'], response.get('HooksProgressEvent', None))
+
+
+@mcp.tool()
+async def create_template(
+    template_name: str | None = Field(None, description='Name for the generated template'),
+    resources: list | None = Field(
+        None,
+        description="List of resources to include in the template, each with 'ResourceType' and 'ResourceIdentifier'",
+    ),
+    output_format: str = Field(
+        'YAML', description='Output format for the template (JSON or YAML)'
+    ),
+    deletion_policy: str = Field(
+        'RETAIN',
+        description='Default DeletionPolicy for resources in the template (RETAIN, DELETE, or SNAPSHOT)',
+    ),
+    update_replace_policy: str = Field(
+        'RETAIN',
+        description='Default UpdateReplacePolicy for resources in the template (RETAIN, DELETE, or SNAPSHOT)',
+    ),
+    template_id: str | None = Field(
+        None,
+        description='ID of an existing template generation process to check status or retrieve template',
+    ),
+    save_to_file: str | None = Field(
+        None, description='Path to save the generated template to a file'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
+) -> dict:
+    """Create a CloudFormation template from existing resources using the IaC Generator API.
+
+    This tool allows you to generate CloudFormation templates from existing AWS resources
+    that are not already managed by CloudFormation. The template generation process is
+    asynchronous, so you can check the status of the process and retrieve the template
+    once it's complete. You can pass up to 500 resources at a time.
+
+    Examples:
+    1. Start template generation for an S3 bucket:
+       create_template(
+           template_name="my-template",
+           resources=[{"ResourceType": "AWS::S3::Bucket", "ResourceIdentifier": {"BucketName": "my-bucket"}}],
+           deletion_policy="RETAIN",
+           update_replace_policy="RETAIN"
+       )
+
+    2. Check status of template generation:
+       create_template(template_id="arn:aws:cloudformation:us-east-1:123456789012:generatedtemplate/abcdef12-3456-7890-abcd-ef1234567890")
+
+    3. Retrieve and save generated template:
+       create_template(
+           template_id="arn:aws:cloudformation:us-east-1:123456789012:generatedtemplate/abcdef12-3456-7890-abcd-ef1234567890",
+           save_to_file="/path/to/template.yaml",
+           output_format="YAML"
+       )
+    """
+    return await create_template_impl(
+        template_name=template_name,
+        resources=resources,
+        output_format=output_format,
+        deletion_policy=deletion_policy,
+        update_replace_policy=update_replace_policy,
+        template_id=template_id,
+        save_to_file=save_to_file,
+        region_name=region,
+    )
 
 
 def main():

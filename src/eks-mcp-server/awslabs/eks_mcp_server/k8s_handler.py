@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Kubernetes handler for the EKS MCP Server."""
 
@@ -110,6 +113,8 @@ class K8sHandler:
         similar to the `kubectl apply` command. It supports multi-document YAML files
         and can create or update resources, useful for deploying applications, creating
         Kubernetes resources, and applying complete application stacks.
+
+        IMPORTANT: Use this tool instead of 'kubectl apply -f' commands.
 
         ## Requirements
         - The server must be run with the `--allow-write` flag
@@ -334,6 +339,9 @@ class K8sHandler:
         custom resources, update specific fields, read detailed information, and delete
         resources that are no longer needed.
 
+        IMPORTANT: Use this tool instead of 'kubectl create', 'kubectl edit', 'kubectl patch',
+        'kubectl delete', or 'kubectl get' commands.
+
         ## Requirements
         - The server must be run with the `--allow-write` flag for mutating operations
         - The server must be run with the `--allow-sensitive-data-access` flag for Secret resources
@@ -533,6 +541,8 @@ class K8sHandler:
         of each resource including name, namespace, creation time, and metadata, useful
         for listing pods in a namespace, finding services with specific labels, or
         checking resources in a specific state.
+
+        IMPORTANT: Use this tool instead of 'kubectl get' commands.
 
         ## Response Information
         The response includes a summary of each resource with name, namespace, creation timestamp,
@@ -780,6 +790,37 @@ class K8sHandler:
                 output_file_path='',
             )
 
+    def _remove_checkov_skip_annotations(self, content: str) -> str:
+        """Remove checkov skip annotations from YAML content.
+
+        Args:
+            content: YAML content as string
+
+        Returns:
+            YAML content with checkov skip annotations removed
+        """
+        # Use yaml to parse and modify the content
+        yaml_content = yaml.safe_load(content)
+        if (
+            yaml_content
+            and 'metadata' in yaml_content
+            and 'annotations' in yaml_content['metadata']
+        ):
+            # Remove all checkov skip annotations
+            annotations = yaml_content['metadata']['annotations']
+            checkov_keys = [key for key in annotations.keys() if key.startswith('checkov.io/skip')]
+            for key in checkov_keys:
+                del annotations[key]
+
+            # If annotations is now empty, remove it
+            if not annotations:
+                del yaml_content['metadata']['annotations']
+
+            # Convert back to YAML string
+            content = yaml.dump(yaml_content, default_flow_style=False)
+
+        return content
+
     def _load_yaml_template(self, template_files: list, values: Dict[str, Any]) -> str:
         """Load and process Kubernetes template files.
 
@@ -803,6 +844,10 @@ class K8sHandler:
             # Replace variables in the template
             for key, value in values.items():
                 content = content.replace(key, value)
+
+            # Remove checkov skip annotations if present
+            if template_file == 'deployment.yaml':
+                content = self._remove_checkov_skip_annotations(content)
 
             template_contents.append(content)
 
@@ -839,6 +884,8 @@ class K8sHandler:
         This tool retrieves logs from a specified pod in an EKS cluster, with options
         to filter by container, time range, and size. It's useful for debugging application
         issues, monitoring behavior, investigating crashes, and verifying startup configuration.
+
+        IMPORTANT: Use this tool instead of 'kubectl logs' commands.
 
         ## Requirements
         - The server must be run with the `--allow-sensitive-data-access` flag
@@ -964,6 +1011,8 @@ class K8sHandler:
         detailed information about what has happened to the resource over time. Events
         are useful for troubleshooting pod startup failures, investigating deployment issues,
         understanding resource modifications, and diagnosing scheduling problems.
+
+        IMPORTANT: Use this tool instead of 'kubectl describe' or 'kubectl get events' commands.
 
         ## Requirements
         - The server must be run with the `--allow-sensitive-data-access` flag

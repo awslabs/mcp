@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the cfn MCP Server."""
 
 import pytest
@@ -76,7 +79,7 @@ class TestUtils:
             'request_token': '25',
         }
 
-        assert progress_event(request) == response
+        assert progress_event(request, None) == response
 
     async def test_progress_event_full(self):
         """Testing mapping progress event with all props."""
@@ -105,4 +108,94 @@ class TestUtils:
             'retry_after': '10',
         }
 
-        assert progress_event(request) == response
+        assert progress_event(request, None) == response
+
+    async def test_progress_event_failed(self):
+        """Testing mapping progress event with all props."""
+        request = {
+            'OperationStatus': 'FAILED',
+            'TypeName': 'AWS::CodeStarConnections::Connection',
+            'RequestToken': '25',
+            'Identifier': 'id',
+            'StatusMessage': 'good job',
+            'ResourceModel': 'model',
+            'ErrorCode': 'NONE',
+            'EventTime': '25',
+            'RetryAfter': '10',
+        }
+
+        response = {
+            'status': 'FAILED',
+            'resource_type': 'AWS::CodeStarConnections::Connection',
+            'is_complete': True,
+            'request_token': '25',
+            'identifier': 'id',
+            'status_message': 'good job',
+            'resource_info': 'model',
+            'error_code': 'NONE',
+            'event_time': '25',
+            'retry_after': '10',
+        }
+
+        assert progress_event(request, None) == response
+
+    async def test_progress_event_empty_list_chooses_status_message(self):
+        """Testing mapping progress event."""
+        request = {
+            'OperationStatus': 'SUCCESS',
+            'TypeName': 'AWS::CodeStarConnections::Connection',
+            'RequestToken': '25',
+            'StatusMessage': 'good job',
+        }
+
+        response = {
+            'status': 'SUCCESS',
+            'resource_type': 'AWS::CodeStarConnections::Connection',
+            'is_complete': True,
+            'request_token': '25',
+            'status_message': 'good job',
+        }
+
+        assert progress_event(request, []) == response
+
+    async def test_progress_event_successful_hook_chooses_status_message(self):
+        """Testing mapping progress event."""
+        request = {
+            'OperationStatus': 'SUCCESS',
+            'TypeName': 'AWS::CodeStarConnections::Connection',
+            'RequestToken': '25',
+            'StatusMessage': 'good job',
+        }
+
+        hook = {'HookStatus': 'HOOK_COMPLETE_SUCCEEDED', 'HookStatusMessage': 'DONT SEE THIS'}
+
+        response = {
+            'status': 'SUCCESS',
+            'resource_type': 'AWS::CodeStarConnections::Connection',
+            'is_complete': True,
+            'request_token': '25',
+            'status_message': 'good job',
+        }
+
+        assert progress_event(request, [hook]) == response
+
+    async def test_progress_event_failed_hook_chooses_hook_message(self):
+        """Testing mapping progress event."""
+        request = {
+            'OperationStatus': 'SUCCESS',
+            'TypeName': 'AWS::CodeStarConnections::Connection',
+            'RequestToken': '25',
+            'StatusMessage': 'good job',
+        }
+
+        hook = {'HookStatus': 'HOOK_FAILED', 'HookStatusMessage': 'HOOK FAILED!!'}
+
+        response = {
+            'status': 'SUCCESS',
+            'resource_type': 'AWS::CodeStarConnections::Connection',
+            'is_complete': True,
+            'request_token': '25',
+            'status_message': 'HOOK FAILED!!',
+        }
+
+        assert progress_event(request, [hook]) == response

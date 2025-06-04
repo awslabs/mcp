@@ -1,18 +1,22 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """AWS helper for the EKS MCP Server."""
 
 import boto3
 import os
+from awslabs.eks_mcp_server import __version__
 from botocore.config import Config
 from typing import Any, Optional
 
@@ -38,7 +42,7 @@ class AwsHelper:
     def create_boto3_client(cls, service_name: str, region_name: Optional[str] = None) -> Any:
         """Create a boto3 client with the appropriate profile and region.
 
-        The client is configured with a custom user agent suffix 'awslabs/mcp/eks-mcp-server/0.1.0'
+        The client is configured with a custom user agent suffix 'awslabs/mcp/eks-mcp-server/{version}'
         to identify API calls made by the EKS MCP Server.
 
         Args:
@@ -55,7 +59,7 @@ class AwsHelper:
         profile = cls.get_aws_profile()
 
         # Create config with user agent suffix
-        config = Config(user_agent_extra='awslabs/mcp/eks-mcp-server/0.1.0')
+        config = Config(user_agent_extra=f'awslabs/mcp/eks-mcp-server/{__version__}')
 
         # Create session with profile if specified
         if profile:
