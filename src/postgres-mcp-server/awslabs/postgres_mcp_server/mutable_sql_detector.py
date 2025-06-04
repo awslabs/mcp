@@ -50,8 +50,6 @@ MUTATING_PATTERN = re.compile(
 )
 
 SUSPICIOUS_PATTERNS = [
-    r'--.*$',  # single-line comment
-    r'/\*.*?\*/',  # multi-line comment
     r"(?i)'.*?--",  # comment injection
     r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
     r"(?i)\bor\b\s*'[^']+'\s*=\s*'[^']+'",  # string tautology e.g. OR '1'='1'
@@ -59,7 +57,7 @@ SUSPICIOUS_PATTERNS = [
     r'(?i)\bdrop\b',  # DROP statement
     r'(?i)\btruncate\b',  # TRUNCATE
     r'(?i)\bgrant\b|\brevoke\b',  # GRANT or REVOKE
-    r'(?i);',  # stacked queries
+    r';\s*(?!($|\s*--|\s*/\*))(?=\S)',  # stacked queries, excluding semicolons followed by comments or whitespace
     r'(?i)\bsleep\s*\(',  # delay-based probes
     r'(?i)\bpg_sleep\s*\(',
     r'(?i)\bload_file\s*\(',

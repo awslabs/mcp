@@ -33,8 +33,15 @@ from conftest import DummyCtx, Mock_DBConnection, MockException
 
 
 SAFE_READONLY_QUERIES = [
-    # 1. Simple SELECT
+    # Basic SELECT Queries
+    # 1a. Simple SELECT
     'SELECT * FROM employees',
+    # 1b. Simple SELECT with trailing semicolon
+    'SELECT * FROM employees;',
+    # 1c. Simple SELECT with trailing semicolon and comment
+    'SELECT * FROM employees; -- This is a comment',
+    # 1d. Simple SELECT with trailing semicolon and multi line comment
+    'SELECT * FROM employees; /* This is a comment */',
     # 2. SELECT with WHERE
     """SELECT first_name, last_name, salary
        FROM employees
