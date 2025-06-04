@@ -12,7 +12,7 @@
 
 import asyncio
 import pytest
-from awslabs.aws_documentation_mcp_server.server_global import search_documentation
+from awslabs.aws_documentation_mcp_server.server_aws import search_documentation
 
 
 class MockContext:

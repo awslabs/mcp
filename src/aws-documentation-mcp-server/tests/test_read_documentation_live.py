@@ -11,11 +11,11 @@
 """Live test for the read_documentation tool in the AWS Documentation MCP server."""
 
 import pytest
-from awslabs.aws_documentation_mcp_server.server_china import (
-    read_documentation as read_documentation_china,
-)
-from awslabs.aws_documentation_mcp_server.server_global import (
+from awslabs.aws_documentation_mcp_server.server_aws import (
     read_documentation as read_documentation_global,
+)
+from awslabs.aws_documentation_mcp_server.server_aws_cn import (
+    read_documentation as read_documentation_china,
 )
 
 

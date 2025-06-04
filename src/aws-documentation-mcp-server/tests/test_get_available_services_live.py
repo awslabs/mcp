@@ -11,7 +11,7 @@
 """Live test for the get_available_services tool in the AWS Documentation MCP server."""
 
 import pytest
-from awslabs.aws_documentation_mcp_server.server_china import get_available_services
+from awslabs.aws_documentation_mcp_server.server_aws_cn import get_available_services
 
 
 class MockContext:

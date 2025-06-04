@@ -23,9 +23,9 @@ PARTITION = os.getenv('AWS_DOCUMENTATION_PARTITION', '').lower()
 def main():
     """Run the MCP server with CLI argument support."""
     if PARTITION == '':
-        from awslabs.aws_documentation_mcp_server.server_global import main
+        from awslabs.aws_documentation_mcp_server.server_aws import main
     elif PARTITION == 'china':
-        from awslabs.aws_documentation_mcp_server.server_china import main
+        from awslabs.aws_documentation_mcp_server.server_aws_cn import main
     else:
         raise ValueError(f'Unsupported AWS documentation partition: {PARTITION}.')
 

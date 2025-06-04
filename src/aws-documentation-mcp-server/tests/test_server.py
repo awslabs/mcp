@@ -12,16 +12,16 @@
 
 import httpx
 import pytest
-from awslabs.aws_documentation_mcp_server.server_china import (
-    get_available_services,
-)
-from awslabs.aws_documentation_mcp_server.server_china import (
-    read_documentation as read_documentation_china,
-)
-from awslabs.aws_documentation_mcp_server.server_global import (
+from awslabs.aws_documentation_mcp_server.server_aws import (
     read_documentation,
     recommend,
     search_documentation,
+)
+from awslabs.aws_documentation_mcp_server.server_aws_cn import (
+    get_available_services,
+)
+from awslabs.aws_documentation_mcp_server.server_aws_cn import (
+    read_documentation as read_documentation_china,
 )
 from awslabs.aws_documentation_mcp_server.util import extract_content_from_html
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -202,7 +202,7 @@ class TestRecommend:
 
 
 class TestReadDocumentationChina:
-    """Tests for the read_documentation function in server_china."""
+    """Tests for the read_documentation function in server_aws_cn."""
 
     @pytest.mark.asyncio
     async def test_read_documentation_china(self):
@@ -288,7 +288,7 @@ class TestGetAvailableServices:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server_china.extract_content_from_html'
+                'awslabs.aws_documentation_mcp_server.server_aws_cn.extract_content_from_html'
             ) as mock_extract:
                 mock_extract.return_value = '# AWS Services in China\n\nAvailable services list.'
 
