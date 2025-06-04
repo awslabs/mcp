@@ -24,7 +24,7 @@ import boto3
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 from botocore.exceptions import ClientError, NoCredentialsError
-import dotenv
+from dotenv import load_dotenv
 import requests
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -65,7 +65,7 @@ def parse_arguments():
 def load_config(args):
     """Load configuration from file, environment variables, and command line arguments."""
     # Load .env file if it exists
-    dotenv.load_dotenv()
+    load_dotenv()
     
     # Initialize config with default values
     config_data = {
