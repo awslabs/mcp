@@ -320,7 +320,7 @@ A server for accessing AWS Location Service capabilities, focusing on place sear
 - Calculate routes between locations with turn-by-turn directions
 - Optimize waypoints for efficient routing
 
-[Learn more](src/aws-location-mcp-server/README.md)
+[Learn more](src/aws-location-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-location-mcp-server/)
 
 ### Git Repo Research MCP Server
 
