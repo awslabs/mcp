@@ -137,7 +137,7 @@ A server for listing and querying Amazon Kendra Indexes
 - List the Kendra indexes in your account.
 - Query Kendra indexes with natural language to give additional RAG context to your AI tool.
 
-[Learn more](src/amazon-kendra-index-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-kendra-index-mcp-server/)
+[Learn more](src/amazon-kendra-index-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/kendra-index-mcp-server/)
 
 ### Amazon Bedrock Knowledge Bases Retrieval MCP Server
 
