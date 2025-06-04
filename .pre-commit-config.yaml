@@ -33,9 +33,9 @@ repos:
     -   id: pretty-format-json
     -   id: trailing-whitespace
 
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.11.4
-  hooks:
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.4
+    hooks:
     - id: ruff
       args: [ --fix ]
     - id: ruff-format
@@ -45,3 +45,14 @@ repos:
     hooks:
     -   id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
+
+-   repo: local
+    hooks:
+    -   id: check-license-header
+        name: check license header
+        pass_filenames: false
+        language: system
+        entry: npm
+        args: [
+            'exec', '--',
+            'github:viperproject/check-license-header#v1', 'check', '--config', './.github/workflows/check-license-header.json']

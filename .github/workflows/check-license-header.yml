@@ -1,0 +1,20 @@
+# This workflow runs an automated pull request code review when labeled
+name: Check License Header
+on:
+  push:
+permissions: {}
+jobs:
+  precheck:
+    name: Code Review Upon All Successful Runs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Check license headers
+        uses: viperproject/check-license-header@e06c65614fa9f32e099838df4dd25440c5344b32 # v2.0.3
+        with:
+          path: .
+          config: ./.github/workflows/check-license-header.json
+          strict: true
