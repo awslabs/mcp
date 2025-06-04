@@ -205,19 +205,26 @@ def main() -> int:
     DescribeSchemaTool(mcp, schemas_client)
 
     GetMetricsTool(mcp)
-    ConfigureDomainTool(mcp)
+    ConfigureDomainTool(mcp, args.allow_write)
     DeployWebAppTool(mcp, args.allow_write)
-    UpdateFrontendTool(mcp)
+    UpdateFrontendTool(mcp, args.allow_write)
 
     # Set AWS_EXECUTION_ENV to configure user agent of boto3. Setting it through an environment variable
     # because SAM CLI does not support setting user agents directly
     os.environ['AWS_EXECUTION_ENV'] = f'awslabs/mcp/aws-serverless-mcp-server/{__version__}'
 
+    mode_info = []
+    if not args.allow_write:
+        mode_info.append('read-only mode')
+    if not args.allow_sensitive_data_access:
+        mode_info.append('restricted sensitive data access mode')
+
     try:
+        logger.info(f'Starting AWS Serverless MCP Server in {", ".join(mode_info)}')
         mcp.run()
         return 0
     except Exception as e:
-        logger.error(f'Error starting AWS Serverless MCP server: {e}')
+        logger.error(f'Error starting AWS Serverless MCP Server: {e}')
         return 1
 
 

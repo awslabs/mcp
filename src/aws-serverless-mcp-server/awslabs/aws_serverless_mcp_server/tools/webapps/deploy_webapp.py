@@ -25,6 +25,7 @@ from awslabs.aws_serverless_mcp_server.models import (
     DeployWebAppRequest,
     FrontendConfiguration,
 )
+from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.tools.webapps.utils.deploy_service import (
     DeploymentStatus,
     deploy_application,
@@ -36,11 +37,12 @@ from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 
 
-class DeployWebAppTool:
+class DeployWebAppTool(BaseTool):
     """Tool for deploying web applications to AWS serverless infrastructure."""
 
     def __init__(self, mcp: FastMCP, allow_write):
         """Initialize the DeployWebAppTool with a FastMCP instance."""
+        super().__init__(allow_write=allow_write)
         mcp.tool(name='deploy_webapp')(self.deploy_webapp)
         self.allow_write = allow_write
 
@@ -70,11 +72,7 @@ class DeployWebAppTool:
         Returns:
             Dict: Deployment result and link to pending deployment resource
         """
-        if not self.allow_write:
-            return {
-                'success': False,
-                'error': 'Write operations are not allowed. Set --allow-write flag to true to enable write operations.',
-            }
+        self.checkToolAccess()
         try:
             params = DeployWebAppRequest(
                 deployment_type=deployment_type,

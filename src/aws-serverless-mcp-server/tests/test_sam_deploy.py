@@ -213,26 +213,28 @@ class TestSamDeploy:
         tool = SamDeployTool(MagicMock(), allow_write=False)
 
         # Call the function
-        result = await tool.handle_sam_deploy(
-            AsyncMock(),
-            application_name='test-app',
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            template_file=None,
-            s3_bucket=None,
-            s3_prefix=None,
-            region=None,
-            profile=None,
-            parameter_overrides=None,
-            capabilities=None,
-            config_file=None,
-            config_env=None,
-            metadata=None,
-            tags=None,
-            resolve_s3=False,
-            debug=False,
-        )
+        with pytest.raises(Exception) as exc_info:
+            await tool.handle_sam_deploy(
+                AsyncMock(),
+                application_name='test-app',
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                s3_bucket=None,
+                s3_prefix=None,
+                region=None,
+                profile=None,
+                parameter_overrides=None,
+                capabilities=None,
+                config_file=None,
+                config_env=None,
+                metadata=None,
+                tags=None,
+                resolve_s3=False,
+                debug=False,
+            )
 
-        # Verify the result
-        assert result['success'] is False
-        assert 'Write operations are not allowed' in result['error']
-        assert '--allow-write flag' in result['error']
+        # Verify the exception message
+        assert (
+            'Write operations are not allowed. Set --allow-write flag to true to enable write operations.'
+            in str(exc_info.value)
+        )

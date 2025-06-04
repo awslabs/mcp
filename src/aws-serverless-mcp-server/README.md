@@ -57,8 +57,7 @@ Add the following code to your MCP client configuration. The Serverless MCP serv
           "AWS_REGION": "us-east-1"
         },
       "disabled": false,
-      "autoApprove": [],
-      "timeout": 60
+      "autoApprove": []
     }
   }
 }
@@ -78,8 +77,7 @@ Add the following code to your MCP client configuration. The Serverless MCP serv
           "AWS_REGION": "us-east-1"
         },
         "disabled": false,
-        "autoApprove": [],
-        "timeout": 60
+        "autoApprove": []
     }
   }
 }
@@ -90,15 +88,17 @@ Add the following code to your MCP client configuration. The Serverless MCP serv
 Enables write access mode, which allows mutating operations and creation of public resources. By default, the server runs in read-only mode, which restricts operations to only perform read actions, preventing any changes to AWS resources.
 
 Mutating operations:
-* sam_deploy: Deploys a SAM application into AWS Cloud using CloudFormation
-* deploy_webapp: Generates SAM template and deploys a web application into AWS CloudFormation. Creates public resources, including Route 53 DNS records, and CloudFront distributions
+- sam_deploy: Deploys a SAM application into AWS Cloud using CloudFormation
+- deploy_webapp: Generates SAM template and deploys a web application into AWS CloudFormation. Creates public resources, including Route 53 DNS records, and CloudFront distributions
+- configure_domain: Create custom domain using Route53 and ACM certificate and associates it with the project's CloudFront distribution
+- update_frontend: Uploads frontend assets to S3 bucket
 
 
 ### `--allow-sensitive-data-access`
 Enables access to sensitive data such as logs. By default, the server restricts access to sensitive data.
 
 Operations returning sensitive data:
-* sam_logs: Returns Lambda function logs and API Gateway logs
+- sam_logs: Returns Lambda function logs and API Gateway logs
 
 ## Local development
 

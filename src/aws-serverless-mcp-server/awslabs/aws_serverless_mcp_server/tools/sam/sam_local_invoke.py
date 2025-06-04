@@ -77,7 +77,7 @@ class SamLocalInvokeTool:
         """Locally invokes a Lambda function using AWS SAM CLI.
 
         Requirements:
-        - AWS SAM CLI installed and configured in your environment
+        - AWS SAM CLI MUST be installed and configured in your environment
         - Docker must be installed and running in your environment.
 
         This command runs your Lambda function locally in a Docker container that simulates the AWS Lambda environment.
