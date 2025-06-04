@@ -138,7 +138,7 @@ A server for listing and querying Amazon Kendra Indexes
 - List the Kendra indexes in your account.
 - Query Kendra indexes with natural language to give additional RAG context to your AI tool.
 
-[Learn more](src/amazon-kendra-index-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/amazon-kendra-index-mcp-server/)
+[Learn more](src/amazon-kendra-index-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/kendra-index-mcp-server/)
 
 ### Amazon Bedrock Knowledge Bases Retrieval MCP Server
 
@@ -225,7 +225,7 @@ A server to select and run AWS Lambda function as MCP tools without code changes
 - This approach allows an MCP client to use other AWS services, private networks, and the public internet.
 - The Lambda function description is used by MCP to describe the tool and should guide the FMs on when (what does the function provide?) and how (which parameters it needs? which syntax?) to use it.
 
-[Learn more](src/lambda-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/lambda-mcp-server/)
+[Learn more](src/lambda-tool-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/lambda-tool-mcp-server/)
 
 ### Amazon SNS / SQS MCP Server
 
@@ -321,7 +321,7 @@ A server for accessing AWS Location Service capabilities, focusing on place sear
 - Calculate routes between locations with turn-by-turn directions
 - Optimize waypoints for efficient routing
 
-[Learn more](src/aws-location-mcp-server/README.md)
+[Learn more](src/aws-location-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-location-mcp-server/)
 
 ### Git Repo Research MCP Server
 
