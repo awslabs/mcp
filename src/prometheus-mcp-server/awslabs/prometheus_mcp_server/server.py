@@ -1,6 +1,6 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the \"License\"). You may not use this file except in compliance
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
 # with the License. A copy of the License is located at
 #
 #    http://www.apache.org/licenses/LICENSE-2.0
@@ -116,16 +116,22 @@ def setup_environment(config):
     
     # Validate Prometheus URL
     if not config['prometheus_url']:
-        logger.error("Prometheus URL not configured")
+        logger.error("ERROR: Prometheus URL not configured. Please set using --url parameter or PROMETHEUS_URL environment variable.")
         return False
     
     try:
         parsed_url = urlparse(config['prometheus_url'])
         if not all([parsed_url.scheme, parsed_url.netloc]):
-            logger.error(f"Invalid Prometheus URL format: {config['prometheus_url']}")
+            logger.error(f"ERROR: Invalid Prometheus URL format: {config['prometheus_url']}")
+            logger.error("URL must include scheme (https://) and hostname")
             return False
+        
+        # Verify URL points to AWS Prometheus
+        if not ('amazonaws.com' in parsed_url.netloc and 'aps-workspaces' in parsed_url.netloc):
+            logger.warning(f"WARNING: URL doesn't appear to be an AWS Managed Prometheus endpoint: {config['prometheus_url']}")
+            logger.warning("Expected format: https://aps-workspaces.[region].amazonaws.com/workspaces/ws-[id]")
     except Exception as e:
-        logger.error(f"Error parsing Prometheus URL: {e}")
+        logger.error(f"ERROR: Error parsing Prometheus URL: {e}")
         return False
     
     logger.info("Prometheus configuration:")
@@ -134,7 +140,20 @@ def setup_environment(config):
     
     # Test AWS credentials
     try:
-        session = boto3.Session(profile_name=config['aws_profile'], region_name=config['aws_region'])
+        if not config['aws_region']:
+            logger.error("ERROR: AWS region not configured. Please set using --region parameter or AWS_REGION environment variable.")
+            return False
+            
+        logger.info(f"  AWS Region: {config['aws_region']}")
+        
+        # Create session with profile if specified
+        if config['aws_profile']:
+            logger.info(f"  Using AWS Profile: {config['aws_profile']}")
+            session = boto3.Session(profile_name=config['aws_profile'], region_name=config['aws_region'])
+        else:
+            logger.info("  Using default AWS credentials")
+            session = boto3.Session(region_name=config['aws_region'])
+            
         credentials = session.get_credentials()
         if credentials:
             logger.info("  AWS Credentials: Available")
@@ -149,15 +168,24 @@ def setup_environment(config):
                 identity = sts.get_caller_identity()
                 logger.info(f"  AWS Identity: {identity['Arn']}")
             except ClientError as e:
-                logger.warning(f"Could not verify AWS identity: {e}")
+                logger.warning(f"WARNING: Could not verify AWS identity: {e}")
+                logger.warning("This may indicate insufficient permissions for STS:GetCallerIdentity")
         else:
-            logger.error("  AWS Credentials: Not found")
+            logger.error("ERROR: AWS Credentials not found")
+            logger.error("Please configure AWS credentials using:")
+            logger.error("  - AWS CLI: aws configure")
+            logger.error("  - Environment variables: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY")
+            logger.error("  - Or specify a profile with --profile")
             return False
     except NoCredentialsError:
-        logger.error("AWS credentials not found")
+        logger.error("ERROR: AWS credentials not found")
+        logger.error("Please configure AWS credentials using:")
+        logger.error("  - AWS CLI: aws configure")
+        logger.error("  - Environment variables: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY")
+        logger.error("  - Or specify a profile with --profile")
         return False
     except Exception as e:
-        logger.error(f"Error setting up AWS session: {e}")
+        logger.error(f"ERROR: Error setting up AWS session: {e}")
         return False
     
     return True
@@ -237,8 +265,31 @@ def test_prometheus_connection():
         make_prometheus_request("label/__name__/values")
         logger.info("Successfully connected to Prometheus!")
         return True
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        if error_code == 'AccessDeniedException':
+            logger.error("ERROR: Access denied when connecting to Prometheus")
+            logger.error("Please check that your AWS credentials have the following permissions:")
+            logger.error("  - aps:QueryMetrics")
+            logger.error("  - aps:GetLabels")
+            logger.error("  - aps:GetMetricMetadata")
+        elif error_code == 'ResourceNotFoundException':
+            logger.error("ERROR: Prometheus workspace not found")
+            logger.error(f"Please verify the workspace ID in your Prometheus URL: {config.prometheus_url}")
+        else:
+            logger.error(f"ERROR: AWS API error when connecting to Prometheus: {error_code}")
+            logger.error(f"Details: {str(e)}")
+        return False
+    except requests.RequestException as e:
+        logger.error(f"ERROR: Network error when connecting to Prometheus: {str(e)}")
+        logger.error("Please check your network connection and Prometheus URL")
+        return False
     except Exception as e:
-        logger.error(f"Error connecting to Prometheus: {e}")
+        logger.error(f"ERROR: Error connecting to Prometheus: {str(e)}")
+        logger.error("Common issues:")
+        logger.error("1. Incorrect Prometheus URL")
+        logger.error("2. Missing or incorrect AWS region")
+        logger.error("3. Invalid AWS credentials or insufficient permissions")
         return False
 
 # Initialize MCP
