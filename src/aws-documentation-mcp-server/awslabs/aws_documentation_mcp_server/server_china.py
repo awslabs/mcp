@@ -182,7 +182,10 @@ async def get_available_services(
         content = page_raw
 
     # Format the content without truncation
-    result = format_documentation_result(url_str, content, 0, 2**1000)
+    MAX_DOCUMENTATION_LENGTH = 2**1000
+    result = format_documentation_result(
+        url_str, content, start_index=0, max_length=MAX_DOCUMENTATION_LENGTH
+    )
 
     return result
 
