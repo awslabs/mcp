@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.dynamodb-mcp-server"
-version = "1.0.0"
+version = "1.0.1"
 description = "The official MCP Server for interacting with AWS DynamoDB"
 readme = "README.md"
 requires-python = ">=3.10"

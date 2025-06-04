@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.finch-mcp-server"
-version = "0.1.1"
+version = "0.1.2"
 description = "A Model Context Protocol server for Finch to build and push container images"
 readme = "README.md"
 requires-python = ">=3.10"
