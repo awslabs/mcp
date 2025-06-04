@@ -17,14 +17,14 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
-PARTITION = os.getenv('AWS_DOCUMENTATION_PARTITION', '').lower()
+PARTITION = os.getenv('AWS_DOCUMENTATION_PARTITION', 'aws').lower()
 
 
 def main():
     """Run the MCP server with CLI argument support."""
-    if PARTITION == '':
+    if PARTITION == 'aws':
         from awslabs.aws_documentation_mcp_server.server_aws import main
-    elif PARTITION == 'china':
+    elif PARTITION == 'aws-cn':
         from awslabs.aws_documentation_mcp_server.server_aws_cn import main
     else:
         raise ValueError(f'Unsupported AWS documentation partition: {PARTITION}.')
