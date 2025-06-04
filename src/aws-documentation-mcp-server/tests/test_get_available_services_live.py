@@ -107,5 +107,3 @@ async def test_get_available_services_content_structure():
     # Print the structure analysis for debugging
     print('\nContent structure analysis:')
     print(f'Total content length: {len(result)} characters')
-    print(f'Number of lines: {result.count("\n")}')
-    print(f'Number of paragraphs: {result.count("\n\n")}')
