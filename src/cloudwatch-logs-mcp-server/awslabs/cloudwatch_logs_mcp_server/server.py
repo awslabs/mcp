@@ -55,10 +55,10 @@ config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-logs-mcp-server/{MCP_S
 try:
     if aws_profile := os.environ.get('AWS_PROFILE'):
         logs_client = boto3.Session(profile_name=aws_profile, region_name=aws_region).client(
-            'logs'
+            'logs', config=config
         )
     else:
-        logs_client = boto3.Session(region_name=aws_region).client('logs')
+        logs_client = boto3.Session(region_name=aws_region).client('logs', config=config)
 except Exception as e:
     logger.error(f'Error creating cloudwatch logs client: {str(e)}')
     raise
