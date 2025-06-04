@@ -1,13 +1,22 @@
-#!/usr/bin/env python
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the \"License\"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
+"""Prometheus MCP Server implementation."""
 
 import os
 import json
 import sys
 import argparse
-from typing import Any, Dict, List, Optional, Union
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 import time
-from datetime import datetime, timedelta
 import logging
 from urllib.parse import urlparse
 
@@ -18,11 +27,28 @@ from botocore.exceptions import ClientError, NoCredentialsError
 import dotenv
 import requests
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
+
+from awslabs.prometheus_mcp_server.models import PrometheusConfig
+from awslabs.prometheus_mcp_server.consts import (
+    DEFAULT_AWS_REGION,
+    DEFAULT_SERVICE_NAME,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_DELAY,
+    API_VERSION_PATH,
+    LOG_FORMAT,
+    ENV_AWS_PROFILE,
+    ENV_AWS_REGION,
+    ENV_PROMETHEUS_URL,
+    ENV_AWS_SERVICE_NAME,
+    ENV_LOG_LEVEL,
+    SERVER_INSTRUCTIONS
+)
 
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format=LOG_FORMAT
 )
 logger = logging.getLogger(__name__)
 
@@ -44,11 +70,11 @@ def load_config(args):
     # Initialize config with default values
     config_data = {
         'aws_profile': None,
-        'aws_region': 'us-east-1',
+        'aws_region': DEFAULT_AWS_REGION,
         'prometheus_url': '',
-        'service_name': 'aps',
-        'max_retries': 3,
-        'retry_delay': 1,  # seconds
+        'service_name': DEFAULT_SERVICE_NAME,
+        'max_retries': DEFAULT_MAX_RETRIES,
+        'retry_delay': DEFAULT_RETRY_DELAY,
     }
     
     # Load from config file if specified
@@ -62,14 +88,14 @@ def load_config(args):
             logger.error(f"Error loading config file: {e}")
     
     # Override with environment variables
-    if os.getenv('AWS_PROFILE'):
-        config_data['aws_profile'] = os.getenv('AWS_PROFILE')
-    if os.getenv('AWS_REGION'):
-        config_data['aws_region'] = os.getenv('AWS_REGION')
-    if os.getenv('PROMETHEUS_URL'):
-        config_data['prometheus_url'] = os.getenv('PROMETHEUS_URL')
-    if os.getenv('AWS_SERVICE_NAME'):
-        config_data['service_name'] = os.getenv('AWS_SERVICE_NAME')
+    if os.getenv(ENV_AWS_PROFILE):
+        config_data['aws_profile'] = os.getenv(ENV_AWS_PROFILE)
+    if os.getenv(ENV_AWS_REGION):
+        config_data['aws_region'] = os.getenv(ENV_AWS_REGION)
+    if os.getenv(ENV_PROMETHEUS_URL):
+        config_data['prometheus_url'] = os.getenv(ENV_PROMETHEUS_URL)
+    if os.getenv(ENV_AWS_SERVICE_NAME):
+        config_data['service_name'] = os.getenv(ENV_AWS_SERVICE_NAME)
     
     # Override with command line arguments
     if args.profile:
@@ -143,8 +169,8 @@ def make_prometheus_request(endpoint: str, params: Dict = None, max_retries: int
 
     # Ensure the URL ends with /api/v1
     base_url = config.prometheus_url
-    if not base_url.endswith('/api/v1'):
-        base_url = f"{base_url.rstrip('/')}/api/v1"
+    if not base_url.endswith(API_VERSION_PATH):
+        base_url = f"{base_url.rstrip('/')}{API_VERSION_PATH}"
 
     url = f"{base_url}/{endpoint.lstrip('/')}"
     
@@ -216,23 +242,31 @@ def test_prometheus_connection():
         return False
 
 # Initialize MCP
-mcp = FastMCP(name="Prometheus MCP", instructions="""Use this server for analyzing AWS Prometheus cluster.""")
-
-@dataclass
-class PrometheusConfig:
-    prometheus_url: str
-    aws_region: str
-    aws_profile: Optional[str] = None
-    service_name: str = 'aps'
-    retry_delay: int = 1
-    max_retries: int = 3
+mcp = FastMCP(name="Prometheus MCP", instructions=SERVER_INSTRUCTIONS)
 
 # Global config object
 config = None
 
 @mcp.tool(description="Execute a PromQL instant query against Prometheus")
-async def execute_query(query: str, time: Optional[str] = None) -> Dict[str, Any]:
-    """Execute an instant query and return the result."""
+async def execute_query(
+    query: str = Field(..., description="The PromQL query to execute"),
+    time: Optional[str] = Field(
+        None, 
+        description="Optional timestamp for query evaluation (RFC3339 or Unix timestamp)"
+    )
+) -> Dict[str, Any]:
+    """Execute an instant query and return the result.
+    
+    ## Usage
+    - Use this tool to execute a PromQL query at a specific instant in time
+    - The query will return the current value of the specified metrics
+    - For time series data over a range, use execute_range_query instead
+    
+    ## Example queries
+    - `up` - Shows which targets are up
+    - `rate(node_cpu_seconds_total{mode="system"}[1m])` - CPU usage rate
+    - `sum by(instance) (rate(node_network_receive_bytes_total[5m]))` - Network receive rate by instance
+    """
     params = {'query': query}
     if time:
         params['time'] = time
@@ -240,8 +274,27 @@ async def execute_query(query: str, time: Optional[str] = None) -> Dict[str, Any
     return make_prometheus_request('query', params, config.max_retries)
 
 @mcp.tool(description="Execute a PromQL range query with start time, end time, and step interval")
-async def execute_range_query(query: str, start: str, end: str, step: str) -> Dict[str, Any]:
-    """Execute a range query and return the result."""
+async def execute_range_query(
+    query: str = Field(..., description="The PromQL query to execute"),
+    start: str = Field(..., description="Start timestamp (RFC3339 or Unix timestamp)"),
+    end: str = Field(..., description="End timestamp (RFC3339 or Unix timestamp)"),
+    step: str = Field(..., description="Query resolution step width (duration format, e.g. '15s', '1m', '1h')")
+) -> Dict[str, Any]:
+    """Execute a range query and return the result.
+    
+    ## Usage
+    - Use this tool to execute a PromQL query over a time range
+    - The query will return a series of values for the specified time range
+    - Useful for generating time series data for graphs or trend analysis
+    
+    ## Example
+    - Query: `rate(node_cpu_seconds_total{mode="system"}[5m])`
+    - Start: `2023-04-01T00:00:00Z`
+    - End: `2023-04-01T01:00:00Z`
+    - Step: `5m`
+    
+    This will return CPU usage rate sampled every 5 minutes over a 1-hour period.
+    """
     params = {
         'query': query,
         'start': start,
@@ -253,13 +306,37 @@ async def execute_range_query(query: str, start: str, end: str, step: str) -> Di
 
 @mcp.tool(description="List all available metrics in Prometheus")
 async def list_metrics() -> List[str]:
-    """Get a list of all metric names."""
+    """Get a list of all metric names.
+    
+    ## Usage
+    - Use this tool to discover available metrics in the Prometheus server
+    - Returns a sorted list of all metric names
+    - Useful for exploration before crafting specific queries
+    
+    ## Example
+    ```
+    metrics = await list_metrics()
+    print("Available metrics:", metrics[:10])  # Show first 10 metrics
+    ```
+    """
     data = make_prometheus_request('label/__name__/values', max_retries=config.max_retries)
     return sorted(data)
 
 @mcp.tool(description="Get information about the Prometheus server configuration")
 async def get_server_info() -> Dict[str, Any]:
-    """Get information about the Prometheus server configuration."""
+    """Get information about the Prometheus server configuration.
+    
+    ## Usage
+    - Use this tool to retrieve the current server configuration
+    - Returns details about the Prometheus URL, AWS region, profile, and service name
+    - Useful for debugging connection issues
+    
+    ## Example
+    ```
+    info = await get_server_info()
+    print(f"Connected to Prometheus at {info['prometheus_url']} in region {info['aws_region']}")
+    ```
+    """
     return {
         "prometheus_url": config.prometheus_url,
         "aws_region": config.aws_region,
@@ -267,7 +344,8 @@ async def get_server_info() -> Dict[str, Any]:
         "service_name": config.service_name
     }
 
-if __name__ == "__main__":
+def main():
+    """Run the MCP server with CLI argument support."""
     logger.info("Starting Prometheus MCP Server...")
     
     # Parse arguments
@@ -277,6 +355,7 @@ if __name__ == "__main__":
     config_data = load_config(args)
     
     # Create config object
+    global config
     config = PrometheusConfig(
         prometheus_url=config_data['prometheus_url'],
         aws_region=config_data['aws_region'],
@@ -297,3 +376,6 @@ if __name__ == "__main__":
     logger.info("Starting server...")
     # Run with stdio transport
     mcp.run(transport="stdio")
+
+if __name__ == "__main__":
+    main()
