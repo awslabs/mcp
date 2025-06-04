@@ -17,6 +17,7 @@
 import base64
 import os
 import tempfile
+from awslabs.eks_mcp_server import __version__
 from awslabs.eks_mcp_server.models import Operation
 from loguru import logger
 from typing import Any, Dict, List, Optional
@@ -74,6 +75,9 @@ class K8sApis:
 
             # Create base API client
             self.api_client = client.ApiClient(configuration)
+
+            # Set user-agent directly on the ApiClient
+            self.api_client.user_agent = f'awslabs/mcp/eks-mcp-server/{__version__}'
 
             # Create dynamic client
             self.dynamic_client = dynamic.DynamicClient(self.api_client)
