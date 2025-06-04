@@ -31,7 +31,7 @@ nav:
   - Home: index.md
   - AWS MCP Servers:
     - Amazon MQ MCP Server: servers/amazon-mq-mcp-server.md
-    - AWS SNS SQS MCP Server: servers/amazon-sns-sqs-server.md
+    - AWS SNS SQS MCP Server: servers/amazon-sns-sqs-mcp-server.md
     - Core MCP Server: servers/core-mcp-server.md
     - Amazon Bedrock Knowledge Base Retrieval MCP Server: servers/bedrock-kb-retrieval-mcp-server.md
     - AWS CDK MCP Server: servers/cdk-mcp-server.md
