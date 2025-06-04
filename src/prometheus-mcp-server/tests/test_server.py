@@ -1,79 +1,106 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-"""Tests for the Short Domain MCP Server."""
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Tests for the Prometheus MCP Server."""
 
 import pytest
-from awslabs.prometheus_mcp_server.server import example_tool
-from awslabs.prometheus_mcp_server.server import math_tool
+from unittest.mock import AsyncMock, patch, MagicMock
 
 @pytest.mark.asyncio
-async def test_example_tool():
-    # Arrange
-    test_query = "test query"
-    expected_project_name = "awslabs Short Domain MCP Server"
-    expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this with your tool's logic"
-
-    # Act
-    result = await example_tool(test_query)
-
-    # Assert
-    assert result == expected_response
-
-@pytest.mark.asyncio
-async def test_example_tool_failure():
-    # Arrange
-    test_query = "test query"
-    expected_project_name = "awslabs Short Domain MCP Server"
-    expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this your tool's new logic"
-
-    # Act
-    result = await example_tool(test_query)
-
-    # Assert
-    assert result != expected_response
+async def test_execute_query():
+    """Test the execute_query function."""
+    with patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request:
+        from awslabs.prometheus_mcp_server.server import execute_query
+        
+        # Setup
+        mock_request.return_value = {"result": "test_data"}
+        ctx = AsyncMock()
+        
+        # Execute
+        result = await execute_query(ctx, "up")
+        
+        # Assert
+        mock_request.assert_called_once_with('query', {'query': 'up'}, None)
+        assert result == {"result": "test_data"}
 
 @pytest.mark.asyncio
-class TestMathTool:
-    async def test_addition(self):
-        # Test integer addition
-        assert await math_tool('add', 2, 3) == 5
-        # Test float addition
-        assert await math_tool('add', 2.5, 3.5) == 6.0
+async def test_execute_range_query():
+    """Test the execute_range_query function."""
+    with patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request:
+        from awslabs.prometheus_mcp_server.server import execute_range_query
+        
+        # Setup
+        mock_request.return_value = {"result": "test_range_data"}
+        ctx = AsyncMock()
+        
+        # Execute
+        result = await execute_range_query(
+            ctx, 
+            "rate(node_cpu_seconds_total[5m])", 
+            "2023-01-01T00:00:00Z", 
+            "2023-01-01T01:00:00Z", 
+            "5m"
+        )
+        
+        # Assert
+        mock_request.assert_called_once_with('query_range', {
+            'query': 'rate(node_cpu_seconds_total[5m])',
+            'start': '2023-01-01T00:00:00Z',
+            'end': '2023-01-01T01:00:00Z',
+            'step': '5m'
+        }, None)
+        assert result == {"result": "test_range_data"}
 
-    async def test_subtraction(self):
-        # Test integer subtraction
-        assert await math_tool('subtract', 5, 3) == 2
-        # Test float subtraction
-        assert await math_tool('subtract', 5.5, 2.5) == 3.0
+@pytest.mark.asyncio
+async def test_list_metrics():
+    """Test the list_metrics function."""
+    with patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request:
+        from awslabs.prometheus_mcp_server.server import list_metrics
+        from awslabs.prometheus_mcp_server.models import MetricsList
+        
+        # Setup
+        mock_request.return_value = ["metric1", "metric2", "metric3"]
+        ctx = AsyncMock()
+        
+        # Execute
+        result = await list_metrics(ctx)
+        
+        # Assert
+        mock_request.assert_called_once()
+        assert isinstance(result, MetricsList)
+        assert result.metrics == ["metric1", "metric2", "metric3"]
 
-    async def test_multiplication(self):
-        # Test integer multiplication
-        assert await math_tool('multiply', 4, 3) == 12
-        # Test float multiplication
-        assert await math_tool('multiply', 2.5, 2) == 5.0
-
-    async def test_division(self):
-        # Test integer division
-        assert await math_tool('divide', 6, 2) == 3.0
-        # Test float division
-        assert await math_tool('divide', 5.0, 2.0) == 2.5
-
-    async def test_division_by_zero(self):
-        # Test division by zero raises ValueError
-        with pytest.raises(ValueError) as exc_info:
-            await math_tool('divide', 5, 0)
-        assert str(exc_info.value) == 'The denominator 0 cannot be zero.'
-
-    async def test_invalid_operation(self):
-        # Test invalid operation raises ValueError
-        with pytest.raises(ValueError) as exc_info:
-            await math_tool('power', 2, 3)
-        assert 'Invalid operation: power' in str(exc_info.value)
+@pytest.mark.asyncio
+async def test_get_server_info():
+    """Test the get_server_info function."""
+    with patch('awslabs.prometheus_mcp_server.server.config') as mock_config:
+        from awslabs.prometheus_mcp_server.server import get_server_info
+        from awslabs.prometheus_mcp_server.models import ServerInfo
+        
+        # Setup
+        mock_config.prometheus_url = "https://test-prometheus.amazonaws.com"
+        mock_config.aws_region = "us-east-1"
+        mock_config.aws_profile = "test-profile"
+        mock_config.service_name = "aps"
+        ctx = AsyncMock()
+        
+        # Execute
+        result = await get_server_info(ctx)
+        
+        # Assert
+        assert isinstance(result, ServerInfo)
+        assert result.prometheus_url == "https://test-prometheus.amazonaws.com"
+        assert result.aws_region == "us-east-1"
+        assert result.aws_profile == "test-profile"
+        assert result.service_name == "aps"
