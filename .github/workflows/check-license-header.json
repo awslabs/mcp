@@ -1,0 +1,36 @@
+[
+  {
+    "exclude": [
+      "**/tests/**",
+      ".venv/**",
+      ".github/**",
+      "docs/**"
+    ],
+    "include": [
+      "**/*.py",
+      "**/Dockerfile",
+      "**/*.sh"
+    ],
+    "license": "./.github/workflows/check-license-header-hash.txt"
+  },
+  {
+    "include": [
+      "**/*.md",
+      "mkdocs.yml",
+      "**/LICENSE",
+      "**/NOTICE",
+      "**/uv.lock",
+      "**/pyproject.toml",
+      "**/*.yaml",
+      "**/*.yml",
+      "**/*.png",
+      "**/*.gif",
+      "**/*.json",
+      "**/*.j2",
+      "**/tests/**",
+      ".venv/**",
+      ".github/**",
+      "docs/**"
+    ]
+  }
+]
