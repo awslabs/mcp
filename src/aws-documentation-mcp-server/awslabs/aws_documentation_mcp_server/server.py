@@ -9,7 +9,13 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 import os
+import sys
+from loguru import logger
 
+
+# Set up logging
+logger.remove()
+logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 PARTITION = os.getenv('AWS_DOCUMENTATION_PARTITION', '').lower()
 
