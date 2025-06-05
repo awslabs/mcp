@@ -210,7 +210,7 @@ def setup_environment(config):
     return True
 
 
-async def make_prometheus_request(endpoint: str, params: Dict = None, max_retries: int = 3) -> Any:
+async def make_prometheus_request(endpoint: str, params: Optional[Dict] = None, max_retries: int = 3) -> Any:
     """Make a request to the Prometheus HTTP API with AWS SigV4 authentication.
 
     Args:
@@ -302,7 +302,7 @@ async def test_prometheus_connection():
     """
     logger.info('Testing Prometheus connection...')
     try:
-        await make_prometheus_request('label/__name__/values')
+        await make_prometheus_request('label/__name__/values', params={})
         logger.info('Successfully connected to Prometheus!')
         return True
     except ClientError as e:
@@ -456,7 +456,7 @@ async def list_metrics(ctx: Context) -> MetricsList:
             max_retries = config.max_retries
             
         data = await make_prometheus_request(
-            'label/__name__/values', max_retries=max_retries
+            'label/__name__/values', params={}, max_retries=max_retries
         )
         return MetricsList(metrics=sorted(data))
     except Exception as e:
