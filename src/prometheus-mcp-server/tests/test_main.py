@@ -25,23 +25,31 @@ class TestMain:
     @patch('awslabs.prometheus_mcp_server.server.parse_arguments')
     @patch('awslabs.prometheus_mcp_server.server.load_config')
     @patch('awslabs.prometheus_mcp_server.server.setup_environment')
-    @patch('awslabs.prometheus_mcp_server.server.asyncio.run')
-    def test_main_default(self, mock_asyncio_run, mock_setup_env, mock_load_config, mock_parse_args, mock_run):
+    @patch('asyncio.run')
+    def test_main_default(
+        self, mock_asyncio_run, mock_setup_env, mock_load_config, mock_parse_args, mock_run
+    ):
         """Test main function with default arguments."""
         # Setup mocks
         mock_args = patch('argparse.Namespace').start()
         mock_parse_args.return_value = mock_args
-        mock_config_data = {'aws_profile': None, 'aws_region': 'us-east-1', 'prometheus_url': 'https://test.com', 
-                           'service_name': 'aps', 'retry_delay': 1, 'max_retries': 3}
+        mock_config_data = {
+            'aws_profile': None,
+            'aws_region': 'us-east-1',
+            'prometheus_url': 'https://test.com',
+            'service_name': 'aps',
+            'retry_delay': 1,
+            'max_retries': 3,
+        }
         mock_load_config.return_value = mock_config_data
         mock_setup_env.return_value = True
-        
+
         # Call the main function
         main()
 
         # Check that mcp.run was called with the correct arguments
         mock_run.assert_called_once()
-        assert mock_run.call_args[1].get('transport') == "stdio"
+        assert mock_run.call_args[1].get('transport') == 'stdio'
 
     def test_module_execution(self):
         """Test the module execution when run as __main__."""
