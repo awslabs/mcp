@@ -15,7 +15,18 @@
 """Test fixtures for the cost-explorer-mcp-server tests."""
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+
+# Mock boto3 client to avoid real AWS API calls
+@pytest.fixture(autouse=True)
+def mock_boto3():
+    """Mock boto3 client to avoid real AWS API calls."""
+    with patch('boto3.client') as mock_client:
+        # Create a mock ce client
+        mock_ce = MagicMock()
+        mock_client.return_value = mock_ce
+        yield mock_ce
 
 
 @pytest.fixture

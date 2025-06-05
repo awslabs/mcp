@@ -46,6 +46,7 @@ dev = [
     "pyright>=1.1.398",
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
+    "pytest-asyncio>=1.0.0",
 ]
 
 [build-system]
@@ -112,6 +113,11 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "asyncio: mark a test as an asyncio coroutine"
+]
 
 [tool.bandit]
 exclude_dirs = ["venv","tests"]

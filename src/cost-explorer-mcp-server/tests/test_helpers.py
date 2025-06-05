@@ -399,8 +399,15 @@ class TestValidateExpression:
         assert 'error' in result
         assert 'Only one logical operator' in result['error']
 
-    def test_validate_not_operator(self):
+    @patch('awslabs.cost_explorer_mcp_server.helpers.get_dimension_values')
+    def test_validate_not_operator(self, mock_get_dimension_values):
         """Test validation of Not operator."""
+        # Mock the get_dimension_values function
+        mock_get_dimension_values.return_value = {
+            'dimension': 'SERVICE',
+            'values': ['Amazon Elastic Compute Cloud - Compute'],
+        }
+        
         # Valid Not operator
         expression = {
             'Not': {
