@@ -407,7 +407,7 @@ class TestValidateExpression:
             'dimension': 'SERVICE',
             'values': ['Amazon Elastic Compute Cloud - Compute'],
         }
-        
+
         # Valid Not operator
         expression = {
             'Not': {
