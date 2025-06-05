@@ -398,7 +398,7 @@ async def create_db_instance(
 
     if tags:
         tag_list = [{'Key': k, 'Value': v} for k, v in tags.items()]
-        params['Tags'] = tag_list
+        params['tags'] = tag_list
 
     try:
         response = ts_influx_client.create_db_instance(**params)
