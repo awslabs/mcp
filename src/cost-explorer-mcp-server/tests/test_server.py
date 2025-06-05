@@ -15,14 +15,37 @@
 """Tests for the server module of the cost-explorer-mcp-server."""
 
 import pytest
+from pydantic import ValidationError
 from awslabs.cost_explorer_mcp_server.server import (
     get_cost_and_usage,
     get_dimension_values_tool,
     get_tag_values_tool,
     get_today_date,
+    DateRange,
 )
 from unittest.mock import MagicMock, patch
 
+class TestDateRangeValidation:
+    """Tests for DateRange validation to increase coverage."""
+
+    def test_start_date_validation_error(self):
+        """Test that start_date validation raises error for invalid format."""
+        with pytest.raises(ValidationError) as excinfo:
+            DateRange(start_date="invalid-date", end_date="2023-01-31")
+        assert "start_date" in str(excinfo.value)
+
+    def test_end_date_validation_error(self):
+        """Test that end_date validation raises error for invalid format."""
+        with pytest.raises(ValidationError) as excinfo:
+            DateRange(start_date="2023-01-01", end_date="invalid-date")
+        assert "end_date" in str(excinfo.value)
+
+    def test_end_date_before_start_date(self):
+        """Test that validation raises error when end_date is before start_date."""
+        with pytest.raises(ValidationError) as excinfo:
+            DateRange(start_date="2023-01-31", end_date="2023-01-01")
+        assert "End date" in str(excinfo.value)
+        assert "cannot be before start date" in str(excinfo.value)
 
 class TestGetTodayDate:
     """Tests for the get_today_date function."""
