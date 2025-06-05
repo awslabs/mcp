@@ -19,15 +19,8 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
     read_documentation_impl,
 )
+from mcp.server.fastmcp.server import Context
 from unittest.mock import AsyncMock, MagicMock, patch
-
-
-class MockContext:
-    """Mock context for testing."""
-
-    async def error(self, message):
-        """Mock error method."""
-        self.error_message = message
 
 
 class TestReadDocumentationImpl:
@@ -37,7 +30,9 @@ class TestReadDocumentationImpl:
     async def test_successful_html_fetch(self):
         """Test successful fetch of HTML content."""
         url = 'https://docs.aws.amazon.com/test.html'
-        ctx = MockContext()
+        # Create a real Context object with mocked methods
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
         max_length = 1000
         start_index = 0
 
@@ -84,7 +79,9 @@ class TestReadDocumentationImpl:
     async def test_successful_non_html_fetch(self):
         """Test successful fetch of non-HTML content."""
         url = 'https://docs.aws.amazon.com/test.txt'
-        ctx = MockContext()
+        # Create a real Context object with mocked methods
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
         max_length = 1000
         start_index = 0
 
@@ -119,7 +116,9 @@ class TestReadDocumentationImpl:
     async def test_http_error(self):
         """Test handling of HTTP errors."""
         url = 'https://docs.aws.amazon.com/test.html'
-        ctx = MockContext()
+        # Create a real Context object with mocked methods
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
         max_length = 1000
         start_index = 0
 
@@ -138,15 +137,17 @@ class TestReadDocumentationImpl:
             assert 'Connection error' in result
 
             # Verify the error was logged to the context
-            assert hasattr(ctx, 'error_message')
-            assert 'Failed to fetch' in ctx.error_message
-            assert 'Connection error' in ctx.error_message
+            ctx.error.assert_called_once()
+            assert 'Failed to fetch' in ctx.error.call_args[0][0]
+            assert 'Connection error' in ctx.error.call_args[0][0]
 
     @pytest.mark.asyncio
     async def test_http_status_error(self):
         """Test handling of HTTP status errors."""
         url = 'https://docs.aws.amazon.com/test.html'
-        ctx = MockContext()
+        # Create a real Context object with mocked methods
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
         max_length = 1000
         start_index = 0
 
@@ -170,15 +171,17 @@ class TestReadDocumentationImpl:
             assert 'status code 404' in result
 
             # Verify the error was logged to the context
-            assert hasattr(ctx, 'error_message')
-            assert 'Failed to fetch' in ctx.error_message
-            assert 'status code 404' in ctx.error_message
+            ctx.error.assert_called_once()
+            assert 'Failed to fetch' in ctx.error.call_args[0][0]
+            assert 'status code 404' in ctx.error.call_args[0][0]
 
     @pytest.mark.asyncio
     async def test_content_truncation(self):
         """Test content truncation when content exceeds max_length."""
         url = 'https://docs.aws.amazon.com/test.html'
-        ctx = MockContext()
+        # Create a real Context object with mocked methods
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
         max_length = 5
         start_index = 0
 
@@ -233,7 +236,9 @@ class TestReadDocumentationImpl:
     async def test_start_index_handling(self):
         """Test handling of non-zero start_index."""
         url = 'https://docs.aws.amazon.com/test.html'
-        ctx = MockContext()
+        # Create a real Context object with mocked methods
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
         max_length = 1000
         start_index = 10  # Start from the 10th character
 
