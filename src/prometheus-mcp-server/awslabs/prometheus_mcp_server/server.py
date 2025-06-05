@@ -227,7 +227,7 @@ async def make_prometheus_request(endpoint: str, params: Dict = None, max_retrie
         requests.RequestException: If there's a network or HTTP error
         json.JSONDecodeError: If the response is not valid JSON
     """
-    if not config.prometheus_url:
+    if not config or not config.prometheus_url:
         raise ValueError('Prometheus URL not configured')
 
     # Ensure the URL ends with /api/v1
@@ -238,7 +238,7 @@ async def make_prometheus_request(endpoint: str, params: Dict = None, max_retrie
     url = f'{base_url}/{endpoint.lstrip("/")}'
 
     # Create AWS request
-    aws_request = AWSRequest(method='GET', url=url, params=params)
+    aws_request = AWSRequest(method='GET', url=url, params=params or {})
 
     # Sign request with SigV4
     session = boto3.Session(profile_name=config.aws_profile, region_name=config.aws_region)
@@ -259,6 +259,7 @@ async def make_prometheus_request(endpoint: str, params: Dict = None, max_retrie
     # Send request with retry logic
     retry_count = 0
     last_exception = None
+    retry_delay_seconds = 1  # Default retry delay if config.retry_delay is None
 
     while retry_count < max_retries:
         try:
@@ -278,9 +279,12 @@ async def make_prometheus_request(endpoint: str, params: Dict = None, max_retrie
             last_exception = e
             retry_count += 1
             if retry_count < max_retries:
-                retry_delay = config.retry_delay * (2 ** (retry_count - 1))  # Exponential backoff
-                logger.warning(f'Request failed: {e}. Retrying in {retry_delay}s...')
-                time.sleep(retry_delay)
+                if config and hasattr(config, 'retry_delay') and config.retry_delay is not None:
+                    retry_delay_seconds = config.retry_delay * (2 ** (retry_count - 1))  # Exponential backoff
+                else:
+                    retry_delay_seconds = 1 * (2 ** (retry_count - 1))  # Default exponential backoff
+                logger.warning(f'Request failed: {e}. Retrying in {retry_delay_seconds}s...')
+                time.sleep(retry_delay_seconds)
             else:
                 logger.error(f'Request failed after {max_retries} attempts: {e}')
                 raise
@@ -311,8 +315,11 @@ async def test_prometheus_connection():
             logger.error('  - aps:GetMetricMetadata')
         elif error_code == 'ResourceNotFoundException':
             logger.error('ERROR: Prometheus workspace not found')
+            prometheus_url = "Not configured"
+            if config and hasattr(config, 'prometheus_url') and config.prometheus_url:
+                prometheus_url = config.prometheus_url
             logger.error(
-                f'Please verify the workspace ID in your Prometheus URL: {config.prometheus_url}'
+                f'Please verify the workspace ID in your Prometheus URL: {prometheus_url}'
             )
         else:
             logger.error(f'ERROR: AWS API error when connecting to Prometheus: {error_code}')
@@ -345,7 +352,7 @@ mcp = FastMCP(
 )
 
 # Global config object
-config = None
+config = None  # Will be initialized in main()
 
 
 @mcp.tool(name='ExecuteQuery')
@@ -374,7 +381,11 @@ async def execute_query(
         if time:
             params['time'] = time
 
-        return await make_prometheus_request('query', params, config.max_retries)
+        max_retries = 3  # Default value
+        if config and hasattr(config, 'max_retries') and config.max_retries is not None:
+            max_retries = config.max_retries
+
+        return await make_prometheus_request('query', params, max_retries)
     except Exception as e:
         error_msg = f'Error executing query: {str(e)}'
         logger.error(error_msg)
@@ -411,7 +422,11 @@ async def execute_range_query(
         logger.info(f'Executing range query: {query} from {start} to {end} with step {step}')
         params = {'query': query, 'start': start, 'end': end, 'step': step}
 
-        return await make_prometheus_request('query_range', params, config.max_retries)
+        max_retries = 3  # Default value
+        if config and hasattr(config, 'max_retries') and config.max_retries is not None:
+            max_retries = config.max_retries
+
+        return await make_prometheus_request('query_range', params, max_retries)
     except Exception as e:
         error_msg = f'Error executing range query: {str(e)}'
         logger.error(error_msg)
@@ -436,8 +451,12 @@ async def list_metrics(ctx: Context) -> MetricsList:
     """
     try:
         logger.info('Listing all available metrics')
+        max_retries = 3  # Default value
+        if config and hasattr(config, 'max_retries') and config.max_retries is not None:
+            max_retries = config.max_retries
+            
         data = await make_prometheus_request(
-            'label/__name__/values', max_retries=config.max_retries
+            'label/__name__/values', max_retries=max_retries
         )
         return MetricsList(metrics=sorted(data))
     except Exception as e:
@@ -464,11 +483,19 @@ async def get_server_info(ctx: Context) -> ServerInfo:
     """
     try:
         logger.info('Retrieving server configuration information')
+        if not config:
+            return ServerInfo(
+                prometheus_url="Not configured",
+                aws_region="Not configured",
+                aws_profile="Not configured",
+                service_name="Not configured",
+            )
+            
         return ServerInfo(
-            prometheus_url=config.prometheus_url,
-            aws_region=config.aws_region,
-            aws_profile=config.aws_profile or 'default',
-            service_name=config.service_name,
+            prometheus_url=config.prometheus_url or "Not configured",
+            aws_region=config.aws_region or "Not configured",
+            aws_profile=config.aws_profile or "default",
+            service_name=config.service_name or DEFAULT_SERVICE_NAME,
         )
     except Exception as e:
         error_msg = f'Error retrieving server info: {str(e)}'
