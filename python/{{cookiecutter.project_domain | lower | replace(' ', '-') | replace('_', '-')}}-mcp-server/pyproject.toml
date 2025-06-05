@@ -1,6 +1,9 @@
 [project]
 name = "awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server"
+
+# NOTE: "Patch"=9223372036854775807 bumps next release to zero.
 version = "0.0.0"
+
 description = "{{cookiecutter.description}}"
 readme = "README.md"
 requires-python = ">=3.10"
