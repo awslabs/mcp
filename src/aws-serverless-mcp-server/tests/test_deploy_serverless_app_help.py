@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests for the deploy_serverless_app_help module."""
 
-import json
 import pytest
 from awslabs.aws_serverless_mcp_server.tools.guidance.deploy_serverless_app_help import (
     ApplicationType,
@@ -36,8 +35,7 @@ class TestDeployServerlessAppHelp:
         # Verify the result
         assert 'content' in result
 
-        # Parse the JSON content
-        content = json.loads(result['content'])
+        content = result['content']
         assert isinstance(content, list)
         assert len(content) > 0
 
@@ -68,8 +66,7 @@ class TestDeployServerlessAppHelp:
         # Verify the result
         assert 'content' in result
 
-        # Parse the JSON content
-        content = json.loads(result['content'])
+        content = result['content']
         assert isinstance(content, list)
         assert len(content) > 0
 
@@ -98,8 +95,7 @@ class TestDeployServerlessAppHelp:
         # Verify the result
         assert 'content' in result
 
-        # Parse the JSON content
-        content = json.loads(result['content'])
+        content = result['content']
         assert isinstance(content, list)
         assert len(content) > 0
 
@@ -128,8 +124,7 @@ class TestDeployServerlessAppHelp:
         # Verify deployment steps structure
         assert 'content' in result
 
-        # Parse the JSON content
-        content = json.loads(result['content'])
+        content = result['content']
         assert isinstance(content, list)
         assert len(content) >= 6  # Should have at least 6 steps based on implementation
 
@@ -164,8 +159,7 @@ class TestDeployServerlessAppHelp:
             # Verify the result
             assert 'content' in result
 
-            # Parse the JSON content
-            content = json.loads(result['content'])
+            content = result['content']
             assert isinstance(content, list)
             assert len(content) > 0
 
@@ -190,7 +184,7 @@ class TestDeployServerlessAppHelp:
             result = await DeployServerlessAppHelpTool(
                 MagicMock()
             ).deploy_serverless_app_help_tool(AsyncMock(), app_type.value)
-            content = json.loads(result['content'])
+            content = result['content']
             results.append(content)
 
         # Check that all results have the same number of steps
@@ -215,8 +209,7 @@ class TestDeployServerlessAppHelp:
         # Verify SAM CLI is mentioned in the help
         assert 'content' in result
 
-        # Parse the JSON content
-        content = json.loads(result['content'])
+        content = result['content']
 
         # Check deployment steps mention SAM
         all_prompts = ' '.join([step['prompt'] for step in content])
@@ -235,8 +228,7 @@ class TestDeployServerlessAppHelp:
         # Verify Lambda Web Adapter is mentioned
         assert 'content' in result
 
-        # Parse the JSON content
-        content = json.loads(result['content'])
+        content = result['content']
 
         # Check that Lambda Web Adapter is mentioned
         all_prompts = ' '.join([step['prompt'] for step in content])
@@ -253,8 +245,7 @@ class TestDeployServerlessAppHelp:
         # Verify IaC guidance is included
         assert 'content' in result
 
-        # Parse the JSON content
-        content = json.loads(result['content'])
+        content = result['content']
 
         # Check that IaC tools are mentioned
         all_prompts = ' '.join([step['prompt'] for step in content])
@@ -272,8 +263,7 @@ class TestDeployServerlessAppHelp:
         # Verify deployment artifact guidance is included
         assert 'content' in result
 
-        # Parse the JSON content
-        content = json.loads(result['content'])
+        content = result['content']
 
         # Check that deployment artifacts are mentioned
         all_prompts = ' '.join([step['prompt'] for step in content])
@@ -291,8 +281,7 @@ class TestDeployServerlessAppHelp:
         # Verify step order makes sense
         assert 'content' in result
 
-        # Parse the JSON content
-        content = json.loads(result['content'])
+        content = result['content']
 
         # Check that steps follow logical order
         step_prompts = [step['prompt'].lower() for step in content]
