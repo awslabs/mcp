@@ -14,7 +14,9 @@
 """Live test for the read_documentation tool in the AWS Documentation MCP server."""
 
 import pytest
-from awslabs.aws_documentation_mcp_server.server import read_documentation
+from awslabs.aws_documentation_mcp_server.server_aws import (
+    read_documentation as read_documentation_global,
+)
 
 
 class MockContext:
@@ -27,14 +29,14 @@ class MockContext:
 
 @pytest.mark.asyncio
 @pytest.mark.live
-async def test_read_documentation_live():
-    """Test that read_documentation can fetch real AWS documentation."""
+async def test_read_documentation_global_live():
+    """Test that read_documentation can fetch real AWS global documentation."""
     # Use a stable AWS documentation URL that's unlikely to change
     url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html'
     ctx = MockContext()
 
     # Call the tool
-    result = await read_documentation(ctx, url=url, max_length=5000, start_index=0)
+    result = await read_documentation_global(ctx, url=url, max_length=5000, start_index=0)
 
     # Verify the result
     assert result is not None
@@ -45,7 +47,13 @@ async def test_read_documentation_live():
     assert url in result
 
     # Check for expected content in the S3 bucket naming rules page
-    expected_content_markers = ['bucket naming rules', 'S3', 'Amazon', 'naming', 'rules']
+    expected_content_markers = [
+        'bucket naming rules',
+        'S3',
+        'Amazon',
+        'naming',
+        'rules',
+    ]
 
     for marker in expected_content_markers:
         assert marker.lower() in result.lower(), f"Expected to find '{marker}' in the result"
@@ -59,14 +67,14 @@ async def test_read_documentation_live():
         assert indicator not in result, f"Found error indicator '{indicator}' in the result"
 
     # Print a sample of the result for debugging (will show in pytest output with -v flag)
-    print('\nReceived documentation content (first 300 chars):')
+    print('\nReceived global documentation content (first 300 chars):')
     print(f'{result[:300]}...')
 
 
 @pytest.mark.asyncio
 @pytest.mark.live
-async def test_read_documentation_pagination_live():
-    """Test that read_documentation pagination works correctly."""
+async def test_read_documentation_global_pagination_live():
+    """Test that read_documentation pagination works correctly for global AWS docs."""
     # Use a stable AWS documentation URL that's likely to have substantial content
     url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html'
     ctx = MockContext()
@@ -75,7 +83,9 @@ async def test_read_documentation_pagination_live():
     small_max_length = 1000
 
     # Call the tool for the first page
-    first_page = await read_documentation(ctx, url=url, max_length=small_max_length, start_index=0)
+    first_page = await read_documentation_global(
+        ctx, url=url, max_length=small_max_length, start_index=0
+    )
 
     # Verify the first page
     assert first_page is not None
@@ -95,7 +105,7 @@ async def test_read_documentation_pagination_live():
     assert next_start_index > 0, 'Next start_index should be greater than 0'
 
     # Get the second page
-    second_page = await read_documentation(
+    second_page = await read_documentation_global(
         ctx, url=url, max_length=small_max_length, start_index=next_start_index
     )
 
@@ -113,6 +123,6 @@ async def test_read_documentation_pagination_live():
         'First and second page content should be different'
     )
 
-    print('\nPagination test successful:')
+    print('\nGlobal pagination test successful:')
     print(f'First page start: {first_page_content}')
     print(f'Second page start: {second_page_content}')

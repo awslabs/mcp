@@ -20,7 +20,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     is_html_content,
     parse_recommendation_results,
 )
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 class TestIsHtmlContent:
@@ -215,6 +215,30 @@ class TestExtractContentFromHtml:
         assert props_pos > typescript_code_pos, (
             'Pattern Construct Props section should appear after code blocks'
         )
+
+    def test_extract_content_from_html(self):
+        """Test extracting content from HTML."""
+        html = '<html><body><h1>Test</h1><p>This is a test.</p></body></html>'
+        with patch('bs4.BeautifulSoup') as mock_bs:
+            mock_soup = MagicMock()
+            mock_bs.return_value = mock_soup
+            with patch('markdownify.markdownify') as mock_markdownify:
+                mock_markdownify.return_value = '# Test\n\nThis is a test.'
+                result = extract_content_from_html(html)
+                assert result == '# Test\n\nThis is a test.'
+                mock_bs.assert_called_once()
+                mock_markdownify.assert_called_once()
+
+    def test_extract_content_from_html_no_content(self):
+        """Test extracting content from HTML with no content."""
+        html = '<html><body></body></html>'
+        with patch('bs4.BeautifulSoup') as mock_bs:
+            mock_soup = MagicMock()
+            mock_bs.return_value = mock_soup
+            mock_soup.body = None
+            result = extract_content_from_html(html)
+            assert '<e>' in result
+            mock_bs.assert_called_once()
 
 
 class TestParseRecommendationResults:
