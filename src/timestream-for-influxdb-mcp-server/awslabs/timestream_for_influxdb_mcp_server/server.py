@@ -17,8 +17,187 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
+
+# Define Field parameters as global variables to avoid duplication
+# Common fields
+REQUIRED_FIELD_DB_CLUSTER_ID = Field(
+    ..., description='Service-generated unique identifier of the DB cluster.'
+)
+
+REQUIRED_FIELD_DB_INSTANCE_NAME = Field(
+    ...,
+    description='The name that uniquely identifies the DB instance. '
+    'This name will also be a prefix included in the endpoint. '
+    'DB instance names must be unique per customer and per region.',
+)
+REQUIRED_FIELD_DB_INSTANCE_TYPE = Field(
+    ..., description='The Timestream for InfluxDB DB instance type to run InfluxDB on.'
+)
+
+OPTIONAL_FIELD_DB_INSTANCE_TYPE_CLUSTER_UPDATE = Field(
+    None, description='Update the DB cluster to use the specified DB instance Type.'
+)
+
+REQUIRED_FIELD_PASSWORD = Field(
+    ...,
+    description='The password of the initial admin user created in InfluxDB. '
+    'This password will allow you to access the InfluxDB UI to perform various administrative task '
+    'and also use the InfluxDB CLI to create an operator token.',
+)
+REQUIRED_FIELD_ALLOCATED_STORAGE_GB = Field(
+    ...,
+    description='The amount of storage to allocate for your DB storage type in GiB (gibibytes).',
+)
+OPTIONAL_FIELD_ALLOCATED_STORAGE_GB_OPTIONAL = Field(
+    None, description='The amount of storage to allocate for your DB storage type (in gibibytes).'
+)
+REQUIRED_FIELD_VPC_SECURITY_GROUP_IDS = Field(
+    ..., description='A list of VPC security group IDs to associate with the DB.'
+)
+
+REQUIRED_FIELD_VPC_SUBNET_IDS = Field(
+    ...,
+    description='A list of VPC subnet IDs to associate with the DB. '
+    'Provide at least two VPC subnet IDs in different Availability Zones when deploying with a Multi-AZ standby.',
+)
+
+OPTIONAL_FIELD_PUBLICLY_ACCESSIBLE = Field(
+    True,
+    description='Configures the DB with a public IP to facilitate access from outside the VPC.',
+)
+
+OPTIONAL_FIELD_USERNAME = Field(
+    None, description='The username of the initial admin user created in InfluxDB.'
+)
+OPTIONAL_FIELD_ORGANIZATION = Field(
+    None,
+    description='The name of the initial organization for the initial admin user in InfluxDB.'
+    'An InfluxDB organization is a workspace for a group of users',
+)
+REQUIRED_FIELD_BUCKET = Field(..., description='The name of the initial InfluxDB bucket.')
+OPTIONAL_FIELD_BUCKET = Field(None, description='The name of the initial InfluxDB bucket.')
+OPTIONAL_FIELD_DB_STORAGE_TYPE = Field(
+    None,
+    description='The Timestream for InfluxDB DB storage type to read and write InfluxDB data.',
+)
+OPTIONAL_FIELD_DEPLOYMENT_TYPE_INSTANCE = Field(
+    None,
+    description='Specifies whether the DB instance will be deployed as a standalone instance or with a Multi-AZ standby for high availability.',
+)
+OPTIONAL_FIELD_NETWORK_TYPE = Field(
+    None,
+    description='Specifies whether the network type of the Timestream for InfluxDB cluster is IPv4 or DUAL.',
+)
+
+OPTIONAL_FIELD_PORT = Field(
+    None, description='The port number on which InfluxDB accepts connections. Default: 8086'
+)
+OPTIONAL_FIELD_PORT_UPDATE = Field(
+    None, description='Update the DB cluster to use the specified port.'
+)
+
+OPTIONAL_FIELD_FAILOVER_MODE = Field(
+    None,
+    description='Specifies the behavior of failure recovery when the primary node of the cluster fails.',
+)
+OPTIONAL_FIELD_FAILOVER_MODE_UPDATE = Field(
+    None, description="Update the DB cluster's failover behavior."
+)
+
+OPTIONAL_FIELD_TAGS = Field(None, description='A list of tags to assign to the DB.')
+OPTIONAL_FIELD_TAGS_PARAM_GROUP = Field(
+    None, description='A list of key-value pairs to associate with the DB parameter group.'
+)
+OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION = Field(
+    None, description='Configuration for sending InfluxDB engine logs to a specified S3 bucket.'
+)
+OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION_UPDATE = Field(
+    None, description='The log delivery configuration to apply to the DB cluster.'
+)
+
+# Pagination fields
+OPTIONAL_FIELD_NEXT_TOKEN = Field(
+    None,
+    description='The pagination token. To resume pagination, provide the next-token value as an argument of a subsequent API invocation.',
+)
+
+OPTIONAL_FIELD_MAX_RESULTS = Field(
+    None,
+    description='The maximum number of items to return in the output. If the total number of items available is more than the value specified, a nextToken is provided in the output.',
+)
+
+# Resource fields
+REQUIRED_FIELD_RESOURCE_ARN = Field(
+    ..., description='The Amazon Resource Name (ARN) of the tagged resource.'
+)
+REQUIRED_FIELD_TAG_KEYS = Field(..., description='The keys used to identify the tags to remove.')
+REQUIRED_FIELD_TAGS_RESOURCE = Field(..., description='A list of key-value pairs as tags.')
+
+# DB Parameter Group fiels
+REQUIRED_FIELD_PARAMETER_GROUP_ID = Field(..., description='The id of the DB parameter group.')
+REQUIRED_FIELD_PARAM_GROUP_NAME = Field(
+    ...,
+    description='The name of the DB parameter group. The name must be unique per customer and per region.',
+)
+OPTIONAL_FIELD_PARAM_GROUP_DESCRIPTION = Field(
+    None, description='A description of the DB parameter group.'
+)
+OPTIONAL_FIELD_PARAMETERS = Field(
+    None, description='A list of the parameters that comprise the DB parameter group.'
+)
+OPTIONAL_FIELD_DB_PARAMETER_GROUP_ID = Field(
+    None, description='The id of the DB parameter group to assign to your DB.'
+)
+OPTIONAL_FIELD_DB_PARAMETER_GROUP_IDENTIFIER_UPDATE = Field(
+    None, description='Update the DB cluster to use the specified DB parameter group.'
+)
+
+# DB Instance fields
+REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER = Field(..., description='The id of the DB instance.')
+
+# Status fields
+REQUIRED_FIELD_STATUS = Field(
+    ..., description='The status to filter DB instances by (case-insensitive).'
+)
+REQUIRED_FIELD_STATUS_CLUSTER = Field(
+    ..., description='The status to filter DB clusters by (case-insensitive).'
+)
+
+# InfluxDB fields
+REQUIRED_FIELD_URL = Field(..., description='The URL of the InfluxDB server.')
+REQUIRED_FIELD_TOKEN = Field(..., description='The authentication token.')
+REQUIRED_FIELD_BUCKET_INFLUX = Field(..., description='The destination bucket for writes.')
+REQUIRED_FIELD_ORG = Field(..., description='The organization name.')
+REQUIRED_FIELD_POINTS = Field(
+    ...,
+    description='List of data points to write. Each point should be a dictionary with measurement, tags, fields, and optional time.',
+)
+REQUIRED_FIELD_DATA_LINE_PROTOCOL = Field(
+    ..., description='Data in InfluxDB Line Protocol format.'
+)
+OPTIONAL_FIELD_WRITE_PRECISION = Field(
+    None,
+    description='The precision for the unix timestamps within the body line-protocol. One of: ns, us, ms, s (default is ns).',
+)
+OPTIONAL_FIELD_SYNC_MODE = Field(
+    'synchronous', description="The synchronization mode, either 'synchronous' or 'asynchronous'."
+)
+OPTIONAL_FIELD_VERIFY_SSL = Field(
+    True, description='Whether to verify SSL with https connections.'
+)
+REQUIRED_FIELD_QUERY = Field(..., description='The Flux query string.')
+
+# Cluster name field
+REQUIRED_FIELD_CLUSTER_NAME = Field(
+    ...,
+    description='The name that uniquely identifies the DB cluster when interacting with '
+    'the Amazon Timestream for InfluxDB API and CLI commands. '
+    'This name will also be a prefix included in the endpoint.',
+)
 
 mcp = FastMCP(
     'awslabs.timestream-for-influxdb-mcp-server',
@@ -62,58 +241,51 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
 
     Returns:
         An InfluxDB client.
+
+    Raises:
+        ValueError: If the URL does not use HTTPS protocol or is not properly formatted.
     """
+    try:
+        parsed_url = urlparse(url)
+        url_scheme = parsed_url.scheme
+        if url_scheme != 'https' and url_scheme != 'http':
+            raise ValueError('URL must use HTTP(S) protocol')
+    except Exception as e:
+        logger.error(f'Error parsing URL: {str(e)}')
+        raise
+
+    if not token:
+        raise ValueError('Token must be provided')
+
     return InfluxDBClient(url=url, token=token, org=org, timeout=timeout, verify_ssl=verify_ssl)
 
 
 @mcp.tool(name='CreateDbCluster')
 async def create_db_cluster(
-    name: str,
-    db_instance_type: str,
-    password: str,
-    allocated_storage_gb: int,
-    vpc_security_group_ids: List[str],
-    vpc_subnet_ids: List[str],
-    publicly_accessible: bool = True,
-    username: Optional[str] = None,
-    organization: Optional[str] = None,
-    bucket: Optional[str] = None,
-    db_storage_type: Optional[str] = None,
-    deployment_type: Optional[str] = None,
-    networkType: Optional[str] = None,
-    port: Optional[int] = None,
-    db_parameter_group_identifier: Optional[str] = None,
-    failover_mode: Optional[str] = None,
-    tags: Optional[Dict[str, str]] = None,
-    log_delivery_configuration: Optional[Dict[str, Any]] = None,
+    name: str = REQUIRED_FIELD_CLUSTER_NAME,
+    db_instance_type: str = REQUIRED_FIELD_DB_INSTANCE_TYPE,
+    password: str = REQUIRED_FIELD_PASSWORD,
+    allocated_storage_gb: int = REQUIRED_FIELD_ALLOCATED_STORAGE_GB,
+    vpc_security_group_ids: List[str] = REQUIRED_FIELD_VPC_SECURITY_GROUP_IDS,
+    vpc_subnet_ids: List[str] = REQUIRED_FIELD_VPC_SUBNET_IDS,
+    publicly_accessible: bool = OPTIONAL_FIELD_PUBLICLY_ACCESSIBLE,
+    username: Optional[str] = OPTIONAL_FIELD_USERNAME,
+    organization: Optional[str] = OPTIONAL_FIELD_ORGANIZATION,
+    bucket: Optional[str] = OPTIONAL_FIELD_BUCKET,
+    db_storage_type: Optional[str] = OPTIONAL_FIELD_DB_STORAGE_TYPE,
+    deployment_type: Optional[str] = OPTIONAL_FIELD_DEPLOYMENT_TYPE_INSTANCE,
+    networkType: Optional[str] = OPTIONAL_FIELD_NETWORK_TYPE,
+    port: Optional[int] = OPTIONAL_FIELD_PORT,
+    db_parameter_group_identifier: Optional[str] = OPTIONAL_FIELD_DB_PARAMETER_GROUP_ID,
+    failover_mode: Optional[str] = OPTIONAL_FIELD_FAILOVER_MODE,
+    tags: Optional[Dict[str, str]] = OPTIONAL_FIELD_TAGS,
+    log_delivery_configuration: Optional[
+        Dict[str, Any]
+    ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION,
 ) -> Dict[str, Any]:
     """Create a new Timestream for InfluxDB database cluster.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_CreateDbCluster.html
-
-    Args:
-        name: The name that uniquely identifies the DB cluster when interacting with the Amazon Timestream for
-              InfluxDB API and CLI commands. This name will also be a prefix included in the endpoint.
-        db_instance_type: The Timestream for InfluxDB DB instance type to run InfluxDB on.
-        password: The password of the initial admin user created in InfluxDB. This password will allow you to
-                  access the InfluxDB UI to perform various administrative task and also use the InfluxDB CLI to
-                  create an operator token.
-        allocated_storage_gb: The amount of storage to allocate for your DB storage type in GiB (gibibytes).
-        vpc_security_group_ids: A list of VPC security group IDs to associate with the DB cluster.
-        vpc_subnet_ids: A list of VPC subnet IDs to associate with the DB cluster. Provide at least two VPC subnet
-                        IDs in different Availability Zones when deploying with a Multi-AZ standby.
-        publicly_accessible: Configures the DB cluster with a public IP to facilitate access from outside the VPC.
-        username: The username of the initial admin user created in InfluxDB.
-        organization: The name of the initial organization for the initial admin user in InfluxDB.
-        bucket: The name of the initial InfluxDB bucket.
-        db_storage_type: The Timestream for InfluxDB DB storage type to read and write InfluxDB data.
-        deployment_type: Specifies the type of cluster to create.
-        networkType: Specifies whether the network type of the Timestream for InfluxDB cluster is IPv4 or DUAL.
-        port: The port number on which InfluxDB accepts connections. Default: 8086
-        db_parameter_group_identifier: The ID of the DB parameter group to assign to your DB cluster.
-        failover_mode: Specifies the behavior of failure recovery when the primary node of the cluster fails.
-        tags: A list of tags to assign to the DB cluster.
-        log_delivery_configuration: Configuration for sending InfluxDB engine logs to a specified S3 bucket.
 
     Returns:
         Details of the created DB cluster.
@@ -167,61 +339,26 @@ async def create_db_cluster(
 
 @mcp.tool(name='CreateDbInstance')
 async def create_db_instance(
-    db_instance_name: str,
-    db_instance_type: str,
-    password: str,
-    allocated_storage_gb: int,
-    vpc_security_group_ids: List[str],
-    vpc_subnet_ids: List[str],
-    publicly_accessible: bool = False,
-    username: Optional[str] = None,
-    organization: Optional[str] = None,
-    bucket: Optional[str] = None,
-    db_storage_type: Optional[str] = None,
-    deployment_type: Optional[str] = None,
-    networkType: Optional[str] = None,
-    port: Optional[int] = None,
-    db_parameter_group_id: Optional[str] = None,
-    tags: Optional[Dict[str, str]] = None,
+    db_instance_name: str = REQUIRED_FIELD_DB_INSTANCE_NAME,
+    db_instance_type: str = REQUIRED_FIELD_DB_INSTANCE_TYPE,
+    password: str = REQUIRED_FIELD_PASSWORD,
+    allocated_storage_gb: int = REQUIRED_FIELD_ALLOCATED_STORAGE_GB,
+    vpc_security_group_ids: List[str] = REQUIRED_FIELD_VPC_SECURITY_GROUP_IDS,
+    vpc_subnet_ids: List[str] = REQUIRED_FIELD_VPC_SUBNET_IDS,
+    publicly_accessible: bool = OPTIONAL_FIELD_PUBLICLY_ACCESSIBLE,
+    username: Optional[str] = OPTIONAL_FIELD_USERNAME,
+    organization: Optional[str] = OPTIONAL_FIELD_ORGANIZATION,
+    bucket: Optional[str] = OPTIONAL_FIELD_BUCKET,
+    db_storage_type: Optional[str] = OPTIONAL_FIELD_DB_STORAGE_TYPE,
+    deployment_type: Optional[str] = OPTIONAL_FIELD_DEPLOYMENT_TYPE_INSTANCE,
+    networkType: Optional[str] = OPTIONAL_FIELD_NETWORK_TYPE,
+    port: Optional[int] = OPTIONAL_FIELD_PORT,
+    db_parameter_group_id: Optional[str] = OPTIONAL_FIELD_DB_PARAMETER_GROUP_ID,
+    tags: Optional[Dict[str, str]] = OPTIONAL_FIELD_TAGS,
 ) -> Dict[str, Any]:
     """Create a new Timestream for InfluxDB database instance.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_CreateDbInstance.html#tsinfluxdb-CreateDbInstance-request-dbStorageType
-
-    Args:
-        db_instance_name: The name that uniquely identifies the DB instance. This name will also be a prefix included
-                          in the endpoint. DB instance names must be unique per customer and per region.
-        db_instance_type: The Timestream for InfluxDB DB instance type to run InfluxDB on. The instance-type is
-                          prefixed with 'db.influx'
-        password: The password of the initial admin user created in InfluxDB. This password will allow you to
-                  access the InfluxDB UI to perform various administrative task and also use the InfluxDB CLI to
-                  create an operator token. These attributes will be stored in a Secret created in AWS Secrets Manager
-                  in your account.
-        username: The username of the initial admin user created in InfluxDB. This username will allow you to access
-                  the InfluxDB UI to perform various administrative tasks and also use the InfluxDB CLI to create an
-                  operator token. These attributes will be stored in a Secret created in Amazon Secrets Manager
-                  in your account.
-        organization: The name of the initial organization for the initial admin user in InfluxDB. An InfluxDB
-                      organization is a workspace for a group of users.
-        bucket: The name of the initial InfluxDB bucket. All InfluxDB data is stored in a bucket. A bucket combines
-                the concept of a database and a retention period (the duration of time that each data point persists).
-                A bucket belongs to an organization.
-        vpc_security_group_ids: A list of VPC security group IDs to associate with the DB instance.
-        vpc_subnet_ids: A list of VPC subnet IDs to associate with the DB instance. Provide at least two VPC subnet
-                        IDs in different availability zones when deploying with a Multi-AZ standby.
-        publicly_accessible: Configures the DB instance with a public IP to facilitate access.
-        allocated_storage_gb: The amount of storage to allocate for your DB storage type in GiB (gibibytes).
-        db_parameter_group_id: The id of the DB parameter group to assign to your DB instance. DB parameter groups
-                               specify how the database is configured. For example, DB parameter groups can specify
-                               the limit for query concurrency.
-        port: The port number on which InfluxDB accepts connections. Default: 8086
-        db_storage_type: The Timestream for InfluxDB DB storage type to read and write InfluxDB data.
-        deployment_type: Specifies whether the DB instance will be deployed as a standalone instance or with a
-                         Multi-AZ standby for high availability.
-        networkType: Specifies whether the networkType of the Timestream for InfluxDB instance is IPV4, which can
-                     communicate over IPv4 protocol only, or DUAL, which can communicate over both IPv4 and IPv6
-                    protocols.
-        tags: A list of tags to assign to the DB instance.
 
     Returns:
         Details of the created DB instance.
@@ -273,16 +410,13 @@ async def create_db_instance(
 
 @mcp.tool(name='LsInstancesOfCluster')
 async def list_db_instances_for_cluster(
-    db_cluster_id: str, next_token: Optional[str] = None, max_results: Optional[int] = None
+    db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
+    next_token: Optional[str] = OPTIONAL_FIELD_NEXT_TOKEN,
+    max_results: Optional[int] = OPTIONAL_FIELD_MAX_RESULTS,
 ) -> Dict[str, Any]:
     """Returns a list of Timestream for InfluxDB DB instances belonging to a specific cluster.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_ListDbInstancesForCluster.html
-
-    Args:
-        db_cluster_id: Service-generated unique identifier of the DB cluster.
-        next_token: The pagination token. To resume pagination, provide the nextToken value as an argument of a subsequent API invocation.
-        max_results: The maximum number of items to return in the output. If the total number of items available is more than the value specified, a nextToken is provided in the output.
 
     Returns:
         A list of Timestream for InfluxDB instance summaries belonging to the cluster.
@@ -306,15 +440,12 @@ async def list_db_instances_for_cluster(
 
 @mcp.tool(name='ListDbInstances')
 async def list_db_instances(
-    next_token: Optional[str] = None, max_results: Optional[int] = None
+    next_token: Optional[str] = OPTIONAL_FIELD_NEXT_TOKEN,
+    max_results: Optional[int] = OPTIONAL_FIELD_MAX_RESULTS,
 ) -> Dict[str, Any]:
     """Returns a list of Timestream for InfluxDB DB instances.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_ListDbInstances.html
-
-    Args:
-        next_token: The pagination token. To resume pagination, provide the NextToken value as argument of a subsequent API invocation.
-        max_results: The maximum number of items to return in the output. If the total number of items available is more than the value specified, a NextToken is provided in the output.
 
     Returns:
         A list of Timestream for InfluxDB DB instance summaries.
@@ -337,15 +468,12 @@ async def list_db_instances(
 
 @mcp.tool(name='ListDbClusters')
 async def list_db_clusters(
-    next_token: Optional[str] = None, max_results: Optional[int] = None
+    next_token: Optional[str] = OPTIONAL_FIELD_NEXT_TOKEN,
+    max_results: Optional[int] = OPTIONAL_FIELD_MAX_RESULTS,
 ) -> Dict[str, Any]:
     """Returns a list of Timestream for InfluxDB DB clusters.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_ListDbClusters.html
-
-    Args:
-        next_token: The pagination token. To resume pagination, provide the nextToken value as an argument of a subsequent API invocation.
-        max_results: The maximum number of items to return in the output. If the total number of items available is more than the value specified, a nextToken is provided in the output.
 
     Returns:
         A list of Timestream for InfluxDB cluster summaries.
@@ -367,13 +495,12 @@ async def list_db_clusters(
 
 
 @mcp.tool(name='GetDbParameterGroup')
-async def get_db_parameter_group(identifier: str) -> Dict[str, Any]:
+async def get_db_parameter_group(
+    identifier: str = REQUIRED_FIELD_PARAMETER_GROUP_ID,
+) -> Dict[str, Any]:
     """Returns a Timestream for InfluxDB DB parameter group.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_GetDbParameterGroup.html
-
-    Args:
-        identifier: The id of the DB parameter group.
 
     Returns:
         Details of the DB parameter group.
@@ -389,13 +516,12 @@ async def get_db_parameter_group(identifier: str) -> Dict[str, Any]:
 
 
 @mcp.tool(name='GetDbInstance')
-async def get_db_instance(identifier: str) -> Dict[str, Any]:
+async def get_db_instance(
+    identifier: str = REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER,
+) -> Dict[str, Any]:
     """Returns a Timestream for InfluxDB DB instance.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_GetDbInstance.html
-
-    Args:
-        identifier: The id of the DB instance.
 
     Returns:
         Details of the DB instance.
@@ -411,13 +537,12 @@ async def get_db_instance(identifier: str) -> Dict[str, Any]:
 
 
 @mcp.tool(name='GetDbCluster')
-async def get_db_cluster(db_cluster_id: str) -> Dict[str, Any]:
+async def get_db_cluster(
+    db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
+) -> Dict[str, Any]:
     """Retrieves information about a Timestream for InfluxDB cluster.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_GetDbCluster.html
-
-    Args:
-        db_cluster_id: Service-generated unique identifier of the DB cluster to retrieve.
 
     Returns:
         Details of the DB cluster.
@@ -433,13 +558,12 @@ async def get_db_cluster(db_cluster_id: str) -> Dict[str, Any]:
 
 
 @mcp.tool(name='DeleteDbInstance')
-async def delete_db_instance(identifier: str) -> Dict[str, Any]:
+async def delete_db_instance(
+    identifier: str = REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER,
+) -> Dict[str, Any]:
     """Deletes a Timestream for InfluxDB DB instance.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_DeleteDbInstance.html
-
-    Args:
-        identifier: The id of the DB instance.
 
     Returns:
         Details of the deleted DB instance.
@@ -455,13 +579,12 @@ async def delete_db_instance(identifier: str) -> Dict[str, Any]:
 
 
 @mcp.tool(name='DeleteDbCluster')
-async def delete_db_cluster(db_cluster_id: str) -> Dict[str, Any]:
+async def delete_db_cluster(
+    db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
+) -> Dict[str, Any]:
     """Deletes a Timestream for InfluxDB cluster.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_DeleteDbCluster.html
-
-    Args:
-        db_cluster_id: Service-generated unique identifier of the DB cluster.
 
     Returns:
         Details of the deleted DB cluster.
@@ -478,15 +601,12 @@ async def delete_db_cluster(db_cluster_id: str) -> Dict[str, Any]:
 
 @mcp.tool(name='ListDbParamGroups')
 async def list_db_parameter_groups(
-    next_token: Optional[str] = None, max_results: Optional[int] = None
+    next_token: Optional[str] = OPTIONAL_FIELD_NEXT_TOKEN,
+    max_results: Optional[int] = OPTIONAL_FIELD_MAX_RESULTS,
 ) -> Dict[str, Any]:
     """Returns a list of Timestream for InfluxDB DB parameter groups.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_ListDbParameterGroups.html
-
-    Args:
-        next_token: The pagination token. To resume pagination, provide the NextToken value as argument of a subsequent API invocation.
-        max_results: The maximum number of items to return in the output. If the total number of items available is more than the value specified, a NextToken is provided in the output.
 
     Returns:
         A list of Timestream for InfluxDB DB parameter group summaries.
@@ -508,13 +628,12 @@ async def list_db_parameter_groups(
 
 
 @mcp.tool(name='ListTagsForResource')
-async def list_tags_for_resource(resource_arn: str) -> Dict[str, Any]:
+async def list_tags_for_resource(
+    resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
+) -> Dict[str, Any]:
     """A list of tags applied to the resource.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_ListTagsForResource.html
-
-    Args:
-        resource_arn: The Amazon Resource Name (ARN) of the tagged resource.
 
     Returns:
         A list of tags used to categorize and track resources.
@@ -530,14 +649,13 @@ async def list_tags_for_resource(resource_arn: str) -> Dict[str, Any]:
 
 
 @mcp.tool(name='TagResource')
-async def tag_resource(resource_arn: str, tags: Dict[str, str]) -> Dict[str, Any]:
+async def tag_resource(
+    resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
+    tags: Dict[str, str] = REQUIRED_FIELD_TAGS_RESOURCE,
+) -> Dict[str, Any]:
     """Tags are composed of a Key/Value pairs. You can use tags to categorize and track your Timestream for InfluxDB resources.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_TagResource.html
-
-    Args:
-        resource_arn: The Amazon Resource Name (ARN) of the tagged resource.
-        tags: A list of key-value pairs to associate with the resource.
 
     Returns:
         Status of the tag operation.
@@ -556,14 +674,13 @@ async def tag_resource(resource_arn: str, tags: Dict[str, str]) -> Dict[str, Any
 
 
 @mcp.tool(name='UntagResource')
-async def untag_resource(resource_arn: str, tag_keys: List[str]) -> Dict[str, Any]:
+async def untag_resource(
+    resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
+    tag_keys: List[str] = REQUIRED_FIELD_TAG_KEYS,
+) -> Dict[str, Any]:
     """Removes the tag from the specified resource.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_UntagResource.html
-
-    Args:
-        resource_arn: The Amazon Resource Name (ARN) of the tagged resource.
-        tag_keys: The keys used to identify the tags to remove.
 
     Returns:
         Status of the untag operation.
@@ -580,24 +697,20 @@ async def untag_resource(resource_arn: str, tag_keys: List[str]) -> Dict[str, An
 
 @mcp.tool(name='UpdateDbCluster')
 async def update_db_cluster(
-    db_cluster_id: str,
-    db_instance_type: Optional[str] = None,
-    db_parameter_group_identifier: Optional[str] = None,
-    port: Optional[int] = None,
-    failover_mode: Optional[str] = None,
-    log_delivery_configuration: Optional[Dict[str, Any]] = None,
+    db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
+    db_instance_type: Optional[str] = OPTIONAL_FIELD_DB_INSTANCE_TYPE_CLUSTER_UPDATE,
+    db_parameter_group_identifier: Optional[
+        str
+    ] = OPTIONAL_FIELD_DB_PARAMETER_GROUP_IDENTIFIER_UPDATE,
+    port: Optional[int] = OPTIONAL_FIELD_PORT_UPDATE,
+    failover_mode: Optional[str] = OPTIONAL_FIELD_FAILOVER_MODE_UPDATE,
+    log_delivery_configuration: Optional[
+        Dict[str, Any]
+    ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION_UPDATE,
 ) -> Dict[str, Any]:
     """Updates a Timestream for InfluxDB cluster.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_UpdateDbCluster.html
-
-    Args:
-        db_cluster_id: Service-generated unique identifier of the DB cluster to update.
-        db_instance_type: Update the DB cluster to use the specified DB instance Type.
-        db_parameter_group_identifier: Update the DB cluster to use the specified DB parameter group.
-        port: Update the DB cluster to use the specified port.
-        failover_mode: Update the DB cluster's failover behavior.
-        log_delivery_configuration: The log delivery configuration to apply to the DB cluster.
 
     Returns:
         Details of the updated DB cluster.
@@ -629,28 +742,20 @@ async def update_db_cluster(
 
 @mcp.tool(name='UpdateDbInstance')
 async def update_db_instance(
-    identifier: str,
-    db_instance_type: Optional[str] = None,
-    db_parameter_group_identifier: Optional[str] = None,
-    port: Optional[int] = None,
-    allocated_storage_gb: Optional[int] = None,
-    db_storage_type: Optional[str] = None,
-    deployment_type: Optional[str] = None,
-    log_delivery_configuration: Optional[Dict[str, Any]] = None,
+    identifier: str = REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER,
+    db_instance_type: Optional[str] = OPTIONAL_FIELD_DB_INSTANCE_TYPE_CLUSTER_UPDATE,
+    db_parameter_group_identifier: Optional[str] = OPTIONAL_FIELD_DB_PARAMETER_GROUP_ID,
+    port: Optional[int] = OPTIONAL_FIELD_PORT,
+    allocated_storage_gb: Optional[int] = OPTIONAL_FIELD_ALLOCATED_STORAGE_GB_OPTIONAL,
+    db_storage_type: Optional[str] = OPTIONAL_FIELD_DB_STORAGE_TYPE,
+    deployment_type: Optional[str] = OPTIONAL_FIELD_DEPLOYMENT_TYPE_INSTANCE,
+    log_delivery_configuration: Optional[
+        Dict[str, Any]
+    ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION,
 ) -> Dict[str, Any]:
     """Updates a Timestream for InfluxDB DB instance.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_UpdateDbInstance.html
-
-    Args:
-        identifier: The id of the DB instance.
-        db_instance_type: The Timestream for InfluxDB DB instance type to run InfluxDB on.
-        db_parameter_group_identifier: The id of the DB parameter group to assign to your DB instance.
-        port: The port number on which InfluxDB accepts connections.
-        allocated_storage_gb: The amount of storage to allocate for your DB storage type (in gibibytes).
-        db_storage_type: The Timestream for InfluxDB DB storage type that InfluxDB stores data on.
-        deployment_type: Specifies whether the DB instance will be deployed as a standalone instance or with a Multi-AZ standby for high availability.
-        log_delivery_configuration: Configuration for sending InfluxDB engine logs to send to specified S3 bucket.
 
     Returns:
         Details of the updated DB instance.
@@ -685,14 +790,13 @@ async def update_db_instance(
 
 
 @mcp.tool(name='LsInstancesByStatus')
-async def list_db_instances_by_status(status: str) -> Dict[str, Any]:
+async def list_db_instances_by_status(
+    status: str = REQUIRED_FIELD_STATUS,
+) -> Dict[str, Any]:
     """Returns a list of Timestream for InfluxDB DB instances filtered by status.
 
     This tool paginates through all DB instances and filters them by the provided status
     in a case-insensitive manner.
-
-    Args:
-        status: The status to filter DB instances by (case-insensitive).
 
     Returns:
         A list of Timestream for InfluxDB DB instance summaries matching the specified status.
@@ -740,14 +844,13 @@ async def list_db_instances_by_status(status: str) -> Dict[str, Any]:
 
 
 @mcp.tool(name='ListClustersByStatus')
-async def list_db_clusters_by_status(status: str) -> Dict[str, Any]:
+async def list_db_clusters_by_status(
+    status: str = REQUIRED_FIELD_STATUS_CLUSTER,
+) -> Dict[str, Any]:
     """Returns a list of Timestream for InfluxDB DB clusters filtered by status.
 
     This tool paginates through all DB clusters and filters them by the provided status
     in a case-insensitive manner.
-
-    Args:
-        status: The status to filter DB clusters by (case-insensitive).
 
     Returns:
         A list of Timestream for InfluxDB DB cluster summaries matching the specified status.
@@ -796,20 +899,14 @@ async def list_db_clusters_by_status(status: str) -> Dict[str, Any]:
 
 @mcp.tool(name='CreateDbParamGroup')
 async def create_db_parameter_group(
-    name: str,
-    description: Optional[str] = None,
-    parameters: Optional[Dict[str, Any]] = None,
-    tags: Optional[Dict[str, str]] = None,
+    name: str = REQUIRED_FIELD_PARAM_GROUP_NAME,
+    description: Optional[str] = OPTIONAL_FIELD_PARAM_GROUP_DESCRIPTION,
+    parameters: Optional[Dict[str, Any]] = OPTIONAL_FIELD_PARAMETERS,
+    tags: Optional[Dict[str, str]] = OPTIONAL_FIELD_TAGS,
 ) -> Dict[str, Any]:
     """Creates a new Timestream for InfluxDB DB parameter group to associate with DB instances.
 
     API reference: https://docs.aws.amazon.com/ts-influxdb/latest/ts-influxdb-api/API_CreateDbParameterGroup.html
-
-    Args:
-        name: The name of the DB parameter group. The name must be unique per customer and per region.
-        description: A description of the DB parameter group.
-        parameters: A list of the parameters that comprise the DB parameter group.
-        tags: A list of key-value pairs to associate with the DB parameter group.
 
     Returns:
         Details of the created DB parameter group.
@@ -838,14 +935,14 @@ async def create_db_parameter_group(
 
 @mcp.tool(name='InfluxDBWritePoints')
 async def influxdb_write_points(
-    url: str,
-    token: str,
-    bucket: str,
-    org: str,
-    points: List[Dict[str, Any]],
-    write_precision: Optional[str] = None,
-    sync_mode: str = 'synchronous',
-    verify_ssl: bool = True,
+    url: str = REQUIRED_FIELD_URL,
+    token: str = REQUIRED_FIELD_TOKEN,
+    bucket: str = REQUIRED_FIELD_BUCKET,
+    org: str = REQUIRED_FIELD_ORG,
+    points: List[Dict[str, Any]] = REQUIRED_FIELD_POINTS,
+    write_precision: Optional[str] = OPTIONAL_FIELD_WRITE_PRECISION,
+    sync_mode: str = OPTIONAL_FIELD_SYNC_MODE,
+    verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
     """Write data points to InfluxDB.
 
@@ -929,14 +1026,14 @@ async def influxdb_write_points(
 
 @mcp.tool(name='InfluxDBWriteLP')
 async def influxdb_write_line_protocol(
-    url: str,
-    token: str,
-    bucket: str,
-    org: str,
-    data_line_protocol: str,
-    write_precision: Optional[str] = None,
-    sync_mode: str = 'synchronous',
-    verify_ssl: bool = True,
+    url: str = REQUIRED_FIELD_URL,
+    token: str = REQUIRED_FIELD_TOKEN,
+    bucket: str = REQUIRED_FIELD_BUCKET,
+    org: str = REQUIRED_FIELD_ORG,
+    data_line_protocol: str = REQUIRED_FIELD_DATA_LINE_PROTOCOL,
+    write_precision: Optional[str] = OPTIONAL_FIELD_WRITE_PRECISION,
+    sync_mode: str = OPTIONAL_FIELD_SYNC_MODE,
+    verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
     """Write data in Line Protocol format to InfluxDB.
 
@@ -986,7 +1083,11 @@ async def influxdb_write_line_protocol(
 
 @mcp.tool(name='InfluxDBQuery')
 async def influxdb_query(
-    url: str, token: str, org: str, query: str, verify_ssl: bool = True
+    url: str = REQUIRED_FIELD_URL,
+    token: str = REQUIRED_FIELD_TOKEN,
+    org: str = REQUIRED_FIELD_ORG,
+    query: str = REQUIRED_FIELD_QUERY,
+    verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
     """Query data from InfluxDB using Flux query language.
 
