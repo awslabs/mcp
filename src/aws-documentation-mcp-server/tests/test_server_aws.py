@@ -14,8 +14,10 @@
 """Tests for the AWS Documentation MCP Server."""
 
 import httpx
+import json
 import pytest
 from awslabs.aws_documentation_mcp_server.server_aws import (
+    main,
     read_documentation,
     recommend,
     search_documentation,
@@ -74,6 +76,24 @@ class TestReadDocumentation:
             assert 'Connection error' in result
             mock_get.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_read_documentation_invalid_domain(self):
+        """Test reading AWS documentation with invalid domain."""
+        url = 'https://invalid-domain.com/test.html'
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must be from the docs.aws.amazon.com domain'):
+            await read_documentation(ctx, url=url, max_length=10000, start_index=0)
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_invalid_extension(self):
+        """Test reading AWS documentation with invalid file extension."""
+        url = 'https://docs.aws.amazon.com/test.pdf'
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must end with .html'):
+            await read_documentation(ctx, url=url, max_length=10000, start_index=0)
+
 
 class TestSearchDocumentation:
     """Tests for the search_documentation function."""
@@ -119,6 +139,82 @@ class TestSearchDocumentation:
             assert results[1].url == 'https://docs.aws.amazon.com/test2'
             assert results[1].title == 'Test 2'
             assert results[1].context == 'This is test 2.'
+            mock_post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_http_error(self):
+        """Test searching AWS documentation with HTTP error."""
+        search_phrase = 'test'
+        ctx = MockContext()
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.side_effect = httpx.HTTPError('Connection error')
+
+            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+
+            assert len(results) == 1
+            assert results[0].rank_order == 1
+            assert results[0].url == ''
+            assert 'Error searching AWS docs: Connection error' in results[0].title
+            assert results[0].context is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_status_error(self):
+        """Test searching AWS documentation with status code error."""
+        search_phrase = 'test'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+
+            assert len(results) == 1
+            assert results[0].rank_order == 1
+            assert results[0].url == ''
+            assert 'Error searching AWS docs - status code 500' in results[0].title
+            assert results[0].context is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_json_error(self):
+        """Test searching AWS documentation with JSON decode error."""
+        search_phrase = 'test'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = json.JSONDecodeError('Invalid JSON', '', 0)
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+
+            assert len(results) == 1
+            assert results[0].rank_order == 1
+            assert results[0].url == ''
+            assert 'Error parsing search results:' in results[0].title
+            assert results[0].context is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_empty_results(self):
+        """Test searching AWS documentation with empty results."""
+        search_phrase = 'test'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {}  # No suggestions key
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            results = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+
+            assert len(results) == 0
             mock_post.assert_called_once()
 
 
@@ -167,3 +263,72 @@ class TestRecommend:
             assert results[1].title == 'Recommendation 2'
             assert results[1].context == 'This is recommendation 2.'
             mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_recommend_http_error(self):
+        """Test getting content recommendations with HTTP error."""
+        url = 'https://docs.aws.amazon.com/test'
+        ctx = MockContext()
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.side_effect = httpx.HTTPError('Connection error')
+
+            results = await recommend(ctx, url=url)
+
+            assert len(results) == 1
+            assert results[0].url == ''
+            assert 'Error getting recommendations: Connection error' in results[0].title
+            assert results[0].context is None
+
+    @pytest.mark.asyncio
+    async def test_recommend_status_error(self):
+        """Test getting content recommendations with status code error."""
+        url = 'https://docs.aws.amazon.com/test'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            results = await recommend(ctx, url=url)
+
+            assert len(results) == 1
+            assert results[0].url == ''
+            assert 'Error getting recommendations - status code 500' in results[0].title
+            assert results[0].context is None
+
+    @pytest.mark.asyncio
+    async def test_recommend_json_error(self):
+        """Test getting content recommendations with JSON decode error."""
+        url = 'https://docs.aws.amazon.com/test'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = json.JSONDecodeError('Invalid JSON', '', 0)
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            results = await recommend(ctx, url=url)
+
+            assert len(results) == 1
+            assert results[0].url == ''
+            assert 'Error parsing recommendations:' in results[0].title
+            assert results[0].context is None
+
+
+class TestMain:
+    """Tests for the main function."""
+
+    def test_main(self):
+        """Test the main function."""
+        with patch('awslabs.aws_documentation_mcp_server.server_aws.mcp.run') as mock_run:
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_aws.logger.info'
+            ) as mock_logger:
+                main()
+                mock_logger.assert_called_once_with('Starting AWS Documentation MCP Server')
+                mock_run.assert_called_once()

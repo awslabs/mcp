@@ -17,6 +17,7 @@ import httpx
 import pytest
 from awslabs.aws_documentation_mcp_server.server_aws_cn import (
     get_available_services,
+    main,
 )
 from awslabs.aws_documentation_mcp_server.server_aws_cn import (
     read_documentation as read_documentation_china,
@@ -146,3 +147,58 @@ class TestGetAvailableServices:
             assert 'Failed to fetch' in result
             assert 'Connection error' in result
             mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_available_services_status_error(self):
+        """Test getting available services with status code error."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await get_available_services(ctx)
+
+            assert 'Failed to fetch' in result
+            assert 'status code 404' in result
+            mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_available_services_non_html(self):
+        """Test getting available services with non-HTML content."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = 'Plain text content'
+        mock_response.headers = {'content-type': 'text/plain'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_aws_cn.is_html_content'
+            ) as mock_is_html:
+                mock_is_html.return_value = False
+
+                result = await get_available_services(ctx)
+
+                assert 'AWS Documentation from' in result
+                assert 'Plain text content' in result
+                mock_get.assert_called_once()
+                mock_is_html.assert_called_once()
+
+
+class TestMain:
+    """Tests for the main function."""
+
+    def test_main(self):
+        """Test the main function."""
+        with patch('awslabs.aws_documentation_mcp_server.server_aws_cn.mcp.run') as mock_run:
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_aws_cn.logger.info'
+            ) as mock_logger:
+                main()
+                mock_logger.assert_called_once_with('Starting AWS China Documentation MCP Server')
+                mock_run.assert_called_once()
