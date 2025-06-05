@@ -18,7 +18,7 @@ import boto3
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 # Set up logging
@@ -250,7 +250,7 @@ def validate_expression(
         return {'error': f'Error validating expression: {str(e)}'}
 
 
-def validate_group_by(group_by: Dict[str, Any]) -> Dict[str, Any]:
+def validate_group_by(group_by: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Validate the group_by parameter.
 
     Args:
@@ -260,7 +260,12 @@ def validate_group_by(group_by: Dict[str, Any]) -> Dict[str, Any]:
         Empty dictionary if valid, or an error dictionary
     """
     try:
-        if not isinstance(group_by, dict) or 'Type' not in group_by or 'Key' not in group_by:
+        if (
+            group_by is None
+            or not isinstance(group_by, dict)
+            or 'Type' not in group_by
+            or 'Key' not in group_by
+        ):
             return {'error': 'group_by must be a dictionary with "Type" and "Key" keys.'}
 
         if group_by['Type'].upper() not in ['DIMENSION', 'TAG', 'COST_CATEGORY']:
