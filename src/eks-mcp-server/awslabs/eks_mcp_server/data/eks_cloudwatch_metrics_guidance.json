@@ -1,0 +1,287 @@
+{
+  "cluster": {
+    "metrics": [
+      {
+        "description": "The number of failed worker nodes in the cluster. A node is considered failed if it is suffering from any node conditions. For more information, see Conditions in the Kubernetes documentation.",
+        "dimensions": [
+          "ClusterName"
+        ],
+        "name": "cluster_failed_node_count"
+      },
+      {
+        "description": "The total number of worker nodes in the cluster.",
+        "dimensions": [
+          "ClusterName"
+        ],
+        "name": "cluster_node_count"
+      }
+    ]
+  },
+  "namespace": {
+    "metrics": [
+      {
+        "description": "The number of pods running per namespace in the resource that is specified by the dimensions that you're using.",
+        "dimensions": [
+          "Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "namespace_number_of_running_pods"
+      }
+    ]
+  },
+  "node": {
+    "metrics": [
+      {
+        "description": "The maximum number of CPU units that can be assigned to a single node in this cluster.",
+        "dimensions": [
+          "ClusterName"
+        ],
+        "name": "node_cpu_limit"
+      },
+      {
+        "description": "The percentage of CPU units that are reserved for node components, such as kubelet, kube-proxy, and Docker.",
+        "dimensions": [
+          "NodeName,ClusterName,InstanceId",
+          "ClusterName"
+        ],
+        "name": "node_cpu_reserved_capacity"
+      },
+      {
+        "description": "The number of CPU units being used on the nodes in the cluster.",
+        "dimensions": [
+          "ClusterName"
+        ],
+        "name": "node_cpu_usage_total"
+      },
+      {
+        "description": "The total percentage of CPU units being used on the nodes in the cluster.",
+        "dimensions": [
+          "NodeName,ClusterName,InstanceId",
+          "ClusterName"
+        ],
+        "name": "node_cpu_utilization"
+      },
+      {
+        "description": "The total number of GPU(s) available on the node.",
+        "dimensions": [
+          "ClusterName",
+          "ClusterName,InstanceId,NodeName"
+        ],
+        "name": "node_gpu_limit"
+      },
+      {
+        "description": "The number of GPU(s) being used by the running pods on the node.",
+        "dimensions": [
+          "ClusterName",
+          "ClusterName,InstanceId,NodeName"
+        ],
+        "name": "node_gpu_usage_total"
+      },
+      {
+        "description": "The percentage of GPU currently being reserved on the node. The formula is, node_gpu_request / node_gpu_limit.",
+        "dimensions": [
+          "ClusterName",
+          "ClusterName,InstanceId,NodeName"
+        ],
+        "name": "node_gpu_reserved_capacity"
+      },
+      {
+        "description": "The total percentage of file system capacity being used on nodes in the cluster.",
+        "dimensions": [
+          "NodeName,ClusterName,InstanceId",
+          "ClusterName"
+        ],
+        "name": "node_filesystem_utilization"
+      },
+      {
+        "description": "The maximum amount of memory, in bytes, that can be assigned to a single node in this cluster.",
+        "dimensions": [
+          "ClusterName"
+        ],
+        "name": "node_memory_limit"
+      },
+      {
+        "description": "The percentage of memory currently being used on the nodes in the cluster.",
+        "dimensions": [
+          "NodeName,ClusterName,InstanceId",
+          "ClusterName"
+        ],
+        "name": "node_memory_reserved_capacity"
+      },
+      {
+        "description": "The percentage of memory currently being used by the node or nodes. It is the percentage of node memory usage divided by the node memory limitation.",
+        "dimensions": [
+          "NodeName,ClusterName,InstanceId",
+          "ClusterName"
+        ],
+        "name": "node_memory_utilization"
+      },
+      {
+        "description": "The amount of memory, in bytes, being used in the working set of the nodes in the cluster.",
+        "dimensions": [
+          "ClusterName"
+        ],
+        "name": "node_memory_working_set"
+      },
+      {
+        "description": "The total number of bytes per second transmitted and received over the network per node in a cluster.",
+        "dimensions": [
+          "NodeName,ClusterName,InstanceId",
+          "ClusterName"
+        ],
+        "name": "node_network_total_bytes"
+      },
+      {
+        "description": "The number of running containers per node in a cluster.",
+        "dimensions": [
+          "NodeName,ClusterName,InstanceId",
+          "ClusterName"
+        ],
+        "name": "node_number_of_running_containers"
+      },
+      {
+        "description": "The number of running pods per node in a cluster.",
+        "dimensions": [
+          "NodeName,ClusterName,InstanceId",
+          "ClusterName"
+        ],
+        "name": "node_number_of_running_pods"
+      }
+    ]
+  },
+  "pod": {
+    "metrics": [
+      {
+        "description": "The CPU capacity that is reserved per pod in a cluster.",
+        "dimensions": [
+          "PodName,Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "pod_cpu_reserved_capacity"
+      },
+      {
+        "description": "The percentage of CPU units being used by pods.",
+        "dimensions": [
+          "PodName,Namespace,ClusterName",
+          "Namespace,ClusterName",
+          "Service,Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "pod_cpu_utilization"
+      },
+      {
+        "description": "The percentage of CPU units being used by pods relative to the pod limit.",
+        "dimensions": [
+          "PodName,Namespace,ClusterName",
+          "Namespace,ClusterName",
+          "Service,Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "pod_cpu_utilization_over_pod_limit"
+      },
+      {
+        "description": "The GPU requests for the pod. This value must always be equal to pod_gpu_limit.",
+        "dimensions": [
+          "ClusterName",
+          "ClusterName,Namespace,PodName",
+          "ClusterName,FullPodName,Namespace,PodName"
+        ],
+        "name": "pod_gpu_request"
+      },
+      {
+        "description": "The maximum number of GPU(s) that can be assigned to the pod in a node.",
+        "dimensions": [
+          "ClusterName",
+          "ClusterName,Namespace,PodName",
+          "ClusterName,FullPodName,Namespace,PodName"
+        ],
+        "name": "pod_gpu_limit"
+      },
+      {
+        "description": "The number of GPU(s) being allocated on the pod.",
+        "dimensions": [
+          "ClusterName",
+          "ClusterName,Namespace,PodName",
+          "ClusterName,FullPodName,Namespace,PodName"
+        ],
+        "name": "pod_gpu_usage_total"
+      },
+      {
+        "description": "The percentage of GPU currently being reserved for the pod. The formula is - pod_gpu_request / node_gpu_reserved_capacity.",
+        "dimensions": [
+          "ClusterName",
+          "ClusterName,Namespace,PodName",
+          "ClusterName,FullPodName,Namespace,PodName"
+        ],
+        "name": "pod_gpu_reserved_capacity"
+      },
+      {
+        "description": "The percentage of memory that is reserved for pods.",
+        "dimensions": [
+          "PodName,Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "pod_memory_reserved_capacity"
+      },
+      {
+        "description": "The percentage of memory currently being used by the pod or pods.",
+        "dimensions": [
+          "PodName,Namespace,ClusterName",
+          "Namespace,ClusterName",
+          "Service,Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "pod_memory_utilization"
+      },
+      {
+        "description": "The percentage of memory that is being used by pods relative to the pod limit. If any containers in the pod don't have a memory limit defined, this metric doesn't appear.",
+        "dimensions": [
+          "PodName,Namespace,ClusterName",
+          "Namespace,ClusterName",
+          "Service,Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "pod_memory_utilization_over_pod_limit"
+      },
+      {
+        "description": "The number of bytes per second being received over the network by the pod.",
+        "dimensions": [
+          "PodName,Namespace,ClusterName",
+          "Namespace,ClusterName",
+          "Service,Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "pod_network_rx_bytes"
+      },
+      {
+        "description": "The number of bytes per second being transmitted over the network by the pod.",
+        "dimensions": [
+          "PodName,Namespace,ClusterName",
+          "Namespace,ClusterName",
+          "Service,Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "pod_network_tx_bytes"
+      },
+      {
+        "description": "The total number of container restarts in a pod.",
+        "dimensions": [
+          "PodName,Namespace,ClusterName"
+        ],
+        "name": "pod_number_of_container_restarts"
+      }
+    ]
+  },
+  "service": {
+    "metrics": [
+      {
+        "description": "The number of pods running the service or services in the cluster.",
+        "dimensions": [
+          "Service,Namespace,ClusterName",
+          "ClusterName"
+        ],
+        "name": "service_number_of_running_pods"
+      }
+    ]
+  }
+}
