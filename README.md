@@ -716,7 +716,7 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
         "awslabs.cfn-mcp-server@latest"
       ],
       "env": {
-        "AWS_PROFILE": "your-aws-profile",
+        "AWS_PROFILE": "your-aws-profile"
       },
       "disabled": false,
       "autoApprove": []
