@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for the server module of the cost-explorer-mcp-server."""
 
 import pytest
@@ -44,7 +58,11 @@ class TestGetDimensionValuesTool:
         # Mock the get_dimension_values function
         mock_get_dimension_values.return_value = {
             'dimension': 'SERVICE',
-            'values': ['Amazon EC2', 'Amazon S3', 'Amazon RDS'],
+            'values': [
+                'Amazon Elastic Compute Cloud - Compute',
+                'Amazon Simple Storage Service',
+                'Amazon Relational Database Service',
+            ],
         }
 
         # Create a mock context and parameters
@@ -64,8 +82,76 @@ class TestGetDimensionValuesTool:
         # Verify the result
         assert result == {
             'dimension': 'SERVICE',
-            'values': ['Amazon EC2', 'Amazon S3', 'Amazon RDS'],
+            'values': [
+                'Amazon Elastic Compute Cloud - Compute',
+                'Amazon Simple Storage Service',
+                'Amazon Relational Database Service',
+            ],
         }
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.get_dimension_values')
+    async def test_get_dimension_values_with_direct_objects_error(self, mock_get_dimension_values):
+        """Test error handling when retrieving dimension values with direct objects."""
+        # Mock the get_dimension_values function to raise an exception
+        mock_get_dimension_values.side_effect = Exception('API Error')
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-06-01'
+        dimension = MagicMock()
+        dimension.dimension_key = 'SERVICE'
+
+        # Call the function
+        result = await get_dimension_values_tool(mock_context, date_range, dimension)
+
+        # Verify the result contains an error
+        assert 'error' in result
+        assert 'Error getting dimension values' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_get_dimension_values_with_direct_objects(self):
+        """Test with direct DateRange and Dimension objects."""
+        with patch(
+            'awslabs.cost_explorer_mcp_server.server.get_dimension_values'
+        ) as mock_get_dimension_values:
+            # Mock the get_dimension_values function
+            mock_get_dimension_values.return_value = {
+                'dimension': 'SERVICE',
+                'values': [
+                    'Amazon Elastic Compute Cloud - Compute',
+                    'Amazon Simple Storage Service',
+                    'Amazon Relational Database Service',
+                ],
+            }
+
+            # Create a mock context and direct objects
+            mock_context = MagicMock()
+            date_range = MagicMock()
+            date_range.start_date = '2025-05-01'
+            date_range.end_date = '2025-06-01'
+            dimension = MagicMock()
+            dimension.dimension_key = 'SERVICE'
+
+            # Call the function
+            result = await get_dimension_values_tool(mock_context, date_range, dimension)
+
+            # Verify the function called the helper correctly
+            mock_get_dimension_values.assert_called_once_with(
+                'SERVICE', '2025-05-01', '2025-06-01'
+            )
+
+            # Verify the result
+            assert result == {
+                'dimension': 'SERVICE',
+                'values': [
+                    'Amazon Elastic Compute Cloud - Compute',
+                    'Amazon Simple Storage Service',
+                    'Amazon Relational Database Service',
+                ],
+            }
 
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.get_dimension_values')
@@ -139,6 +225,34 @@ class TestGetTagValuesTool:
         # Verify the result contains an error
         assert 'error' in result
         assert 'Error getting tag values' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_get_tag_values_with_direct_objects(self):
+        """Test with direct DateRange object."""
+        with patch(
+            'awslabs.cost_explorer_mcp_server.server.get_tag_values'
+        ) as mock_get_tag_values:
+            # Mock the get_tag_values function
+            mock_get_tag_values.return_value = {
+                'tag_key': 'Environment',
+                'values': ['dev', 'prod', 'test'],
+            }
+
+            # Create a mock context and direct objects
+            mock_context = MagicMock()
+            date_range = MagicMock()
+            date_range.start_date = '2025-05-01'
+            date_range.end_date = '2025-06-01'
+            tag_key = 'Environment'
+
+            # Call the function
+            result = await get_tag_values_tool(mock_context, date_range, tag_key)
+
+            # Verify the function called the helper correctly
+            mock_get_tag_values.assert_called_once_with('Environment', '2025-05-01', '2025-06-01')
+
+            # Verify the result
+            assert result == {'tag_key': 'Environment', 'values': ['dev', 'prod', 'test']}
 
 
 class TestGetCostAndUsage:
@@ -397,3 +511,350 @@ class TestGetCostAndUsage:
         assert '2025-05-01' in result['GroupedCosts']
         assert 'Amazon Elastic Compute Cloud - Compute' in result['GroupedCosts']['2025-05-01']
         assert 'Amazon Simple Storage Service' in result['GroupedCosts']['2025-05-01']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
+    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    async def test_get_cost_and_usage_invalid_granularity(
+        self, mock_ce, mock_validate_group_by, mock_validate_expression
+    ):
+        """Test handling of invalid granularity."""
+        # Mock the validation functions
+        mock_validate_expression.return_value = {}
+        mock_validate_group_by.return_value = {}
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-05-31'
+        granularity = 'INVALID'
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+        filter_expression = None
+        metric = 'UnblendedCost'
+
+        # Call the function
+        result = await get_cost_and_usage(
+            mock_context, date_range, granularity, group_by, filter_expression, metric
+        )
+
+        # Verify the result contains an error
+        assert 'error' in result
+        assert 'Invalid granularity' in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
+    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    async def test_get_cost_and_usage_invalid_metric(
+        self, mock_ce, mock_validate_group_by, mock_validate_expression
+    ):
+        """Test handling of invalid metric."""
+        # Mock the validation functions
+        mock_validate_expression.return_value = {}
+        mock_validate_group_by.return_value = {}
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-05-31'
+        granularity = 'MONTHLY'
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+        filter_expression = None
+        metric = 'InvalidMetric'
+
+        # Call the function
+        result = await get_cost_and_usage(
+            mock_context, date_range, granularity, group_by, filter_expression, metric
+        )
+
+        # Verify the result contains an error
+        assert 'error' in result
+        assert 'Invalid metric' in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
+    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    async def test_get_cost_and_usage_invalid_group_by(
+        self, mock_ce, mock_validate_group_by, mock_validate_expression
+    ):
+        """Test handling of invalid group_by."""
+        # Mock the validation functions
+        mock_validate_expression.return_value = {}
+        mock_validate_group_by.return_value = {'error': 'Invalid group_by'}
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-05-31'
+        granularity = 'MONTHLY'
+        group_by = {'Type': 'INVALID', 'Key': 'SERVICE'}
+        filter_expression = None
+        metric = 'UnblendedCost'
+
+        # Call the function
+        result = await get_cost_and_usage(
+            mock_context, date_range, granularity, group_by, filter_expression, metric
+        )
+
+        # Verify the result contains an error
+        assert 'error' in result
+        assert result['error'] == 'Invalid group_by'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
+    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    async def test_get_cost_and_usage_api_error(
+        self, mock_ce, mock_validate_group_by, mock_validate_expression
+    ):
+        """Test handling of AWS API error."""
+        # Mock the validation functions
+        mock_validate_expression.return_value = {}
+        mock_validate_group_by.return_value = {}
+
+        # Mock the AWS Cost Explorer to raise an exception
+        mock_ce.get_cost_and_usage.side_effect = Exception('AWS API Error')
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-05-31'
+        granularity = 'MONTHLY'
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+        filter_expression = None
+        metric = 'UnblendedCost'
+
+        # Call the function
+        result = await get_cost_and_usage(
+            mock_context, date_range, granularity, group_by, filter_expression, metric
+        )
+
+        # Verify the result contains an error
+        assert 'error' in result
+        assert 'AWS Cost Explorer API error' in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
+    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    async def test_get_cost_and_usage_missing_metric(
+        self, mock_ce, mock_validate_group_by, mock_validate_expression
+    ):
+        """Test handling of missing metric in response."""
+        # Mock the validation functions
+        mock_validate_expression.return_value = {}
+        mock_validate_group_by.return_value = {}
+
+        # Mock the AWS Cost Explorer response with missing metric
+        mock_response = {
+            'ResultsByTime': [
+                {
+                    'TimePeriod': {'Start': '2025-05-01', 'End': '2025-06-01'},
+                    'Groups': [
+                        {
+                            'Keys': ['Amazon Elastic Compute Cloud - Compute'],
+                            'Metrics': {'BlendedCost': {'Amount': '100.50', 'Unit': 'USD'}},
+                        }
+                    ],
+                }
+            ]
+        }
+        mock_ce.get_cost_and_usage.return_value = mock_response
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-05-31'
+        granularity = 'MONTHLY'
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+        filter_expression = None
+        metric = 'UnblendedCost'  # This metric is not in the response
+
+        # Call the function
+        result = await get_cost_and_usage(
+            mock_context, date_range, granularity, group_by, filter_expression, metric
+        )
+
+        # Verify the result contains an error
+        assert 'error' in result
+        assert "Metric 'UnblendedCost' not found" in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
+    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    async def test_get_cost_and_usage_with_missing_amount(
+        self, mock_ce, mock_validate_group_by, mock_validate_expression
+    ):
+        """Test handling of missing Amount in metric data."""
+        # Mock the validation functions
+        mock_validate_expression.return_value = {}
+        mock_validate_group_by.return_value = {}
+
+        # Mock the AWS Cost Explorer response with missing Amount
+        mock_response = {
+            'ResultsByTime': [
+                {
+                    'TimePeriod': {'Start': '2025-05-01', 'End': '2025-06-01'},
+                    'Groups': [
+                        {
+                            'Keys': ['Amazon Elastic Compute Cloud - Compute'],
+                            'Metrics': {'UnblendedCost': {'Unit': 'USD'}},  # Missing Amount
+                        }
+                    ],
+                }
+            ]
+        }
+        mock_ce.get_cost_and_usage.return_value = mock_response
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-05-31'
+        granularity = 'MONTHLY'
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+        filter_expression = None
+        metric = 'UnblendedCost'
+
+        # Call the function
+        result = await get_cost_and_usage(
+            mock_context, date_range, granularity, group_by, filter_expression, metric
+        )
+
+        # Verify the result contains an error
+        assert 'error' in result
+        # Adjust the expected error message to match the actual implementation
+        assert 'not found in metric data' in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
+    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    async def test_get_cost_and_usage_with_empty_groups(
+        self, mock_ce, mock_validate_group_by, mock_validate_expression
+    ):
+        """Test handling of empty groups in response."""
+        # Mock the validation functions
+        mock_validate_expression.return_value = {}
+        mock_validate_group_by.return_value = {}
+
+        # Mock the AWS Cost Explorer response with empty groups
+        mock_response = {
+            'ResultsByTime': [
+                {
+                    'TimePeriod': {'Start': '2025-05-01', 'End': '2025-06-01'},
+                    'Groups': [],
+                }
+            ]
+        }
+        mock_ce.get_cost_and_usage.return_value = mock_response
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-05-31'
+        granularity = 'MONTHLY'
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+        filter_expression = None
+        metric = 'UnblendedCost'
+
+        # Call the function
+        result = await get_cost_and_usage(
+            mock_context, date_range, granularity, group_by, filter_expression, metric
+        )
+
+        # Verify the result contains empty data but no error
+        assert 'GroupedCosts' in result
+        assert len(result['GroupedCosts']) == 0
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
+    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    async def test_get_cost_and_usage_with_empty_keys(
+        self, mock_ce, mock_validate_group_by, mock_validate_expression
+    ):
+        """Test handling of empty keys in groups."""
+        # Mock the validation functions
+        mock_validate_expression.return_value = {}
+        mock_validate_group_by.return_value = {}
+
+        # Mock the AWS Cost Explorer response with empty keys
+        mock_response = {
+            'ResultsByTime': [
+                {
+                    'TimePeriod': {'Start': '2025-05-01', 'End': '2025-06-01'},
+                    'Groups': [
+                        {
+                            'Keys': [],  # Empty keys
+                            'Metrics': {'UnblendedCost': {'Amount': '100.50', 'Unit': 'USD'}},
+                        }
+                    ],
+                }
+            ]
+        }
+        mock_ce.get_cost_and_usage.return_value = mock_response
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-05-31'
+        granularity = 'MONTHLY'
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+        filter_expression = None
+        metric = 'UnblendedCost'
+
+        # Call the function
+        result = await get_cost_and_usage(
+            mock_context, date_range, granularity, group_by, filter_expression, metric
+        )
+
+        # Verify the result contains empty data but no error
+        assert 'GroupedCosts' in result
+        assert len(result['GroupedCosts']) == 0
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
+    @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
+    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    async def test_get_cost_and_usage_with_no_results_by_time(
+        self, mock_ce, mock_validate_group_by, mock_validate_expression
+    ):
+        """Test handling of missing ResultsByTime in response."""
+        # Mock the validation functions
+        mock_validate_expression.return_value = {}
+        mock_validate_group_by.return_value = {}
+
+        # Mock the AWS Cost Explorer response with no ResultsByTime
+        mock_response = {}
+        mock_ce.get_cost_and_usage.return_value = mock_response
+
+        # Create a mock context and parameters
+        mock_context = MagicMock()
+        date_range = MagicMock()
+        date_range.start_date = '2025-05-01'
+        date_range.end_date = '2025-05-31'
+        granularity = 'MONTHLY'
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+        filter_expression = None
+        metric = 'UnblendedCost'
+
+        # Call the function
+        result = await get_cost_and_usage(
+            mock_context, date_range, granularity, group_by, filter_expression, metric
+        )
+
+        # Verify the result contains an error
+        assert 'error' in result
+        # Adjust the expected error message to match the actual implementation
+        assert 'Error generating cost report' in result['error']
