@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the sam_deploy module."""
 
 import os
@@ -210,26 +213,28 @@ class TestSamDeploy:
         tool = SamDeployTool(MagicMock(), allow_write=False)
 
         # Call the function
-        result = await tool.handle_sam_deploy(
-            AsyncMock(),
-            application_name='test-app',
-            project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
-            template_file=None,
-            s3_bucket=None,
-            s3_prefix=None,
-            region=None,
-            profile=None,
-            parameter_overrides=None,
-            capabilities=None,
-            config_file=None,
-            config_env=None,
-            metadata=None,
-            tags=None,
-            resolve_s3=False,
-            debug=False,
-        )
+        with pytest.raises(Exception) as exc_info:
+            await tool.handle_sam_deploy(
+                AsyncMock(),
+                application_name='test-app',
+                project_directory=os.path.join(tempfile.gettempdir(), 'test-project'),
+                template_file=None,
+                s3_bucket=None,
+                s3_prefix=None,
+                region=None,
+                profile=None,
+                parameter_overrides=None,
+                capabilities=None,
+                config_file=None,
+                config_env=None,
+                metadata=None,
+                tags=None,
+                resolve_s3=False,
+                debug=False,
+            )
 
-        # Verify the result
-        assert result['success'] is False
-        assert 'Write operations are not allowed' in result['error']
-        assert '--allow-write flag' in result['error']
+        # Verify the exception message
+        assert (
+            'Write operations are not allowed. Set --allow-write flag to true to enable write operations.'
+            in str(exc_info.value)
+        )

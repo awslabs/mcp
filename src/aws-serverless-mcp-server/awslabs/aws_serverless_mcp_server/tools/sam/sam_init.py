@@ -1,21 +1,22 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 
 class SamInitTool:
@@ -29,31 +30,44 @@ class SamInitTool:
         self,
         ctx: Context,
         project_name: str = Field(description='Name of the SAM project to create'),
-        runtime: str = Field(description='Runtime environment for the Lambda function'),
+        runtime: Optional[str] = Field(
+            description="""Runtime environment for the Lambda function.
+                             This option applies only when the package type is Zip."""
+        ),
         project_directory: str = Field(
             description='Absolute path to directory where the SAM application will be initialized'
         ),
-        dependency_manager: str = Field(description='Dependency manager for the Lambda function'),
-        architecture: str = Field(
-            default='x86_64', description='Architecture for the Lambda function'
+        dependency_manager: str = Field(
+            description='Dependency manager for the Lambda function (e.g. npm, pip)'
         ),
-        package_type: str = Field(
-            default='Zip', description='Package type for the Lambda function'
+        architecture: Optional[Literal['x86_64', 'arm64']] = Field(
+            default='x86_64', description='Architecture for the Lambda function.'
+        ),
+        package_type: Optional[Literal['Zip', 'Image']] = Field(
+            default='Zip',
+            description='Package type for the Lambda function. Zip creates a .zip file archive, and Image creates a container image.',
         ),
         application_template: str = Field(
             default='hello-world',
             description="""Template for the SAM application, e.g., hello-world, quick-start, etc.
-            'This parameter is required if location is not specified.""",
+             This parameter is required if location is not specified.""",
         ),
         application_insights: Optional[bool] = Field(
-            default=False, description='Activate Amazon CloudWatch Application Insights monitoring'
+            default=False,
+            description="""Activate Amazon CloudWatch Application Insights monitoring.
+                Helps you monitor the AWS resources in your applications to help identify potential issues.
+                It can analyze AWS resource data for signs of problems and build automated CloudWatch dashboards to visualize them.
+                """,
         ),
         no_application_insights: Optional[bool] = Field(
             default=False,
             description='Deactivate Amazon CloudWatch Application Insights monitoring',
         ),
         base_image: Optional[str] = Field(
-            default=None, description='Base image for the application when package type is Image'
+            default=None,
+            description="""Base image for the application when package type is Image.
+                The AWS base images are preloaded with a language runtime, a runtime interface client to manage the
+                interaction between Lambda and your function code, and a runtime interface emulator for local testing.""",
         ),
         config_env: Optional[str] = Field(
             default=None,
@@ -70,13 +84,18 @@ class SamInitTool:
         ),
         location: Optional[str] = Field(
             default=None,
-            description='Template or application location (Git, HTTP/HTTPS, zip file path).\n            This parameter is required if app_template is not specified.',
+            description="""Template or application location (Git, HTTP/HTTPS, zip file path).
+                This GitHub repo https://github.com/aws/aws-sam-cli-app-templates contains a collection of templates.
+                This parameter is required if app_template is not specified.""",
         ),
         save_params: Optional[bool] = Field(
             default=False, description='Save parameters to the SAM configuration file'
         ),
         tracing: Optional[bool] = Field(
-            default=False, description='Activate AWS X-Ray tracing for Lambda functions'
+            default=False,
+            description="""Activate AWS X-Ray tracing for Lambda functions. X-ray collects data about requests
+            that your application serves and provides tools that you can use to view, filter, and gain insights into that data to identify issues
+            and opportunities for optimization.""",
         ),
         no_tracing: Optional[bool] = Field(
             default=False, description='Deactivate AWS X-Ray tracing for Lambda functions'
@@ -85,16 +104,20 @@ class SamInitTool:
         """Initializes a serverless application using AWS SAM (Serverless Application Model) CLI.
 
         Requirements:
-        - You must have AWS SAM CLI installed and configured in your environment
+        - AWS SAM CLI MUST be installed and configured in your environment
 
         This tool creates a new SAM project that consists of:
         - An AWS SAM template to define your infrastructure code
         - A folder structure that organizes your application
         - Configuration for your AWS Lambda functions
 
-        Use this tool to intializes a new project when building a serverless application.
+        Use this tool to initialize a new project when building a serverless application.
         This tool generates a project based on a pre-defined template. After calling this tool,
         modify the code and infrastructure templates to fit the requirements of your application.
+
+        Usage tips:
+        - Do not use this tool on existing projects as it creates brand new directory. Instead manually create SAM templates in the existing application's directory.
+        - Either select from one of predefined templates, or from the SAM GitHub repo (https://github.com/aws/aws-sam-cli-app-templates)
 
         Returns:
             Dict[str, Any]: Result of the initialization
@@ -106,7 +129,8 @@ class SamInitTool:
 
             # Add required parameters
             cmd.extend(['--name', project_name])
-            cmd.extend(['--runtime', runtime])
+            if runtime:
+                cmd.extend(['--runtime', runtime])
             cmd.extend(['--dependency-manager', dependency_manager])
             # Set output directory
             cmd.extend(['--output-dir', project_directory])

@@ -1,17 +1,17 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-import json
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
@@ -426,33 +426,31 @@ class GetIaCGuidanceTool:
                 )
 
         # Build response
-        response = {**base_guidance}
+        response: Dict[str, Any] = {**base_guidance}
 
         # Add tools information based on format
         if include_examples:
-            response['tools'] = json.dumps([tool.to_dict() for tool in tools_info])
+            response['tools'] = [tool.to_dict() for tool in tools_info]
         else:
             # For concise format, include summarized versions
-            response['tools'] = json.dumps(
-                [
-                    {
-                        'name': tool.name,
-                        'description': tool.description,
-                        'bestFor': tool.best_for,
-                        'pros': tool.pros[:3],
-                        'cons': tool.cons[:3],
-                        'gettingStarted': tool.getting_started,
-                        'exampleCode': '',  # Empty string for concise format
-                    }
-                    for tool in tools_info
-                ]
-            )
+            response['tools'] = [
+                {
+                    'name': tool.name,
+                    'description': tool.description,
+                    'bestFor': tool.best_for,
+                    'pros': tool.pros[:3],
+                    'cons': tool.cons[:3],
+                    'gettingStarted': tool.getting_started,
+                    'exampleCode': '',  # Empty string for concise format
+                }
+                for tool in tools_info
+            ]
 
         # Add comparison table
-        response['comparisonTable'] = json.dumps(comparison_table.to_dict())
+        response['comparisonTable'] = comparison_table.to_dict()
 
         # Add tool-specific guidance if available
         if tool_specific_guidance:
-            response['toolSpecificGuidance'] = json.dumps(tool_specific_guidance.to_dict())
+            response['toolSpecificGuidance'] = tool_specific_guidance.to_dict()
 
         return response

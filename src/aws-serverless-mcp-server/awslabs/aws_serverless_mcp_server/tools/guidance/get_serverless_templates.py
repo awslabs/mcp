@@ -1,15 +1,16 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import base64
 from awslabs.aws_serverless_mcp_server.utils.github import fetch_github_content
@@ -39,8 +40,14 @@ class GetServerlessTemplatesTool:
 
         Use this tool to get examples for building serverless applications with AWS Lambda and best practices of serverless architecture.
         The examples are centered on event-driven architecture that can help you boost agility and build reliable, scalable applications.
-        Services like Lambda, EventBridge, Step Functions, SQS, SNS, and API Gateway are featured here, and dxamples can be deployed
+        Services like Lambda, EventBridge, Step Functions, SQS, SNS, and API Gateway are featured here. Examples can be deployed
         out of the box using the SAM CLI, or you can modify examples to fit your needs.
+
+        Usage tips:
+        - Each template includes a template.yml, example-pattern.json file, and src directory containing the Lambda function code. The example-pattern.json file
+        contains metadata about the template, links to AWS documentation, SAM commands, and a description of the application.
+        - Download the YAML template with the gitHubLink in the tool response using the GitHub API
+        - Use the sam_build and sam_deploy tools to build and deploy the application to AWS Cloud
 
         Returns:
             Dict: List of matching Serverless templates with README content and GitHub link

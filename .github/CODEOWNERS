@@ -14,6 +14,7 @@ NOTICE                                @awslabs/mcp-admins
 /.devcontainer/                       @awslabs/mcp-admins
 
 # Alphabetical listing of MCP servers
+/src/amazon-keyspaces-mcp-server      @jcshepherd                      @awslabs/mcp-admins
 /src/amazon-mq-mcp-server             @kenliao94 @hashimsharkh         @awslabs/mcp-admins
 /src/amazon-neptune-mcp-server        @bechbd @cornerwings @krlawrence @awslabs/mcp-admins
 /src/amazon-sns-sqs-mcp-server        @kenliao94 @hashimsharkh         @awslabs/mcp-admins
@@ -42,6 +43,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/eks-mcp-server                   @patrick-yu-amzn @srhsrhsrhsrh   @awslabs/mcp-admins
 /src/valkey-mcp-server                @seaofawareness                  @awslabs/mcp-admins
 /src/finch-mcp-server                 @Shubhranshu153 @pendo324        @awslabs/mcp-admins
+/src/aws-support-mcp-server           @Wook133                         @awslabs/mcp-admins
 
 # Secure the CODEOWNERS file
 /.github/CODEOWNERS                   @awslabs/mcp-admins

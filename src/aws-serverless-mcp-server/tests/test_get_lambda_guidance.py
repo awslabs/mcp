@@ -1,16 +1,18 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the get_lambda_guidance module."""
 
-import json
 import pytest
 from awslabs.aws_serverless_mcp_server.tools.guidance.get_lambda_guidance import (
     GetLambdaGuidanceTool,
@@ -38,8 +40,7 @@ class TestGetLambdaGuidance:
         assert 'cons' in result
         assert 'decisionCriteria' in result
 
-        # Parse JSON strings
-        when_to_use = json.loads(result['whenToUse'])
+        when_to_use = result['whenToUse']
         assert isinstance(when_to_use, list)
         assert len(when_to_use) > 0
 
@@ -48,7 +49,7 @@ class TestGetLambdaGuidance:
             assert 'scenario' in scenario
             assert 'description' in scenario
             if 'examples' in scenario:
-                assert isinstance(json.loads(scenario['examples']), list)
+                assert isinstance(scenario['examples'], list)
 
     @pytest.mark.asyncio
     async def test_get_lambda_guidance_without_examples(self):
@@ -67,8 +68,7 @@ class TestGetLambdaGuidance:
         assert 'cons' in result
         assert 'decisionCriteria' in result
 
-        # Parse JSON string
-        when_to_use = json.loads(result['whenToUse'])
+        when_to_use = result['whenToUse']
 
         # Check that examples are not included in scenarios when not requested
         for scenario in when_to_use:
@@ -96,7 +96,7 @@ class TestGetLambdaGuidance:
 
         # Check that use case specific guidance is included
         assert 'useCaseSpecificGuidance' in result
-        use_case_guidance = json.loads(result['useCaseSpecificGuidance'])
+        use_case_guidance = result['useCaseSpecificGuidance']
         assert 'title' in use_case_guidance
         assert 'suitability' in use_case_guidance
         assert 'description' in use_case_guidance
@@ -131,7 +131,7 @@ class TestGetLambdaGuidance:
 
             # Should have use case specific guidance for known use cases
             assert 'useCaseSpecificGuidance' in result
-            use_case_guidance = json.loads(result['useCaseSpecificGuidance'])
+            use_case_guidance = result['useCaseSpecificGuidance']
             assert 'title' in use_case_guidance
             assert 'suitability' in use_case_guidance
 
@@ -152,19 +152,19 @@ class TestGetLambdaGuidance:
 
         for field in required_fields:
             assert field in result
-            parsed_field = json.loads(result[field])
+            parsed_field = result[field]
             assert isinstance(parsed_field, list)
             assert len(parsed_field) > 0
 
         # Check that lists contain meaningful content
-        when_to_use = json.loads(result['whenToUse'])
+        when_to_use = result['whenToUse']
         for scenario in when_to_use:
             assert isinstance(scenario, dict)
             assert 'scenario' in scenario
             assert 'description' in scenario
             assert len(scenario['description']) > 10
 
-        decision_criteria = json.loads(result['decisionCriteria'])
+        decision_criteria = result['decisionCriteria']
         for criterion in decision_criteria:
             assert isinstance(criterion, dict)
             assert 'criterion' in criterion

@@ -1,18 +1,20 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Configure domain tool for AWS Serverless MCP Server."""
 
+from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.aws_client_helper import get_aws_client
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -20,23 +22,30 @@ from pydantic import Field
 from typing import Any, Dict, List, Optional
 
 
-class ConfigureDomainTool:
+class ConfigureDomainTool(BaseTool):
     """Implementation of the configure_domain tool for AWS Serverless MCP Server."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: FastMCP, allow_write: bool):
         """Initialize the ConfigureDomainTool with a FastMCP instance."""
+        super().__init__(allow_write=allow_write)
         mcp.tool(name='configure_domain')(self.configure_domain)
+        self.allow_write = allow_write
 
     async def configure_domain(
         self,
         ctx: Context,
         project_name: str = Field(description='Project name'),
-        domain_name: str = Field(description='Custom domain name'),
+        domain_name: str = Field(
+            description="""Custom domain name to use for the CloudFront distribution . You must already own the domain name
+            and have a Route 53 hosted zone in your account. This tool does not register domain names."""
+        ),
         create_certificate: Optional[bool] = Field(
             default=True, description='Whether to create a ACM certificate'
         ),
         create_route53_record: Optional[bool] = Field(
-            default=True, description='Whether to create a Route 53 record'
+            default=True,
+            description="""Whether to create a Route 53 record. When set to True, this tool creates a DNS A record
+                that points to the CloudFront distribution associated with this project""",
         ),
         region: Optional[str] = Field(
             default=None, description='AWS region to use (e.g., us-east-1)'
@@ -44,12 +53,15 @@ class ConfigureDomainTool:
     ) -> Dict[str, Any]:
         """Configures a custom domain for a deployed web application on AWS Serverless.
 
+        Before using this tool, you must already own the domain name and have a Route53 hosted zone in your account.
+        This tool does not register domain names.
         This tool sets up Route 53 DNS records, ACM certificates, and CloudFront custom domain mappings as needed.
         Use this tool after deploying your web application to associate it with your own domain name.
 
         Returns:
             Dict: Domain configuration result
         """
+        self.checkToolAccess()
         try:
             # Log status update
             logger.info(f'Starting domain configuration for {project_name}...')

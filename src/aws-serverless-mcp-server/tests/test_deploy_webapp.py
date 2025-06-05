@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for the deploy_webapp module."""
 
 import json
@@ -375,40 +378,42 @@ class TestDeployWebapp:
         # Create the tool with allow_write set to False
         tool = DeployWebAppTool(MagicMock(), allow_write=False)
 
-        # Call the function
-        result = await tool.deploy_webapp(
-            AsyncMock(),
-            deployment_type='fullstack',
-            project_name='test-project',
-            project_root=os.path.join(tempfile.gettempdir(), 'test-project'),
-            region=None,
-            backend_configuration=BackendConfiguration(
-                built_artifacts_path=os.path.join(tempfile.gettempdir(), 'test-project/dist'),
-                runtime='nodejs18.x',
-                port=3000,
-                framework=None,
-                startup_script=None,
-                entry_point=None,
-                generate_startup_script=None,
-                architecture=None,
-                memory_size=None,
-                timeout=None,
-                stage=None,
-                cors=None,
-                environment=None,
-                database_configuration=None,
-            ),
-            frontend_configuration=FrontendConfiguration(
-                built_assets_path=os.path.join(tempfile.gettempdir(), 'test-project/build'),
-                framework=None,
-                index_document=None,
-                error_document=None,
-                custom_domain=None,
-                certificate_arn=None,
-            ),
-        )
+        # Call the function and verify that an exception is raised
+        with pytest.raises(Exception) as exc_info:
+            await tool.deploy_webapp(
+                AsyncMock(),
+                deployment_type='fullstack',
+                project_name='test-project',
+                project_root=os.path.join(tempfile.gettempdir(), 'test-project'),
+                region=None,
+                backend_configuration=BackendConfiguration(
+                    built_artifacts_path=os.path.join(tempfile.gettempdir(), 'test-project/dist'),
+                    runtime='nodejs18.x',
+                    port=3000,
+                    framework=None,
+                    startup_script=None,
+                    entry_point=None,
+                    generate_startup_script=None,
+                    architecture=None,
+                    memory_size=None,
+                    timeout=None,
+                    stage=None,
+                    cors=None,
+                    environment=None,
+                    database_configuration=None,
+                ),
+                frontend_configuration=FrontendConfiguration(
+                    built_assets_path=os.path.join(tempfile.gettempdir(), 'test-project/build'),
+                    framework=None,
+                    index_document=None,
+                    error_document=None,
+                    custom_domain=None,
+                    certificate_arn=None,
+                ),
+            )
 
-        # Verify the result
-        assert result['success'] is False
-        assert 'Write operations are not allowed' in result['error']
-        assert '--allow-write flag' in result['error']
+        # Verify the exception message
+        assert (
+            'Write operations are not allowed. Set --allow-write flag to true to enable write operations.'
+            in str(exc_info.value)
+        )

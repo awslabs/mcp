@@ -1,15 +1,16 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Deploy Web App Tool for AWS Serverless MCP Server.
 
@@ -24,6 +25,7 @@ from awslabs.aws_serverless_mcp_server.models import (
     DeployWebAppRequest,
     FrontendConfiguration,
 )
+from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.tools.webapps.utils.deploy_service import (
     DeploymentStatus,
     deploy_application,
@@ -35,11 +37,12 @@ from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 
 
-class DeployWebAppTool:
+class DeployWebAppTool(BaseTool):
     """Tool for deploying web applications to AWS serverless infrastructure."""
 
     def __init__(self, mcp: FastMCP, allow_write):
         """Initialize the DeployWebAppTool with a FastMCP instance."""
+        super().__init__(allow_write=allow_write)
         mcp.tool(name='deploy_webapp')(self.deploy_webapp)
         self.allow_write = allow_write
 
@@ -69,11 +72,7 @@ class DeployWebAppTool:
         Returns:
             Dict: Deployment result and link to pending deployment resource
         """
-        if not self.allow_write:
-            return {
-                'success': False,
-                'error': 'Write operations are not allowed. Set --allow-write flag to true to enable write operations.',
-            }
+        self.checkToolAccess()
         try:
             params = DeployWebAppRequest(
                 deployment_type=deployment_type,

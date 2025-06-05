@@ -1,22 +1,23 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Deployment help tool for AWS Serverless MCP Server."""
 
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, Optional
 
 
 class WebappDeploymentHelpTool:
@@ -29,14 +30,14 @@ class WebappDeploymentHelpTool:
     async def webapp_deployment_help_tool(
         self,
         ctx: Context,
-        deployment_type: Literal['backend', 'frontend', 'fullstack'] = Field(
+        deployment_type: Optional[Literal['backend', 'frontend', 'fullstack']] = Field(
             description='Type of deployment to get help information for'
         ),
     ) -> Dict[str, Any]:
         """Get help information about using the deploy_webapp_tool to perform web application deployments.
 
         If deployment_type is provided, returns help information for that deployment type.
-        Otherwise, returns a list of deployments and general help information.
+        Otherwise, returns general help information.
 
         Returns:
             Dict: Deployment help information
@@ -145,7 +146,10 @@ class WebappDeploymentHelpTool:
             help_info = {**general_help}
             if specific_help:
                 help_info['specificHelp'] = specific_help
-            return {'success': True, 'topic': deployment_type, 'content': help_info}
+            response = {'success': True, 'content': help_info}
+            if deployment_type:
+                response['topic'] = deployment_type
+            return response
         except Exception as e:
             logger.error(f'Error in webapp_deployment_help: {str(e)}')
             return {

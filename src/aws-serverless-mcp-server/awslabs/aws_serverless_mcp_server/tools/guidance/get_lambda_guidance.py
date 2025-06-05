@@ -1,17 +1,17 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-import json
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -34,9 +34,9 @@ class WhenToUseScenario:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
-        result = {'scenario': self.scenario, 'description': self.description}
+        result: Dict[str, Any] = {'scenario': self.scenario, 'description': self.description}
         if self.examples:
-            result['examples'] = json.dumps(self.examples)
+            result['examples'] = self.examples
         return result
 
 
@@ -57,9 +57,9 @@ class WhenNotToUseScenario:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
-        result = {'scenario': self.scenario, 'description': self.description}
+        result: Dict[str, Any] = {'scenario': self.scenario, 'description': self.description}
         if self.alternatives:
-            result['alternatives'] = json.dumps(self.alternatives)
+            result['alternatives'] = self.alternatives
         return result
 
 
@@ -112,17 +112,17 @@ class UseCaseSpecificGuidance:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
-        result = {
+        result: Dict[str, Any] = {
             'title': self.title,
             'suitability': self.suitability,
             'description': self.description,
         }
         if self.best_practices:
-            result['bestPractices'] = json.dumps(self.best_practices)
+            result['bestPractices'] = self.best_practices
         if self.limitations:
-            result['limitations'] = json.dumps(self.limitations)
+            result['limitations'] = self.limitations
         if self.alternatives:
-            result['alternatives'] = json.dumps(self.alternatives)
+            result['alternatives'] = self.alternatives
         return result
 
 
@@ -474,38 +474,30 @@ class GetLambdaGuidanceTool:
                 )
 
         # Build response
-        response = {**base_guidance}
+        response: Dict[str, Any] = {**base_guidance}
 
         # Add information based on format
         if include_examples:
-            response['whenToUse'] = json.dumps([scenario.to_dict() for scenario in when_to_use])
-            response['whenNotToUse'] = json.dumps(
-                [scenario.to_dict() for scenario in when_not_to_use]
-            )
+            response['whenToUse'] = [scenario.to_dict() for scenario in when_to_use]
+            response['whenNotToUse'] = [scenario.to_dict() for scenario in when_not_to_use]
         else:
             # For concise format, include summarized versions
-            response['whenToUse'] = json.dumps(
-                [
-                    {'scenario': scenario.scenario, 'description': scenario.description}
-                    for scenario in when_to_use
-                ]
-            )
-            response['whenNotToUse'] = json.dumps(
-                [
-                    {'scenario': scenario.scenario, 'description': scenario.description}
-                    for scenario in when_not_to_use
-                ]
-            )
+            response['whenToUse'] = [
+                {'scenario': scenario.scenario, 'description': scenario.description}
+                for scenario in when_to_use
+            ]
+            response['whenNotToUse'] = [
+                {'scenario': scenario.scenario, 'description': scenario.description}
+                for scenario in when_not_to_use
+            ]
 
         # Add pros, cons, and decision criteria
-        response['pros'] = json.dumps(pros)
-        response['cons'] = json.dumps(cons)
-        response['decisionCriteria'] = json.dumps(
-            [criterion.to_dict() for criterion in decision_criteria]
-        )
+        response['pros'] = pros
+        response['cons'] = cons
+        response['decisionCriteria'] = [criterion.to_dict() for criterion in decision_criteria]
 
         # Add use case specific guidance if available
         if use_case_specific_guidance:
-            response['useCaseSpecificGuidance'] = json.dumps(use_case_specific_guidance.to_dict())
+            response['useCaseSpecificGuidance'] = use_case_specific_guidance.to_dict()
 
         return response

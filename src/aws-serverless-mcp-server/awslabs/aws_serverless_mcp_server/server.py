@@ -1,15 +1,16 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Serverless MCP Server implementation."""
 
@@ -204,19 +205,26 @@ def main() -> int:
     DescribeSchemaTool(mcp, schemas_client)
 
     GetMetricsTool(mcp)
-    ConfigureDomainTool(mcp)
+    ConfigureDomainTool(mcp, args.allow_write)
     DeployWebAppTool(mcp, args.allow_write)
-    UpdateFrontendTool(mcp)
+    UpdateFrontendTool(mcp, args.allow_write)
 
     # Set AWS_EXECUTION_ENV to configure user agent of boto3. Setting it through an environment variable
     # because SAM CLI does not support setting user agents directly
     os.environ['AWS_EXECUTION_ENV'] = f'awslabs/mcp/aws-serverless-mcp-server/{__version__}'
 
+    mode_info = []
+    if not args.allow_write:
+        mode_info.append('read-only mode')
+    if not args.allow_sensitive_data_access:
+        mode_info.append('restricted sensitive data access mode')
+
     try:
+        logger.info(f'Starting AWS Serverless MCP Server in {", ".join(mode_info)}')
         mcp.run()
         return 0
     except Exception as e:
-        logger.error(f'Error starting AWS Serverless MCP server: {e}')
+        logger.error(f'Error starting AWS Serverless MCP Server: {e}')
         return 1
 
 

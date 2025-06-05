@@ -1,19 +1,21 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Get metrics tool for AWS Serverless MCP Server."""
 
 import datetime
+from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.aws_client_helper import get_aws_client
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -21,7 +23,7 @@ from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
 
-class GetMetricsTool:
+class GetMetricsTool(BaseTool):
     """GetMetricsTool for retrieving metrics from a deployed web application."""
 
     def __init__(self, mcp: FastMCP):
@@ -33,18 +35,27 @@ class GetMetricsTool:
         ctx: Context,
         project_name: str = Field(description='Project name'),
         start_time: Optional[str] = Field(
-            default=None, description='Start time for metrics (ISO format)'
+            default=None,
+            description='Start time for metrics (ISO 8601 format). Example: 2025-05-30T20:00:00Z',
         ),
         end_time: Optional[str] = Field(
-            default=None, description='End time for metrics (ISO format)'
+            default=None,
+            description='End time for metrics (ISO 8601 format). Example: 2025-05-30T21:00:00Z',
         ),
         period: Optional[int] = Field(default=60, description='Period for metrics in seconds'),
         resources: Optional[List[Literal['lambda', 'apiGateway', 'cloudfront']]] = Field(
             default=['lambda', 'apiGateway'], description='Resources to get metrics for'
         ),
+        function_name: Optional[str] = Field(
+            default=None,
+            description="""Lambda function to get metrics for. Set this
+                        parameter if resources parameter contains 'lambda' and the function name is not same as the project_name. Typically, SAM appends a random id suffix to function names.
+                        Find the name from CFN stack output. If function_name is not specified, project_name is used as function name.""",
+        ),
         distribution_id: Optional[str] = Field(
             default=None,
-            description='CloudFront distribution ID to get metrics for. You can find the id from the CFN stack output',
+            description="""CloudFront distribution ID to get metrics for. Find the id from the CFN stack output.
+                distribution_id required if the resources parameter list contains cloudfront.""",
         ),
         region: Optional[str] = Field(
             default=None, description='AWS region to use (e.g., us-east-1)'
@@ -53,8 +64,8 @@ class GetMetricsTool:
     ) -> Dict[str, Any]:
         """Retrieves CloudWatch metrics from a deployed web application.
 
-        Use this tool get metrics on error rates, latency, throttles, etc. of Lambda functions, API Gateways, or CloudFront disributions.
-        This tool can help provide insights into anomolies and monitor operations, which can help with troubleshooting.
+        Use this tool get metrics on error rates, latency, throttles, etc. of Lambda functions, API Gateways, or CloudFront distributions.
+        This tool can help provide insights into anomalies and monitor operations, which can help with troubleshooting.
 
         Returns:
             Dict: Metrics retrieval result
@@ -109,7 +120,7 @@ class GetMetricsTool:
             # Build metric data queries for each resource type
             if resources is not None and 'lambda' in resources:
                 # Lambda metrics
-                lambda_function_name = project_name
+                lambda_function_name = function_name if function_name else project_name
 
                 # Assign unique incremental IDs for each metric query
                 query_id = 0
