@@ -98,7 +98,7 @@ async def test_list_metrics():
         result = await list_metrics(ctx)
 
         # Assert
-        mock_request.assert_called_once_with('label/__name__/values', max_retries=3)
+        mock_request.assert_called_once_with('label/__name__/values', params={}, max_retries=3)
         assert isinstance(result, MetricsList)
         assert result.metrics == ['metric1', 'metric2', 'metric3']
 
