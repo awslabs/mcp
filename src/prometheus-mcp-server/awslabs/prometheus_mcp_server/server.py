@@ -253,7 +253,7 @@ async def make_prometheus_request(endpoint: str, params: Dict = None, max_retrie
         method=aws_request.method,
         url=aws_request.url,
         headers=dict(aws_request.headers),
-        params=params,
+        params=params or {},
     ).prepare()
 
     # Send request with retry logic
