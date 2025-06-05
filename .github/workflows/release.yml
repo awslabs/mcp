@@ -130,6 +130,7 @@ jobs:
     needs: [update-packages, create-metadata]
     strategy:
       fail-fast: false
+      max-parallel: 10
       matrix:
         package: ${{ fromJson(needs.create-metadata.outputs.pypi_packages) }}
     name: Build ${{ matrix.package }}
