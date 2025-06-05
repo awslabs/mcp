@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.stepfunctions-tool-mcp-server"
-version = "0.1.6"  # When updating this version, also update __version__ in awslabs/stepfunctions_tool_mcp_server/server.py
+version = "0.1.7"  # When updating this version, also update __version__ in awslabs/stepfunctions_tool_mcp_server/server.py
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Step Functions"
 readme = "README.md"
 requires-python = ">=3.10"
