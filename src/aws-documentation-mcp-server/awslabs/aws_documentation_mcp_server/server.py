@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """awslabs AWS Documentation MCP Server implementation."""
+from typing_extensions import Literal
 
 import httpx
 import json
 import os
 import re
 import sys
+import argparse
 
 # Import models
 from awslabs.aws_documentation_mcp_server.models import (
@@ -399,14 +401,23 @@ async def recommend(
     return results
 
 
-def main():
+def start(mode: Literal['stdio', 'sse']='sse'):
     """Run the MCP server with CLI argument support."""
     # Log startup information
     logger.info('Starting AWS Documentation MCP Server')
 
     # Run server with appropriate transport
-    mcp.run()
+    mcp.run(mode)
+
+def run():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--mode", type=str, default="sse", choices=["sse", "stdio"]
+    )
+
+    args = parser.parse_args()
+    mcp.run(args.mode)
 
 
 if __name__ == '__main__':
-    main()
+    run()

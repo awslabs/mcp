@@ -31,7 +31,7 @@ classifiers = [
 ]
 
 [project.scripts]
-"awslabs.aws-documentation-mcp-server" = "awslabs.aws_documentation_mcp_server.server:main"
+"awslabs.aws-documentation-mcp-server" = "awslabs.aws_documentation_mcp_server.server:run"
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"
