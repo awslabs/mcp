@@ -18,6 +18,7 @@ import json
 import os
 import tempfile
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
+from awslabs.aws_serverless_mcp_server.utils.security import ResponseSanitizer
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -90,19 +91,6 @@ class SamLocalInvokeTool:
         """
         try:
             await ctx.info(f"Locally invoking resource '{resource_name}' in {project_directory}")
-            project_directory = project_directory
-            resource_name = resource_name
-            template_file = template_file
-            event_file = event_file
-            event_data = event_data
-            environment_variables_file = environment_variables_file
-            docker_network = docker_network
-            container_env_vars = container_env_vars
-            parameter = parameter
-            log_file = log_file
-            layer_cache_basedir = layer_cache_basedir
-            region = region
-            profile = profile
 
             # Create a temporary event file if eventData is provided
             temp_event_file = None
@@ -118,38 +106,38 @@ class SamLocalInvokeTool:
                 # Build the command arguments
                 cmd = ['sam', 'local', 'invoke', resource_name]
 
-                if template_file:
+                if template_file and isinstance(template_file, str):
                     cmd.extend(['--template', template_file])
 
-                if event_file:
+                if event_file and isinstance(event_file, str):
                     cmd.extend(['--event', event_file])
 
-                if environment_variables_file:
+                if environment_variables_file and isinstance(environment_variables_file, str):
                     cmd.extend(['--env-vars', environment_variables_file])
 
-                if docker_network:
+                if docker_network and isinstance(docker_network, str):
                     cmd.extend(['--docker-network', docker_network])
 
-                if container_env_vars:
+                if container_env_vars and isinstance(container_env_vars, dict):
                     cmd.extend(['--container-env-vars'])
                     for key, value in container_env_vars.items():
                         cmd.append(f'{key}={value}')
 
-                if parameter:
+                if parameter and isinstance(parameter, dict):
                     cmd.extend(['--parameter-overrides'])
                     for key, value in parameter.items():
                         cmd.append(f'ParameterKey={key},ParameterValue={value}')
 
-                if log_file:
+                if log_file and isinstance(log_file, str):
                     cmd.extend(['--log-file', log_file])
 
-                if layer_cache_basedir:
+                if layer_cache_basedir and isinstance(layer_cache_basedir, str):
                     cmd.extend(['--layer-cache-basedir', layer_cache_basedir])
 
-                if region:
+                if region and isinstance(region, str):
                     cmd.extend(['--region', region])
 
-                if profile:
+                if profile and isinstance(profile, str):
                     cmd.extend(['--profile', profile])
 
                 # Execute the command
@@ -164,12 +152,14 @@ class SamLocalInvokeTool:
                     # If not valid JSON, keep as string
                     pass
 
-                return {
+                result = {
                     'success': True,
                     'message': f"Successfully invoked resource '{resource_name}' locally.",
                     'logs': stderr.decode(),
                     'function_output': function_output,
                 }
+                # Apply sanitization to prevent leaking sensitive data
+                return ResponseSanitizer.sanitize(result)
             finally:
                 # Clean up temporary event file if created
                 if temp_event_file and os.path.exists(temp_event_file):
