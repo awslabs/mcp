@@ -246,7 +246,7 @@ jobs:
     if: github.repository == 'awslabs/mcp' && needs.update-packages.outputs.changes_made == 'true' && !failure() && !cancelled() && ( needs.publish-npm.result == 'success' || needs.publish-pypi.result == 'success')
     needs: [update-packages, create-metadata, publish-pypi, publish-npm]
     runs-on: ubuntu-latest
-    environment: release
+    # environment: release
     permissions:
       contents: write
     steps:

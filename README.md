@@ -23,7 +23,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
     - [AWS Diagram MCP Server](#aws-diagram-mcp-server)
     - [AWS CloudFormation MCP Server](#aws-cloudformation-mcp-server)
-    - [AWS Lambda MCP Server](#aws-lambda-mcp-server)
+    - [AWS Lambda MCP Server](#aws-lambda-tool-mcp-server)
     - [Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)
     - [AWS Step Functions Tool MCP Server](#aws-step-functions-tool-mcp-server)
     - [AWS Terraform MCP Server](#aws-terraform-mcp-server)
@@ -218,7 +218,7 @@ A server to manage AWS resources via cloudcontrol. This allows you to perform CR
 
 ### AWS Lambda MCP Server
 
-[![PyPI version](https://img.shields.io/pypi/v/awslabs.lambda-mcp-server.svg)](https://pypi.org/project/awslabs.lambda-mcp-server/)
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.lambda-tool-mcp-server.svg)](https://pypi.org/project/awslabs.lambda-tool-mcp-server/)
 
 A server to select and run AWS Lambda function as MCP tools without code changes.
 
@@ -651,10 +651,10 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       "disabled": false,
       "autoApprove": []
     },
-    "awslabs.lambda-mcp-server": {
+    "awslabs.lambda-tool-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.lambda-mcp-server@latest"
+        "awslabs.lambda-tool-mcp-server@latest"
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
@@ -761,7 +761,7 @@ See individual server READMEs for specific requirements and configuration option
 
 Using the _"@latest"_ suffix checks and downloads the latest MCP server package from pypi every time you start your MCP clients, but it comes with a cost of increased initial load times. If you want to minimize the initial load time, remove _"@latest"_ and manage your uv cache yourself using one of these approaches:
 
-- `uv cache clean <tool>`: where {tool} is the mcp server you want to delete from cache and install again (e.g.: "awslabs.lambda-mcp-server") (remember to remove the '<>').
+- `uv cache clean <tool>`: where {tool} is the mcp server you want to delete from cache and install again (e.g.: "awslabs.lambda-tool-mcp-server") (remember to remove the '<>').
 - `uvx <tool>@latest`: this will refresh the tool with the latest version and add it to the uv cache.
 
 ### Running MCP servers in containers
@@ -991,9 +991,9 @@ For every new project, always look at your MCP servers and use mcp-core as the s
       "disabled": false,
       "autoApprove": []
     },
-    "awslabs.lambda-mcp-server": {
+    "awslabs.lambda-tool-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.lambda-mcp-server@latest"],
+      "args": ["awslabs.lambda-tool-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -1054,9 +1054,9 @@ For every new project, always look at your MCP servers and use mcp-core as the s
       "disabled": false,
       "autoApprove": []
     },
-    "awslabs.lambda-mcp-server": {
+    "awslabs.lambda-tool-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.lambda-mcp-server@latest"],
+      "args": ["awslabs.lambda-tool-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
