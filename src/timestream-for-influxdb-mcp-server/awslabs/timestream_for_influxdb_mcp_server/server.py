@@ -180,8 +180,8 @@ REQUIRED_FIELD_DATA_LINE_PROTOCOL = Field(
     ..., description='Data in InfluxDB Line Protocol format.'
 )
 OPTIONAL_FIELD_WRITE_PRECISION = Field(
-    None,
-    description='The precision for the unix timestamps within the body line-protocol. One of: ns, us, ms, s (default is ns).',
+    's',
+    description='The precision for the unix timestamps within the body line-protocol. One of: ns, us, ms, s (default is s).',
 )
 OPTIONAL_FIELD_SYNC_MODE = Field(
     'synchronous', description="The synchronization mode, either 'synchronous' or 'asynchronous'."
@@ -980,7 +980,7 @@ async def influxdb_write_points(
     org: str = REQUIRED_FIELD_ORG,
     points: List[Dict[str, Any]] = REQUIRED_FIELD_POINTS,
     write_precision: Optional[str] = OPTIONAL_FIELD_WRITE_PRECISION,
-    sync_mode: str = OPTIONAL_FIELD_SYNC_MODE,
+    sync_mode: Optional[str] = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
     """Write data points to InfluxDB.
@@ -990,7 +990,8 @@ async def influxdb_write_points(
            {
              "measurement": "my_measurement",
              "tags": {"location": "Prague"},
-             "field": {"temperature": 25.3}
+             "fields": {"temperature": 25.3}
+             "time": "2025-06-06T19:00:00Z"
             }
         ]
 
@@ -1056,7 +1057,7 @@ async def influxdb_write_line_protocol(
     org: str = REQUIRED_FIELD_ORG,
     data_line_protocol: str = REQUIRED_FIELD_DATA_LINE_PROTOCOL,
     write_precision: Optional[str] = OPTIONAL_FIELD_WRITE_PRECISION,
-    sync_mode: str = OPTIONAL_FIELD_SYNC_MODE,
+    sync_mode: Optional[str] = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
     """Write data in Line Protocol format to InfluxDB.
