@@ -32,7 +32,7 @@ ENV UV_FROZEN=true
 # Install the project's dependencies using the lockfile and settings
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install uv && \
+    pip install uv==0.7.11 && \
     uv sync --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
