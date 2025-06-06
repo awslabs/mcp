@@ -110,7 +110,7 @@ class TestDbClusterOperations:
         # Test parameters
         name = 'test-cluster'
         db_instance_type = 'db.influx.large'
-        password = 'test-password'
+        password = ''
         allocated_storage_gb = 100
         vpc_security_group_ids = ['sg-12345']
         vpc_subnet_ids = ['subnet-12345', 'subnet-67890']
@@ -173,7 +173,7 @@ class TestDbClusterOperations:
         # Test parameters
         name = 'test-cluster'
         db_instance_type = 'db.influx.large'
-        password = 'test-password'
+        password = ''
         allocated_storage_gb = 100
         vpc_security_group_ids = ['sg-12345']
         vpc_subnet_ids = ['subnet-12345', 'subnet-67890']
@@ -477,7 +477,7 @@ class TestDbInstanceOperations:
         # Test parameters
         name = 'test-instance'
         db_instance_type = 'db.influx.large'
-        password = 'test-password'
+        password = ''
         allocated_storage_gb = 100
         vpc_security_group_ids = ['sg-12345']
         vpc_subnet_ids = ['subnet-12345', 'subnet-67890']
@@ -538,7 +538,7 @@ class TestDbInstanceOperations:
         # Test parameters
         db_instance_name = 'test-instance'
         db_instance_type = 'db.influx.large'
-        password = 'test-password'
+        password = ''
         allocated_storage_gb = 100
         vpc_security_group_ids = ['sg-12345']
         vpc_subnet_ids = ['subnet-12345', 'subnet-67890']
