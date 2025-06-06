@@ -4,11 +4,12 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   detect-packages:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.find-packages.outputs.packages }}
