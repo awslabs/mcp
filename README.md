@@ -18,6 +18,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS Documentation MCP Server](#aws-documentation-mcp-server)
     - [Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)
     - [AWS Kendra Index MCP Server](#amazon-kendra-index-mcp-server)
+    - [Amazon Q index MCP Server](#amazon-q-index-mcp-server)
     - [AWS CDK MCP Server](#aws-cdk-mcp-server)
     - [Cost Analysis MCP Server](#cost-analysis-mcp-server)
     - [Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)
@@ -140,6 +141,17 @@ A server for listing and querying Amazon Kendra Indexes
 - Query Kendra indexes with natural language to give additional RAG context to your AI tool.
 
 [Learn more](src/amazon-kendra-index-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/kendra-index-mcp-server/)
+
+### Amazon Q index MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.amazon-qindex-mcp-server.svg)](https://pypi.org/project/awslabs.amazon-qindex-mcp-server/)
+
+A server for accessing Amazon Q index and retrieve relevent data for ISVs (approved data accessors)
+
+- Query Amazon Q indexes with natural language to give enterprise data as RAG context to ISV's AI tool
+
+[Learn more](src/amazon-qindex-mcp-server/README.md)
+
 
 ### Amazon Bedrock Knowledge Bases Retrieval MCP Server
 
