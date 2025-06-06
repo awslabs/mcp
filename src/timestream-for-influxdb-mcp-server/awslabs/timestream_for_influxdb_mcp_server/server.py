@@ -260,7 +260,9 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
     return InfluxDBClient(url=url, token=token, org=org, timeout=timeout, verify_ssl=verify_ssl)
 
 
-@mcp.tool(name='CreateDbCluster')
+@mcp.tool(
+    name='CreateDbCluster', description='Create a new Timestream for InfluxDB database cluster.'
+)
 async def create_db_cluster(
     name: str = REQUIRED_FIELD_CLUSTER_NAME,
     db_instance_type: str = REQUIRED_FIELD_DB_INSTANCE_TYPE,
@@ -337,7 +339,9 @@ async def create_db_cluster(
         raise e
 
 
-@mcp.tool(name='CreateDbInstance')
+@mcp.tool(
+    name='CreateDbInstance', description='Create a new Timestream for InfluxDB database instance'
+)
 async def create_db_instance(
     db_instance_name: str = REQUIRED_FIELD_DB_INSTANCE_NAME,
     db_instance_type: str = REQUIRED_FIELD_DB_INSTANCE_TYPE,
@@ -408,7 +412,10 @@ async def create_db_instance(
         raise e
 
 
-@mcp.tool(name='LsInstancesOfCluster')
+@mcp.tool(
+    name='LsInstancesOfCluster',
+    description='List all Timestream for InfluxDB instances belonging to a specific DB cluster.',
+)
 async def list_db_instances_for_cluster(
     db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
     next_token: Optional[str] = OPTIONAL_FIELD_NEXT_TOKEN,
@@ -438,7 +445,7 @@ async def list_db_instances_for_cluster(
         raise e
 
 
-@mcp.tool(name='ListDbInstances')
+@mcp.tool(name='ListDbInstances', description='List all Timestream for InfluxDB DB instances')
 async def list_db_instances(
     next_token: Optional[str] = OPTIONAL_FIELD_NEXT_TOKEN,
     max_results: Optional[int] = OPTIONAL_FIELD_MAX_RESULTS,
@@ -466,7 +473,7 @@ async def list_db_instances(
         raise e
 
 
-@mcp.tool(name='ListDbClusters')
+@mcp.tool(name='ListDbClusters', description='List all Timestream for InfluxDB DB clusters.')
 async def list_db_clusters(
     next_token: Optional[str] = OPTIONAL_FIELD_NEXT_TOKEN,
     max_results: Optional[int] = OPTIONAL_FIELD_MAX_RESULTS,
@@ -494,7 +501,10 @@ async def list_db_clusters(
         raise e
 
 
-@mcp.tool(name='GetDbParameterGroup')
+@mcp.tool(
+    name='GetDbParameterGroup',
+    description='Get a Timestream for InfluxDB DB parameter group details for a db_parameter_group_id',
+)
 async def get_db_parameter_group(
     identifier: str = REQUIRED_FIELD_PARAMETER_GROUP_ID,
 ) -> Dict[str, Any]:
@@ -515,7 +525,10 @@ async def get_db_parameter_group(
         raise e
 
 
-@mcp.tool(name='GetDbInstance')
+@mcp.tool(
+    name='GetDbInstance',
+    description='Returns a Timestream for InfluxDB DB instance details by the instance-identifier',
+)
 async def get_db_instance(
     identifier: str = REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER,
 ) -> Dict[str, Any]:
@@ -536,7 +549,10 @@ async def get_db_instance(
         raise e
 
 
-@mcp.tool(name='GetDbCluster')
+@mcp.tool(
+    name='GetDbCluster',
+    description='Returns a Timestream for InfluxDB DB cluster details by the db_cluster_id',
+)
 async def get_db_cluster(
     db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
 ) -> Dict[str, Any]:
@@ -557,7 +573,10 @@ async def get_db_cluster(
         raise e
 
 
-@mcp.tool(name='DeleteDbInstance')
+@mcp.tool(
+    name='DeleteDbInstance',
+    description='Deletes a Timestream for InfluxDB DB instance by the instance-identifier',
+)
 async def delete_db_instance(
     identifier: str = REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER,
 ) -> Dict[str, Any]:
@@ -578,7 +597,10 @@ async def delete_db_instance(
         raise e
 
 
-@mcp.tool(name='DeleteDbCluster')
+@mcp.tool(
+    name='DeleteDbCluster',
+    description='Deletes a Timestream for InfluxDB cluster by the db_cluster_id',
+)
 async def delete_db_cluster(
     db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
 ) -> Dict[str, Any]:
@@ -599,7 +621,9 @@ async def delete_db_cluster(
         raise e
 
 
-@mcp.tool(name='ListDbParamGroups')
+@mcp.tool(
+    name='ListDbParamGroups', description='List all Timestream for InfluxDB DB parameter groups.'
+)
 async def list_db_parameter_groups(
     next_token: Optional[str] = OPTIONAL_FIELD_NEXT_TOKEN,
     max_results: Optional[int] = OPTIONAL_FIELD_MAX_RESULTS,
@@ -627,7 +651,7 @@ async def list_db_parameter_groups(
         raise e
 
 
-@mcp.tool(name='ListTagsForResource')
+@mcp.tool(name='ListTagsForResource', description='A list of tags applied to the resource.')
 async def list_tags_for_resource(
     resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
 ) -> Dict[str, Any]:
@@ -648,7 +672,10 @@ async def list_tags_for_resource(
         raise e
 
 
-@mcp.tool(name='TagResource')
+@mcp.tool(
+    name='TagResource',
+    description='Tags are composed of a Key/Value pairs. Apply them to Timestream for InfluxDB resource.',
+)
 async def tag_resource(
     resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
     tags: Dict[str, str] = REQUIRED_FIELD_TAGS_RESOURCE,
@@ -673,7 +700,10 @@ async def tag_resource(
         raise e
 
 
-@mcp.tool(name='UntagResource')
+@mcp.tool(
+    name='UntagResource',
+    description='Removes the tags, identified by the keys, from the specified resource.',
+)
 async def untag_resource(
     resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
     tag_keys: List[str] = REQUIRED_FIELD_TAG_KEYS,
@@ -695,7 +725,7 @@ async def untag_resource(
         raise e
 
 
-@mcp.tool(name='UpdateDbCluster')
+@mcp.tool(name='UpdateDbCluster', description='Updates a Timestream for InfluxDB cluster.')
 async def update_db_cluster(
     db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
     db_instance_type: Optional[str] = OPTIONAL_FIELD_DB_INSTANCE_TYPE_CLUSTER_UPDATE,
@@ -740,7 +770,7 @@ async def update_db_cluster(
         raise e
 
 
-@mcp.tool(name='UpdateDbInstance')
+@mcp.tool(name='UpdateDbInstance', description='Updates a Timestream for InfluxDB DB instance.')
 async def update_db_instance(
     identifier: str = REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER,
     db_instance_type: Optional[str] = OPTIONAL_FIELD_DB_INSTANCE_TYPE_CLUSTER_UPDATE,
@@ -789,11 +819,14 @@ async def update_db_instance(
         raise e
 
 
-@mcp.tool(name='LsInstancesByStatus')
+@mcp.tool(
+    name='LsInstancesByStatus',
+    description='Returns a list of Timestream for InfluxDB DB instances filtered by status (case-insensitive).',
+)
 async def list_db_instances_by_status(
     status: str = REQUIRED_FIELD_STATUS,
 ) -> Dict[str, Any]:
-    """Returns a list of Timestream for InfluxDB DB instances filtered by status.
+    """Returns a list of Timestream for InfluxDB DB instances filtered by status (case-insensitive).
 
     This tool paginates through all DB instances and filters them by the provided status
     in a case-insensitive manner.
@@ -843,11 +876,14 @@ async def list_db_instances_by_status(
         raise e
 
 
-@mcp.tool(name='ListClustersByStatus')
+@mcp.tool(
+    name='ListClustersByStatus',
+    description='Returns a list of Timestream for InfluxDB DB clusters filtered by status (case-insensitive).',
+)
 async def list_db_clusters_by_status(
     status: str = REQUIRED_FIELD_STATUS_CLUSTER,
 ) -> Dict[str, Any]:
-    """Returns a list of Timestream for InfluxDB DB clusters filtered by status.
+    """Returns a list of Timestream for InfluxDB DB clusters filtered by status (case-insensitive).
 
     This tool paginates through all DB clusters and filters them by the provided status
     in a case-insensitive manner.
@@ -897,7 +933,10 @@ async def list_db_clusters_by_status(
         raise e
 
 
-@mcp.tool(name='CreateDbParamGroup')
+@mcp.tool(
+    name='CreateDbParamGroup',
+    description='Creates a new Timestream for InfluxDB DB parameter group to associate with DB instances.',
+)
 async def create_db_parameter_group(
     name: str = REQUIRED_FIELD_PARAM_GROUP_NAME,
     description: Optional[str] = OPTIONAL_FIELD_PARAM_GROUP_DESCRIPTION,
@@ -933,7 +972,7 @@ async def create_db_parameter_group(
         raise e
 
 
-@mcp.tool(name='InfluxDBWritePoints')
+@mcp.tool(name='InfluxDBWritePoints', description='Write data points to InfluxDB endpoint.')
 async def influxdb_write_points(
     url: str = REQUIRED_FIELD_URL,
     token: str = REQUIRED_FIELD_TOKEN,
@@ -945,21 +984,6 @@ async def influxdb_write_points(
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
     """Write data points to InfluxDB.
-
-    Args:
-        url: The URL of the InfluxDB server.
-        token: The authentication token.
-        bucket: The destination bucket for writes.
-        org: The organization name.
-        points: List of data points to write. Each point should be a dictionary with:
-               - measurement: The measurement name
-               - tags: Dictionary of tag keys and values
-               - fields: Dictionary of field keys and values
-               - time: Optional timestamp (if not provided, current time will be used)
-        write_precision: The precision for the unix timestamps within the body line-protocol.
-                        One of: ns, us, ms, s (default is ns).
-        sync_mode: The synchronization mode, either "synchronous" or "asynchronous".
-        verify_ssl: whether to verify SSL with https connections
 
         Example of points:
         [
@@ -1024,7 +1048,7 @@ async def influxdb_write_points(
         return {'status': 'error', 'message': str(e)}
 
 
-@mcp.tool(name='InfluxDBWriteLP')
+@mcp.tool(name='InfluxDBWriteLP', description='Write data in Line Protocol format to InfluxDB.')
 async def influxdb_write_line_protocol(
     url: str = REQUIRED_FIELD_URL,
     token: str = REQUIRED_FIELD_TOKEN,
@@ -1036,17 +1060,6 @@ async def influxdb_write_line_protocol(
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
     """Write data in Line Protocol format to InfluxDB.
-
-    Args:
-        url: The URL of the InfluxDB server.
-        token: The authentication token.
-        bucket: The destination bucket for writes.
-        org: The organization name.
-        data_line_protocol: Data in InfluxDB Line Protocol format.
-        write_precision: The precision for the unix timestamps within the body line-protocol.
-                        One of: ns, us, ms, s (default is ns).
-        sync_mode: The synchronization mode, either "synchronous" or "asynchronous".
-        verify_ssl: whether to verify SSL with https connections
 
     Returns:
         Status of the write operation.
@@ -1081,7 +1094,7 @@ async def influxdb_write_line_protocol(
         return {'status': 'error', 'message': str(e)}
 
 
-@mcp.tool(name='InfluxDBQuery')
+@mcp.tool(name='InfluxDBQuery', description='Query data from InfluxDB using Flux query language.')
 async def influxdb_query(
     url: str = REQUIRED_FIELD_URL,
     token: str = REQUIRED_FIELD_TOKEN,
@@ -1090,13 +1103,6 @@ async def influxdb_query(
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
     """Query data from InfluxDB using Flux query language.
-
-    Args:
-        url: The URL of the InfluxDB server.
-        token: The authentication token.
-        org: The organization name.
-        query: The Flux query string.
-        verify_ssl: whether to verify SSL with https connections
 
     Returns:
         Query results in the specified format.
