@@ -97,6 +97,13 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "pass",
     "raise ImportError",
+    "# Copyright",
+    "# Licensed under",
+    "# limitations under the License",
+    "# Copyright",
+    "# Licensed under",
+    "# limitations under the License",
+    "\"\"\".*\"\"\"",
 ]
 
 [tool.ruff]
