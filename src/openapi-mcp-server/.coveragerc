@@ -1,0 +1,28 @@
+enecccdegrvhinvrrcftvklhddegejhnkvetvicdctkg
+[run]
+source = awslabs
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    pass
+    raise ImportError
+    except ImportError:
+    # License header exclusion
+    # Copyright Amazon.com
+    # Licensed under the Apache License
+    response.raise_for_status()
+    
+# Exclude test files and environments from coverage calculation
+omit =
+    */test-env/*
+    */tests/*
+    */__pycache__/*
+
+[paths]
+source =
+    awslabs/
+    */site-packages/awslabs/
