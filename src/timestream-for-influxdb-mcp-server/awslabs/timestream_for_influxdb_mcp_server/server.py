@@ -13,8 +13,10 @@
 
 import boto3
 import os
-from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.influxdb_client import InfluxDBClient
+from influxdb_client.client.write.point import Point
 from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
+from influxdb_client.domain.write_precision import WritePrecision
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -180,11 +182,12 @@ REQUIRED_FIELD_DATA_LINE_PROTOCOL = Field(
     ..., description='Data in InfluxDB Line Protocol format.'
 )
 OPTIONAL_FIELD_WRITE_PRECISION = Field(
-    's',
-    description='The precision for the unix timestamps within the body line-protocol. One of: ns, us, ms, s (default is s).',
+    default='ns',
+    description='The precision for the unix timestamps within the body line-protocol. One of: ns, us, ms, s (default is ns).',
 )
 OPTIONAL_FIELD_SYNC_MODE = Field(
-    'synchronous', description="The synchronization mode, either 'synchronous' or 'asynchronous'."
+    default='synchronous',
+    description="The synchronization mode, either 'synchronous' or 'asynchronous'.",
 )
 OPTIONAL_FIELD_VERIFY_SSL = Field(
     True, description='Whether to verify SSL with https connections.'
@@ -257,7 +260,12 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
     if not token:
         raise ValueError('Token must be provided')
 
-    return InfluxDBClient(url=url, token=token, org=org, timeout=timeout, verify_ssl=verify_ssl)
+    # Ensure org is not None when passed to InfluxDBClient
+    org_param = org if org is not None else ''
+
+    return InfluxDBClient(
+        url=url, token=token, org=org_param, timeout=timeout, verify_ssl=verify_ssl
+    )
 
 
 @mcp.tool(
@@ -325,11 +333,11 @@ async def create_db_cluster(
     if failover_mode:
         params['failoverMode'] = failover_mode
     if log_delivery_configuration:
-        params['logDeliveryConfiguration'] = log_delivery_configuration
+        params['logDeliveryConfiguration'] = str(log_delivery_configuration)
 
     if tags:
         tag_list = [{'Key': k, 'Value': v} for k, v in tags.items()]
-        params['tags'] = tag_list
+        params['tags'] = str(tag_list)
 
     try:
         response = ts_influx_client.create_db_cluster(**params)
@@ -390,7 +398,7 @@ async def create_db_instance(
     if bucket:
         params['bucket'] = bucket
     if port:
-        params['port'] = port
+        params['port'] = str(port)
     if username:
         params['username'] = username
     if db_storage_type:
@@ -402,7 +410,7 @@ async def create_db_instance(
 
     if tags:
         tag_list = [{'Key': k, 'Value': v} for k, v in tags.items()]
-        params['tags'] = tag_list
+        params['tags'] = str(tag_list)
 
     try:
         response = ts_influx_client.create_db_instance(**params)
@@ -435,7 +443,7 @@ async def list_db_instances_for_cluster(
     if next_token:
         params['nextToken'] = next_token
     if max_results:
-        params['maxResults'] = max_results
+        params['maxResults'] = str(max_results)
 
     try:
         response = ts_influx_client.list_db_instances_for_cluster(**params)
@@ -463,7 +471,7 @@ async def list_db_instances(
     if next_token:
         params['nextToken'] = next_token
     if max_results:
-        params['maxResults'] = max_results
+        params['maxResults'] = str(max_results)
 
     try:
         response = ts_influx_client.list_db_instances(**params)
@@ -491,7 +499,7 @@ async def list_db_clusters(
     if next_token:
         params['nextToken'] = next_token
     if max_results:
-        params['maxResults'] = max_results
+        params['maxResults'] = str(max_results)
 
     try:
         response = ts_influx_client.list_db_clusters(**params)
@@ -641,7 +649,7 @@ async def list_db_parameter_groups(
     if next_token:
         params['nextToken'] = next_token
     if max_results:
-        params['maxResults'] = max_results
+        params['maxResults'] = str(max_results)
 
     try:
         response = ts_influx_client.list_db_parameter_groups(**params)
@@ -756,11 +764,11 @@ async def update_db_cluster(
     if db_parameter_group_identifier:
         params['dbParameterGroupIdentifier'] = db_parameter_group_identifier
     if port:
-        params['port'] = port
+        params['port'] = str(port)
     if failover_mode:
         params['failoverMode'] = failover_mode
     if log_delivery_configuration:
-        params['logDeliveryConfiguration'] = log_delivery_configuration
+        params['logDeliveryConfiguration'] = str(log_delivery_configuration)
 
     try:
         response = ts_influx_client.update_db_cluster(**params)
@@ -801,15 +809,15 @@ async def update_db_instance(
     if db_parameter_group_identifier:
         params['dbParameterGroupIdentifier'] = db_parameter_group_identifier
     if port:
-        params['port'] = port
+        params['port'] = str(port)
     if allocated_storage_gb:
-        params['allocatedStorage'] = allocated_storage_gb
+        params['allocatedStorage'] = str(allocated_storage_gb)
     if db_storage_type:
         params['dbStorageType'] = db_storage_type
     if deployment_type:
         params['deploymentType'] = deployment_type
     if log_delivery_configuration:
-        params['logDeliveryConfiguration'] = log_delivery_configuration
+        params['logDeliveryConfiguration'] = str(log_delivery_configuration)
 
     try:
         response = ts_influx_client.update_db_instance(**params)
@@ -857,7 +865,11 @@ async def list_db_instances_by_status(
             # Filter instances by status (case-insensitive)
             if 'items' in response:
                 for instance in response['items']:
-                    if 'status' in instance and instance['status'].lower() == status_lower:
+                    if (
+                        'status' in instance
+                        and instance['status'] is not None
+                        and instance['status'].lower() == status_lower
+                    ):
                         filtered_instances.append(instance)
 
             # Check if there are more results to fetch
@@ -914,7 +926,11 @@ async def list_db_clusters_by_status(
             # Filter clusters by status (case-insensitive)
             if 'items' in response:
                 for cluster in response['items']:
-                    if 'status' in cluster and cluster['status'].lower() == status_lower:
+                    if (
+                        'status' in cluster
+                        and cluster['status'] is not None
+                        and cluster['status'].lower() == status_lower
+                    ):
                         filtered_clusters.append(cluster)
 
             # Check if there are more results to fetch
@@ -959,10 +975,10 @@ async def create_db_parameter_group(
     if description:
         params['description'] = description
     if parameters:
-        params['parameters'] = parameters
+        params['parameters'] = str(parameters)
     if tags:
         tag_list = [{'Key': k, 'Value': v} for k, v in tags.items()]
-        params['tags'] = tag_list
+        params['tags'] = str(tag_list)
 
     try:
         response = ts_influx_client.create_db_parameter_group(**params)
@@ -979,7 +995,7 @@ async def influxdb_write_points(
     bucket: str = REQUIRED_FIELD_BUCKET,
     org: str = REQUIRED_FIELD_ORG,
     points: List[Dict[str, Any]] = REQUIRED_FIELD_POINTS,
-    write_precision: Optional[str] = OPTIONAL_FIELD_WRITE_PRECISION,
+    time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
     sync_mode: Optional[str] = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
@@ -1002,7 +1018,7 @@ async def influxdb_write_points(
         client = get_influxdb_client(url, token, org, verify_ssl)
 
         # Set write mode
-        if sync_mode.lower() == 'synchronous':
+        if sync_mode and sync_mode.lower() == 'synchronous':
             write_api = client.write_api(write_options=SYNCHRONOUS)
         else:
             write_api = client.write_api(write_options=ASYNCHRONOUS)
@@ -1033,7 +1049,7 @@ async def influxdb_write_points(
             bucket=bucket,
             org=org,
             record=influx_points,
-            write_precision=write_precision,
+            write_precision=getattr(WritePrecision, time_precision.upper()),
             verify_ssl=verify_ssl,
         )
 
@@ -1056,8 +1072,8 @@ async def influxdb_write_line_protocol(
     bucket: str = REQUIRED_FIELD_BUCKET,
     org: str = REQUIRED_FIELD_ORG,
     data_line_protocol: str = REQUIRED_FIELD_DATA_LINE_PROTOCOL,
-    write_precision: Optional[str] = OPTIONAL_FIELD_WRITE_PRECISION,
-    sync_mode: Optional[str] = OPTIONAL_FIELD_SYNC_MODE,
+    time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
+    sync_mode: str = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
 ) -> Dict[str, Any]:
     """Write data in Line Protocol format to InfluxDB.
@@ -1069,7 +1085,7 @@ async def influxdb_write_line_protocol(
         client = get_influxdb_client(url, token, org)
 
         # Set write mode
-        if sync_mode.lower() == 'synchronous':
+        if sync_mode and sync_mode.lower() == 'synchronous':
             write_api = client.write_api(write_options=SYNCHRONOUS)
         else:
             write_api = client.write_api(write_options=ASYNCHRONOUS)
@@ -1079,7 +1095,7 @@ async def influxdb_write_line_protocol(
             bucket=bucket,
             org=org,
             record=data_line_protocol,
-            write_precision=write_precision,
+            write_precision=getattr(WritePrecision, time_precision.upper()),
             verify_ssl=verify_ssl,
         )
 
