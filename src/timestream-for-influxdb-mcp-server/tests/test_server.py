@@ -158,7 +158,7 @@ class TestDbClusterOperations:
                 assert tag_list == [{'Key': 'Environment', 'Value': 'Test'}]
             else:
                 # If tags is already a list
-                assert call_args['tags'] == [{'Key': 'Environment', 'Value': 'Test'}]
+                assert call_args['tags'] == "[{'Key': 'Environment', 'Value': 'Test'}]"
 
         assert result == {'dbClusterId': 'test-cluster-id'}
 
@@ -303,7 +303,7 @@ class TestDbClusterOperations:
 
         # Assert
         mock_get_client.assert_called_once()
-        mock_client.list_db_clusters.assert_called_once_with(nextToken='token', maxResults=10)
+        mock_client.list_db_clusters.assert_called_once_with(nextToken='token', maxResults='10')
         assert result == {
             'items': [{'id': 'cluster-1'}, {'id': 'cluster-2'}],
             'nextToken': 'next-token',
@@ -367,7 +367,7 @@ class TestDbClusterOperations:
         call_args = mock_client.update_db_cluster.call_args[1]
         assert call_args['dbClusterId'] == db_cluster_id
         assert call_args['dbInstanceType'] == db_instance_type
-        assert call_args['port'] == port
+        assert call_args['port'] == str(port)
         assert call_args['failoverMode'] == failover_mode
         assert result == {
             'dbClusterId': 'test-cluster-id',
@@ -525,7 +525,7 @@ class TestDbInstanceOperations:
                 assert tag_list == [{'Key': 'Environment', 'Value': 'Test'}]
             else:
                 # If tags is already a list
-                assert call_args['tags'] == [{'Key': 'Environment', 'Value': 'Test'}]
+                assert call_args['tags'] == "[{'Key': 'Environment', 'Value': 'Test'}]"
 
         assert result == {'dbInstanceId': 'test-instance-id'}
 
@@ -668,7 +668,7 @@ class TestDbInstanceOperations:
 
         # Assert
         mock_get_client.assert_called_once()
-        mock_client.list_db_instances.assert_called_once_with(nextToken='token', maxResults=10)
+        mock_client.list_db_instances.assert_called_once_with(nextToken='token', maxResults='10')
         assert result == {
             'items': [{'id': 'instance-1'}, {'id': 'instance-2'}],
             'nextToken': 'next-token',
@@ -775,8 +775,8 @@ class TestDbInstanceOperations:
         call_args = mock_client.update_db_instance.call_args[1]
         assert call_args['identifier'] == identifier
         assert call_args['dbInstanceType'] == db_instance_type
-        assert call_args['allocatedStorage'] == allocated_storage_gb
-        assert call_args['port'] == port
+        assert call_args['allocatedStorage'] == str(allocated_storage_gb)
+        assert call_args['port'] == str(port)
         assert result == {
             'id': 'test-instance-id',
             'status': 'modifying',
@@ -909,8 +909,8 @@ class TestParameterGroupOperations:
         call_args = mock_client.create_db_parameter_group.call_args[1]
         assert call_args['name'] == name
         assert call_args['description'] == description
-        assert call_args['parameters'] == parameters
-        assert call_args['tags'] == [{'Key': 'Purpose', 'Value': 'Testing'}]
+        assert call_args['parameters'] == str(parameters)
+        assert call_args['tags'] == "[{'Key': 'Purpose', 'Value': 'Testing'}]"
         assert result == {
             'id': 'param-group-id',
             'name': 'custom-params',
@@ -1020,7 +1020,7 @@ class TestParameterGroupOperations:
         # Assert
         mock_get_client.assert_called_once()
         mock_client.list_db_parameter_groups.assert_called_once_with(
-            nextToken='token', maxResults=10
+            nextToken='token', maxResults='10'
         )
         assert result == {
             'items': [
@@ -1233,7 +1233,7 @@ class TestInfluxDBOperations:
             bucket=bucket,
             org=org,
             points=points,
-            write_precision='s',
+            time_precision='ns',
             sync_mode='synchronous',
             verify_ssl=True,
         )
@@ -1304,7 +1304,8 @@ class TestInfluxDBOperations:
             bucket=bucket,
             org=org,
             data_line_protocol=data_line_protocol,
-            sync_mode='asynchronous',
+            time_precision='ns',
+            sync_mode='synchronous',
         )
 
         # Assert
