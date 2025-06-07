@@ -15,43 +15,28 @@
 
 """Tests for prompt models dict method."""
 
-import pytest
 from awslabs.openapi_mcp_server.prompts.models import PromptArgument
 
 
 def test_prompt_argument_dict_with_description():
     """Test PromptArgument.dict() method with description."""
-    arg = PromptArgument(
-        name="test_arg",
-        description="Test description",
-        required=True
-    )
-    
+    arg = PromptArgument(name='test_arg', description='Test description', required=True)
+
     result = arg.dict()
-    
-    expected = {
-        'name': 'test_arg',
-        'description': 'Test description',
-        'required': True
-    }
-    
+
+    expected = {'name': 'test_arg', 'description': 'Test description', 'required': True}
+
     assert result == expected
 
 
 def test_prompt_argument_dict_without_description():
     """Test PromptArgument.dict() method without description."""
-    arg = PromptArgument(
-        name="test_arg",
-        required=False
-    )
-    
+    arg = PromptArgument(name='test_arg', required=False)
+
     result = arg.dict()
-    
-    expected = {
-        'name': 'test_arg',
-        'required': False
-    }
-    
+
+    expected = {'name': 'test_arg', 'required': False}
+
     assert result == expected
     # Verify description is not included when None/empty
     assert 'description' not in result
@@ -59,19 +44,12 @@ def test_prompt_argument_dict_without_description():
 
 def test_prompt_argument_dict_with_empty_description():
     """Test PromptArgument.dict() method with empty description."""
-    arg = PromptArgument(
-        name="test_arg",
-        description="",
-        required=True
-    )
-    
+    arg = PromptArgument(name='test_arg', description='', required=True)
+
     result = arg.dict()
-    
-    expected = {
-        'name': 'test_arg',
-        'required': True
-    }
-    
+
+    expected = {'name': 'test_arg', 'required': True}
+
     assert result == expected
     # Verify empty description is not included
     assert 'description' not in result
@@ -79,13 +57,13 @@ def test_prompt_argument_dict_with_empty_description():
 
 def test_prompt_argument_dict_defaults():
     """Test PromptArgument.dict() method with default values."""
-    arg = PromptArgument(name="test_arg")
-    
+    arg = PromptArgument(name='test_arg')
+
     result = arg.dict()
-    
+
     expected = {
         'name': 'test_arg',
-        'required': False  # Default value
+        'required': False,  # Default value
     }
-    
+
     assert result == expected
