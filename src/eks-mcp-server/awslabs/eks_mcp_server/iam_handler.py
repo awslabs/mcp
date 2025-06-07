@@ -102,7 +102,7 @@ class IAMHandler:
             managed_policies = self._get_managed_policies(ctx, role_name)
 
             # Get inline policies
-            inline_policies = self._get_inline_policies(ctx, role_name)
+            inline_policies = self._get_inline_policies(role_name)
 
             # Parse the assume role policy document if it's a string, otherwise use it directly
             if isinstance(role['AssumeRolePolicyDocument'], str):
@@ -265,7 +265,7 @@ class IAMHandler:
 
         return managed_policies
 
-    def _get_inline_policies(self, ctx, role_name):
+    def _get_inline_policies(self, role_name):
         """Get inline policies embedded in a role.
 
         Args:
