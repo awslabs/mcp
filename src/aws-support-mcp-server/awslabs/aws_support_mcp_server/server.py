@@ -169,7 +169,7 @@ mcp = FastMCP(
             "fileName": "screenshot.png",
             "data": "base64_encoded_content"
         }],
-        attachment_set_id="12345678-1234-1234-1234-123456789012"
+        attachment_set_id="EXAMPLE-ATTACHMENT-SET-ID"
     )
 
 
