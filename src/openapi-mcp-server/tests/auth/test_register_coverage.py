@@ -26,7 +26,7 @@ def test_cognito_import_error_handling():
     # Mock the logger
     with patch.object(register, 'logger') as mock_logger:
         # Mock register_auth_provider to avoid side effects
-        with patch.object(register, 'register_auth_provider') as mock_register:
+        with patch.object(register, 'register_auth_provider'):
             # Create a mock that raises ImportError when trying to import cognito_auth
             original_import = __builtins__['__import__']
 
