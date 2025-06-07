@@ -15,7 +15,7 @@ exclude_lines =
     # Copyright Amazon.com
     # Licensed under the Apache License
     response.raise_for_status()
-    
+
 # Exclude test files and environments from coverage calculation
 omit =
     */test-env/*
