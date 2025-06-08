@@ -10,7 +10,10 @@ exclude_lines =
     pass
     raise ImportError
     except ImportError:
-    # License header exclusion
+    # License header exclusions - comprehensive patterns
+    # Copyright
+    # Licensed under
+    # limitations under the License
     # Copyright Amazon.com
     # Licensed under the Apache License
     response.raise_for_status()

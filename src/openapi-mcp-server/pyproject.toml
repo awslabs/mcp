@@ -97,12 +97,14 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "pass",
     "raise ImportError",
+    # License header patterns - comprehensive coverage
     "# Copyright",
     "# Licensed under",
     "# limitations under the License",
-    "# Copyright",
-    "# Licensed under",
-    "# limitations under the License",
+    "# Copyright Amazon.com",
+    "# Licensed under the Apache License",
+    "# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND",
+    "# See the License for the specific language governing permissions",
     "\"\"\".*\"\"\"",
 ]
 
