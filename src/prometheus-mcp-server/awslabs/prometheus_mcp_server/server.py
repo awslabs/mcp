@@ -210,7 +210,9 @@ def setup_environment(config):
     return True
 
 
-async def make_prometheus_request(endpoint: str, params: Optional[Dict] = None, max_retries: int = 3) -> Any:
+async def make_prometheus_request(
+    endpoint: str, params: Optional[Dict] = None, max_retries: int = 3
+) -> Any:
     """Make a request to the Prometheus HTTP API with AWS SigV4 authentication.
 
     Args:
@@ -280,9 +282,13 @@ async def make_prometheus_request(endpoint: str, params: Optional[Dict] = None, 
             retry_count += 1
             if retry_count < max_retries:
                 if config and hasattr(config, 'retry_delay') and config.retry_delay is not None:
-                    retry_delay_seconds = config.retry_delay * (2 ** (retry_count - 1))  # Exponential backoff
+                    retry_delay_seconds = config.retry_delay * (
+                        2 ** (retry_count - 1)
+                    )  # Exponential backoff
                 else:
-                    retry_delay_seconds = 1 * (2 ** (retry_count - 1))  # Default exponential backoff
+                    retry_delay_seconds = 1 * (
+                        2 ** (retry_count - 1)
+                    )  # Default exponential backoff
                 logger.warning(f'Request failed: {e}. Retrying in {retry_delay_seconds}s...')
                 time.sleep(retry_delay_seconds)
             else:
@@ -315,7 +321,7 @@ async def test_prometheus_connection():
             logger.error('  - aps:GetMetricMetadata')
         elif error_code == 'ResourceNotFoundException':
             logger.error('ERROR: Prometheus workspace not found')
-            prometheus_url = "Not configured"
+            prometheus_url = 'Not configured'
             if config and hasattr(config, 'prometheus_url') and config.prometheus_url:
                 prometheus_url = config.prometheus_url
             logger.error(
@@ -454,7 +460,7 @@ async def list_metrics(ctx: Context) -> MetricsList:
         max_retries = 3  # Default value
         if config and hasattr(config, 'max_retries') and config.max_retries is not None:
             max_retries = config.max_retries
-            
+
         data = await make_prometheus_request(
             'label/__name__/values', params={}, max_retries=max_retries
         )
@@ -485,16 +491,16 @@ async def get_server_info(ctx: Context) -> ServerInfo:
         logger.info('Retrieving server configuration information')
         if not config:
             return ServerInfo(
-                prometheus_url="Not configured",
-                aws_region="Not configured",
-                aws_profile="Not configured",
-                service_name="Not configured",
+                prometheus_url='Not configured',
+                aws_region='Not configured',
+                aws_profile='Not configured',
+                service_name='Not configured',
             )
-            
+
         return ServerInfo(
-            prometheus_url=config.prometheus_url or "Not configured",
-            aws_region=config.aws_region or "Not configured",
-            aws_profile=config.aws_profile or "default",
+            prometheus_url=config.prometheus_url or 'Not configured',
+            aws_region=config.aws_region or 'Not configured',
+            aws_profile=config.aws_profile or 'default',
             service_name=config.service_name or DEFAULT_SERVICE_NAME,
         )
     except Exception as e:
