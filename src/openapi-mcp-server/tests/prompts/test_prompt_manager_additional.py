@@ -41,7 +41,7 @@ class TestMCPPromptManagerAdditional:
         """Test that prompt manager has a prompts list."""
         assert hasattr(prompt_manager, 'prompts')
         assert isinstance(prompt_manager.prompts, list)
-        
+
         # Test adding to prompts list
         prompt_manager.prompts.append({'name': 'test', 'description': 'Test prompt'})
         assert len(prompt_manager.prompts) == 1
@@ -49,10 +49,10 @@ class TestMCPPromptManagerAdditional:
     def test_prompt_manager_attributes(self, prompt_manager):
         """Test prompt manager has expected attributes."""
         assert hasattr(prompt_manager, 'prompts')
-        
+
         # Test that prompts is initially empty
         assert len(prompt_manager.prompts) == 0
-        
+
         # Test that we can modify prompts
         test_prompt = {'name': 'test_prompt', 'description': 'A test prompt'}
         prompt_manager.prompts.append(test_prompt)
@@ -62,10 +62,10 @@ class TestMCPPromptManagerAdditional:
         """Test that multiple prompt manager instances are independent."""
         manager1 = MCPPromptManager()
         manager2 = MCPPromptManager()
-        
+
         manager1.prompts.append({'name': 'prompt1'})
         manager2.prompts.append({'name': 'prompt2'})
-        
+
         assert len(manager1.prompts) == 1
         assert len(manager2.prompts) == 1
         assert manager1.prompts != manager2.prompts
@@ -74,19 +74,19 @@ class TestMCPPromptManagerAdditional:
         """Test various operations on the prompts list."""
         # Test empty state
         assert len(prompt_manager.prompts) == 0
-        
+
         # Test adding multiple prompts
         prompts_to_add = [
             {'name': 'prompt1', 'description': 'First prompt'},
             {'name': 'prompt2', 'description': 'Second prompt'},
-            {'name': 'prompt3', 'description': 'Third prompt'}
+            {'name': 'prompt3', 'description': 'Third prompt'},
         ]
-        
+
         for prompt in prompts_to_add:
             prompt_manager.prompts.append(prompt)
-        
+
         assert len(prompt_manager.prompts) == 3
-        
+
         # Test clearing prompts
         prompt_manager.prompts.clear()
         assert len(prompt_manager.prompts) == 0

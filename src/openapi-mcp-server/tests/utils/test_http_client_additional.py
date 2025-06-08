@@ -14,8 +14,6 @@
 
 """Additional tests for HTTP client to improve patch coverage."""
 
-import pytest
-from unittest.mock import Mock, patch
 import httpx
 from awslabs.openapi_mcp_server.utils.http_client import HttpClientFactory
 
@@ -66,9 +64,7 @@ class TestHttpClientFactoryAdditional:
     def test_create_client_with_connection_limits(self):
         """Test creating HTTP client with custom connection limits."""
         client = HttpClientFactory.create_client(
-            'https://example.com', 
-            max_connections=50, 
-            max_keepalive=20
+            'https://example.com', max_connections=50, max_keepalive=20
         )
         assert isinstance(client, httpx.AsyncClient)
         # Connection limits are set in the transport layer
