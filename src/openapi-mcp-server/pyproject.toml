@@ -88,6 +88,9 @@ asyncio_mode = "auto"
 [tool.coverage.run]
 source = ["awslabs"]
 omit = ["tests/*", "**/__init__.py"]
+# Handle line shifts caused by license headers
+skip_covered = false
+skip_empty = true
 
 [tool.coverage.report]
 exclude_lines = [
@@ -97,16 +100,31 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "pass",
     "raise ImportError",
-    # License header patterns - comprehensive coverage
-    "# Copyright",
-    "# Licensed under",
-    "# limitations under the License",
-    "# Copyright Amazon.com",
-    "# Licensed under the Apache License",
-    "# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND",
-    "# See the License for the specific language governing permissions",
+    # License header patterns - regex patterns to handle line shifts
+    "^\\s*#\\s*Copyright",
+    "^\\s*#\\s*Licensed under",
+    "^\\s*#\\s*limitations under the License",
+    "^\\s*#\\s*Copyright Amazon\\.com",
+    "^\\s*#\\s*Licensed under the Apache License",
+    "^\\s*#\\s*WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND",
+    "^\\s*#\\s*See the License for the specific language governing permissions",
+    "^\\s*#\\s*and limitations under the License",
+    "^\\s*#\\s*$",
+    "^\\s*#\\s*http://www\\.apache\\.org/licenses/LICENSE-2\\.0",
+    "^\\s*#\\s*Unless required by applicable law",
+    "^\\s*#\\s*distributed under the License is distributed",
+    "^\\s*#\\s*either express or implied",
     "\"\"\".*\"\"\"",
 ]
+# Skip empty lines to reduce line shift impact
+skip_covered = false
+skip_empty = true
+
+[tool.coverage.html]
+skip_empty = true
+
+[tool.coverage.xml]
+skip_empty = true
 
 [tool.ruff]
 target-version = "py310"

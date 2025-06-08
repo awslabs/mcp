@@ -31,7 +31,9 @@ class TestHttpClientComprehensive:
         # Add session_manager attribute with proper token
         mock_session_manager = Mock()
         mock_session_manager.is_authenticated.return_value = True
-        mock_session_manager.get_access_token.return_value = 'mock_token_1234567890_abcdefghij'
+        mock_session_manager.get_access_token.return_value = (
+            'test_mock_token_not_real'  # pragma: allowlist secret
+        )
         mock_auth.session_manager = mock_session_manager
 
         with patch('awslabs.openapi_mcp_server.utils.http_client.logger') as mock_logger:
@@ -64,7 +66,9 @@ class TestHttpClientComprehensive:
         # Add session_manager that returns False for is_authenticated
         mock_session_manager = Mock()
         mock_session_manager.is_authenticated.return_value = False
-        mock_session_manager.get_access_token.return_value = 'mock_token_short'
+        mock_session_manager.get_access_token.return_value = (
+            'test_mock_short'  # pragma: allowlist secret
+        )
         mock_auth.session_manager = mock_session_manager
 
         with patch('awslabs.openapi_mcp_server.utils.http_client.logger') as mock_logger:
@@ -119,7 +123,9 @@ class TestHttpClientComprehensive:
         mock_auth = Mock()
         mock_auth.__class__.__name__ = 'CustomAuth'
         mock_session_manager = Mock()
-        mock_session_manager.get_access_token.return_value = 'test_token_123'
+        mock_session_manager.get_access_token.return_value = (
+            'test_token_123'  # pragma: allowlist secret
+        )
         # Remove is_authenticated method to test error handling
         if hasattr(mock_session_manager, 'is_authenticated'):
             delattr(mock_session_manager, 'is_authenticated')

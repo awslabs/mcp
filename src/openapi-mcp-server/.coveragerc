@@ -1,5 +1,8 @@
 [run]
 source = awslabs
+# Skip coverage for license headers to prevent line shift issues
+skip_covered = False
+skip_empty = True
 
 [report]
 exclude_lines =
@@ -10,12 +13,20 @@ exclude_lines =
     pass
     raise ImportError
     except ImportError:
-    # License header exclusions - comprehensive patterns
-    # Copyright
-    # Licensed under
-    # limitations under the License
-    # Copyright Amazon.com
-    # Licensed under the Apache License
+    # License header exclusions - comprehensive patterns to handle line shifts
+    ^\s*#\s*Copyright
+    ^\s*#\s*Licensed under
+    ^\s*#\s*limitations under the License
+    ^\s*#\s*Copyright Amazon\.com
+    ^\s*#\s*Licensed under the Apache License
+    ^\s*#\s*WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND
+    ^\s*#\s*See the License for the specific language governing permissions
+    ^\s*#\s*and limitations under the License
+    ^\s*#\s*$
+    ^\s*#\s*http://www\.apache\.org/licenses/LICENSE-2\.0
+    ^\s*#\s*Unless required by applicable law
+    ^\s*#\s*distributed under the License is distributed
+    ^\s*#\s*either express or implied
     response.raise_for_status()
 
 # Exclude test files and environments from coverage calculation
@@ -28,3 +39,11 @@ omit =
 source =
     awslabs/
     */site-packages/awslabs/
+
+# Handle line mapping for files with license headers
+[html]
+skip_covered = False
+skip_empty = True
+
+[xml]
+skip_empty = True
