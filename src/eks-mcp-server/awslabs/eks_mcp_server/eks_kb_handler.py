@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Knowledge Base Retrival handler for the EKS MCP Server."""
+"""Knowledge Base Retrieval handler for the EKS MCP Server."""
 
 import requests
 from loguru import logger
@@ -27,7 +27,7 @@ AWS_SERVICE = 'eks-mcpserver'
 
 
 class EKSKnowledgeBaseHandler:
-    """Handler for retriving troubleshooting guide from the EKS Knowledge Base.
+    """Handler for retrieving troubleshooting guide from the EKS Knowledge Base.
 
     This class provides tools for fetching instructions to troubleshoot issues from the EKS Hosted MCP service.
     """

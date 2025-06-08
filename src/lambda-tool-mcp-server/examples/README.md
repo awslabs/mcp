@@ -2,7 +2,7 @@
 
 This directory contains sample Lambda functions that demonstrate different use cases for the MCP server. These functions are designed to be deployed using the AWS SAM CLI.
 
-The first two functions (`CustomerInfoFromId` and `CustomerIdFromEmail`) simulate an internal customer infromation system where a customer status can be retrived via a customer ID and the customer ID can be retrieved form the email. In this way, an agent using these two functions as tools can retrive customer information from an email by invoking the two functions.
+The first two functions (`CustomerInfoFromId` and `CustomerIdFromEmail`) simulate an internal customer information system where a customer status can be retrieved via a customer ID and the customer ID can be retrieved form the email. In this way, an agent using these two functions as tools can retrieved customer information from an email by invoking the two functions.
 
 ## Available Functions
 
