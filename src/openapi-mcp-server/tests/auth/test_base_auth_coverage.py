@@ -14,9 +14,12 @@
 
 """Tests to cover specific uncovered lines in base_auth.py."""
 
-import pytest
-from unittest.mock import Mock, patch
-from awslabs.openapi_mcp_server.auth.base_auth import BaseAuthProvider, AuthProvider, format_error_message
+from awslabs.openapi_mcp_server.auth.base_auth import (
+    AuthProvider,
+    BaseAuthProvider,
+    format_error_message,
+)
+from unittest.mock import Mock
 
 
 class TestBaseAuthCoverage:
@@ -26,7 +29,7 @@ class TestBaseAuthCoverage:
         """Test BaseAuthProvider initialization."""
         config = Mock()
         config.auth_type = 'test'
-        
+
         # Test creating BaseAuthProvider
         try:
             provider = BaseAuthProvider(config)
@@ -43,16 +46,20 @@ class TestBaseAuthCoverage:
     def test_format_error_message_function(self):
         """Test format_error_message utility function."""
         from awslabs.openapi_mcp_server.auth.auth_errors import AuthErrorType
-        
+
         # Test with proper parameters
-        message = format_error_message("TestProvider", AuthErrorType.INVALID_CREDENTIALS, "Test error")
+        message = format_error_message(
+            'TestProvider', AuthErrorType.INVALID_CREDENTIALS, 'Test error'
+        )
         assert isinstance(message, str)
-        assert "Test error" in message
-        
+        assert 'Test error' in message
+
         # Test with different error types
-        message2 = format_error_message("TestProvider", AuthErrorType.CONFIGURATION_ERROR, "Config error")
+        message2 = format_error_message(
+            'TestProvider', AuthErrorType.CONFIGURATION_ERROR, 'Config error'
+        )
         assert isinstance(message2, str)
-        assert "Config error" in message2
+        assert 'Config error' in message2
 
     def test_base_auth_provider_error_handling(self):
         """Test BaseAuthProvider error handling."""
@@ -62,7 +69,7 @@ class TestBaseAuthCoverage:
         except Exception:
             # Expected to fail, covers error handling lines
             pass
-        
+
         # Test with config missing required fields
         config = Mock()
         # Don't set auth_type to trigger validation errors
@@ -76,10 +83,10 @@ class TestBaseAuthCoverage:
         """Test AuthProvider abstract method behavior."""
         # Test that AuthProvider is properly defined
         assert AuthProvider is not None
-        
+
         # Test instantiation behavior
         try:
-            provider = AuthProvider()
+            AuthProvider()  # Don't assign to variable since it's not used
         except TypeError:
             # Expected for abstract classes
             pass
@@ -92,7 +99,7 @@ class TestBaseAuthCoverage:
         config = Mock()
         config.auth_type = 'test'
         config.required_field = 'value'
-        
+
         try:
             provider = BaseAuthProvider(config)
             # Test that config is stored

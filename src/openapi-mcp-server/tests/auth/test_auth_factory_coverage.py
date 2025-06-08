@@ -15,8 +15,13 @@
 """Tests to cover specific uncovered lines in auth_factory.py."""
 
 import pytest
-from unittest.mock import Mock, patch
-from awslabs.openapi_mcp_server.auth.auth_factory import get_auth_provider, register_auth_provider, is_auth_type_available, clear_provider_cache
+from awslabs.openapi_mcp_server.auth.auth_factory import (
+    clear_provider_cache,
+    get_auth_provider,
+    is_auth_type_available,
+    register_auth_provider,
+)
+from unittest.mock import Mock
 
 
 class TestAuthFactoryCoverage:
@@ -26,7 +31,7 @@ class TestAuthFactoryCoverage:
         """Test get_auth_provider with unsupported auth type - it falls back to 'none'."""
         config = Mock()
         config.auth_type = 'unsupported_auth_type_12345'
-        
+
         # This actually falls back to 'none' instead of raising ValueError
         provider = get_auth_provider(config)
         assert provider is not None
@@ -35,19 +40,20 @@ class TestAuthFactoryCoverage:
         """Test get_auth_provider with None auth type."""
         config = Mock()
         config.auth_type = None
-        
+
         # This should raise AttributeError when trying to call .lower() on None
         with pytest.raises(AttributeError):
             get_auth_provider(config)
 
     def test_register_auth_provider_functionality(self):
         """Test register_auth_provider function."""
+
         class TestProvider:
             pass
-        
+
         # Test registering a new provider
         register_auth_provider('test_provider', TestProvider)
-        
+
         # Test that it's now available
         assert is_auth_type_available('test_provider')
 
@@ -56,10 +62,10 @@ class TestAuthFactoryCoverage:
         # Test with None - this will raise AttributeError
         with pytest.raises(AttributeError):
             is_auth_type_available(None)
-        
+
         # Test with empty string
         assert not is_auth_type_available('')
-        
+
         # Test with non-existent type
         assert not is_auth_type_available('non_existent_type_xyz')
 
@@ -67,7 +73,7 @@ class TestAuthFactoryCoverage:
         """Test clear_provider_cache function."""
         # This should execute without error
         clear_provider_cache()
-        
+
         # Test multiple calls
         clear_provider_cache()
         clear_provider_cache()
@@ -76,7 +82,7 @@ class TestAuthFactoryCoverage:
         """Test get_auth_provider with 'none' auth type."""
         config = Mock()
         config.auth_type = 'none'
-        
+
         # This should work and return a NullAuthProvider
         provider = get_auth_provider(config)
         assert provider is not None

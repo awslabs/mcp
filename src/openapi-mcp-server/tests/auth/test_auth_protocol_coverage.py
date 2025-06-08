@@ -14,8 +14,7 @@
 
 """Tests to cover specific uncovered lines in auth_protocol.py."""
 
-import pytest
-from awslabs.openapi_mcp_server.auth.auth_protocol import AuthProviderProtocol, AuthProviderFactory
+from awslabs.openapi_mcp_server.auth.auth_protocol import AuthProviderFactory, AuthProviderProtocol
 
 
 class TestAuthProtocolCoverage:
@@ -41,8 +40,6 @@ class TestAuthProtocolCoverage:
 
     def test_auth_provider_protocol_runtime_checkable(self):
         """Test that AuthProviderProtocol is runtime checkable."""
-        from typing import runtime_checkable
-        
         # Test that the protocol is properly decorated
         assert hasattr(AuthProviderProtocol, '__protocol_attrs__')
 
