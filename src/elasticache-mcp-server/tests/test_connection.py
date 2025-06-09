@@ -31,10 +31,11 @@ def test_get_connection_default_settings():
         assert client_args['service_name'] == 'elasticache'
         config = client_args['config']
         assert isinstance(config, Config)
-        assert config.retries['max_attempts'] == 3
-        assert config.retries['mode'] == 'standard'
-        assert config.connect_timeout == 5
-        assert config.read_timeout == 10
+        # Access config attributes using dict-style access to avoid type checking issues
+        assert config._user_provided_options['retries']['max_attempts'] == 3
+        assert config._user_provided_options['retries']['mode'] == 'standard'
+        assert config._user_provided_options['connect_timeout'] == 5
+        assert config._user_provided_options['read_timeout'] == 10
 
         assert client == mock_client
 
@@ -62,10 +63,11 @@ def test_get_connection_custom_settings():
         # Verify custom config
         client_args = mock_session.return_value.client.call_args[1]
         config = client_args['config']
-        assert config.retries['max_attempts'] == 5
-        assert config.retries['mode'] == 'adaptive'
-        assert config.connect_timeout == 10
-        assert config.read_timeout == 20
+        # Access config attributes using dict-style access to avoid type checking issues
+        assert config._user_provided_options['retries']['max_attempts'] == 5
+        assert config._user_provided_options['retries']['mode'] == 'adaptive'
+        assert config._user_provided_options['connect_timeout'] == 10
+        assert config._user_provided_options['read_timeout'] == 20
 
         assert client == mock_client
 
