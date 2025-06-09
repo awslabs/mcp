@@ -1,4 +1,4 @@
-# AWS MGC Servers
+# AWS MCP Servers
 
 A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
