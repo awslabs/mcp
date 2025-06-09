@@ -13,7 +13,7 @@
 # limitations under the License.
 
 #FROM public.ecr.aws/sam/build-python3.13:1.137.1-20250411084548
-FROM public.ecr.aws/sam/build-python3.13@sha256:387fc3f8ee99bd56267bc52513e6669074b2d197dff273e03b639b6afca51790 AS uv
+FROM public.ecr.aws/sam/build-python3.13@sha256:0df1547849c376aa21f9c726c0d71c4974415ed4405256f8d79f8c25716a9c63 AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -35,7 +35,7 @@ COPY pyproject.toml uv.lock ./
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install uv && \
+    pip install uv==0.7.11 && \
     uv sync --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
@@ -47,7 +47,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/sam/build-python3.13@sha256:387fc3f8ee99bd56267bc52513e6669074b2d197dff273e03b639b6afca51790
+FROM public.ecr.aws/sam/build-python3.13@sha256:0df1547849c376aa21f9c726c0d71c4974415ed4405256f8d79f8c25716a9c63
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"

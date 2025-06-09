@@ -28,14 +28,14 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
 
       - name: Simple test
-        uses: stelligent/cfn_nag@master
+        uses: stelligent/cfn_nag@8b5f03da74202ba323a145e9d037ddce6cab9dec
         with:
           input_path: .
           extra_args: -o sarif -g
           output_path: cfn_nag.sarif
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3.28.18 #v3.28.15
+        uses: github/codeql-action/upload-sarif@57eebf61a2246ab60a0c2f5a85766db783ad3553 # v3.28.15
 
         # Results are generated only on a success or failure
         # this is required since GitHub by default won't run the next step

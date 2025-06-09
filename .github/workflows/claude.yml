@@ -144,7 +144,7 @@ jobs:
       - name: Setup Claude
         id: setup-claude
         run: |
-          npm install -g @anthropic-ai/claude-code --force --no-os-check
+          npm install -g @anthropic-ai/claude-code@1.0.16 --force --no-os-check
           echo "Claude Version"
           claude --version
           echo "Claude Setup"
