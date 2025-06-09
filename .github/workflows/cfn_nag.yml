@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
 
       - name: Simple test
-        uses: stelligent/cfn_nag@master
+        uses: stelligent/cfn_nag@8b5f03da74202ba323a145e9d037ddce6cab9dec
         with:
           input_path: .
           extra_args: -o sarif -g

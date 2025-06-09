@@ -51,7 +51,7 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
       "timeout": 60,
       "command": "uvx",
       "args": [
-        "awslabs.cloudwatch-logs-mcp-server@latest",
+        "awslabs.cloudwatch-logs-mcp-server@latest"
       ],
       "env": {
         "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
