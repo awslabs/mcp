@@ -19,7 +19,6 @@ An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB. Thi
     - Configure AWS credentials with `aws configure` or environment variables
     - Consider starting with Read-only permission if you don't want the LLM to modify any resources
 
-   
 ## Installation
 You can modify the settings of your MCP client to run your local server (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`)
 
@@ -83,5 +82,3 @@ The Timestream for InfluxDB MCP server provides the following tools:
 
 ##### Query API
 - `InfluxDBQuery`: Query data from InfluxDB using Flux query language
-
-

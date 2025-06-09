@@ -1246,40 +1246,47 @@ class TestInfluxDBOperations:
         mock_client.close.assert_called_once()
         assert result['status'] == 'success'
 
-    # @pytest.mark.asyncio
-    # @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
-    # async def test_influxdb_write_points_exception_path(self, mock_get_client):
-    #     """Test influxdb_write_points function when an exception occurs."""
-    #     # Arrange
-    #     mock_client = MagicMock()
-    #     mock_get_client.return_value = mock_client
-    #     mock_write_api = MagicMock()
-    #     mock_client.write_api.return_value = mock_write_api
-    #     mock_write_api.write.side_effect = Exception('Failed to write points')
-    #
-    #     url = 'https://influxdb-example.aws:8086'
-    #     token = 'test-token'
-    #     bucket = 'test-bucket'
-    #     org = 'test-org'
-    #     points = [
-    #         {
-    #             'measurement': 'temperature',
-    #             'tags': {'location': 'Prague'},
-    #             'fields': {'value': 25.3},
-    #         }
-    #     ]
-    #
-    #     # Act
-    #     result = await influxdb_write_points(
-    #         url=url, token=token, bucket=bucket, org=org, points=points
-    #     )
-    #
-    #     # Assert
-    #     assert result['status'] == 'error'
-    #     assert 'Failed to write points' in result['message']
-    #     mock_get_client.assert_called_once()
-    #     mock_client.write_api.assert_called_once()
-    #     mock_write_api.write.assert_called_once()
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_write_points_exception_path(self, mock_get_client):
+        """Test influxdb_write_points function when an exception occurs."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_write_api = MagicMock()
+        mock_client.write_api.return_value = mock_write_api
+        mock_write_api.write.side_effect = Exception('Failed to write points')
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+        bucket = 'test-bucket'
+        org = 'test-org'
+        points = [
+            {
+                'measurement': 'temperature',
+                'tags': {'location': 'Prague'},
+                'fields': {'value': 25.3},
+            }
+        ]
+
+        # Act
+        result = await influxdb_write_points(
+            url=url,
+            token=token,
+            bucket=bucket,
+            org=org,
+            points=points,
+            time_precision='ns',
+            sync_mode='synchronous',
+            verify_ssl=True,
+        )
+
+        # Assert
+        assert result['status'] == 'error'
+        assert 'Failed to write points' in result['message']
+        mock_get_client.assert_called_once()
+        mock_client.write_api.assert_called_once()
+        mock_write_api.write.assert_called_once()
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
@@ -1315,34 +1322,40 @@ class TestInfluxDBOperations:
         mock_client.close.assert_called_once()
         assert result['status'] == 'success'
 
-    # @pytest.mark.asyncio
-    # @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
-    # async def test_influxdb_write_line_protocol_exception_path(self, mock_get_client):
-    #     """Test influxdb_write_line_protocol function when an exception occurs."""
-    #     # Arrange
-    #     mock_client = MagicMock()
-    #     mock_get_client.return_value = mock_client
-    #     mock_write_api = MagicMock()
-    #     mock_client.write_api.return_value = mock_write_api
-    #     mock_write_api.write.side_effect = Exception('Invalid line protocol format')
-    #
-    #     url = 'https://influxdb-example.aws:8086'
-    #     token = 'test-token'
-    #     bucket = 'test-bucket'
-    #     org = 'test-org'
-    #     data_line_protocol = 'invalid line protocol'
-    #
-    #     # Act
-    #     result = await influxdb_write_line_protocol(
-    #         url=url, token=token, bucket=bucket, org=org, data_line_protocol=data_line_protocol
-    #     )
-    #
-    #     # Assert
-    #     assert result['status'] == 'error'
-    #     assert 'Invalid line protocol format' in result['message']
-    #     mock_get_client.assert_called_once()
-    #     mock_client.write_api.assert_called_once()
-    #     mock_write_api.write.assert_called_once()
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_write_line_protocol_exception_path(self, mock_get_client):
+        """Test influxdb_write_line_protocol function when an exception occurs."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_write_api = MagicMock()
+        mock_client.write_api.return_value = mock_write_api
+        mock_write_api.write.side_effect = Exception('Invalid line protocol format')
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+        bucket = 'test-bucket'
+        org = 'test-org'
+        data_line_protocol = 'invalid line protocol'
+
+        # Act
+        result = await influxdb_write_line_protocol(
+            url=url,
+            token=token,
+            bucket=bucket,
+            org=org,
+            data_line_protocol=data_line_protocol,
+            time_precision='ns',
+            sync_mode='synchronous',
+        )
+
+        # Assert
+        assert result['status'] == 'error'
+        assert 'Invalid line protocol format' in result['message']
+        mock_get_client.assert_called_once()
+        mock_client.write_api.assert_called_once()
+        mock_write_api.write.assert_called_once()
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
@@ -1365,7 +1378,6 @@ class TestInfluxDBOperations:
         mock_table = MagicMock()
         mock_table.records = [mock_record1]
         mock_query_api.query.return_value = [mock_table]
-        # mock_query_api.query.return_value = {'status': 'success', 'result': [mock_table], 'format': 'json'}
 
         url = 'https://influxdb-example.aws:8086'
         token = 'test-token'
@@ -1382,33 +1394,34 @@ class TestInfluxDBOperations:
         mock_client.close.assert_called_once()
 
         assert result['status'] == 'success'
-        # assert result['format'] == 'json'
-        # assert len(result['result']) == 1
-        # assert result['result'][0]['measurement'] == 'temperature'
-        # assert result['result'][0]['field'] == 'value'
-        # assert result['result'][0]['value'] == 25.3
-        # assert result['result'][0]['tags'] == {'location': 'Prague'}
+        assert result['format'] == 'json'
+        assert len(result['result']) == 1
+        assert result['result'][0]['measurement'] == 'temperature'
+        assert result['result'][0]['field'] == 'value'
+        assert result['result'][0]['value'] == 25.3
+        assert result['result'][0]['tags'] == {'location': 'Prague'}
 
-    # @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
-    # def test_influxdb_query_exception_path(self, mock_get_client):
-    #     """Test influxdb_query function when an exception occurs."""
-    #     # Arrange
-    #     mock_client = MagicMock()
-    #     mock_get_client.return_value = mock_client
-    #     mock_query_api = MagicMock()
-    #     mock_client.query_api.return_value = mock_query_api
-    #     mock_query_api.query.side_effect = Exception('Invalid Flux query syntax')
-    #
-    #     url = 'https://influxdb-example.aws:8086'
-    #     token = 'test-token'
-    #     org = 'test-org'
-    #     query = 'invalid flux query'
-    #
-    #     # Act
-    #     result = influxdb_query(url=url, token=token, org=org, query=query)
-    #
-    #     # Assert
-    #     assert result['status'] == 'error'
-    #     assert 'Invalid Flux query syntax' in result['message']
-    #     mock_get_client.assert_called_once()
-    #     mock_client.query_api.assert_called_once()
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_query_exception_path(self, mock_get_client):
+        """Test influxdb_query function when an exception occurs."""
+        # Arrange
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_query_api = MagicMock()
+        mock_client.query_api.return_value = mock_query_api
+        mock_query_api.query.side_effect = Exception('Invalid Flux query syntax')
+
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+        org = 'test-org'
+        query = 'invalid flux query'
+
+        # Act
+        result = await influxdb_query(url=url, token=token, org=org, query=query, verify_ssl=False)
+
+        # Assert
+        assert result['status'] == 'error'
+        assert 'Invalid Flux query syntax' in result['message']
+        mock_get_client.assert_called_once()
+        mock_client.query_api.assert_called_once()
