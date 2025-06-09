@@ -269,7 +269,6 @@ class IAMHandler:
         """Get inline policies embedded in a role.
 
         Args:
-            ctx: The MCP context
             role_name: Name of the IAM role
 
         Returns:
