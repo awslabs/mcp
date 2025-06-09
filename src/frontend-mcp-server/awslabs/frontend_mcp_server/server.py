@@ -38,7 +38,7 @@ async def get_react_docs_by_topic(
         'troubleshooting',
     ] = Field(
         ...,
-        description='The topic of React documentation to retrieve. Topics include: essential-knowledge, troubleshooting, basic-ui, authentication, routing, customizing, creating-components.',
+        description='The topic of React documentation to retrieve. Topics include: essential-knowledge, troubleshooting.',
     ),
 ) -> str:
     """Get specific AWS web application UI setup documentation by topic.
@@ -58,7 +58,7 @@ async def get_react_docs_by_topic(
             return load_markdown_file('troubleshooting.md')
         case _:
             raise ValueError(
-                f'Invalid topic: {topic}. Must be one of: essential-knowledge, basic-ui, authentication, routing, customizing, creating-components'
+                f'Invalid topic: {topic}. Must be one of: essential-knowledge, troubleshooting'
             )
 
 
