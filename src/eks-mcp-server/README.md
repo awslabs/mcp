@@ -186,7 +186,7 @@ The example below includes both the `--allow-write` flag for mutating operations
 	      "command": "uvx",
 	      "args": [
 	        "--from",
-	        "awslabs.eks-mcp-server@latest", 
+	        "awslabs.eks-mcp-server@latest",
 	        "awslabs.eks-mcp-server.exe",
 	        "--allow-write",
 	        "--allow-sensitive-data-access"
