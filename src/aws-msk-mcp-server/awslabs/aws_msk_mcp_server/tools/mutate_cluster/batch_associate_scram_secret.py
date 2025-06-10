@@ -1,0 +1,28 @@
+"""
+Function to associate SCRAM secrets with an MSK cluster.
+Maps to AWS CLI command: aws kafka batch-associate-scram-secret
+"""
+
+
+def batch_associate_scram_secret(cluster_arn, secret_arns, client):
+    """
+    Associates SCRAM secrets with an MSK cluster.
+
+    Args:
+        cluster_arn (str): The Amazon Resource Name (ARN) of the cluster
+        secret_arns (list): A list of secret ARNs to associate with the cluster
+        client (boto3.client): Boto3 client for Kafka. Must be provided by the tool function.
+
+    Returns:
+        dict: Information about the associated secrets
+    """
+    if client is None:
+        raise ValueError(
+            "Client must be provided. This function should only be called from a tool function."
+        )
+
+    response = client.batch_associate_scram_secret(
+        ClusterArn=cluster_arn, SecretArnList=secret_arns
+    )
+
+    return response
