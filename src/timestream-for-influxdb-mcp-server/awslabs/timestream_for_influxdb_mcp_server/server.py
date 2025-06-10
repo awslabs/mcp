@@ -76,9 +76,10 @@ OPTIONAL_FIELD_PUBLICLY_ACCESSIBLE = Field(
     description='Configures the DB with a public IP to facilitate access from outside the VPC.',
 )
 
-OPTIONAL_FIELD_READONLY_MODE = Field(
-    True,
-    description='Tool is run in read-only mode and will not perform any create/update/delete operations.',
+OPTIONAL_FIELD_TOOL_WRITE_MODE = Field(
+    False,
+    description='Tool is run in write mode and will be able to perform any create/update/delete operations. '
+    'Default is read-only mode (False)',
 )
 
 OPTIONAL_FIELD_USERNAME = Field(
@@ -301,7 +302,7 @@ async def create_db_cluster(
     log_delivery_configuration: Optional[
         Dict[str, Any]
     ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new Timestream for InfluxDB database cluster.
 
@@ -310,9 +311,9 @@ async def create_db_cluster(
     Returns:
         Details of the created DB cluster.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'CreateDbCluster tool invocation not allowed when read-only_mode set to True'
+            'CreateDbCluster tool invocation not allowed when tool-write-mode is set to False'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -382,7 +383,7 @@ async def create_db_instance(
     port: Optional[int] = OPTIONAL_FIELD_PORT,
     db_parameter_group_id: Optional[str] = OPTIONAL_FIELD_DB_PARAMETER_GROUP_ID,
     tags: Optional[Dict[str, str]] = OPTIONAL_FIELD_TAGS,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new Timestream for InfluxDB database instance.
 
@@ -391,9 +392,9 @@ async def create_db_instance(
     Returns:
         Details of the created DB instance.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'CreateDbInstance tool invocation not allowed when read-only_mode set to True'
+            'CreateDbInstance tool invocation not allowed when tool-write-mode is set to False'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -608,7 +609,7 @@ async def get_db_cluster(
 )
 async def delete_db_instance(
     identifier: str = REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Deletes a Timestream for InfluxDB DB instance.
 
@@ -617,9 +618,9 @@ async def delete_db_instance(
     Returns:
         Details of the deleted DB instance.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'DeleteDbInstance tool invocation not allowed when read-only_mode set to True'
+            'DeleteDbInstance tool invocation not allowed when tool-write-mode is set to False'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -638,7 +639,7 @@ async def delete_db_instance(
 )
 async def delete_db_cluster(
     db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Deletes a Timestream for InfluxDB cluster.
 
@@ -647,9 +648,9 @@ async def delete_db_cluster(
     Returns:
         Details of the deleted DB cluster.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'DeleteDbCluster tool invocation not allowed when read-only_mode set to True'
+            'DeleteDbCluster tool invocation not allowed when tool-write-mode is set to False'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -720,7 +721,7 @@ async def list_tags_for_resource(
 async def tag_resource(
     resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
     tags: Dict[str, str] = REQUIRED_FIELD_TAGS_RESOURCE,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Tags are composed of a Key/Value pairs. You can use tags to categorize and track your Timestream for InfluxDB resources.
 
@@ -729,8 +730,10 @@ async def tag_resource(
     Returns:
         Status of the tag operation.
     """
-    if read_only_mode:
-        raise Exception('TagResource tool invocation not allowed when read-only_mode set to True')
+    if not tool_write_mode:
+        raise Exception(
+            'TagResource tool invocation not allowed when tool-write-mode is set to False'
+        )
 
     ts_influx_client = get_timestream_influxdb_client()
 
@@ -752,7 +755,7 @@ async def tag_resource(
 async def untag_resource(
     resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
     tag_keys: List[str] = REQUIRED_FIELD_TAG_KEYS,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Removes the tag from the specified resource.
 
@@ -761,9 +764,9 @@ async def untag_resource(
     Returns:
         Status of the untag operation.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'UntagResource tool invocation not allowed when read-only_mode set to True'
+            'UntagResource tool invocation not allowed when tool-write-mode is set to False'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -788,7 +791,7 @@ async def update_db_cluster(
     log_delivery_configuration: Optional[
         Dict[str, Any]
     ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION_UPDATE,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Updates a Timestream for InfluxDB cluster.
 
@@ -797,9 +800,9 @@ async def update_db_cluster(
     Returns:
         Details of the updated DB cluster.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'UpdateDbCluster tool invocation not allowed when read-only_mode set to True'
+            'UpdateDbCluster tool invocation not allowed when tool-write-mode is set to False'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -839,7 +842,7 @@ async def update_db_instance(
     log_delivery_configuration: Optional[
         Dict[str, Any]
     ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Updates a Timestream for InfluxDB DB instance.
 
@@ -848,9 +851,9 @@ async def update_db_instance(
     Returns:
         Details of the updated DB instance.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'UpdateDbInstance tool invocation not allowed when read-only_mode set to True'
+            'UpdateDbInstance tool invocation not allowed when tool-write-mode is set to False'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1010,7 +1013,7 @@ async def list_db_clusters_by_status(
 )
 async def create_db_parameter_group(
     name: str = REQUIRED_FIELD_PARAM_GROUP_NAME,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
     description: Optional[str] = OPTIONAL_FIELD_PARAM_GROUP_DESCRIPTION,
     parameters: Optional[Dict[str, Any]] = OPTIONAL_FIELD_PARAMETERS,
     tags: Optional[Dict[str, str]] = OPTIONAL_FIELD_TAGS,
@@ -1022,9 +1025,9 @@ async def create_db_parameter_group(
     Returns:
         Details of the created DB parameter group.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'CreateDbParamGroup tool invocation not allowed when read-only_mode set to True'
+            'CreateDbParamGroup tool invocation not allowed when tool-write-mode is set to False'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1059,7 +1062,7 @@ async def influxdb_write_points(
     time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
     sync_mode: Optional[str] = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Write data points to InfluxDB.
 
@@ -1076,9 +1079,9 @@ async def influxdb_write_points(
     Returns:
         Status of the write operation.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'InfluxDBWritePoints tool invocation not allowed when read-only_mode set to True'
+            'InfluxDBWritePoints tool invocation not allowed when tool-write-mode is set to False'
         )
 
     try:
@@ -1142,16 +1145,16 @@ async def influxdb_write_line_protocol(
     time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
     sync_mode: str = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    read_only_mode: bool = OPTIONAL_FIELD_READONLY_MODE,
+    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Write data in Line Protocol format to InfluxDB.
 
     Returns:
         Status of the write operation.
     """
-    if read_only_mode:
+    if not tool_write_mode:
         raise Exception(
-            'InfluxDBWriteLineProtocol tool invocation not allowed when read-only_mode set to True'
+            'InfluxDBWriteLineProtocol tool invocation not allowed when tool-write-mode is set to False'
         )
 
     try:

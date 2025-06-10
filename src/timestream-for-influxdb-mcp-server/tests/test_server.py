@@ -145,7 +145,7 @@ class TestDbClusterOperations:
             vpc_security_group_ids=vpc_security_group_ids,
             vpc_subnet_ids=vpc_subnet_ids,
             tags=tags,
-            read_only_mode=False,
+            tool_write_mode=True,
         )
 
         # Assert
@@ -198,10 +198,10 @@ class TestDbClusterOperations:
                 allocated_storage_gb=allocated_storage_gb,
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
-                read_only_mode=True,
+                tool_write_mode=False,
             )
         assert (
-            'CreateDbCluster tool invocation not allowed when read-only_mode set to True'
+            'CreateDbCluster tool invocation not allowed when tool-write-mode is set to False'
             in str(excinfo.value)
         )
 
@@ -234,7 +234,7 @@ class TestDbClusterOperations:
                 allocated_storage_gb=allocated_storage_gb,
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
-                read_only_mode=False,
+                tool_write_mode=True,
             )
 
         # Check if the exception is a ClientError with ValidationException code
@@ -298,7 +298,7 @@ class TestDbClusterOperations:
         }
 
         # Act
-        result = await delete_db_cluster(db_cluster_id='test-cluster-id', read_only_mode=False)
+        result = await delete_db_cluster(db_cluster_id='test-cluster-id', tool_write_mode=True)
 
         # Assert
         mock_get_client.assert_called_once()
@@ -310,11 +310,11 @@ class TestDbClusterOperations:
         """Test tool in read-only mode."""
         # Act
         with pytest.raises(Exception) as excinfo:
-            await delete_db_cluster(db_cluster_id='test-cluster-id', read_only_mode=True)
+            await delete_db_cluster(db_cluster_id='test-cluster-id', tool_write_mode=False)
 
         # Assert
         assert (
-            'DeleteDbCluster tool invocation not allowed when read-only_mode set to True'
+            'DeleteDbCluster tool invocation not allowed when tool-write-mode is set to False'
             in str(excinfo.value)
         )
 
@@ -337,7 +337,7 @@ class TestDbClusterOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await delete_db_cluster(db_cluster_id='cluster-with-instances', read_only_mode=False)
+            await delete_db_cluster(db_cluster_id='cluster-with-instances', tool_write_mode=True)
 
         assert 'InvalidDBClusterState' in str(excinfo.value)
         mock_get_client.assert_called_once()
@@ -416,7 +416,7 @@ class TestDbClusterOperations:
             db_instance_type=db_instance_type,
             port=port,
             failover_mode=failover_mode,
-            read_only_mode=False,
+            tool_write_mode=True,
         )
 
         # Assert
@@ -444,12 +444,12 @@ class TestDbClusterOperations:
             await update_db_cluster(
                 db_cluster_id=db_cluster_id,
                 db_instance_type=db_instance_type,
-                read_only_mode=True,
+                tool_write_mode=False,
             )
 
         # Assert
         assert (
-            'UpdateDbCluster tool invocation not allowed when read-only_mode set to True'
+            'UpdateDbCluster tool invocation not allowed when tool-write-mode is set to False'
             in str(excinfo.value)
         )
 
@@ -478,7 +478,7 @@ class TestDbClusterOperations:
             await update_db_cluster(
                 db_cluster_id=db_cluster_id,
                 db_instance_type=db_instance_type,
-                read_only_mode=False,
+                tool_write_mode=True,
             )
 
         assert 'InvalidDBClusterState' in str(excinfo.value)
@@ -578,7 +578,7 @@ class TestDbInstanceOperations:
             vpc_security_group_ids=vpc_security_group_ids,
             vpc_subnet_ids=vpc_subnet_ids,
             tags=tags,
-            read_only_mode=False,
+            tool_write_mode=True,
         )
 
         # Assert
@@ -632,10 +632,10 @@ class TestDbInstanceOperations:
                 allocated_storage_gb=allocated_storage_gb,
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
-                read_only_mode=True,
+                tool_write_mode=False,
             )
         assert (
-            'CreateDbInstance tool invocation not allowed when read-only_mode set to True'
+            'CreateDbInstance tool invocation not allowed when tool-write-mode is set to False'
             in str(excinfo.value)
         )
 
@@ -666,7 +666,7 @@ class TestDbInstanceOperations:
                 allocated_storage_gb=allocated_storage_gb,
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
-                read_only_mode=False,
+                tool_write_mode=True,
             )
 
         # Check if the exception is a ClientError with ResourceLimitExceeded code
@@ -730,7 +730,7 @@ class TestDbInstanceOperations:
         }
 
         # Act
-        result = await delete_db_instance(identifier='test-instance-id', read_only_mode=False)
+        result = await delete_db_instance(identifier='test-instance-id', tool_write_mode=True)
 
         # Assert
         mock_get_client.assert_called_once()
@@ -742,10 +742,10 @@ class TestDbInstanceOperations:
         """Test tool in read-only mode."""
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await delete_db_instance(identifier='instance-in-use', read_only_mode=True)
+            await delete_db_instance(identifier='instance-in-use', tool_write_mode=False)
 
         assert (
-            'DeleteDbInstance tool invocation not allowed when read-only_mode set to True'
+            'DeleteDbInstance tool invocation not allowed when tool-write-mode is set to False'
             in str(excinfo.value)
         )
 
@@ -768,7 +768,7 @@ class TestDbInstanceOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await delete_db_instance(identifier='instance-in-use', read_only_mode=False)
+            await delete_db_instance(identifier='instance-in-use', tool_write_mode=True)
 
         assert 'InvalidDBInstanceState' in str(excinfo.value)
         mock_get_client.assert_called_once()
@@ -890,7 +890,7 @@ class TestDbInstanceOperations:
             db_instance_type=db_instance_type,
             allocated_storage_gb=allocated_storage_gb,
             port=port,
-            read_only_mode=False,
+            tool_write_mode=True,
         )
 
         # Assert
@@ -917,11 +917,11 @@ class TestDbInstanceOperations:
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await update_db_instance(
-                identifier=identifier, db_instance_type=db_instance_type, read_only_mode=True
+                identifier=identifier, db_instance_type=db_instance_type, tool_write_mode=False
             )
 
         assert (
-            'UpdateDbInstance tool invocation not allowed when read-only_mode set to True'
+            'UpdateDbInstance tool invocation not allowed when tool-write-mode is set to False'
             in str(excinfo.value)
         )
 
@@ -948,7 +948,7 @@ class TestDbInstanceOperations:
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await update_db_instance(
-                identifier=identifier, db_instance_type=db_instance_type, read_only_mode=False
+                identifier=identifier, db_instance_type=db_instance_type, tool_write_mode=True
             )
 
         assert 'InvalidDBInstanceState' in str(excinfo.value)
@@ -1047,7 +1047,7 @@ class TestParameterGroupOperations:
             description=description,
             parameters=parameters,
             tags=tags,
-            read_only_mode=False,
+            tool_write_mode=True,
         )
 
         # Assert
@@ -1074,11 +1074,11 @@ class TestParameterGroupOperations:
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await create_db_parameter_group(
-                name=name, description=description, read_only_mode=True
+                name=name, description=description, tool_write_mode=False
             )
 
         assert (
-            'CreateDbParamGroup tool invocation not allowed when read-only_mode set to True'
+            'CreateDbParamGroup tool invocation not allowed when tool-write-mode is set to False'
             in str(excinfo.value)
         )
 
@@ -1102,7 +1102,7 @@ class TestParameterGroupOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await mock_create(name=name, description=description, read_only_mode=False)
+            await mock_create(name=name, description=description, tool_write_mode=True)
 
         # Check if the exception is a ClientError with DBParameterGroupAlreadyExists code
         if isinstance(excinfo.value, botocore.exceptions.ClientError):
@@ -1282,7 +1282,7 @@ class TestTagOperations:
         tags = {'Environment': 'Production', 'Owner': 'DataTeam'}
 
         # Act
-        result = await tag_resource(resource_arn=resource_arn, tags=tags, read_only_mode=False)
+        result = await tag_resource(resource_arn=resource_arn, tags=tags, tool_write_mode=True)
 
         # Assert
         mock_get_client.assert_called_once()
@@ -1303,10 +1303,11 @@ class TestTagOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await tag_resource(resource_arn=resource_arn, tags=tags, read_only_mode=True)
+            await tag_resource(resource_arn=resource_arn, tags=tags, tool_write_mode=False)
 
-        assert 'TagResource tool invocation not allowed when read-only_mode set to True' in str(
-            excinfo.value
+        assert (
+            'TagResource tool invocation not allowed when tool-write-mode is set to False'
+            in str(excinfo.value)
         )
 
     @pytest.mark.asyncio
@@ -1326,7 +1327,7 @@ class TestTagOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await tag_resource(resource_arn=resource_arn, tags=tags, read_only_mode=False)
+            await tag_resource(resource_arn=resource_arn, tags=tags, tool_write_mode=True)
 
         assert 'ResourceNotFoundException' in str(excinfo.value)
         mock_get_client.assert_called_once()
@@ -1346,7 +1347,7 @@ class TestTagOperations:
 
         # Act
         result = await untag_resource(
-            resource_arn=resource_arn, tag_keys=tag_keys, read_only_mode=False
+            resource_arn=resource_arn, tag_keys=tag_keys, tool_write_mode=True
         )
 
         # Assert
@@ -1365,10 +1366,13 @@ class TestTagOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await untag_resource(resource_arn=resource_arn, tag_keys=tag_keys, read_only_mode=True)
+            await untag_resource(
+                resource_arn=resource_arn, tag_keys=tag_keys, tool_write_mode=False
+            )
 
-        assert 'UntagResource tool invocation not allowed when read-only_mode set to True' in str(
-            excinfo.value
+        assert (
+            'UntagResource tool invocation not allowed when tool-write-mode is set to False'
+            in str(excinfo.value)
         )
 
     @pytest.mark.asyncio
@@ -1389,7 +1393,7 @@ class TestTagOperations:
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await untag_resource(
-                resource_arn=resource_arn, tag_keys=tag_keys, read_only_mode=False
+                resource_arn=resource_arn, tag_keys=tag_keys, tool_write_mode=True
             )
 
         assert 'ResourceNotFoundException' in str(excinfo.value)
@@ -1434,7 +1438,7 @@ class TestInfluxDBOperations:
             time_precision='ns',
             sync_mode='synchronous',
             verify_ssl=True,
-            read_only_mode=False,
+            tool_write_mode=True,
         )
 
         # Assert
@@ -1471,12 +1475,12 @@ class TestInfluxDBOperations:
                 time_precision='ns',
                 sync_mode='synchronous',
                 verify_ssl=True,
-                read_only_mode=True,
+                tool_write_mode=False,
             )
 
         # Assert
         assert (
-            'InfluxDBWritePoints tool invocation not allowed when read-only_mode set to True'
+            'InfluxDBWritePoints tool invocation not allowed when tool-write-mode is set to False'
             in str(excinfo.value)
         )
 
@@ -1513,7 +1517,7 @@ class TestInfluxDBOperations:
             time_precision='ns',
             sync_mode='synchronous',
             verify_ssl=True,
-            read_only_mode=False,
+            tool_write_mode=True,
         )
 
         # Assert
@@ -1548,7 +1552,7 @@ class TestInfluxDBOperations:
             data_line_protocol=data_line_protocol,
             time_precision='ns',
             sync_mode='synchronous',
-            read_only_mode=False,
+            tool_write_mode=True,
         )
 
         # Assert
@@ -1577,12 +1581,12 @@ class TestInfluxDBOperations:
                 data_line_protocol=data_line_protocol,
                 time_precision='ns',
                 sync_mode='synchronous',
-                read_only_mode=True,
+                tool_write_mode=False,
             )
 
         # Assert
         assert (
-            'InfluxDBWriteLineProtocol tool invocation not allowed when read-only_mode set to True'
+            'InfluxDBWriteLineProtocol tool invocation not allowed when tool-write-mode is set to False'
             in str(excinfo.value)
         )
 
@@ -1612,7 +1616,7 @@ class TestInfluxDBOperations:
             data_line_protocol=data_line_protocol,
             time_precision='ns',
             sync_mode='synchronous',
-            read_only_mode=False,
+            tool_write_mode=True,
         )
 
         # Assert
