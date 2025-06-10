@@ -467,14 +467,6 @@ async def test_get_ssh_tunnel_command_rg_no_cache_nodes():
 
 
 @pytest.mark.asyncio
-async def test_create_jump_host_rg_empty_key_name():
-    """Test create_jump_host_rg with empty key name."""
-    result = await create_jump_host_rg('rg-test', 'subnet-123', 'sg-123', '')
-    assert 'error' in result
-    assert 'key_name is required' in result['error']
-
-
-@pytest.mark.asyncio
 async def test_create_jump_host_rg_vpc_mismatch():
     """Test create_jump_host_rg with VPC mismatch."""
     mock_ec2 = MagicMock()

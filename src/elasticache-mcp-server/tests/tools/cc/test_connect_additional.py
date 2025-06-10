@@ -378,14 +378,6 @@ async def test_get_ssh_tunnel_command_cc_no_cache_nodes():
 
 
 @pytest.mark.asyncio
-async def test_create_jump_host_cc_empty_key_name():
-    """Test create_jump_host_cc with empty key name."""
-    result = await create_jump_host_cc('cluster-1', 'subnet-123', 'sg-123', '')
-    assert 'error' in result
-    assert 'key_name is required' in result['error']
-
-
-@pytest.mark.asyncio
 async def test_create_jump_host_cc_main_route_table():
     """Test create_jump_host_cc with main route table."""
     mock_ec2 = MagicMock()

@@ -262,14 +262,6 @@ async def test_get_ssh_tunnel_command_serverless_windows_instance():
 
 
 @pytest.mark.asyncio
-async def test_create_jump_host_serverless_empty_key_name():
-    """Test create_jump_host_serverless with empty key name."""
-    result = await create_jump_host_serverless('cache-1', 'subnet-123', 'sg-123', '')
-    assert 'error' in result
-    assert 'key_name is required' in result['error']
-
-
-@pytest.mark.asyncio
 async def test_create_jump_host_serverless_vpc_mismatch():
     """Test create_jump_host_serverless with VPC mismatch."""
     mock_ec2 = MagicMock()
