@@ -504,6 +504,20 @@ An AWS Labs Model Context Protocol (MCP) server for CloudWatch Logs
 
 [Learn more](src/cloudwatch-logs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cloudwatch-logs-mcp-server/)
 
+### AWS Managed Prometheus MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.prometheus-mcp-server.svg)](https://pypi.org/project/awslabs.prometheus-mcp-server/)
+
+A server for interacting with AWS Managed Prometheus.
+
+- Execute instant PromQL queries against AWS Managed Prometheus
+- Execute range queries with start time, end time, and step interval
+- List all available metrics in your Prometheus instance
+- Get server configuration information
+- AWS SigV4 authentication for secure access
+
+[Learn more](src/prometheus-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/prometheus-mcp-server/)
+
 ### Amazon DynamoDB MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.dynamodb-mcp-server.svg)](https://pypi.org/project/awslabs.dynamodb-mcp-server/)
