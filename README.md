@@ -47,6 +47,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS Serverless MCP Server](#aws-serverless-mcp-server)
     - [Amazon ECS MCP Server](#amazon-ecs-mcp-server)
     - [Finch MCP Server](#finch-mcp-server)
+    - [AWS Managed Prometheus MCP Server](#aws-managed-prometheus-mcp-server)
     - [AWS Bedrock Data Automation MCP Server](#aws-bedrock-data-automation-mcp-server)
     - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
