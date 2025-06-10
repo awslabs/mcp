@@ -38,11 +38,57 @@ def get_aws_config() -> Config:
 
 
 async def get_aws_client(service_name: str):
-    """Gets an AWS service client."""
-    region = os.environ.get("AWS_REGION", "us-east-1")
-    profile = os.environ.get("AWS_PROFILE", "default")
-    logger.info(f"Using AWS profile: {profile} and region: {region}")
-    return boto3.client(service_name, region_name=region, config=get_aws_config())
+    """
+    Gets an AWS service client.
+
+    This function can be used in two ways:
+    1. Directly await: `client = await get_aws_client("ecs")`
+    2. With async context manager: `async with get_aws_client("ecs") as client:`
+
+    Parameters
+    ----------
+    service_name : str
+        The name of the AWS service (e.g., 'ecs', 's3', 'ec2')
+
+    Returns
+    -------
+    A boto3 client for the specified service
+    """
+
+    class ClientContextManager:
+        def __init__(self, service_name):
+            self.service_name = service_name
+            self.client = None
+
+        async def __aenter__(self):
+            if not self.client:
+                region = os.environ.get("AWS_REGION", "us-east-1")
+                profile = os.environ.get("AWS_PROFILE", "default")
+                logger.info(f"Using AWS profile: {profile} and region: {region}")
+                self.client = boto3.client(
+                    self.service_name, region_name=region, config=get_aws_config()
+                )
+            return self.client
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            # Clean up resources if needed
+            pass
+
+        def __await__(self):
+            """Allow the client to be awaited directly."""
+
+            async def get_client():
+                region = os.environ.get("AWS_REGION", "us-east-1")
+                profile = os.environ.get("AWS_PROFILE", "default")
+                logger.info(f"Using AWS profile: {profile} and region: {region}")
+                self.client = boto3.client(
+                    self.service_name, region_name=region, config=get_aws_config()
+                )
+                return self.client
+
+            return get_client().__await__()
+
+    return ClientContextManager(service_name)
 
 
 async def get_aws_account_id() -> str:
@@ -212,9 +258,9 @@ async def get_route_tables_for_vpc(vpc_id: str) -> List[str]:
     ec2 = await get_aws_client("ec2")
 
     # Get route tables for the VPC
-    route_tables = ec2.describe_route_tables(
+    route_tables = ec2.describe_route_tables(  # Removed await
         Filters=[{"Name": "vpc-id", "Values": [vpc_id]}]
-    )  # Removed await
+    )
 
     # Find the main route table
     main_route_tables = [
