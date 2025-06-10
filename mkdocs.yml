@@ -36,6 +36,7 @@ nav:
     - Amazon Bedrock Knowledge Base Retrieval MCP Server: servers/bedrock-kb-retrieval-mcp-server.md
     - AWS CDK MCP Server: servers/cdk-mcp-server.md
     - Cost Analysis MCP Server: servers/cost-analysis-mcp-server.md
+    - Cost Explorer MCP Server: servers/cost-explorer-mcp-server.md
     - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
     - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
