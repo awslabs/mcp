@@ -49,6 +49,7 @@ def test_prometheus_config_defaults():
     config = PrometheusConfig(
         prometheus_url='https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123',
         aws_region='us-east-1',
+        aws_profile=None,
     )
 
     # Assert
@@ -69,6 +70,7 @@ def test_prometheus_config_invalid_url():
         PrometheusConfig(
             prometheus_url='invalid-url',
             aws_region='us-east-1',
+            aws_profile=None,
         )
 
 
@@ -81,6 +83,7 @@ def test_prometheus_config_empty_url():
         PrometheusConfig(
             prometheus_url='',
             aws_region='us-east-1',
+            aws_profile=None,
         )
 
 
@@ -93,6 +96,7 @@ def test_prometheus_config_invalid_retry_delay():
         PrometheusConfig(
             prometheus_url='https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123',
             aws_region='us-east-1',
+            aws_profile=None,
             retry_delay=0,  # Must be >= 1
         )
 
@@ -106,6 +110,7 @@ def test_prometheus_config_invalid_max_retries():
         PrometheusConfig(
             prometheus_url='https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123',
             aws_region='us-east-1',
+            aws_profile=None,
             max_retries=11,  # Must be <= 10
         )
 
@@ -148,6 +153,7 @@ def test_query_response():
     success_response = QueryResponse(
         status='success',
         data={'result': [{'metric': {'__name__': 'up'}, 'value': [1620000000, '1']}]},
+        error=None,
     )
 
     # Assert
