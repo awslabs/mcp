@@ -312,7 +312,7 @@ async def create_db_cluster(
     """
     if read_only_mode:
         raise Exception(
-            'CreateDbCluster tool invocation not allowed when read-only_mode set to True '
+            'CreateDbCluster tool invocation not allowed when read-only_mode set to True'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -393,7 +393,7 @@ async def create_db_instance(
     """
     if read_only_mode:
         raise Exception(
-            'CreateDbInstance tool invocation not allowed when read-only_mode set to True '
+            'CreateDbInstance tool invocation not allowed when read-only_mode set to True'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -619,7 +619,7 @@ async def delete_db_instance(
     """
     if read_only_mode:
         raise Exception(
-            'DeleteDbInstance tool invocation not allowed when read-only_mode set to True '
+            'DeleteDbInstance tool invocation not allowed when read-only_mode set to True'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -649,7 +649,7 @@ async def delete_db_cluster(
     """
     if read_only_mode:
         raise Exception(
-            'DeleteDbCluster tool invocation not allowed when read-only_mode set to True '
+            'DeleteDbCluster tool invocation not allowed when read-only_mode set to True'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -730,7 +730,7 @@ async def tag_resource(
         Status of the tag operation.
     """
     if read_only_mode:
-        raise Exception('TagResource tool invocation not allowed when read-only_mode set to True ')
+        raise Exception('TagResource tool invocation not allowed when read-only_mode set to True')
 
     ts_influx_client = get_timestream_influxdb_client()
 
@@ -763,7 +763,7 @@ async def untag_resource(
     """
     if read_only_mode:
         raise Exception(
-            'UntagResource tool invocation not allowed when read-only_mode set to True '
+            'UntagResource tool invocation not allowed when read-only_mode set to True'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -799,7 +799,7 @@ async def update_db_cluster(
     """
     if read_only_mode:
         raise Exception(
-            'UpdateDbCluster tool invocation not allowed when read-only_mode set to True '
+            'UpdateDbCluster tool invocation not allowed when read-only_mode set to True'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -850,7 +850,7 @@ async def update_db_instance(
     """
     if read_only_mode:
         raise Exception(
-            'UpdateDbInstance tool invocation not allowed when read-only_mode set to True '
+            'UpdateDbInstance tool invocation not allowed when read-only_mode set to True'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1024,7 +1024,7 @@ async def create_db_parameter_group(
     """
     if read_only_mode:
         raise Exception(
-            'CreateDbParamGroup tool invocation not allowed when read-only_mode set to True '
+            'CreateDbParamGroup tool invocation not allowed when read-only_mode set to True'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1078,7 +1078,7 @@ async def influxdb_write_points(
     """
     if read_only_mode:
         raise Exception(
-            'InfluxDBWritePoints tool invocation not allowed when read-only_mode set to True '
+            'InfluxDBWritePoints tool invocation not allowed when read-only_mode set to True'
         )
 
     try:
@@ -1151,7 +1151,7 @@ async def influxdb_write_line_protocol(
     """
     if read_only_mode:
         raise Exception(
-            'InfluxDBWriteLP tool invocation not allowed when read-only_mode set to True '
+            'InfluxDBWriteLineProtocol tool invocation not allowed when read-only_mode set to True'
         )
 
     try:

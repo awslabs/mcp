@@ -98,6 +98,22 @@ class TestClientCreation:
         )
         assert client == mock_client
 
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.InfluxDBClient')
+    def test_get_influxdb_client_exception_path(self, mock_influxdb_client):
+        """Test get_influxdb_client function with invalid url."""
+        # Arrange
+        url = 'random-schema://influxdb-example.aws:8086'
+        token = 'test-token'
+        org = 'test-org'
+        timeout = 5000
+        verify_ssl = False
+
+        # Act and assert
+        with pytest.raises(Exception) as excinfo:
+            get_influxdb_client(url, token, org, timeout, verify_ssl)
+
+        assert 'URL must use HTTP(S) protocol' in str(excinfo.value)
+
 
 class TestDbClusterOperations:
     """Tests for DB cluster operations."""
@@ -162,6 +178,32 @@ class TestDbClusterOperations:
                 assert call_args['tags'] == "[{'Key': 'Environment', 'Value': 'Test'}]"
 
         assert result == {'dbClusterId': 'test-cluster-id'}
+
+    @pytest.mark.asyncio
+    async def test_create_db_cluster_read_only_mode(self):
+        """Test tool in read-only mode."""
+        # Test parameters
+        name = 'test-cluster'
+        db_instance_type = 'db.influx.large'
+        password = ''
+        allocated_storage_gb = 100
+        vpc_security_group_ids = ['sg-12345']
+        vpc_subnet_ids = ['subnet-12345', 'subnet-67890']
+
+        with pytest.raises(Exception) as excinfo:
+            await create_db_cluster(
+                name=name,
+                db_instance_type=db_instance_type,
+                password=password,
+                allocated_storage_gb=allocated_storage_gb,
+                vpc_security_group_ids=vpc_security_group_ids,
+                vpc_subnet_ids=vpc_subnet_ids,
+                read_only_mode=True,
+            )
+        assert (
+            'CreateDbCluster tool invocation not allowed when read-only_mode set to True'
+            in str(excinfo.value)
+        )
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -262,6 +304,19 @@ class TestDbClusterOperations:
         mock_get_client.assert_called_once()
         mock_client.delete_db_cluster.assert_called_once_with(dbClusterId='test-cluster-id')
         assert result == {'dbClusterId': 'test-cluster-id', 'dbClusterStatus': 'deleting'}
+
+    @pytest.mark.asyncio
+    async def test_delete_db_cluster_read_only_mode(self):
+        """Test tool in read-only mode."""
+        # Act
+        with pytest.raises(Exception) as excinfo:
+            await delete_db_cluster(db_cluster_id='test-cluster-id', read_only_mode=True)
+
+        # Assert
+        assert (
+            'DeleteDbCluster tool invocation not allowed when read-only_mode set to True'
+            in str(excinfo.value)
+        )
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -377,6 +432,26 @@ class TestDbClusterOperations:
             'dbClusterStatus': 'modifying',
             'dbInstanceType': 'db.influx.xlarge',
         }
+
+    @pytest.mark.asyncio
+    async def test_update_db_cluster_read_only_mode(self):
+        """Test tool in read-only mode."""
+        db_cluster_id = 'cluster-in-use'
+        db_instance_type = 'db.influx.xlarge'
+
+        # Act
+        with pytest.raises(Exception) as excinfo:
+            await update_db_cluster(
+                db_cluster_id=db_cluster_id,
+                db_instance_type=db_instance_type,
+                read_only_mode=True,
+            )
+
+        # Assert
+        assert (
+            'UpdateDbCluster tool invocation not allowed when read-only_mode set to True'
+            in str(excinfo.value)
+        )
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -538,6 +613,33 @@ class TestDbInstanceOperations:
         assert result == {'dbInstanceId': 'test-instance-id'}
 
     @pytest.mark.asyncio
+    async def test_create_db_instance_read_only_mode(self):
+        """Test tool in read-only mode."""
+        # Test parameters
+        db_instance_name = 'test-instance'
+        db_instance_type = 'db.influx.large'
+        password = ''
+        allocated_storage_gb = 100
+        vpc_security_group_ids = ['sg-12345']
+        vpc_subnet_ids = ['subnet-12345', 'subnet-67890']
+
+        # Act & Assert
+        with pytest.raises(Exception) as excinfo:
+            await create_db_instance(
+                db_instance_name=db_instance_name,
+                db_instance_type=db_instance_type,
+                password=password,
+                allocated_storage_gb=allocated_storage_gb,
+                vpc_security_group_ids=vpc_security_group_ids,
+                vpc_subnet_ids=vpc_subnet_ids,
+                read_only_mode=True,
+            )
+        assert (
+            'CreateDbInstance tool invocation not allowed when read-only_mode set to True'
+            in str(excinfo.value)
+        )
+
+    @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.create_db_instance')
     async def test_create_db_instance_exception_path(self, mock_create):
         """Test create_db_instance function when an exception occurs."""
@@ -634,6 +736,18 @@ class TestDbInstanceOperations:
         mock_get_client.assert_called_once()
         mock_client.delete_db_instance.assert_called_once_with(identifier='test-instance-id')
         assert result == {'id': 'test-instance-id', 'status': 'deleting'}
+
+    @pytest.mark.asyncio
+    async def test_delete_db_instance_read_only_mode(self):
+        """Test tool in read-only mode."""
+        # Act & Assert
+        with pytest.raises(Exception) as excinfo:
+            await delete_db_instance(identifier='instance-in-use', read_only_mode=True)
+
+        assert (
+            'DeleteDbInstance tool invocation not allowed when read-only_mode set to True'
+            in str(excinfo.value)
+        )
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -795,6 +909,23 @@ class TestDbInstanceOperations:
         }
 
     @pytest.mark.asyncio
+    async def test_update_db_instance_read_only_mode(self):
+        """Test tool in read-only mode."""
+        identifier = 'instance-in-use'
+        db_instance_type = 'db.influx.xlarge'
+
+        # Act & Assert
+        with pytest.raises(Exception) as excinfo:
+            await update_db_instance(
+                identifier=identifier, db_instance_type=db_instance_type, read_only_mode=True
+            )
+
+        assert (
+            'UpdateDbInstance tool invocation not allowed when read-only_mode set to True'
+            in str(excinfo.value)
+        )
+
+    @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
     async def test_update_db_instance_exception_path(self, mock_get_client):
         """Test update_db_instance function when an exception occurs."""
@@ -933,6 +1064,23 @@ class TestParameterGroupOperations:
             'description': 'Custom parameter group for testing',
             'parameters': {'InfluxDBv2': {'queryConcurrency': 10}},
         }
+
+    @pytest.mark.asyncio
+    async def test_create_db_parameter_group_read_only_mode(self):
+        """Test tool in read-only mode."""
+        name = 'existing-param-group'
+        description = 'Test parameter group'
+
+        # Act & Assert
+        with pytest.raises(Exception) as excinfo:
+            await create_db_parameter_group(
+                name=name, description=description, read_only_mode=True
+            )
+
+        assert (
+            'CreateDbParamGroup tool invocation not allowed when read-only_mode set to True'
+            in str(excinfo.value)
+        )
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.create_db_parameter_group')
@@ -1147,6 +1295,21 @@ class TestTagOperations:
         assert result == {}
 
     @pytest.mark.asyncio
+    async def test_tag_resource_read_only_mode(self):
+        """Test tool in read-only mode."""
+        # Arrange
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/non-existent-db'
+        tags = {'Environment': 'Production'}
+
+        # Act & Assert
+        with pytest.raises(Exception) as excinfo:
+            await tag_resource(resource_arn=resource_arn, tags=tags, read_only_mode=True)
+
+        assert 'TagResource tool invocation not allowed when read-only_mode set to True' in str(
+            excinfo.value
+        )
+
+    @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
     async def test_tag_resource_exception_path(self, mock_get_client):
         """Test tag_resource function when an exception occurs."""
@@ -1192,6 +1355,21 @@ class TestTagOperations:
             resourceArn=resource_arn, tagKeys=tag_keys
         )
         assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_untag_resource_read_only_mode(self):
+        """Test tool in read-only mode."""
+        # Arrange
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/non-existent-db'
+        tag_keys = ['Environment']
+
+        # Act & Assert
+        with pytest.raises(Exception) as excinfo:
+            await untag_resource(resource_arn=resource_arn, tag_keys=tag_keys, read_only_mode=True)
+
+        assert 'UntagResource tool invocation not allowed when read-only_mode set to True' in str(
+            excinfo.value
+        )
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -1266,6 +1444,41 @@ class TestInfluxDBOperations:
         mock_write_api.write.assert_called_once()
         mock_client.close.assert_called_once()
         assert result['status'] == 'success'
+
+    @pytest.mark.asyncio
+    async def test_influxdb_write_points_read_only_mode(self):
+        """Test tool in read-only mode."""
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+        bucket = 'test-bucket'
+        org = 'test-org'
+        points = [
+            {
+                'measurement': 'temperature',
+                'tags': {'location': 'Prague'},
+                'fields': {'value': 25.3},
+            }
+        ]
+
+        # Act
+        with pytest.raises(Exception) as excinfo:
+            await influxdb_write_points(
+                url=url,
+                token=token,
+                bucket=bucket,
+                org=org,
+                points=points,
+                time_precision='ns',
+                sync_mode='synchronous',
+                verify_ssl=True,
+                read_only_mode=True,
+            )
+
+        # Assert
+        assert (
+            'InfluxDBWritePoints tool invocation not allowed when read-only_mode set to True'
+            in str(excinfo.value)
+        )
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
@@ -1344,6 +1557,34 @@ class TestInfluxDBOperations:
         mock_write_api.write.assert_called_once()
         mock_client.close.assert_called_once()
         assert result['status'] == 'success'
+
+    @pytest.mark.asyncio
+    async def test_influxdb_write_line_protocol_read_only_mode(self):
+        """Test tool in read-only mode."""
+        url = 'https://influxdb-example.aws:8086'
+        token = 'test-token'
+        bucket = 'test-bucket'
+        org = 'test-org'
+        data_line_protocol = 'temperature,location=Prague value=25.3'
+
+        # Act
+        with pytest.raises(Exception) as excinfo:
+            await influxdb_write_line_protocol(
+                url=url,
+                token=token,
+                bucket=bucket,
+                org=org,
+                data_line_protocol=data_line_protocol,
+                time_precision='ns',
+                sync_mode='synchronous',
+                read_only_mode=True,
+            )
+
+        # Assert
+        assert (
+            'InfluxDBWriteLineProtocol tool invocation not allowed when read-only_mode set to True'
+            in str(excinfo.value)
+        )
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
