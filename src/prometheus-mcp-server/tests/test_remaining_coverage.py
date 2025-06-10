@@ -24,13 +24,15 @@ def test_load_config_file_json_error():
     from awslabs.prometheus_mcp_server.server import load_config
 
     # Setup
-    args = argparse.Namespace(config='config.json', profile=None, region=None, url=None, debug=False)
+    args = argparse.Namespace(
+        config='config.json', profile=None, region=None, url=None, debug=False
+    )
 
     # Execute
     with (
         patch('os.path.exists', return_value=True),
         patch('builtins.open', MagicMock()),
-        patch('json.load', side_effect=ValueError("Invalid JSON")),
+        patch('json.load', side_effect=ValueError('Invalid JSON')),
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
         patch('awslabs.prometheus_mcp_server.server.load_dotenv'),
     ):
@@ -64,7 +66,9 @@ def test_setup_environment_non_aws_url():
         mock_session_instance.get_credentials.return_value = mock_credentials
 
         mock_sts = MagicMock()
-        mock_sts.get_caller_identity.return_value = {'Arn': 'arn:aws:iam::123456789012:user/test-user'}
+        mock_sts.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:iam::123456789012:user/test-user'
+        }
         mock_session_instance.client.return_value = mock_sts
 
         result = setup_environment(config)
@@ -72,7 +76,10 @@ def test_setup_environment_non_aws_url():
     # Assert
     assert result is True  # Non-AWS URLs are allowed with a warning
     mock_logger.warning.assert_called()
-    assert any("doesn't appear to be an AWS Managed Prometheus endpoint" in str(args) for args in mock_logger.warning.call_args_list)
+    assert any(
+        "doesn't appear to be an AWS Managed Prometheus endpoint" in str(args)
+        for args in mock_logger.warning.call_args_list
+    )
 
 
 @pytest.mark.asyncio
@@ -90,7 +97,9 @@ async def test_make_prometheus_request_retry_delay_none():
         from awslabs.prometheus_mcp_server.server import make_prometheus_request
 
         # Setup mocks
-        mock_config.prometheus_url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        mock_config.prometheus_url = (
+            'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        )
         mock_config.aws_region = 'us-east-1'
         mock_config.aws_profile = 'test-profile'
         mock_config.service_name = 'aps'
@@ -105,10 +114,8 @@ async def test_make_prometheus_request_retry_delay_none():
         # First call raises exception, second call succeeds
         mock_send = mock_requests_session.return_value.__enter__.return_value.send
         mock_send.side_effect = [
-            requests.RequestException("Connection error"),
-            MagicMock(
-                json=lambda: {'status': 'success', 'data': {'result': 'test_data'}}
-            )
+            requests.RequestException('Connection error'),
+            MagicMock(json=lambda: {'status': 'success', 'data': {'result': 'test_data'}}),
         ]
 
         # Execute

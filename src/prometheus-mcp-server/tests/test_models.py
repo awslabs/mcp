@@ -33,7 +33,9 @@ def test_prometheus_config_valid():
     )
 
     # Assert
-    assert config.prometheus_url == 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+    assert (
+        config.prometheus_url == 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+    )
     assert config.aws_region == 'us-east-1'
     assert config.aws_profile == 'test-profile'
     assert config.service_name == 'aps'
@@ -53,7 +55,9 @@ def test_prometheus_config_defaults():
     )
 
     # Assert
-    assert config.prometheus_url == 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+    assert (
+        config.prometheus_url == 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+    )
     assert config.aws_region == 'us-east-1'
     assert config.aws_profile is None
     assert config.service_name == 'aps'
@@ -139,7 +143,9 @@ def test_server_info():
     )
 
     # Assert
-    assert info.prometheus_url == 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+    assert (
+        info.prometheus_url == 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+    )
     assert info.aws_region == 'us-east-1'
     assert info.aws_profile == 'test-profile'
     assert info.service_name == 'aps'

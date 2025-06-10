@@ -115,7 +115,7 @@ async def test_test_prometheus_connection_network_error():
         from awslabs.prometheus_mcp_server.server import test_prometheus_connection
 
         # Setup
-        mock_request.side_effect = requests.RequestException("Connection refused")
+        mock_request.side_effect = requests.RequestException('Connection refused')
 
         # Execute
         result = await test_prometheus_connection()
@@ -136,7 +136,7 @@ async def test_test_prometheus_connection_generic_error():
         from awslabs.prometheus_mcp_server.server import test_prometheus_connection
 
         # Setup
-        mock_request.side_effect = Exception("Unexpected error")
+        mock_request.side_effect = Exception('Unexpected error')
 
         # Execute
         result = await test_prometheus_connection()
@@ -144,4 +144,7 @@ async def test_test_prometheus_connection_generic_error():
         # Assert
         assert result is False
         mock_logger.error.assert_called()
-        assert any('Error connecting to Prometheus' in str(args) for args in mock_logger.error.call_args_list)
+        assert any(
+            'Error connecting to Prometheus' in str(args)
+            for args in mock_logger.error.call_args_list
+        )

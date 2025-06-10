@@ -28,12 +28,12 @@ async def test_execute_query_error_handling():
         from awslabs.prometheus_mcp_server.server import execute_query
 
         # Setup
-        mock_request.side_effect = Exception("Test error")
+        mock_request.side_effect = Exception('Test error')
         ctx = AsyncMock()
 
         # Execute and assert
-        with pytest.raises(Exception, match="Test error"):
-            await execute_query(ctx, "up")
+        with pytest.raises(Exception, match='Test error'):
+            await execute_query(ctx, 'up')
 
         # Verify error was logged and reported to context
         mock_logger.error.assert_called_once()
@@ -50,17 +50,17 @@ async def test_execute_range_query_error_handling():
         from awslabs.prometheus_mcp_server.server import execute_range_query
 
         # Setup
-        mock_request.side_effect = Exception("Test error")
+        mock_request.side_effect = Exception('Test error')
         ctx = AsyncMock()
 
         # Execute and assert
-        with pytest.raises(Exception, match="Test error"):
+        with pytest.raises(Exception, match='Test error'):
             await execute_range_query(
                 ctx,
-                "rate(node_cpu_seconds_total[5m])",
-                "2023-01-01T00:00:00Z",
-                "2023-01-01T01:00:00Z",
-                "5m",
+                'rate(node_cpu_seconds_total[5m])',
+                '2023-01-01T00:00:00Z',
+                '2023-01-01T01:00:00Z',
+                '5m',
             )
 
         # Verify error was logged and reported to context
@@ -78,11 +78,11 @@ async def test_list_metrics_error_handling():
         from awslabs.prometheus_mcp_server.server import list_metrics
 
         # Setup
-        mock_request.side_effect = Exception("Test error")
+        mock_request.side_effect = Exception('Test error')
         ctx = AsyncMock()
 
         # Execute and assert
-        with pytest.raises(Exception, match="Test error"):
+        with pytest.raises(Exception, match='Test error'):
             await list_metrics(ctx)
 
         # Verify error was logged and reported to context
@@ -128,7 +128,7 @@ async def test_get_server_info_with_exception():
 
         # Configure the mock to raise an exception when prometheus_url is accessed
         mock_config.__bool__.return_value = True  # Make sure 'if not config' evaluates to False
-        mock_config.prometheus_url = MagicMock(side_effect=Exception("Test error"))
+        mock_config.prometheus_url = MagicMock(side_effect=Exception('Test error'))
 
         # Execute and assert
         with pytest.raises(Exception):

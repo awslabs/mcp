@@ -27,7 +27,11 @@ def test_load_config_defaults():
     args = Namespace(config=None, profile=None, region=None, url=None, debug=False)
 
     # Execute
-    with patch('os.path.exists', return_value=False), patch('os.getenv', return_value=None), patch('awslabs.prometheus_mcp_server.server.load_dotenv'):
+    with (
+        patch('os.path.exists', return_value=False),
+        patch('os.getenv', return_value=None),
+        patch('awslabs.prometheus_mcp_server.server.load_dotenv'),
+    ):
         config = load_config(args)
 
     # Assert
@@ -80,7 +84,11 @@ def test_load_config_from_env_vars():
     args = Namespace(config=None, profile=None, region=None, url=None, debug=False)
 
     # Execute
-    with patch('os.path.exists', return_value=False), patch('os.getenv') as mock_getenv, patch('awslabs.prometheus_mcp_server.server.load_dotenv'):
+    with (
+        patch('os.path.exists', return_value=False),
+        patch('os.getenv') as mock_getenv,
+        patch('awslabs.prometheus_mcp_server.server.load_dotenv'),
+    ):
         mock_getenv.side_effect = lambda key, default=None: {
             ENV_AWS_PROFILE: 'env-profile',
             ENV_AWS_REGION: 'us-east-2',
@@ -197,7 +205,9 @@ def test_setup_environment_success():
         mock_session_instance.get_credentials.return_value = mock_credentials
 
         mock_sts = MagicMock()
-        mock_sts.get_caller_identity.return_value = {'Arn': 'arn:aws:iam::123456789012:user/test-user'}
+        mock_sts.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:iam::123456789012:user/test-user'
+        }
         mock_session_instance.client.return_value = mock_sts
 
         result = setup_environment(config)
@@ -318,8 +328,7 @@ def test_setup_environment_sts_error():
 
         mock_sts = MagicMock()
         mock_sts.get_caller_identity.side_effect = ClientError(
-            {'Error': {'Code': 'AccessDenied', 'Message': 'Access Denied'}},
-            'GetCallerIdentity'
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access Denied'}}, 'GetCallerIdentity'
         )
         mock_session_instance.client.return_value = mock_sts
 
@@ -335,8 +344,19 @@ def test_parse_arguments():
     from awslabs.prometheus_mcp_server.server import parse_arguments
 
     # Execute
-    with patch('sys.argv', ['server.py', '--profile', 'test-profile', '--region', 'us-west-2',
-                           '--url', 'https://test.amazonaws.com', '--debug']):
+    with patch(
+        'sys.argv',
+        [
+            'server.py',
+            '--profile',
+            'test-profile',
+            '--region',
+            'us-west-2',
+            '--url',
+            'https://test.amazonaws.com',
+            '--debug',
+        ],
+    ):
         args = parse_arguments()
 
     # Assert

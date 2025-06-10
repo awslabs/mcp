@@ -102,7 +102,9 @@ def test_main_setup_environment_failure():
 @pytest.mark.asyncio
 async def test_async_main_success():
     """Test successful async initialization."""
-    with patch('awslabs.prometheus_mcp_server.server.test_prometheus_connection') as mock_test_conn:
+    with patch(
+        'awslabs.prometheus_mcp_server.server.test_prometheus_connection'
+    ) as mock_test_conn:
         from awslabs.prometheus_mcp_server.server import async_main
 
         # Setup

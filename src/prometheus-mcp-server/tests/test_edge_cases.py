@@ -23,12 +23,14 @@ def test_load_config_file_error():
     from awslabs.prometheus_mcp_server.server import load_config
 
     # Setup
-    args = argparse.Namespace(config='nonexistent.json', profile=None, region=None, url=None, debug=False)
+    args = argparse.Namespace(
+        config='nonexistent.json', profile=None, region=None, url=None, debug=False
+    )
 
     # Execute
     with (
         patch('os.path.exists', return_value=True),
-        patch('builtins.open', side_effect=Exception("File error")),
+        patch('builtins.open', side_effect=Exception('File error')),
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
         patch('awslabs.prometheus_mcp_server.server.load_dotenv'),
     ):
@@ -53,7 +55,9 @@ def test_setup_environment_url_parse_error():
 
     # Execute
     with (
-        patch('awslabs.prometheus_mcp_server.server.urlparse', side_effect=Exception("Parse error")),
+        patch(
+            'awslabs.prometheus_mcp_server.server.urlparse', side_effect=Exception('Parse error')
+        ),
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
     ):
         result = setup_environment(config)
@@ -61,7 +65,9 @@ def test_setup_environment_url_parse_error():
     # Assert
     assert result is False
     mock_logger.error.assert_called()
-    assert any('Error parsing Prometheus URL' in str(args) for args in mock_logger.error.call_args_list)
+    assert any(
+        'Error parsing Prometheus URL' in str(args) for args in mock_logger.error.call_args_list
+    )
 
 
 def test_setup_environment_boto3_session_error():
@@ -87,7 +93,9 @@ def test_setup_environment_boto3_session_error():
     # Assert
     assert result is False
     mock_logger.error.assert_called()
-    assert any('AWS credentials not found' in str(args) for args in mock_logger.error.call_args_list)
+    assert any(
+        'AWS credentials not found' in str(args) for args in mock_logger.error.call_args_list
+    )
 
 
 def test_setup_environment_general_exception():
@@ -106,10 +114,12 @@ def test_setup_environment_general_exception():
         patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
     ):
-        mock_session.side_effect = Exception("General error")
+        mock_session.side_effect = Exception('General error')
         result = setup_environment(config)
 
     # Assert
     assert result is False
     mock_logger.error.assert_called()
-    assert any('Error setting up AWS session' in str(args) for args in mock_logger.error.call_args_list)
+    assert any(
+        'Error setting up AWS session' in str(args) for args in mock_logger.error.call_args_list
+    )

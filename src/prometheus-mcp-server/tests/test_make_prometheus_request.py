@@ -33,7 +33,9 @@ async def test_make_prometheus_request_success():
         from awslabs.prometheus_mcp_server.server import make_prometheus_request
 
         # Setup mocks
-        mock_config.prometheus_url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        mock_config.prometheus_url = (
+            'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        )
         mock_config.aws_region = 'us-east-1'
         mock_config.aws_profile = 'test-profile'
         mock_config.service_name = 'aps'
@@ -56,9 +58,7 @@ async def test_make_prometheus_request_success():
 
         # Assert
         assert result == {'result': 'test_data'}
-        mock_session.assert_called_once_with(
-            profile_name='test-profile', region_name='us-east-1'
-        )
+        mock_session.assert_called_once_with(profile_name='test-profile', region_name='us-east-1')
         mock_auth.assert_called_once()
         mock_auth_instance.add_auth.assert_called_once()
         mock_request.assert_called_once()
@@ -80,7 +80,9 @@ async def test_make_prometheus_request_error_response():
         from awslabs.prometheus_mcp_server.server import make_prometheus_request
 
         # Setup mocks
-        mock_config.prometheus_url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        mock_config.prometheus_url = (
+            'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        )
         mock_config.aws_region = 'us-east-1'
         mock_config.aws_profile = 'test-profile'
         mock_config.service_name = 'aps'
@@ -115,7 +117,9 @@ async def test_make_prometheus_request_network_error_with_retry():
         from awslabs.prometheus_mcp_server.server import make_prometheus_request
 
         # Setup mocks
-        mock_config.prometheus_url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        mock_config.prometheus_url = (
+            'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        )
         mock_config.aws_region = 'us-east-1'
         mock_config.aws_profile = 'test-profile'
         mock_config.service_name = 'aps'
@@ -130,10 +134,8 @@ async def test_make_prometheus_request_network_error_with_retry():
         # First call raises exception, second call succeeds
         mock_send = mock_requests_session.return_value.__enter__.return_value.send
         mock_send.side_effect = [
-            requests.RequestException("Connection error"),
-            MagicMock(
-                json=lambda: {'status': 'success', 'data': {'result': 'test_data'}}
-            )
+            requests.RequestException('Connection error'),
+            MagicMock(json=lambda: {'status': 'success', 'data': {'result': 'test_data'}}),
         ]
 
         # Execute
@@ -159,7 +161,9 @@ async def test_make_prometheus_request_max_retries_exceeded():
         from awslabs.prometheus_mcp_server.server import make_prometheus_request
 
         # Setup mocks
-        mock_config.prometheus_url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        mock_config.prometheus_url = (
+            'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        )
         mock_config.aws_region = 'us-east-1'
         mock_config.aws_profile = 'test-profile'
         mock_config.service_name = 'aps'
@@ -173,11 +177,11 @@ async def test_make_prometheus_request_max_retries_exceeded():
 
         # All calls raise exception
         mock_send = mock_requests_session.return_value.__enter__.return_value.send
-        exception = requests.RequestException("Connection error")
+        exception = requests.RequestException('Connection error')
         mock_send.side_effect = [exception, exception, exception]
 
         # Execute and assert
-        with pytest.raises(requests.RequestException, match="Connection error"):
+        with pytest.raises(requests.RequestException, match='Connection error'):
             await make_prometheus_request('query', {'query': 'up'}, 3)
 
         assert mock_send.call_count == 3
@@ -194,7 +198,9 @@ async def test_make_prometheus_request_no_credentials():
         from awslabs.prometheus_mcp_server.server import make_prometheus_request
 
         # Setup mocks
-        mock_config.prometheus_url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        mock_config.prometheus_url = (
+            'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        )
         mock_config.aws_region = 'us-east-1'
         mock_config.aws_profile = 'test-profile'
 
@@ -202,7 +208,7 @@ async def test_make_prometheus_request_no_credentials():
         mock_session_instance.get_credentials.return_value = None
 
         # Execute and assert
-        with pytest.raises(ValueError, match="AWS credentials not found"):
+        with pytest.raises(ValueError, match='AWS credentials not found'):
             await make_prometheus_request('query', {'query': 'up'}, 3)
 
 
@@ -216,7 +222,7 @@ async def test_make_prometheus_request_no_url():
         mock_config.prometheus_url = None
 
         # Execute and assert
-        with pytest.raises(ValueError, match="Prometheus URL not configured"):
+        with pytest.raises(ValueError, match='Prometheus URL not configured'):
             await make_prometheus_request('query', {'query': 'up'}, 3)
 
 
@@ -233,7 +239,9 @@ async def test_make_prometheus_request_json_decode_error():
         from awslabs.prometheus_mcp_server.server import make_prometheus_request
 
         # Setup mocks
-        mock_config.prometheus_url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        mock_config.prometheus_url = (
+            'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
+        )
         mock_config.aws_region = 'us-east-1'
         mock_config.aws_profile = 'test-profile'
         mock_config.service_name = 'aps'
@@ -247,7 +255,7 @@ async def test_make_prometheus_request_json_decode_error():
         mock_request.return_value.prepare.return_value = mock_prepared_request
 
         mock_response = MagicMock()
-        mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
+        mock_response.json.side_effect = json.JSONDecodeError('Invalid JSON', '', 0)
         mock_requests_session.return_value.__enter__.return_value.send.return_value = mock_response
 
         # Execute and assert

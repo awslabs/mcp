@@ -225,11 +225,19 @@ def validate_params(params: Dict) -> bool:
     # List of dangerous patterns to check for
     dangerous_patterns = [
         # Command injection attempts
-        ';', '&&', '||', '`', '$(', '${',
+        ';',
+        '&&',
+        '||',
+        '`',
+        '$(',
+        '${',
         # File access attempts
-        'file://', '/etc/', '/var/log',
+        'file://',
+        '/etc/',
+        '/var/log',
         # Network access attempts
-        'http://', 'https://',
+        'http://',
+        'https://',
     ]
 
     # Check each parameter value
@@ -422,11 +430,19 @@ def validate_query(query: str) -> bool:
     # List of dangerous patterns to check for
     dangerous_patterns = [
         # Command injection attempts
-        ';', '&&', '||', '`', '$(', '${',
+        ';',
+        '&&',
+        '||',
+        '`',
+        '$(',
+        '${',
         # File access attempts
-        'file://', '/etc/', '/var/log',
+        'file://',
+        '/etc/',
+        '/var/log',
         # Network access attempts
-        'http://', 'https://',
+        'http://',
+        'https://',
     ]
 
     # Check for dangerous patterns
