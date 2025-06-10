@@ -210,6 +210,41 @@ def setup_environment(config):
     return True
 
 
+def validate_params(params: Dict) -> bool:
+    """Validate request parameters for potential security issues.
+
+    Args:
+        params: The parameters to validate
+
+    Returns:
+        bool: True if the parameters are safe, False otherwise
+    """
+    if not params:
+        return True
+
+    # List of dangerous patterns to check for
+    dangerous_patterns = [
+        # Command injection attempts
+        ';', '&&', '||', '`', '$(', '${',
+        # File access attempts
+        'file://', '/etc/', '/var/log',
+        # Network access attempts
+        'http://', 'https://',
+    ]
+
+    # Check each parameter value
+    for key, value in params.items():
+        if not isinstance(value, str):
+            continue
+
+        for pattern in dangerous_patterns:
+            if pattern in value:
+                logger.warning(f'Potentially dangerous parameter detected: {key}={value}')
+                return False
+
+    return True
+
+
 async def make_prometheus_request(
     endpoint: str, params: Optional[Dict] = None, max_retries: int = 3
 ) -> Any:
@@ -231,6 +266,17 @@ async def make_prometheus_request(
     """
     if not config or not config.prometheus_url:
         raise ValueError('Prometheus URL not configured')
+
+    # Validate endpoint
+    if not isinstance(endpoint, str):
+        raise ValueError('Endpoint must be a string')
+
+    if ';' in endpoint or '&&' in endpoint or '||' in endpoint:
+        raise ValueError('Invalid endpoint: potentially dangerous characters detected')
+
+    # Validate parameters
+    if params and not validate_params(params):
+        raise ValueError('Invalid parameters: potentially dangerous values detected')
 
     # Ensure the URL ends with /api/v1
     base_url = config.prometheus_url
