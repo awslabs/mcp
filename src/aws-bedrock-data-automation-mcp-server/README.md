@@ -25,7 +25,7 @@ A Model Context Protocol (MCP) server for Amazon Bedrock Data Automation that en
 
 ## Installation
 
-Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
+Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
