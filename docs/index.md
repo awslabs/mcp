@@ -275,6 +275,20 @@ Use this MCP server to first discover available logs groups, then run queries on
 
 [Learn more about the Amazon CloudWatch Logs MCP Server](servers/cloudwatch-logs-mcp-server.md)
 
+### AWS Managed Prometheus MCP Server
+
+The Prometheus MCP Server provides a robust interface for interacting with AWS Managed Prometheus.
+
+**Features:**
+
+- Execute instant PromQL queries against AWS Managed Prometheus
+- Execute range queries with start time, end time, and step interval
+- List all available metrics in your Prometheus instance
+- Get server configuration information
+- AWS SigV4 authentication for secure access
+
+[Learn more about the AWS Managed Prometheus MCP Server](servers/prometheus-mcp-server.md)
+
 ### Amazon DynamoDB MCP Server
 
 A server for interacting with Amazon DynamoDB
