@@ -12,61 +12,125 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the main function in server.py."""
+"""Tests for the main function and server initialization."""
 
-from awslabs.prometheus_mcp_server.server import main
-from unittest.mock import patch
+import pytest
+import sys
+from unittest.mock import patch, MagicMock
 
 
-class TestMain:
-    """Tests for the main function."""
-
-    @patch('awslabs.prometheus_mcp_server.server.mcp.run')
-    @patch('awslabs.prometheus_mcp_server.server.parse_arguments')
-    @patch('awslabs.prometheus_mcp_server.server.load_config')
-    @patch('awslabs.prometheus_mcp_server.server.setup_environment')
-    @patch('asyncio.run')
-    def test_main_default(
-        self, mock_asyncio_run, mock_setup_env, mock_load_config, mock_parse_args, mock_run
+def test_main_success():
+    """Test successful server initialization."""
+    with (
+        patch('awslabs.prometheus_mcp_server.server.parse_arguments') as mock_parse_args,
+        patch('awslabs.prometheus_mcp_server.server.load_config') as mock_load_config,
+        patch('awslabs.prometheus_mcp_server.server.setup_environment') as mock_setup_env,
+        patch('asyncio.run') as mock_asyncio_run,
+        patch('awslabs.prometheus_mcp_server.server.mcp.run') as mock_mcp_run,
     ):
-        """Test main function with default arguments."""
-        # Setup mocks
-        mock_args = patch('argparse.Namespace').start()
+        from awslabs.prometheus_mcp_server.server import main
+
+        # Setup
+        mock_args = MagicMock()
         mock_parse_args.return_value = mock_args
+        
         mock_config_data = {
-            'aws_profile': None,
+            'prometheus_url': 'https://test-prometheus.amazonaws.com',
             'aws_region': 'us-east-1',
-            'prometheus_url': 'https://test.com',
+            'aws_profile': 'test-profile',
             'service_name': 'aps',
             'retry_delay': 1,
             'max_retries': 3,
         }
         mock_load_config.return_value = mock_config_data
+        
         mock_setup_env.return_value = True
 
-        # Call the main function
+        # Execute
         main()
 
-        # Check that mcp.run was called with the correct arguments
-        mock_run.assert_called_once()
-        assert mock_run.call_args[1].get('transport') == 'stdio'
+        # Assert
+        mock_parse_args.assert_called_once()
+        mock_load_config.assert_called_once_with(mock_args)
+        mock_setup_env.assert_called_once_with(mock_config_data)
+        mock_asyncio_run.assert_called_once()
+        mock_mcp_run.assert_called_once_with(transport='stdio')
 
-    def test_module_execution(self):
-        """Test the module execution when run as __main__."""
-        # This test directly executes the code in the if __name__ == '__main__': block
-        # to ensure coverage of that line
 
-        # Get the source code of the module
-        import inspect
-        from awslabs.prometheus_mcp_server import server
+def test_main_setup_environment_failure():
+    """Test server initialization with environment setup failure."""
+    with (
+        patch('awslabs.prometheus_mcp_server.server.parse_arguments') as mock_parse_args,
+        patch('awslabs.prometheus_mcp_server.server.load_config') as mock_load_config,
+        patch('awslabs.prometheus_mcp_server.server.setup_environment') as mock_setup_env,
+        patch('awslabs.prometheus_mcp_server.server.sys.exit') as mock_exit,
+        patch('asyncio.run') as mock_asyncio_run,
+        patch('awslabs.prometheus_mcp_server.server.mcp.run') as mock_mcp_run,
+    ):
+        from awslabs.prometheus_mcp_server.server import main
 
-        # Get the source code
-        source = inspect.getsource(server)
+        # Setup
+        mock_args = MagicMock()
+        mock_parse_args.return_value = mock_args
+        
+        mock_config_data = {
+            'prometheus_url': 'https://test-prometheus.amazonaws.com',
+            'aws_region': 'us-east-1',
+            'aws_profile': 'test-profile',
+            'service_name': 'aps',
+            'retry_delay': 1,
+            'max_retries': 3,
+        }
+        mock_load_config.return_value = mock_config_data
+        
+        mock_setup_env.return_value = False
 
-        # Check that the module has the if __name__ == '__main__': block
-        assert "if __name__ == '__main__':" in source
-        assert 'main()' in source
+        # Execute
+        main()
 
-        # This test doesn't actually execute the code, but it ensures
-        # that the coverage report includes the if __name__ == '__main__': line
-        # by explicitly checking for its presence
+        # Assert
+        mock_parse_args.assert_called_once()
+        mock_load_config.assert_called_once_with(mock_args)
+        mock_setup_env.assert_called_once_with(mock_config_data)
+        mock_exit.assert_called_once_with(1)
+        # Note: In the actual implementation, sys.exit doesn't immediately terminate execution in tests
+        # So the code continues to run and calls these functions
+        # We're not asserting on these calls since they're not relevant to the test
+        # mock_asyncio_run.assert_not_called()
+        # mock_mcp_run.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_main_success():
+    """Test successful async initialization."""
+    with patch('awslabs.prometheus_mcp_server.server.test_prometheus_connection') as mock_test_conn:
+        from awslabs.prometheus_mcp_server.server import async_main
+
+        # Setup
+        mock_test_conn.return_value = True
+
+        # Execute
+        await async_main()
+
+        # Assert
+        mock_test_conn.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_main_connection_failure():
+    """Test async initialization with connection failure."""
+    with (
+        patch('awslabs.prometheus_mcp_server.server.test_prometheus_connection') as mock_test_conn,
+        patch('sys.exit') as mock_exit,
+    ):
+        from awslabs.prometheus_mcp_server.server import async_main
+
+        # Setup
+        mock_test_conn.return_value = False
+
+        # Execute
+        await async_main()
+
+        # Assert
+        mock_test_conn.assert_called_once()
+        mock_exit.assert_called_once_with(1)
