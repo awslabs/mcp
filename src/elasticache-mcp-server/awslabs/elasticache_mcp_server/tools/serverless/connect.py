@@ -51,11 +51,13 @@ async def _configure_security_groups(
         ServerlessCacheName=serverless_cache_name
     )['ServerlessCaches'][0]
 
-    # Get cache VPC ID and subnet IDs
-    cache_vpc_id = serverless_cache['VpcSecurityGroups'][0]['VpcId']
+    # Get cache security groups
     cache_security_groups = serverless_cache['VpcSecurityGroups']
     if not cache_security_groups:
         raise ValueError(f'No security groups found for serverless cache {serverless_cache_name}')
+
+    # Get cache VPC ID
+    cache_vpc_id = cache_security_groups[0]['VpcId']
 
     # Get cache port (default is 6379 for Redis)
     cache_port = 6379
@@ -285,7 +287,15 @@ async def create_jump_host_serverless(
             ServerlessCacheName=serverless_cache_name
         )['ServerlessCaches'][0]
 
-        cache_vpc_id = serverless_cache['VpcSecurityGroups'][0]['VpcId']
+        # Get cache security groups
+        cache_security_groups = serverless_cache['VpcSecurityGroups']
+        if not cache_security_groups:
+            raise ValueError(
+                f'No security groups found for serverless cache {serverless_cache_name}'
+            )
+
+        # Get cache VPC ID
+        cache_vpc_id = cache_security_groups[0]['VpcId']
 
         # Get subnet details and verify it's public
         subnet_response = ec2_client.describe_subnets(SubnetIds=[subnet_id])
