@@ -151,7 +151,7 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 **Set up the Amazon Q Developer CLI**
 
 1. Install the [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html) .
-2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html). 
+2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html).
 
 The example below includes both the `--allow-write` flag for mutating operations and the `--allow-sensitive-data-access` flag for accessing logs and events (see the Arguments section for more details):
 
@@ -185,7 +185,7 @@ The example below includes both the `--allow-write` flag for mutating operations
 	    "awslabs.eks-mcp-server": {
 	      "command": "uvx",
 	      "args": [
-	        "--from", 
+	        "--from",
 	        "awslabs.eks-mcp-server@latest", 
 	        "awslabs.eks-mcp-server.exe",
 	        "--allow-write",
