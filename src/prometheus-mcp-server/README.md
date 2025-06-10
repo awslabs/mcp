@@ -40,12 +40,10 @@ mkdir -p ~/.aws/amazonq/
 ```json
 {
   "mcpServers": {
-    "prometheus": {
+    "awslabs.prometheus-mcp-server": {
       "command": "uvx",
       "args": [
-        "--from",
-        "https://github.com/MohamedSherifAbdelsamiea/mcp/archive/refs/heads/add-prometheus-mcp.zip#subdirectory=src/prometheus-mcp-server",
-        "awslabs.prometheus-mcp-server",
+        "awslabs.prometheus-mcp-server@latest",
         "--url",
         "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-XXXX-XXXX-XXXX-XXXX",
         "--region",
