@@ -15,8 +15,7 @@
 """Tests for the main function and server initialization."""
 
 import pytest
-import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 def test_main_success():
@@ -33,7 +32,7 @@ def test_main_success():
         # Setup
         mock_args = MagicMock()
         mock_parse_args.return_value = mock_args
-        
+
         mock_config_data = {
             'prometheus_url': 'https://test-prometheus.amazonaws.com',
             'aws_region': 'us-east-1',
@@ -43,7 +42,7 @@ def test_main_success():
             'max_retries': 3,
         }
         mock_load_config.return_value = mock_config_data
-        
+
         mock_setup_env.return_value = True
 
         # Execute
@@ -64,15 +63,15 @@ def test_main_setup_environment_failure():
         patch('awslabs.prometheus_mcp_server.server.load_config') as mock_load_config,
         patch('awslabs.prometheus_mcp_server.server.setup_environment') as mock_setup_env,
         patch('awslabs.prometheus_mcp_server.server.sys.exit') as mock_exit,
-        patch('asyncio.run') as mock_asyncio_run,
-        patch('awslabs.prometheus_mcp_server.server.mcp.run') as mock_mcp_run,
+        patch('asyncio.run'),
+        patch('awslabs.prometheus_mcp_server.server.mcp.run'),
     ):
         from awslabs.prometheus_mcp_server.server import main
 
         # Setup
         mock_args = MagicMock()
         mock_parse_args.return_value = mock_args
-        
+
         mock_config_data = {
             'prometheus_url': 'https://test-prometheus.amazonaws.com',
             'aws_region': 'us-east-1',
@@ -82,7 +81,7 @@ def test_main_setup_environment_failure():
             'max_retries': 3,
         }
         mock_load_config.return_value = mock_config_data
-        
+
         mock_setup_env.return_value = False
 
         # Execute

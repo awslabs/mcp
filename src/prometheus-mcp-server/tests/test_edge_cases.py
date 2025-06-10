@@ -14,14 +14,13 @@
 
 """Tests for edge cases in the Prometheus MCP Server."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 def test_load_config_file_error():
     """Test loading configuration with file error."""
-    from awslabs.prometheus_mcp_server.server import load_config
     import argparse
+    from awslabs.prometheus_mcp_server.server import load_config
 
     # Setup
     args = argparse.Namespace(config='nonexistent.json', profile=None, region=None, url=None, debug=False)

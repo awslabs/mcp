@@ -94,11 +94,11 @@ async def test_list_metrics_error_handling():
 async def test_get_server_info_error_handling():
     """Test error handling in get_server_info function."""
     with (
-        patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
+        patch('awslabs.prometheus_mcp_server.server.logger'),
         patch('awslabs.prometheus_mcp_server.server.config', None),
     ):
-        from awslabs.prometheus_mcp_server.server import get_server_info
         from awslabs.prometheus_mcp_server.models import ServerInfo
+        from awslabs.prometheus_mcp_server.server import get_server_info
 
         # Setup
         ctx = AsyncMock()
@@ -125,7 +125,7 @@ async def test_get_server_info_with_exception():
 
         # Setup
         ctx = AsyncMock()
-        
+
         # Configure the mock to raise an exception when prometheus_url is accessed
         mock_config.__bool__.return_value = True  # Make sure 'if not config' evaluates to False
         mock_config.prometheus_url = MagicMock(side_effect=Exception("Test error"))

@@ -14,11 +14,10 @@
 
 """Tests for the make_prometheus_request function."""
 
+import json
 import pytest
 import requests
-import json
-from unittest.mock import AsyncMock, MagicMock, patch, call
-from botocore.exceptions import ClientError, NoCredentialsError
+from unittest.mock import MagicMock, patch
 
 
 @pytest.mark.asyncio
@@ -44,10 +43,10 @@ async def test_make_prometheus_request_success():
         mock_session_instance.get_credentials.return_value = MagicMock()
 
         mock_auth_instance = mock_auth.return_value
-        
+
         mock_prepared_request = MagicMock()
         mock_request.return_value.prepare.return_value = mock_prepared_request
-        
+
         mock_response = MagicMock()
         mock_response.json.return_value = {'status': 'success', 'data': {'result': 'test_data'}}
         mock_requests_session.return_value.__enter__.return_value.send.return_value = mock_response
@@ -73,7 +72,7 @@ async def test_make_prometheus_request_error_response():
     """Test handling of error response from Prometheus API."""
     with (
         patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
-        patch('awslabs.prometheus_mcp_server.server.SigV4Auth') as mock_auth,
+        patch('awslabs.prometheus_mcp_server.server.SigV4Auth'),
         patch('awslabs.prometheus_mcp_server.server.requests.Request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.requests.Session') as mock_requests_session,
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
@@ -92,7 +91,7 @@ async def test_make_prometheus_request_error_response():
 
         mock_prepared_request = MagicMock()
         mock_request.return_value.prepare.return_value = mock_prepared_request
-        
+
         mock_response = MagicMock()
         mock_response.json.return_value = {'status': 'error', 'error': 'Invalid query'}
         mock_requests_session.return_value.__enter__.return_value.send.return_value = mock_response
@@ -107,7 +106,7 @@ async def test_make_prometheus_request_network_error_with_retry():
     """Test retry logic when network errors occur."""
     with (
         patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
-        patch('awslabs.prometheus_mcp_server.server.SigV4Auth') as mock_auth,
+        patch('awslabs.prometheus_mcp_server.server.SigV4Auth'),
         patch('awslabs.prometheus_mcp_server.server.requests.Request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.requests.Session') as mock_requests_session,
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
@@ -127,7 +126,7 @@ async def test_make_prometheus_request_network_error_with_retry():
 
         mock_prepared_request = MagicMock()
         mock_request.return_value.prepare.return_value = mock_prepared_request
-        
+
         # First call raises exception, second call succeeds
         mock_send = mock_requests_session.return_value.__enter__.return_value.send
         mock_send.side_effect = [
@@ -151,7 +150,7 @@ async def test_make_prometheus_request_max_retries_exceeded():
     """Test behavior when maximum retries are exceeded."""
     with (
         patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
-        patch('awslabs.prometheus_mcp_server.server.SigV4Auth') as mock_auth,
+        patch('awslabs.prometheus_mcp_server.server.SigV4Auth'),
         patch('awslabs.prometheus_mcp_server.server.requests.Request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.requests.Session') as mock_requests_session,
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
@@ -171,7 +170,7 @@ async def test_make_prometheus_request_max_retries_exceeded():
 
         mock_prepared_request = MagicMock()
         mock_request.return_value.prepare.return_value = mock_prepared_request
-        
+
         # All calls raise exception
         mock_send = mock_requests_session.return_value.__enter__.return_value.send
         exception = requests.RequestException("Connection error")
@@ -180,7 +179,7 @@ async def test_make_prometheus_request_max_retries_exceeded():
         # Execute and assert
         with pytest.raises(requests.RequestException, match="Connection error"):
             await make_prometheus_request('query', {'query': 'up'}, 3)
-        
+
         assert mock_send.call_count == 3
         assert mock_sleep.call_count == 2  # Should sleep between each retry
 
@@ -198,7 +197,7 @@ async def test_make_prometheus_request_no_credentials():
         mock_config.prometheus_url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123'
         mock_config.aws_region = 'us-east-1'
         mock_config.aws_profile = 'test-profile'
-        
+
         mock_session_instance = mock_session.return_value
         mock_session_instance.get_credentials.return_value = None
 
@@ -215,7 +214,7 @@ async def test_make_prometheus_request_no_url():
 
         # Setup mocks
         mock_config.prometheus_url = None
-        
+
         # Execute and assert
         with pytest.raises(ValueError, match="Prometheus URL not configured"):
             await make_prometheus_request('query', {'query': 'up'}, 3)
@@ -226,7 +225,7 @@ async def test_make_prometheus_request_json_decode_error():
     """Test handling of JSON decode errors."""
     with (
         patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
-        patch('awslabs.prometheus_mcp_server.server.SigV4Auth') as mock_auth,
+        patch('awslabs.prometheus_mcp_server.server.SigV4Auth'),
         patch('awslabs.prometheus_mcp_server.server.requests.Request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.requests.Session') as mock_requests_session,
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
@@ -246,7 +245,7 @@ async def test_make_prometheus_request_json_decode_error():
 
         mock_prepared_request = MagicMock()
         mock_request.return_value.prepare.return_value = mock_prepared_request
-        
+
         mock_response = MagicMock()
         mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
         mock_requests_session.return_value.__enter__.return_value.send.return_value = mock_response
