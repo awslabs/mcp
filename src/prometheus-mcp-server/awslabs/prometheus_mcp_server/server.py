@@ -362,6 +362,36 @@ config = None  # Will be initialized in main()
 
 
 @mcp.tool(name='ExecuteQuery')
+def validate_query(query: str) -> bool:
+    """Validate a PromQL query for potential security issues.
+
+    Args:
+        query: The PromQL query to validate
+
+    Returns:
+        bool: True if the query is safe, False otherwise
+
+    This function checks for potentially dangerous patterns in PromQL queries.
+    """
+    # List of dangerous patterns to check for
+    dangerous_patterns = [
+        # Command injection attempts
+        ';', '&&', '||', '`', '$(', '${',
+        # File access attempts
+        'file://', '/etc/', '/var/log',
+        # Network access attempts
+        'http://', 'https://',
+    ]
+
+    # Check for dangerous patterns
+    for pattern in dangerous_patterns:
+        if pattern in query:
+            logger.warning(f'Potentially dangerous query pattern detected: {pattern}')
+            return False
+
+    return True
+
+
 async def execute_query(
     ctx: Context,
     query: str = Field(..., description='The PromQL query to execute'),
@@ -383,6 +413,14 @@ async def execute_query(
     """
     try:
         logger.info(f'Executing instant query: {query}')
+
+        # Validate query for security
+        if not validate_query(query):
+            error_msg = 'Query validation failed: potentially dangerous query pattern detected'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            raise ValueError(error_msg)
+
         params = {'query': query}
         if time:
             params['time'] = time
@@ -426,6 +464,14 @@ async def execute_range_query(
     """
     try:
         logger.info(f'Executing range query: {query} from {start} to {end} with step {step}')
+
+        # Validate query for security
+        if not validate_query(query):
+            error_msg = 'Query validation failed: potentially dangerous query pattern detected'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            raise ValueError(error_msg)
+
         params = {'query': query, 'start': start, 'end': end, 'step': step}
 
         max_retries = 3  # Default value
