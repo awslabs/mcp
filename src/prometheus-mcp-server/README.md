@@ -47,13 +47,13 @@ mkdir -p ~/.aws/amazonq/
         "--url",
         "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-XXXX-XXXX-XXXX-XXXX",
         "--region",
-        "us-east-1",
+        "<Your AWS Region>",
         "--profile",
-        "amp"
+        "<Your CLI Profile [default] if no profile is used>"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "DEBUG",
-        "AWS_PROFILE": "amp"
+        "AWS_PROFILE": "<Your CLI Profile [default] if no profile is used>"
       }
     }
   }
