@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 async def test_modify_cache_cluster_readonly_mode():
     """Test modifying a cache cluster in readonly mode."""
     with patch.object(Context, 'readonly_mode', return_value=True):
-        request = ModifyCacheClusterRequest(
+        request = create_test_request(
             cache_cluster_id='test-cluster',
             apply_immediately=True,
         )

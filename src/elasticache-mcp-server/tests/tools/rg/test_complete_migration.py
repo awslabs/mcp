@@ -25,7 +25,7 @@ from unittest.mock import MagicMock, patch
 async def test_complete_migration_readonly_mode():
     """Test completing migration in readonly mode."""
     with patch.object(Context, 'readonly_mode', return_value=True):
-        request = CompleteMigrationRequest(replication_group_id='test-rg')
+        request = create_test_request(replication_group_id='test-rg', force=None)
         result = await complete_migration(request)
         assert 'error' in result
         assert 'readonly mode' in result['error']
@@ -65,7 +65,7 @@ class TestCompleteMigration:
 
         mock_elasticache_client.complete_migration.return_value = expected_response
 
-        request = create_test_request()
+        request = create_test_request(force=None)
 
         response = await complete_migration(request)
 
