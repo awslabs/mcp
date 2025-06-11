@@ -52,7 +52,7 @@ The postgres-extended-mcp-server supports two connection methods in a single con
       "command": "uvx",
       "args": [
         "awslabs.postgres-mcp-server@latest",
-        "--reader_endpoint", "your-postgres-reader-endpoint",  // Optional: Required for readonly=True if not using resource_arn
+        "--reader_endpoint", "your-postgres-reader-endpoint",  // Required for readonly=True if not using resource_arn
         "--writer_endpoint", "your-postgres-writer-endpoint",  // Optional: Required for readonly=False if not using resource_arn
         "--secret_arn", "[your data]",                         // Required in all cases
         "--resource_arn", "[your data]",                       // Required for RDS Data API, not needed if using endpoints
@@ -99,7 +99,7 @@ The postgres-extended-mcp-server supports two connection methods in a single con
         "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
         "-e", "AWS_REGION=[your data]",
         "awslabs/postgres-mcp-server:latest",
-        "--reader_endpoint", "your-postgres-reader-endpoint",  // Optional: Required for readonly=True if not using resource_arn
+        "--reader_endpoint", "your-postgres-reader-endpoint",  // Required for readonly=True if not using resource_arn
         "--writer_endpoint", "your-postgres-writer-endpoint",  // Optional: Required for readonly=False if not using resource_arn
         "--secret_arn", "[your data]",                         // Required in all cases
         "--resource_arn", "[your data]",                       // Required for RDS Data API, not needed if using endpoints
