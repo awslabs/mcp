@@ -3,6 +3,10 @@
     "exclude": [
       "**/tests/**",
       ".venv/**",
+      "venv/**",
+      "**/venv/**",
+      "**/*venv/**",
+      "**/site-packages/**",
       ".github/**",
       "docs/**"
     ],
