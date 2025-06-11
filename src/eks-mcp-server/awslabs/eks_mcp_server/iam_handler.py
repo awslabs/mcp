@@ -50,14 +50,6 @@ class IAMHandler:
         self.mcp.tool(name='add_inline_policy')(self.add_inline_policy)
         self.mcp.tool(name='get_policies_for_role')(self.get_policies_for_role)
 
-    def _get_iam_client(self):
-        """Get an IAM client.
-
-        Returns:
-            An IAM client
-        """
-        return AwsHelper.create_boto3_client('iam')
-
     async def get_policies_for_role(
         self,
         ctx: Context,
@@ -102,7 +94,7 @@ class IAMHandler:
             log_with_request_id(ctx, LogLevel.INFO, f'Describing IAM role: {role_name}')
 
             # Get IAM client
-            iam_client = self._get_iam_client()
+            iam_client = AwsHelper.create_boto3_client('iam')
 
             # Get role details
             role_response = iam_client.get_role(RoleName=role_name)
@@ -221,7 +213,7 @@ class IAMHandler:
                 )
 
             # Get IAM client
-            iam_client = self._get_iam_client()
+            iam_client = AwsHelper.create_boto3_client('iam')
 
             # Create the inline policy
             return self._create_inline_policy(ctx, iam_client, role_name, policy_name, permissions)

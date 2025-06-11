@@ -38,10 +38,6 @@ class AwsHelper:
     # Client cache with AWS service name as key
     _client_cache: Dict[str, Any] = {}
 
-    # TTL in seconds (14 minutes)
-    # This matches the minimum configurable session duration minus a 1-minute buffer
-    _CACHE_TTL = 14 * 60
-
     @staticmethod
     def get_aws_region() -> Optional[str]:
         """Get the AWS region from the environment if set."""
