@@ -14,7 +14,11 @@
 """Tests for the cfn MCP Server."""
 
 import pytest
-from awslabs.cfn_mcp_server.cloud_control_utils import progress_event, validate_patch
+from awslabs.cfn_mcp_server.cloud_control_utils import (
+    add_default_tags,
+    progress_event,
+    validate_patch,
+)
 from awslabs.cfn_mcp_server.errors import ClientError
 
 
@@ -199,3 +203,57 @@ class TestUtils:
         }
 
         assert progress_event(request, [hook]) == response
+
+    async def test_add_default_tags_empty_properties(self):
+        """Test add_default_tags with empty properties."""
+        properties = {}
+        schema = {'properties': {'Tags': {}}}
+        result = add_default_tags(properties, schema)
+        assert result == {}
+
+    async def test_add_default_tags_no_tag_support(self):
+        """Test add_default_tags with resource that doesn't support tags."""
+        properties = {'Name': 'test-resource'}
+        schema = {'properties': {}}
+        result = add_default_tags(properties, schema)
+        assert result == {'Name': 'test-resource'}
+        assert 'Tags' not in result
+
+    async def test_add_default_tags_with_existing_tags(self):
+        """Test add_default_tags with existing tags."""
+        properties = {'Name': 'test-resource', 'Tags': [{'Key': 'MANAGED_BY', 'Value': 'CUSTOM'}]}
+        schema = {'properties': {'Tags': {}}}
+        result = add_default_tags(properties, schema)
+
+        assert result['Name'] == 'test-resource'
+        assert len(result['Tags']) == 2
+        assert {'Key': 'MANAGED_BY', 'Value': 'CUSTOM'} in result['Tags']
+        assert {'Key': 'MCP_SERVER_SOURCE_CODE', 'Value': 'TRUE'} in result['Tags']
+
+    async def test_add_default_tags_no_existing_tags(self):
+        """Test add_default_tags with no existing tags."""
+        properties = {'Name': 'test-resource'}
+        schema = {'properties': {'Tags': {}}}
+        result = add_default_tags(properties, schema)
+
+        assert result['Name'] == 'test-resource'
+        assert len(result['Tags']) == 2
+        assert {'Key': 'MANAGED_BY', 'Value': 'CFN-MCP-SERVER'} in result['Tags']
+        assert {'Key': 'MCP_SERVER_SOURCE_CODE', 'Value': 'TRUE'} in result['Tags']
+
+    async def test_add_default_tags_with_all_existing_tags(self):
+        """Test add_default_tags with all default tags already present."""
+        properties = {
+            'Name': 'test-resource',
+            'Tags': [
+                {'Key': 'MANAGED_BY', 'Value': 'CUSTOM'},
+                {'Key': 'MCP_SERVER_SOURCE_CODE', 'Value': 'CUSTOM'},
+            ],
+        }
+        schema = {'properties': {'Tags': {}}}
+        result = add_default_tags(properties, schema)
+
+        assert result['Name'] == 'test-resource'
+        assert len(result['Tags']) == 2
+        assert {'Key': 'MANAGED_BY', 'Value': 'CUSTOM'} in result['Tags']
+        assert {'Key': 'MCP_SERVER_SOURCE_CODE', 'Value': 'CUSTOM'} in result['Tags']

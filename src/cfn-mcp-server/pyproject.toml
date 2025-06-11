@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.cfn-mcp-server"
-version = "1.0.5"
+version = "1.1.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for doing common cloudformation tasks and for managing your resources in your AWS account"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -10,6 +10,7 @@ dependencies = [
     "mcp[cli]>=1.6.0",
     "boto3>=1.34.0",
     "botocore>=1.34.0",
+    "checkov>=3.0.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -19,6 +20,7 @@ authors = [
     {name = "Karam Singh", email="karam.singh.vir@gmail.com"},
     {name = "Brian Terry", email="brianter@amazon.com"},
     {name = "Shardul Vaidya", email="cam.v737@gmail.com"},
+    {name = "Kevon Mayers", email="kevon@kevonmayers.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",

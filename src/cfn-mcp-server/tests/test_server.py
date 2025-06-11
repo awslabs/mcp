@@ -111,10 +111,12 @@ class TestTools:
         mock_get_aws_client.return_value = mock_client
 
         # Call the function
-        result = await list_resources(resource_type='AWS::CodeStarConnections::Connection')
+        result = await list_resources(
+            resource_type='AWS::CodeStarConnections::Connection', analyze_security=False
+        )
 
-        # Check the result
-        assert result == ['Identifier']
+        # Check the result - the function now returns a dictionary with resources key
+        assert result == {'resources': ['Identifier']}
 
     async def test_get_resource_no_type(self):
         """Testing no type provided."""
@@ -128,26 +130,37 @@ class TestTools:
                 resource_type='AWS::CodeStarConnections::Connection', identifier=None
             )
 
+    @patch('awslabs.cfn_mcp_server.server.schema_manager')
     @patch('awslabs.cfn_mcp_server.server.get_aws_client')
-    async def test_get_resource(self, mock_get_aws_client):
+    async def test_get_resource(self, mock_get_aws_client, mock_schema_manager):
         """Testing simple get."""
         # Setup the mock
         mock_get_resource_return_value = MagicMock(
             return_value={
-                'ResourceDescription': {'Identifier': 'Identifier', 'Properties': 'Properties'}
+                'ResourceDescription': {
+                    'Identifier': 'Identifier',
+                    'Properties': '{"key": "value"}',
+                }
             }
         )
         mock_cloudcontrol_client = MagicMock(get_resource=mock_get_resource_return_value)
         mock_get_aws_client.return_value = mock_cloudcontrol_client
 
+        # Setup schema manager mock
+        mock_instance = MagicMock()
+        mock_instance.get_schema = AsyncMock(return_value={'properties': []})
+        mock_schema_manager.return_value = mock_instance
+
         # Call the function
         result = await get_resource(
-            resource_type='AWS::CodeStarConnections::Connection', identifier='identifier'
+            resource_type='AWS::CodeStarConnections::Connection',
+            identifier='identifier',
+            analyze_security=False,
         )
 
         # Check the result
         assert result == {
-            'properties': 'Properties',
+            'properties': '{"key": "value"}',
             'identifier': 'Identifier',
         }
 
@@ -189,20 +202,30 @@ class TestTools:
         mock_cloudcontrol_client = MagicMock(update_resource=mock_update_resource_return_value)
         mock_get_aws_client.return_value = mock_cloudcontrol_client
 
-        # Call the function
-        result = await update_resource(
-            resource_type='AWS::CodeStarConnections::Connection',
-            identifier='identifier',
-            patch_document=[{'op': 'remove', 'path': '/item'}],
-        )
+        # Import and patch the security validator module directly
+        with patch(
+            'awslabs.cfn_mcp_server.security_validator.validate_security_check_result'
+        ) as mock_validate_security:
+            # Mock the security validator
+            mock_validate_security.return_value = None
 
-        # Check the result
-        assert result == {
-            'status': 'SUCCESS',
-            'resource_type': 'AWS::CodeStarConnections::Connection',
-            'is_complete': True,
-            'request_token': 'RequestToken',
-        }
+            # Call the function
+            # noqa: detect-secrets
+            result = await update_resource(
+                resource_type='AWS::CodeStarConnections::Connection',
+                identifier='identifier',
+                patch_document=[{'op': 'remove', 'path': '/item'}],
+                aws_session_info={'account_id': '123456789012', 'region': 'us-east-1'},
+                security_check_result={'passed': True},
+            )
+
+            # Check the result
+            assert result == {
+                'status': 'SUCCESS',
+                'resource_type': 'AWS::CodeStarConnections::Connection',
+                'is_complete': True,
+                'request_token': 'RequestToken',
+            }
 
     async def test_create_resource_no_type(self):
         """Testing no type provided."""
@@ -231,19 +254,29 @@ class TestTools:
         mock_cloudcontrol_client = MagicMock(create_resource=mock_create_resource_return_value)
         mock_get_aws_client.return_value = mock_cloudcontrol_client
 
-        # Call the function
-        result = await create_resource(
-            resource_type='AWS::CodeStarConnections::Connection',
-            properties={'ConnectionName': 'Name'},
-        )
+        # Import and patch the security validator module directly
+        with patch(
+            'awslabs.cfn_mcp_server.security_validator.validate_security_check_result'
+        ) as mock_validate_security:
+            # Mock the security validator
+            mock_validate_security.return_value = None
 
-        # Check the result
-        assert result == {
-            'status': 'SUCCESS',
-            'resource_type': 'AWS::CodeStarConnections::Connection',
-            'is_complete': True,
-            'request_token': 'RequestToken',
-        }
+            # Call the function
+            # noqa: detect-secrets
+            result = await create_resource(
+                resource_type='AWS::CodeStarConnections::Connection',
+                properties={'ConnectionName': 'Name'},
+                aws_session_info={'account_id': '123456789012', 'region': 'us-east-1'},
+                security_check_result={'passed': True},
+            )
+
+            # Check the result
+            assert result == {
+                'status': 'SUCCESS',
+                'resource_type': 'AWS::CodeStarConnections::Connection',
+                'is_complete': True,
+                'request_token': 'RequestToken',
+            }
 
     async def test_delete_resource_no_type(self):
         """Testing simple delete."""
@@ -273,8 +306,12 @@ class TestTools:
         mock_get_aws_client.return_value = mock_cloudcontrol_client
 
         # Call the function
+        # noqa: detect-secrets
         result = await delete_resource(
-            resource_type='AWS::CodeStarConnections::Connection', identifier='Identifier'
+            resource_type='AWS::CodeStarConnections::Connection',
+            identifier='Identifier',
+            aws_session_info={'account_id': '123456789012', 'region': 'us-east-1'},
+            confirmed=True,
         )
 
         # Check the result

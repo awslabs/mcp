@@ -13,16 +13,16 @@ We welcome you to use the GitHub issue tracker to report bugs or suggest feature
 When filing an issue, please check existing open, or recently closed, issues to make sure somebody else hasn't already
 reported the issue. Please try to include as much information as you can. Details like these are incredibly useful:
 
-* A reproducible test case or series of steps
-* The version of our code being used
-* Any modifications you've made relevant to the bug
-* Anything unusual about your environment or deployment
+- A reproducible test case or series of steps
+- The version of our code being used
+- Any modifications you've made relevant to the bug
+- Anything unusual about your environment or deployment
 
 ## Contributing via Pull Requests
 
 Contributions via pull requests are much appreciated. Before sending us a pull request, please ensure that:
 
-1. You are working against the latest source on the *main* branch.
+1. You are working against the latest source on the _main_ branch.
 2. You check existing open, and recently merged, pull requests to make sure someone else hasn't addressed the problem already.
 3. You open an issue to discuss any significant work - we would hate for your time to be wasted. For instance, if you want to propose a new MCP Server, you would need to fist open a RFC issue.
 

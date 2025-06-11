@@ -215,6 +215,13 @@ A server to manage AWS resources via cloudcontrol. This allows you to perform CR
 
 - This server acts as a bridge between MCP clients and AWS, allowing foundation models (FMs) to read and manage resources in your AWS account.
 - This can be used, for example, to create an AWS::S3::Bucket, list any AWS::Lambda::Function, etc.
+- Follows a secure workflow for resource creation/update:
+  1. Check for AWS credentials
+  2. Generate a template
+  3. Run security scans against the template with Checkov
+  4. If checks pass, attempt to create/update resource(s) with the AWS Cloud Control API
+  5. Validate that the resource(s) were created/updated successfully
+  6. Provide a summary and ask if the user would want it to create a backup in IaC (CloudFormation JSON/YAML, Terraform, CDK, or other formats)
 
 [Learn more](src/cfn-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
 

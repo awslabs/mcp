@@ -13,9 +13,37 @@
 # limitations under the License.
 
 from awslabs.cfn_mcp_server.errors import ClientError
+from typing import Any, Dict, List
 
 
-def validate_patch(patch_document: list):
+def add_default_tags(properties: Dict, schema: Dict) -> Dict:
+    """Add default tags to resource properties if the resource supports tagging."""
+    if not properties:
+        return {}
+
+    properties_with_tags = properties.copy()
+    supports_tagging = 'Tags' in schema.get('properties', {})
+
+    if supports_tagging and 'Tags' not in properties_with_tags:
+        properties_with_tags['Tags'] = []
+
+    if supports_tagging:
+        tags = properties_with_tags.get('Tags', [])
+        # Add default tags if they don't exist
+        managed_by_exists = any(tag.get('Key') == 'MANAGED_BY' for tag in tags)
+        source_exists = any(tag.get('Key') == 'MCP_SERVER_SOURCE_CODE' for tag in tags)
+
+        if not managed_by_exists:
+            tags.append({'Key': 'MANAGED_BY', 'Value': 'CFN-MCP-SERVER'})
+        if not source_exists:
+            tags.append({'Key': 'MCP_SERVER_SOURCE_CODE', 'Value': 'TRUE'})
+
+        properties_with_tags['Tags'] = tags
+
+    return properties_with_tags
+
+
+def validate_patch(patch_document: List):
     """A best effort check that makes sure that the format of a patch document is valid before sending it to CloudControl."""
     for patch_op in patch_document:
         if not isinstance(patch_op, dict):
@@ -36,7 +64,7 @@ def validate_patch(patch_document: list):
             raise ClientError(f"The '{patch_op['op']}' operation requires a 'from' field")
 
 
-def progress_event(response_event, hooks_events) -> dict[str, str]:
+def progress_event(response_event, hooks_events) -> Dict[str, Any]:
     """Map a CloudControl API response to a standard output format for the MCP."""
     response = {
         'status': response_event['OperationStatus'],
