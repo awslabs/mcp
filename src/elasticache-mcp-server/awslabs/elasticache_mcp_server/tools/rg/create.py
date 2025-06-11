@@ -17,6 +17,7 @@
 from ...common.connection import ElastiCacheConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
+from ...context import Context
 from .processors import process_log_delivery_configurations, process_nodegroup_configuration
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional, Union
@@ -300,6 +301,12 @@ async def create_replication_group(request: CreateReplicationGroupRequest) -> Di
     Returns:
         Dict containing information about the created replication group.
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        raise ValueError(
+            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
+        )
+
     # Get ElastiCache client
     elasticache_client = ElastiCacheConnectionManager.get_connection()
 

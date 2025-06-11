@@ -17,6 +17,7 @@
 from ...common.connection import CloudWatchLogsConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
+from ...context import Context
 from typing import Any, Dict, Optional
 
 
@@ -41,6 +42,12 @@ async def create_log_group(
     Returns:
         Dict containing success message or error details
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        raise ValueError(
+            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
+        )
+
     client = CloudWatchLogsConnectionManager.get_connection()
 
     # Build request parameters

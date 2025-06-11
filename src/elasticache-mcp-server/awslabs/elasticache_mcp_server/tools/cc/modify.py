@@ -17,6 +17,7 @@
 from ...common.connection import ElastiCacheConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
+from ...context import Context
 from ..rg.processors import process_log_delivery_configurations
 from .processors import process_scale_config
 from pydantic import BaseModel, ConfigDict, Field
@@ -90,6 +91,12 @@ class ModifyCacheClusterRequest(BaseModel):
 @handle_exceptions
 async def modify_cache_cluster(request: ModifyCacheClusterRequest) -> Dict:
     """Modify an existing Amazon ElastiCache cache cluster."""
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        raise ValueError(
+            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
+        )
+
     # Get ElastiCache client
     elasticache_client = ElastiCacheConnectionManager.get_connection()
 

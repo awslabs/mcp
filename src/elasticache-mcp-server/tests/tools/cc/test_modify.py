@@ -1,12 +1,26 @@
 """Tests for modify cache cluster tool."""
 
 import pytest
+from awslabs.elasticache_mcp_server.context import Context
 from awslabs.elasticache_mcp_server.tools.cc.modify import (
     ModifyCacheClusterRequest,
     modify_cache_cluster,
 )
 from typing import Any, Dict, List, Optional, TypedDict, Union
 from unittest.mock import MagicMock, patch
+
+
+@pytest.mark.asyncio
+async def test_modify_cache_cluster_readonly_mode():
+    """Test modifying a cache cluster in readonly mode."""
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        request = ModifyCacheClusterRequest(
+            cache_cluster_id='test-cluster',
+            apply_immediately=True,
+        )
+        result = await modify_cache_cluster(request)
+        assert 'error' in result
+        assert 'readonly mode' in result['error']
 
 
 class ModifyRequestKwargs(TypedDict, total=False):

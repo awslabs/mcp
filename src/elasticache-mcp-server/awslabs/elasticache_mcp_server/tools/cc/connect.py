@@ -17,6 +17,7 @@
 from ...common.connection import EC2ConnectionManager, ElastiCacheConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
+from ...context import Context
 from botocore.exceptions import ClientError
 from typing import Any, Dict, Tuple, Union
 
@@ -143,6 +144,12 @@ async def connect_jump_host_cc(cache_cluster_id: str, instance_id: str) -> Dict[
     Raises:
         ValueError: If VPC compatibility check fails or required resources not found
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        raise ValueError(
+            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
+        )
+
     try:
         # Configure security groups using common function
         configured, vpc_id, cache_port = await _configure_security_groups(
@@ -265,6 +272,12 @@ async def create_jump_host_cc(
     Raises:
         ValueError: If subnet is not public or VPC compatibility check fails
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        raise ValueError(
+            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
+        )
+
     # Get AWS clients from connection managers
     ec2_client = EC2ConnectionManager.get_connection()
     elasticache_client = ElastiCacheConnectionManager.get_connection()

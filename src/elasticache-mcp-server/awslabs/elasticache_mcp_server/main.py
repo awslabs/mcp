@@ -14,7 +14,9 @@
 
 """awslabs elasticache MCP Server implementation."""
 
+import argparse
 from awslabs.elasticache_mcp_server.common.server import mcp
+from awslabs.elasticache_mcp_server.context import Context
 from awslabs.elasticache_mcp_server.tools import (  # noqa: F401 - imported for side effects to register tools
     cc,
     ce,
@@ -30,6 +32,18 @@ from loguru import logger
 
 def main():
     """Run the MCP server with CLI argument support."""
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server for interacting with Amazon ElastiCache'
+    )
+    parser.add_argument(
+        '--readonly',
+        action=argparse.BooleanOptionalAction,
+        help='Prevents the MCP server from performing mutating operations',
+    )
+
+    args = parser.parse_args()
+    Context.initialize(args.readonly)
+
     logger.info('Amazon ElastiCache MCP Server Started...')
     mcp.run()
 

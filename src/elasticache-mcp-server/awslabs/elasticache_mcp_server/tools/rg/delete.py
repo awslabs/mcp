@@ -17,6 +17,7 @@
 from ...common.connection import ElastiCacheConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
+from ...context import Context
 from typing import Dict, Optional
 
 
@@ -42,6 +43,12 @@ async def delete_replication_group(
     Returns:
         Dict containing information about the deleted replication group.
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        raise ValueError(
+            'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
+        )
+
     # Get ElastiCache client
     elasticache_client = ElastiCacheConnectionManager.get_connection()
 

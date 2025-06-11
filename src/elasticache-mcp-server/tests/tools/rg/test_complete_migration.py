@@ -15,9 +15,20 @@
 """Tests for complete_migration function."""
 
 import pytest
+from awslabs.elasticache_mcp_server.context import Context
 from awslabs.elasticache_mcp_server.tools.rg import complete_migration
 from awslabs.elasticache_mcp_server.tools.rg.complete_migration import CompleteMigrationRequest
 from unittest.mock import MagicMock, patch
+
+
+@pytest.mark.asyncio
+async def test_complete_migration_readonly_mode():
+    """Test completing migration in readonly mode."""
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        request = CompleteMigrationRequest(replication_group_id='test-rg')
+        result = await complete_migration(request)
+        assert 'error' in result
+        assert 'readonly mode' in result['error']
 
 
 def create_test_request(**kwargs) -> CompleteMigrationRequest:

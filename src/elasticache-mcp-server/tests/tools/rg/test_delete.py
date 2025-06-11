@@ -1,8 +1,18 @@
 """Tests for delete_replication_group function."""
 
 import pytest
+from awslabs.elasticache_mcp_server.context import Context
 from awslabs.elasticache_mcp_server.tools.rg import delete_replication_group
 from unittest.mock import MagicMock, patch
+
+
+@pytest.mark.asyncio
+async def test_delete_replication_group_readonly_mode():
+    """Test deleting a replication group in readonly mode."""
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        response = await delete_replication_group(replication_group_id='test-rg')
+        assert 'error' in response
+        assert 'readonly mode' in response['error']
 
 
 @pytest.fixture

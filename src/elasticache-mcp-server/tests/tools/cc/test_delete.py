@@ -1,8 +1,18 @@
 """Tests for delete cache cluster tool."""
 
 import pytest
+from awslabs.elasticache_mcp_server.context import Context
 from awslabs.elasticache_mcp_server.tools.cc.delete import delete_cache_cluster
 from unittest.mock import MagicMock, patch
+
+
+@pytest.mark.asyncio
+async def test_delete_cache_cluster_readonly_mode():
+    """Test deleting a cache cluster in readonly mode."""
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        result = await delete_cache_cluster(cache_cluster_id='test-cluster')
+        assert 'error' in result
+        assert 'readonly mode' in result['error']
 
 
 @pytest.mark.asyncio

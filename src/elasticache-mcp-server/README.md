@@ -95,6 +95,28 @@ Add the MCP to your favorite agentic tools. e.g. for Amazon Q Developer CLI MCP,
   }
 }
 ```
+If you would like to prevent the MCP from taking any mutating actions (i.e. Create/Update/Delete Resource), you can specify the readonly flag as demonstrated below:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.elasticache-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.elasticache-mcp-server@latest",
+        "--readonly"
+      ],
+      "env": {
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "us-west-2",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
 
 or docker after a successful `docker build -t awslabs/elasticache-mcp-server .`:
 
@@ -109,7 +131,8 @@ or docker after a successful `docker build -t awslabs/elasticache-mcp-server .`:
         "--interactive",
         "--env",
         "FASTMCP_LOG_LEVEL=ERROR",
-        "awslabs/elasticache-mcp-server:latest"
+        "awslabs/elasticache-mcp-server:latest",
+        "--readonly" // Optional paramter if you would like to restrict the MCP to only read actions
       ],
       "env": {},
       "disabled": false,

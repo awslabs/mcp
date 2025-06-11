@@ -1,12 +1,38 @@
 """Tests for modify replication group tool."""
 
 import pytest
+from awslabs.elasticache_mcp_server.context import Context
 from awslabs.elasticache_mcp_server.tools.rg import (
     modify_replication_group,
     modify_replication_group_shard_configuration,
 )
 from awslabs.elasticache_mcp_server.tools.rg.modify import ModifyReplicationGroupRequest
 from unittest.mock import MagicMock, patch
+
+
+@pytest.mark.asyncio
+async def test_modify_replication_group_readonly_mode():
+    """Test modifying a replication group in readonly mode."""
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        request = ModifyReplicationGroupRequest(
+            replication_group_id='test-group',
+            apply_immediately=True,
+        )
+        result = await modify_replication_group(request)
+        assert 'error' in result
+        assert 'readonly mode' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_modify_replication_group_shard_configuration_readonly_mode():
+    """Test modifying a replication group shard configuration in readonly mode."""
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        result = await modify_replication_group_shard_configuration(
+            replication_group_id='test-group',
+            node_group_count=2,
+        )
+        assert 'error' in result
+        assert 'readonly mode' in result['error']
 
 
 @pytest.mark.asyncio
