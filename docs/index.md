@@ -378,6 +378,19 @@ An Amazon Keyspaces (for Apache Cassandra) MCP server enables AI assistants to i
 
 [Learn more about the Amazon Keysapces MCP Server](servers/amazon-keyspaces-mcp-server.md)
 
+### Amazon Timestream for InfluxDB MCP Server
+A Model Context Protocol (MCP) server for Amazon Timestream for InfluxDB that enables AI assistants to help create, list, store, and query
+time-series data using InfluxDB.
+
+** Features **
+- Create, update, list, describe, and delete Timestream for InfluxDB database instances
+- Create, update, list, describe, and delete Timestream for InfluxDB database clusters
+- Manage DB parameter groups
+- Tag management for Timestream for InfluxDB resources
+- Write and query data using InfluxDB's APIs
+
+[Learn more about the Amazon Timestream for InfluxDB MCP Server](servers/timestream-for-influxdb-mcp-server.md)
+
 ### AWS Cost Explorer MCP Server
 
 A server for interacting with AWS Cost Explorer to analyze AWS costs and usage data.
