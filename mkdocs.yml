@@ -36,6 +36,7 @@ nav:
     - Amazon Bedrock Knowledge Base Retrieval MCP Server: servers/bedrock-kb-retrieval-mcp-server.md
     - AWS CDK MCP Server: servers/cdk-mcp-server.md
     - Cost Analysis MCP Server: servers/cost-analysis-mcp-server.md
+    - Cost Explorer MCP Server: servers/cost-explorer-mcp-server.md
     - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
     - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
@@ -49,6 +50,8 @@ nav:
     - Amazon EKS MCP Server: servers/eks-mcp-server.md
     - Amazon ECS MCP Server: servers/ecs-mcp-server.md
     - AWS Support MCP Server: servers/aws-support-mcp-server.md
+    - AWS Managed Prometheus MCP Server: servers/prometheus-mcp-server.md
+    - Amazon Timestream for InfluxDB MCP Server: servers/timestream-for-influxdb-mcp-server.md
   - Samples:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md

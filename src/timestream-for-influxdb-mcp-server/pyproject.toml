@@ -1,26 +1,22 @@
 [project]
-name = "awslabs.eks-mcp-server"
-version = "0.1.4"
-description = "An AWS Labs Model Context Protocol (MCP) server for EKS"
+name = "awslabs.timestream-for-influxdb-mcp-server"
+version = "0.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-    "boto3>=1.34.0",
-    "kubernetes>=28.1.0",
-    "requests>=2.31.0",
-    "pyyaml>=6.0.0",
-    "cachetools>=5.3.0",
-    "requests_auth_aws_sigv4",
+    "influxdb-client>=1.36.0",
+    "boto3>=1.28.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Amazon Web Services", email="githubusername@users.noreply.github.com"},
+    {name = "Lokendra Panwar", email="lokendrp@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -35,13 +31,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/eks-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/eks-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/timestream-for-influxdb-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/timestream-for-influxdb-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/eks-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/timestream-for-influxdb-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.eks-mcp-server" = "awslabs.eks_mcp_server.server:main"
+"awslabs.timestream-for-influxdb-mcp-server" = "awslabs.timestream_for_influxdb_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -106,11 +102,11 @@ exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.1.0"
+version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/eks_mcp_server/__init__.py:__version__"
+    "awslabs/timestream_for_influxdb_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 

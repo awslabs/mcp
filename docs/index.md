@@ -275,6 +275,20 @@ Use this MCP server to first discover available logs groups, then run queries on
 
 [Learn more about the Amazon CloudWatch Logs MCP Server](servers/cloudwatch-logs-mcp-server.md)
 
+### AWS Managed Prometheus MCP Server
+
+The Prometheus MCP Server provides a robust interface for interacting with AWS Managed Prometheus.
+
+**Features:**
+
+- Execute instant PromQL queries against AWS Managed Prometheus
+- Execute range queries with start time, end time, and step interval
+- List all available metrics in your Prometheus instance
+- Get server configuration information
+- AWS SigV4 authentication for secure access
+
+[Learn more about the AWS Managed Prometheus MCP Server](servers/prometheus-mcp-server.md)
+
 ### Amazon DynamoDB MCP Server
 
 A server for interacting with Amazon DynamoDB
@@ -363,6 +377,33 @@ An Amazon Keyspaces (for Apache Cassandra) MCP server enables AI assistants to i
 - Use with Amazon Keyspaces, or with Apache Cassandra.
 
 [Learn more about the Amazon Keysapces MCP Server](servers/amazon-keyspaces-mcp-server.md)
+
+### Amazon Timestream for InfluxDB MCP Server
+A Model Context Protocol (MCP) server for Amazon Timestream for InfluxDB that enables AI assistants to help create, list, store, and query
+time-series data using InfluxDB.
+
+** Features **
+- Create, update, list, describe, and delete Timestream for InfluxDB database instances
+- Create, update, list, describe, and delete Timestream for InfluxDB database clusters
+- Manage DB parameter groups
+- Tag management for Timestream for InfluxDB resources
+- Write and query data using InfluxDB's APIs
+
+[Learn more about the Amazon Timestream for InfluxDB MCP Server](servers/timestream-for-influxdb-mcp-server.md)
+
+### AWS Cost Explorer MCP Server
+
+A server for interacting with AWS Cost Explorer to analyze AWS costs and usage data.
+
+**Features:**
+
+- Get detailed breakdowns of AWS costs by service, region, and other dimensions
+- Understand how costs are distributed across various services
+- Query historical cost data for specific time periods
+- Filter costs by various dimensions, tags, and cost categories
+- Ask natural language questions about AWS costs
+
+[Learn more about the AWS Cost Explorer MCP Server](servers/cost-explorer-mcp-server.md)
 
 ## Installation and Setup
 
