@@ -18,7 +18,8 @@ import boto3
 import os
 from awslabs.eks_mcp_server import __version__
 from botocore.config import Config
-from typing import Any, Optional
+from loguru import logger
+from typing import Any, Dict, Optional
 
 
 class AwsHelper:
@@ -26,7 +27,20 @@ class AwsHelper:
 
     This class provides utility methods for interacting with AWS services,
     including region and profile management and client creation.
+
+    This class implements a singleton pattern with a client cache to avoid
+    creating multiple clients for the same service.
     """
+
+    # Singleton instance
+    _instance = None
+
+    # Client cache with TTL
+    _client_cache: Dict[str, Any] = {}
+
+    # TTL in seconds (14 minutes)
+    # This matches the minimum configurable session duration minus a 1-minute buffer
+    _CACHE_TTL = 14 * 60
 
     @staticmethod
     def get_aws_region() -> Optional[str]:
@@ -40,10 +54,11 @@ class AwsHelper:
 
     @classmethod
     def create_boto3_client(cls, service_name: str, region_name: Optional[str] = None) -> Any:
-        """Create a boto3 client with the appropriate profile and region.
+        """Create or retrieve a cached boto3 client with the appropriate profile and region.
 
         The client is configured with a custom user agent suffix 'awslabs/mcp/eks-mcp-server/{version}'
-        to identify API calls made by the EKS MCP Server.
+        to identify API calls made by the EKS MCP Server. Clients are cached to improve performance
+        and reduce resource usage.
 
         Args:
             service_name: The AWS service name (e.g., 'ec2', 's3', 'eks')
@@ -51,25 +66,47 @@ class AwsHelper:
 
         Returns:
             A boto3 client for the specified service
+
+        Raises:
+            Exception: If there's an error creating the client
         """
-        # Get region from parameter or environment if set
-        region: Optional[str] = region_name if region_name is not None else cls.get_aws_region()
+        try:
+            # Get region from parameter or environment if set
+            region: Optional[str] = (
+                region_name if region_name is not None else cls.get_aws_region()
+            )
 
-        # Get profile from environment if set
-        profile = cls.get_aws_profile()
+            # Get profile from environment if set
+            profile = cls.get_aws_profile()
 
-        # Create config with user agent suffix
-        config = Config(user_agent_extra=f'awslabs/mcp/eks-mcp-server/{__version__}')
+            # Use only service name as the cache key
+            cache_key = service_name
 
-        # Create session with profile if specified
-        if profile:
-            session = boto3.Session(profile_name=profile)
-            if region is not None:
-                return session.client(service_name, region_name=region, config=config)
+            # Check if client is already in cache
+            if cache_key in cls._client_cache:
+                logger.info(f'Using cached boto3 client for {service_name}')
+                return cls._client_cache[cache_key]
+
+            # Create config with user agent suffix
+            config = Config(user_agent_extra=f'awslabs/mcp/eks-mcp-server/{__version__}')
+
+            # Create session with profile if specified
+            if profile:
+                session = boto3.Session(profile_name=profile)
+                if region is not None:
+                    client = session.client(service_name, region_name=region, config=config)
+                else:
+                    client = session.client(service_name, config=config)
             else:
-                return session.client(service_name, config=config)
-        else:
-            if region is not None:
-                return boto3.client(service_name, region_name=region, config=config)
-            else:
-                return boto3.client(service_name, config=config)
+                if region is not None:
+                    client = boto3.client(service_name, region_name=region, config=config)
+                else:
+                    client = boto3.client(service_name, config=config)
+
+            # Cache the client
+            cls._client_cache[cache_key] = client
+
+            return client
+        except Exception as e:
+            # Re-raise with more context
+            raise Exception(f'Failed to create boto3 client for {service_name}: {str(e)}')
