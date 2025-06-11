@@ -364,6 +364,20 @@ An Amazon Keyspaces (for Apache Cassandra) MCP server enables AI assistants to i
 
 [Learn more about the Amazon Keysapces MCP Server](servers/amazon-keyspaces-mcp-server.md)
 
+### AWS Cost Explorer MCP Server
+
+A server for interacting with AWS Cost Explorer to analyze AWS costs and usage data.
+
+**Features:**
+
+- Get detailed breakdowns of AWS costs by service, region, and other dimensions
+- Understand how costs are distributed across various services
+- Query historical cost data for specific time periods
+- Filter costs by various dimensions, tags, and cost categories
+- Ask natural language questions about AWS costs
+
+[Learn more about the AWS Cost Explorer MCP Server](servers/cost-explorer-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
