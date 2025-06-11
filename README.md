@@ -16,6 +16,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Why AWS MCP Servers?](#why-aws-mcp-servers)
   - [Available MCP Servers](#available-mcp-servers)
     - [Browse by What You're Building](#browse-by-what-youre-building)
+      - [📚 Real-time access to official AWS documentation](#-real-time-access-to-official-aws-documentation)
       - [🏗️ Infrastructure \& Deployment](#️-infrastructure--deployment)
         - [Infrastructure as Code](#infrastructure-as-code)
         - [Container Platforms](#container-platforms)
@@ -100,6 +101,10 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 ## Available MCP Servers
 
 ### Browse by What You're Building
+
+#### 📚 Real-time access to official AWS documentation
+
+- **[AWS Documentation MCP Server](src/aws-documentation-mcp-server/)** - Get latest AWS docs and API references
 
 #### 🏗️ Infrastructure & Deployment
 
