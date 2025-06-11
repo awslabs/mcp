@@ -49,6 +49,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Amazon ECS MCP Server](#amazon-ecs-mcp-server)
     - [AWS Cost Explorer MCP Server](#aws-cost-explorer-mcp-server)
     - [Finch MCP Server](#finch-mcp-server)
+    - [AWS Managed Prometheus MCP Server](#aws-managed-prometheus-mcp-server)
     - [AWS Bedrock Data Automation MCP Server](#aws-bedrock-data-automation-mcp-server)
     - [AWS Timestream for InfluxDB MCP Server](#amazon-timestream-for-influxdb-mcp-server)
     - [Use Cases for the Servers](#use-cases-for-the-servers)
@@ -520,6 +521,20 @@ An AWS Labs Model Context Protocol (MCP) server for CloudWatch Logs
 - Read-only operations for discovering log groups and running CloudWatch Log Insights Queries on them.
 
 [Learn more](src/cloudwatch-logs-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/cloudwatch-logs-mcp-server/)
+
+### AWS Managed Prometheus MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.prometheus-mcp-server.svg)](https://pypi.org/project/awslabs.prometheus-mcp-server/)
+
+A server for interacting with AWS Managed Prometheus.
+
+- Execute instant PromQL queries against AWS Managed Prometheus
+- Execute range queries with start time, end time, and step interval
+- List all available metrics in your Prometheus instance
+- Get server configuration information
+- AWS SigV4 authentication for secure access
+
+[Learn more](src/prometheus-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/prometheus-mcp-server/)
 
 ### Amazon DynamoDB MCP Server
 
