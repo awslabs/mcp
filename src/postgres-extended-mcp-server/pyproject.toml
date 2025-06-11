@@ -35,7 +35,7 @@ classifiers = [
 homepage = "https://awslabs.github.io/mcp/"
 docs = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
 documentation = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
-repository = "https://github.com/awslabs/mcp.git"
+repository = "https://github.com/Jigyasa-G/mcp.git"
 changelog = "https://github.com/Jigyasa-G/mcp/blob/feature/postgres-connection-pool/src/postgres-extended-mcp-server/CHANGELOG.md"
 
 [project.scripts]
