@@ -52,7 +52,6 @@ from pydantic import Field
 from typing import Any, Dict, List, Literal, Union
 
 
-
 app = FastMCP(
     name='dynamodb-server',
     instructions="""The official MCP Server for interacting with AWS DynamoDB
@@ -89,7 +88,7 @@ is the data type and the value is the data itself:
 
 - NS: Number Set (array of strings representing numbers)
   Example: {"NS": ["42.2", "-19", "7.5", "3.14"]}
-  
+
 - BS: Binary Set (array of Base64-encoded binary data objects)
   Example: {"BS": ["U3Vubnk=", "UmFpbnk=", "U25vd3k="]}
 
@@ -140,8 +139,8 @@ expression_attribute_names: Dict[str, str] = Field(
     default=None, description='Substitution tokens for attribute names in an expression.'
 )
 expression_attribute_values: Dict[str, AttributeValue] = Field(
-    default=None, 
-    description='Values that can be substituted in an expression. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).'
+    default=None,
+    description='Values that can be substituted in an expression. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).',
 )
 select: Select = Field(
     default=None,
@@ -149,8 +148,8 @@ select: Select = Field(
 )
 limit: int = Field(default=None, description='The maximum number of items to evaluate', ge=1)
 exclusive_start_key: Dict[str, KeyAttributeValue] = Field(
-    default=None, 
-    description='Use the LastEvaluatedKey from the previous call. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).'
+    default=None,
+    description='Use the LastEvaluatedKey from the previous call. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).',
 )
 
 billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = Field(
