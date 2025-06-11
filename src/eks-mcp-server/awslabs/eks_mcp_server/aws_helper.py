@@ -35,7 +35,7 @@ class AwsHelper:
     # Singleton instance
     _instance = None
 
-    # Client cache with TTL
+    # Client cache with AWS service name as key
     _client_cache: Dict[str, Any] = {}
 
     # TTL in seconds (14 minutes)
