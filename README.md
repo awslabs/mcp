@@ -55,7 +55,6 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Getting Started with Windsurf](#getting-started-with-windsurf)
       - [`~/.codeium/windsurf/mcp_config.json`](#codeiumwindsurfmcp_configjson)
   - [Samples](#samples)
-  - [Documentation](#documentation)
   - [Vibe coding](#vibe-coding)
   - [Additional Resources](#additional-resources)
   - [Security](#security)
@@ -857,30 +856,6 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 ## Samples
 
 Ready-to-use examples of AWS MCP Servers in action are available in the [samples](samples/) directory. These samples provide working code and step-by-step guides to help you get started with each MCP server.
-
-## Documentation
-
-Comprehensive documentation for all servers is available on our [documentation website](https://awslabs.github.io/mcp/).
-
-Documentation for each server:
-
-- [Core MCP Server](https://awslabs.github.io/mcp/servers/core-mcp-server/)
-- [Amazon Bedrock Knowledge Bases Retrieval MCP Server](https://awslabs.github.io/mcp/servers/bedrock-kb-retrieval-mcp-server/)
-- [AWS CDK MCP Server](https://awslabs.github.io/mcp/servers/cdk-mcp-server/)
-- [Cost Analysis MCP Server](https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/)
-- [Amazon Nova Canvas MCP Server](https://awslabs.github.io/mcp/servers/nova-canvas-mcp-server/)
-- [AWS Diagram MCP Server](https://awslabs.github.io/mcp/servers/aws-diagram-mcp-server/)
-- [Amazon ElastiCache/MemoryDB Valkey MCP Server](https://awslabs.github.io/mcp/servers/valkey-mcp-server/)
-- [Amazon ElastiCache Memcached MCP Server](https://awslabs.github.io/mcp/servers/memcached-mcp-server/)
-- [Git Repo Research MCP Server](https://awslabs.github.io/mcp/servers/git-repo-research-mcp-server/)
-- [CloudFormation MCP Server](https://awslabs.github.io/mcp/servers/cfn-mcp-server/)
-
-Documentation includes:
-
-- Detailed guides for each server
-- Installation and configuration instructions
-- API references
-- Usage examples
 
 ## Vibe coding
 
