@@ -36,7 +36,7 @@ homepage = "https://awslabs.github.io/mcp/"
 docs = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
 documentation = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/postgres-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/Jigyasa-G/mcp/blob/feature/postgres-connection-pool/src/postgres-extended-mcp-server/CHANGELOG.md"
 
 [project.scripts]
 "awslabs.postgres-mcp-server" = "awslabs.postgres_mcp_server.server:main"
