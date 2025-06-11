@@ -14,6 +14,7 @@
 """MCP resource definitions for S3 Tables MCP Server."""
 
 import json
+from typing import Any, Callable, Dict, List, TypeVar, Generic, Type
 
 from loguru import logger
 
@@ -27,102 +28,215 @@ from .models import (
 )
 from .utils import get_s3tables_client
 
+T = TypeVar('T')
+ResourceT = TypeVar('ResourceT')
+
+def create_error_response(error: Exception, resource_name: str) -> str:
+    """Create a standardized error response.
+    
+    Args:
+        error: The exception that occurred
+        resource_name: The name of the resource being accessed
+        
+    Returns:
+        A JSON string containing the error response
+    """
+    return json.dumps({
+        'error': str(error),
+        resource_name: [],
+        'total_count': 0
+    })
+
+async def paginate_and_collect(
+    paginator: Any,
+    collection_key: str,
+    item_constructor: Callable[[Dict[str, Any]], T],
+    **pagination_args
+) -> List[T]:
+    """Collect items from a paginated response.
+    
+    Args:
+        paginator: The paginator to use
+        collection_key: The key in the response that contains the items
+        item_constructor: A function that constructs an item from a response
+        **pagination_args: Additional arguments to pass to the paginator
+        
+    Returns:
+        A list of constructed items
+    """
+    items = []
+    for page in paginator.paginate(**pagination_args):
+        for item in page.get(collection_key, []):
+            items.append(item_constructor(item))
+    return items
+
+async def create_resource_response(
+    items: List[T],
+    resource_class: Type[ResourceT],
+    resource_name: str
+) -> str:
+    """Create a resource response.
+    
+    Args:
+        items: The items to include in the resource
+        resource_class: The resource class to use
+        resource_name: The name of the resource
+        
+    Returns:
+        A JSON string containing the resource response
+    """
+    try:
+        resource = resource_class(**{resource_name: items, 'total_count': len(items)})
+        return resource.model_dump_json()
+    except Exception as e:
+        logger.error(f'Failed to create {resource_name} resource: {str(e)}')
+        return create_error_response(e, resource_name)
 
 async def list_table_buckets_resource() -> str:
-    """List all S3 Tables buckets."""
+    """List all S3 Tables buckets.
+    
+    Lists table buckets for your account. Requires s3tables:ListTableBuckets permission.
+    The API supports pagination with continuationToken and filtering with prefix.
+    
+    Returns:
+        A JSON string containing the list of table buckets and total count.
+    """
     try:
         client = get_s3tables_client()
-        table_buckets = []
         paginator = client.get_paginator('list_table_buckets')
         
-        for page in paginator.paginate():
-            for bucket in page.get('tableBuckets', []):
-                table_buckets.append(TableBucketSummary(
-                    arn=bucket['arn'],
-                    name=bucket['name'],
-                    owner_account_id=bucket['ownerAccountId'],
-                    created_at=bucket['createdAt'],
-                    table_bucket_id=bucket.get('tableBucketId'),
-                    type=bucket.get('type')
-                ))
+        table_buckets = await paginate_and_collect(
+            paginator=paginator,
+            collection_key='tableBuckets',
+            item_constructor=lambda bucket: TableBucketSummary(
+                arn=bucket['arn'],
+                name=bucket['name'],
+                owner_account_id=bucket['ownerAccountId'],
+                created_at=bucket['createdAt'],
+                table_bucket_id=bucket.get('tableBucketId'),
+                type=bucket.get('type')
+            )
+        )
         
-        resource = TableBucketsResource(table_buckets=table_buckets, total_count=len(table_buckets))
-        return resource.model_dump_json()
+        return await create_resource_response(
+            items=table_buckets,
+            resource_class=TableBucketsResource,
+            resource_name='table_buckets'
+        )
         
     except Exception as e:
         logger.error(f'Failed to list table buckets: {str(e)}')
-        return json.dumps({'error': str(e), 'table_buckets': [], 'total_count': 0})
+        return create_error_response(e, 'table_buckets')
 
+async def get_table_buckets() -> List[TableBucketSummary]:
+    """Get all table buckets as TableBucketSummary objects.
+    
+    Returns:
+        A list of TableBucketSummary objects
+    """
+    response = await list_table_buckets_resource()
+    data = json.loads(response)
+    if 'error' in data:
+        raise Exception(data['error'])
+    return [TableBucketSummary(**bucket) for bucket in data['table_buckets']]
 
 async def list_namespaces_resource() -> str:
-    """List all namespaces across all table buckets."""
+    """List all namespaces across all table buckets.
+    
+    Lists the namespaces within table buckets. Requires s3tables:ListNamespaces permission.
+    The API supports pagination with continuationToken and filtering with prefix.
+    
+    Returns:
+        A JSON string containing the list of namespaces and total count.
+    """
     try:
         client = get_s3tables_client()
         
-        table_buckets = []
-        bucket_paginator = client.get_paginator('list_table_buckets')
-        for page in bucket_paginator.paginate():
-            table_buckets.extend(page.get('tableBuckets', []))
+        # Get all table buckets
+        table_buckets = await get_table_buckets()
         
+        # Then get namespaces for each bucket
         all_namespaces = []
         for bucket in table_buckets:
             try:
                 namespace_paginator = client.get_paginator('list_namespaces')
-                for page in namespace_paginator.paginate(tableBucketARN=bucket['arn']):
-                    for namespace in page.get('namespaces', []):
-                        all_namespaces.append(NamespaceSummary(
-                            namespace=namespace['namespace'],
-                            created_at=namespace['createdAt'],
-                            created_by=namespace['createdBy'],
-                            owner_account_id=namespace['ownerAccountId'],
-                            namespace_id=namespace.get('namespaceId'),
-                            table_bucket_id=namespace.get('tableBucketId')
-                        ))
+                namespaces = await paginate_and_collect(
+                    paginator=namespace_paginator,
+                    collection_key='namespaces',
+                    item_constructor=lambda namespace: NamespaceSummary(
+                        namespace=namespace['namespace'],
+                        created_at=namespace['createdAt'],
+                        created_by=namespace['createdBy'],
+                        owner_account_id=namespace['ownerAccountId'],
+                        namespace_id=namespace.get('namespaceId'),
+                        table_bucket_id=namespace.get('tableBucketId')
+                    ),
+                    tableBucketARN=bucket.arn
+                )
+                all_namespaces.extend(namespaces)
             except Exception as e:
-                logger.warning(f'Failed to list namespaces for bucket {bucket["arn"]}: {str(e)}')
+                logger.warning(f'Failed to list namespaces for bucket {bucket.arn}: {str(e)}')
                 continue
         
-        resource = NamespacesResource(namespaces=all_namespaces, total_count=len(all_namespaces))
-        return resource.model_dump_json()
+        return await create_resource_response(
+            items=all_namespaces,
+            resource_class=NamespacesResource,
+            resource_name='namespaces'
+        )
         
     except Exception as e:
         logger.error(f'Failed to list namespaces: {str(e)}')
-        return json.dumps({'error': str(e), 'namespaces': [], 'total_count': 0})
-
+        return create_error_response(e, 'namespaces')
 
 async def list_tables_resource() -> str:
-    """List all Iceberg tables across all table buckets and namespaces."""
+    """List all Iceberg tables across all table buckets and namespaces.
+    
+    Lists tables in the given table bucket. Requires s3tables:ListTables permission.
+    The API supports pagination with continuationToken, filtering with prefix and namespace,
+    and limiting results with maxTables.
+    
+    Returns:
+        A JSON string containing the list of tables and total count.
+    """
     try:
         client = get_s3tables_client()
         
-        table_buckets = []
-        bucket_paginator = client.get_paginator('list_table_buckets')
-        for page in bucket_paginator.paginate():
-            table_buckets.extend(page.get('tableBuckets', []))
+        # Get all table buckets
+        table_buckets = await get_table_buckets()
         
+        # Then get tables for each bucket
         all_tables = []
         for bucket in table_buckets:
             try:
                 table_paginator = client.get_paginator('list_tables')
-                for page in table_paginator.paginate(tableBucketARN=bucket['arn']):
-                    for table in page.get('tables', []):
-                        all_tables.append(TableSummary(
-                            namespace=table['namespace'],
-                            name=table['name'],
-                            type=table['type'],
-                            table_arn=table['tableARN'],
-                            created_at=table['createdAt'],
-                            modified_at=table['modifiedAt'],
-                            namespace_id=table.get('namespaceId'),
-                            table_bucket_id=table.get('tableBucketId')
-                        ))
+                
+                tables = await paginate_and_collect(
+                    paginator=table_paginator,
+                    collection_key='tables',
+                    item_constructor=lambda table: TableSummary(
+                        namespace=table['namespace'],
+                        name=table['name'],
+                        type=table['type'],
+                        table_arn=table['tableARN'],
+                        created_at=table['createdAt'],
+                        modified_at=table['modifiedAt'],
+                        namespace_id=table.get('namespaceId'),
+                        table_bucket_id=table.get('tableBucketId')
+                    ),
+                    tableBucketARN=bucket.arn
+                )
+                
+                all_tables.extend(tables)
             except Exception as e:
-                logger.warning(f'Failed to list tables for bucket {bucket["arn"]}: {str(e)}')
+                logger.warning(f'Failed to list tables for bucket {bucket.arn}: {str(e)}')
                 continue
         
-        resource = TablesResource(tables=all_tables, total_count=len(all_tables))
-        return resource.model_dump_json()
+        return await create_resource_response(
+            items=all_tables,
+            resource_class=TablesResource,
+            resource_name='tables'
+        )
         
     except Exception as e:
         logger.error(f'Failed to list tables: {str(e)}')
-        return json.dumps({'error': str(e), 'tables': [], 'total_count': 0})
+        return create_error_response(e, 'tables')

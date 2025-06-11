@@ -24,13 +24,15 @@ from . import table_buckets
 from . import tables
 from .models import (
     EncryptionConfiguration,
-    OpenTableFormat,
     TableBucketMaintenanceConfigurationValue,
     TableBucketMaintenanceType,
-    TableMetadata,
     TABLE_BUCKET_NAME_PATTERN,
     TableMaintenanceType,
-    TableMaintenanceConfigurationValue
+    TableMaintenanceConfigurationValue,
+    TABLE_BUCKET_ARN_FIELD,
+    NAMESPACE_NAME_FIELD,
+    TABLE_NAME_FIELD,
+    REGION_NAME_FIELD
 )
 
 # Initialize FastMCP app
@@ -98,10 +100,7 @@ async def create_table_bucket(
         None,
         description='The encryption configuration to use for the table bucket. This configuration specifies the default encryption settings that will be applied to all tables created in this bucket unless overridden at the table level.'
     ),
-    region_name: Optional[str] = Field(
-        None,
-        description='AWS region name where the table bucket should be created. If not specified, uses the default region.'
-    )
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Creates a table bucket."""
     return await table_buckets.create_table_bucket(
@@ -112,22 +111,9 @@ async def create_table_bucket(
 
 @app.tool()
 async def create_namespace(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket to create the namespace in.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='A name for the namespace. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Create a new namespace.
     
@@ -146,25 +132,9 @@ async def create_namespace(
 # Register Table Management Tools
 @app.tool()
 async def create_table(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket to create the table in.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace to associate with the table.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name for the table.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
     format: str = Field(
         "ICEBERG",
         description='The format for the table.',
@@ -178,10 +148,7 @@ async def create_table(
         None,
         description='The encryption configuration to use for the table. This configuration specifies the encryption algorithm and, if using SSE-KMS, the KMS key to use for encrypting the table.'
     ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Create a new s3 table.
     
@@ -212,15 +179,8 @@ async def create_table(
 
 @app.tool()
 async def delete_table_bucket(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket to delete.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Delete a table bucket.
     
@@ -236,22 +196,9 @@ async def delete_table_bucket(
 
 @app.tool()
 async def delete_namespace(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket associated with the namespace.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The name of the namespace to delete. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Delete a namespace.
     
@@ -268,33 +215,14 @@ async def delete_namespace(
 
 @app.tool()
 async def delete_table(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket that contains the table.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace associated with the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name of the table to delete. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
     version_token: Optional[str] = Field(
         None,
         description='The version token of the table. Must be 1-2048 characters long.'
     ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Delete a table.
     
@@ -313,19 +241,12 @@ async def delete_table(
 
 @app.tool()
 async def put_table_bucket_encryption(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     encryption_configuration: EncryptionConfiguration = Field(
         ...,
         description='The encryption configuration to apply to the table bucket.'
     ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Set the encryption configuration for a table bucket.
     
@@ -344,11 +265,7 @@ async def put_table_bucket_encryption(
 
 @app.tool()
 async def put_table_bucket_maintenance_configuration(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket associated with the maintenance configuration.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     maintenance_type: TableBucketMaintenanceType = Field(
         ...,
         description='The type of the maintenance configuration.'
@@ -357,7 +274,7 @@ async def put_table_bucket_maintenance_configuration(
         ...,
         description='Defines the values of the maintenance configuration for the table bucket.'
     ),
-    region_name: Optional[str] = None
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Create or replace a maintenance configuration for a table bucket.
     
@@ -376,21 +293,14 @@ async def put_table_bucket_maintenance_configuration(
 
 @app.tool()
 async def put_table_bucket_policy(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     resource_policy: str = Field(
         ...,
         description='The JSON that defines the policy.',
         min_length=1,
         max_length=20480
     ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Create or replace a table bucket policy.
     
@@ -408,15 +318,8 @@ async def put_table_bucket_policy(
 
 @app.tool()
 async def get_table_bucket(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get details about a table bucket.
     
@@ -432,22 +335,9 @@ async def get_table_bucket(
 
 @app.tool()
 async def get_namespace(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The name of the namespace. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get details about a namespace.
     
@@ -464,29 +354,10 @@ async def get_namespace(
 
 @app.tool()
 async def get_table(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket associated with the table.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The name of the namespace the table is associated with. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get details about a table.
     
@@ -504,15 +375,8 @@ async def get_table(
 
 @app.tool()
 async def get_table_bucket_encryption(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get the encryption configuration for a table bucket.
     
@@ -528,15 +392,8 @@ async def get_table_bucket_encryption(
 
 @app.tool()
 async def get_table_bucket_maintenance_configuration(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket associated with the maintenance configuration.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get details about a maintenance configuration for a table bucket.
     
@@ -552,15 +409,8 @@ async def get_table_bucket_maintenance_configuration(
 
 @app.tool()
 async def get_table_bucket_policy(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get details about a table bucket policy.
     
@@ -576,15 +426,8 @@ async def get_table_bucket_policy(
 
 @app.tool()
 async def delete_table_bucket_encryption(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Delete the encryption configuration for a table bucket.
     
@@ -600,15 +443,8 @@ async def delete_table_bucket_encryption(
 
 @app.tool()
 async def delete_table_bucket_policy(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Delete a table bucket policy.
     
@@ -624,29 +460,10 @@ async def delete_table_bucket_policy(
 
 @app.tool()
 async def delete_table_policy(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket that contains the table.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace associated with the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The table name. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Delete a table policy.
     
@@ -664,29 +481,10 @@ async def delete_table_policy(
 
 @app.tool()
 async def get_table_encryption(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket containing the table.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace associated with the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get the encryption configuration for a table.
     
@@ -704,29 +502,10 @@ async def get_table_encryption(
 
 @app.tool()
 async def get_table_maintenance_configuration(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace associated with the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get details about the maintenance configuration of a table.
     
@@ -744,29 +523,10 @@ async def get_table_maintenance_configuration(
 
 @app.tool()
 async def get_table_maintenance_job_status(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The name of the namespace the table is associated with. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name of the maintenance job. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get the status of a maintenance job for a table.
     
@@ -784,29 +544,10 @@ async def get_table_maintenance_job_status(
 
 @app.tool()
 async def get_table_metadata_location(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get the location of the table metadata.
     
@@ -824,29 +565,10 @@ async def get_table_metadata_location(
 
 @app.tool()
 async def get_table_policy(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket that contains the table.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace associated with the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Get details about a table policy.
     
@@ -864,25 +586,9 @@ async def get_table_policy(
 
 @app.tool()
 async def put_table_maintenance_configuration(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table associated with the maintenance configuration.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name of the maintenance configuration. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
     maintenance_type: TableMaintenanceType = Field(
         ...,
         description='The type of the maintenance configuration. Valid values are icebergCompaction or icebergSnapshotManagement.'
@@ -891,10 +597,7 @@ async def put_table_maintenance_configuration(
         ...,
         description='Defines the values of the maintenance configuration for the table.'
     ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Create or replace a maintenance configuration for a table.
     
@@ -915,49 +618,18 @@ async def put_table_maintenance_configuration(
 
 @app.tool()
 async def rename_table(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace associated with the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The current name of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    new_name: Optional[str] = Field(
-        None,
-        description='The new name for the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    new_namespace_name: Optional[str] = Field(
-        None,
-        description='The new name for the namespace. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
+    new_name: Optional[str] = TABLE_NAME_FIELD,
+    new_namespace_name: Optional[str] = NAMESPACE_NAME_FIELD,
     version_token: Optional[str] = Field(
         None,
         description='The version token of the table. Must be 1-2048 characters long.',
         min_length=1,
         max_length=2048
     ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Rename a table or a namespace.
     
@@ -978,25 +650,9 @@ async def rename_table(
 
 @app.tool()
 async def update_table_metadata_location(
-    table_bucket_arn: str = Field(
-        ...,
-        description='The Amazon Resource Name (ARN) of the table bucket.',
-        pattern=r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-    ),
-    namespace: str = Field(
-        ...,
-        description='The namespace of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
-    name: str = Field(
-        ...,
-        description='The name of the table. Must be 1-255 characters long and contain only lowercase letters, numbers, and underscores.',
-        min_length=1,
-        max_length=255,
-        pattern=r'[0-9a-z_]*'
-    ),
+    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
+    namespace: str = NAMESPACE_NAME_FIELD,
+    name: str = TABLE_NAME_FIELD,
     metadata_location: str = Field(
         ...,
         description='The new metadata location for the table. Must be 1-2048 characters long.',
@@ -1009,10 +665,7 @@ async def update_table_metadata_location(
         min_length=1,
         max_length=2048
     ),
-    region_name: Optional[str] = Field(
-        None,
-        description='Optional AWS region name. If not specified, uses the default region.'
-    )
+    region_name: Optional[str] = REGION_NAME_FIELD
 ):
     """Update the metadata location for a table.
     
@@ -1033,4 +686,8 @@ async def update_table_metadata_location(
 
 # FastMCP application runner
 if __name__ == "__main__":
+    import asyncio
+    print("Starting list_tables test...")
+    result = asyncio.run(list_tables())
+    print("Result:", result)
     app.run()

@@ -165,7 +165,7 @@ Add to `claude_desktop_config.json`:
     "name": "query_table",
     "arguments": {
       "table_arn": "arn:aws:s3tables:us-east-1:123456789012:bucket/my-bucket/table/my-table",
-      "sql_query": "SELECT * FROM table WHERE status = 'active' LIMIT 10",
+      "query": "filter status='active' limit 10",
       "engine": "duckdb"
     }
   }
@@ -279,3 +279,4 @@ The server is designed to work in both development (mock) and production (AWS) e
 - [ ] PutTablePolicy TODO: LLM cannot parse the json string
 - [X] RenameTable: Prompt: `Rename test_table_1 to llm_table_1`
 - [X] UpdateTableMetadataLocation: Prompt: `Update metadata location to new_location.metadata.json for test_table_1`
+

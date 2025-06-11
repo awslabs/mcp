@@ -20,13 +20,6 @@ from typing import Optional
 import boto3
 from botocore.config import Config
 from loguru import logger
-from pydantic import Field
-
-from .models import (
-    TABLE_ARN_PATTERN,
-    TABLE_BUCKET_ARN_PATTERN,
-    TABLE_NAME_PATTERN,
-)
 
 
 def handle_exceptions(func):
@@ -55,18 +48,18 @@ def handle_field_param(param_value):
 
 
 def get_s3tables_client(region_name: Optional[str] = None):
-    """Create a boto3 S3 Tables client."""
+    """Create a boto3 S3 Tables client.
+    
+    Args:
+        region_name: Optional AWS region name. If not provided, uses AWS_REGION environment variable
+                    or defaults to 'us-east-1'.
+    
+    Returns:
+        boto3.client: Configured S3 Tables client
+    """
     # Handle FieldInfo objects for region_name
     region_str = handle_field_param(region_name)
     region = region_str or os.getenv('AWS_REGION') or 'us-east-1'
     config = Config(user_agent_extra='MCP/S3TablesServer')
     session = boto3.Session()
     return session.client('s3tables', region_name=region, config=config)
-
-
-# Common field patterns for reuse in annotations
-TABLE_BUCKET_ARN_FIELD = Field(..., description='Table bucket ARN', pattern=TABLE_BUCKET_ARN_PATTERN)
-TABLE_ARN_FIELD = Field(..., description='Table ARN', pattern=TABLE_ARN_PATTERN)
-NAMESPACE_NAME_FIELD = Field(..., description='Namespace name', pattern=r'^[0-9a-z_]+$', max_length=255)
-TABLE_NAME_FIELD = Field(..., description='Table name', pattern=TABLE_NAME_PATTERN, max_length=255)
-REGION_NAME_FIELD = Field(default=None, description='AWS region name')
