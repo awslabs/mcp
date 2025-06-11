@@ -18,7 +18,17 @@ def list_clusters(
         next_token (str): Token for pagination
 
     Returns:
-        dict: List of MSK clusters
+        dict: List of MSK clusters containing:
+            - ClusterInfoList (list): List of cluster information objects, each containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterName (str): The name of the cluster
+                - CreationTime (datetime): The time when the cluster was created
+                - CurrentVersion (str): The current version of the cluster
+                - State (str): The state of the cluster (e.g., ACTIVE, CREATING, UPDATING)
+                - StateInfo (dict, optional): Additional information about the cluster state
+                - Tags (dict, optional): Tags attached to the cluster
+                - ClusterType (str): The type of the cluster (PROVISIONED or SERVERLESS)
+            - NextToken (str, optional): Token for pagination if there are more results
     """
     if client is None:
         raise ValueError(

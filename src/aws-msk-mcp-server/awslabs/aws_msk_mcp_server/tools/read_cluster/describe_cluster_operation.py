@@ -13,7 +13,18 @@ def describe_cluster_operation(cluster_operation_arn, client):
         client (boto3.client): Boto3 client for Kafka. Must be provided by get_cluster_info.
 
     Returns:
-        dict: Information about the cluster operation
+        dict: Information about the cluster operation containing:
+            - ClusterOperationInfo (dict): Detailed information about the operation including:
+                - ClusterArn (str): The ARN of the cluster this operation is performed on
+                - ClusterOperationArn (str): The ARN of the cluster operation
+                - OperationType (str): The type of operation (e.g., UPDATE, CREATE, DELETE)
+                - SourceClusterInfo (dict, optional): Information about the source cluster
+                - TargetClusterInfo (dict, optional): Information about the target cluster configuration
+                - OperationSteps (list, optional): List of steps in the operation
+                - OperationState (str): The state of the operation (e.g., PENDING, IN_PROGRESS, COMPLETED)
+                - ErrorInfo (dict, optional): Information about any errors that occurred
+                - CreationTime (datetime): The time when the operation was created
+                - EndTime (datetime, optional): The time when the operation completed
     """
     if client is None:
         raise ValueError(

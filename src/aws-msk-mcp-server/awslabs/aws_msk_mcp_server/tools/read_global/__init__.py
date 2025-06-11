@@ -30,7 +30,18 @@ def register_module(mcp: FastMCP) -> None:
                 - For "vpc_connections": max_results, next_token
 
         Returns:
-            dict: Global information of the requested type, or a dictionary containing all types if info_type is "all"
+            dict: Global information of the requested type, or a dictionary containing all types if info_type is "all":
+                - clusters (dict): Information about all clusters including:
+                    - ClusterInfoList (list): List of cluster information objects
+                    - NextToken (str, optional): Token for pagination
+                - configurations (dict): Information about all configurations including:
+                    - ConfigurationInfoList (list): List of configuration information objects
+                    - NextToken (str, optional): Token for pagination
+                - vpc_connections (dict): Information about all VPC connections including:
+                    - VpcConnectionInfoList (list): List of VPC connection information objects
+                    - NextToken (str, optional): Token for pagination
+                - kafka_versions (dict): Information about all available Kafka versions including:
+                    - KafkaVersions (list): List of Kafka version strings
         """
         # Create a single boto3 client to be shared across all function calls
         client = boto3.client("kafka", region_name=region)

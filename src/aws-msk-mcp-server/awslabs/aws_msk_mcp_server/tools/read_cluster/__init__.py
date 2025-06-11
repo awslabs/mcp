@@ -29,7 +29,18 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Information about the cluster operation
+            dict: Information about the cluster operation containing:
+                - ClusterOperationInfo (dict): Detailed information about the operation including:
+                    - ClusterArn (str): The ARN of the cluster this operation is performed on
+                    - ClusterOperationArn (str): The ARN of the cluster operation
+                    - OperationType (str): The type of operation (e.g., UPDATE, CREATE, DELETE)
+                    - SourceClusterInfo (dict, optional): Information about the source cluster
+                    - TargetClusterInfo (dict, optional): Information about the target cluster configuration
+                    - OperationSteps (list, optional): List of steps in the operation
+                    - OperationState (str): The state of the operation (e.g., PENDING, IN_PROGRESS, COMPLETED)
+                    - ErrorInfo (dict, optional): Information about any errors that occurred
+                    - CreationTime (datetime): The time when the operation was created
+                    - EndTime (datetime, optional): The time when the operation completed
         """
         # Create a boto3 client
         client = boto3.client("kafka", region_name=region)
@@ -57,7 +68,19 @@ def register_module(mcp: FastMCP) -> None:
                           - next_token (str, optional): Token for pagination
 
         Returns:
-            dict: Cluster information of the requested type, or a dictionary containing all types if info_type is "all"
+            dict: Cluster information of the requested type, or a dictionary containing all types if info_type is "all":
+                - metadata (dict): Cluster metadata from describe_cluster
+                - brokers (dict): Bootstrap broker information from get_bootstrap_brokers
+                - nodes (dict): Node information from list_nodes
+                - compatible_versions (dict): Compatible Kafka versions from get_compatible_kafka_versions
+                - policy (dict): Cluster policy information from get_cluster_policy
+                - operations (dict): Cluster operations from list_cluster_operations
+                - client_vpc_connections (dict): Client VPC connections from list_client_vpc_connections
+                - scram_secrets (dict): SCRAM secrets from list_scram_secrets
+                
+                Each of these keys contains the full response structure as documented in their respective functions.
+                If an error occurs while retrieving any of these components, the corresponding key will contain
+                an error message instead of the expected data structure.
         """
 
         # Create a single boto3 client to be shared across all function calls

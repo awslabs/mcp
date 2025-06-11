@@ -13,7 +13,17 @@ def get_bootstrap_brokers(cluster_arn, client):
         client (boto3.client): Boto3 client for Kafka. Must be provided by get_cluster_info.
 
     Returns:
-        dict: Connection information for the broker nodes
+        dict: Connection information for the broker nodes containing:
+            - BootstrapBrokerString (str, optional): A comma-separated list of broker endpoints for plaintext connections
+            - BootstrapBrokerStringTls (str, optional): A comma-separated list of broker endpoints for TLS connections
+            - BootstrapBrokerStringSaslScram (str, optional): A comma-separated list of broker endpoints for SASL/SCRAM connections
+            - BootstrapBrokerStringSaslIam (str, optional): A comma-separated list of broker endpoints for SASL/IAM connections
+            - BootstrapBrokerStringPublicTls (str, optional): A comma-separated list of broker endpoints for public TLS connections
+            - BootstrapBrokerStringPublicSaslScram (str, optional): A comma-separated list of broker endpoints for public SASL/SCRAM connections
+            - BootstrapBrokerStringPublicSaslIam (str, optional): A comma-separated list of broker endpoints for public SASL/IAM connections
+            - BootstrapBrokerStringVpcConnectivityTls (str, optional): A comma-separated list of broker endpoints for VPC connectivity TLS connections
+            - BootstrapBrokerStringVpcConnectivitySaslScram (str, optional): A comma-separated list of broker endpoints for VPC connectivity SASL/SCRAM connections
+            - BootstrapBrokerStringVpcConnectivitySaslIam (str, optional): A comma-separated list of broker endpoints for VPC connectivity SASL/IAM connections
     """
     if client is None:
         raise ValueError(

@@ -92,7 +92,14 @@ def register_module(mcp: FastMCP) -> None:
                 Example for SERVERLESS: '{"vpc_configs": [{"SubnetIds": ["subnet-0a1b2c3d", "subnet-1a2b3c4d", "subnet-2a3b4c5d"], "SecurityGroupIds": ["sg-0a1b2c3d"]}]}'
 
         Returns:
-            dict: Result of the cluster creation operation
+            dict: Result of the cluster creation operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterName (str): The name of the cluster
+                - State (str): The state of the cluster (e.g., CREATING)
+                - ClusterType (str): The type of the cluster (PROVISIONED or SERVERLESS)
+                - CreationTime (datetime): The time when the cluster was created
+                - CurrentVersion (str): The current version of the cluster
+                - Tags (dict, optional): Tags attached to the cluster
 
         Note:
             After creating a cluster, you should follow up with a tag_resource tool call
@@ -142,7 +149,9 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
+            dict: Result of the update operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterOperationArn (str): The ARN of the cluster operation that was created
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -175,7 +184,9 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
+            dict: Result of the update operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterOperationArn (str): The ARN of the cluster operation that was created
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -208,7 +219,9 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
+            dict: Result of the update operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterOperationArn (str): The ARN of the cluster operation that was created
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -263,7 +276,9 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
+            dict: Result of the update operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterOperationArn (str): The ARN of the cluster operation that was created
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -320,7 +335,9 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
+            dict: Result of the update operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterOperationArn (str): The ARN of the cluster operation that was created
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -369,7 +386,9 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the operation
+            dict: Result of the operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterOperationArn (str, optional): The ARN of the cluster operation that was created
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -402,7 +421,9 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
+            dict: Result of the update operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterOperationArn (str): The ARN of the cluster operation that was created
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -433,7 +454,9 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the operation
+            dict: Result of the operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterOperationArn (str, optional): The ARN of the cluster operation that was created
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -462,7 +485,9 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the operation
+            dict: Result of the operation containing:
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - ClusterOperationArn (str, optional): The ARN of the cluster operation that was created
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".

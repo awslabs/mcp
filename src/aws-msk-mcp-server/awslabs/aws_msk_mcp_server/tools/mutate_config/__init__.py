@@ -34,7 +34,14 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the create operation containing the ARN, creation time, latest revision, and name
+            dict: Result of the create operation containing:
+                - Arn (str): The Amazon Resource Name (ARN) of the configuration
+                - CreationTime (datetime): The time when the configuration was created
+                - LatestRevision (dict): Information about the latest revision including:
+                    - CreationTime (datetime): The time when the revision was created
+                    - Description (str): The description of the revision
+                    - Revision (int): The revision number
+                - Name (str): The name of the configuration
 
         Note:
             After creating a configuration, you should follow up with a tag_resource tool call
@@ -60,7 +67,12 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing the ARN and latest revision
+            dict: Result of the update operation containing:
+                - Arn (str): The Amazon Resource Name (ARN) of the configuration
+                - LatestRevision (dict): Information about the latest revision including:
+                    - CreationTime (datetime): The time when the revision was created
+                    - Description (str): The description of the revision
+                    - Revision (int): The revision number
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".

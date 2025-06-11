@@ -13,7 +13,11 @@ def get_compatible_kafka_versions(cluster_arn=None, client=None):
         client (boto3.client): Boto3 client for Kafka. Must be provided by get_cluster_info.
 
     Returns:
-        dict: List of compatible Kafka versions
+        dict: List of compatible Kafka versions containing:
+            - CompatibleKafkaVersions (list): List of compatible Kafka versions, each containing:
+                - SourceVersion (str, optional): The source Kafka version (only present when cluster_arn is provided)
+                - TargetVersions (list): List of target Kafka versions that the source version can be upgraded to
+            - KafkaVersions (list, optional): List of all available Kafka versions (only present when cluster_arn is not provided)
     """
     if client is None:
         raise ValueError(

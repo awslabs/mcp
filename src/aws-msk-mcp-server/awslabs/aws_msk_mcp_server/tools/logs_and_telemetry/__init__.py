@@ -40,7 +40,17 @@ def register_module(mcp: FastMCP) -> None:
                         - StartingToken: Token for starting position
 
         Returns:
-            dict: Result of the requested operation
+            dict: Result of the requested operation:
+                - For "metrics" action:
+                    - MetricDataResults (list): List of metric data results, each containing:
+                        - Id (str): The ID of the metric
+                        - Label (str): The label of the metric
+                        - Timestamps (list): List of timestamps for the data points
+                        - Values (list): List of values for the data points
+                        - StatusCode (str): The status code of the metric data
+                - For "available_metrics" action:
+                    - Metrics (list): List of available metrics based on the monitoring level
+                    - MonitoringLevel (str): The monitoring level used to filter metrics
         """
         if action == "metrics" and cluster_arn:
             # Create a client manager instance
