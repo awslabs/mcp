@@ -20,6 +20,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
         - [Infrastructure as Code](#infrastructure-as-code)
         - [Container Platforms](#container-platforms)
         - [Serverless \& Functions](#serverless--functions)
+        - [Support](#support)
       - [🤖 AI \& Machine Learning](#-ai--machine-learning)
       - [📊 Data \& Analytics](#-data--analytics)
         - [SQL \& NoSQL Databases](#sql--nosql-databases)
@@ -36,7 +37,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
         - [Testing \& Data](#testing--data)
       - [💬 Conversational Assistants](#-conversational-assistants)
         - [Knowledge \& Search](#knowledge--search)
-        - [Content Generation](#content-generation)
+        - [Content Processing \& Generation](#content-processing--generation)
         - [Business Services](#business-services)
       - [🤖 Autonomous Background Agents](#-autonomous-background-agents)
         - [Data Operations \& ETL](#data-operations--etl)
@@ -107,29 +108,33 @@ Build, deploy, and manage cloud infrastructure with Infrastructure as Code best 
 
 ##### Infrastructure as Code
 
-- **[AWS CDK MCP Server](#aws-cdk-mcp-server)** - AWS CDK development with security compliance and best practices
-- **[AWS Terraform MCP Server](#aws-terraform-mcp-server)** - Terraform workflows with integrated security scanning
-- **[AWS CloudFormation MCP Server](#aws-cloudformation-mcp-server)** - Direct CloudFormation resource management via Cloud Control API
+- **[AWS CDK MCP Server](src/cdk-mcp-server/)** - AWS CDK development with security compliance and best practices
+- **[AWS Terraform MCP Server](src/terraform-mcp-server/)** - Terraform workflows with integrated security scanning
+- **[AWS CloudFormation MCP Server](src/cfn-mcp-server/)** - Direct CloudFormation resource management via Cloud Control API
 
 ##### Container Platforms
 
-- **[Amazon EKS MCP Server](#amazon-eks-mcp-server)** - Kubernetes cluster management and application deployment
-- **[Amazon ECS MCP Server](#amazon-ecs-mcp-server)** - Container orchestration and ECS application deployment
-- **[Finch MCP Server](#finch-mcp-server)** - Local container building with ECR integration
+- **[Amazon EKS MCP Server](src/eks-mcp-server/)** - Kubernetes cluster management and application deployment
+- **[Amazon ECS MCP Server](src/ecs-mcp-server/)** - Container orchestration and ECS application deployment
+- **[Finch MCP Server](src/finch-mcp-server/)** - Local container building with ECR integration
 
 ##### Serverless & Functions
 
-- **[AWS Serverless MCP Server](#aws-serverless-mcp-server)** - Complete serverless application lifecycle with SAM CLI
-- **[AWS Lambda MCP Server](#aws-lambda-mcp-server)** - Execute Lambda functions as AI tools for private resource access
+- **[AWS Serverless MCP Server](src/aws-serverless-mcp-server/)** - Complete serverless application lifecycle with SAM CLI
+- **[AWS Lambda Tool MCP Server](src/lambda-tool-mcp-server/)** - Execute Lambda functions as AI tools for private resource access
+
+##### Support
+
+- **[AWS Support MCP Server](src/aws-support-mcp-server/)** - Help users create and manage AWS Support cases
 
 #### 🤖 AI & Machine Learning
 
 Enhance AI applications with knowledge retrieval, content generation, and ML capabilities.
 
-- **[Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)** - Query enterprise knowledge bases with citation support
-- **[Amazon Kendra Index MCP Server](#amazon-kendra-index-mcp-server)** - Enterprise search and RAG enhancement
-- **[Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)** - AI image generation with text and color guidance
-- **[AWS Bedrock Data Automation MCP Server](#aws-bedrock-data-automation-mcp-server)** - Analyze documents, images, videos, and audio files
+- **[Amazon Bedrock Knowledge Bases Retrieval MCP Server](src/bedrock-kb-retrieval-mcp-server/)** - Query enterprise knowledge bases with citation support
+- **[Amazon Kendra Index MCP Server](src/amazon-kendra-index-mcp-server/)** - Enterprise search and RAG enhancement
+- **[Amazon Nova Canvas MCP Server](src/nova-canvas-mcp-server/)** - AI image generation with text and color guidance
+- **[Amazon Bedrock Data Automation MCP Server](src/aws-bedrock-data-automation-mcp-server/)** - Analyze documents, images, videos, and audio files
 
 #### 📊 Data & Analytics
 
@@ -137,45 +142,45 @@ Work with databases, caching systems, and data processing workflows.
 
 ##### SQL & NoSQL Databases
 
-- **[Amazon DynamoDB MCP Server](#amazon-dynamodb-mcp-server)** - Complete DynamoDB operations and table management
-- **[Amazon Aurora Postgres MCP Server](#amazon-aurora-postgres-mcp-server)** - PostgreSQL database operations via RDS Data API
-- **[Amazon Aurora MySql MCP Server](#amazon-aurora-mysql-mcp-server)** - MySQL database operations via RDS Data API
-- **[Amazon Aurora DSQL MCP Server](#amazon-aurora-dsql-mcp-server)** - Distributed SQL with PostgreSQL compatibility
-- **[Amazon DocumentDB MCP Server](#amazon-documentdb-mcp-server)** - MongoDB-compatible document database operations
-- **[Amazon Neptune MCP Server](#amazon-neptune-mcp-server)** - Graph database queries with openCypher and Gremlin
-- **[Amazon Keyspaces MCP Server](#amazon-keyspaces-mcp-server)** - Apache Cassandra-compatible operations
+- **[Amazon DynamoDB MCP Server](src/dynamodb-mcp-server/)** - Complete DynamoDB operations and table management
+- **[Amazon Aurora Postgres MCP Server](src/postgres-mcp-server/)** - PostgreSQL database operations via RDS Data API
+- **[Amazon Aurora MySql MCP Server](src/mysql-mcp-server/)** - MySQL database operations via RDS Data API
+- **[Amazon Aurora DSQL MCP Server](src/aurora-dsql-mcp-server/)** - Distributed SQL with PostgreSQL compatibility
+- **[Amazon DocumentDB MCP Server](src/documentdb-mcp-server/)** - MongoDB-compatible document database operations
+- **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries with openCypher and Gremlin
+- **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 
 ##### Caching & Performance
 
-- **[Amazon ElastiCache / MemoryDB for Valkey MCP Server](#amazon-elasticache--memorydb-for-valkey-mcp-server)** - Advanced data structures and caching with Valkey
-- **[Amazon ElastiCache for Memcached MCP Server](#amazon-elasticache-for-memcached-mcp-server)** - High-speed caching operations
+- **[Amazon ElastiCache / MemoryDB for Valkey MCP Server](src/valkey-mcp-server/)** - Advanced data structures and caching with Valkey
+- **[Amazon ElastiCache for Memcached MCP Server](src/memcached-mcp-server/)** - High-speed caching operations
 
 #### 🛠️ Developer Tools & Support
 
 Accelerate development with code analysis, documentation, and testing utilities.
 
-- **[Git Repo Research MCP Server](#git-repo-research-mcp-server)** - Semantic code search and repository analysis
-- **[Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)** - Automated documentation from code analysis
-- **[AWS Diagram MCP Server](#aws-diagram-mcp-server)** - Generate architecture diagrams and technical illustrations
-- **[Frontend MCP Server](#frontend-mcp-server)** - React and modern web development guidance
-- **[Synthetic Data MCP Server](#synthetic-data-mcp-server)** - Generate realistic test data for development and ML
+- **[Git Repo Research MCP Server](src/git-repo-research-mcp-server/)** - Semantic code search and repository analysis
+- **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Automated documentation from code analysis
+- **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams and technical illustrations
+- **[Frontend MCP Server](src/frontend-mcp-server/)** - React and modern web development guidance
+- **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for development and ML
 
 #### 📡 Integration & Messaging
 
 Connect systems with messaging, workflows, and location services.
 
-- **[Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)** - Event-driven messaging and queue management
-- **[Amazon MQ MCP Server](#amazon-mq-mcp-server)** - Message broker management for RabbitMQ and ActiveMQ
-- **[AWS Step Functions Tool MCP Server](#aws-step-functions-tool-mcp-server)** - Execute complex workflows and business processes
-- **[AWS Location Service MCP Server](#aws-location-service-mcp-server)** - Place search, geocoding, and route optimization
+- **[Amazon SNS / SQS MCP Server](src/amazon-sns-sqs-mcp-server/)** - Event-driven messaging and queue management
+- **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker management for RabbitMQ and ActiveMQ
+- **[AWS Step Functions Tool MCP Server](src/stepfunctions-tool-mcp-server/)** - Execute complex workflows and business processes
+- **[AWS Location Service MCP Server](src/aws-location-mcp-server/)** - Place search, geocoding, and route optimization
 
 #### 💰 Cost & Operations
 
 Monitor, optimize, and manage your AWS infrastructure and costs.
 
-- **[Cost Analysis MCP Server](#cost-analysis-mcp-server)** - Pre-deployment cost estimation and optimization
-- **[AWS Cost Explorer MCP Server](#aws-cost-explorer-mcp-server)** - Detailed cost analysis and reporting
-- **[Amazon Cloudwatch Logs MCP Server](#amazon-cloudwatch-logs-mcp-server)** - Log analysis and operational troubleshooting
+- **[Cost Analysis MCP Server](src/cost-analysis-mcp-server/)** - Pre-deployment cost estimation and optimization
+- **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and reporting
+- **[Amazon Cloudwatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 
 ---
 
@@ -183,36 +188,36 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 #### 👨‍💻 Vibe Coding & Development
 
-*AI coding assistants like Cursor, Cline, Windsurf helping you build faster*
+*AI coding assistants like Amazon Q Developer CLI, Cline, Cursor, and Claude Code helping you build faster*
 
 ##### Core Development Workflow
 
-- **[Core MCP Server](#core-mcp-server)** - Start here: intelligent planning and MCP server orchestration
-- **[AWS Documentation MCP Server](#aws-documentation-mcp-server)** - Get latest AWS docs and API references
-- **[Git Repo Research MCP Server](#git-repo-research-mcp-server)** - Semantic search through codebases and repositories
+- **[Core MCP Server](src/core-mcp-server/)** - Start here: intelligent planning and MCP server orchestration
+- **[AWS Documentation MCP Server](src/aws-documentation-mcp-server/)** - Get latest AWS docs and API references
+- **[Git Repo Research MCP Server](src/git-repo-research-mcp-server/)** - Semantic search through codebases and repositories
 
 ##### Infrastructure as Code
 
-- **[AWS CDK MCP Server](#aws-cdk-mcp-server)** - CDK development with security best practices and compliance
-- **[AWS Terraform MCP Server](#aws-terraform-mcp-server)** - Terraform with integrated security scanning and best practices
-- **[AWS CloudFormation MCP Server](#aws-cloudformation-mcp-server)** - Direct AWS resource management through Cloud Control API
+- **[AWS CDK MCP Server](src/cdk-mcp-server/)** - CDK development with security best practices and compliance
+- **[AWS Terraform MCP Server](src/terraform-mcp-server/)** - Terraform with integrated security scanning and best practices
+- **[AWS CloudFormation MCP Server](src/cfn-mcp-server/)** - Direct AWS resource management through Cloud Control API
 
 ##### Application Development
 
-- **[Frontend MCP Server](#frontend-mcp-server)** - React and modern web development patterns with AWS integration
-- **[AWS Diagram MCP Server](#aws-diagram-mcp-server)** - Generate architecture diagrams as you design
-- **[Code Documentation Generation MCP Server](#code-documentation-generation-mcp-server)** - Auto-generate docs from your codebase
+- **[Frontend MCP Server](src/frontend-mcp-server/)** - React and modern web development patterns with AWS integration
+- **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams as you design
+- **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Auto-generate docs from your codebase
 
 ##### Container & Serverless Development
 
-- **[Amazon EKS MCP Server](#amazon-eks-mcp-server)** - Kubernetes cluster management and app deployment
-- **[Amazon ECS MCP Server](#amazon-ecs-mcp-server)** - Containerize and deploy applications to ECS
-- **[Finch MCP Server](#finch-mcp-server)** - Local container building with ECR push
-- **[AWS Serverless MCP Server](#aws-serverless-mcp-server)** - Full serverless app lifecycle with SAM CLI
+- **[Amazon EKS MCP Server](src/eks-mcp-server/)** - Kubernetes cluster management and app deployment
+- **[Amazon ECS MCP Server](src/ecs-mcp-server/)** - Containerize and deploy applications to ECS
+- **[Finch MCP Server](src/finch-mcp-server/)** - Local container building with ECR push
+- **[AWS Serverless MCP Server](src/aws-serverless-mcp-server/)** - Full serverless app lifecycle with SAM CLI
 
 ##### Testing & Data
 
-- **[Synthetic Data MCP Server](#synthetic-data-mcp-server)** - Generate realistic test data for your applications
+- **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for your applications
 
 #### 💬 Conversational Assistants
 
@@ -220,20 +225,20 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 ##### Knowledge & Search
 
-- **[Amazon Bedrock Knowledge Bases Retrieval MCP Server](#amazon-bedrock-knowledge-bases-retrieval-mcp-server)** - Query enterprise knowledge with citations
-- **[Amazon Kendra Index MCP Server](#amazon-kendra-index-mcp-server)** - Enterprise search and document retrieval
-- **[AWS Documentation MCP Server](#aws-documentation-mcp-server)** - Official AWS documentation for technical answers
+- **[Amazon Bedrock Knowledge Bases Retrieval MCP Server](src/bedrock-kb-retrieval-mcp-server/)** - Query enterprise knowledge with citations
+- **[Amazon Kendra Index MCP Server](src/amazon-kendra-index-mcp-server/)** - Enterprise search and document retrieval
+- **[AWS Documentation MCP Server](src/aws-documentation-mcp-server/)** - Official AWS documentation for technical answers
 
-##### Content Generation
+##### Content Processing & Generation
 
-- **[Amazon Nova Canvas MCP Server](#amazon-nova-canvas-mcp-server)** - Generate images from text descriptions and color palettes
-- **[AWS Bedrock Data Automation MCP Server](#aws-bedrock-data-automation-mcp-server)** - Analyze uploaded documents, images, and media
+- **[Amazon Nova Canvas MCP Server](src/nova-canvas-mcp-server/)** - Generate images from text descriptions and color palettes
+- **[AWS Bedrock Data Automation MCP Server](src/aws-bedrock-data-automation-mcp-server/)** - Analyze uploaded documents, images, and media
 
 ##### Business Services
 
-- **[AWS Location Service MCP Server](#aws-location-service-mcp-server)** - Location search, geocoding, and business hours
-- **[Cost Analysis MCP Server](#cost-analysis-mcp-server)** - Answer cost questions and provide estimates
-- **[AWS Cost Explorer MCP Server](#aws-cost-explorer-mcp-server)** - Detailed cost analysis and spend reports
+- **[AWS Location Service MCP Server](src/aws-location-mcp-server/)** - Location search, geocoding, and business hours
+- **[Cost Analysis MCP Server](src/cost-analysis-mcp-server/)** - Answer cost questions and provide estimates
+- **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and spend reports
 
 #### 🤖 Autonomous Background Agents
 
@@ -241,30 +246,30 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 ##### Data Operations & ETL
 
-- **[Amazon DynamoDB MCP Server](#amazon-dynamodb-mcp-server)** - NoSQL database operations and table management
-- **[Amazon Aurora Postgres MCP Server](#amazon-aurora-postgres-mcp-server)** - PostgreSQL operations via RDS Data API
-- **[Amazon Aurora MySql MCP Server](#amazon-aurora-mysql-mcp-server)** - MySQL operations via RDS Data API
-- **[Amazon Aurora DSQL MCP Server](#amazon-aurora-dsql-mcp-server)** - Distributed SQL database operations
-- **[Amazon DocumentDB MCP Server](#amazon-documentdb-mcp-server)** - MongoDB-compatible document operations
-- **[Amazon Neptune MCP Server](#amazon-neptune-mcp-server)** - Graph database queries and analytics
-- **[Amazon Keyspaces MCP Server](#amazon-keyspaces-mcp-server)** - Cassandra-compatible operations
+- **[Amazon DynamoDB MCP Server](src/dynamodb-mcp-server/)** - NoSQL database operations and table management
+- **[Amazon Aurora Postgres MCP Server](src/postgres-mcp-server/)** - PostgreSQL operations via RDS Data API
+- **[Amazon Aurora MySql MCP Server](src/mysql-mcp-server/)** - MySQL operations via RDS Data API
+- **[Amazon Aurora DSQL MCP Server](src/aurora-dsql-mcp-server/)** - Distributed SQL database operations
+- **[Amazon DocumentDB MCP Server](src/documentdb-mcp-server/)** - MongoDB-compatible document operations
+- **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries and analytics
+- **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Cassandra-compatible operations
 
 ##### Caching & Performance
 
-- **[Amazon ElastiCache / MemoryDB for Valkey MCP Server](#amazon-elasticache--memorydb-for-valkey-mcp-server)** - Advanced caching and data structures
-- **[Amazon ElastiCache for Memcached MCP Server](#amazon-elasticache-for-memcached-mcp-server)** - High-speed caching layer
+- **[Amazon ElastiCache / MemoryDB for Valkey MCP Server](src/valkey-mcp-server/)** - Advanced caching and data structures
+- **[Amazon ElastiCache for Memcached MCP Server](src/memcached-mcp-server/)** - High-speed caching layer
 
 ##### Workflow & Integration
 
-- **[AWS Lambda MCP Server](#aws-lambda-mcp-server)** - Execute Lambda functions for private resource access
-- **[AWS Step Functions Tool MCP Server](#aws-step-functions-tool-mcp-server)** - Complex multi-step workflow execution
-- **[Amazon SNS / SQS MCP Server](#amazon-sns--sqs-mcp-server)** - Event-driven messaging and queue processing
-- **[Amazon MQ MCP Server](#amazon-mq-mcp-server)** - Message broker operations
+- **[AWS Lambda MCP Server](src/lambda-tool-mcp-server/)** - Execute Lambda functions for private resource access
+- **[AWS Step Functions Tool MCP Server](src/stepfunctions-tool-mcp-server/)** - Complex multi-step workflow execution
+- **[Amazon SNS / SQS MCP Server](src/amazon-sns-sqs-mcp-server/)** - Event-driven messaging and queue processing
+- **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker operations
 
 ##### Operations & Monitoring
 
-- **[Amazon Cloudwatch Logs MCP Server](#amazon-cloudwatch-logs-mcp-server)** - Log analysis and operational troubleshooting
-- **[AWS Cost Explorer MCP Server](#aws-cost-explorer-mcp-server)** - Cost monitoring and spend analysis
+- **[Amazon Cloudwatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
+- **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Cost monitoring and spend analysis
 
 ## MCP AWS Lambda Handler Module
 
@@ -909,5 +914,3 @@ This project is licensed under the Apache-2.0 License.
 ## Disclaimer
 
 Before using an MCP Server, you should consider conducting your own independent assessment to ensure that your use would comply with your own specific security and quality control practices and standards, as well as the laws, rules, and regulations that govern you and your content.
-
-<!-- Badge Reference Definitions -->
