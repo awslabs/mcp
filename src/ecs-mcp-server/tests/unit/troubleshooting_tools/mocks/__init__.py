@@ -1,3 +1,0 @@
-"""
-Mock implementations for testing.
-"""

@@ -39,19 +39,14 @@ def mock_aws_clients():
     mock_ecr = mock.AsyncMock()
     mock_elbv2 = mock.AsyncMock()
 
-    with (
-        mock.patch(
-            "awslabs.ecs_mcp_server.api.clients.ecs_client.get_aws_client", return_value=mock_ecs
-        ),
-        mock.patch(
-            "awslabs.ecs_mcp_server.utils.aws.get_aws_client",
-            side_effect=lambda service: {
-                "ecs": mock_ecs,
-                "cloudformation": mock_cfn,
-                "ecr": mock_ecr,
-                "elbv2": mock_elbv2,
-            }.get(service, mock.AsyncMock()),
-        ),
+    with mock.patch(
+        "awslabs.ecs_mcp_server.utils.aws.get_aws_client",
+        side_effect=lambda service: {
+            "ecs": mock_ecs,
+            "cloudformation": mock_cfn,
+            "ecr": mock_ecr,
+            "elbv2": mock_elbv2,
+        }.get(service, mock.AsyncMock()),
     ):
         yield {"ecs": mock_ecs, "cloudformation": mock_cfn, "ecr": mock_ecr, "elbv2": mock_elbv2}
 

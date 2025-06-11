@@ -246,8 +246,8 @@ def create_sample_stack_data(
 
 def create_sample_stack_resource(
     logical_id: str = "Resource1",
-    physical_id: str = "i-1234567890abcdef0",
-    resource_type: str = "AWS::EC2::Instance",
+    physical_id: str = "ecs-cluster-12345",
+    resource_type: str = "AWS::ECS::Cluster",
     status: str = "CREATE_COMPLETE",
     status_reason: Optional[str] = None,
     last_updated_timestamp: datetime.datetime = None,
@@ -297,8 +297,8 @@ def create_sample_stack_resource(
 def create_sample_stack_event(
     stack_name: str = "test-stack",
     logical_id: str = "Resource1",
-    physical_id: str = "i-1234567890abcdef0",
-    resource_type: str = "AWS::EC2::Instance",
+    physical_id: str = "ecs-cluster-12345",
+    resource_type: str = "AWS::ECS::Cluster",
     status: str = "CREATE_COMPLETE",
     status_reason: Optional[str] = None,
     timestamp: datetime.datetime = None,

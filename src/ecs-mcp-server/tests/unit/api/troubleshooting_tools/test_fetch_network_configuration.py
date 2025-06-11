@@ -50,9 +50,6 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
         original_get_network_data = get_network_data
 
         try:
-            # Patch the module's get_network_data and then restore the reference
-            import sys
-
             module = sys.modules[module_name]
             module.get_network_data = get_network_data_mock
 
@@ -90,9 +87,6 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
         original_get_network_data = get_network_data
 
         try:
-            # Patch the module's get_network_data and then restore the reference
-            import sys
-
             module = sys.modules[module_name]
             module.get_network_data = get_network_data_mock
 
@@ -596,6 +590,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
         finally:
             # Restore original function
             sys.modules[module_name].get_aws_client = original_get_aws_client
+            self.assertEqual(mock_cfn.list_stack_resources.call_count, 2)
 
     async def test_get_ec2_resource_with_filters(self):
         """Test EC2 resource retrieval with VPC filtering."""

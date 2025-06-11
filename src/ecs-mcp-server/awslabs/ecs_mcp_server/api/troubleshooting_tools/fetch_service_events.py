@@ -199,7 +199,6 @@ async def fetch_service_events(
             "raw_data": {},
         }
 
-        # Initialize ECS client (use injected client or create default one)
         ecs = ecs_client or await get_aws_client("ecs")
 
         # Check if service exists

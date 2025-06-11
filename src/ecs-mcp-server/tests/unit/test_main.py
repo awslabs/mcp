@@ -170,7 +170,7 @@ def test_log_file_setup():
 
     # Setup mocks
     mock_os = MagicMock()
-    mock_os.path.dirname.return_value = "/tmp/logs"
+    mock_os.path.dirname.return_value = "/var/log/test_logs"
     mock_os.path.exists.return_value = False
 
     mock_logging = MagicMock()
@@ -180,21 +180,23 @@ def test_log_file_setup():
     mock_logging.Formatter.return_value = mock_formatter
 
     # Call our test function
-    result = setup_log_file("/tmp/logs/ecs-mcp.log", mock_os, mock_logging)
+    result = setup_log_file("/var/log/test_logs/ecs-mcp.log", mock_os, mock_logging)
 
     # Verify that the function succeeded
     assert result is True
 
     # Verify that the log directory was created
-    mock_os.makedirs.assert_called_once_with("/tmp/logs", exist_ok=True)
+    mock_os.makedirs.assert_called_once_with("/var/log/test_logs", exist_ok=True)
 
     # Verify that the log file handler was created and added to the logger
-    mock_logging.FileHandler.assert_called_once_with("/tmp/logs/ecs-mcp.log")
+    mock_logging.FileHandler.assert_called_once_with("/var/log/test_logs/ecs-mcp.log")
     mock_file_handler.setFormatter.assert_called_once()
     mock_logging.getLogger.return_value.addHandler.assert_called_once_with(mock_file_handler)
 
     # Verify that the log success message was logged
-    assert call("Logging to file: /tmp/logs/ecs-mcp.log") in mock_logging.info.call_args_list
+    assert (
+        call("Logging to file: /var/log/test_logs/ecs-mcp.log") in mock_logging.info.call_args_list
+    )
 
 
 def test_log_file_setup_exception():
@@ -220,21 +222,21 @@ def test_log_file_setup_exception():
 
     # Setup mocks
     mock_os = MagicMock()
-    mock_os.path.dirname.return_value = "/tmp/logs"
+    mock_os.path.dirname.return_value = "/var/log/test_logs"
     mock_os.path.exists.return_value = False
     mock_os.makedirs.side_effect = PermissionError("Permission denied")
 
     mock_logging = MagicMock()
 
     # Call our test function
-    result = setup_log_file("/tmp/logs/ecs-mcp.log", mock_os, mock_logging)
+    result = setup_log_file("/var/log/test_logs/ecs-mcp.log", mock_os, mock_logging)
 
     # Verify that the function failed
     assert result is False
 
     # Verify that the error was logged
     mock_logging.error.assert_called_once_with(
-        "Failed to set up log file /tmp/logs/ecs-mcp.log: Permission denied"
+        "Failed to set up log file /var/log/test_logs/ecs-mcp.log: Permission denied"
     )
 
 
