@@ -75,7 +75,7 @@ class AwsHelper:
             # Get profile from environment if set
             profile = cls.get_aws_profile()
 
-            # Use only service name as the cache key
+            # Use service name as the cache key
             cache_key = service_name
 
             # Check if client is already in cache
