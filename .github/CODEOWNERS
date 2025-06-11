@@ -48,7 +48,6 @@ NOTICE                                @awslabs/mcp-admins
 /src/valkey-mcp-server                  @seaofawareness                  @awslabs/mcp-admins
 /src/finch-mcp-server                   @Shubhranshu153 @pendo324        @awslabs/mcp-admins
 /src/aws-support-mcp-server             @Wook133                         @awslabs/mcp-admins
->>>>>>> main
 
 # Secure the CODEOWNERS file
 /.github/CODEOWNERS                   @awslabs/mcp-admins
