@@ -30,41 +30,51 @@ def register_module(mcp: FastMCP) -> None:
         """
         Create a new MSK cluster.
 
-        IMPORTANT: Before using this tool, you MUST prompt the user for the required information based on the cluster type:
+        IMPORTANT: Follow this step-by-step process to create an MSK cluster:
 
-        For PROVISIONED clusters, you MUST ask the user for:
-        1. Subnet IDs (at least 3 in different Availability Zones)
-        2. Security group IDs
-        3. Instance type (e.g., kafka.m5.large)
-        4. Kafka version
-        5. Number of broker nodes
-        6. Storage volume size
+        Step 1: Ask the user for the AWS region (e.g., "us-east-1", "eu-west-1")
 
-        For SERVERLESS clusters, you MUST ask the user for:
-        1. VPC configuration details
+        Step 2: Ask the user for the cluster name (must be 1-64 characters, alphanumeric and hyphens only)
 
-        Information gathering guidance:
+        Step 3: Ask the user to choose the cluster type (PROVISIONED or SERVERLESS)
+
+        Step 4: Gather the required information based on the cluster type:
+
+        For PROVISIONED clusters:
+        - Subnet IDs (at least 3 in different Availability Zones)
+        - Security group IDs
+        - Instance type (e.g., kafka.m5.large)
+        - Kafka version (ALWAYS use get_global_info tool with info_type="kafka_versions" to retrieve available versions)
+        - Number of broker nodes
+        - Storage volume size
+
+        For SERVERLESS clusters:
+        - VPC configuration details
+
+        Resource Identification Guide:
 
         1. For subnet IDs:
-           - Suggest using AWS CLI command: `aws ec2 describe-subnets --query "Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]"`
-           - Or checking the AWS Console: VPC > Subnets
-           - Explain that at least 3 subnet IDs in different Availability Zones are needed for high availability
+           - Use this EXACT AWS CLI command with the user's region:
+             `aws ec2 describe-subnets --region <region> --query "Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]" --output table`
+           - Or direct the user to AWS Console: VPC > Subnets
+           - Note: At least 3 subnet IDs in different Availability Zones are required for high availability
 
         2. For security group IDs:
-           - Suggest using AWS CLI command: `aws ec2 describe-security-groups --query "SecurityGroups[*].[GroupId,GroupName,Description]"`
-           - Or checking the AWS Console: EC2 > Security Groups
-           - Explain that the security group should allow the necessary Kafka ports (9092, 9094, 2181)
+           - Use this EXACT AWS CLI command with the user's region:
+             `aws ec2 describe-security-groups --region <region> --query "SecurityGroups[*].[GroupId,GroupName,Description]" --output table`
+           - Or direct the user to AWS Console: EC2 > Security Groups
+           - Note: Security groups must allow Kafka ports (9092, 9094, 2181)
 
         3. For Kafka version:
-           - Suggest using the get_global_info tool with info_type="kafka_versions" to see available versions
-           - Provide examples like "2.8.1", "3.3.1"
+           - ALWAYS use the get_global_info tool with info_type="kafka_versions" and the user's region:
+             Example: get_global_info(region="us-east-1", info_type="kafka_versions")
 
         Args:
+            region (str): AWS region (e.g., "us-east-1", "eu-west-1")
             cluster_name (str): The name of the cluster (must be 1-64 characters, alphanumeric and hyphens only)
             cluster_type (str): Type of cluster to create (PROVISIONED or SERVERLESS)
-            region (str): AWS region (e.g., "us-east-1", "eu-west-1")
             kwargs (str): JSON string containing additional arguments based on cluster type:
-                For PROVISIONED (all of these are required):
+                For PROVISIONED clusters:
                     broker_node_group_info (dict): Information about the broker nodes
                         - InstanceType (str): The type of Amazon EC2 instance (e.g., "kafka.m5.large")
                         - ClientSubnets (list): A list of valid subnet IDs (at least 3 recommended)
@@ -72,7 +82,7 @@ def register_module(mcp: FastMCP) -> None:
                         - StorageInfo (dict, optional): Storage settings
                             - EbsStorageInfo (dict): EBS storage settings
                                 - VolumeSize (int): The size in GiB (100-16384)
-                    kafka_version (str): Apache Kafka version (e.g., "2.8.1", "3.3.1")
+                    kafka_version (str): Apache Kafka version (MUST be retrieved using get_global_info tool)
                     number_of_broker_nodes (int): Number of broker nodes (must match the number of subnets)
                     client_authentication (dict, optional): Authentication settings
                     encryption_info (dict, optional): Encryption settings
@@ -82,7 +92,8 @@ def register_module(mcp: FastMCP) -> None:
                     configuration_info (dict, optional): Cluster configuration
                     storage_mode (str, optional): Storage tier mode
                     tags (dict, optional): Resource tags
-                For SERVERLESS (required):
+                
+                For SERVERLESS clusters:
                     vpc_configs (list): VPC configuration
                     client_authentication (dict, optional): Authentication settings
                     tags (dict, optional): Resource tags
