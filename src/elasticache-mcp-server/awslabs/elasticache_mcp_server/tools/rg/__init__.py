@@ -19,6 +19,9 @@ from .connect import create_jump_host_rg, connect_jump_host_rg, get_ssh_tunnel_c
 from .delete import delete_replication_group
 from .describe import describe_replication_groups
 from .modify import modify_replication_group, modify_replication_group_shard_configuration
+from .test_migration import test_migration
+from .start_migration import start_migration
+from .complete_migration import complete_migration
 from .parsers import (
     parse_shorthand_nodegroup,
     parse_shorthand_log_delivery,
@@ -45,4 +48,7 @@ __all__ = [
     'process_log_delivery_configurations',
     'process_nodegroup_configuration',
     'process_resharding_configuration',
+    'test_migration',
+    'start_migration',
+    'complete_migration',
 ]

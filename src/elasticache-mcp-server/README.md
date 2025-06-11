@@ -10,6 +10,9 @@ The official MCP Server for interacting with AWS ElastiCache
 - `describe-replication-groups` - Get detailed information about one or more replication groups
 - `modify-replication-group` - Modify settings of an existing replication group
 - `modify-replication-group-shard-configuration` - Modify the shard configuration of a replication group
+- `test-migration` - Test migration from a Redis instance to an ElastiCache replication group
+- `start-migration` - Start migration from a Redis instance to an ElastiCache replication group
+- `complete-migration` - Complete migration from a Redis instance to an ElastiCache replication group
 - `connect-jump-host-replication-group` - Configure an EC2 instance as a jump host for replication group access
 - `create-jump-host-replication-group` - Create an EC2 jump host to access a replication group via SSH tunnel
 - `get-ssh-tunnel-command-replication-group` - Generate SSH tunnel command for replication group access
