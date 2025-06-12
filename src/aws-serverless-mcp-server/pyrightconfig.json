@@ -1,0 +1,10 @@
+{
+  "include": [
+    "awslabs",
+    "tests"
+  ],
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true
+}
