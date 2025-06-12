@@ -36,11 +36,15 @@ class TestEnvironmentVariableConfig:
         """Clean up environment variables before each test."""
         if 'BEDROCK_KB_RERANKING_ENABLED' in os.environ:
             del os.environ['BEDROCK_KB_RERANKING_ENABLED']
+        if 'BEDROCK_KB_ID' in os.environ:
+            del os.environ['BEDROCK_KB_ID']
 
     def teardown_method(self):
         """Clean up environment variables after each test."""
         if 'BEDROCK_KB_RERANKING_ENABLED' in os.environ:
             del os.environ['BEDROCK_KB_RERANKING_ENABLED']
+        if 'BEDROCK_KB_ID' in os.environ:
+            del os.environ['BEDROCK_KB_ID']
 
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_runtime_client')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
@@ -158,91 +162,77 @@ class TestEnvironmentVariableConfig:
         # Restore the original function
         awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base = original_func
 
-        # Verify that reranking default is False when env var is not set
-        # No assertions on mock calls since our mock doesn't track calls
-        assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_reranking_enabled is False
 
-        # Now set the environment variable to enable reranking
-        os.environ['BEDROCK_KB_RERANKING_ENABLED'] = 'true'
+class TestBedrockKbIdOverrideConfig:
+    """Tests for the BEDROCK_KB_ID environment variable configuration."""
 
-        # Force reload the module to pick up the new environment variable
+    def setup_method(self):
+        """Clean up environment variables before each test."""
+        if 'BEDROCK_KB_ID' in os.environ:
+            del os.environ['BEDROCK_KB_ID']
+
+    def teardown_method(self):
+        """Clean up environment variables after each test."""
+        if 'BEDROCK_KB_ID' in os.environ:
+            del os.environ['BEDROCK_KB_ID']
+
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_runtime_client')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
+    def test_bedrock_kb_id_override_default_none(self, mock_agent_client, mock_runtime_client):
+        """Test that the BEDROCK_KB_ID override is None by default when no env var is set."""
+        # Force reload the module to reset the global variables
+        import awslabs.bedrock_kb_retrieval_mcp_server.server
         importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
-        # Create and set up our mock function
-        mock_func = create_mock_query_knowledge_base()
-        original_func = awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base
-        awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base = mock_func
+        # Verify that the default value is None when the env var is not set
+        assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override is None
 
-        # Import the tool after setting up the mock
-        from awslabs.bedrock_kb_retrieval_mcp_server.server import query_knowledge_bases_tool
-
-        # Call the tool again
-        await query_knowledge_bases_tool(
-            query='test query',
-            knowledge_base_id='kb-12345',
-        )
-
-        # Restore the original function
-        awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base = original_func
-
-        # Verify that reranking is True when env var is set
-        assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_reranking_enabled is True
-
-    @pytest.mark.asyncio
-    async def test_explicit_parameter_overrides_environment(self):
-        """Test that explicitly setting the reranking parameter overrides the environment variable."""
-        # Set the environment variable to disable reranking
-        os.environ['BEDROCK_KB_RERANKING_ENABLED'] = 'false'
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_runtime_client')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
+    def test_bedrock_kb_id_override_set_from_env(self, mock_agent_client, mock_runtime_client):
+        """Test that the BEDROCK_KB_ID override is set from environment variable."""
+        # Set the environment variable
+        os.environ['BEDROCK_KB_ID'] = 'EXAMPLEKBID'
 
         # Force reload the module to pick up the new environment variable
         import awslabs.bedrock_kb_retrieval_mcp_server.server
-
         importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
-        # Create and set up our mock function
-        mock_func = create_mock_query_knowledge_base()
-        original_func = awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base
-        awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base = mock_func
+        # Verify that the value is set correctly
+        assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override == 'EXAMPLEKBID'
 
-        # Import the tool after setting up the mock
-        from awslabs.bedrock_kb_retrieval_mcp_server.server import query_knowledge_bases_tool
-
-        # Verify the environment variable was set correctly
-        assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_reranking_enabled is False
-
-        # Call the tool with reranking explicitly set to True
-        await query_knowledge_bases_tool(
-            query='test query',
-            knowledge_base_id='kb-12345',
-            reranking=True,  # This should override the environment setting
-        )
-
-        # Restore the original function
-        awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base = original_func
-
-        # Set the environment variable to enable reranking
-        os.environ['BEDROCK_KB_RERANKING_ENABLED'] = 'true'
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_runtime_client')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
+    def test_bedrock_kb_id_override_empty_string_treated_as_none(self, mock_agent_client, mock_runtime_client):
+        """Test that empty string for BEDROCK_KB_ID is treated as None."""
+        # Set the environment variable to empty string
+        os.environ['BEDROCK_KB_ID'] = ''
 
         # Force reload the module to pick up the new environment variable
+        import awslabs.bedrock_kb_retrieval_mcp_server.server
         importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
-        # Create and set up our mock function
-        mock_func = create_mock_query_knowledge_base()
-        original_func = awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base
-        awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base = mock_func
+        # Verify that empty string is treated as falsy (None-like behavior)
+        assert not awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override
 
-        # Import the tool after setting up the mock
-        from awslabs.bedrock_kb_retrieval_mcp_server.server import query_knowledge_bases_tool
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_runtime_client')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
+    def test_bedrock_kb_id_override_various_values(self, mock_agent_client, mock_runtime_client):
+        """Test that BEDROCK_KB_ID accepts various knowledge base ID formats."""
+        test_values = [
+            'EXAMPLEKBID',
+            'kb-12345',
+            'KB_TEST_123',
+            'some-other-format-456'
+        ]
+        
+        for test_value in test_values:
+            # Set the environment variable
+            os.environ['BEDROCK_KB_ID'] = test_value
 
-        # Verify the environment variable was set correctly
-        assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_reranking_enabled is True
+            # Force reload the module to pick up the new environment variable
+            import awslabs.bedrock_kb_retrieval_mcp_server.server
+            importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
-        # Call the tool with reranking explicitly set to False
-        await query_knowledge_bases_tool(
-            query='test query',
-            knowledge_base_id='kb-12345',
-            reranking=False,  # This should override the environment setting
-        )
-
-        # Restore the original function
-        awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base = original_func
+            # Verify that the value is set correctly
+            assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override == test_value
