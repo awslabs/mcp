@@ -122,7 +122,7 @@ def test_config_with_extracted_api_name(temp_spec_file):
 def test_extract_api_name_with_invalid_spec():
     """Test extracting API name from an invalid spec."""
     from unittest.mock import patch
-    
+
     # Test with None - should trigger warning log
     with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
         result = extract_api_name_from_spec(None)
@@ -157,13 +157,13 @@ def test_extract_api_name_with_invalid_spec():
 def test_extract_api_name_logging_coverage():
     """Additional test to ensure logging paths are covered."""
     from unittest.mock import patch
-    
+
     # Test warning path with empty spec
     with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
-        result = extract_api_name_from_spec("")
+        result = extract_api_name_from_spec('')
         assert result is None
         mock_logger.warning.assert_called_once()
-    
+
     # Test debug path with spec that has no title
     with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
         result = extract_api_name_from_spec({'info': {'version': '1.0.0'}})
