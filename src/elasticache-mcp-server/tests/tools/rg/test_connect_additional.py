@@ -634,3 +634,116 @@ async def test_create_jump_host_rg_existing_ssh_rule():
         assert 'InstanceId' in result
         assert result['InstanceId'] == 'i-new1234'
         mock_ec2.authorize_security_group_ingress.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_rg_no_member_clusters():
+    """Test create_jump_host_rg when replication group has no member clusters."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock responses
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
+
+    # Replication group with no member clusters
+    mock_elasticache.describe_replication_groups.return_value = {
+        'ReplicationGroups': [{'MemberClusters': []}]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        result = await create_jump_host_rg('rg-test', 'subnet-123', 'sg-123', 'test-key')
+
+        # Should fail with appropriate error message
+        assert 'error' in result
+        assert 'No clusters found in replication group rg-test' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_tunnel_command_rg_no_member_clusters():
+    """Test get_ssh_tunnel_command_rg when replication group has no member clusters."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock EC2 responses
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [
+            {
+                'Instances': [
+                    {
+                        'KeyName': 'test-key',
+                        'PublicDnsName': 'ec2-1-2-3-4.compute-1.amazonaws.com',
+                        'Platform': '',
+                    }
+                ]
+            }
+        ]
+    }
+
+    # Replication group with no member clusters
+    mock_elasticache.describe_replication_groups.return_value = {
+        'ReplicationGroups': [
+            {
+                'ConfigurationEndpoint': {'Address': 'config.cache.amazonaws.com', 'Port': 6379},
+                'MemberClusters': [],  # Empty member clusters
+            }
+        ]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        # The function should still work since it doesn't directly use MemberClusters
+        result = await get_ssh_tunnel_command_rg('rg-test', 'i-123')
+
+        # Should succeed since get_ssh_tunnel_command_rg doesn't check MemberClusters
+        assert 'command' in result
+        assert 'ssh -i "test-key.pem"' in result['command']
+        assert 'config.cache.amazonaws.com' in result['command']
+
+
+@pytest.mark.asyncio
+async def test_connect_jump_host_rg_no_member_clusters():
+    """Test connect_jump_host_rg when replication group has no member clusters."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Replication group with no member clusters
+    mock_elasticache.describe_replication_groups.return_value = {
+        'ReplicationGroups': [{'MemberClusters': []}]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.tools.rg.connect._configure_security_groups',
+            side_effect=ValueError('No clusters found in replication group rg-test'),
+        ),
+    ):
+        result = await connect_jump_host_rg('rg-test', 'i-123')
+
+        # Should fail with appropriate error message
+        assert 'error' in result
+        assert 'No clusters found in replication group rg-test' in result['error']

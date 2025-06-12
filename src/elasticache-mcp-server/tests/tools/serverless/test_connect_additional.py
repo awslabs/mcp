@@ -559,3 +559,153 @@ async def test_create_jump_host_serverless_existing_ssh_rule():
         assert 'InstanceId' in result
         assert result['InstanceId'] == 'i-new1234'
         mock_ec2.authorize_security_group_ingress.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_serverless_no_security_groups():
+    """Test create_jump_host_serverless when serverless cache has no security groups."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock responses
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
+
+    # Serverless cache with no security groups
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {
+                'SecurityGroupIds': [],  # Empty security groups
+                'SubnetIds': ['subnet-123'],
+                'Engine': 'redis',
+            }
+        ]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        result = await create_jump_host_serverless('cache-1', 'subnet-123', 'sg-123', 'test-key')
+
+        # Should fail with appropriate error message
+        assert 'error' in result
+        assert 'No security groups found for serverless cache cache-1' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_serverless_no_subnet_ids():
+    """Test create_jump_host_serverless when serverless cache has no subnet IDs."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock responses
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
+
+    # Serverless cache with no subnet IDs
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': [],  # Empty subnet IDs
+                'Engine': 'redis',
+            }
+        ]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        result = await create_jump_host_serverless('cache-1', 'subnet-123', 'sg-123', 'test-key')
+
+        # Should fail with appropriate error message
+        assert 'error' in result
+        assert 'No subnet IDs found for serverless cache cache-1' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_connect_jump_host_serverless_no_security_groups():
+    """Test connect_jump_host_serverless when serverless cache has no security groups."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Serverless cache with no security groups
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {
+                'SecurityGroupIds': [],  # Empty security groups
+                'SubnetIds': ['subnet-123'],
+                'Engine': 'redis',
+            }
+        ]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.tools.serverless.connect._configure_security_groups',
+            side_effect=ValueError('No security groups found for serverless cache cache-1'),
+        ),
+    ):
+        result = await connect_jump_host_serverless('cache-1', 'i-123')
+
+        # Should fail with appropriate error message
+        assert 'error' in result
+        assert 'No security groups found for serverless cache cache-1' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_connect_jump_host_serverless_no_subnet_ids():
+    """Test connect_jump_host_serverless when serverless cache has no subnet IDs."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Serverless cache with no subnet IDs
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': [],  # Empty subnet IDs
+                'Engine': 'redis',
+            }
+        ]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.tools.serverless.connect._configure_security_groups',
+            side_effect=ValueError('No subnet IDs found for serverless cache cache-1'),
+        ),
+    ):
+        result = await connect_jump_host_serverless('cache-1', 'i-123')
+
+        # Should fail with appropriate error message
+        assert 'error' in result
+        assert 'No subnet IDs found for serverless cache cache-1' in result['error']
