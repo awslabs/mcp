@@ -123,6 +123,72 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 ====
 """
 
+# Sample AsciiDoc with Description section
+SAMPLE_ADOC_WITH_DESCRIPTION = """
+//!!NODE_ROOT <section>
+//== aws-lambda-s3 module
+
+[.topic]
+= aws-lambda-s3
+:info_doctype: section
+:info_title: aws-lambda-s3
+
+= Description
+
+This AWS Solutions Construct implements an AWS Lambda function
+connected to an Amazon S3 bucket for event processing.
+
+= Overview
+
+Additional overview information here.
+
+====
+[role="tablist"]
+Typescript::
++
+[source,typescript]
+----
+import { Construct } from 'constructs';
+import { Stack, StackProps } from 'aws-cdk-lib';
+----
+====
+"""
+
+# Sample AsciiDoc with title match
+SAMPLE_ADOC_WITH_TITLE_MATCH = """
+//!!NODE_ROOT <section>
+//== aws-lambda-dynamodb module
+
+= aws-lambda-dynamodb
+
+This AWS Solutions Construct implements a Lambda function
+that writes to a DynamoDB table.
+
+====
+[role="tablist"]
+Typescript::
++
+[source,typescript]
+----
+import { Construct } from 'constructs';
+----
+====
+"""
+
+# Sample README with Overview section
+SAMPLE_README_WITH_OVERVIEW = """
+# aws-apigateway-sqs
+
+This pattern creates an API Gateway that sends messages to an SQS queue.
+
+## Overview
+This pattern creates an API Gateway REST API that sends messages to an SQS queue.
+It provides a simple way to integrate API Gateway with SQS for asynchronous processing.
+
+## Pattern Construct Props
+...
+"""
+
 
 @pytest.mark.asyncio
 async def test_fetch_pattern_list():
@@ -202,6 +268,31 @@ async def test_get_pattern_info_with_adoc():
 
 
 @pytest.mark.asyncio
+async def test_get_pattern_info_fallback_to_md():
+    """Test getting pattern info with fallback from README.adoc to README.md."""
+    # Mock the httpx.AsyncClient.get method directly
+    with patch('httpx.AsyncClient.get') as mock_get:
+        # First response for README.adoc (404 Not Found)
+        adoc_response = AsyncMock()
+        adoc_response.status_code = 404
+
+        # Second response for README.md (200 OK)
+        md_response = AsyncMock()
+        md_response.status_code = 200
+        md_response.text = SAMPLE_README
+
+        # Set up the mock to return different responses on consecutive calls
+        mock_get.side_effect = [adoc_response, md_response]
+
+        info = await get_pattern_info('aws-lambda-dynamodb')
+        assert info['pattern_name'] == 'aws-lambda-dynamodb'
+        assert 'Lambda' in info['services']
+        assert 'DynamoDB' in info['services']
+        assert 'description' in info
+        assert 'use_cases' in info
+
+
+@pytest.mark.asyncio
 async def test_get_pattern_info_not_found():
     """Test getting pattern info when pattern is not found."""
     # Mock the httpx.AsyncClient.get method directly
@@ -263,19 +354,42 @@ def test_extract_services_from_pattern_name():
 
 
 def test_extract_description():
-    """Test extracting description from README content."""
+    """Test extracting description from README content with Description section."""
     description = extract_description(SAMPLE_README)
     assert 'creates a Lambda function' in description
     assert 'triggered by API Gateway' in description
 
 
+def test_extract_description_from_overview_section():
+    """Test extracting description from README content with Overview section."""
+    description = extract_description(SAMPLE_README_WITH_OVERVIEW)
+    assert 'creates an API Gateway REST API that sends messages to an SQS queue' in description
+    assert 'simple way to integrate API Gateway with SQS' in description
+
+
 def test_extract_description_from_adoc():
-    """Test extracting description from AsciiDoc content."""
+    """Test extracting description from AsciiDoc content with Overview section."""
     description = extract_description(SAMPLE_ADOC)
     assert (
         'This AWS Solutions Construct implements an an Application Load Balancer to an AWS Lambda function'
         in description
     )
+
+
+def test_extract_description_from_adoc_with_description_section():
+    """Test extracting description from AsciiDoc content with Description section."""
+    description = extract_description(SAMPLE_ADOC_WITH_DESCRIPTION)
+    assert (
+        'This AWS Solutions Construct implements an AWS Lambda function connected to an Amazon S3 bucket for event processing'
+        in description
+    )
+
+
+def test_extract_description_from_adoc_with_title_match():
+    """Test extracting description from AsciiDoc content with title match."""
+    description = extract_description(SAMPLE_ADOC_WITH_TITLE_MATCH)
+    assert 'Lambda function' in description
+    assert 'DynamoDB table' in description
 
 
 def test_extract_props_markdown():
