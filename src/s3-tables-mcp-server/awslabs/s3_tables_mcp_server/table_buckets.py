@@ -15,17 +15,12 @@
 
 from typing import Any, Dict, Optional
 
-from loguru import logger
-
 from .models import (
     EncryptionConfiguration,
-    SSEAlgorithm,
-    TABLE_BUCKET_ARN_PATTERN,
-    TABLE_BUCKET_NAME_PATTERN,
     TableBucketMaintenanceConfigurationValue,
     TableBucketMaintenanceType,
 )
-from .utils import get_s3tables_client, handle_exceptions, handle_field_param
+from .utils import get_s3tables_client, handle_exceptions
 
 
 @handle_exceptions
@@ -96,24 +91,6 @@ async def put_table_bucket_maintenance_configuration(
         tableBucketARN=table_bucket_arn,
         type=maintenance_type.value,
         value=value.model_dump(by_alias=True, exclude_none=True)
-    )
-    return dict(response)
-
-@handle_exceptions
-async def put_table_bucket_policy(
-    table_bucket_arn: str,
-    resource_policy: str,
-    region_name: Optional[str] = None
-) -> Dict[str, Any]:
-    """Create or replace a table bucket policy.
-    
-    Permissions:
-    You must have the s3tables:PutTableBucketPolicy permission to use this operation.
-    """
-    client = get_s3tables_client(region_name)
-    response = client.put_table_bucket_policy(
-        tableBucketARN=table_bucket_arn,
-        resourcePolicy=resource_policy
     )
     return dict(response)
 

@@ -15,7 +15,6 @@
 
 from typing import Any, Dict, Optional
 
-from .models import TABLE_BUCKET_ARN_PATTERN
 from .utils import get_s3tables_client, handle_exceptions
 
 

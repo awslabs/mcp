@@ -11,11 +11,19 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
 # and limitations under the License.
 
-"""AWS S3 Tables MCP Server implementation."""
+"""AWS S3 Tables MCP Server implementation.
 
+This server provides a Model Context Protocol (MCP) interface for managing AWS S3 Tables,
+enabling programmatic access to create, manage, and interact with S3-based table storage.
+It supports operations for table buckets, namespaces, and individual S3 tables.
+"""
+
+from awslabs.s3_tables_mcp_server.constants import MCP_SERVER_VERSION
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
+import argparse
+import functools
 
 # Import modular components
 from . import namespaces
@@ -39,21 +47,36 @@ from .models import (
 app = FastMCP(
     name='s3-tables-server',
     instructions="The official MCP Server for interacting with AWS S3 Tables.",
-    version='0.1.0',
-    dependencies=[
-        'pydantic',
-        'loguru',
-    ],
+    version=MCP_SERVER_VERSION,
 )
+
+def write_operation(func: Callable) -> Callable:
+    """Decorator to check if write operations are allowed.
+    
+    Args:
+        func: The function to decorate
+        
+    Returns:
+        The decorated function
+        
+    Raises:
+        ValueError: If write operations are not allowed
+    """
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        if not app.allow_write:
+            raise ValueError('Operation not permitted: Server is configured in read-only mode')
+        return await func(*args, **kwargs)
+    return wrapper
 
 @app.resource(
     uri='resource://table-buckets',
     name='ListTableBuckets',
     mime_type='application/json',
-    description='Lists all table buckets for your account.'
+    description='Lists all S3 table buckets for your AWS account.'
 )
 async def list_table_buckets() -> str:
-    """List all table buckets for your account.
+    """List all S3 table buckets for your AWS account.
     
     Permissions:
     You must have the s3tables:ListTableBuckets permission to use this operation.
@@ -65,10 +88,10 @@ async def list_table_buckets() -> str:
     uri='resource://namespaces',
     name='ListNamespaces',
     mime_type='application/json',
-    description='Lists all namespaces within all table buckets.'
+    description='Lists all namespaces within all S3 table buckets.'
 )
 async def list_namespaces() -> str:
-    """List all namespaces across all table buckets.
+    """List all namespaces across all S3 table buckets.
     
     Permissions:
     You must have the s3tables:ListNamespaces permission to use this operation.
@@ -80,10 +103,10 @@ async def list_namespaces() -> str:
     uri='resource://tables',
     name='ListTables',
     mime_type='application/json',
-    description='List tables across all table buckets and namespaces.'
+    description='List S3 tables across all table buckets and namespaces.'
 )
 async def list_tables() -> str:
-    """List all tables across all table buckets and namespaces.
+    """List all S3 tables across all table buckets and namespaces.
     
     Permissions:
     You must have the s3tables:ListTables permission to use this operation.
@@ -92,6 +115,7 @@ async def list_tables() -> str:
 
 
 @app.tool()
+@write_operation
 async def create_table_bucket(
     name: str = Field(
         ...,
@@ -114,6 +138,7 @@ async def create_table_bucket(
     )
 
 @app.tool()
+@write_operation
 async def create_namespace(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -133,30 +158,31 @@ async def create_namespace(
         region_name=region_name
     )
 
-# Register Table Management Tools
 @app.tool()
+@write_operation
 async def create_table(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
     name: str = TABLE_NAME_FIELD,
     format: str = Field(
         "ICEBERG",
-        description='The format for the table.',
+        description='The format for the S3 table.',
         pattern=r'ICEBERG'
     ),
     metadata: Optional[Dict[str, Any]] = Field(
         None,
-        description='The metadata for the table.'
+        description='The metadata for the S3 table.'
     ),
     encryption_configuration: Optional[EncryptionConfiguration] = Field(
         None,
-        description='The encryption configuration to use for the table. This configuration specifies the encryption algorithm and, if using SSE-KMS, the KMS key to use for encrypting the table.'
+        description='The encryption configuration to use for the S3 table. This configuration specifies the encryption algorithm and, if using SSE-KMS, the KMS key to use for encrypting the table.'
     ),
     region_name: Optional[str] = REGION_NAME_FIELD
 ):
-    """Create a new s3 table.
+    """Create a new S3 table.
     
-    Creates a new table associated with the given namespace in a table bucket.
+    Creates a new S3 table associated with the given namespace in a table bucket.
+    The table can be configured with specific format, metadata, and encryption settings.
     
     Permissions:
     You must have the s3tables:CreateTable permission to use this operation.
@@ -182,6 +208,7 @@ async def create_table(
     )
 
 @app.tool()
+@write_operation
 async def delete_table_bucket(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     region_name: Optional[str] = REGION_NAME_FIELD
@@ -199,6 +226,7 @@ async def delete_table_bucket(
     )
 
 @app.tool()
+@write_operation
 async def delete_namespace(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -218,6 +246,7 @@ async def delete_namespace(
     )
 
 @app.tool()
+@write_operation
 async def delete_table(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -244,6 +273,7 @@ async def delete_table(
     )
 
 @app.tool()
+@write_operation
 async def put_table_bucket_encryption(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     encryption_configuration: EncryptionConfiguration = Field(
@@ -268,6 +298,7 @@ async def put_table_bucket_encryption(
     )
 
 @app.tool()
+@write_operation
 async def put_table_bucket_maintenance_configuration(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     maintenance_type: TableBucketMaintenanceType = Field(
@@ -296,6 +327,7 @@ async def put_table_bucket_maintenance_configuration(
     )
 
 @app.tool()
+@write_operation
 async def put_table_bucket_policy(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     resource_policy: str = Field(
@@ -321,114 +353,7 @@ async def put_table_bucket_policy(
     )
 
 @app.tool()
-async def get_table_bucket(
-    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
-    region_name: Optional[str] = REGION_NAME_FIELD
-):
-    """Get details about a table bucket.
-    
-    Gets details on a table bucket.
-    
-    Permissions:
-    You must have the s3tables:GetTableBucket permission to use this operation.
-    """
-    return await table_buckets.get_table_bucket(
-        table_bucket_arn=table_bucket_arn,
-        region_name=region_name
-    )
-
-@app.tool()
-async def get_namespace(
-    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
-    namespace: str = NAMESPACE_NAME_FIELD,
-    region_name: Optional[str] = REGION_NAME_FIELD
-):
-    """Get details about a namespace.
-    
-    Gets details about a namespace.
-    
-    Permissions:
-    You must have the s3tables:GetNamespace permission to use this operation.
-    """
-    return await namespaces.get_namespace(
-        table_bucket_arn=table_bucket_arn,
-        namespace=namespace,
-        region_name=region_name
-    )
-
-@app.tool()
-async def get_table(
-    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
-    namespace: str = NAMESPACE_NAME_FIELD,
-    name: str = TABLE_NAME_FIELD,
-    region_name: Optional[str] = REGION_NAME_FIELD
-):
-    """Get details about a table.
-    
-    Gets details about a table.
-    
-    Permissions:
-    You must have the s3tables:GetTable permission to use this operation.
-    """
-    return await tables.get_table(
-        table_bucket_arn=table_bucket_arn,
-        namespace=namespace,
-        name=name,
-        region_name=region_name
-    )
-
-@app.tool()
-async def get_table_bucket_encryption(
-    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
-    region_name: Optional[str] = REGION_NAME_FIELD
-):
-    """Get the encryption configuration for a table bucket.
-    
-    Gets the encryption configuration for a table bucket.
-    
-    Permissions:
-    You must have the s3tables:GetTableBucketEncryption permission to use this operation.
-    """
-    return await table_buckets.get_table_bucket_encryption(
-        table_bucket_arn=table_bucket_arn,
-        region_name=region_name
-    )
-
-@app.tool()
-async def get_table_bucket_maintenance_configuration(
-    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
-    region_name: Optional[str] = REGION_NAME_FIELD
-):
-    """Get details about a maintenance configuration for a table bucket.
-    
-    Gets details about a maintenance configuration for a given table bucket.
-    
-    Permissions:
-    You must have the s3tables:GetTableBucketMaintenanceConfiguration permission to use this operation.
-    """
-    return await table_buckets.get_table_bucket_maintenance_configuration(
-        table_bucket_arn=table_bucket_arn,
-        region_name=region_name
-    )
-
-@app.tool()
-async def get_table_bucket_policy(
-    table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
-    region_name: Optional[str] = REGION_NAME_FIELD
-):
-    """Get details about a table bucket policy.
-    
-    Gets details about a table bucket policy.
-    
-    Permissions:
-    You must have the s3tables:GetTableBucketPolicy permission to use this operation.
-    """
-    return await table_buckets.get_table_bucket_policy(
-        table_bucket_arn=table_bucket_arn,
-        region_name=region_name
-    )
-
-@app.tool()
+@write_operation
 async def delete_table_bucket_encryption(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     region_name: Optional[str] = REGION_NAME_FIELD
@@ -446,6 +371,7 @@ async def delete_table_bucket_encryption(
     )
 
 @app.tool()
+@write_operation
 async def delete_table_bucket_policy(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     region_name: Optional[str] = REGION_NAME_FIELD
@@ -463,6 +389,7 @@ async def delete_table_bucket_policy(
     )
 
 @app.tool()
+@write_operation
 async def delete_table_policy(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -484,15 +411,17 @@ async def delete_table_policy(
     )
 
 @app.tool()
+@write_operation
 async def get_table_encryption(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
     name: str = TABLE_NAME_FIELD,
     region_name: Optional[str] = REGION_NAME_FIELD
 ):
-    """Get the encryption configuration for a table.
+    """Get the encryption configuration for an S3 table.
     
-    Gets the encryption configuration for a table.
+    Gets the encryption configuration for an S3 table, including the encryption algorithm
+    and KMS key information if SSE-KMS is used.
     
     Permissions:
     You must have the s3tables:GetTableEncryption permission to use this operation.
@@ -505,6 +434,7 @@ async def get_table_encryption(
     )
 
 @app.tool()
+@write_operation
 async def get_table_maintenance_configuration(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -526,6 +456,7 @@ async def get_table_maintenance_configuration(
     )
 
 @app.tool()
+@write_operation
 async def get_table_maintenance_job_status(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -547,15 +478,17 @@ async def get_table_maintenance_job_status(
     )
 
 @app.tool()
+@write_operation
 async def get_table_metadata_location(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
     name: str = TABLE_NAME_FIELD,
     region_name: Optional[str] = REGION_NAME_FIELD
 ):
-    """Get the location of the table metadata.
+    """Get the location of the S3 table metadata.
     
-    Gets the location of the table metadata.
+    Gets the S3 URI location of the table metadata, which contains the schema and other
+    table configuration information.
     
     Permissions:
     You must have the s3tables:GetTableMetadataLocation permission to use this operation.
@@ -568,6 +501,7 @@ async def get_table_metadata_location(
     )
 
 @app.tool()
+@write_operation
 async def get_table_policy(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -589,6 +523,7 @@ async def get_table_policy(
     )
 
 @app.tool()
+@write_operation
 async def put_table_maintenance_configuration(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -621,6 +556,7 @@ async def put_table_maintenance_configuration(
     )
 
 @app.tool()
+@write_operation
 async def rename_table(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -629,15 +565,16 @@ async def rename_table(
     new_namespace_name: Optional[str] = NAMESPACE_NAME_FIELD,
     version_token: Optional[str] = Field(
         None,
-        description='The version token of the table. Must be 1-2048 characters long.',
+        description='The version token of the S3 table. Must be 1-2048 characters long.',
         min_length=1,
         max_length=2048
     ),
     region_name: Optional[str] = REGION_NAME_FIELD
 ):
-    """Rename a table or a namespace.
+    """Rename an S3 table or move it to a different namespace.
     
-    Renames a table or a namespace. For more information, see S3 Tables in the Amazon Simple Storage Service User Guide.
+    Renames an S3 table or moves it to a different namespace within the same table bucket.
+    This operation maintains the table's data and configuration while updating its location.
     
     Permissions:
     You must have the s3tables:RenameTable permission to use this operation.
@@ -653,6 +590,7 @@ async def rename_table(
     )
 
 @app.tool()
+@write_operation
 async def update_table_metadata_location(
     table_bucket_arn: str = TABLE_BUCKET_ARN_FIELD,
     namespace: str = NAMESPACE_NAME_FIELD,
@@ -688,10 +626,30 @@ async def update_table_metadata_location(
         region_name=region_name
     )
 
+def main():
+    """Run the MCP server with CLI argument support.
+    
+    This function initializes and runs the AWS S3 Tables MCP server, which provides
+    programmatic access to manage S3 tables through the Model Context Protocol.
+    """
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server for S3 Tables'
+    )
+    parser.add_argument(
+        '--allow-write',
+        action='store_true',
+        help='Allow write operations. By default, the server runs in read-only mode.',
+    )
+
+    args = parser.parse_args()
+
+    app.allow_write = args.allow_write
+
+    try:
+        app.run()
+    except Exception as e:
+        print(f'Failed to start server: {str(e)}')
+
 # FastMCP application runner
 if __name__ == "__main__":
-    import asyncio
-    print("Starting list_tables test...")
-    result = asyncio.run(list_tables())
-    print("Result:", result)
-    app.run()
+    main()

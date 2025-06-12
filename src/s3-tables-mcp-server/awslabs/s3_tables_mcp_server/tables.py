@@ -13,17 +13,11 @@
 
 """Table Management tools for S3 Tables MCP Server."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from .models import (
     EncryptionConfiguration,
-    IcebergMetadata,
-    IcebergSchema,
     OpenTableFormat,
-    SchemaField,
-    TABLE_ARN_PATTERN,
-    TABLE_BUCKET_ARN_PATTERN,
-    TABLE_NAME_PATTERN,
     TableMetadata,
     TableMaintenanceType,
     TableMaintenanceConfigurationValue,

@@ -16,8 +16,6 @@
 import json
 from typing import Any, Callable, Dict, List, TypeVar, Generic, Type
 
-from loguru import logger
-
 from .models import (
     NamespacesResource,
     NamespaceSummary,
@@ -89,7 +87,6 @@ async def create_resource_response(
         resource = resource_class(**{resource_name: items, 'total_count': len(items)})
         return resource.model_dump_json()
     except Exception as e:
-        logger.error(f'Failed to create {resource_name} resource: {str(e)}')
         return create_error_response(e, resource_name)
 
 async def list_table_buckets_resource() -> str:
@@ -125,7 +122,6 @@ async def list_table_buckets_resource() -> str:
         )
         
     except Exception as e:
-        logger.error(f'Failed to list table buckets: {str(e)}')
         return create_error_response(e, 'table_buckets')
 
 async def get_table_buckets() -> List[TableBucketSummary]:
@@ -175,7 +171,6 @@ async def list_namespaces_resource() -> str:
                 )
                 all_namespaces.extend(namespaces)
             except Exception as e:
-                logger.warning(f'Failed to list namespaces for bucket {bucket.arn}: {str(e)}')
                 continue
         
         return await create_resource_response(
@@ -185,7 +180,6 @@ async def list_namespaces_resource() -> str:
         )
         
     except Exception as e:
-        logger.error(f'Failed to list namespaces: {str(e)}')
         return create_error_response(e, 'namespaces')
 
 async def list_tables_resource() -> str:
@@ -228,7 +222,6 @@ async def list_tables_resource() -> str:
                 
                 all_tables.extend(tables)
             except Exception as e:
-                logger.warning(f'Failed to list tables for bucket {bucket.arn}: {str(e)}')
                 continue
         
         return await create_resource_response(
@@ -238,5 +231,4 @@ async def list_tables_resource() -> str:
         )
         
     except Exception as e:
-        logger.error(f'Failed to list tables: {str(e)}')
         return create_error_response(e, 'tables')

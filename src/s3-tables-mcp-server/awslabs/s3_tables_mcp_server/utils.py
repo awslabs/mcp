@@ -19,7 +19,8 @@ from typing import Optional
 
 import boto3
 from botocore.config import Config
-from loguru import logger
+
+from awslabs.s3_tables_mcp_server.constants import MCP_SERVER_VERSION
 
 
 def handle_exceptions(func):
@@ -29,7 +30,6 @@ def handle_exceptions(func):
         try:
             return await func(*args, **kwargs)
         except Exception as e:
-            logger.error(f'Error in {func.__name__}: {str(e)}')
             return {'error': str(e), 'tool': func.__name__}
     return wrapper
 
@@ -60,6 +60,6 @@ def get_s3tables_client(region_name: Optional[str] = None):
     # Handle FieldInfo objects for region_name
     region_str = handle_field_param(region_name)
     region = region_str or os.getenv('AWS_REGION') or 'us-east-1'
-    config = Config(user_agent_extra='MCP/S3TablesServer')
+    config = Config(user_agent_extra=f'awslabs/mcp/s3tables/{MCP_SERVER_VERSION}')
     session = boto3.Session()
     return session.client('s3tables', region_name=region, config=config)

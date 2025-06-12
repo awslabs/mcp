@@ -19,18 +19,17 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-# Constants
-TABLE_BUCKET_NAME_PATTERN = r'[a-z0-9][a-z0-9-]{1,61}[a-z0-9]'
-TABLE_BUCKET_ARN_PATTERN = r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
-TABLE_NAME_PATTERN = r'[0-9a-z_]*'
-TABLE_ARN_PATTERN = r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}/table/[0-9a-f-]{36}'
-
-# Common field patterns for reuse in annotations
-TABLE_BUCKET_ARN_FIELD = Field(..., description='Table bucket ARN', pattern=TABLE_BUCKET_ARN_PATTERN)
-TABLE_ARN_FIELD = Field(..., description='Table ARN', pattern=TABLE_ARN_PATTERN)
-NAMESPACE_NAME_FIELD = Field(..., description='Namespace name', pattern=r'^[0-9a-z_]+$', max_length=255)
-TABLE_NAME_FIELD = Field(..., description='Table name', pattern=TABLE_NAME_PATTERN, max_length=255)
-REGION_NAME_FIELD = Field(default=None, description='AWS region name')
+from awslabs.s3_tables_mcp_server.constants import (
+    TABLE_BUCKET_ARN_FIELD,
+    TABLE_ARN_FIELD,
+    NAMESPACE_NAME_FIELD,
+    TABLE_NAME_FIELD,
+    REGION_NAME_FIELD,
+    TABLE_BUCKET_ARN_PATTERN,
+    TABLE_ARN_PATTERN,
+    TABLE_NAME_PATTERN,
+    TABLE_BUCKET_NAME_PATTERN,
+)
 
 # Enums
 class SSEAlgorithm(str, Enum):
