@@ -14,6 +14,7 @@
 
 import pytest
 from awslabs.cdk_mcp_server.data.solutions_constructs_parser import (
+    MD_TITLE_PATTERN,
     extract_code_example,
     extract_default_settings,
     extract_description,
@@ -123,6 +124,61 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 ====
 """
 
+# Sample AsciiDoc with multi-paragraph Overview section
+SAMPLE_ADOC_WITH_MULTI_PARAGRAPH_OVERVIEW = """
+//!!NODE_ROOT <section>
+//== aws-apigateway-sqs module
+
+[.topic]
+= aws-apigateway-sqs
+:info_doctype: section
+:info_title: aws-apigateway-sqs
+
+= Overview
+
+This AWS Solutions Construct implements an API Gateway connected to an SQS queue.
+It provides a serverless architecture for message processing.
+
+This is a second paragraph that should not be included in the description.
+It contains additional details about the implementation.
+
+====
+[role="tablist"]
+Typescript::
++
+[source,typescript]
+----
+import { Construct } from 'constructs';
+----
+====
+"""
+
+# Sample AsciiDoc with no first paragraph match but with title and content
+SAMPLE_ADOC_WITH_TITLE_CONTENT = """
+//!!NODE_ROOT <section>
+//== aws-lambda-sns module
+
+[.topic]
+= aws-lambda-sns
+:info_doctype: section
+:info_title: aws-lambda-sns
+
+= aws-lambda-sns
+
+This AWS Solutions Construct implements a Lambda function that publishes messages to an SNS topic.
+The Lambda function is triggered by events and sends notifications through SNS.
+
+====
+[role="tablist"]
+Typescript::
++
+[source,typescript]
+----
+import { Construct } from 'constructs';
+----
+====
+"""
+
 # Sample AsciiDoc with Description section
 SAMPLE_ADOC_WITH_DESCRIPTION = """
 //!!NODE_ROOT <section>
@@ -187,6 +243,23 @@ It provides a simple way to integrate API Gateway with SQS for asynchronous proc
 
 ## Pattern Construct Props
 ...
+"""
+
+# Sample README with only a title (for testing title fallback)
+SAMPLE_README_WITH_ONLY_TITLE = """
+# aws-lambda-sns
+
+## Pattern Construct Props
+...
+
+## Pattern Properties
+...
+"""
+
+# Sample README with no description but properly formatted for title fallback
+SAMPLE_README_FOR_TITLE_FALLBACK = """
+# aws-lambda-sns
+
 """
 
 
@@ -270,8 +343,18 @@ async def test_get_pattern_info_with_adoc():
 @pytest.mark.asyncio
 async def test_get_pattern_info_fallback_to_md():
     """Test getting pattern info with fallback from README.adoc to README.md."""
+    # Clear the pattern details cache to ensure we're not using cached data
+    from awslabs.cdk_mcp_server.data.solutions_constructs_parser import _pattern_details_cache
+
+    _pattern_details_cache.clear()
+
     # Mock the httpx.AsyncClient.get method directly
-    with patch('httpx.AsyncClient.get') as mock_get:
+    with (
+        patch('httpx.AsyncClient.get') as mock_get,
+        patch(
+            'awslabs.cdk_mcp_server.data.solutions_constructs_parser.logger.info'
+        ) as mock_logger,
+    ):
         # First response for README.adoc (404 Not Found)
         adoc_response = AsyncMock()
         adoc_response.status_code = 404
@@ -290,6 +373,20 @@ async def test_get_pattern_info_fallback_to_md():
         assert 'DynamoDB' in info['services']
         assert 'description' in info
         assert 'use_cases' in info
+
+        # Verify that the logger.info was called with the correct messages
+        # We can't check the exact URL since it's constructed inside the function,
+        # but we can check that the log messages contain the expected substrings
+        log_calls = [call[0][0] for call in mock_logger.call_args_list]
+
+        # Print the actual log calls for debugging
+        print('Actual log calls:', log_calls)
+
+        # Check for the expected log messages
+        assert any('README.adoc not found, trying README.md from' in call for call in log_calls)
+        assert any(
+            'Successfully fetched README.md for aws-lambda-dynamodb' in call for call in log_calls
+        )
 
 
 @pytest.mark.asyncio
@@ -376,6 +473,33 @@ def test_extract_description_from_adoc():
     )
 
 
+def test_extract_description_from_adoc_with_multi_paragraph_overview():
+    """Test extracting description from AsciiDoc content with multi-paragraph Overview section."""
+    description = extract_description(SAMPLE_ADOC_WITH_MULTI_PARAGRAPH_OVERVIEW)
+    # Should only include the first paragraph of the overview
+    assert (
+        'This AWS Solutions Construct implements an API Gateway connected to an SQS queue'
+        in description
+    )
+    assert 'It provides a serverless architecture for message processing' in description
+    # Should not include the second paragraph
+    assert 'This is a second paragraph' not in description
+
+
+def test_extract_description_from_adoc_with_title_and_paragraph():
+    """Test extracting description from AsciiDoc content with title and paragraph."""
+    description = extract_description(SAMPLE_ADOC_WITH_TITLE_CONTENT)
+    # Should extract the paragraph after the title
+    assert (
+        'This AWS Solutions Construct implements a Lambda function that publishes messages to an SNS topic'
+        in description
+    )
+    assert (
+        'The Lambda function is triggered by events and sends notifications through SNS'
+        in description
+    )
+
+
 def test_extract_description_from_adoc_with_description_section():
     """Test extracting description from AsciiDoc content with Description section."""
     description = extract_description(SAMPLE_ADOC_WITH_DESCRIPTION)
@@ -390,6 +514,26 @@ def test_extract_description_from_adoc_with_title_match():
     description = extract_description(SAMPLE_ADOC_WITH_TITLE_MATCH)
     assert 'Lambda function' in description
     assert 'DynamoDB table' in description
+
+
+def test_extract_description_title_fallback():
+    """Test extracting description with fallback to title when no description is found."""
+    # Mock the behavior of the function by patching the regex search
+    with patch('re.search') as mock_search:
+        # Set up the mock to return None for all searches except the title pattern
+        def mock_search_side_effect(pattern, content, flags=0):
+            if pattern == MD_TITLE_PATTERN:
+                # Create a mock match object for the title pattern
+                mock_match = MagicMock()
+                mock_match.group.return_value = 'aws-lambda-sns'
+                return mock_match
+            return None
+
+        mock_search.side_effect = mock_search_side_effect
+
+        # Call the function with any content since we're mocking the regex search
+        description = extract_description('# aws-lambda-sns')
+        assert description == 'A pattern for integrating aws-lambda-sns services'
 
 
 def test_extract_props_markdown():
