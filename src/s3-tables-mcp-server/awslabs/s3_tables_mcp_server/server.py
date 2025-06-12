@@ -40,6 +40,10 @@ app = FastMCP(
     name='s3-tables-server',
     instructions="The official MCP Server for interacting with AWS S3 Tables.",
     version='0.1.0',
+    dependencies=[
+        'pydantic',
+        'loguru',
+    ],
 )
 
 @app.resource(

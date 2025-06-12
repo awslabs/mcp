@@ -1,24 +1,24 @@
 [project]
-name = "awslabs.s3-tables-mcp-server"
-version = "0.1.0"
-description = "The official MCP Server for interacting with AWS S3 Tables (Iceberg)"
+name = "awslabs.awslabs.documentdb-mcp-server-mcp-server"
+
+# NOTE: "Patch"=9223372036854775807 bumps next release to zero.
+version = "0.0.0"
+
+description = "An AWS Labs Model Context Protocol (MCP) server for awslabs.documentdb-mcp-server"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.28.0",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-    "typing-extensions>=4.0.0",
-    "duckdb>=0.9.0",
-    "pyiceberg>=0.5.0",
-    "sqlparse>=0.4.0",
+    "boto3>=1.34.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    {name = "Oleksandr Khomin", email="okhomi@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -33,13 +33,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/s3-tables-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/s3-tables-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/awslabs.documentdb-mcp-server-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/awslabs.documentdb-mcp-server-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/s3-tables-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/awslabs.documentdb-mcp-server-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.s3-tables-mcp-server" = "awslabs.s3_tables_mcp_server.server:main"
+"awslabs.awslabs.documentdb-mcp-server-mcp-server" = "awslabs.awslabs.documentdb_mcp_server_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -51,8 +51,6 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
-    "moto>=5.1.4",
-    "boto3>=1.38.14",
 ]
 
 [build-system]
@@ -89,7 +87,6 @@ no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
-"awslabs/s3_tables_mcp_server/models.py" = ["D101"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -104,8 +101,6 @@ docstring-code-format = true
 [tool.pyright]
 include = ["awslabs", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
-reportArgumentType = false
-reportAssignmentType = false
 
 [tool.commitizen]
 name = "cz_conventional_commits"
@@ -113,7 +108,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/s3_tables_mcp_server/__init__.py:__version__"
+    "awslabs/awslabs.documentdb_mcp_server_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
