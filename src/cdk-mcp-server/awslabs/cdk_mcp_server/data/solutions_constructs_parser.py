@@ -23,6 +23,40 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 
+# Regular expression patterns for parsing documentation
+# AsciiDoc patterns
+# Matches a Description section in AsciiDoc format: "= Description" followed by text until the next section or end
+ADOC_DESCRIPTION_SECTION_PATTERN = r'= Description\s*\n+(.*?)(?=\n=|\Z)'
+
+# Matches an Overview section in AsciiDoc format: "= Overview" followed by text until the next section or end
+ADOC_OVERVIEW_SECTION_PATTERN = r'= Overview\s*\n+(.*?)(?=\n=|\Z)'
+
+# Matches the first paragraph in a section: start of text until first blank line or end
+FIRST_PARAGRAPH_PATTERN = r'^(.*?)(?=\n\n|\Z)'
+
+# Matches a title and the following paragraph in AsciiDoc: "= Title" followed by blank line and text
+ADOC_TITLE_AND_PARAGRAPH_PATTERN = r'= ([^\n]+)\s*\n\n(.*?)(?=\n\n|\n=|\Z)'
+
+# Markdown patterns
+# Matches a Description section in Markdown: "## Description" followed by text until the next section or end
+MD_DESCRIPTION_SECTION_PATTERN = r'## Description\s*\n+(.*?)(?=\n##|\Z)'
+
+# Matches an Overview section in Markdown: "## Overview" followed by text until the next section or end
+MD_OVERVIEW_SECTION_PATTERN = r'## Overview\s*\n+(.*?)(?=\n##|\Z)'
+
+# Matches the first paragraph after a title in Markdown: "# Title" followed by blank line and text
+MD_TITLE_AND_PARAGRAPH_PATTERN = r'# [^\n]*\n\n(.*?)(?=\n\n|\n##|\Z)'
+
+# Matches any text before the first ## heading
+MD_TEXT_BEFORE_FIRST_HEADING_PATTERN = r'\n\n(.*?)(?=\n##|\Z)'
+
+# Matches a title in Markdown: "# Title"
+MD_TITLE_PATTERN = r'# ([^\n]+)'
+
+# Pattern to replace multiple whitespace characters with a single space
+WHITESPACE_CLEANUP_PATTERN = r'\s+'
+
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -334,58 +368,58 @@ def extract_description(content: str) -> str:
     # Check if this is an AsciiDoc (.adoc) file
     if any(marker in content for marker in ['= Overview', '= Description']):
         # First, try to find a dedicated Description section in AsciiDoc
-        desc_section_match = re.search(r'= Description\s*\n+(.*?)(?=\n=|\Z)', content, re.DOTALL)
+        desc_section_match = re.search(ADOC_DESCRIPTION_SECTION_PATTERN, content, re.DOTALL)
         if desc_section_match:
             desc_text = desc_section_match.group(1).strip()
             # Replace newlines with spaces to ensure a single line description
-            return re.sub(r'\s+', ' ', desc_text)
+            return re.sub(WHITESPACE_CLEANUP_PATTERN, ' ', desc_text)
 
         # Next, try to find an Overview section in AsciiDoc
-        overview_section_match = re.search(r'= Overview\s*\n+(.*?)(?=\n=|\Z)', content, re.DOTALL)
+        overview_section_match = re.search(ADOC_OVERVIEW_SECTION_PATTERN, content, re.DOTALL)
         if overview_section_match:
             # Take the first paragraph of the overview
             overview = overview_section_match.group(1).strip()
-            first_para_match = re.search(r'^(.*?)(?=\n\n|\Z)', overview, re.DOTALL)
+            first_para_match = re.search(FIRST_PARAGRAPH_PATTERN, overview, re.DOTALL)
             if first_para_match:
                 # Replace newlines with spaces to ensure a single line description
-                return re.sub(r'\s+', ' ', first_para_match.group(1).strip())
+                return re.sub(WHITESPACE_CLEANUP_PATTERN, ' ', first_para_match.group(1).strip())
             # Replace newlines with spaces to ensure a single line description
-            return re.sub(r'\s+', ' ', overview)
+            return re.sub(WHITESPACE_CLEANUP_PATTERN, ' ', overview)
 
         # Try to find the first paragraph after a title in AsciiDoc format
-        title_match = re.search(r'= ([^\n]+)\s*\n\n(.*?)(?=\n\n|\n=|\Z)', content, re.DOTALL)
+        title_match = re.search(ADOC_TITLE_AND_PARAGRAPH_PATTERN, content, re.DOTALL)
         if title_match:
             # Replace newlines with spaces to ensure a single line description
-            return re.sub(r'\s+', ' ', title_match.group(2).strip())
+            return re.sub(WHITESPACE_CLEANUP_PATTERN, ' ', title_match.group(2).strip())
 
     # For Markdown format
     # First, try to find a dedicated Description section
-    desc_section_match = re.search(r'## Description\s*\n+(.*?)(?=\n##|\Z)', content, re.DOTALL)
+    desc_section_match = re.search(MD_DESCRIPTION_SECTION_PATTERN, content, re.DOTALL)
     if desc_section_match:
         return desc_section_match.group(1).strip()
 
     # Next, try to find an Overview section
-    overview_section_match = re.search(r'## Overview\s*\n+(.*?)(?=\n##|\Z)', content, re.DOTALL)
+    overview_section_match = re.search(MD_OVERVIEW_SECTION_PATTERN, content, re.DOTALL)
     if overview_section_match:
         # Take the first paragraph of the overview
         overview = overview_section_match.group(1).strip()
-        first_para_match = re.search(r'^(.*?)(?=\n\n|\Z)', overview, re.DOTALL)
+        first_para_match = re.search(FIRST_PARAGRAPH_PATTERN, overview, re.DOTALL)
         if first_para_match:
             return first_para_match.group(1).strip()
         return overview
 
     # Try to find the first paragraph after the title
-    match = re.search(r'# [^\n]*\n\n(.*?)(?=\n\n|\n##|\Z)', content, re.DOTALL)
+    match = re.search(MD_TITLE_AND_PARAGRAPH_PATTERN, content, re.DOTALL)
     if match:
         return match.group(1).strip()
 
     # Fallback: Try to find any text before the first ## heading
-    match = re.search(r'\n\n(.*?)(?=\n##|\Z)', content, re.DOTALL)
+    match = re.search(MD_TEXT_BEFORE_FIRST_HEADING_PATTERN, content, re.DOTALL)
     if match:
         return match.group(1).strip()
 
     # If all else fails, extract the title as a fallback
-    title_match = re.search(r'# ([^\n]+)', content)
+    title_match = re.search(MD_TITLE_PATTERN, content)
     if title_match:
         pattern_name = title_match.group(1).strip()
         return f'A pattern for integrating {pattern_name} services'
