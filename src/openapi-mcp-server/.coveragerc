@@ -1,4 +1,6 @@
 [run]
+branch = True
+parallel = True
 source = awslabs
 # Skip coverage for license headers to prevent line shift issues
 skip_covered = False
