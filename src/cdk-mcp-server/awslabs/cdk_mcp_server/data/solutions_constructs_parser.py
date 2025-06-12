@@ -339,7 +339,7 @@ def extract_description(content: str) -> str:
             desc_text = desc_section_match.group(1).strip()
             # Replace newlines with spaces to ensure a single line description
             return re.sub(r'\s+', ' ', desc_text)
-            
+
         # Next, try to find an Overview section in AsciiDoc
         overview_section_match = re.search(r'= Overview\s*\n+(.*?)(?=\n=|\Z)', content, re.DOTALL)
         if overview_section_match:
@@ -351,7 +351,7 @@ def extract_description(content: str) -> str:
                 return re.sub(r'\s+', ' ', first_para_match.group(1).strip())
             # Replace newlines with spaces to ensure a single line description
             return re.sub(r'\s+', ' ', overview)
-            
+
         # Try to find the first paragraph after a title in AsciiDoc format
         title_match = re.search(r'= ([^\n]+)\s*\n\n(.*?)(?=\n\n|\n=|\Z)', content, re.DOTALL)
         if title_match:
