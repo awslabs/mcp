@@ -43,6 +43,9 @@ nav:
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
     - AWS Step Functions Tool MCP Server: servers/stepfunctions-tool-mcp-server.md
     - AWS Terraform MCP Server: servers/terraform-mcp-server.md
+    - Amazon ElastiCache MCP Server: servers/elasticache-mcp-server.md
+    - Amazon ElastiCache/MemoryDB for Valkey MCP Server: servers/valkey-mcp-server.md
+    - Amazon ElastiCache for Memcached MCP Server: servers/memcached-mcp-server.md
     - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
     - CloudFormation MCP Server: servers/cfn-mcp-server.md
     - AWS Serverless MCP Server: servers/aws-serverless-mcp-server.md
