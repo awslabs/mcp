@@ -125,7 +125,7 @@ async def get_pattern_info(pattern_name: str) -> Dict[str, Any]:
                 readme_content = adoc_response.text
                 logger.info(f'Successfully fetched README.adoc for {pattern_name}')
             else:
-                # Fall back to README.md if README.adoc is not available
+                # Fall back to README.md (if README.adoc is not available)
                 readme_md_url = f'{GITHUB_RAW_CONTENT_URL}/{REPO_OWNER}/{REPO_NAME}/main/{PATTERNS_PATH}/{pattern_name}/README.md'
                 logger.info(f'README.adoc not found, trying README.md from {readme_md_url}')
                 md_response = await client.get(readme_md_url)
