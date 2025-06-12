@@ -94,7 +94,7 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 
 1. Open Cursor.
 2. Click the gear icon (⚙️) in the top right to open the settings panel, click **MCP**, **Add new global MCP server**.
-3. Paste your MCP server definition. For example, this example shows how to configure the EKS MCP Server, including enabling mutating actions by adding the `--allow-write` flag to the server arguments:
+3. Paste your MCP server definition. For example, this example shows how to configure the EKS MCP Server, including enabling mutating actions with the `--allow-write` flag and access to sensitive data with the `--allow-sensitive-data-access` flag (see the Arguments section for more details):
 
    **For Mac/Linux:**
 
@@ -107,7 +107,8 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 	      "command": "uvx",
 	      "args": [
 	        "awslabs.eks-mcp-server@latest",
-	        "--allow-write"
+	        "--allow-write",
+	        "--allow-sensitive-data-access"
 	      ],
 	      "env": {
 	        "FASTMCP_LOG_LEVEL": "ERROR"
@@ -131,7 +132,8 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 	        "--from",
 	        "awslabs.eks-mcp-server@latest",
 	        "awslabs.eks-mcp-server.exe",
-	        "--allow-write"
+	        "--allow-write",
+	        "--allow-sensitive-data-access"
 	      ],
 	      "env": {
 	        "FASTMCP_LOG_LEVEL": "ERROR"
@@ -149,7 +151,9 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 **Set up the Amazon Q Developer CLI**
 
 1. Install the [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html) .
-2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html). For example:
+2. The Q Developer CLI supports MCP servers for tools and prompts out-of-the-box. Edit your Q developer CLI's MCP configuration file named mcp.json following [these instructions](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-configuration.html).
+
+The example below includes both the `--allow-write` flag for mutating operations and the `--allow-sensitive-data-access` flag for accessing logs and events (see the Arguments section for more details):
 
    **For Mac/Linux:**
 
@@ -158,7 +162,11 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 	  "mcpServers": {
 	    "awslabs.eks-mcp-server": {
 	      "command": "uvx",
-	      "args": ["awslabs.eks-mcp-server@latest"],
+	      "args": [
+	        "awslabs.eks-mcp-server@latest",
+	        "--allow-write",
+	        "--allow-sensitive-data-access"
+	      ],
 	      "env": {
 	        "FASTMCP_LOG_LEVEL": "ERROR"
 	      },
@@ -176,7 +184,13 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 	  "mcpServers": {
 	    "awslabs.eks-mcp-server": {
 	      "command": "uvx",
-	      "args": ["--from", "awslabs.eks-mcp-server@latest", "awslabs.eks-mcp-server.exe"],
+	      "args": [
+	        "--from",
+	        "awslabs.eks-mcp-server@latest",
+	        "awslabs.eks-mcp-server.exe",
+	        "--allow-write",
+	        "--allow-sensitive-data-access"
+	      ],
 	      "env": {
 	        "FASTMCP_LOG_LEVEL": "ERROR"
 	      },
@@ -260,7 +274,7 @@ Enables write access mode, which allows mutating operations (e.g., create, updat
 
 #### `--allow-sensitive-data-access` (optional)
 
-Enables access to sensitive data such as logs, events, and Kubernetes Secrets.
+Enables access to sensitive data such as logs, events, and Kubernetes Secrets. This flag is required for tools that access potentially sensitive information, such as get_pod_logs, get_k8s_events, get_cloudwatch_logs, and manage_k8s_resource (when used to read Kubernetes secrets).
 
 * Default: false (Access to sensitive data is restricted by default)
 * Example: Add `--allow-sensitive-data-access` to the `args` list in your MCP server definition.
