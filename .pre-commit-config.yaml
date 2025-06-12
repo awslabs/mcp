@@ -3,6 +3,7 @@ repos:
     rev: v5.0.0
     hooks:
     -   id: check-added-large-files
+    -   id: check-case-conflict
     -   id: check-executables-have-shebangs
     -   id: check-illegal-windows-names
     -   id: check-json
@@ -25,6 +26,7 @@ repos:
           # Necessary so that non-standard tags do not throw failures.
           - '--unsafe'
     -   id: end-of-file-fixer
+    -   id: debug-statements
     -   id: destroyed-symlinks
     -   id: detect-private-key
     -   id: detect-aws-credentials
