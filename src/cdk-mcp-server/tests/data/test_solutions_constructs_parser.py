@@ -14,14 +14,18 @@
 
 import pytest
 from awslabs.cdk_mcp_server.data.solutions_constructs_parser import (
+    extract_code_example,
     extract_default_settings,
     extract_description,
     extract_properties,
     extract_props,
+    extract_props_markdown,
     extract_services_from_pattern_name,
     extract_use_cases,
     fetch_pattern_list,
+    get_all_patterns_info,
     get_pattern_info,
+    get_pattern_raw,
     parse_readme_content,
     search_patterns,
 )
@@ -62,6 +66,61 @@ This pattern creates a Lambda function that is triggered by API Gateway and writ
 * Building serverless APIs with DynamoDB backend
 * Creating data processing pipelines
 * Implementing REST APIs with persistent storage
+
+```typescript
+import { Construct } from 'constructs';
+import { Stack, StackProps } from 'aws-cdk-lib';
+import { LambdaToDynamoDB } from '@aws-solutions-constructs/aws-lambda-dynamodb';
+
+export class MyStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StackProps) {
+    super(scope, id, props);
+
+    new LambdaToDynamoDB(this, 'LambdaToDynamoDBPattern', {
+      lambdaFunctionProps: {
+        runtime: lambda.Runtime.NODEJS_18_X,
+        handler: 'index.handler',
+        code: lambda.Code.fromAsset(`${__dirname}/lambda`)
+      },
+      dynamoTableProps: {
+        partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING }
+      }
+    });
+  }
+}
+```
+"""
+
+# Sample AsciiDoc content for testing
+SAMPLE_ADOC = """
+//!!NODE_ROOT <section>
+//== aws-alb-lambda module
+
+[.topic]
+= aws-alb-lambda
+:info_doctype: section
+:info_title: aws-alb-lambda
+
+= Overview
+
+This AWS Solutions Construct implements an an Application Load Balancer
+to an AWS Lambda function
+
+Here is a minimal deployable pattern definition:
+
+====
+[role="tablist"]
+Typescript::
++
+[source,typescript]
+----
+import { Construct } from 'constructs';
+import { Stack, StackProps } from 'aws-cdk-lib';
+import { AlbToLambda, AlbToLambdaProps } from '@aws-solutions-constructs/aws-alb-lambda';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+----
+====
 """
 
 
@@ -118,6 +177,79 @@ async def test_get_pattern_info():
         assert 'use_cases' in info
 
 
+@pytest.mark.asyncio
+async def test_get_pattern_info_with_adoc():
+    """Test getting pattern info with AsciiDoc content."""
+    # Mock the httpx.AsyncClient.get method directly
+    with patch('httpx.AsyncClient.get') as mock_get:
+        # First response for README.adoc
+        adoc_response = AsyncMock()
+        adoc_response.status_code = 200
+        adoc_response.text = SAMPLE_ADOC
+
+        # Set up the mock to return the adoc response
+        mock_get.return_value = adoc_response
+
+        info = await get_pattern_info('aws-alb-lambda')
+        assert info['pattern_name'] == 'aws-alb-lambda'
+        assert 'Application Load Balancer' in info['services']
+        assert 'Lambda' in info['services']
+        assert 'description' in info
+        assert (
+            'This AWS Solutions Construct implements an an Application Load Balancer to an AWS Lambda function'
+            in info['description']
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_pattern_info_not_found():
+    """Test getting pattern info when pattern is not found."""
+    # Mock the httpx.AsyncClient.get method directly
+    with patch('httpx.AsyncClient.get') as mock_get:
+        mock_response = AsyncMock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+
+        info = await get_pattern_info('non-existent-pattern')
+        assert 'error' in info
+        assert 'status_code' in info
+        assert info['status_code'] == 404
+
+
+@pytest.mark.asyncio
+async def test_get_pattern_raw():
+    """Test getting raw pattern content."""
+    # Mock the httpx.AsyncClient.get method directly
+    with patch('httpx.AsyncClient.get') as mock_get:
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.text = SAMPLE_README
+        mock_get.return_value = mock_response
+
+        result = await get_pattern_raw('aws-lambda-dynamodb')
+        assert result['status'] == 'success'
+        assert result['pattern_name'] == 'aws-lambda-dynamodb'
+        assert 'Lambda' in result['services']
+        assert 'DynamoDB' in result['services']
+        assert result['content'] == SAMPLE_README
+        assert 'message' in result
+
+
+@pytest.mark.asyncio
+async def test_get_pattern_raw_not_found():
+    """Test getting raw pattern content when pattern is not found."""
+    # Mock the httpx.AsyncClient.get method directly
+    with patch('httpx.AsyncClient.get') as mock_get:
+        mock_response = AsyncMock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+
+        result = await get_pattern_raw('non-existent-pattern')
+        assert 'error' in result
+        assert 'status_code' in result
+        assert result['status_code'] == 404
+
+
 def test_extract_services_from_pattern_name():
     """Test extracting services from pattern name."""
     services = extract_services_from_pattern_name('aws-lambda-dynamodb')
@@ -135,6 +267,34 @@ def test_extract_description():
     description = extract_description(SAMPLE_README)
     assert 'creates a Lambda function' in description
     assert 'triggered by API Gateway' in description
+
+
+def test_extract_description_from_adoc():
+    """Test extracting description from AsciiDoc content."""
+    description = extract_description(SAMPLE_ADOC)
+    assert (
+        'This AWS Solutions Construct implements an an Application Load Balancer to an AWS Lambda function'
+        in description
+    )
+
+
+def test_extract_props_markdown():
+    """Test extracting props markdown from README content."""
+    props_markdown = extract_props_markdown(SAMPLE_README)
+    assert '| Name | Description |' in props_markdown
+    assert (
+        '| `lambdaFunctionProps` | Properties for the Lambda function. Defaults to `lambda.FunctionProps()`. |'
+        in props_markdown
+    )
+    assert (
+        '| `dynamoTableProps` | Properties for the DynamoDB table. Required. |' in props_markdown
+    )
+
+
+def test_extract_props_markdown_not_found():
+    """Test extracting props markdown when not found."""
+    props_markdown = extract_props_markdown('# Test\n\nNo props section here.')
+    assert props_markdown == 'No props section found'
 
 
 def test_extract_props():
@@ -162,6 +322,20 @@ def test_extract_default_settings():
     assert len(defaults) == 3
     assert 'Lambda function with Node.js 18 runtime' in defaults
     assert 'DynamoDB table with on-demand capacity' in defaults
+
+
+def test_extract_code_example():
+    """Test extracting code example from README content."""
+    code_example = extract_code_example(SAMPLE_README)
+    assert 'import { Construct } from' in code_example
+    assert 'new LambdaToDynamoDB(' in code_example
+    assert 'lambdaFunctionProps:' in code_example
+
+
+def test_extract_code_example_not_found():
+    """Test extracting code example when not found."""
+    code_example = extract_code_example('# Test\n\nNo code example here.')
+    assert code_example == 'No code example available'
 
 
 def test_extract_use_cases():
@@ -212,3 +386,90 @@ async def test_search_patterns():
             assert results[0]['pattern_name'] == 'aws-lambda-dynamodb'
             assert 'Lambda' in results[0]['services']
             assert 'DynamoDB' in results[0]['services']
+
+
+@pytest.mark.asyncio
+async def test_search_patterns_error():
+    """Test searching patterns with an error."""
+    # Mock the search_utils.search_items_with_terms function to raise an exception
+    with patch(
+        'awslabs.cdk_mcp_server.data.solutions_constructs_parser.search_utils.search_items_with_terms'
+    ) as mock_search:
+        mock_search.side_effect = Exception('Test error')
+
+        results = await search_patterns(['lambda', 'dynamodb'])
+        assert len(results) == 0
+
+
+@pytest.mark.asyncio
+async def test_get_all_patterns_info():
+    """Test getting info for all patterns."""
+    # Mock fetch_pattern_list to return a list of patterns
+    with patch(
+        'awslabs.cdk_mcp_server.data.solutions_constructs_parser.fetch_pattern_list'
+    ) as mock_fetch:
+        mock_fetch.return_value = ['aws-lambda-dynamodb', 'aws-apigateway-lambda']
+
+        # Mock get_pattern_info to return consistent data
+        with patch(
+            'awslabs.cdk_mcp_server.data.solutions_constructs_parser.get_pattern_info'
+        ) as mock_get_info:
+            mock_get_info.side_effect = [
+                {
+                    'pattern_name': 'aws-lambda-dynamodb',
+                    'services': ['Lambda', 'DynamoDB'],
+                    'description': 'Test description 1',
+                },
+                {
+                    'pattern_name': 'aws-apigateway-lambda',
+                    'services': ['API Gateway', 'Lambda'],
+                    'description': 'Test description 2',
+                },
+            ]
+
+            results = await get_all_patterns_info()
+            assert len(results) == 2
+            assert results[0]['pattern_name'] == 'aws-lambda-dynamodb'
+            assert results[1]['pattern_name'] == 'aws-apigateway-lambda'
+
+
+@pytest.mark.asyncio
+async def test_get_all_patterns_info_with_error():
+    """Test getting info for all patterns with an error for one pattern."""
+    # Mock fetch_pattern_list to return a list of patterns
+    with patch(
+        'awslabs.cdk_mcp_server.data.solutions_constructs_parser.fetch_pattern_list'
+    ) as mock_fetch:
+        mock_fetch.return_value = ['aws-lambda-dynamodb', 'aws-apigateway-lambda']
+
+        # Mock get_pattern_info to return data for first pattern and raise exception for second
+        with patch(
+            'awslabs.cdk_mcp_server.data.solutions_constructs_parser.get_pattern_info'
+        ) as mock_get_info:
+            mock_get_info.side_effect = [
+                {
+                    'pattern_name': 'aws-lambda-dynamodb',
+                    'services': ['Lambda', 'DynamoDB'],
+                    'description': 'Test description 1',
+                },
+                Exception('Test error'),
+            ]
+
+            results = await get_all_patterns_info()
+            assert len(results) == 2
+            assert results[0]['pattern_name'] == 'aws-lambda-dynamodb'
+            assert 'error' in results[1]
+            assert results[1]['pattern_name'] == 'aws-apigateway-lambda'
+
+
+@pytest.mark.asyncio
+async def test_get_all_patterns_info_with_fetch_error():
+    """Test getting info for all patterns with an error in fetch_pattern_list."""
+    # Mock fetch_pattern_list to raise an exception
+    with patch(
+        'awslabs.cdk_mcp_server.data.solutions_constructs_parser.fetch_pattern_list'
+    ) as mock_fetch:
+        mock_fetch.side_effect = Exception('Test error')
+
+        results = await get_all_patterns_info()
+        assert len(results) == 0
