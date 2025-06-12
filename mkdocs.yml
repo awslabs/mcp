@@ -43,6 +43,9 @@ nav:
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
     - AWS Step Functions Tool MCP Server: servers/stepfunctions-tool-mcp-server.md
     - AWS Terraform MCP Server: servers/terraform-mcp-server.md
+    - Amazon ElastiCache MCP Server: servers/elasticache-mcp-server.md
+    - Amazon ElastiCache/MemoryDB for Valkey MCP Server: servers/valkey-mcp-server.md
+    - Amazon ElastiCache for Memcached MCP Server: servers/memcached-mcp-server.md
     - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
     - CloudFormation MCP Server: servers/cfn-mcp-server.md
     - AWS Serverless MCP Server: servers/aws-serverless-mcp-server.md
@@ -50,6 +53,8 @@ nav:
     - Amazon EKS MCP Server: servers/eks-mcp-server.md
     - Amazon ECS MCP Server: servers/ecs-mcp-server.md
     - AWS Support MCP Server: servers/aws-support-mcp-server.md
+    - AWS Managed Prometheus MCP Server: servers/prometheus-mcp-server.md
+    - Amazon Timestream for InfluxDB MCP Server: servers/timestream-for-influxdb-mcp-server.md
   - Samples:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
