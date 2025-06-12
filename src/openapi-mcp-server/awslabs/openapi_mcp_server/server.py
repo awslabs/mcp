@@ -472,9 +472,12 @@ def main():
             if hasattr(server, 'get_resource_templates'):
                 try:
                     resource_templates = await server.get_resource_templates()
-                except Exception:
-                    # If get_resource_templates is not implemented, ignore the error
-                    pass
+                except AttributeError as e:
+                    # This is expected if the method exists but is not implemented
+                    logger.debug(f'get_resource_templates exists but not implemented: {e}')
+                except Exception as e:
+                    # Log other unexpected errors
+                    logger.warning(f'Error retrieving resource templates: {e}')
 
             return len(prompts), len(tools), len(resources), len(resource_templates)
 

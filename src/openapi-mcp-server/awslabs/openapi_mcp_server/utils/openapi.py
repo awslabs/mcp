@@ -21,7 +21,29 @@ from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.utils.cache_provider import cached
 from awslabs.openapi_mcp_server.utils.openapi_validator import validate_openapi_spec
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+
+def extract_api_name_from_spec(spec: Dict[str, Any]) -> Optional[str]:
+    """Extract the API name from an OpenAPI specification.
+
+    Args:
+        spec: The OpenAPI specification dictionary
+
+    Returns:
+        Optional[str]: The API name extracted from the specification, or None if not found
+
+    """
+    if not spec or not isinstance(spec, dict):
+        logger.warning('Invalid OpenAPI spec format')
+        return None
+
+    # Extract from info.title
+    if 'info' in spec and isinstance(spec['info'], dict) and 'title' in spec['info']:
+        return spec['info']['title']
+
+    logger.debug('No API name found in OpenAPI spec')
+    return None
 
 
 # Import yaml conditionally to avoid errors if it's not installed

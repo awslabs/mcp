@@ -24,9 +24,12 @@ MANIFEST
 
 # Virtual environments
 .venv
+.venv/
 env/
 venv/
 ENV/
+test-env/
+.test-env/
 
 # IDE
 .idea/
