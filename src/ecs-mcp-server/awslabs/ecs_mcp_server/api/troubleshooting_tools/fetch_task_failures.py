@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from botocore.exceptions import ClientError
 
-from awslabs.ecs_mcp_server.api.clients.ecs_client import EcsClient
+from awslabs.ecs_mcp_server.utils.aws import get_aws_client
 from awslabs.ecs_mcp_server.utils.time_utils import calculate_time_window
 
 logger = logging.getLogger(__name__)
@@ -173,7 +173,7 @@ async def fetch_task_failures(
         (UTC, takes precedence over time_window if provided)
     end_time : datetime, optional
         Explicit end time for the analysis window (UTC, defaults to current time if not provided)
-    ecs_client : EcsClient, optional
+    ecs_client : object, optional
         Client for ECS API interactions, useful for testing
 
     Returns
@@ -196,10 +196,10 @@ async def fetch_task_failures(
             time_window, start_time, end_time
         )
 
-        client = ecs_client or EcsClient()
+        ecs = ecs_client or await get_aws_client("ecs")
 
         # Check if cluster exists
-        cluster_exists, cluster_info = await client.check_cluster_exists(cluster_name)
+        cluster_exists, cluster_info = await ecs.check_cluster_exists(cluster_name)
         if not cluster_exists:
             response["message"] = f"Cluster '{cluster_name}' does not exist"
             return response
@@ -208,10 +208,10 @@ async def fetch_task_failures(
         response["raw_data"]["cluster"] = cluster_info
 
         # Get stopped tasks within time window
-        stopped_tasks = await client.get_stopped_tasks(cluster_name, actual_start_time)
+        stopped_tasks = await ecs.get_stopped_tasks(cluster_name, actual_start_time)
 
         # Get running tasks count
-        running_tasks_count = await client.get_running_tasks_count(cluster_name)
+        running_tasks_count = await ecs.get_running_tasks_count(cluster_name)
         response["raw_data"]["running_tasks_count"] = running_tasks_count
 
         # Process and categorize failures

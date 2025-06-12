@@ -25,7 +25,7 @@ from typing import Any, Dict
 
 from botocore.exceptions import ClientError
 
-from awslabs.ecs_mcp_server.api.clients.cloudformation_client import CloudFormationClient
+from awslabs.ecs_mcp_server.utils.aws import get_aws_client
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ async def fetch_cloudformation_status(stack_id: str, cloudformation_client=None)
     ----------
     stack_id : str
         The CloudFormation stack identifier to analyze
-    cloudformation_client : CloudFormationClient, optional
+    cloudformation_client : object, optional
         Client for CloudFormation API interactions, useful for testing
 
     Returns
@@ -57,7 +57,7 @@ async def fetch_cloudformation_status(stack_id: str, cloudformation_client=None)
         }
 
         # Use provided client or create a default one
-        cloudformation = cloudformation_client or CloudFormationClient()
+        cloudformation = cloudformation_client or await get_aws_client("cloudformation")
 
         # Check if stack exists
         try:
