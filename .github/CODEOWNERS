@@ -32,6 +32,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/cost-explorer-mcp-server           @Fedayizada                      @awslabs/mcp-admins
 /src/dynamodb-mcp-server                @erbenmo                         @awslabs/mcp-admins
 /src/ecs-mcp-server                     @karanbokil @matthewgoodman13    @awslabs/mcp-admins
+/src/elasticache-mcp-server             @seaofawareness                  @awslabs/mcp-admins
 /src/git-repo-research-mcp-server       @jonslo                          @awslabs/mcp-admins
 /src/lambda-tool-mcp-server             @danilop @jsamuel1               @awslabs/mcp-admins
 /src/memcached-mcp-server               @seaofawareness                  @awslabs/mcp-admins
