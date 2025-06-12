@@ -41,56 +41,20 @@ class TestK8sClientCache:
         assert hasattr(cache, '_client_cache')
         assert cache._client_cache.maxsize == 100
 
-        # Verify that the clients are not initialized yet
-        assert cache._eks_client is None
-        assert cache._sts_client is None
+        # Verify that the STS event handlers flag is initialized
+        assert hasattr(cache, '_sts_event_handlers_registered')
+        assert cache._sts_event_handlers_registered is False
 
         # Verify that the initialization flag is set
         assert cache._initialized is True
-
-    def test_get_eks_client(self):
-        """Test _get_eks_client method."""
-        # Create a K8sClientCache instance
-        cache = K8sClientCache()
-
-        # Reset the eks_client
-        cache._eks_client = None
-
-        # Mock the AwsHelper.create_boto3_client method
-        with patch(
-            'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client'
-        ) as mock_create_client:
-            mock_eks_client = MagicMock()
-            mock_create_client.return_value = mock_eks_client
-
-            # Get the EKS client
-            client = cache._get_eks_client()
-
-            # Verify that AwsHelper.create_boto3_client was called with the correct parameters
-            mock_create_client.assert_called_once_with('eks')
-
-            # Verify that the client was cached
-            assert cache._eks_client == mock_eks_client
-
-            # Verify that the client was returned
-            assert client == mock_eks_client
-
-            # Call _get_eks_client again
-            client2 = cache._get_eks_client()
-
-            # Verify that AwsHelper.create_boto3_client was not called again
-            assert mock_create_client.call_count == 1
-
-            # Verify that the same client was returned
-            assert client2 == mock_eks_client
 
     def test_get_sts_client(self):
         """Test _get_sts_client method."""
         # Create a K8sClientCache instance
         cache = K8sClientCache()
 
-        # Reset the sts_client
-        cache._sts_client = None
+        # Reset the STS event handlers flag
+        cache._sts_event_handlers_registered = False
 
         # Mock the AwsHelper.create_boto3_client method
         with patch(
@@ -111,20 +75,24 @@ class TestK8sClientCache:
             # Verify that the event handlers were registered
             assert mock_sts_client.meta.events.register.call_count == 2
 
-            # Verify that the client was cached
-            assert cache._sts_client == mock_sts_client
+            # Verify that the STS event handlers flag was set
+            assert cache._sts_event_handlers_registered is True
 
             # Verify that the client was returned
             assert client == mock_sts_client
 
+            # Reset the mock
+            mock_create_client.reset_mock()
+            mock_sts_client.meta.events.register.reset_mock()
+
             # Call _get_sts_client again
-            client2 = cache._get_sts_client()
+            cache._get_sts_client()
 
-            # Verify that AwsHelper.create_boto3_client was not called again
-            assert mock_create_client.call_count == 1
+            # Verify that AwsHelper.create_boto3_client was called again
+            mock_create_client.assert_called_once_with('sts')
 
-            # Verify that the same client was returned
-            assert client2 == mock_sts_client
+            # Verify that the event handlers were NOT registered again
+            assert mock_sts_client.meta.events.register.call_count == 0
 
     def test_retrieve_k8s_aws_id(self):
         """Test _retrieve_k8s_aws_id method."""
@@ -351,18 +319,19 @@ class TestK8sClientCache:
         mock_sts_client = MagicMock()
         mock_sts_client.generate_presigned_url.return_value = 'https://test-presigned-url'
 
-        # Mock the _get_eks_client and _get_sts_client methods
-        with patch.object(
-            cache, '_get_eks_client', return_value=mock_eks_client
-        ) as mocked_eks_client:
+        # Mock the AwsHelper.create_boto3_client and _get_sts_client methods
+        with patch(
+            'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client',
+            side_effect=[mock_eks_client, mock_sts_client],
+        ) as mock_create_client:
             with patch.object(
                 cache, '_get_sts_client', return_value=mock_sts_client
             ) as mocked_sts_client:
                 # Get cluster credentials
                 endpoint, token, ca_data = cache._get_cluster_credentials('test-cluster')
 
-                # Verify that _get_eks_client and _get_sts_client were called
-                mocked_eks_client.assert_called_once()
+                # Verify that AwsHelper.create_boto3_client was called for eks
+                mock_create_client.assert_any_call('eks')
                 mocked_sts_client.assert_called_once()
 
                 # Verify that describe_cluster was called with the correct parameters
@@ -392,14 +361,22 @@ class TestK8sClientCache:
         mock_eks_client = MagicMock()
         mock_eks_client.describe_cluster.side_effect = Exception('Test error')
 
-        # Mock the _get_eks_client method
-        with patch.object(cache, '_get_eks_client', return_value=mock_eks_client) as mock_client:
-            # Get cluster credentials - should raise Exception
-            with pytest.raises(Exception, match='Test error'):
-                cache._get_cluster_credentials('test-cluster')
+        # Mock the _get_sts_client method to avoid the second boto3 client call
+        with patch.object(cache, '_get_sts_client') as mock_get_sts_client:
+            # Mock the AwsHelper.create_boto3_client method
+            with patch(
+                'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client',
+                return_value=mock_eks_client,
+            ) as mock_create_client:
+                # Get cluster credentials - should raise Exception
+                with pytest.raises(Exception, match='Test error'):
+                    cache._get_cluster_credentials('test-cluster')
 
-            # Verify that _get_eks_client was called
-            mock_client.assert_called_once()
+                # Verify that AwsHelper.create_boto3_client was called with 'eks'
+                mock_create_client.assert_called_once_with('eks')
+
+                # Verify that _get_sts_client was called
+                mock_get_sts_client.assert_called_once()
 
             # Verify that describe_cluster was called with the correct parameters
             mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
@@ -418,14 +395,22 @@ class TestK8sClientCache:
             }
         }
 
-        # Mock the _get_eks_client method
-        with patch.object(cache, '_get_eks_client', return_value=mock_eks_client) as mock_client:
-            # Get cluster credentials - should raise KeyError
-            with pytest.raises(KeyError):
-                cache._get_cluster_credentials('test-cluster')
+        # Mock the _get_sts_client method to avoid the second boto3 client call
+        with patch.object(cache, '_get_sts_client') as mock_get_sts_client:
+            # Mock the AwsHelper.create_boto3_client method
+            with patch(
+                'awslabs.eks_mcp_server.k8s_client_cache.AwsHelper.create_boto3_client',
+                return_value=mock_eks_client,
+            ) as mock_create_client:
+                # Get cluster credentials - should raise KeyError
+                with pytest.raises(KeyError):
+                    cache._get_cluster_credentials('test-cluster')
 
-            # Verify that _get_eks_client was called
-            mock_client.assert_called_once()
+                # Verify that AwsHelper.create_boto3_client was called with 'eks'
+                mock_create_client.assert_called_once_with('eks')
+
+                # Verify that _get_sts_client was called
+                mock_get_sts_client.assert_called_once()
 
             # Verify that describe_cluster was called with the correct parameters
             mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')

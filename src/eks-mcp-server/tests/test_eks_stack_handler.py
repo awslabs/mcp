@@ -967,3 +967,365 @@ class TestEksStackHandler:
                 operation='delete',
                 cluster_name=None,  # Explicitly pass None
             )
+
+    def test_remove_checkov_metadata_direct(self):
+        """Test the _remove_checkov_metadata method directly."""
+        # Create a mock MCP server
+        mock_mcp = MagicMock()
+
+        # Initialize the EKS handler with the mock MCP server
+        handler = EksStackHandler(mock_mcp)
+
+        # Test case 1: Resource with checkov metadata only
+        resource = {
+            'Type': 'AWS::EKS::Cluster',
+            'Metadata': {
+                'checkov': {
+                    'skip': [
+                        {'id': 'CKV_AWS_58'},
+                        {'comment': 'Secrets encryption is enabled by default in EKS 1.27+'},
+                    ]
+                }
+            },
+            'Properties': {'Name': 'test-cluster'},
+        }
+
+        # Call the method
+        handler._remove_checkov_metadata(resource)
+
+        # Verify that the Metadata section was removed completely
+        assert 'Metadata' not in resource
+
+        # Test case 2: Resource with checkov metadata and other metadata
+        resource = {
+            'Type': 'AWS::EKS::Cluster',
+            'Metadata': {
+                'checkov': {
+                    'skip': [
+                        {'id': 'CKV_AWS_58'},
+                        {'comment': 'Secrets encryption is enabled by default in EKS 1.27+'},
+                    ]
+                },
+                'other_metadata': {'key': 'value'},
+            },
+            'Properties': {'Name': 'test-cluster'},
+        }
+
+        # Call the method
+        handler._remove_checkov_metadata(resource)
+
+        # Verify that only the checkov metadata was removed
+        assert 'Metadata' in resource
+        assert 'checkov' not in resource['Metadata']
+        assert 'other_metadata' in resource['Metadata']
+        assert resource['Metadata']['other_metadata'] == {'key': 'value'}
+
+        # Test case 3: Resource with no metadata
+        resource = {
+            'Type': 'AWS::EKS::Cluster',
+            'Properties': {'Name': 'test-cluster'},
+        }
+
+        # Call the method
+        handler._remove_checkov_metadata(resource)
+
+        # Verify that the resource is unchanged
+        assert 'Metadata' not in resource
+        assert resource == {
+            'Type': 'AWS::EKS::Cluster',
+            'Properties': {'Name': 'test-cluster'},
+        }
+
+    @pytest.mark.asyncio
+    async def test_generate_template_error(self):
+        """Test error handling in the _generate_template method."""
+        # Create a mock MCP server
+        mock_mcp = MagicMock()
+
+        # Initialize the EKS handler with the mock MCP server
+        handler = EksStackHandler(mock_mcp)
+
+        # Create a mock context
+        mock_ctx = MagicMock(spec=Context)
+
+        # Test case 1: Error reading the template file
+        with patch('builtins.open', side_effect=FileNotFoundError('Template file not found')):
+            with patch('os.path.dirname', return_value='/path'):
+                with patch('os.path.join', return_value='/path/template.yaml'):
+                    # Call the _generate_template method
+                    result = await handler._generate_template(
+                        ctx=mock_ctx,
+                        template_path='/path/to/output/template.yaml',
+                        cluster_name='test-cluster',
+                    )
+
+                    # Verify the result
+                    assert result.isError
+                    assert len(result.content) == 1
+                    assert result.content[0].type == 'text'
+                    assert 'Failed to generate template' in result.content[0].text
+                    # The actual error message might vary, so just check for the general error
+                    # instead of the specific message
+            assert result.template_path == ''
+
+        # Test case 2: Error creating the output directory
+        with patch('os.makedirs', side_effect=PermissionError('Permission denied')):
+            with patch('os.path.dirname', return_value='/path/to/output'):
+                # Call the _generate_template method
+                result = await handler._generate_template(
+                    ctx=mock_ctx,
+                    template_path='/path/to/output/template.yaml',
+                    cluster_name='test-cluster',
+                )
+
+                # Verify the result
+                assert result.isError
+                assert len(result.content) == 1
+                assert result.content[0].type == 'text'
+                assert 'Failed to generate template' in result.content[0].text
+                assert 'Permission denied' in result.content[0].text
+                assert result.template_path == ''
+
+        # Test case 3: Error parsing the YAML template
+        with patch('builtins.open', mock_open(read_data='invalid: yaml: content')):
+            with patch('os.path.dirname', return_value='/mock/path'):
+                with patch('os.path.join', return_value='/mock/path/template.yaml'):
+                    with patch('os.makedirs', return_value=None):
+                        with patch('yaml.safe_load', side_effect=yaml.YAMLError('Invalid YAML')):
+                            # Call the _generate_template method
+                            result = await handler._generate_template(
+                                ctx=mock_ctx,
+                                template_path='/path/to/output/template.yaml',
+                                cluster_name='test-cluster',
+                            )
+
+                            # Verify the result
+                            assert result.isError
+                            assert len(result.content) == 1
+                            assert result.content[0].type == 'text'
+                            assert 'Failed to generate template' in result.content[0].text
+                            assert 'Invalid YAML' in result.content[0].text
+                            assert result.template_path == ''
+
+    @pytest.mark.asyncio
+    async def test_deploy_stack_error(self):
+        """Test error handling in the _deploy_stack method."""
+        # Create a mock MCP server
+        mock_mcp = MagicMock()
+
+        # Initialize the EKS handler with the mock MCP server
+        handler = EksStackHandler(mock_mcp)
+
+        # Create a mock context
+        mock_ctx = MagicMock(spec=Context)
+
+        # Test case 1: Error reading the template file
+        with patch('builtins.open', side_effect=FileNotFoundError('Template file not found')):
+            # Call the _deploy_stack method
+            result = await handler._deploy_stack(
+                ctx=mock_ctx,
+                template_file='/path/to/template.yaml',
+                stack_name='eks-test-cluster-stack',
+                cluster_name='test-cluster',
+            )
+
+            # Verify the result
+            assert result.isError
+            assert len(result.content) == 1
+            assert result.content[0].type == 'text'
+            assert 'Failed to deploy stack' in result.content[0].text
+            assert 'Template file not found' in result.content[0].text
+            assert result.stack_name == 'eks-test-cluster-stack'
+            assert result.stack_arn == ''
+            assert result.cluster_name == 'test-cluster'
+
+        # Test case 2: Error creating the CloudFormation stack
+        mock_cfn_client = MagicMock()
+        mock_cfn_client.create_stack.side_effect = Exception('Failed to create stack')
+
+        with patch.object(AwsHelper, 'create_boto3_client', return_value=mock_cfn_client):
+            with patch.object(
+                handler,
+                '_ensure_stack_ownership',
+                return_value=(False, None, 'Stack does not exist'),
+            ):
+                with patch('builtins.open', mock_open(read_data='test template content')):
+                    # Call the _deploy_stack method
+                    result = await handler._deploy_stack(
+                        ctx=mock_ctx,
+                        template_file='/path/to/template.yaml',
+                        stack_name='eks-test-cluster-stack',
+                        cluster_name='test-cluster',
+                    )
+
+                    # Verify the result
+                    assert result.isError
+                    assert len(result.content) == 1
+                    assert result.content[0].type == 'text'
+                    assert 'Failed to deploy stack' in result.content[0].text
+                    assert 'Failed to create stack' in result.content[0].text
+                    assert result.stack_name == 'eks-test-cluster-stack'
+                    assert result.stack_arn == ''
+                    assert result.cluster_name == 'test-cluster'
+
+        # Test case 3: Error updating the CloudFormation stack
+        mock_cfn_client = MagicMock()
+        mock_cfn_client.update_stack.side_effect = Exception('Failed to update stack')
+
+        with patch.object(AwsHelper, 'create_boto3_client', return_value=mock_cfn_client):
+            with patch.object(
+                handler,
+                '_ensure_stack_ownership',
+                return_value=(
+                    True,
+                    {
+                        'StackId': 'test-stack-id',
+                        'Tags': [{'Key': 'CreatedBy', 'Value': 'EksMcpServer'}],
+                    },
+                    None,
+                ),
+            ):
+                with patch('builtins.open', mock_open(read_data='test template content')):
+                    # Call the _deploy_stack method
+                    result = await handler._deploy_stack(
+                        ctx=mock_ctx,
+                        template_file='/path/to/template.yaml',
+                        stack_name='eks-test-cluster-stack',
+                        cluster_name='test-cluster',
+                    )
+
+                    # Verify the result
+                    assert result.isError
+                    assert len(result.content) == 1
+                    assert result.content[0].type == 'text'
+                    assert 'Failed to deploy stack' in result.content[0].text
+                    assert 'Failed to update stack' in result.content[0].text
+                    assert result.stack_name == 'eks-test-cluster-stack'
+                    assert result.stack_arn == ''
+                    assert result.cluster_name == 'test-cluster'
+
+    @pytest.mark.asyncio
+    async def test_delete_stack_error(self):
+        """Test error handling in the _delete_stack method."""
+        # Create a mock MCP server
+        mock_mcp = MagicMock()
+
+        # Initialize the EKS handler with the mock MCP server
+        handler = EksStackHandler(mock_mcp)
+
+        # Create a mock context
+        mock_ctx = MagicMock(spec=Context)
+
+        # Test case: Error deleting the CloudFormation stack
+        mock_cfn_client = MagicMock()
+        mock_cfn_client.delete_stack.side_effect = Exception('Failed to delete stack')
+
+        with patch.object(AwsHelper, 'create_boto3_client', return_value=mock_cfn_client):
+            with patch.object(
+                handler,
+                '_ensure_stack_ownership',
+                return_value=(
+                    True,
+                    {
+                        'StackId': 'test-stack-id',
+                        'StackName': 'eks-test-cluster-stack',
+                        'Tags': [{'Key': 'CreatedBy', 'Value': 'EksMcpServer'}],
+                    },
+                    None,
+                ),
+            ):
+                # Call the _delete_stack method
+                result = await handler._delete_stack(
+                    ctx=mock_ctx,
+                    stack_name='eks-test-cluster-stack',
+                    cluster_name='test-cluster',
+                )
+
+                # Verify the result
+                assert result.isError
+                assert len(result.content) == 1
+                assert result.content[0].type == 'text'
+                assert 'Failed to delete stack' in result.content[0].text
+                assert result.stack_name == 'eks-test-cluster-stack'
+                # The stack_id might not be set in the error case, so don't assert its value
+                assert result.cluster_name == 'test-cluster'
+
+    @pytest.mark.asyncio
+    async def test_manage_eks_stacks_general_exception(self):
+        """Test general exception handling in the manage_eks_stacks method."""
+        # Create a mock MCP server
+        mock_mcp = MagicMock()
+
+        # Initialize the EKS handler with the mock MCP server
+        handler = EksStackHandler(mock_mcp, allow_write=True)
+
+        # Create a mock context
+        mock_ctx = MagicMock(spec=Context)
+
+        # Test case 1: General exception in _generate_template
+        with patch.object(
+            handler, '_generate_template', side_effect=Exception('Unexpected error')
+        ):
+            # Call the manage_eks_stacks method with generate operation
+            result = await handler.manage_eks_stacks(
+                ctx=mock_ctx,
+                operation='generate',
+                template_file='/path/to/output/template.yaml',
+                cluster_name='test-cluster',
+            )
+
+            # Verify the result
+            assert result.isError
+            assert len(result.content) == 1
+            assert result.content[0].type == 'text'
+            assert 'Error in manage_eks_stacks' in result.content[0].text
+            assert 'Unexpected error' in result.content[0].text
+
+        # Test case 2: General exception in _deploy_stack
+        with patch.object(handler, '_deploy_stack', side_effect=Exception('Unexpected error')):
+            # Call the manage_eks_stacks method with deploy operation
+            result = await handler.manage_eks_stacks(
+                ctx=mock_ctx,
+                operation='deploy',
+                template_file='/path/to/template.yaml',
+                cluster_name='test-cluster',
+            )
+
+            # Verify the result
+            assert result.isError
+            assert len(result.content) == 1
+            assert result.content[0].type == 'text'
+            assert 'Error in manage_eks_stacks' in result.content[0].text
+            assert 'Unexpected error' in result.content[0].text
+
+        # Test case 3: General exception in _describe_stack
+        with patch.object(handler, '_describe_stack', side_effect=Exception('Unexpected error')):
+            # Call the manage_eks_stacks method with describe operation
+            result = await handler.manage_eks_stacks(
+                ctx=mock_ctx,
+                operation='describe',
+                cluster_name='test-cluster',
+            )
+
+            # Verify the result
+            assert result.isError
+            assert len(result.content) == 1
+            assert result.content[0].type == 'text'
+            assert 'Error in manage_eks_stacks' in result.content[0].text
+            assert 'Unexpected error' in result.content[0].text
+
+        # Test case 4: General exception in _delete_stack
+        with patch.object(handler, '_delete_stack', side_effect=Exception('Unexpected error')):
+            # Call the manage_eks_stacks method with delete operation
+            result = await handler.manage_eks_stacks(
+                ctx=mock_ctx,
+                operation='delete',
+                cluster_name='test-cluster',
+            )
+
+            # Verify the result
+            assert result.isError
+            assert len(result.content) == 1
+            assert result.content[0].type == 'text'
+            assert 'Error in manage_eks_stacks' in result.content[0].text
+            assert 'Unexpected error' in result.content[0].text
