@@ -14,6 +14,7 @@
 
 import pytest
 from awslabs.cdk_mcp_server.data.solutions_constructs_parser import (
+    ADOC_TITLE_AND_PARAGRAPH_PATTERN,
     MD_TITLE_PATTERN,
     extract_code_example,
     extract_default_settings,
@@ -153,6 +154,29 @@ import { Construct } from 'constructs';
 ====
 """
 
+# Sample AsciiDoc with Overview section but no first paragraph match
+SAMPLE_ADOC_WITH_OVERVIEW_NO_FIRST_PARA = """
+//!!NODE_ROOT <section>
+//== aws-lambda-step-function module
+
+[.topic]
+= aws-lambda-step-function
+:info_doctype: section
+:info_title: aws-lambda-step-function
+
+= Overview
+This is a single line overview with no paragraph break.
+====
+[role="tablist"]
+Typescript::
++
+[source,typescript]
+----
+import { Construct } from 'constructs';
+----
+====
+"""
+
 # Sample AsciiDoc with no first paragraph match but with title and content
 SAMPLE_ADOC_WITH_TITLE_CONTENT = """
 //!!NODE_ROOT <section>
@@ -219,6 +243,30 @@ SAMPLE_ADOC_WITH_TITLE_MATCH = """
 
 This AWS Solutions Construct implements a Lambda function
 that writes to a DynamoDB table.
+
+====
+[role="tablist"]
+Typescript::
++
+[source,typescript]
+----
+import { Construct } from 'constructs';
+----
+====
+"""
+
+# Sample AsciiDoc with title and paragraph matching ADOC_TITLE_AND_PARAGRAPH_PATTERN
+SAMPLE_ADOC_WITH_TITLE_PARAGRAPH_PATTERN = """
+//!!NODE_ROOT <section>
+//== aws-lambda-eventbridge module
+
+[.topic]
+= aws-lambda-eventbridge
+:info_doctype: section
+:info_title: aws-lambda-eventbridge
+
+This AWS Solutions Construct implements a Lambda function that is triggered by EventBridge events.
+The pattern provides a serverless event-driven architecture.
 
 ====
 [role="tablist"]
@@ -486,6 +534,13 @@ def test_extract_description_from_adoc_with_multi_paragraph_overview():
     assert 'This is a second paragraph' not in description
 
 
+def test_extract_description_from_adoc_with_overview_no_first_para():
+    """Test extracting description from AsciiDoc content with Overview section but no first paragraph match."""
+    description = extract_description(SAMPLE_ADOC_WITH_OVERVIEW_NO_FIRST_PARA)
+    # Should return the entire overview section with newlines replaced by spaces
+    assert 'This is a single line overview with no paragraph break' in description
+
+
 def test_extract_description_from_adoc_with_title_and_paragraph():
     """Test extracting description from AsciiDoc content with title and paragraph."""
     description = extract_description(SAMPLE_ADOC_WITH_TITLE_CONTENT)
@@ -514,6 +569,50 @@ def test_extract_description_from_adoc_with_title_match():
     description = extract_description(SAMPLE_ADOC_WITH_TITLE_MATCH)
     assert 'Lambda function' in description
     assert 'DynamoDB table' in description
+
+
+def test_extract_description_from_adoc_with_title_paragraph_pattern():
+    """Test extracting description from AsciiDoc content with title and paragraph matching ADOC_TITLE_AND_PARAGRAPH_PATTERN."""
+    description = extract_description(SAMPLE_ADOC_WITH_TITLE_PARAGRAPH_PATTERN)
+    # Should extract the paragraph after the title using ADOC_TITLE_AND_PARAGRAPH_PATTERN
+    assert 'Lambda function that is triggered by EventBridge events' in description
+    assert 'serverless event-driven architecture' in description
+
+
+def test_extract_description_adoc_title_paragraph_pattern_direct():
+    """Test the specific code path for ADOC_TITLE_AND_PARAGRAPH_PATTERN in extract_description."""
+    # Create a test content that will be recognized as AsciiDoc
+    test_content = '= Overview\n\nThis is just a marker to identify as AsciiDoc'
+
+    # Mock the regex search to force the code to go through the ADOC_TITLE_AND_PARAGRAPH_PATTERN path
+    with patch('re.search') as mock_search:
+        # Set up the mock to return None for all searches except for:
+        # 1. The check if it's an AsciiDoc file (any marker in ['= Overview', '= Description'])
+        # 2. The ADOC_TITLE_AND_PARAGRAPH_PATTERN search
+        def mock_search_side_effect(pattern, content, flags=0):
+            if pattern == ADOC_TITLE_AND_PARAGRAPH_PATTERN:
+                # Create a mock match object for the ADOC_TITLE_AND_PARAGRAPH_PATTERN
+                mock_match = MagicMock()
+                # group(1) should return the title
+                # group(2) should return the paragraph after the title
+                mock_match.group.side_effect = (
+                    lambda x: 'aws-lambda-eventbridge'
+                    if x == 1
+                    else 'This AWS Solutions Construct implements a Lambda function that is triggered by EventBridge events.'
+                )
+                return mock_match
+            # Return None for all other patterns to force the code to use ADOC_TITLE_AND_PARAGRAPH_PATTERN
+            return None
+
+        mock_search.side_effect = mock_search_side_effect
+
+        # Use patch.object to mock the 'any' function call that checks if it's an AsciiDoc file
+        with patch('builtins.any', return_value=True):
+            # Call the function with our test content
+            description = extract_description(test_content)
+
+            # Verify the result
+            assert 'Lambda function that is triggered by EventBridge events' in description
 
 
 def test_extract_description_title_fallback():
