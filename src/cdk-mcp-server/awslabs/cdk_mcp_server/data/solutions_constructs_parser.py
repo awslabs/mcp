@@ -115,22 +115,32 @@ async def get_pattern_info(pattern_name: str) -> Dict[str, Any]:
             logger.info(f'Using cached info for {pattern_name}')
             return _pattern_details_cache[pattern_name]['data']
 
-        # Fetch README.md content
+        # Try to fetch README.adoc first (preferred)
         async with httpx.AsyncClient() as client:
-            readme_url = f'{GITHUB_RAW_CONTENT_URL}/{REPO_OWNER}/{REPO_NAME}/main/{PATTERNS_PATH}/{pattern_name}/README.md'
-            logger.info(f'Fetching README from {readme_url}')
-            response = await client.get(readme_url)
+            readme_adoc_url = f'{GITHUB_RAW_CONTENT_URL}/{REPO_OWNER}/{REPO_NAME}/main/{PATTERNS_PATH}/{pattern_name}/README.adoc'
+            logger.info(f'Fetching README.adoc from {readme_adoc_url}')
+            adoc_response = await client.get(readme_adoc_url)
 
-            if response.status_code != 200:
-                logger.warning(
-                    f'Failed to fetch README for {pattern_name}: HTTP {response.status_code}'
-                )
-                return {
-                    'error': f'Pattern {pattern_name} not found or README.md not available',
-                    'status_code': response.status_code,
-                }
+            if adoc_response.status_code == 200:
+                readme_content = adoc_response.text
+                logger.info(f'Successfully fetched README.adoc for {pattern_name}')
+            else:
+                # Fall back to README.md if README.adoc is not available
+                readme_md_url = f'{GITHUB_RAW_CONTENT_URL}/{REPO_OWNER}/{REPO_NAME}/main/{PATTERNS_PATH}/{pattern_name}/README.md'
+                logger.info(f'README.adoc not found, trying README.md from {readme_md_url}')
+                md_response = await client.get(readme_md_url)
 
-            readme_content = response.text
+                if md_response.status_code != 200:
+                    logger.warning(
+                        f'Failed to fetch README for {pattern_name}: HTTP {md_response.status_code}'
+                    )
+                    return {
+                        'error': f'Pattern {pattern_name} not found or README not available',
+                        'status_code': md_response.status_code,
+                    }
+
+                readme_content = md_response.text
+                logger.info(f'Successfully fetched README.md for {pattern_name}')
 
         # Extract only metadata
         services = extract_services_from_pattern_name(pattern_name)
@@ -313,14 +323,42 @@ def extract_services_from_pattern_name(pattern_name: str) -> List[str]:
 
 
 def extract_description(content: str) -> str:
-    """Extract the pattern description from README.md content.
+    """Extract the pattern description from README content.
 
     Args:
-        content: README.md content
+        content: README content (can be .md or .adoc format)
 
     Returns:
         Pattern description
     """
+    # Check if this is an AsciiDoc (.adoc) file
+    if any(marker in content for marker in ['= Overview', '= Description']):
+        # First, try to find a dedicated Description section in AsciiDoc
+        desc_section_match = re.search(r'= Description\s*\n+(.*?)(?=\n=|\Z)', content, re.DOTALL)
+        if desc_section_match:
+            desc_text = desc_section_match.group(1).strip()
+            # Replace newlines with spaces to ensure a single line description
+            return re.sub(r'\s+', ' ', desc_text)
+            
+        # Next, try to find an Overview section in AsciiDoc
+        overview_section_match = re.search(r'= Overview\s*\n+(.*?)(?=\n=|\Z)', content, re.DOTALL)
+        if overview_section_match:
+            # Take the first paragraph of the overview
+            overview = overview_section_match.group(1).strip()
+            first_para_match = re.search(r'^(.*?)(?=\n\n|\Z)', overview, re.DOTALL)
+            if first_para_match:
+                # Replace newlines with spaces to ensure a single line description
+                return re.sub(r'\s+', ' ', first_para_match.group(1).strip())
+            # Replace newlines with spaces to ensure a single line description
+            return re.sub(r'\s+', ' ', overview)
+            
+        # Try to find the first paragraph after a title in AsciiDoc format
+        title_match = re.search(r'= ([^\n]+)\s*\n\n(.*?)(?=\n\n|\n=|\Z)', content, re.DOTALL)
+        if title_match:
+            # Replace newlines with spaces to ensure a single line description
+            return re.sub(r'\s+', ' ', title_match.group(2).strip())
+
+    # For Markdown format
     # First, try to find a dedicated Description section
     desc_section_match = re.search(r'## Description\s*\n+(.*?)(?=\n##|\Z)', content, re.DOTALL)
     if desc_section_match:
