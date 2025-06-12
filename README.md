@@ -147,8 +147,8 @@ Work with databases, caching systems, and data processing workflows.
 ##### SQL & NoSQL Databases
 
 - **[Amazon DynamoDB MCP Server](src/dynamodb-mcp-server/)** - Complete DynamoDB operations and table management
-- **[Amazon Aurora Postgres MCP Server](src/postgres-mcp-server/)** - PostgreSQL database operations via RDS Data API
-- **[Amazon Aurora MySql MCP Server](src/mysql-mcp-server/)** - MySQL database operations via RDS Data API
+- **[Amazon Aurora PostgreSQL MCP Server](src/postgres-mcp-server/)** - PostgreSQL database operations via RDS Data API
+- **[Amazon Aurora MySQL MCP Server](src/mysql-mcp-server/)** - MySQL database operations via RDS Data API
 - **[Amazon Aurora DSQL MCP Server](src/aurora-dsql-mcp-server/)** - Distributed SQL with PostgreSQL compatibility
 - **[Amazon DocumentDB MCP Server](src/documentdb-mcp-server/)** - MongoDB-compatible document database operations
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries with openCypher and Gremlin
@@ -177,7 +177,7 @@ Connect systems with messaging, workflows, and location services.
 - **[Amazon SNS / SQS MCP Server](src/amazon-sns-sqs-mcp-server/)** - Event-driven messaging and queue management
 - **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker management for RabbitMQ and ActiveMQ
 - **[AWS Step Functions Tool MCP Server](src/stepfunctions-tool-mcp-server/)** - Execute complex workflows and business processes
-- **[AWS Location Service MCP Server](src/aws-location-mcp-server/)** - Place search, geocoding, and route optimization
+- **[Amazon Location Service MCP Server](src/aws-location-mcp-server/)** - Place search, geocoding, and route optimization
 
 #### 💰 Cost & Operations
 
@@ -185,7 +185,7 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 - **[Cost Analysis MCP Server](src/cost-analysis-mcp-server/)** - Pre-deployment cost estimation and optimization
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and reporting
-- **[Amazon Cloudwatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
+- **[Amazon CloudWatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
 
 ---
@@ -238,11 +238,11 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 ##### Content Processing & Generation
 
 - **[Amazon Nova Canvas MCP Server](src/nova-canvas-mcp-server/)** - Generate images from text descriptions and color palettes
-- **[AWS Bedrock Data Automation MCP Server](src/aws-bedrock-data-automation-mcp-server/)** - Analyze uploaded documents, images, and media
+- **[Amazon Bedrock Data Automation MCP Server](src/aws-bedrock-data-automation-mcp-server/)** - Analyze uploaded documents, images, and media
 
 ##### Business Services
 
-- **[AWS Location Service MCP Server](src/aws-location-mcp-server/)** - Location search, geocoding, and business hours
+- **[Amazon Location Service MCP Server](src/aws-location-mcp-server/)** - Location search, geocoding, and business hours
 - **[Cost Analysis MCP Server](src/cost-analysis-mcp-server/)** - Answer cost questions and provide estimates
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and spend reports
 
@@ -253,8 +253,8 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 ##### Data Operations & ETL
 
 - **[Amazon DynamoDB MCP Server](src/dynamodb-mcp-server/)** - NoSQL database operations and table management
-- **[Amazon Aurora Postgres MCP Server](src/postgres-mcp-server/)** - PostgreSQL operations via RDS Data API
-- **[Amazon Aurora MySql MCP Server](src/mysql-mcp-server/)** - MySQL operations via RDS Data API
+- **[Amazon Aurora PostgreSQL MCP Server](src/postgres-mcp-server/)** - PostgreSQL operations via RDS Data API
+- **[Amazon Aurora MySQL MCP Server](src/mysql-mcp-server/)** - MySQL operations via RDS Data API
 - **[Amazon Aurora DSQL MCP Server](src/aurora-dsql-mcp-server/)** - Distributed SQL database operations
 - **[Amazon DocumentDB MCP Server](src/documentdb-mcp-server/)** - MongoDB-compatible document operations
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries and analytics
@@ -268,14 +268,14 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 ##### Workflow & Integration
 
-- **[AWS Lambda MCP Server](src/lambda-tool-mcp-server/)** - Execute Lambda functions for private resource access
+- **[AWS Lambda Tool MCP Server](src/lambda-tool-mcp-server/)** - Execute Lambda functions for private resource access
 - **[AWS Step Functions Tool MCP Server](src/stepfunctions-tool-mcp-server/)** - Complex multi-step workflow execution
 - **[Amazon SNS / SQS MCP Server](src/amazon-sns-sqs-mcp-server/)** - Event-driven messaging and queue processing
 - **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker operations
 
 ##### Operations & Monitoring
 
-- **[Amazon Cloudwatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
+- **[Amazon CloudWatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Cost monitoring and spend analysis
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
 
