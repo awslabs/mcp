@@ -121,17 +121,51 @@ def test_config_with_extracted_api_name(temp_spec_file):
 
 def test_extract_api_name_with_invalid_spec():
     """Test extracting API name from an invalid spec."""
-    # Test with None
-    assert extract_api_name_from_spec(None) is None
+    from unittest.mock import patch
+    
+    # Test with None - should trigger warning log
+    with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
+        result = extract_api_name_from_spec(None)
+        assert result is None
+        mock_logger.warning.assert_called_once_with('Invalid OpenAPI spec format')
 
-    # Test with non-dict
-    assert extract_api_name_from_spec('not a dict') is None
+    # Test with non-dict - should trigger warning log
+    with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
+        result = extract_api_name_from_spec('not a dict')
+        assert result is None
+        mock_logger.warning.assert_called_once_with('Invalid OpenAPI spec format')
 
-    # Test with empty dict
-    assert extract_api_name_from_spec({}) is None
+    # Test with empty dict - should trigger warning log (empty dict is falsy)
+    with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
+        result = extract_api_name_from_spec({})
+        assert result is None
+        mock_logger.warning.assert_called_once_with('Invalid OpenAPI spec format')
 
-    # Test with dict missing info
-    assert extract_api_name_from_spec({'openapi': '3.0.0'}) is None
+    # Test with dict missing info - should trigger debug log
+    with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
+        result = extract_api_name_from_spec({'openapi': '3.0.0'})
+        assert result is None
+        mock_logger.debug.assert_called_once_with('No API name found in OpenAPI spec')
 
-    # Test with dict having info but missing title
-    assert extract_api_name_from_spec({'info': {}}) is None
+    # Test with dict having info but missing title - should trigger debug log
+    with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
+        result = extract_api_name_from_spec({'info': {}})
+        assert result is None
+        mock_logger.debug.assert_called_once_with('No API name found in OpenAPI spec')
+
+
+def test_extract_api_name_logging_coverage():
+    """Additional test to ensure logging paths are covered."""
+    from unittest.mock import patch
+    
+    # Test warning path with empty spec
+    with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
+        result = extract_api_name_from_spec("")
+        assert result is None
+        mock_logger.warning.assert_called_once()
+    
+    # Test debug path with spec that has no title
+    with patch('awslabs.openapi_mcp_server.utils.openapi.logger') as mock_logger:
+        result = extract_api_name_from_spec({'info': {'version': '1.0.0'}})
+        assert result is None
+        mock_logger.debug.assert_called_once()
