@@ -25,8 +25,8 @@ from unittest.mock import MagicMock, patch
 
 
 @pytest.mark.asyncio
-async def test_configure_security_groups_no_primary_cluster():
-    """Test when no primary cluster is found."""
+async def test_configure_security_groups_no_cache_clusters():
+    """Test when no cache clusters are found."""
     mock_ec2 = MagicMock()
     mock_elasticache = MagicMock()
 
@@ -34,15 +34,7 @@ async def test_configure_security_groups_no_primary_cluster():
     mock_elasticache.describe_replication_groups.return_value = {
         'ReplicationGroups': [
             {
-                'MemberClusters': ['cluster-1', 'cluster-2'],
-            }
-        ]
-    }
-    # All clusters are replicas
-    mock_elasticache.describe_cache_clusters.return_value = {
-        'CacheClusters': [
-            {
-                'CacheClusterRole': 'REPLICA',
+                'MemberClusters': [],  # Empty member clusters
             }
         ]
     }
@@ -55,7 +47,7 @@ async def test_configure_security_groups_no_primary_cluster():
             ec2_client=mock_ec2,
             elasticache_client=mock_elasticache,
         )
-    assert 'No primary cluster found' in str(excinfo.value)
+    assert 'No clusters found in replication group' in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -72,11 +64,10 @@ async def test_configure_security_groups_no_subnet_group():
             }
         ]
     }
-    # Primary cluster without subnet group
+    # Cluster without subnet group
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 # No CacheSubnetGroupName
             }
         ]
@@ -110,7 +101,6 @@ async def test_configure_security_groups_subnet_group_error():
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
             }
         ]
@@ -417,8 +407,8 @@ async def test_get_ssh_tunnel_command_rg_windows_instance():
 
 
 @pytest.mark.asyncio
-async def test_get_ssh_tunnel_command_rg_no_cache_nodes():
-    """Test get_ssh_tunnel_command_rg when cluster has no cache nodes."""
+async def test_get_ssh_tunnel_command_rg_no_configuration_endpoint():
+    """Test get_ssh_tunnel_command_rg when replication group has no ConfigurationEndpoint."""
     mock_ec2 = MagicMock()
     mock_elasticache = MagicMock()
 
@@ -437,16 +427,12 @@ async def test_get_ssh_tunnel_command_rg_no_cache_nodes():
         ]
     }
 
-    # Mock ElastiCache responses
+    # Mock ElastiCache responses with no ConfigurationEndpoint
     mock_elasticache.describe_replication_groups.return_value = {
-        'ReplicationGroups': [{'MemberClusters': ['cluster-1']}]
-    }
-    # Cluster with no cache nodes
-    mock_elasticache.describe_cache_clusters.return_value = {
-        'CacheClusters': [
+        'ReplicationGroups': [
             {
-                'CacheClusterRole': 'PRIMARY',
-                'CacheNodes': [],  # Empty cache nodes
+                # No ConfigurationEndpoint
+                'MemberClusters': ['cluster-1']
             }
         ]
     }
@@ -461,9 +447,9 @@ async def test_get_ssh_tunnel_command_rg_no_cache_nodes():
             return_value=mock_elasticache,
         ),
     ):
-        # This should still work, but not include any nodes in the result
         result = await get_ssh_tunnel_command_rg('rg-test', 'i-123')
-        assert result['nodes'] == []
+        assert 'error' in result
+        assert 'No ConfigurationEndpoint found for replication group' in result['error']
 
 
 @pytest.mark.asyncio
