@@ -65,14 +65,35 @@ This MCP server can be used by AI assistants to help users manage their Amazon M
 
 ### Installation
 
-```bash
-pip install awslabs.aws-msk-mcp-server
+To use this MCP server with your MCP client, add the following configuration to your MCP client settings:
+
+```json
+"awslabs.aws-msk-mcp-server": {
+    "command": "uv",
+    "args": [
+        "--directory",
+        "<absolute path to your server code>",
+        "run",
+        "server.py"
+    ],
+    "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+    },
+    "disabled": false,
+    "autoApprove": []
+}
 ```
 
-### Running the Server
+Replace `<absolute path to your server code>` with the absolute path to the server code, for example: `/Users/myuser/mcp/src/aws-msk-mcp-server/awslabs/aws_msk_mcp_server`.
+
+Alternatively, you can use the MCP Inspector to test the server:
 
 ```bash
-uvx awslabs.aws-msk-mcp-server
+npx @modelcontextprotocol/inspector \
+  uv \
+  --directory <absolute path to your server code> \
+  run \
+  server.py
 ```
 
 ### AWS Credentials

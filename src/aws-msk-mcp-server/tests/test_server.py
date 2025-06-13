@@ -15,68 +15,67 @@
 """Tests for the aws-msk MCP Server."""
 
 import pytest
+from awslabs.aws_msk_mcp_server.tools.static_tools.cluster_best_practices import get_cluster_best_practices
 
 
-# @pytest.mark.asyncio
-# async def test_example_tool():
-#     # Arrange
-#     test_query = "test query"
-#     expected_project_name = "awslabs aws-msk MCP Server"
-#     expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this with your tool's logic"
+class TestClusterBestPractices:
+    """Tests for the get_cluster_best_practices function."""
 
-#     # Act
-#     result = await example_tool(test_query)
+    def test_valid_instance_type(self):
+        """Test with a valid instance type."""
+        # Arrange
+        instance_type = "kafka.m5.large"
+        number_of_brokers = 3
+        
+        # Act
+        result = get_cluster_best_practices(instance_type, number_of_brokers)
+        
+        # Assert
+        assert result["Instance Type"] == f"{instance_type} (provided as input)"
+        assert result["Number of Brokers"] == f"{number_of_brokers} (provided as input)"
+        assert result["vCPU per Broker"] == 2
+        assert result["Memory (GB) per Broker"] == "8 (available on the host)"
+        assert result["Recommended Partitions per Broker"] == 1000
+        assert result["Recommended Max Partitions per Cluster"] == 3000  # 1000 * 3
+        assert result["Replication Factor"] == "3 (recommended)"
+        assert result["Minimum In-Sync Replicas"] == 2
 
-#     # Assert
-#     assert result == expected_response
+    def test_express_instance_type(self):
+        """Test with an express instance type."""
+        # Arrange
+        instance_type = "express.m7g.large"
+        number_of_brokers = 3
+        
+        # Act
+        result = get_cluster_best_practices(instance_type, number_of_brokers)
+        
+        # Assert
+        assert result["Instance Type"] == f"{instance_type} (provided as input)"
+        assert "express clusters" in result["Replication Factor"]
+        assert result["Replication Factor"] == "3 (Note: For express clusters, replication factor should always be 3)"
 
-# @pytest.mark.asyncio
-# async def test_example_tool_failure():
-#     # Arrange
-#     test_query = "test query"
-#     expected_project_name = "awslabs aws-msk MCP Server"
-#     expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this your tool's new logic"
+    def test_invalid_instance_type(self):
+        """Test with an invalid instance type."""
+        # Arrange
+        instance_type = "invalid.instance.type"
+        number_of_brokers = 3
+        
+        # Act
+        result = get_cluster_best_practices(instance_type, number_of_brokers)
+        
+        # Assert
+        assert "Error" in result
+        assert f"Instance type '{instance_type}' is not supported or recognized" in result["Error"]
 
-#     # Act
-#     result = await example_tool(test_query)
-
-#     # Assert
-#     assert result != expected_response
-
-# @pytest.mark.asyncio
-# class TestMathTool:
-#     async def test_addition(self):
-#         # Test integer addition
-#         assert await math_tool('add', 2, 3) == 5
-#         # Test float addition
-#         assert await math_tool('add', 2.5, 3.5) == 6.0
-
-#     async def test_subtraction(self):
-#         # Test integer subtraction
-#         assert await math_tool('subtract', 5, 3) == 2
-#         # Test float subtraction
-#         assert await math_tool('subtract', 5.5, 2.5) == 3.0
-
-#     async def test_multiplication(self):
-#         # Test integer multiplication
-#         assert await math_tool('multiply', 4, 3) == 12
-#         # Test float multiplication
-#         assert await math_tool('multiply', 2.5, 2) == 5.0
-
-#     async def test_division(self):
-#         # Test integer division
-#         assert await math_tool('divide', 6, 2) == 3.0
-#         # Test float division
-#         assert await math_tool('divide', 5.0, 2.0) == 2.5
-
-#     async def test_division_by_zero(self):
-#         # Test division by zero raises ValueError
-#         with pytest.raises(ValueError) as exc_info:
-#             await math_tool('divide', 5, 0)
-#         assert str(exc_info.value) == 'The denominator 0 cannot be zero.'
-
-#     async def test_invalid_operation(self):
-#         # Test invalid operation raises ValueError
-#         with pytest.raises(ValueError) as exc_info:
-#             await math_tool('power', 2, 3)
-#         assert 'Invalid operation: power' in str(exc_info.value)
+    def test_small_broker_count(self):
+        """Test with a broker count less than the recommended replication factor."""
+        # Arrange
+        instance_type = "kafka.m5.large"
+        number_of_brokers = 2  # Less than recommended replication factor of 3
+        
+        # Act
+        result = get_cluster_best_practices(instance_type, number_of_brokers)
+        
+        # Assert
+        assert result["Replication Factor"] == "2 (recommended)"
+        assert result["Minimum In-Sync Replicas"] == 2
