@@ -479,6 +479,21 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 
 See individual server READMEs for specific requirements and configuration options.
 
+If you have problems with MCP configuration or want to check if the appropriate parameters are in place, you can try the following:
+
+```shell
+# Run MCP server manually with timeout 15s
+$ timeout 15s uv tool run <MCP Name> <args> 2>&1 || echo "Command completed or timed out"
+
+# Example (Aurora MySQL MCP Server)
+$ timeout 15s uv tool run awslabs.mysql-mcp-server --resource_arn <Your Resource ARN> --secret_arn <Your Secret ARN> ... 2>&1 || echo "Command completed or timed out"
+
+# If the arguments are not set appropriately, you may see the following message:
+usage: awslabs.mysql-mcp-server [-h] --resource_arn RESOURCE_ARN --secret_arn SECRET_ARN --database DATABASE
+                                --region REGION --readonly READONLY
+awslabs.mysql-mcp-server: error: the following arguments are required: --resource_arn, --secret_arn, --database, --region, --readonly
+```
+
 **Note about performance when using `uvx` *"@latest"* suffix:**
 
 Using the *"@latest"* suffix checks and downloads the latest MCP server package from pypi every time you start your MCP clients, but it comes with a cost of increased initial load times. If you want to minimize the initial load time, remove *"@latest"* and manage your uv cache yourself using one of these approaches:
