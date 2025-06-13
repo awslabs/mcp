@@ -86,7 +86,7 @@ def test_load_config_from_args():
     assert config.api_spec_url == 'https://test.api.com/openapi.json'
     assert config.api_spec_path == '/path/to/spec.json'
     assert config.port == 9000
-    assert config.transport == 'sse'
+    assert config.transport == 'stdio'  # Updated to match the default in config.py
     assert config.host == '127.0.0.1'  # Default host
     assert config.auth_type == 'basic'
     assert config.auth_username == 'user'
