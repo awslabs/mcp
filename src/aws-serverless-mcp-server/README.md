@@ -84,6 +84,38 @@ Add the following code to your MCP client configuration. The Serverless MCP serv
 }
 ```
 
+### Using Docker
+You can also run the AWS Serverless MCP Server in a Docker container. First, build the Docker image:
+
+```bash
+docker build -t awslabs/aws-serverless-mcp-server .
+```
+
+Then configure your MCP client to use the Docker container:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-serverless-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--interactive",
+        "--env",
+        "FASTMCP_LOG_LEVEL=INFO",
+        "--env",
+        "AWS_REGION=us-east-1",
+        "awslabs/aws-serverless-mcp-server:latest"
+      ],
+      "env": {},
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
 ## Serverless MCP Server configuration options
 ### `--allow-write`
 Enables write access mode, which allows mutating operations and creation of public resources. By default, the server runs in read-only mode, which restricts operations to only perform read actions, preventing any changes to AWS resources.
