@@ -16,9 +16,10 @@ This project is a server that dynamically creates Model Context Protocol (MCP) t
     - Follows MCP-compliant structure with name, description, arguments, and metadata
     - Achieves 70-75% reduction in token usage while maintaining functionality
     - Uses concise descriptions with essential information for better developer experience
-- **Multiple Transport Options**: Supports SSE and stdio transports
+- **Transport Options**: Supports stdio transport
 - **Flexible Configuration**: Configure via environment variables or command line arguments
 - **OpenAPI Support**: Works with OpenAPI 3.x specifications in JSON or YAML format
+- **OpenAPI Specification Validation**: Validates specifications without failing startup if issues detected, logging warnings instead to work with specs having minor issues or non-standard extensions
 - **Authentication Support**: Supports multiple authentication methods (Basic, Bearer Token, API Key, Cognito)
 - **AWS Best Practices**: Implements AWS best practices for caching, resilience, and observability
 - **Comprehensive Testing**: Includes extensive unit and integration tests with high code coverage
@@ -137,7 +138,7 @@ For local development and testing, you can use the `uvx` command with the `--ref
 
 ```bash
 # Run the server from the local directory with the Petstore API
-uvx --refresh --from . awslabs.openapi-mcp-server --api-url https://petstore3.swagger.io/api/v3 --spec-url https://petstore3.swagger.io/api/v3/openapi.json --log-level DEBUG --sse
+uvx --refresh --from . awslabs.openapi-mcp-server --api-url https://petstore3.swagger.io/api/v3 --spec-url https://petstore3.swagger.io/api/v3/openapi.json --log-level DEBUG
 ```
 
 **Command Options Explained:**
@@ -149,13 +150,10 @@ uvx --refresh --from . awslabs.openapi-mcp-server --api-url https://petstore3.sw
 - `--api-url` - The base URL of the API
 - `--spec-url` - The URL of the OpenAPI specification
 - `--log-level DEBUG` - Sets the logging level to DEBUG for more detailed logs (useful for development)
-- `--sse` - Enables the Server-Sent Events (SSE) transport for web-based clients
-
 **When to Use These Options:**
 
 - Use `--refresh` when you've made changes to your code and want to ensure the latest version is used
 - Use `--log-level DEBUG` when you need detailed logs for troubleshooting or development
-- Use `--sse` when you need to test with web-based clients that require Server-Sent Events
 
 **Note:** The Petstore API is a standard OpenAPI schema endpoint that can be used for simple testing without any API authentication configuration. It's perfect for testing your MCP server implementation without setting up your own API.
 
@@ -170,7 +168,7 @@ export SERVER_DEBUG=true
 export SERVER_MESSAGE_TIMEOUT=60
 export SERVER_HOST="0.0.0.0"
 export SERVER_PORT=8000
-export SERVER_TRANSPORT="sse"  # Options: sse, stdio
+export SERVER_TRANSPORT="stdio"  # Option: stdio
 export LOG_LEVEL="INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 # Metrics and monitoring configuration
@@ -234,7 +232,7 @@ docker run -p 8000:8000 \
   -e API_NAME=myapi \
   -e API_BASE_URL=https://api.example.com \
   -e API_SPEC_URL=https://api.example.com/openapi.json \
-  -e SERVER_TRANSPORT=sse \
+  -e SERVER_TRANSPORT=stdio \
   -e ENABLE_PROMETHEUS=false \
   -e ENABLE_OPERATION_PROMPTS=true \
   -e UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=5.0 \
@@ -242,7 +240,7 @@ docker run -p 8000:8000 \
   openapi-mcp-server:latest
 ```
 
-For detailed information about Docker deployment, AWS service integration, and SSE transport considerations, see the [DEPLOYMENT.md](DEPLOYMENT.md) file.
+For detailed information about Docker deployment, AWS service integration, and transport considerations, see the [DEPLOYMENT.md](DEPLOYMENT.md) file.
 
 ## Testing
 
@@ -294,7 +292,7 @@ This server acts as a bridge between OpenAPI specifications and LLMs, allowing m
    - API base URL
    - OpenAPI specification URL or local file path
 2. Set up appropriate authentication if your API requires it
-3. Choose between SSE or stdio transport options based on your needs
+3. Configure the stdio transport option
 
 ### Monitoring and Metrics
 
