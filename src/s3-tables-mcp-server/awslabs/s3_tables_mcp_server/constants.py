@@ -9,7 +9,7 @@ for Pydantic models.
 from pydantic import Field
 
 # Version
-MCP_SERVER_VERSION = '0.1.0'  # Current version of the S3 Tables MCP Server
+MCP_SERVER_VERSION = '0.0.0'  # Current version of the S3 Tables MCP Server
 
 # Patterns
 TABLE_BUCKET_NAME_PATTERN = r'[a-z0-9][a-z0-9-]{1,61}[a-z0-9]'

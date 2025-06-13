@@ -171,7 +171,7 @@ async def list_namespaces_resource() -> str:
                 )
                 all_namespaces.extend(namespaces)
             except Exception as e:
-                continue
+                return create_error_response(e, 'namespaces')
         
         return await create_resource_response(
             items=all_namespaces,
@@ -222,7 +222,7 @@ async def list_tables_resource() -> str:
                 
                 all_tables.extend(tables)
             except Exception as e:
-                continue
+                return create_error_response(e, 'tables')
         
         return await create_resource_response(
             items=all_tables,
