@@ -1,0 +1,33 @@
+[project]
+name = "awslabs.aws-fis-mcp-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "asyncio>=3.4.3",
+    "aws-cdk-lib>=2.200.1",
+    "boto3>=1.38.32",
+    "chromadb==1.0.7",
+    "dotenv>=0.9.9",
+    "fastmcp>=2.7.0",
+    "langchain-community>=0.3.24",
+    "langchain-text-splitters>=0.3.8",
+    "pathlib>=1.0.1",
+    "pydantic>=2.11.5",
+    "pypdf>=5.6.0",
+    "sentence-transformers>=4.1.0",
+]
+
+[project.scripts]
+"awslabs.aws-fis-mcp-server" = "awslabs.aws-fis-mcp-server.server:main"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/aws-fis-mcp-server/__init__.py:__version__"
+]
+update_changelog_on_bump = true

@@ -1,0 +1,6 @@
+# Virtual environments
+.venv
+.env
+
+# Package management
+uv.lock
