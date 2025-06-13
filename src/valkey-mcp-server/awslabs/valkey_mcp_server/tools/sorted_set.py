@@ -16,6 +16,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from typing import Any, Dict, Optional
 from valkey.exceptions import ValkeyError
 
@@ -31,6 +32,10 @@ async def sorted_set_add(key: str, mapping: Dict[Any, float]) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot add to sorted set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.zadd(key, mapping)
@@ -51,6 +56,10 @@ async def sorted_set_add_incr(key: str, member: Any, score: float) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot increment score in sorted set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.zincrby(key, score, member)
@@ -70,6 +79,10 @@ async def sorted_set_remove(key: str, *members: Any) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot remove from sorted set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.zrem(key, *members)
@@ -90,6 +103,10 @@ async def sorted_set_remove_by_rank(key: str, start: int, stop: int) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot remove from sorted set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.zremrangebyrank(key, start, stop)
@@ -110,6 +127,10 @@ async def sorted_set_remove_by_score(key: str, min_score: float, max_score: floa
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot remove from sorted set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.zremrangebyscore(key, min_score, max_score)
@@ -130,6 +151,10 @@ async def sorted_set_remove_by_lex(key: str, min_lex: str, max_lex: str) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot remove from sorted set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.zremrangebylex(key, min_lex, max_lex)
@@ -325,6 +350,10 @@ async def sorted_set_popmin(key: str, count: Optional[int] = None) -> str:
     Returns:
         Popped members with scores or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot pop from sorted set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         if count:
@@ -349,6 +378,10 @@ async def sorted_set_popmax(key: str, count: Optional[int] = None) -> str:
     Returns:
         Popped members with scores or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot pop from sorted set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         if count:

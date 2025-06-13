@@ -14,7 +14,9 @@
 
 """awslabs memcached MCP Server implementation."""
 
+import argparse
 from awslabs.memcached_mcp_server.common.server import mcp
+from awslabs.memcached_mcp_server.context import Context
 from awslabs.memcached_mcp_server.tools import cache  # noqa: F401
 from loguru import logger
 from starlette.requests import Request  # noqa: F401
@@ -41,6 +43,18 @@ class MemcachedMCPServer:
 
 def main():
     """Run the MCP server with CLI argument support."""
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server for interacting with Memcached'
+    )
+    parser.add_argument(
+        '--readonly',
+        action=argparse.BooleanOptionalAction,
+        help='Prevents the MCP server from performing mutating operations',
+    )
+
+    args = parser.parse_args()
+    Context.initialize(args.readonly)
+
     logger.info('Amazon ElastiCache Memcached MCP Server Started...')
     MemcachedMCPServer().run()
 

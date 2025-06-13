@@ -37,7 +37,7 @@ async def test_create_serverless_cache_basic():
             snapshot_arns_to_restore=None,
             subnet_ids=None,
             tags=None,
-            vpc_security_group_ids=None,
+            security_group_ids=None,
             cache_usage_limits=None,
             user_group_id=None,
             snapshot_retention_limit=None,
@@ -77,7 +77,7 @@ async def test_create_serverless_cache_all_params():
             snapshot_arns_to_restore=['arn:aws:s3:::bucket/snapshot1'],
             subnet_ids=['subnet-1', 'subnet-2'],
             tags=[Tag(Key='Environment', Value='Production')],
-            vpc_security_group_ids=['sg-1', 'sg-2'],
+            security_group_ids=['sg-1', 'sg-2'],
             cache_usage_limits=CacheUsageLimits(
                 DataStorage=DataStorageLimits(Maximum=1024, Minimum=1, Unit='GB'),
                 ECPUPerSecond=ECPULimits(Maximum=100, Minimum=1),
@@ -99,7 +99,7 @@ async def test_create_serverless_cache_all_params():
         assert call_args['SnapshotArnsToRestore'] == ['arn:aws:s3:::bucket/snapshot1']
         assert call_args['SubnetIds'] == ['subnet-1', 'subnet-2']
         assert call_args['Tags'] == [{'Key': 'Environment', 'Value': 'Production'}]
-        assert call_args['VpcSecurityGroupIds'] == ['sg-1', 'sg-2']
+        assert call_args['SecurityGroupIds'] == ['sg-1', 'sg-2']
         assert call_args['CacheUsageLimits'] == {
             'DataStorage': {'Maximum': 1024, 'Minimum': 1, 'Unit': 'GB'},
             'ECPUPerSecond': {'Maximum': 100, 'Minimum': 1},
@@ -127,7 +127,7 @@ async def test_create_serverless_cache_all_params():
                     snapshot_arns_to_restore=None,
                     subnet_ids=None,
                     tags=None,
-                    vpc_security_group_ids=None,
+                    security_group_ids=None,
                     cache_usage_limits=None,
                     user_group_id=None,
                     snapshot_retention_limit=None,
@@ -148,7 +148,7 @@ async def test_create_serverless_cache_all_params():
                     snapshot_arns_to_restore=None,
                     subnet_ids=None,
                     tags=None,
-                    vpc_security_group_ids=None,
+                    security_group_ids=None,
                     cache_usage_limits=None,
                     user_group_id=None,
                     snapshot_retention_limit=None,

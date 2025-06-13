@@ -53,15 +53,28 @@ async def _configure_security_groups(
     )['ServerlessCaches'][0]
 
     # Get cache security groups
-    cache_security_groups = serverless_cache['VpcSecurityGroups']
+    cache_security_groups = serverless_cache['SecurityGroupIds']
     if not cache_security_groups:
         raise ValueError(f'No security groups found for serverless cache {serverless_cache_name}')
 
-    # Get cache VPC ID
-    cache_vpc_id = cache_security_groups[0]['VpcId']
+    # Get cache VPC ID from subnet IDs
+    if not serverless_cache.get('SubnetIds'):
+        raise ValueError(f'No subnet IDs found for serverless cache {serverless_cache_name}')
 
-    # Get cache port (default is 6379 for Redis)
-    cache_port = 6379
+    # Get subnet details to find VPC ID
+    subnet_response = ec2_client.describe_subnets(SubnetIds=[serverless_cache['SubnetIds'][0]])
+    cache_vpc_id = subnet_response['Subnets'][0]['VpcId']
+
+    # Get cache port dynamically from endpoint if available
+    # Set default port based on engine type
+    engine = serverless_cache.get('Engine', '').lower()
+    if engine == 'memcached':
+        cache_port = 11211  # Default port for Memcached
+    else:
+        cache_port = 6379  # Default port for Redis/Valkey
+
+    if serverless_cache.get('Endpoint') and serverless_cache['Endpoint'].get('Port'):
+        cache_port = serverless_cache['Endpoint']['Port']
 
     # Get EC2 instance details
     instance_info = ec2_client.describe_instances(InstanceIds=[instance_id])
@@ -83,8 +96,7 @@ async def _configure_security_groups(
         raise ValueError(f'No security groups found for EC2 instance {instance_id}')
 
     # For each cache security group, ensure it allows inbound access from EC2 security groups
-    for cache_sg in cache_security_groups:
-        cache_sg_id = cache_sg['SecurityGroupId']
+    for cache_sg_id in cache_security_groups:
         cache_sg_info = ec2_client.describe_security_groups(GroupIds=[cache_sg_id])[
             'SecurityGroups'
         ][0]
@@ -223,9 +235,19 @@ async def get_ssh_tunnel_command_serverless(
             ServerlessCacheName=serverless_cache_name
         )['ServerlessCaches'][0]
 
-        # Get cache endpoint and port (default port is 6379 for Redis)
+        # Get cache endpoint and port
         cache_endpoint = serverless_cache['Endpoint']['Address']
-        cache_port = 6379
+
+        # Get cache port dynamically from endpoint if available
+        # Set default port based on engine type
+        engine = serverless_cache.get('Engine', '').lower()
+        if engine == 'memcached':
+            cache_port = 11211  # Default port for Memcached
+        else:
+            cache_port = 6379  # Default port for Redis/Valkey
+
+        if serverless_cache.get('Endpoint') and serverless_cache['Endpoint'].get('Port'):
+            cache_port = serverless_cache['Endpoint']['Port']
 
         # Generate SSH tunnel command
         ssh_command = (
@@ -301,14 +323,19 @@ async def create_jump_host_serverless(
         )['ServerlessCaches'][0]
 
         # Get cache security groups
-        cache_security_groups = serverless_cache['VpcSecurityGroups']
+        cache_security_groups = serverless_cache['SecurityGroupIds']
         if not cache_security_groups:
             raise ValueError(
                 f'No security groups found for serverless cache {serverless_cache_name}'
             )
 
-        # Get cache VPC ID
-        cache_vpc_id = cache_security_groups[0]['VpcId']
+        # Get cache VPC ID from subnet IDs
+        if not serverless_cache.get('SubnetIds'):
+            raise ValueError(f'No subnet IDs found for serverless cache {serverless_cache_name}')
+
+        # Get subnet details to find VPC ID
+        subnet_response = ec2_client.describe_subnets(SubnetIds=[serverless_cache['SubnetIds'][0]])
+        cache_vpc_id = subnet_response['Subnets'][0]['VpcId']
 
         # Get subnet details and verify it's public
         subnet_response = ec2_client.describe_subnets(SubnetIds=[subnet_id])

@@ -89,9 +89,7 @@ class CreateServerlessCacheRequest(BaseModel):
             'a list of Tag objects, or a dict of key-value pairs'
         ),
     )
-    vpc_security_group_ids: Optional[List[str]] = Field(
-        None, description='List of VPC security group IDs'
-    )
+    security_group_ids: Optional[List[str]] = Field(None, description='List of security group IDs')
     cache_usage_limits: Optional[CacheUsageLimits] = Field(
         None, description='Usage limits for the cache'
     )
@@ -143,9 +141,7 @@ class ModifyServerlessCacheRequest(BaseModel):
     user_group_id: Optional[str] = Field(
         None, description='ID of the user group to associate with the cache'
     )
-    vpc_security_group_ids: Optional[List[str]] = Field(
-        None, description='List of VPC security group IDs'
-    )
+    security_group_ids: Optional[List[str]] = Field(None, description='List of security group IDs')
 
     @field_validator('daily_snapshot_time')
     def validate_snapshot_time(cls, v):

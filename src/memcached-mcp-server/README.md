@@ -10,6 +10,17 @@ MCP server for interacting with Amazon ElastiCache Memcached through a secure an
 - Secure communication with SSL/TLS encryption
 - Automatic connection management and pooling
 - Built-in retry mechanism for failed operations
+- Readonly mode to prevent write operations
+
+### Readonly Mode
+
+The server can be started in readonly mode, which prevents any write operations from being performed. This is useful for scenarios where you want to ensure that no data is modified, such as:
+
+- Read-only replicas
+- Production environments where writes should be restricted
+- Debugging and monitoring without risk of data modification
+
+When readonly mode is enabled, any attempt to perform a write operation (set, add, replace, delete, etc.) will return an error message.
 
 ## Prerequisites
 
@@ -41,6 +52,26 @@ Here are some ways you can work with MCP (e.g. for Amazon Q Developer CLI MCP, `
 }
 ```
 
+To run in readonly mode:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.memcached-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.memcached-mcp-server@latest", "--readonly"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MEMCACHED_HOST": "your-memcached-host",
+        "MEMCACHED_PORT": "11211"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
 or docker after a successful `docker build -t awslabs/memcached-mcp-server .`:
 
 ```json
@@ -59,6 +90,34 @@ or docker after a successful `docker build -t awslabs/memcached-mcp-server .`:
         "--env",
         "MEMCACHED_PORT=11211",
         "awslabs/memcached-mcp-server:latest"
+      ],
+      "env": {},
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+To run in readonly mode with Docker:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.memcached-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--interactive",
+        "--env",
+        "FASTMCP_LOG_LEVEL=ERROR",
+        "--env",
+        "MEMCACHED_HOST=your-memcached-host",
+        "--env",
+        "MEMCACHED_PORT=11211",
+        "awslabs/memcached-mcp-server:latest",
+        "--readonly"
       ],
       "env": {},
       "disabled": false,
@@ -124,4 +183,12 @@ docker run -p 8080:8080 \
   -e MEMCACHED_HOST=host.docker.internal \
   -e MEMCACHED_PORT=11211 \
   awslabs/memcached-mcp-server
+```
+
+To run in readonly mode:
+```bash
+docker run -p 8080:8080 \
+  -e MEMCACHED_HOST=host.docker.internal \
+  -e MEMCACHED_PORT=11211 \
+  awslabs/memcached-mcp-server --readonly
 ```

@@ -45,14 +45,22 @@ class TestHash:
             mock_manager.get_connection.return_value = mock_conn
             yield mock_conn
 
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock Context."""
+        with patch('awslabs.valkey_mcp_server.tools.hash.Context') as mock_ctx:
+            mock_ctx.readonly_mode.return_value = False
+            yield mock_ctx
+
     @pytest.mark.asyncio
-    async def test_hash_set(self, mock_connection):
+    async def test_hash_set(self, mock_connection, mock_context):
         """Test setting hash field."""
         key = 'test_hash'
         field = 'test_field'
         value = 'test_value'
 
         # Test successful set
+        mock_context.readonly_mode.return_value = False
         result = await hash_set(key, field, value)
         assert f"Successfully set field '{field}' in hash '{key}'" in result
         mock_connection.hset.assert_called_with(key, field, value)
@@ -63,13 +71,22 @@ class TestHash:
         assert f"Error setting hash field in '{key}'" in result
         assert 'Test error' in result
 
+        # Test readonly mode
+        mock_connection.hset.reset_mock()
+        mock_connection.hset.side_effect = None
+        mock_context.readonly_mode.return_value = True
+        result = await hash_set(key, field, value)
+        assert 'Error: Cannot set hash field in readonly mode' in result
+        mock_connection.hset.assert_not_called()
+
     @pytest.mark.asyncio
-    async def test_hash_set_multiple(self, mock_connection):
+    async def test_hash_set_multiple(self, mock_connection, mock_context):
         """Test setting multiple hash fields."""
         key = 'test_hash'
         mapping = {'field1': 'value1', 'field2': 'value2'}
 
         # Test successful set
+        mock_context.readonly_mode.return_value = False
         mock_connection.hset.return_value = 2
         result = await hash_set_multiple(key, mapping)
         assert f"Successfully set 2 fields in hash '{key}'" in result
@@ -81,14 +98,23 @@ class TestHash:
         assert f"Error setting multiple hash fields in '{key}'" in result
         assert 'Test error' in result
 
+        # Test readonly mode
+        mock_connection.hset.reset_mock()
+        mock_connection.hset.side_effect = None
+        mock_context.readonly_mode.return_value = True
+        result = await hash_set_multiple(key, mapping)
+        assert 'Error: Cannot set multiple hash fields in readonly mode' in result
+        mock_connection.hset.assert_not_called()
+
     @pytest.mark.asyncio
-    async def test_hash_set_if_not_exists(self, mock_connection):
+    async def test_hash_set_if_not_exists(self, mock_connection, mock_context):
         """Test setting hash field if not exists."""
         key = 'test_hash'
         field = 'test_field'
         value = 'test_value'
 
         # Test successful set
+        mock_context.readonly_mode.return_value = False
         mock_connection.hsetnx.return_value = True
         result = await hash_set_if_not_exists(key, field, value)
         assert f"Successfully set field '{field}' in hash '{key}'" in result
@@ -104,6 +130,14 @@ class TestHash:
         result = await hash_set_if_not_exists(key, field, value)
         assert f"Error setting hash field in '{key}'" in result
         assert 'Test error' in result
+
+        # Test readonly mode
+        mock_connection.hsetnx.reset_mock()
+        mock_connection.hsetnx.side_effect = None
+        mock_context.readonly_mode.return_value = True
+        result = await hash_set_if_not_exists(key, field, value)
+        assert 'Error: Cannot set hash field in readonly mode' in result
+        mock_connection.hsetnx.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_hash_get(self, mock_connection):
@@ -174,12 +208,13 @@ class TestHash:
         assert 'Test error' in result
 
     @pytest.mark.asyncio
-    async def test_hash_increment(self, mock_connection):
+    async def test_hash_increment(self, mock_connection, mock_context):
         """Test incrementing hash field."""
         key = 'test_hash'
         field = 'test_field'
 
         # Test integer increment
+        mock_context.readonly_mode.return_value = False
         mock_connection.hincrby.return_value = 2
         result = await hash_increment(key, field, 1)
         assert '2' in result
@@ -196,6 +231,14 @@ class TestHash:
         result = await hash_increment(key, field)
         assert f"Error incrementing hash field in '{key}'" in result
         assert 'Test error' in result
+
+        # Test readonly mode
+        mock_connection.hincrby.reset_mock()
+        mock_connection.hincrby.side_effect = None
+        mock_context.readonly_mode.return_value = True
+        result = await hash_increment(key, field)
+        assert 'Error: Cannot increment hash field in readonly mode' in result
+        mock_connection.hincrby.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_hash_keys(self, mock_connection):

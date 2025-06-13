@@ -16,6 +16,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from typing import Any, Optional, Union
 from valkey.exceptions import ValkeyError
 
@@ -34,15 +35,13 @@ async def json_set(key: str, path: str, value: Any, nx: bool = False, xx: bool =
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set JSON value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
-        options = {}
-        if nx:
-            options['nx'] = True
-        if xx:
-            options['xx'] = True
-
-        result = r.json().set(key, path, value, **options)
+        result = r.json().set(key, path, value, nx=nx, xx=xx)
         if result:
             return f"Successfully set value at path '{path}' in '{key}'"
         return f"Failed to set value at path '{path}' in '{key}' (path condition not met)"
@@ -121,6 +120,10 @@ async def json_numincrby(key: str, path: str, value: Union[int, float]) -> str:
     Returns:
         New value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot increment JSON value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         # Convert float to int by rounding if needed
@@ -143,6 +146,10 @@ async def json_nummultby(key: str, path: str, value: Union[int, float]) -> str:
     Returns:
         New value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot multiply JSON value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         # Convert float to int by rounding if needed
@@ -165,6 +172,10 @@ async def json_strappend(key: str, path: str, value: str) -> str:
     Returns:
         New string length or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot append to JSON string in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.json().strappend(key, path, value)
@@ -206,6 +217,10 @@ async def json_arrappend(key: str, path: str, *values: Any) -> str:
     Returns:
         New array length or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot append to JSON array in readonly mode'
+
     try:
         if not values:
             return 'Error: at least one value is required'
@@ -285,6 +300,10 @@ async def json_arrpop(key: str, path: str, index: int = -1) -> str:
     Returns:
         Popped value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot pop from JSON array in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.json().arrpop(key, path, index)
@@ -308,6 +327,10 @@ async def json_arrtrim(key: str, path: str, start: int, stop: int) -> str:
     Returns:
         New array length or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot trim JSON array in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.json().arrtrim(key, path, start, stop)
@@ -373,6 +396,10 @@ async def json_toggle(key: str, path: str) -> str:
     Returns:
         New boolean value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot toggle JSON boolean in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.json().toggle(key, path)
@@ -394,6 +421,10 @@ async def json_clear(key: str, path: str) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot clear JSON container in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.json().clear(key, path)
@@ -415,6 +446,10 @@ async def json_del(key: str, path: str) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot delete JSON value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.json().delete(key, path)

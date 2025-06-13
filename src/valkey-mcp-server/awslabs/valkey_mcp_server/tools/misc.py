@@ -14,6 +14,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from typing import Any, Dict
 from valkey.exceptions import ValkeyError as RedisError
 
@@ -28,6 +29,10 @@ async def delete(key: str) -> str:
     Returns:
         str: Confirmation message or an error message.
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot delete key in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.delete(key)
@@ -67,6 +72,10 @@ async def expire(name: str, expire_seconds: int) -> str:
     Returns:
         A success message or an error message.
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set expiration in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         success = r.expire(name, expire_seconds)
@@ -92,6 +101,10 @@ async def rename(old_key: str, new_key: str) -> Dict[str, Any]:
             On success: {"status": "success", "message": "..."}
             On error: {"error": "..."}
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return {'error': 'Cannot rename key in readonly mode'}
+
     try:
         r = ValkeyConnectionManager.get_connection()
 

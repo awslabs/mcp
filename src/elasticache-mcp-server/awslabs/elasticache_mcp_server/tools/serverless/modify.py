@@ -53,7 +53,7 @@ async def modify_serverless_cache(request: ModifyServerlessCacheRequest) -> Dict
                     "Minimum": int   # Minimum ECPU per second
                 }
             }
-        security_group_ids (Optional[List[str]]): List of VPC security group IDs.
+        security_group_ids (Optional[List[str]]): List of security group IDs.
         user_group_id (Optional[str]): ID of the user group to associate with the cache.
 
     Returns:

@@ -14,7 +14,9 @@
 
 """awslabs valkey MCP Server implementation."""
 
+import argparse
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from awslabs.valkey_mcp_server.tools import (
     bitmap,  # noqa: F401
     hash,  # noqa: F401
@@ -56,6 +58,18 @@ class ValkeyMCPServer:
 
 def main():
     """Run the MCP server with CLI argument support."""
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server for interacting with Valkey'
+    )
+    parser.add_argument(
+        '--readonly',
+        action=argparse.BooleanOptionalAction,
+        help='Prevents the MCP server from performing mutating operations',
+    )
+
+    args = parser.parse_args()
+    Context.initialize(args.readonly)
+
     logger.info('Amazon ElastiCache/MemoryDB Valkey MCP Server Started...')
 
     server = ValkeyMCPServer()

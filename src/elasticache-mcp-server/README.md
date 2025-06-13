@@ -1,6 +1,6 @@
 # AWS ElastiCache MCP Server
 
-The official MCP Server for interacting with AWS ElastiCache
+The official MCP Server for interacting with AWS ElastiCache control plane. In order to interact with your data in ElastiCache Serverless caches and self-designed clusters use the [Valkey MCP Server](https://github.com/awslabs/mcp/blob/main/src/valkey-mcp-server) or the [Memcached MCP Server](https://github.com/awslabs/mcp/blob/main/src/memcached-mcp-server).
 
 ## Available MCP Tools
 
