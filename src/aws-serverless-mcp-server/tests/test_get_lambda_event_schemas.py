@@ -38,7 +38,7 @@ class TestGetLambdaEventSchemas:
             "Header2": "value2"
             },
             "requestContext": {
-            "accountId": "123456789012",
+            "accountId": "000000000000",
             "apiId": "api-id",
             "domainName": "id.execute-api.us-east-1.amazonaws.com",
             "domainPrefix": "id"
