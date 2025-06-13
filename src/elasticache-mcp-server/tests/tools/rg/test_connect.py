@@ -39,20 +39,18 @@ async def test_configure_security_groups_success():
             }
         ]
     }
-    primary_cluster_response = {
+    first_cluster_response = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
                 'SecurityGroups': [{'SecurityGroupId': 'sg-123'}],
                 'CacheNodes': [{'Endpoint': {'Port': 6379}}],
             }
         ]
     }
-    replica_cluster_response = {
+    second_cluster_response = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'REPLICA',
                 'CacheSubnetGroupName': 'subnet-group-1',
                 'SecurityGroups': [{'SecurityGroupId': 'sg-123'}],
                 'CacheNodes': [{'Endpoint': {'Port': 6379}}],
@@ -60,14 +58,12 @@ async def test_configure_security_groups_success():
         ]
     }
     # Need to provide enough responses for all calls:
-    # 2 initial calls to find primary (cluster-1, cluster-2)
-    # 1 call to get primary details again
+    # 1 call to get first cluster details
     # 2 final calls in the loop for security groups (cluster-1, cluster-2)
     mock_elasticache.describe_cache_clusters.side_effect = [
-        primary_cluster_response,  # First call in loop to find primary (cluster-1)
-        primary_cluster_response,  # Second call to get primary details
-        primary_cluster_response,  # Third call in final loop (cluster-1)
-        replica_cluster_response,  # Third call in final loop (cluster-2)
+        first_cluster_response,  # First call to get first cluster details
+        first_cluster_response,  # Second call in final loop (cluster-1)
+        second_cluster_response,  # Third call in final loop (cluster-2)
     ]
     mock_elasticache.describe_cache_subnet_groups.return_value = {
         'CacheSubnetGroups': [{'VpcId': 'vpc-123'}]
@@ -118,7 +114,6 @@ async def test_configure_security_groups_vpc_mismatch():
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
             }
         ]
@@ -194,32 +189,15 @@ async def test_get_ssh_tunnel_command_rg_success():
         ]
     }
 
-    # Mock ElastiCache responses
+    # Mock ElastiCache responses with ConfigurationEndpoint
     mock_elasticache.describe_replication_groups.return_value = {
-        'ReplicationGroups': [{'MemberClusters': ['cluster-1', 'cluster-2']}]
+        'ReplicationGroups': [
+            {
+                'ConfigurationEndpoint': {'Address': 'config.cache.amazonaws.com', 'Port': 6379},
+                'MemberClusters': ['cluster-1', 'cluster-2'],
+            }
+        ]
     }
-    mock_elasticache.describe_cache_clusters.side_effect = [
-        {
-            'CacheClusters': [
-                {
-                    'CacheClusterRole': 'PRIMARY',
-                    'CacheNodes': [
-                        {'Endpoint': {'Address': 'primary.cache.amazonaws.com', 'Port': 6379}}
-                    ],
-                }
-            ]
-        },
-        {
-            'CacheClusters': [
-                {
-                    'CacheClusterRole': 'REPLICA',
-                    'CacheNodes': [
-                        {'Endpoint': {'Address': 'replica.cache.amazonaws.com', 'Port': 6379}}
-                    ],
-                }
-            ]
-        },
-    ]
 
     with (
         patch(
@@ -237,15 +215,15 @@ async def test_get_ssh_tunnel_command_rg_success():
     assert result['keyName'] == 'test-key'
     assert result['user'] == 'ec2-user'
     assert result['jumpHostDns'] == 'ec2-1-2-3-4.compute-1.amazonaws.com'
-    assert len(result['nodes']) == 2
-    assert result['basePort'] == 6379
+    assert result['localPort'] == 6379
+    assert result['remoteEndpoint'] == 'config.cache.amazonaws.com'
+    assert result['remotePort'] == 6379
 
     # Verify command format
-    primary_node = next(node for node in result['nodes'] if node['role'] == 'PRIMARY')
-    assert 'ssh -i "test-key.pem"' in primary_node['command']
-    # Check that both the endpoint and port are in the command, but don't require a specific format
-    assert 'primary.cache.amazonaws.com' in primary_node['command']
-    assert '6379' in primary_node['command']
+    assert 'command' in result
+    assert 'ssh -i "test-key.pem"' in result['command']
+    assert 'config.cache.amazonaws.com' in result['command']
+    assert '6379' in result['command']
 
 
 @pytest.mark.asyncio
@@ -276,7 +254,6 @@ async def test_create_jump_host_rg_success():
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
             }
         ]
@@ -380,7 +357,6 @@ async def test_create_jump_host_rg_private_subnet():
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
             }
         ]
@@ -465,7 +441,6 @@ async def test_create_jump_host_rg_invalid_key():
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
             }
         ]

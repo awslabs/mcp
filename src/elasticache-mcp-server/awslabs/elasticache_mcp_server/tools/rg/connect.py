@@ -19,7 +19,7 @@ from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
 from botocore.exceptions import ClientError
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
 
 async def _configure_security_groups(
@@ -52,28 +52,21 @@ async def _configure_security_groups(
         ReplicationGroupId=replication_group_id
     )['ReplicationGroups'][0]
 
-    # Get primary cluster details
-    primary_cluster_id = None
-    for member in replication_group['MemberClusters']:
-        cluster = elasticache_client.describe_cache_clusters(
-            CacheClusterId=member, ShowCacheNodeInfo=True
-        )['CacheClusters'][0]
-        if cluster['CacheClusterRole'].lower() == 'primary':
-            primary_cluster_id = member
-            break
+    # Get first cluster details (MemberClusters doesn't have notion of primary cluster)
+    if not replication_group['MemberClusters']:
+        raise ValueError(f'No clusters found in replication group {replication_group_id}')
 
-    if not primary_cluster_id:
-        raise ValueError(f'No primary cluster found in replication group {replication_group_id}')
+    first_cluster_id = replication_group['MemberClusters'][0]
 
-    # Get cache cluster VPC ID from primary cluster
-    primary_cluster = elasticache_client.describe_cache_clusters(
-        CacheClusterId=primary_cluster_id, ShowCacheNodeInfo=True
+    # Get cache cluster VPC ID from first cluster
+    first_cluster = elasticache_client.describe_cache_clusters(
+        CacheClusterId=first_cluster_id, ShowCacheNodeInfo=True
     )['CacheClusters'][0]
 
-    # Get subnet group name from cluster
-    subnet_group_name = primary_cluster.get('CacheSubnetGroupName')
+    # Get subnet group name from first cluster
+    subnet_group_name = first_cluster.get('CacheSubnetGroupName')
     if not subnet_group_name:
-        raise ValueError(f'No cache subnet group found for cluster {primary_cluster_id}')
+        raise ValueError(f'No cache subnet group found for cluster {first_cluster_id}')
 
     # Get VPC ID from subnet group
     try:
@@ -98,8 +91,8 @@ async def _configure_security_groups(
             f'EC2 instance VPC ({instance_vpc_id}) does not match replication group VPC ({cache_vpc_id})'
         )
 
-    # Get cache cluster port from primary node
-    cache_port = primary_cluster['CacheNodes'][0]['Endpoint']['Port']
+    # Get cache cluster port from first node
+    cache_port = first_cluster['CacheNodes'][0]['Endpoint']['Port']
 
     # Get cache cluster security groups from all member clusters
     cache_security_groups = set()
@@ -209,15 +202,15 @@ async def connect_jump_host_rg(replication_group_id: str, instance_id: str) -> D
 @handle_exceptions
 async def get_ssh_tunnel_command_rg(
     replication_group_id: str, instance_id: str
-) -> Dict[str, Union[str, int, List[Dict[str, Any]], None]]:
-    """Generates SSH tunnel commands to connect to an ElastiCache replication group through an EC2 jump host.
+) -> Dict[str, Union[str, int]]:
+    """Generates an SSH tunnel command to connect to an ElastiCache replication group through an EC2 jump host.
 
     Args:
         replication_group_id (str): ID of the ElastiCache replication group to connect to
         instance_id (str): ID of the EC2 instance to use as jump host
 
     Returns:
-        Dict[str, Union[str, int, List[Dict[str, Any]]]]: Dictionary containing SSH tunnel commands and related details
+        Dict[str, Union[str, int]]: Dictionary containing the SSH tunnel command and related details
 
     Raises:
         ValueError: If required resources not found or information cannot be retrieved
@@ -256,52 +249,28 @@ async def get_ssh_tunnel_command_rg(
             ReplicationGroupId=replication_group_id
         )['ReplicationGroups'][0]
 
-        # Get node details for all clusters
-        node_commands = []
-        base_port = None
-
-        for member in replication_group['MemberClusters']:
-            cluster = elasticache_client.describe_cache_clusters(
-                CacheClusterId=member, ShowCacheNodeInfo=True
-            )['CacheClusters'][0]
-
-            if not cluster.get('CacheNodes'):
-                continue
-
-            node = cluster['CacheNodes'][0]
-            endpoint = node['Endpoint']['Address']
-            port = node['Endpoint']['Port']
-
-            if base_port is None:
-                base_port = port
-
-            # For replicas, use different local ports to avoid conflicts
-            local_port = port
-            if cluster['CacheClusterRole'].lower() != 'primary':
-                local_port = port + 1000  # Use a different port range for replicas
-
-            ssh_command = (
-                f'ssh -i "{key_name}.pem" -fN -l {user} '
-                f'-L {local_port}:{endpoint}:{port} {public_dns} -v'
+        # Use the ConfigurationEndpoint for the SSH tunnel
+        if 'ConfigurationEndpoint' not in replication_group:
+            raise ValueError(
+                f'No ConfigurationEndpoint found for replication group {replication_group_id}'
             )
 
-            node_commands.append(
-                {
-                    'role': cluster['CacheClusterRole'],
-                    'clusterId': member,
-                    'command': ssh_command,
-                    'localPort': local_port,
-                    'remoteEndpoint': endpoint,
-                    'remotePort': port,
-                }
-            )
+        endpoint = replication_group['ConfigurationEndpoint']['Address']
+        port = replication_group['ConfigurationEndpoint']['Port']
+
+        # Generate a single SSH tunnel command
+        ssh_command = (
+            f'ssh -i "{key_name}.pem" -fN -l {user} -L {port}:{endpoint}:{port} {public_dns} -v'
+        )
 
         return {
+            'command': ssh_command,
             'keyName': key_name,
             'user': user,
             'jumpHostDns': public_dns,
-            'nodes': node_commands,
-            'basePort': base_port,
+            'localPort': port,
+            'remoteEndpoint': endpoint,
+            'remotePort': port,
         }
 
     except Exception as e:
@@ -361,28 +330,19 @@ async def create_jump_host_rg(
             ReplicationGroupId=replication_group_id
         )['ReplicationGroups'][0]
 
-        # Get primary cluster details
-        primary_cluster_id = None
-        for member in replication_group['MemberClusters']:
-            cluster = elasticache_client.describe_cache_clusters(
-                CacheClusterId=member, ShowCacheNodeInfo=True
-            )['CacheClusters'][0]
-            if cluster['CacheClusterRole'].lower() == 'primary':
-                primary_cluster_id = member
-                break
+        # Get first cluster details (MemberClusters doesn't have notion of primary cluster)
+        if not replication_group['MemberClusters']:
+            raise ValueError(f'No clusters found in replication group {replication_group_id}')
 
-        if not primary_cluster_id:
-            raise ValueError(
-                f'No primary cluster found in replication group {replication_group_id}'
-            )
+        first_cluster_id = replication_group['MemberClusters'][0]
 
-        # Get VPC details from primary cluster
-        primary_cluster = elasticache_client.describe_cache_clusters(
-            CacheClusterId=primary_cluster_id, ShowCacheNodeInfo=True
+        # Get VPC details from first cluster
+        first_cluster = elasticache_client.describe_cache_clusters(
+            CacheClusterId=first_cluster_id, ShowCacheNodeInfo=True
         )['CacheClusters'][0]
 
         cache_subnet_group = elasticache_client.describe_cache_subnet_groups(
-            CacheSubnetGroupName=primary_cluster['CacheSubnetGroupName']
+            CacheSubnetGroupName=first_cluster['CacheSubnetGroupName']
         )['CacheSubnetGroups'][0]
         cache_vpc_id = cache_subnet_group['VpcId']
 
