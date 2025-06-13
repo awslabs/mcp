@@ -12,6 +12,7 @@ from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_gu
     discover_resources,
     find_clusters,
     find_load_balancers,
+    find_related_task_definitions,
     find_services,
     get_cluster_details,
     get_ecs_troubleshooting_guidance,
@@ -1073,3 +1074,23 @@ class TestComprehensiveSystem:
         assert result["status"] == "success"
         # Should have empty image check results
         assert result["raw_data"]["image_check_results"] == []
+
+    @pytest.mark.anyio
+    async def test_find_related_task_definitions_error(self):
+        """Test find_related_task_definitions with an error."""
+        app_name = "test-app"
+
+        # Create a mock ECS client
+        mock_ecs = mock.AsyncMock()
+
+        # Set up get_paginator to raise an exception
+        mock_ecs.get_paginator.side_effect = Exception("Failed to get paginator")
+
+        # Call find_related_task_definitions
+        result = await find_related_task_definitions(app_name, ecs_client=mock_ecs)
+
+        # Verify get_paginator was called with 'list_task_definitions'
+        mock_ecs.get_paginator.assert_called_once_with("list_task_definitions")
+
+        # Verify an empty list is returned when an error occurs
+        assert result == []

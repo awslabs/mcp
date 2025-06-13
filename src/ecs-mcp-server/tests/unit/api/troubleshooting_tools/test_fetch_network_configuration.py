@@ -891,3 +891,41 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
 
         # Verify only the valid target group was processed
         self.assertEqual(len(result["TargetGroups"]), 1)
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_cloudformation_error(self):
+        """Test discover_vpcs_from_cloudformation with an API error."""
+        app_name = "test-app"
+
+        # Create a mock CloudFormation client
+        mock_cfn = AsyncMock()
+
+        # Set up list_stacks to raise a ClientError
+        error_response = {"Error": {"Code": "AccessDenied", "Message": "Access denied"}}
+        mock_cfn.list_stacks.side_effect = ClientError(error_response, "ListStacks")
+
+        # Mock get_aws_client to return our mock_cfn
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        try:
+            # Replace get_aws_client to return our mock_cfn
+            async def mock_get_aws_client(service_name):
+                if service_name == "cloudformation":
+                    return mock_cfn
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Call discover_vpcs_from_cloudformation
+            vpc_ids = await discover_vpcs_from_cloudformation(app_name)
+
+            # Verify list_stacks was called
+            mock_cfn.list_stacks.assert_called_once()
+
+            # Verify an empty list is returned when an error occurs
+            self.assertEqual(vpc_ids, [])
+
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client

@@ -703,3 +703,59 @@ class TestAwsClientAsync:
             # Verify all route tables are returned when no main is found
             assert len(route_tables) == 2
             assert sorted(route_tables) == sorted(route_table_ids)
+
+    @pytest.mark.anyio
+    async def test_get_aws_client_with_role_error(self):
+        """Test get_aws_client_with_role when assume_ecr_role raises an exception."""
+        service_name = "s3"
+        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+
+        with mock.patch("awslabs.ecs_mcp_server.utils.aws.assume_ecr_role") as mock_assume_role:
+            mock_assume_role.side_effect = Exception("Failed to assume role")
+
+            with pytest.raises(Exception) as excinfo:
+                await get_aws_client_with_role(service_name, role_arn)
+
+            assert "Failed to assume role" in str(excinfo.value)
+            mock_assume_role.assert_called_once_with(role_arn)
+
+    @pytest.mark.anyio
+    async def test_get_route_tables_for_vpc_empty_response(self):
+        """Test get_route_tables_for_vpc with an empty response."""
+        vpc_id = "vpc-12345678"
+
+        mock_ec2 = mock.MagicMock()
+        mock_ec2.describe_route_tables.return_value = {"RouteTables": []}
+
+        with mock.patch("awslabs.ecs_mcp_server.utils.aws.get_aws_client") as mock_get_client:
+            mock_get_client.return_value = mock_ec2
+
+            route_tables = await get_route_tables_for_vpc(vpc_id)
+
+            mock_get_client.assert_called_once_with("ec2")
+            mock_ec2.describe_route_tables.assert_called_once_with(
+                Filters=[{"Name": "vpc-id", "Values": [vpc_id]}]
+            )
+            assert route_tables == []
+
+    @pytest.mark.anyio
+    async def test_get_route_tables_for_vpc_missing_associations_key(self):
+        """Test get_route_tables_for_vpc when route tables are missing the Associations key."""
+        vpc_id = "vpc-12345678"
+        route_table_ids = ["rtb-12345678", "rtb-87654321"]
+
+        mock_ec2 = mock.MagicMock()
+        mock_ec2.describe_route_tables.return_value = {
+            "RouteTables": [
+                {"RouteTableId": route_table_ids[0]},  # Missing Associations key
+                {"RouteTableId": route_table_ids[1]},  # Missing Associations key
+            ]
+        }
+
+        with mock.patch("awslabs.ecs_mcp_server.utils.aws.get_aws_client") as mock_get_client:
+            mock_get_client.return_value = mock_ec2
+
+            route_tables = await get_route_tables_for_vpc(vpc_id)
+
+            assert len(route_tables) == 2
+            assert sorted(route_tables) == sorted(route_table_ids)
