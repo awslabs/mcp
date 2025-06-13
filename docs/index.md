@@ -352,6 +352,21 @@ A Model Context Protocol (MCP) server for Amazon Bedrock Data Automation that en
 
 [Learn more about the AWS Bedrock Data Automation MCP Server](servers/aws-bedrock-data-automation-mcp-server.md)
 
+### AWS MSK MCP Server
+
+A Model Context Protocol (MCP) server for Amazon Managed Streaming for Kafka (MSK) that enables AI assistants to manage, monitor, and optimize MSK clusters.
+
+**Features:**
+
+- Cluster Management: Create, describe, and update MSK clusters (both provisioned and serverless)
+- Configuration Management: Create and manage MSK configurations
+- VPC Connection Management: Create, describe, and manage VPC connections
+- Monitoring and Telemetry: Access cluster metrics, logs, and operational data
+- Security Management: Configure authentication, encryption, and access policies
+- Best Practices: Get recommendations for cluster sizing, configuration, and performance optimization
+
+[Learn more about the AWS MSK MCP Server](servers/aws-msk-mcp-server.md)
+
 ### Amazon Keyspaces (for Apache Cassandra) MCP Server
 
 An Amazon Keyspaces (for Apache Cassandra) MCP server enables AI assistants to interact with Amazon Keyspaces and Apache Cassandra.

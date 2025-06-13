@@ -49,6 +49,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [AWS Cost Explorer MCP Server](#aws-cost-explorer-mcp-server)
     - [Finch MCP Server](#finch-mcp-server)
     - [AWS Bedrock Data Automation MCP Server](#aws-bedrock-data-automation-mcp-server)
+    - [AWS MSK MCP Server](#aws-msk-mcp-server)
     - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
     - [Running MCP servers in containers](#running-mcp-servers-in-containers)
@@ -556,6 +557,21 @@ A Model Context Protocol (MCP) server for Amazon Bedrock Data Automation that en
 - Integration with Amazon S3: Seamlessly upload and download assets and results
 
 [Learn more](src/aws-bedrock-data-automation-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-bedrock-data-automation-mcp-server/)
+
+### AWS MSK MCP Server
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-msk-mcp-server.svg)](https://pypi.org/project/awslabs.aws-msk-mcp-server/)
+
+A Model Context Protocol (MCP) server for Amazon Managed Streaming for Kafka (MSK) that enables AI assistants to manage, monitor, and optimize MSK clusters.
+
+- **Cluster Management**: Create, describe, and update MSK clusters (both provisioned and serverless)
+- **Configuration Management**: Create and manage MSK configurations
+- **VPC Connection Management**: Create, describe, and manage VPC connections
+- **Monitoring and Telemetry**: Access cluster metrics, logs, and operational data
+- **Security Management**: Configure authentication, encryption, and access policies
+- **Best Practices**: Get recommendations for cluster sizing, configuration, and performance optimization
+
+[Learn more](src/aws-msk-mcp-server/README.md) | [Documentation](https://awslabs.github.io/mcp/servers/aws-msk-mcp-server/)
 
 ## MCP AWS Lambda Handler Module
 
