@@ -36,10 +36,15 @@ async def test_configure_security_groups_basic():
     mock_elasticache.describe_serverless_caches.return_value = {
         'ServerlessCaches': [
             {
-                'VpcSecurityGroups': [{'SecurityGroupId': 'sg-cache', 'VpcId': 'vpc-1234'}],
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': ['subnet-1234'],
+                'Engine': 'redis',
             }
         ]
     }
+
+    # Mock subnet response for VPC ID retrieval
+    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-1234'}]}
 
     mock_ec2.describe_instances.return_value = {
         'Reservations': [
@@ -95,10 +100,15 @@ async def test_configure_security_groups_existing_rule():
     mock_elasticache.describe_serverless_caches.return_value = {
         'ServerlessCaches': [
             {
-                'VpcSecurityGroups': [{'SecurityGroupId': 'sg-cache', 'VpcId': 'vpc-1234'}],
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': ['subnet-1234'],
+                'Engine': 'redis',
             }
         ]
     }
+
+    # Mock subnet response for VPC ID retrieval
+    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-1234'}]}
 
     mock_ec2.describe_instances.return_value = {
         'Reservations': [
@@ -152,10 +162,15 @@ async def test_configure_security_groups_vpc_mismatch():
     mock_elasticache.describe_serverless_caches.return_value = {
         'ServerlessCaches': [
             {
-                'VpcSecurityGroups': [{'SecurityGroupId': 'sg-cache', 'VpcId': 'vpc-1234'}],
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': ['subnet-1234'],
+                'Engine': 'redis',
             }
         ]
     }
+
+    # Mock subnet response for VPC ID retrieval
+    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-1234'}]}
 
     mock_ec2.describe_instances.return_value = {
         'Reservations': [
@@ -214,7 +229,9 @@ async def test_get_ssh_tunnel_command_serverless_success():
             {
                 'Endpoint': {
                     'Address': 'cache.123456.cache.amazonaws.com',
-                }
+                    'Port': 6379,
+                },
+                'Engine': 'redis',
             }
         ]
     }
@@ -272,7 +289,9 @@ async def test_get_ssh_tunnel_command_serverless_ubuntu():
             {
                 'Endpoint': {
                     'Address': 'cache.123456.cache.amazonaws.com',
-                }
+                    'Port': 6379,
+                },
+                'Engine': 'redis',
             }
         ]
     }
@@ -306,10 +325,15 @@ async def test_create_jump_host_serverless_success():
     mock_elasticache.describe_serverless_caches.return_value = {
         'ServerlessCaches': [
             {
-                'VpcSecurityGroups': [{'SecurityGroupId': 'sg-cache', 'VpcId': 'vpc-1234'}],
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': ['subnet-1234'],
+                'Engine': 'redis',
             }
         ]
     }
+
+    # Mock subnet response for VPC ID retrieval
+    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-1234'}]}
 
     mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-1234'}]}
     mock_ec2.describe_route_tables.return_value = {
@@ -370,7 +394,9 @@ async def test_create_jump_host_serverless_private_subnet():
     mock_elasticache.describe_serverless_caches.return_value = {
         'ServerlessCaches': [
             {
-                'VpcSecurityGroups': [{'SecurityGroupId': 'sg-cache', 'VpcId': 'vpc-1234'}],
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': ['subnet-1234'],
+                'Engine': 'redis',
             }
         ]
     }
@@ -398,6 +424,192 @@ async def test_create_jump_host_serverless_private_subnet():
 
         assert 'error' in result
         assert 'Subnet subnet-1234 is not public' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_configure_security_groups_memcached_port():
+    """Test port selection for Memcached engine."""
+    # Mock clients
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock responses with Memcached engine
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': ['subnet-1234'],
+                'Engine': 'memcached',  # Memcached engine
+            }
+        ]
+    }
+
+    # Mock subnet response for VPC ID retrieval
+    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-1234'}]}
+
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [
+            {
+                'Instances': [
+                    {
+                        'VpcId': 'vpc-1234',
+                        'SecurityGroups': [{'GroupId': 'sg-instance'}],
+                    }
+                ]
+            }
+        ]
+    }
+    mock_ec2.describe_security_groups.return_value = {'SecurityGroups': [{'IpPermissions': []}]}
+
+    # Call function
+    success, vpc_id, port = await _configure_security_groups(
+        'cache-1', 'i-1234', mock_ec2, mock_elasticache
+    )
+
+    # Verify results
+    assert success is True
+    assert vpc_id == 'vpc-1234'
+    assert port == 11211  # Default Memcached port
+
+    # Verify security group rule was added with correct port
+    mock_ec2.authorize_security_group_ingress.assert_called_once_with(
+        GroupId='sg-cache',
+        IpPermissions=[
+            {
+                'IpProtocol': 'tcp',
+                'FromPort': 11211,
+                'ToPort': 11211,
+                'UserIdGroupPairs': [
+                    {
+                        'GroupId': 'sg-instance',
+                        'Description': 'Allow access from jump host i-1234',
+                    }
+                ],
+            }
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_configure_security_groups_with_endpoint_port():
+    """Test port retrieval from endpoint."""
+    # Mock clients
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock responses with custom port in endpoint
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': ['subnet-1234'],
+                'Engine': 'redis',
+                'Endpoint': {
+                    'Address': 'cache.123456.cache.amazonaws.com',
+                    'Port': 9999,  # Custom port
+                },
+            }
+        ]
+    }
+
+    # Mock subnet response for VPC ID retrieval
+    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-1234'}]}
+
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [
+            {
+                'Instances': [
+                    {
+                        'VpcId': 'vpc-1234',
+                        'SecurityGroups': [{'GroupId': 'sg-instance'}],
+                    }
+                ]
+            }
+        ]
+    }
+    mock_ec2.describe_security_groups.return_value = {'SecurityGroups': [{'IpPermissions': []}]}
+
+    # Call function
+    success, vpc_id, port = await _configure_security_groups(
+        'cache-1', 'i-1234', mock_ec2, mock_elasticache
+    )
+
+    # Verify results
+    assert success is True
+    assert vpc_id == 'vpc-1234'
+    assert port == 9999  # Custom port from endpoint
+
+    # Verify security group rule was added with correct port
+    mock_ec2.authorize_security_group_ingress.assert_called_once_with(
+        GroupId='sg-cache',
+        IpPermissions=[
+            {
+                'IpProtocol': 'tcp',
+                'FromPort': 9999,
+                'ToPort': 9999,
+                'UserIdGroupPairs': [
+                    {
+                        'GroupId': 'sg-instance',
+                        'Description': 'Allow access from jump host i-1234',
+                    }
+                ],
+            }
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_ssh_tunnel_command_serverless_memcached():
+    """Test SSH tunnel command generation for Memcached engine."""
+    # Mock clients
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock responses
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [
+            {
+                'Instances': [
+                    {
+                        'KeyName': 'my-key',
+                        'PublicDnsName': 'ec2-1-2-3-4.compute-1.amazonaws.com',
+                        'Platform': '',  # Linux
+                    }
+                ]
+            }
+        ]
+    }
+
+    # Mock with Memcached engine
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {
+                'Endpoint': {
+                    'Address': 'cache.123456.cache.amazonaws.com',
+                },
+                'Engine': 'memcached',  # Memcached engine
+            }
+        ]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+    ):
+        result = await get_ssh_tunnel_command_serverless('cache-1', 'i-1234')
+
+        assert 'command' in result
+        assert 'ssh -i "my-key.pem"' in result['command']
+        assert 'cache.123456.cache.amazonaws.com' in result['command']
+        assert '11211' in result['command']  # Memcached port
+        assert result['localPort'] == 11211
+        assert result['cachePort'] == 11211
 
 
 @pytest.mark.asyncio

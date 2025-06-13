@@ -16,6 +16,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from typing import Optional
 from valkey.exceptions import ValkeyError
 
@@ -32,6 +33,10 @@ async def bitmap_set(key: str, offset: int, value: int) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set bitmap bit in readonly mode'
+
     try:
         if value not in (0, 1):
             return f'Error: value must be 0 or 1, got {value}'
