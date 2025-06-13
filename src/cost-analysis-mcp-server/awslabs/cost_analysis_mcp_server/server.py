@@ -26,7 +26,7 @@ from awslabs.cost_analysis_mcp_server.terraform_analyzer import analyze_terrafor
 from bs4 import BeautifulSoup
 from httpx import AsyncClient
 from mcp.server.fastmcp import Context, FastMCP
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
 
@@ -39,10 +39,11 @@ class PricingFilter(BaseModel):
     """Filter model for AWS Price List API queries."""
 
     field: str = Field(
-        ..., description="The field to filter on (e.g., 'instanceType', 'location')"
+        ..., alias='Field', description="The field to filter on (e.g., 'instanceType', 'location')"
     )
-    type: str = Field('TERM_MATCH', description='The type of filter match')
-    value: str = Field(..., description='The value to match against')
+    type: str = Field(default='TERM_MATCH', alias='Type', description='The type of filter match')
+    value: str = Field(..., alias='Value', description='The value to match against')
+    model_config = ConfigDict(validate_by_alias=True)
 
 
 class PricingFilters(BaseModel):
@@ -276,12 +277,12 @@ async def get_pricing_from_api(
         )
 
         # Start with the region filter
-        region_filter = PricingFilter(field='regionCode', type='TERM_MATCH', value=region)
-        api_filters = [region_filter.dict()]
+        region_filter = {'Field': 'regionCode', 'Type': 'TERM_MATCH', 'Value': region}
+        api_filters = [region_filter]
 
         # Add any additional filters if provided
         if filters and filters.filters:
-            api_filters.extend([f.dict() for f in filters.filters])
+            api_filters.extend([f.model_dump(by_alias=True) for f in filters.filters])
 
         response = pricing_client.get_products(
             ServiceCode=service_code,
