@@ -393,7 +393,6 @@ def main():
         description='This project is a server that dynamically creates Model Context Protocol (MCP) tools and resources from OpenAPI specifications. It allows Large Language Models (LLMs) to interact with APIs through the Model Context Protocol.'
     )
     # Server configuration
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
     parser.add_argument('--port', type=int, help='Port to run the server on')
     parser.add_argument(
         '--log-level',
@@ -503,18 +502,9 @@ def main():
         logger.error(f'Traceback: {traceback.format_exc()}')
         sys.exit(1)
 
-    # Run server with appropriate transport
-    if config.transport == 'sse':
-        logger.info(f'Running server with SSE transport on port {config.port}')
-        mcp_server.settings.port = config.port
-
-        # Log that we're using default uvicorn settings
-        logger.info('Using default uvicorn settings for server')
-
-        mcp_server.run(transport='sse')
-    else:
-        logger.info('Running server with stdio transport')
-        mcp_server.run()
+    # Run server with stdio transport only
+    logger.info('Running server with stdio transport')
+    mcp_server.run()
 
 
 if __name__ == '__main__':

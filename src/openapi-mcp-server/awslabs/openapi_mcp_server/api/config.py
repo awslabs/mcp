@@ -50,7 +50,7 @@ class Config:
     # Default to localhost for security; use SERVER_HOST env var to override when needed (e.g. in Docker)
     host: str = '127.0.0.1'
     debug: bool = False
-    transport: str = 'stdio'  # stdio, sse
+    transport: str = 'stdio'  # stdio only
     message_timeout: int = 60
     version: str = '0.1.0'
 
@@ -137,10 +137,6 @@ def load_config(args: Any = None) -> Config:
         if hasattr(args, 'port') and args.port:
             logger.debug(f'Setting port from arguments: {args.port}')
             config.port = args.port
-
-        if hasattr(args, 'sse') and args.sse:
-            logger.debug('Setting transport to SSE from arguments')
-            config.transport = 'sse'
 
         if hasattr(args, 'debug') and args.debug:
             logger.debug('Setting debug mode from arguments')
