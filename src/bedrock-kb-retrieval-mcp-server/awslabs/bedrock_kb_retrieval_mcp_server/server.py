@@ -56,6 +56,23 @@ except Exception as e:
 
 kb_inclusion_tag_key = os.getenv('KB_INCLUSION_TAG_KEY', DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY)
 
+# Parse knowledge base ID override environment variable
+kb_id_override = os.getenv('BEDROCK_KB_ID')
+if kb_id_override:
+    logger.info(f'Using knowledge base ID override: {kb_id_override}')
+
+# Parse force override environment variable
+kb_force_override_raw = os.getenv('BEDROCK_KB_FORCE_OVERRIDE')
+kb_force_override = False
+if kb_force_override_raw is not None:
+    kb_force_override_raw = kb_force_override_raw.strip().lower()
+    if kb_force_override_raw in ('true', '1', 'yes', 'on'):
+        kb_force_override = True
+        if kb_id_override:
+            logger.info(f'Force override enabled: will ignore knowledgeBaseId parameter and always use {kb_id_override}')
+        else:
+            logger.warning('Force override enabled but BEDROCK_KB_ID not set - force override will have no effect')
+
 # Parse reranking enabled environment variable
 kb_reranking_enabled_raw = os.getenv('BEDROCK_KB_RERANKING_ENABLED')
 kb_reranking_enabled = False  # Default value is now False (off)
@@ -121,7 +138,7 @@ async def knowledgebases_resource() -> str:
     2. Note the data source IDs if you want to filter queries to specific data sources
     3. Use the names to determine which knowledge base and data source(s) are most relevant to the user's query
     """
-    return json.dumps(await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key))
+    return json.dumps(await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key, kb_id_override))
 
 
 @mcp.tool(name='QueryKnowledgeBases')
@@ -129,9 +146,9 @@ async def query_knowledge_bases_tool(
     query: str = Field(
         ..., description='A natural language query to search the knowledge base with'
     ),
-    knowledge_base_id: str = Field(
-        ...,
-        description='The knowledge base ID to query. It must be a valid ID from the resource://knowledgebases MCP resource',
+    knowledge_base_id: Optional[str] = Field(
+        None,
+        description='The knowledge base ID to query. If not provided, will use BEDROCK_KB_ID environment variable. Otherwise must be a valid ID from the resource://knowledgebases MCP resource.',
     ),
     number_of_results: int = Field(
         10,
@@ -154,6 +171,7 @@ async def query_knowledge_bases_tool(
 
     ## Usage Requirements
     - You MUST first use the `resource://knowledgebases` resource to get valid knowledge base IDs
+    - If you don't know what knowledge base ID to query, leave knowledge_base_id blank and query will run against a pre-defined knowledge base
     - You can query different knowledge bases or make multiple queries to the same knowledge base
 
     ## Query Tips
@@ -176,6 +194,21 @@ async def query_knowledge_bases_tool(
     4. If the response is not relevant, try a different query, knowledge base, and/or data source
     5. After a few attempts, ask the user for clarification or a different query.
     """
+    # Handle force override first - always use environment KB ID when force override is enabled
+    if kb_force_override and kb_id_override:
+        if knowledge_base_id and knowledge_base_id != kb_id_override:
+            logger.info(f'Force override enabled: ignoring provided knowledge_base_id "{knowledge_base_id}" and using "{kb_id_override}"')
+        knowledge_base_id = kb_id_override
+        logger.info(f'Using force override knowledge base ID: {knowledge_base_id}')
+    # Use override KB ID if no knowledge_base_id is provided
+    elif not knowledge_base_id and kb_id_override:
+        knowledge_base_id = kb_id_override
+        logger.info(f'Using override knowledge base ID: {knowledge_base_id}')
+    elif not knowledge_base_id:
+        raise ValueError('Either knowledge_base_id parameter or BEDROCK_KB_ID environment variable must be provided')
+    else:
+        logger.info(f'Querying knowledge base ID: {knowledge_base_id}')
+    
     return await query_knowledge_base(
         query=query,
         knowledge_base_id=knowledge_base_id,

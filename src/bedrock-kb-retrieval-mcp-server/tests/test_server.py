@@ -130,6 +130,189 @@ class TestQueryKnowledgeBasesTool:
             data_source_ids=['ds-12345', 'ds-67890'],
         )
 
+    @pytest.mark.asyncio
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', 'EXAMPLEKBID')
+    async def test_query_knowledge_bases_tool_with_override_no_kb_id(self, mock_query_knowledge_base):
+        """Test the query_knowledge_bases_tool function with override and no knowledge_base_id."""
+        # Set up the mock
+        mock_query_knowledge_base.return_value = json.dumps(
+            {
+                'content': {'text': 'This is a test document from override KB.', 'type': 'TEXT'},
+                'location': {'s3Location': {'uri': 's3://test-bucket/override-document.txt'}},
+                'score': 0.92,
+            }
+        )
+
+        # Call the function without knowledge_base_id (should use override)
+        result = await query_knowledge_bases_tool(
+            query='test query without kb id',
+            knowledge_base_id=None,
+            number_of_results=10,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+        )
+
+        # Check that the result is correct
+        assert 'This is a test document from override KB.' in result
+        assert 's3://test-bucket/override-document.txt' in result
+        assert '0.92' in result
+
+        # Check that query_knowledge_base was called with the override KB ID
+        mock_query_knowledge_base.assert_called_once_with(
+            query='test query without kb id',
+            knowledge_base_id='EXAMPLEKBID',  # Should use the override
+            kb_agent_client=mock.ANY,
+            number_of_results=10,
+            reranking=False,  # Default value
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+        )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', 'EXAMPLEKBID')
+    async def test_query_knowledge_bases_tool_with_override_and_explicit_kb_id(self, mock_query_knowledge_base):
+        """Test the query_knowledge_bases_tool function with override but explicit knowledge_base_id provided."""
+        # Set up the mock
+        mock_query_knowledge_base.return_value = json.dumps(
+            {
+                'content': {'text': 'This is a test document from explicit KB.', 'type': 'TEXT'},
+                'location': {'s3Location': {'uri': 's3://test-bucket/explicit-document.txt'}},
+                'score': 0.88,
+            }
+        )
+
+        # Call the function with explicit knowledge_base_id (should use explicit, not override)
+        result = await query_knowledge_bases_tool(
+            query='test query with explicit kb id',
+            knowledge_base_id='kb-explicit-123',
+            number_of_results=10,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+        )
+
+        # Check that the result is correct
+        assert 'This is a test document from explicit KB.' in result
+        assert 's3://test-bucket/explicit-document.txt' in result
+        assert '0.88' in result
+
+        # Check that query_knowledge_base was called with the explicit KB ID, not override
+        mock_query_knowledge_base.assert_called_once_with(
+            query='test query with explicit kb id',
+            knowledge_base_id='kb-explicit-123',  # Should use the explicit ID, not override
+            kb_agent_client=mock.ANY,
+            number_of_results=10,
+            reranking=False,  # Default value
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+        )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', None)
+    async def test_query_knowledge_bases_tool_no_override_no_kb_id_raises_error(self, mock_query_knowledge_base):
+        """Test the query_knowledge_bases_tool function with no override and no knowledge_base_id raises error."""
+        # This should raise a ValueError since neither override nor explicit KB ID is provided
+        with pytest.raises(ValueError) as exc_info:
+            await query_knowledge_bases_tool(
+                query='test query without any kb id',
+                knowledge_base_id=None,
+                number_of_results=10,
+                reranking=False,
+                reranking_model_name='AMAZON',
+                data_source_ids=None,
+            )
+        
+        assert 'Either knowledge_base_id parameter or BEDROCK_KB_ID environment variable must be provided' in str(exc_info.value)
+        
+        # query_knowledge_base should not have been called
+        mock_query_knowledge_base.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', 'EXAMPLEKBID')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_force_override', True)
+    async def test_query_knowledge_bases_tool_force_override_ignores_provided_kb_id(self, mock_query_knowledge_base):
+        """Test that force override ignores provided knowledge_base_id and uses environment KB ID."""
+        # Set up the mock
+        mock_query_knowledge_base.return_value = json.dumps(
+            {
+                'content': {'text': 'This is a test document from forced override KB.', 'type': 'TEXT'},
+                'location': {'s3Location': {'uri': 's3://test-bucket/force-override-document.txt'}},
+                'score': 0.95,
+            }
+        )
+
+        # Call the function with explicit knowledge_base_id (should be ignored due to force override)
+        result = await query_knowledge_bases_tool(
+            query='test query with force override',
+            knowledge_base_id='kb-should-be-ignored',
+            number_of_results=10,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+        )
+
+        # Check that the result is correct
+        assert 'This is a test document from forced override KB.' in result
+        assert 's3://test-bucket/force-override-document.txt' in result
+        assert '0.95' in result
+
+        # Check that query_knowledge_base was called with the force override KB ID, not the provided one
+        mock_query_knowledge_base.assert_called_once_with(
+            query='test query with force override',
+            knowledge_base_id='EXAMPLEKBID',  # Should use the force override, not 'kb-should-be-ignored'
+            kb_agent_client=mock.ANY,
+            number_of_results=10,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+        )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', 'EXAMPLEKBID')
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_force_override', True)
+    async def test_query_knowledge_bases_tool_force_override_with_no_kb_id(self, mock_query_knowledge_base):
+        """Test that force override works even when no knowledge_base_id is provided."""
+        # Set up the mock
+        mock_query_knowledge_base.return_value = json.dumps(
+            {
+                'content': {'text': 'This is a test document from forced override KB without explicit ID.', 'type': 'TEXT'},
+                'location': {'s3Location': {'uri': 's3://test-bucket/force-override-no-id-document.txt'}},
+                'score': 0.97,
+            }
+        )
+
+        # Call the function without knowledge_base_id (force override should provide it)
+        result = await query_knowledge_bases_tool(
+            query='test query with force override and no kb id',
+            knowledge_base_id=None,
+            number_of_results=10,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+        )
+
+        # Check that the result is correct
+        assert 'This is a test document from forced override KB without explicit ID.' in result
+        assert 's3://test-bucket/force-override-no-id-document.txt' in result
+        assert '0.97' in result
+
+        # Check that query_knowledge_base was called with the force override KB ID
+        mock_query_knowledge_base.assert_called_once_with(
+            query='test query with force override and no kb id',
+            knowledge_base_id='EXAMPLEKBID',  # Should use the force override
+            kb_agent_client=mock.ANY,
+            number_of_results=10,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+        )
+
 
 class TestMain:
     """Tests for the main function."""

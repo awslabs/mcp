@@ -4,74 +4,78 @@ MCP server for accessing Amazon Bedrock Knowledge Bases
 
 ## Features
 
-### Discover knowledge bases and their data sources
-
-- Find and explore all available knowledge bases
-- Search for knowledge bases by name or tag
-- List data sources associated with each knowledge base
-
-### Query knowledge bases with natural language
-
-- Retrieve information using conversational queries
-- Get relevant passages from your knowledge bases
-- Access citation information for all results
-
-### Filter results by data source
-
-- Focus your queries on specific data sources
-- Include or exclude specific data sources
-- Prioritize results from specific data sources
-
-### Rerank results
-
-- Improve relevance of retrieval results
-- Use Amazon Bedrock reranking capabilities
-- Sort results by relevance to your query
+| Feature | Description |
+|---------|-------------|
+| **Knowledge Base Discovery** | Find and explore all available knowledge bases, search by name or tag, and list associated data sources |
+| **Natural Language Queries** | Retrieve information using conversational queries with relevant passages and citation information |
+| **Data Source Filtering** | Focus queries on specific data sources, include/exclude sources, or prioritize results from specific sources |
+| **Result Reranking** | Improve relevance of retrieval results using Amazon Bedrock reranking capabilities |
+| **Single KB Mode** | Configure the server to work exclusively with one knowledge base using environment variables |
 
 ## Prerequisites
 
-### Installation Requirements
+### 🔧 Installation Requirements
 
-1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python using `uv python install 3.10`
+- **uv**: Install from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
+- **Python 3.10**: Install using `uv python install 3.10`
 
-### AWS Requirements
+### ☁️ AWS Requirements
 
-1. **AWS CLI Configuration**: You must have the AWS CLI configured with credentials and an AWS_PROFILE that has access to Amazon Bedrock and Knowledge Bases
-2. **Amazon Bedrock Knowledge Base**: You must have at least one Amazon Bedrock Knowledge Base with the tag key `mcp-multirag-kb` with a value of `true`
-3. **IAM Permissions**: Your IAM role/user must have appropriate permissions to:
-   - List and describe knowledge bases
-   - Access data sources
-   - Query knowledge bases
+- **AWS CLI Configuration**: Configure with credentials and an AWS_PROFILE that has access to Amazon Bedrock and Knowledge Bases
+- **Amazon Bedrock Knowledge Base**: At least one Knowledge Base with the tag key `mcp-multirag-kb` set to `true`
+- **IAM Permissions**: Required permissions include:
+  - List and describe knowledge bases
+  - Access data sources
+  - Query knowledge bases
 
-### Reranking Requirements
+### 🔄 Reranking Requirements
 
-If you intend to use reranking functionality, your Bedrock Knowledge Base needs additional permissions:
+For reranking functionality, additional setup is required:
 
-1. Your IAM role must have permissions for both `bedrock:Rerank` and `bedrock:InvokeModel` actions
-2. The Amazon Bedrock Knowledge Bases service role must also have these permissions
-3. Reranking is only available in specific regions. Please refer to the official [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html) for an up to date list of supported regions.
-4. Enable model access for the available reranking models in the specified region.
+- **IAM Permissions**: Both your IAM role and the Amazon Bedrock Knowledge Bases service role need:
+  - `bedrock:Rerank`
+  - `bedrock:InvokeModel`
+- **Regional Availability**: Reranking is only available in specific regions ([documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html))
+- **Model Access**: Enable access for reranking models in your region
 
-### Controlling Reranking
-
-Reranking can be globally enabled or disabled using the `BEDROCK_KB_RERANKING_ENABLED` environment variable:
-
-- Set to `false` (default): Disables reranking for all queries unless explicitly enabled
-- Set to `true`: Enables reranking for all queries unless explicitly disabled
-
-The environment variable accepts various formats:
-
-- For enabling: 'true', '1', 'yes', or 'on' (case-insensitive)
-- For disabling: any other value or not set (default behavior)
-
-This setting provides a global default, while individual API calls can still override it by explicitly setting the `reranking` parameter.
-
-For detailed instructions on setting up knowledge bases, see:
+### 📚 Additional Resources
 
 - [Create a knowledge base](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-create.html)
 - [Managing permissions for Amazon Bedrock knowledge bases](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-prereq-permissions-general.html)
 - [Permissions for reranking in Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-prereq.html)
+
+## Configuration
+
+### Environment Variables
+
+The MCP server supports the following environment variables:
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|----------|
+| `AWS_PROFILE` | AWS profile to use | - | `"your-profile-name"` |
+| `AWS_REGION` | AWS region | - | `"us-east-1"` |
+| `FASTMCP_LOG_LEVEL` | Logging level | - | `"ERROR"` |
+| `KB_INCLUSION_TAG_KEY` | Tag key to filter knowledge bases | `"mcp-multirag-kb"` | `"custom-tag-key"` |
+| `BEDROCK_KB_RERANKING_ENABLED` | Enable/disable reranking globally | `false` | `"true"`, `"false"`, `"1"`, `"yes"`, `"on"` |
+| `BEDROCK_KB_ID` | Override knowledge base ID for all queries | - | `"EXAMPLEKBID"` |
+| `BEDROCK_KB_FORCE_OVERRIDE` | Force use of `BEDROCK_KB_ID` regardless of query parameters | `false` | `"true"` |
+
+### Single Knowledge Base Mode
+
+To configure the server to work with a single knowledge base:
+
+1. **Set the knowledge base ID**: Use `BEDROCK_KB_ID` to specify which knowledge base to use
+2. **Optional - Force override**: Set `BEDROCK_KB_FORCE_OVERRIDE=true` to ignore all query parameters and always use the specified knowledge base
+
+
+```bash
+# Example: Always use a specific knowledge base
+export BEDROCK_KB_ID="EXAMPLEKBID"
+export BEDROCK_KB_FORCE_OVERRIDE="true"
+```
+
+
+When force override is enabled, the server will ignore the `knowledgeBaseId` parameter in all queries and use the specified `BEDROCK_KB_ID` instead.
 
 ## Installation
 
@@ -88,7 +92,9 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
         "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR",
         "KB_INCLUSION_TAG_KEY": "optional-tag-key-to-filter-kbs",
-        "BEDROCK_KB_RERANKING_ENABLED": "false"
+        "BEDROCK_KB_RERANKING_ENABLED": "false",
+        "BEDROCK_KB_ID": "",
+        "BEDROCK_KB_FORCE_OVERRIDE": "false"
       },
       "disabled": false,
       "autoApprove": []
@@ -97,47 +103,77 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
-or docker after a successful `docker build -t awslabs/bedrock-kb-retrieval-mcp-server .`:
+### Docker Installation
 
-```file
-# fictitious `.env` file with AWS temporary credentials
-AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
-```
+After building the Docker image with `docker build -t awslabs/bedrock-kb-retrieval-mcp-server .`:
+
+1. **Create an environment file** (`.env`):
+
+   ```bash
+   # Example .env file with AWS temporary credentials
+   AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
+   AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+   AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+   ```
+
+2. **Configure MCP client**:
+
+   ```json
+   {
+     "mcpServers": {
+       "awslabs.bedrock-kb-retrieval-mcp-server": {
+         "command": "docker",
+         "args": [
+           "run",
+           "--rm",
+           "--interactive",
+           "--env", "FASTMCP_LOG_LEVEL=ERROR",
+           "--env", "KB_INCLUSION_TAG_KEY=optional-tag-key-to-filter-kbs",
+           "--env", "BEDROCK_KB_RERANKING_ENABLED=false",
+           "--env", "BEDROCK_KB_ID=",
+           "--env", "BEDROCK_KB_FORCE_OVERRIDE=false",
+           "--env", "AWS_REGION=us-east-1",
+           "--env-file", "/full/path/to/file/above/.env",
+           "awslabs/bedrock-kb-retrieval-mcp-server:latest"
+         ],
+         "env": {},
+         "disabled": false,
+         "autoApprove": []
+       }
+     }
+   }
+   ```
+
+**Note**: Your credentials will need to be kept refreshed from your host.
+
+## Usage
+
+Once configured, the MCP server provides:
+
+1. **Resource**: `resource://knowledgebases` - Discover available knowledge bases and their data sources
+2. **Tool**: `QueryKnowledgeBases` - Query knowledge bases using natural language
+
+### Basic Workflow
+
+1. **Discovery**: Access the `knowledgebases` resource to see available knowledge bases
+2. **Query**: Use the `QueryKnowledgeBases` tool with:
+   - `query`: Your natural language question
+   - `knowledge_base_id`: Target knowledge base ID
+   - Optional parameters for filtering and reranking
+
+### Example Queries
 
 ```json
-  {
-    "mcpServers": {
-      "awslabs.bedrock-kb-retrieval-mcp-server": {
-        "command": "docker",
-        "args": [
-          "run",
-          "--rm",
-          "--interactive",
-          "--env",
-          "FASTMCP_LOG_LEVEL=ERROR",
-          "--env",
-          "KB_INCLUSION_TAG_KEY=optional-tag-key-to-filter-kbs",
-          "--env",
-          "BEDROCK_KB_RERANKING_ENABLED=false",
-          "--env",
-          "AWS_REGION=us-east-1",
-          "--env-file",
-          "/full/path/to/file/above/.env",
-          "awslabs/bedrock-kb-retrieval-mcp-server:latest"
-        ],
-        "env": {},
-        "disabled": false,
-        "autoApprove": []
-      }
-    }
-  }
+{
+  "query": "What are the best practices for AWS Lambda?",
+  "knowledge_base_id": "EXAMPLEKBID",
+  "reranking": true,
+  "num_results": 5
+}
 ```
-
-NOTE: Your credentials will need to be kept refreshed from your host
 
 ## Limitations
 
-- Results with `IMAGE` content type are not included in the KB query response.
-- The `reranking` parameter requires additional permissions, Amazon Bedrock model access, and is only available in specific regions.
+- 🖼️ **Image Content**: Results with `IMAGE` content type are not included in responses
+- 🌐 **Reranking Regions**: Reranking functionality is limited to [specific AWS regions](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html)
+- 🔐 **Permissions**: Reranking requires additional IAM permissions and model access
