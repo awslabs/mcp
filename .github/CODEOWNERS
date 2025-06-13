@@ -17,6 +17,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/amazon-keyspaces-mcp-server        @jcshepherd                      @awslabs/mcp-admins
 /src/amazon-mq-mcp-server               @kenliao94 @hashimsharkh         @awslabs/mcp-admins
 /src/amazon-neptune-mcp-server          @bechbd @cornerwings @krlawrence @awslabs/mcp-admins
+/src/amazon-qindex-mcp-server           @tkoba-aws @akhileshamara        @awslabs/mcp-admins
 /src/amazon-sns-sqs-mcp-server          @kenliao94 @hashimsharkh         @awslabs/mcp-admins
 /src/aws-diagram-mcp-server             @MichaelWalker-git               @awslabs/mcp-admins
 /src/aws-documentation-mcp-server       @Lavoiedavidw                    @awslabs/mcp-admins
@@ -35,6 +36,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/elasticache-mcp-server             @seaofawareness                  @awslabs/mcp-admins
 /src/git-repo-research-mcp-server       @jonslo                          @awslabs/mcp-admins
 /src/lambda-tool-mcp-server             @danilop @jsamuel1               @awslabs/mcp-admins
+/src/mcp-lambda-handler                 @mikegc-aws                      @awslabs/mcp-admins
 /src/memcached-mcp-server               @seaofawareness                  @awslabs/mcp-admins
 #/src/nova-canvas-mcp-server            @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/postgres-mcp-server                @kennthhz                        @awslabs/mcp-admins
