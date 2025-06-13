@@ -60,4 +60,9 @@ nav:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
 markdown_extensions:
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
