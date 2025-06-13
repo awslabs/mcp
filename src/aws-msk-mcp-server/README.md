@@ -1,46 +1,96 @@
 # AWS Labs aws-msk MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for aws-msk
+An AWS Labs Model Context Protocol (MCP) server for Amazon Managed Streaming for Kafka (MSK).
 
-## Instructions
+## Overview
 
-Instructions for using this aws-msk MCP server. This can be used by clients to improve the LLM's understanding of available tools, resources, etc. It can be thought of like a 'hint' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.
+The AWS MSK MCP Server provides a set of tools for interacting with Amazon MSK through the Model Context Protocol. It enables AI assistants to manage, monitor, and optimize Amazon MSK clusters by providing structured access to MSK APIs.
 
-## TODO (REMOVE AFTER COMPLETING)
+## Features
 
-* [ ] Optionally add an ["RFC issue"](https://github.com/awslabs/mcp/issues) for the community to review
-* [ ] Generate a `uv.lock` file with `uv sync` -> See [Getting Started](https://docs.astral.sh/uv/getting-started/)
-* [ ] Remove the example tools in `./awslabs/aws_msk_mcp_server/server.py`
-* [ ] Add your own tool(s) following the [DESIGN_GUIDELINES.md](https://github.com/awslabs/mcp/blob/main/DESIGN_GUIDELINES.md)
-* [ ] Keep test coverage at or above the `main` branch - NOTE: GitHub Actions run this command for CodeCov metrics `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
-* [ ] Document the MCP Server in this "README.md"
-* [ ] Add a section for this aws-msk MCP Server at the top level of this repository "../../README.md"
-* [ ] Create the "../../doc/servers/aws-msk-mcp-server.md" file with these contents:
+- **Cluster Management**: Create, describe, and update MSK clusters (both provisioned and serverless)
+- **Configuration Management**: Create and manage MSK configurations
+- **VPC Connection Management**: Create, describe, and manage VPC connections
+- **Monitoring and Telemetry**: Access cluster metrics, logs, and operational data
+- **Security Management**: Configure authentication, encryption, and access policies
+- **Best Practices**: Get recommendations for cluster sizing, configuration, and performance optimization
 
-    ```markdown
-    ---
-    title: aws-msk MCP Server
-    ---
+## Tools
 
-    {% include "../../src/aws-msk-mcp-server/README.md" %}
-    ```
-  
-* [ ] Reference within the "../../doc/index.md" like this:
+### Cluster Operations
 
-    ```markdown
-    ### aws-msk MCP Server
-    
-    An AWS Labs Model Context Protocol (MCP) server for aws-msk
-    
-    **Features:**
-    
-    - Feature one
-    - Feature two
-    - ...
+- **describe_cluster_operation**: Get information about a specific cluster operation
+- **get_cluster_info**: Retrieve various types of information about MSK clusters
+- **get_global_info**: Get global information about MSK resources
+- **create_cluster**: Create a new MSK cluster (provisioned or serverless)
+- **update_broker_storage**: Update the storage size of brokers
+- **update_broker_type**: Update the broker instance type
+- **update_broker_count**: Update the number of brokers in a cluster
+- **update_cluster_configuration**: Update the configuration of a cluster
+- **update_monitoring**: Update monitoring settings
+- **update_security**: Update security settings
+- **reboot_broker**: Reboot brokers in a cluster
 
-    Instructions for using this aws-msk MCP server. This can be used by clients to improve the LLM's understanding of available tools, resources, etc. It can be thought of like a 'hint' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.
-    
-    [Learn more about the aws-msk MCP Server](servers/aws-msk-mcp-server.md)
-    ```
+### Configuration Operations
 
-* [ ] Submit a PR and pass all the checks
+- **get_configuration_info**: Get information about MSK configurations
+- **create_configuration**: Create a new MSK configuration
+- **update_configuration**: Update an existing configuration
+
+### VPC Operations
+
+- **describe_vpc_connection**: Get information about a VPC connection
+- **create_vpc_connection**: Create a new VPC connection
+- **delete_vpc_connection**: Delete a VPC connection
+- **reject_client_vpc_connection**: Reject a client VPC connection request
+
+### Security Operations
+
+- **put_cluster_policy**: Put a resource policy on a cluster
+- **associate_scram_secret**: Associate SCRAM secrets with a cluster
+- **disassociate_scram_secret**: Disassociate SCRAM secrets from a cluster
+- **list_tags_for_resource**: List all tags for an MSK resource
+- **tag_resource**: Add tags to an MSK resource
+- **untag_resource**: Remove tags from an MSK resource
+- **list_customer_iam_access**: List IAM access information for a cluster
+
+### Monitoring and Best Practices
+
+- **get_cluster_telemetry**: Retrieve telemetry data for MSK clusters
+- **get_cluster_best_practices**: Get best practices and recommendations for MSK clusters
+
+## Usage
+
+This MCP server can be used by AI assistants to help users manage their Amazon MSK resources. It provides structured access to MSK APIs, making it easier for AI to understand and interact with MSK clusters.
+
+### Installation
+
+```bash
+pip install awslabs.aws-msk-mcp-server
+```
+
+### Running the Server
+
+```bash
+uvx awslabs.aws-msk-mcp-server
+```
+
+### AWS Credentials
+
+The server requires AWS credentials to access MSK resources. These can be provided through:
+
+1. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`)
+2. AWS credentials file (`~/.aws/credentials`)
+3. IAM roles for Amazon EC2 or ECS tasks
+
+### Region Selection
+
+Most tools require specifying an AWS region. The server will prompt for a region if one is not provided.
+
+## Example Use Cases
+
+- Creating and configuring new MSK clusters
+- Monitoring cluster performance and health
+- Implementing best practices for MSK clusters
+- Managing security and access controls
+- Troubleshooting cluster issues
