@@ -149,13 +149,9 @@ class UnifiedCassandraClient:
 
     def _create_ssl_context_for_keyspaces(self) -> ssl.SSLContext:
         """Create an SSL context for Amazon Keyspaces."""
-        # Create an SSL context
         ssl_context = ssl.create_default_context()
-
-        # Use the local certificate file
-        cert_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), CERT_DIRECTORY, CERT_FILENAME
-        )
+        home_dir = os.path.expanduser('~')
+        cert_path = os.path.join(home_dir, CERT_DIRECTORY, CERT_FILENAME)
 
         try:
             ssl_context.load_verify_locations(cafile=cert_path)

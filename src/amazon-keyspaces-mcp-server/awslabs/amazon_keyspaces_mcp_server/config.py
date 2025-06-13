@@ -14,13 +14,15 @@
 """Configuration module for Keyspaces MCP Server."""
 
 import os
-from .consts import CASSANDRA_DEFAULT_PORT
+from .consts import CASSANDRA_DEFAULT_PORT, ENV_DIRECTORY, ENV_FILENAME
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
 
-# Load environment variables from .env file if it exists
-load_dotenv()
+# Load environment variables from ENV_FILENAME in the user's home directory,
+#  if it exists.
+home_dir = os.path.expanduser('~')
+load_dotenv(os.path.join(home_dir, ENV_DIRECTORY, ENV_FILENAME))
 
 
 @dataclass
