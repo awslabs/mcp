@@ -15,19 +15,7 @@ def list_client_vpc_connections(cluster_arn, client, max_results=10, next_token=
         next_token (str): Token for pagination
 
     Returns:
-        dict: List of client VPC connections containing:
-            - ClientVpcConnections (list): List of client VPC connections, each containing:
-                - Authentication (dict): Authentication settings for the VPC connection
-                - ClientSubnets (list): List of client subnet IDs
-                - ClusterArn (str): The ARN of the cluster
-                - CreationTime (datetime): The time when the VPC connection was created
-                - SecurityGroups (list): List of security group IDs
-                - SubnetIds (list): List of subnet IDs
-                - Tags (dict): Tags attached to the VPC connection
-                - VpcConnectionArn (str): The ARN of the VPC connection
-                - VpcConnectionState (str): The state of the VPC connection
-                - VpcId (str): The ID of the VPC
-            - NextToken (str, optional): Token for pagination if there are more results
+        dict: List of client VPC connections
     """
     if client is None:
         raise ValueError(

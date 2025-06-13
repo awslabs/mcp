@@ -15,9 +15,7 @@ def get_cluster_policy(cluster_arn, client):
         client (boto3.client): Boto3 client for Kafka. Must be provided by get_cluster_info.
 
     Returns:
-        dict: Cluster policy information containing:
-            - Policy (str): The JSON string representation of the cluster's policy
-            - PolicyDict (dict): The parsed policy as a Python dictionary (added by this function)
+        dict: Cluster policy information
     """
     if client is None:
         raise ValueError(

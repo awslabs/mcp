@@ -47,6 +47,7 @@ def list_available_metrics(monitoring_level: str) -> Dict[str, Any]:
 
 
 def get_cluster_metrics(
+    region: str,
     cluster_arn: str,
     start_time: datetime,
     end_time: datetime,
@@ -94,8 +95,8 @@ def get_cluster_metrics(
             )
 
         # Get clients from the client manager
-        kafka_client = client_manager.get_client("kafka")
-        cloudwatch_client = client_manager.get_client("cloudwatch")
+        kafka_client = client_manager.get_client(region, "kafka")
+        cloudwatch_client = client_manager.get_client(region, "cloudwatch")
 
         # Get cluster's monitoring level
         cluster_info = kafka_client.describe_cluster(ClusterArn=cluster_arn)["ClusterInfo"]

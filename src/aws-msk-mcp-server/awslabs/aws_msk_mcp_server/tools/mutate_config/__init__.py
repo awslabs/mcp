@@ -8,7 +8,6 @@ import boto3
 from mcp.server.fastmcp import FastMCP
 
 from ..common_functions import check_mcp_generated_tag
-
 from .create_configuration import create_configuration
 from .tag_resource import tag_resource
 from .untag_resource import untag_resource

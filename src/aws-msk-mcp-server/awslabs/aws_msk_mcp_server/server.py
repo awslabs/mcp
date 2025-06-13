@@ -43,8 +43,7 @@ async def signal_handler(scope: CancelScope):
 async def run_server():
     """Run the MCP server with signal handling."""
     mcp = FastMCP(
-        name="GrandCanyonMSKMCPServer",
-        instructions="An example MCP server",
+        name="GrandCanyonMSKMCPServer"
     )
 
     # Register modules
@@ -65,6 +64,11 @@ async def run_server():
         await mcp.run_stdio_async()
 
 
+
 def main():
     """Entry point for the MCP server."""
     run(run_server)
+
+
+if __name__ == "__main__":
+    main()

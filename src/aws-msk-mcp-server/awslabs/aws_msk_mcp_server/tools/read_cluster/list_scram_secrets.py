@@ -16,9 +16,7 @@ def list_scram_secrets(cluster_arn, client, max_results=None, next_token=None):
                                    this value is provided to get the next set of results
 
     Returns:
-        dict: Result containing the list of SCRAM secret ARNs and next token if applicable:
-            - SecretArnList (list): List of AWS Secrets Manager secret ARNs that are associated with the cluster
-            - NextToken (str, optional): Token for pagination if there are more results
+        dict: Result containing the list of SCRAM secret ARNs and next token if applicable
     """
     if client is None:
         raise ValueError(

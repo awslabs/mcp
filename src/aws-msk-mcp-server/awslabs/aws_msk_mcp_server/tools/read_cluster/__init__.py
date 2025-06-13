@@ -77,7 +77,7 @@ def register_module(mcp: FastMCP) -> None:
                 - operations (dict): Cluster operations from list_cluster_operations
                 - client_vpc_connections (dict): Client VPC connections from list_client_vpc_connections
                 - scram_secrets (dict): SCRAM secrets from list_scram_secrets
-                
+
                 Each of these keys contains the full response structure as documented in their respective functions.
                 If an error occurs while retrieving any of these components, the corresponding key will contain
                 an error message instead of the expected data structure.

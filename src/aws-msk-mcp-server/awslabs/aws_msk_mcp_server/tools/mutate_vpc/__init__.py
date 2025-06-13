@@ -43,8 +43,12 @@ def register_module(mcp: FastMCP) -> None:
 
         Returns:
             dict: Information about the created VPC connection including:
-                - VpcConnectionArn: The Amazon Resource Name (ARN) of the VPC connection
-                - VpcConnectionState: The state of the VPC connection
+                - VpcConnectionArn (str): The Amazon Resource Name (ARN) of the VPC connection
+                - VpcConnectionState (str): The state of the VPC connection (e.g., CREATING, AVAILABLE)
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
+                - Authentication (dict, optional): Authentication settings for the VPC connection
+                - CreationTime (datetime): The time when the VPC connection was created
+                - VpcId (str): The ID of the VPC
 
         Note:
             After creating a VPC connection, you should follow up with a tag_resource tool call
@@ -76,8 +80,9 @@ def register_module(mcp: FastMCP) -> None:
 
         Returns:
             dict: Information about the deleted VPC connection including:
-                - VpcConnectionArn: The Amazon Resource Name (ARN) of the VPC connection
-                - VpcConnectionState: The state of the VPC connection (should be DELETING)
+                - VpcConnectionArn (str): The Amazon Resource Name (ARN) of the VPC connection
+                - VpcConnectionState (str): The state of the VPC connection (should be DELETING)
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
         """
         # Create a boto3 client
         client = boto3.client("kafka", region_name=region)
@@ -95,8 +100,9 @@ def register_module(mcp: FastMCP) -> None:
 
         Returns:
             dict: Information about the rejected VPC connection including:
-                - VpcConnectionArn: The Amazon Resource Name (ARN) of the VPC connection
-                - VpcConnectionState: The state of the VPC connection (should be REJECTED)
+                - VpcConnectionArn (str): The Amazon Resource Name (ARN) of the VPC connection
+                - VpcConnectionState (str): The state of the VPC connection (should be REJECTED)
+                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
         """
         # Create a boto3 client
         client = boto3.client("kafka", region_name=region)

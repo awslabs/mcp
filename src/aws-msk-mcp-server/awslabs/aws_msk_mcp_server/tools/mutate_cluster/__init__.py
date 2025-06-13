@@ -10,7 +10,6 @@ import boto3
 from mcp.server.fastmcp import FastMCP
 
 from ..common_functions import check_mcp_generated_tag
-
 from .batch_associate_scram_secret import batch_associate_scram_secret
 from .batch_disassociate_scram_secret import batch_disassociate_scram_secret
 from .create_cluster_v2 import create_cluster_v2
@@ -70,11 +69,11 @@ def register_module(mcp: FastMCP) -> None:
              Example: get_global_info(region="us-east-1", info_type="kafka_versions")
 
         Args:
-            region (str): AWS region (e.g., "us-east-1", "eu-west-1")
             cluster_name (str): The name of the cluster (must be 1-64 characters, alphanumeric and hyphens only)
             cluster_type (str): Type of cluster to create (PROVISIONED or SERVERLESS)
+            region (str): AWS region (e.g., "us-east-1", "eu-west-1")
             kwargs (str): JSON string containing additional arguments based on cluster type:
-                For PROVISIONED clusters:
+                For PROVISIONED (all of these are required):
                     broker_node_group_info (dict): Information about the broker nodes
                         - InstanceType (str): The type of Amazon EC2 instance (e.g., "kafka.m5.large")
                         - ClientSubnets (list): A list of valid subnet IDs (at least 3 recommended)
@@ -82,7 +81,7 @@ def register_module(mcp: FastMCP) -> None:
                         - StorageInfo (dict, optional): Storage settings
                             - EbsStorageInfo (dict): EBS storage settings
                                 - VolumeSize (int): The size in GiB (100-16384)
-                    kafka_version (str): Apache Kafka version (MUST be retrieved using get_global_info tool)
+                    kafka_version (str): Apache Kafka version (e.g., "2.8.1", "3.3.1")
                     number_of_broker_nodes (int): Number of broker nodes (must match the number of subnets)
                     client_authentication (dict, optional): Authentication settings
                     encryption_info (dict, optional): Encryption settings
@@ -92,8 +91,7 @@ def register_module(mcp: FastMCP) -> None:
                     configuration_info (dict, optional): Cluster configuration
                     storage_mode (str, optional): Storage tier mode
                     tags (dict, optional): Resource tags
-                
-                For SERVERLESS clusters:
+                For SERVERLESS (required):
                     vpc_configs (list): VPC configuration
                     client_authentication (dict, optional): Authentication settings
                     tags (dict, optional): Resource tags
@@ -195,9 +193,7 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing:
-                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
-                - ClusterOperationArn (str): The ARN of the cluster operation that was created
+            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -230,9 +226,7 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing:
-                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
-                - ClusterOperationArn (str): The ARN of the cluster operation that was created
+            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -287,9 +281,7 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing:
-                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
-                - ClusterOperationArn (str): The ARN of the cluster operation that was created
+            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -346,9 +338,7 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing:
-                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
-                - ClusterOperationArn (str): The ARN of the cluster operation that was created
+            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -397,9 +387,7 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the operation containing:
-                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
-                - ClusterOperationArn (str, optional): The ARN of the cluster operation that was created
+            dict: Result of the operation
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -432,9 +420,7 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the update operation containing:
-                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
-                - ClusterOperationArn (str): The ARN of the cluster operation that was created
+            dict: Result of the update operation containing ClusterArn and ClusterOperationArn
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -465,9 +451,7 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the operation containing:
-                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
-                - ClusterOperationArn (str, optional): The ARN of the cluster operation that was created
+            dict: Result of the operation
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
@@ -496,9 +480,7 @@ def register_module(mcp: FastMCP) -> None:
             region (str): AWS region
 
         Returns:
-            dict: Result of the operation containing:
-                - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
-                - ClusterOperationArn (str, optional): The ARN of the cluster operation that was created
+            dict: Result of the operation
 
         Note:
             This operation can ONLY be performed on resources tagged with "MCP Generated".
