@@ -31,7 +31,7 @@ async def test_modify_serverless_cache_basic():
         cache_usage_limits=None,
         remove_user_group=None,
         user_group_id=None,
-        vpc_security_group_ids=None,
+        security_group_ids=None,
     )
 
     with patch(
@@ -68,7 +68,7 @@ async def test_modify_serverless_cache_all_params():
         cache_usage_limits=cache_usage_limits,
         remove_user_group=True,
         user_group_id='group-1',
-        vpc_security_group_ids=['sg-3', 'sg-4'],
+        security_group_ids=['sg-3', 'sg-4'],
         snapshot_retention_limit=14,
         daily_snapshot_time='05:00-06:00',
         major_engine_version='7.x',
@@ -90,7 +90,7 @@ async def test_modify_serverless_cache_all_params():
             'CacheUsageLimits': cache_usage_limits.model_dump(),
             'RemoveUserGroup': 'true',
             'UserGroupId': 'group-1',
-            'VpcSecurityGroupIds': ['sg-3', 'sg-4'],
+            'SecurityGroupIds': ['sg-3', 'sg-4'],
             'SnapshotRetentionLimit': 14,
             'DailySnapshotTime': '05:00-06:00',
             'MajorEngineVersion': '7.x',
@@ -124,7 +124,7 @@ async def test_modify_serverless_cache_none_values():
             cache_usage_limits=None,  # Should not be included in request
             remove_user_group=True,
             user_group_id=None,  # Should not be included in request
-            vpc_security_group_ids=['sg-1'],
+            security_group_ids=['sg-1'],
         )
         result = await modify_serverless_cache(request)
 
@@ -142,7 +142,7 @@ async def test_modify_serverless_cache_none_values():
     assert call_args['Description'] == 'Updated description'
     assert call_args['SnapshotRetentionLimit'] == 14
     assert call_args['RemoveUserGroup'] == 'true'
-    assert call_args['VpcSecurityGroupIds'] == ['sg-1']
+    assert call_args['SecurityGroupIds'] == ['sg-1']
 
 
 @pytest.mark.asyncio
@@ -170,7 +170,7 @@ async def test_modify_serverless_cache_exceptions():
             cache_usage_limits=None,
             remove_user_group=None,
             user_group_id=None,
-            vpc_security_group_ids=None,
+            security_group_ids=None,
         )
         result = await modify_serverless_cache(request)
         assert 'error' in result

@@ -54,7 +54,7 @@ async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict
             3. JSON array: [{"Key": "string", "Value": "string"}, {"Key": "string2", "Value": null}]
 
             Can be None if no tags are needed.
-        vpc_security_group_ids (Optional[List[str]]): List of VPC security group IDs.
+        security_group_ids (Optional[List[str]]): List of security group IDs.
         cache_usage_limits (Optional[CacheUsageLimits]): Usage limits for the cache. Structure:
             {
                 "DataStorage": {
@@ -121,7 +121,7 @@ async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict
     for param_name, value in [
         ('SnapshotArnsToRestore', request.snapshot_arns_to_restore),
         ('SubnetIds', request.subnet_ids),
-        ('VpcSecurityGroupIds', request.vpc_security_group_ids),
+        ('SecurityGroupIds', request.security_group_ids),
     ]:
         if value:
             create_request[param_name] = list(map(str, value))
