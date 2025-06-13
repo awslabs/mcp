@@ -44,19 +44,18 @@ class IAMHandler:
             allow_write: Whether to enable write access (default: False)
         """
         self.mcp = mcp
-        self.iam_client = AwsHelper.create_boto3_client('iam')
         self.allow_write = allow_write
 
         # Register tools
-        self.mcp.tool(name='add_inline_policy')(self.add_inline_policy)
-        self.mcp.tool(name='get_policies_for_role')(self.get_policies_for_role)
+        self.mcp.tool(name="add_inline_policy")(self.add_inline_policy)
+        self.mcp.tool(name="get_policies_for_role")(self.get_policies_for_role)
 
     async def get_policies_for_role(
         self,
         ctx: Context,
         role_name: str = Field(
             ...,
-            description='Name of the IAM role to get policies for. The role must exist in your AWS account.',
+            description="Name of the IAM role to get policies for. The role must exist in your AWS account.",
         ),
     ) -> RoleDescriptionResponse:
         """Get all policies attached to an IAM role.
@@ -92,48 +91,53 @@ class IAMHandler:
             RoleDescriptionResponse: Detailed information about the role's policies
         """
         try:
-            log_with_request_id(ctx, LogLevel.INFO, f'Describing IAM role: {role_name}')
+            log_with_request_id(ctx, LogLevel.INFO, f"Describing IAM role: {role_name}")
+
+            # Get IAM client
+            iam_client = AwsHelper.create_boto3_client("iam")
 
             # Get role details
-            role_response = self.iam_client.get_role(RoleName=role_name)
-            role = role_response['Role']
+            role_response = iam_client.get_role(RoleName=role_name)
+            role = role_response["Role"]
 
             # Get attached managed policies
-            managed_policies = self._get_managed_policies(ctx, role_name)
+            managed_policies = self._get_managed_policies(ctx, iam_client, role_name)
 
             # Get inline policies
-            inline_policies = self._get_inline_policies(role_name)
+            inline_policies = self._get_inline_policies(iam_client, role_name)
 
             # Parse the assume role policy document if it's a string, otherwise use it directly
-            if isinstance(role['AssumeRolePolicyDocument'], str):
-                assume_role_policy_document = json.loads(role['AssumeRolePolicyDocument'])
+            if isinstance(role["AssumeRolePolicyDocument"], str):
+                assume_role_policy_document = json.loads(
+                    role["AssumeRolePolicyDocument"]
+                )
             else:
-                assume_role_policy_document = role['AssumeRolePolicyDocument']
+                assume_role_policy_document = role["AssumeRolePolicyDocument"]
 
             # Create the response
             return RoleDescriptionResponse(
                 isError=False,
                 content=[
                     TextContent(
-                        type='text',
-                        text=f'Successfully retrieved details for IAM role: {role_name}',
+                        type="text",
+                        text=f"Successfully retrieved details for IAM role: {role_name}",
                     )
                 ],
-                role_arn=role['Arn'],
+                role_arn=role["Arn"],
                 assume_role_policy_document=assume_role_policy_document,
-                description=role.get('Description'),
+                description=role.get("Description"),
                 managed_policies=managed_policies,
                 inline_policies=inline_policies,
             )
         except Exception as e:
-            error_message = f'Failed to describe IAM role: {str(e)}'
+            error_message = f"Failed to describe IAM role: {str(e)}"
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             # Return a response with error status
             return RoleDescriptionResponse(
                 isError=True,
-                content=[TextContent(type='text', text=error_message)],
-                role_arn='',
+                content=[TextContent(type="text", text=error_message)],
+                role_arn="",
                 assume_role_policy_document={},
                 description=None,
                 managed_policies=[],
@@ -144,10 +148,12 @@ class IAMHandler:
         self,
         ctx: Context,
         policy_name: str = Field(
-            ..., description='Name of the inline policy to create. Must be unique within the role.'
+            ...,
+            description="Name of the inline policy to create. Must be unique within the role.",
         ),
         role_name: str = Field(
-            ..., description='Name of the IAM role to add the policy to. The role must exist.'
+            ...,
+            description="Name of the IAM role to add the policy to. The role must exist.",
         ),
         permissions: Union[Dict[str, Any], List[Dict[str, Any]]] = Field(
             ...,
@@ -200,103 +206,118 @@ class IAMHandler:
         try:
             # Check if write access is disabled
             if not self.allow_write:
-                error_message = 'Adding inline policies requires --allow-write flag'
+                error_message = "Adding inline policies requires --allow-write flag"
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return AddInlinePolicyResponse(
                     isError=True,
-                    content=[TextContent(type='text', text=error_message)],
+                    content=[TextContent(type="text", text=error_message)],
                     policy_name=policy_name,
                     role_name=role_name,
                     permissions_added={},
                 )
 
+            # Get IAM client
+            iam_client = AwsHelper.create_boto3_client("iam")
+
             # Create the inline policy
-            return self._create_inline_policy(ctx, role_name, policy_name, permissions)
+            return self._create_inline_policy(
+                ctx, iam_client, role_name, policy_name, permissions
+            )
 
         except Exception as e:
-            error_message = f'Failed to create inline policy: {str(e)}'
+            error_message = f"Failed to create inline policy: {str(e)}"
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             # Return a response with error status
             return AddInlinePolicyResponse(
                 isError=True,
-                content=[TextContent(type='text', text=error_message)],
+                content=[TextContent(type="text", text=error_message)],
                 policy_name=policy_name,
                 role_name=role_name,
                 permissions_added={},
             )
 
-    def _get_managed_policies(self, ctx, role_name):
+    def _get_managed_policies(self, ctx, iam_client, role_name):
         """Get managed policies attached to a role.
 
         Args:
             ctx: The MCP context
+            iam_client: IAM client to use
             role_name: Name of the IAM role
 
         Returns:
             List of PolicySummary objects
         """
         managed_policies = []
-        managed_policies_response = self.iam_client.list_attached_role_policies(RoleName=role_name)
+        managed_policies_response = iam_client.list_attached_role_policies(
+            RoleName=role_name
+        )
 
-        for policy in managed_policies_response.get('AttachedPolicies', []):
-            policy_arn = policy['PolicyArn']
-            policy_details = self.iam_client.get_policy(PolicyArn=policy_arn)['Policy']
+        for policy in managed_policies_response.get("AttachedPolicies", []):
+            policy_arn = policy["PolicyArn"]
+            policy_details = iam_client.get_policy(PolicyArn=policy_arn)["Policy"]
 
             # Get the policy version details to get the policy document
             policy_version = None
             try:
-                policy_version_response = self.iam_client.get_policy_version(
-                    PolicyArn=policy_arn, VersionId=policy_details.get('DefaultVersionId', 'v1')
+                policy_version_response = iam_client.get_policy_version(
+                    PolicyArn=policy_arn,
+                    VersionId=policy_details.get("DefaultVersionId", "v1"),
                 )
-                policy_version = policy_version_response.get('PolicyVersion', {})
+                policy_version = policy_version_response.get("PolicyVersion", {})
             except Exception as e:
                 log_with_request_id(
-                    ctx, LogLevel.WARNING, f'Failed to get policy version: {str(e)}'
+                    ctx, LogLevel.WARNING, f"Failed to get policy version: {str(e)}"
                 )
 
             managed_policies.append(
                 PolicySummary(
-                    policy_type='Managed',
-                    description=policy_details.get('Description'),
-                    policy_document=policy_version.get('Document') if policy_version else None,
+                    policy_type="Managed",
+                    description=policy_details.get("Description"),
+                    policy_document=(
+                        policy_version.get("Document") if policy_version else None
+                    ),
                 )
             )
 
         return managed_policies
 
-    def _get_inline_policies(self, role_name):
+    def _get_inline_policies(self, iam_client, role_name):
         """Get inline policies embedded in a role.
 
         Args:
+            iam_client: IAM client to use
             role_name: Name of the IAM role
 
         Returns:
             List of PolicySummary objects
         """
         inline_policies = []
-        inline_policies_response = self.iam_client.list_role_policies(RoleName=role_name)
+        inline_policies_response = iam_client.list_role_policies(RoleName=role_name)
 
-        for policy_name in inline_policies_response.get('PolicyNames', []):
-            policy_response = self.iam_client.get_role_policy(
+        for policy_name in inline_policies_response.get("PolicyNames", []):
+            policy_response = iam_client.get_role_policy(
                 RoleName=role_name, PolicyName=policy_name
             )
 
             inline_policies.append(
                 PolicySummary(
-                    policy_type='Inline',
+                    policy_type="Inline",
                     description=None,
-                    policy_document=policy_response.get('PolicyDocument'),
+                    policy_document=policy_response.get("PolicyDocument"),
                 )
             )
 
         return inline_policies
 
-    def _create_inline_policy(self, ctx, role_name, policy_name, permissions):
+    def _create_inline_policy(
+        self, ctx, iam_client, role_name, policy_name, permissions
+    ):
         """Create a new inline policy with the specified permissions.
 
         Args:
             ctx: The MCP context
+            iam_client: IAM client to use
             role_name: Name of the role
             policy_name: Name of the new policy to create
             permissions: Permissions to include in the policy
@@ -307,43 +328,45 @@ class IAMHandler:
         log_with_request_id(
             ctx,
             LogLevel.INFO,
-            f'Creating new inline policy {policy_name} in role {role_name}',
+            f"Creating new inline policy {policy_name} in role {role_name}",
         )
 
         # Check if the policy already exists
         try:
-            self.iam_client.get_role_policy(RoleName=role_name, PolicyName=policy_name)
+            iam_client.get_role_policy(RoleName=role_name, PolicyName=policy_name)
             # If we get here, the policy exists
-            error_message = f'Policy {policy_name} already exists in role {role_name}. Cannot modify existing policies.'
+            error_message = f"Policy {policy_name} already exists in role {role_name}. Cannot modify existing policies."
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return AddInlinePolicyResponse(
                 isError=True,
-                content=[TextContent(type='text', text=error_message)],
+                content=[TextContent(type="text", text=error_message)],
                 policy_name=policy_name,
                 role_name=role_name,
                 permissions_added={},
             )
-        except self.iam_client.exceptions.NoSuchEntityException:
+        except iam_client.exceptions.NoSuchEntityException:
             # Policy doesn't exist, we can create it
             pass
 
         # Create a new policy document
-        policy_document = {'Version': '2012-10-17', 'Statement': []}
+        policy_document = {"Version": "2012-10-17", "Statement": []}
 
         # Add the permissions to the policy document
         self._add_permissions_to_document(policy_document, permissions)
 
         # Create the policy
-        self.iam_client.put_role_policy(
-            RoleName=role_name, PolicyName=policy_name, PolicyDocument=json.dumps(policy_document)
+        iam_client.put_role_policy(
+            RoleName=role_name,
+            PolicyName=policy_name,
+            PolicyDocument=json.dumps(policy_document),
         )
 
         return AddInlinePolicyResponse(
             isError=False,
             content=[
                 TextContent(
-                    type='text',
-                    text=f'Successfully created new inline policy {policy_name} in role {role_name}',
+                    type="text",
+                    text=f"Successfully created new inline policy {policy_name} in role {role_name}",
                 )
             ],
             policy_name=policy_name,
@@ -360,7 +383,7 @@ class IAMHandler:
         """
         if isinstance(permissions, dict):
             # Single statement
-            policy_document['Statement'].append(permissions)
+            policy_document["Statement"].append(permissions)
         elif isinstance(permissions, list):
             # Multiple statements
-            policy_document['Statement'].extend(permissions)
+            policy_document["Statement"].extend(permissions)
