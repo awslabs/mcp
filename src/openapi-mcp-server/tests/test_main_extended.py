@@ -103,12 +103,9 @@ def test_main_with_sse_transport(
     mock_create_mcp_server.assert_called_once_with(mock_config)
     mock_setup_signal_handlers.assert_called_once()
 
-    # Verify that the server was configured with the correct port
-    mock_server.settings.port = 8000  # Mock the port attribute
-    assert mock_server.settings.port == 8000
-
-    # Verify that the server was run with SSE transport
-    mock_server.run.assert_called_once()
+    # Verify that the server was run with stdio transport regardless of config
+    # Since SSE support has been removed, we always use stdio transport
+    mock_server.run.assert_called_once_with()
 
 
 @patch('awslabs.openapi_mcp_server.server.create_mcp_server')
