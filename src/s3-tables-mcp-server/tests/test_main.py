@@ -14,40 +14,47 @@
 
 """Tests for the main function in server.py."""
 
-from awslabs.awslabs.documentdb_mcp_server_mcp_server.server import main
-from unittest.mock import patch
+import pytest
+from unittest.mock import patch, MagicMock
+from awslabs.s3_tables_mcp_server.server import main, app
 
 
 class TestMain:
-    """Tests for the main function."""
+    """Test cases for the main function."""
 
-    @patch('awslabs.awslabs.documentdb_mcp_server_mcp_server.server.mcp.run')
-    @patch('sys.argv', ['awslabs.awslabs.documentdb-mcp-server-mcp-server'])
-    def test_main_default(self, mock_run):
+    def test_main_default(self):
         """Test main function with default arguments."""
-        # Call the main function
-        main()
+        with patch('sys.argv', ['server.py']), \
+             patch('awslabs.s3_tables_mcp_server.server.app.run') as mock_run:
+            main()
+            mock_run.assert_called_once()
+            assert app.allow_write is False
 
-        # Check that mcp.run was called with the correct arguments
-        mock_run.assert_called_once()
-        assert mock_run.call_args[1].get('transport') is None
+    def test_main_with_write_permission(self):
+        """Test main function with --allow-write argument."""
+        with patch('sys.argv', ['server.py', '--allow-write']), \
+             patch('awslabs.s3_tables_mcp_server.server.app.run') as mock_run:
+            main()
+            mock_run.assert_called_once()
+            assert app.allow_write is True
+
+    def test_main_with_exception(self):
+        """Test main function when an exception occurs."""
+        with patch('sys.argv', ['server.py']), \
+             patch('awslabs.s3_tables_mcp_server.server.app.run', side_effect=Exception('Test error')), \
+             patch('builtins.print') as mock_print:
+            main()
+            mock_print.assert_called_once_with('Failed to start server: Test error')
 
     def test_module_execution(self):
         """Test the module execution when run as __main__."""
-        # This test directly executes the code in the if __name__ == '__main__': block
-        # to ensure coverage of that line
-
         # Get the source code of the module
         import inspect
-        from awslabs.awslabs.documentdb_mcp_server_mcp_server import server
+        from awslabs.s3_tables_mcp_server import server
 
         # Get the source code
         source = inspect.getsource(server)
 
-        # Check that the module has the if __name__ == '__main__': block
-        assert "if __name__ == '__main__':" in source
+        # Check that the module has the if __name__ == "__main__": block
+        assert 'if __name__ == "__main__":' in source
         assert 'main()' in source
-
-        # This test doesn't actually execute the code, but it ensures
-        # that the coverage report includes the if __name__ == '__main__': line
-        # by explicitly checking for its presence

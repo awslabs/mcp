@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the awslabs.awslabs.documentdb-mcp-server-mcp-server package."""
+"""Tests for the awslabs.s3-tables-mcp-server package."""
 
 import importlib
 import re
+import pytest
 
 
 class TestInit:
@@ -24,30 +25,47 @@ class TestInit:
     def test_version(self):
         """Test that __version__ is defined and follows semantic versioning."""
         # Import the module
-        import awslabs.awslabs.documentdb_mcp_server_mcp_server
+        import awslabs.s3_tables_mcp_server
 
         # Check that __version__ is defined
-        assert hasattr(awslabs.awslabs.documentdb_mcp_server_mcp_server, '__version__')
+        assert hasattr(awslabs.s3_tables_mcp_server, '__version__')
 
         # Check that __version__ is a string
-        assert isinstance(awslabs.awslabs.documentdb_mcp_server_mcp_server.__version__, str)
+        assert isinstance(awslabs.s3_tables_mcp_server.__version__, str)
 
         # Check that __version__ follows semantic versioning (major.minor.patch)
         version_pattern = r'^\d+\.\d+\.\d+$'
-        assert re.match(version_pattern, awslabs.awslabs.documentdb_mcp_server_mcp_server.__version__), (
-            f"Version '{awslabs.awslabs.documentdb_mcp_server_mcp_server.__version__}' does not follow semantic versioning"
+        assert re.match(version_pattern, awslabs.s3_tables_mcp_server.__version__), (
+            f"Version '{awslabs.s3_tables_mcp_server.__version__}' does not follow semantic versioning"
         )
 
     def test_module_reload(self):
         """Test that the module can be reloaded."""
         # Import the module
-        import awslabs.awslabs.documentdb_mcp_server_mcp_server
+        import awslabs.s3_tables_mcp_server
 
         # Store the original version
-        original_version = awslabs.awslabs.documentdb_mcp_server_mcp_server.__version__
+        original_version = awslabs.s3_tables_mcp_server.__version__
 
         # Reload the module
-        importlib.reload(awslabs.awslabs.documentdb_mcp_server_mcp_server)
+        importlib.reload(awslabs.s3_tables_mcp_server)
 
         # Check that the version is still the same
-        assert awslabs.awslabs.documentdb_mcp_server_mcp_server.__version__ == original_version
+        assert awslabs.s3_tables_mcp_server.__version__ == original_version
+
+    def test_required_modules_imported(self):
+        """Test that all required modules are imported."""
+        import awslabs.s3_tables_mcp_server
+
+        # Check that required modules are available
+        assert hasattr(awslabs.s3_tables_mcp_server, 'server')
+        assert hasattr(awslabs.s3_tables_mcp_server, 'models')
+        assert hasattr(awslabs.s3_tables_mcp_server, 'constants')
+
+    def test_constants_defined(self):
+        """Test that required constants are defined."""
+        from awslabs.s3_tables_mcp_server.constants import MCP_SERVER_VERSION
+
+        # Check that MCP_SERVER_VERSION is defined and matches __version__
+        import awslabs.s3_tables_mcp_server
+        assert MCP_SERVER_VERSION == awslabs.s3_tables_mcp_server.__version__
