@@ -21,7 +21,7 @@ from .models import ModifyServerlessCacheRequest
 from typing import Dict
 
 
-@mcp.tool(name='modify_serverless_cache')
+@mcp.tool(name='modify-serverless-cache')
 @handle_exceptions
 async def modify_serverless_cache(request: ModifyServerlessCacheRequest) -> Dict:
     """Modify an Amazon ElastiCache serverless cache.

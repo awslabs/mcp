@@ -65,7 +65,17 @@ async def get_metric_statistics(
 
     # Add optional parameters
     if dimensions:
-        params['Dimensions'] = [{'Name': k, 'Value': v} for d in dimensions for k, v in d.items()]
+        # Ensure dimensions are properly formatted as [{'Name': name, 'Value': value}, ...]
+        formatted_dimensions = []
+        for d in dimensions:
+            # Check if the dimension is already in the correct format
+            if 'Name' in d and 'Value' in d:
+                formatted_dimensions.append(d)
+            else:
+                # Convert from {key: value} format to {'Name': key, 'Value': value}
+                for k, v in d.items():
+                    formatted_dimensions.append({'Name': k, 'Value': v})
+        params['Dimensions'] = formatted_dimensions
     if statistics:
         params['Statistics'] = statistics
     if extended_statistics:
