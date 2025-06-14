@@ -53,7 +53,13 @@ async def handle_aws_api_call(func, error_value=None, *args, **kwargs):
 
 
 async def fetch_network_configuration(
-    app_name: str, vpc_id: Optional[str] = None, cluster_name: Optional[str] = None
+    app_name: str,
+    vpc_id: Optional[str] = None,
+    cluster_name: Optional[str] = None,
+    ec2_client=None,
+    ecs_client=None,
+    elbv2_client=None,
+    cfn_client=None,
 ) -> Dict[str, Any]:
     """
     Network-level diagnostics for ECS deployments.
@@ -67,6 +73,14 @@ async def fetch_network_configuration(
         Specific VPC ID to analyze
     cluster_name : str, optional
         Specific ECS cluster name
+    ec2_client : optional
+        EC2 client for API interactions, useful for testing
+    ecs_client : optional
+        ECS client for API interactions, useful for testing
+    elbv2_client : optional
+        ELB v2 client for API interactions, useful for testing
+    cfn_client : optional
+        CloudFormation client for API interactions, useful for testing
 
     Returns
     -------
@@ -74,21 +88,29 @@ async def fetch_network_configuration(
         Raw network configuration data for LLM analysis
     """
     try:
-        return await get_network_data(app_name, vpc_id, cluster_name)
+        return await get_network_data(
+            app_name, vpc_id, cluster_name, ec2_client, ecs_client, elbv2_client, cfn_client
+        )
     except Exception as e:
         logger.exception(f"Error in fetch_network_configuration: {e}")
         return {"status": "error", "error": f"Internal error: {str(e)}"}
 
 
 async def get_network_data(
-    app_name: str, vpc_id: Optional[str] = None, cluster_name: Optional[str] = None
+    app_name: str,
+    vpc_id: Optional[str] = None,
+    cluster_name: Optional[str] = None,
+    ec2_client=None,
+    ecs_client=None,
+    elbv2_client=None,
+    cfn_client=None,
 ) -> Dict[str, Any]:
     """Collect all relevant networking data with minimal processing."""
     try:
-        # Initialize clients
-        ec2 = await get_aws_client("ec2")
-        ecs = await get_aws_client("ecs")
-        elbv2 = await get_aws_client("elbv2")
+        # Initialize clients (use injected clients or create default ones)
+        ec2 = ec2_client or await get_aws_client("ec2")
+        ecs = ecs_client or await get_aws_client("ecs")
+        elbv2 = elbv2_client or await get_aws_client("elbv2")
 
         # Identify relevant clusters
         clusters = []
@@ -118,22 +140,22 @@ async def get_network_data(
             lb_vpcs = await discover_vpcs_from_loadbalancers(app_name)
             vpc_ids.extend(lb_vpcs)
 
-            # VPC discovery from CloudFormation tags
-            cf_vpcs = await discover_vpcs_from_cloudformation(app_name)
-            vpc_ids.extend(cf_vpcs)
+        # VPC discovery from CloudFormation tags
+        cf_vpcs = await discover_vpcs_from_cloudformation(app_name, cfn_client)
+        vpc_ids.extend(cf_vpcs)
 
-            # Direct VPC search by tags
-            vpc_response = await handle_aws_api_call(ec2.describe_vpcs, {"Vpcs": []})
-            vpc_response = vpc_response or {}
+        # Direct VPC search by tags
+        vpc_response = await handle_aws_api_call(ec2.describe_vpcs, {"Vpcs": []})
+        vpc_response = vpc_response or {}
 
-            for vpc in vpc_response.get("Vpcs", []):
-                if vpc is None:
-                    continue
-                tags = {tag["Key"]: tag["Value"] for tag in vpc.get("Tags", [])}
-                if tags.get("Name", "").lower().startswith(app_name.lower()):
-                    vpc_id = vpc.get("VpcId")
-                    if vpc_id:
-                        vpc_ids.append(vpc_id)
+        for vpc in vpc_response.get("Vpcs", []):
+            if vpc is None:
+                continue
+            tags = {tag["Key"]: tag["Value"] for tag in vpc.get("Tags", [])}
+            if tags.get("Name", "").lower().startswith(app_name.lower()):
+                vpc_id = vpc.get("VpcId")
+                if vpc_id:
+                    vpc_ids.append(vpc_id)
 
         # Remove duplicates
         vpc_ids = list(set(filter(None, vpc_ids)))
@@ -313,12 +335,12 @@ async def discover_vpcs_from_loadbalancers(app_name: str) -> List[str]:
     return vpc_ids
 
 
-async def discover_vpcs_from_cloudformation(app_name: str) -> List[str]:
+async def discover_vpcs_from_cloudformation(app_name: str, cfn_client=None) -> List[str]:
     """Discover VPC IDs from CloudFormation stacks related to the application."""
     vpc_ids = []
 
     try:
-        cfn = await get_aws_client("cloudformation")
+        cfn = cfn_client or await get_aws_client("cloudformation")
 
         # List CloudFormation stacks
         stacks = []
