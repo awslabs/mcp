@@ -64,6 +64,22 @@ The Amazon Kendra Index MCP Server enables AI assistants to retrieve additional 
 
 [Learn more about the Amazon Kendra Index MCP Server](servers/kendra-index-mcp-server.md)
 
+### Amazon Q index MCP Server
+
+The Amazon Q index MCP Server enables AI assistants to search through enterprise customers' Q index and access relevant content across their data sources using specific authentication and authorization flows.
+
+**Features:**
+
+- Authentication Tools
+-- AuthorizeQIndex: Generates OIDC authorization URLs for Q index authentication
+-- CreateTokenWithIAM: Creates authentication tokens using authorization codes
+-- AssumeRoleWithIdentityContext: Assumes IAM roles using identity context from tokens
+
+- Search Tools
+-- SearchRelevantContent: Searches and retrieves content from Q Business applications
+
+[Learn more about the Amazon Q index MCP Server](servers/amazon-qindex-mcp-server.md)
+
 ### Amazon Bedrock Knowledge Base Retrieval MCP Server
 
 The Bedrock Knowledge Base Retrieval MCP Server enables AI assistants to retrieve information from Amazon Bedrock Knowledge Bases.
