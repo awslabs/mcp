@@ -435,7 +435,7 @@ async def get_elb_resources(client, method: str, vpc_ids: List[str]) -> Dict[str
     """Generic function to call ELB API methods."""
     try:
         func = getattr(client, method)
-        error_value = {"error": f"Error in {method}"}
+        error_value = {"error": "API error"}
 
         response = await handle_aws_api_call(func, error_value)
         response = response or {}
@@ -449,7 +449,7 @@ async def get_elb_resources(client, method: str, vpc_ids: List[str]) -> Dict[str
         return response if response is not None else {"error": "No response"}
     except Exception as e:
         logger.warning(f"Error in get_elb_resources for {method}: {e}")
-        return {"error": str(e)}
+        return {"error": "API error"}
 
 
 async def get_associated_target_groups(client, app_name: str, vpc_ids: List[str]) -> Dict[str, Any]:

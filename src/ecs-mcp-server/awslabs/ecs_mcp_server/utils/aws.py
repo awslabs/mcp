@@ -37,6 +37,10 @@ def get_aws_config() -> Config:
     return Config(user_agent_extra="awslabs/mcp/ecs-mcp-server/0.1.0")
 
 
+# Dictionary to store clients for reuse
+_aws_clients = {}
+
+
 async def get_aws_client(service_name: str):
     """
     Gets an AWS service client.
@@ -50,28 +54,21 @@ async def get_aws_client(service_name: str):
     -------
     A boto3 client for the specified service
     """
+    # Use client from cache if available
+    if service_name in _aws_clients:
+        return _aws_clients[service_name]
 
-    class AwsClientFactory:
-        def __init__(self, service_name, client=None):
-            self.service_name = service_name
-            self.client = client
+    # Create new client if not in cache
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    profile = os.environ.get("AWS_PROFILE", "default")
+    logger.info(f"Using AWS profile: {profile} and region: {region}")
 
-        def __await__(self):
-            """Allow the client to be awaited directly."""
+    client = boto3.client(service_name, region_name=region, config=get_aws_config())
 
-            async def get_client():
-                if not self.client:
-                    region = os.environ.get("AWS_REGION", "us-east-1")
-                    profile = os.environ.get("AWS_PROFILE", "default")
-                    logger.info(f"Using AWS profile: {profile} and region: {region}")
-                    self.client = boto3.client(
-                        self.service_name, region_name=region, config=get_aws_config()
-                    )
-                return self.client
+    # Cache the client for reuse
+    _aws_clients[service_name] = client
 
-            return get_client().__await__()
-
-    return AwsClientFactory(service_name)
+    return client
 
 
 async def get_aws_account_id() -> str:

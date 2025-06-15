@@ -268,6 +268,97 @@ class TestHelperFunctions:
         assert "TEST-app" in result[0]["taskDefinitionArn"]
 
     @pytest.mark.anyio
+    async def test_get_task_definitions_no_match(self, mock_aws_clients):
+        """Test get_task_definitions when no task definitions match."""
+        mock_ecs = mock_aws_clients["ecs"]
+
+        # Create task definition arns with no matches
+        task_def_arns = [
+            "arn:aws:ecs:us-west-2:123456789012:task-definition/service-1:1",
+            "arn:aws:ecs:us-west-2:123456789012:task-definition/service-2:1",
+        ]
+
+        # Set up paginator with AsyncIterator
+        mock_paginator = mock.Mock()
+        mock_paginator.paginate.return_value = AsyncIterator(
+            [{"taskDefinitionArns": task_def_arns}]
+        )
+        mock_ecs.get_paginator.return_value = mock_paginator
+
+        result = await get_task_definitions("test-app", ecs_client=mock_ecs)
+
+        # Should find no task definitions
+        assert len(result) == 0
+        mock_ecs.describe_task_definition.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_get_task_definitions_pagination(self, mock_aws_clients):
+        """Test get_task_definitions with pagination."""
+        mock_ecs = mock_aws_clients["ecs"]
+
+        # Create task definition arns across multiple pages
+        page1_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app-page1:1"]
+        page2_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app-page2:1"]
+
+        # Set up paginator with AsyncIterator for multiple pages
+        mock_paginator = mock.Mock()
+        mock_paginator.paginate.return_value = AsyncIterator(
+            [{"taskDefinitionArns": page1_arns}, {"taskDefinitionArns": page2_arns}]
+        )
+        mock_ecs.get_paginator.return_value = mock_paginator
+
+        # Set up describe_task_definition with side_effect function for dynamic response
+        async def mock_describe_task_def(taskDefinition, **kwargs):
+            # Extract family name from ARN
+            family = taskDefinition.split("/")[1].split(":")[0]
+            return {
+                "taskDefinition": {
+                    "taskDefinitionArn": taskDefinition,
+                    "family": family,
+                    "containerDefinitions": [{"image": f"{family}-image"}],
+                }
+            }
+
+        mock_ecs.describe_task_definition.side_effect = mock_describe_task_def
+
+        result = await get_task_definitions("test-app", ecs_client=mock_ecs)
+
+        # Should find both task definitions across pages
+        assert len(result) == 2
+        task_def_families = [td["family"] for td in result]
+        assert "test-app-page1" in task_def_families
+        assert "test-app-page2" in task_def_families
+
+    @pytest.mark.anyio
+    async def test_get_task_definitions_client_error(self, mock_aws_clients):
+        """Test get_task_definitions handling of client errors."""
+        mock_ecs = mock_aws_clients["ecs"]
+
+        # Mock get_paginator to raise ClientError
+        error_response = {
+            "Error": {"Code": "InvalidParameterException", "Message": "Invalid parameter"}
+        }
+        mock_ecs.get_paginator.side_effect = ClientError(error_response, "GetPaginator")
+
+        result = await get_task_definitions("test-app", ecs_client=mock_ecs)
+
+        # Should handle the error and return empty list
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_get_task_definitions_general_error(self, mock_aws_clients):
+        """Test get_task_definitions handling of general exceptions."""
+        mock_ecs = mock_aws_clients["ecs"]
+
+        # Mock get_paginator to raise a general exception
+        mock_ecs.get_paginator.side_effect = Exception("Unexpected error")
+
+        result = await get_task_definitions("test-app", ecs_client=mock_ecs)
+
+        # Should handle the error and return empty list
+        assert result == []
+
+    @pytest.mark.anyio
     async def test_get_stack_status(self, mock_aws_clients):
         """Test get_stack_status function."""
         mock_cfn = mock_aws_clients["cloudformation"]
@@ -293,6 +384,35 @@ class TestHelperFunctions:
         result = await get_stack_status("nonexistent-app", cloudformation_client=mock_cfn)
 
         # Should return NOT_FOUND
+        assert result == "NOT_FOUND"
+
+    @pytest.mark.anyio
+    async def test_get_stack_status_access_denied(self, mock_aws_clients):
+        """Test get_stack_status when access is denied."""
+        mock_cfn = mock_aws_clients["cloudformation"]
+
+        # Configure access denied error
+        error_response = {"Error": {"Code": "AccessDenied", "Message": "Access denied"}}
+        mock_cfn.describe_stacks.side_effect = ClientError(error_response, "DescribeStacks")
+
+        # Should propagate the exception for access denied
+        with pytest.raises(ClientError) as excinfo:
+            await get_stack_status("test-app", cloudformation_client=mock_cfn)
+
+        # Verify the error is access denied
+        assert excinfo.value.response["Error"]["Code"] == "AccessDenied"
+
+    @pytest.mark.anyio
+    async def test_get_stack_status_empty_stacks(self, mock_aws_clients):
+        """Test get_stack_status with empty stacks list."""
+        mock_cfn = mock_aws_clients["cloudformation"]
+
+        # Configure response with empty stacks list
+        mock_cfn.describe_stacks.return_value = {"Stacks": []}
+
+        result = await get_stack_status("test-app", cloudformation_client=mock_cfn)
+
+        # Should return NOT_FOUND since no stacks were found
         assert result == "NOT_FOUND"
 
     @pytest.mark.anyio
@@ -333,6 +453,51 @@ class TestHelperFunctions:
         assert result[0]["exists"] == "true"
         assert result[1]["repository_type"] == "external"
         assert result[1]["exists"] == "unknown"
+
+    @pytest.mark.anyio
+    async def test_validate_container_images_no_containers(self, mock_aws_clients):
+        """Test validate_container_images with task definitions having no container definitions."""
+        mock_ecr = mock_aws_clients["ecr"]
+
+        # Test with task definition that has no containerDefinitions key
+        task_definitions = [
+            {
+                "taskDefinitionArn": (
+                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                ),
+                # No containerDefinitions key
+            }
+        ]
+
+        result = await validate_container_images(task_definitions, ecr_client=mock_ecr)
+
+        # Should return empty list
+        assert result == []
+        mock_ecr.describe_repositories.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_validate_container_images_missing_image(self, mock_aws_clients):
+        """Test validate_container_images with containers missing image field."""
+        mock_ecr = mock_aws_clients["ecr"]
+
+        # Test with container definition that has no image field
+        task_definitions = [
+            {
+                "taskDefinitionArn": (
+                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                ),
+                "containerDefinitions": [
+                    {"name": "app"}  # No image field
+                ],
+            }
+        ]
+
+        result = await validate_container_images(task_definitions, ecr_client=mock_ecr)
+
+        # Should return result with empty image string
+        assert len(result) == 1
+        assert result[0]["image"] == ""
+        mock_ecr.describe_repositories.assert_not_called()
 
     @pytest.mark.anyio
     async def test_validate_image_ecr(self, mock_aws_clients):
@@ -422,6 +587,26 @@ class TestHelperFunctions:
         assert result["exists"] == "false"  # Current implementation treats all errors as "false"
         assert result["repository_type"] == "ecr"
         assert "Access denied" in result["error"]
+
+    @pytest.mark.anyio
+    async def test_validate_image_ecr_general_exception(self, mock_aws_clients):
+        """Test validate_image function with general exception during validation."""
+        mock_ecr = mock_aws_clients["ecr"]
+
+        # Configure responses - repository exists but general error occurs
+        mock_ecr.describe_repositories.return_value = {"repositories": [{"repositoryName": "repo"}]}
+
+        # Set up a general exception
+        mock_ecr.describe_images.side_effect = Exception("General error")
+
+        result = await validate_image(
+            "123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:latest", ecr_client=mock_ecr
+        )
+
+        # Should fail validation with general error
+        assert result["exists"] == "false"
+        assert result["repository_type"] == "ecr"
+        assert "General error" in result["error"]
 
     @pytest.mark.anyio
     async def test_validate_image_non_ecr(self, mock_aws_clients):
@@ -599,6 +784,77 @@ class TestHelperFunctions:
         )
         assert "both exist" in assessment
 
+    def test_create_assessment_with_failed_stack(self):
+        """Test create_assessment function with a failed stack."""
+        # Test with stack in ROLLBACK_COMPLETE state
+        assessment = create_assessment(
+            "test-app",
+            "ROLLBACK_COMPLETE",
+            {"clusters": [], "services": [], "task_definitions": [], "load_balancers": []},
+        )
+        assert "failed state" in assessment
+        assert "ROLLBACK_COMPLETE" in assessment
+
+        # Test with stack in CREATE_FAILED state
+        assessment = create_assessment(
+            "test-app",
+            "CREATE_FAILED",
+            {"clusters": [], "services": [], "task_definitions": [], "load_balancers": []},
+        )
+        assert "failed state" in assessment
+        assert "CREATE_FAILED" in assessment
+
+    def test_create_assessment_with_in_progress_stack(self):
+        """Test create_assessment function with an in progress stack."""
+        # Test with stack in CREATE_IN_PROGRESS state
+        assessment = create_assessment(
+            "test-app",
+            "CREATE_IN_PROGRESS",
+            {"clusters": [], "services": [], "task_definitions": [], "load_balancers": []},
+        )
+        assert "currently being created/updated" in assessment
+        assert "CREATE_IN_PROGRESS" in assessment
+
+        # Test with stack in UPDATE_IN_PROGRESS state
+        assessment = create_assessment(
+            "test-app",
+            "UPDATE_IN_PROGRESS",
+            {"clusters": [], "services": [], "task_definitions": [], "load_balancers": []},
+        )
+        assert "currently being created/updated" in assessment
+        assert "UPDATE_IN_PROGRESS" in assessment
+
+    def test_create_assessment_with_resources(self):
+        """Test create_assessment function with various resources."""
+        # Test with task definitions but no clusters
+        assessment = create_assessment(
+            "test-app",
+            "NOT_FOUND",
+            {
+                "clusters": [],
+                "services": [],
+                "task_definitions": ["task-def:1", "task-def:2"],
+                "load_balancers": [],
+            },
+        )
+        assert "does not exist" in assessment
+        assert "Found 2 related task definitions" in assessment
+
+        # Test with clusters info
+        assessment = create_assessment(
+            "test-app",
+            "NOT_FOUND",
+            {
+                "clusters": ["cluster-1", "cluster-2"],
+                "services": [],
+                "task_definitions": [],
+                "load_balancers": [],
+            },
+        )
+        assert "does not exist" in assessment
+        assert "Found similar clusters" in assessment
+        assert "cluster-1, cluster-2" in assessment
+
     @pytest.mark.anyio
     async def test_discover_resources(self, mock_aws_clients):
         """Test discover_resources function."""
@@ -651,30 +907,123 @@ class TestHelperFunctions:
         assert task_defs[0]["containerDefinitions"][0]["name"] == "app"
 
     @pytest.mark.anyio
-    async def test_handle_aws_api_call(self):
-        """Test handle_aws_api_call utility function."""
+    async def test_discover_resources_no_resources(self, mock_aws_clients):
+        """Test discover_resources function when no resources exist."""
+        mock_ecs = mock_aws_clients["ecs"]
+        mock_elbv2 = mock_aws_clients["elbv2"]
 
-        # Test with sync function
-        def sync_func(arg1, arg2):
-            return f"{arg1}-{arg2}"
+        # Mock empty responses
+        mock_ecs.list_clusters.return_value = {"clusterArns": []}
+        mock_ecs.list_services.return_value = {"serviceArns": []}
+        mock_paginator = mock.Mock()
+        mock_paginator.paginate.return_value = AsyncIterator([{"taskDefinitionArns": []}])
+        mock_ecs.get_paginator.return_value = mock_paginator
+        mock_elbv2.describe_load_balancers.return_value = {"LoadBalancers": []}
 
-        result = await handle_aws_api_call(sync_func, "default", "value1", "value2")
-        assert result == "value1-value2"
+        resources, task_defs = await discover_resources(
+            "test-app", ecs_client=mock_ecs, elbv2_client=mock_elbv2
+        )
 
-        # Test with async function
-        async def async_func(arg1, arg2):
-            return f"{arg1}-{arg2}"
+        # Verify empty results
+        assert resources["clusters"] == []
+        assert resources["services"] == []
+        assert resources["task_definitions"] == []
+        assert resources["load_balancers"] == []
+        assert task_defs == []
 
-        result = await handle_aws_api_call(async_func, "default", "value1", "value2")
-        assert result == "value1-value2"
+    @pytest.mark.anyio
+    async def test_discover_resources_service_error(self, mock_aws_clients):
+        """Test discover_resources when service listing fails."""
+        mock_ecs = mock_aws_clients["ecs"]
+        mock_elbv2 = mock_aws_clients["elbv2"]
 
-        # Test with ClientError
-        def error_func():
-            error_response = {"Error": {"Code": "TestError", "Message": "Test error"}}
-            raise ClientError(error_response, "TestOperation")
+        # Mock clusters
+        mock_ecs.list_clusters.return_value = {
+            "clusterArns": ["arn:aws:ecs:us-west-2:123456789012:cluster/test-app-cluster"]
+        }
 
-        result = await handle_aws_api_call(error_func, "default-value")
-        assert result == "default-value"
+        # Mock service list error
+        mock_ecs.list_services.side_effect = Exception("Service listing error")
+
+        # Mock task definitions
+        task_def_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"]
+        mock_paginator = mock.Mock()
+        mock_paginator.paginate.return_value = AsyncIterator(
+            [{"taskDefinitionArns": task_def_arns}]
+        )
+        mock_ecs.get_paginator.return_value = mock_paginator
+        mock_ecs.describe_task_definition.return_value = {
+            "taskDefinition": {
+                "taskDefinitionArn": (
+                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                ),
+                "containerDefinitions": [{"name": "app", "image": "test-image"}],
+            }
+        }
+
+        # Mock load balancers
+        mock_elbv2.describe_load_balancers.return_value = {
+            "LoadBalancers": [{"LoadBalancerName": "test-app-lb"}]
+        }
+
+        resources, task_defs = await discover_resources(
+            "test-app", ecs_client=mock_ecs, elbv2_client=mock_elbv2
+        )
+
+        # Verify the results - should have clusters, task definitions, and load balancers
+        # but no services due to the error
+        assert "test-app-cluster" in resources["clusters"]
+        assert resources["services"] == []  # Services list should be empty due to error
+        assert "test-app:1" in resources["task_definitions"]
+        assert "test-app-lb" in resources["load_balancers"]
+        assert len(task_defs) == 1
+
+    @pytest.mark.anyio
+    async def test_find_related_task_definitions(self, mock_aws_clients):
+        """Test find_related_task_definitions which wraps around get_task_definitions."""
+        mock_ecs = mock_aws_clients["ecs"]
+
+        # Set up mock for get_task_definitions
+        task_def_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"]
+        mock_paginator = mock.Mock()
+        mock_paginator.paginate.return_value = AsyncIterator(
+            [{"taskDefinitionArns": task_def_arns}]
+        )
+        mock_ecs.get_paginator.return_value = mock_paginator
+
+        # Set up describe_task_definition response
+        mock_ecs.describe_task_definition.return_value = {
+            "taskDefinition": {
+                "taskDefinitionArn": (
+                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                ),
+                "family": "test-app",
+                "containerDefinitions": [{"name": "app", "image": "test-image"}],
+            }
+        }
+
+        # Call find_related_task_definitions
+        result = await find_related_task_definitions("test-app", ecs_client=mock_ecs)
+
+        # Verify it returns the same result as get_task_definitions would
+        assert len(result) == 1
+        assert result[0]["family"] == "test-app"
+        assert result[0]["containerDefinitions"][0]["name"] == "app"
+
+    @pytest.mark.anyio
+    async def test_find_related_task_definitions_error(self, mock_aws_clients):
+        """Test find_related_task_definitions with an error."""
+        mock_ecs = mock_aws_clients["ecs"]
+
+        # Set up get_paginator to raise an exception
+        mock_ecs.get_paginator.side_effect = Exception("Failed to get paginator")
+
+        # Call find_related_task_definitions
+        result = await find_related_task_definitions("test-app", ecs_client=mock_ecs)
+
+        # Verify an empty list is returned when an error occurs
+        assert result == []
+        mock_ecs.get_paginator.assert_called_once()
 
 
 class TestComprehensiveSystem:
@@ -1076,21 +1425,32 @@ class TestComprehensiveSystem:
         assert result["raw_data"]["image_check_results"] == []
 
     @pytest.mark.anyio
-    async def test_find_related_task_definitions_error(self):
-        """Test find_related_task_definitions with an error."""
-        app_name = "test-app"
+    async def test_symptoms_description(self, mock_aws_clients):
+        """Test that symptoms description is included in the result."""
+        mock_ecs = mock_aws_clients["ecs"]
+        mock_cfn = mock_aws_clients["cloudformation"]
+        mock_ecr = mock_aws_clients["ecr"]
+        mock_elbv2 = mock_aws_clients["elbv2"]
 
-        # Create a mock ECS client
-        mock_ecs = mock.AsyncMock()
+        # Setup minimal successful responses
+        mock_cfn.describe_stacks.return_value = {"Stacks": [{"StackStatus": "CREATE_COMPLETE"}]}
+        mock_ecs.list_clusters.return_value = {"clusterArns": []}
+        mock_ecs.get_paginator.return_value = mock.Mock()
+        mock_ecs.get_paginator.return_value.paginate.return_value = AsyncIterator(
+            [{"taskDefinitionArns": []}]
+        )
 
-        # Set up get_paginator to raise an exception
-        mock_ecs.get_paginator.side_effect = Exception("Failed to get paginator")
+        # Call with custom symptoms description
+        symptoms = "My ECS service isn't accessible through the ALB"
+        result = await get_ecs_troubleshooting_guidance(
+            "test-app",
+            symptoms_description=symptoms,
+            ecs_client=mock_ecs,
+            cloudformation_client=mock_cfn,
+            ecr_client=mock_ecr,
+            elbv2_client=mock_elbv2,
+        )
 
-        # Call find_related_task_definitions
-        result = await find_related_task_definitions(app_name, ecs_client=mock_ecs)
-
-        # Verify get_paginator was called with 'list_task_definitions'
-        mock_ecs.get_paginator.assert_called_once_with("list_task_definitions")
-
-        # Verify an empty list is returned when an error occurs
-        assert result == []
+        # Verify symptoms description is included in result
+        assert result["status"] == "success"
+        assert result["raw_data"]["symptoms_description"] == symptoms

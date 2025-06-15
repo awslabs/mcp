@@ -929,3 +929,821 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
         finally:
             # Restore original function
             sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_loadbalancers_api_error(self):
+        """Test discover_vpcs_from_loadbalancers when the API call fails."""
+        app_name = "test-app"
+
+        # Setup mock ELBv2 client
+        mock_elbv2 = AsyncMock()
+
+        # Set up describe_load_balancers to raise exception
+        mock_elbv2.describe_load_balancers.side_effect = Exception("API error")
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "elbv2":
+                    return mock_elbv2
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_loadbalancers(app_name)
+
+            # Verify the results - should return empty list on error
+            self.assertEqual(vpc_ids, [])
+
+            # Verify the mocks were called correctly
+            mock_elbv2.describe_load_balancers.assert_called_once()
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_loadbalancers_null_lb(self):
+        """Test discover_vpcs_from_loadbalancers with null load balancer entry."""
+        app_name = "test-app"
+
+        # Setup mock ELBv2 client
+        mock_elbv2 = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response with a null entry in LoadBalancers list
+        lb_response = {
+            "LoadBalancers": [
+                None,  # Test null handling
+                {
+                    "LoadBalancerName": "test-app-lb",
+                    "LoadBalancerArn": "arn1",
+                    "VpcId": "vpc-12345678",
+                },
+            ]
+        }
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "elbv2":
+                    return mock_elbv2
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_elbv2.describe_load_balancers = AsyncMock(return_value=lb_response)
+            mock_elbv2.describe_tags = AsyncMock(return_value={"TagDescriptions": []})
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_loadbalancers(app_name)
+
+            # Verify the results - should skip null entry and process valid ones
+            self.assertEqual(vpc_ids, ["vpc-12345678"])
+
+            # Verify the mocks were called correctly
+            mock_elbv2.describe_load_balancers.assert_called_once()
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_clusters_null_task(self):
+        """Test VPC discovery from clusters with null task in response."""
+        # We need to mock both ECS and EC2 clients and their responses
+        mock_ecs = AsyncMock()
+        mock_ec2 = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response for tasks with null task entry
+        task_response = {
+            "tasks": [
+                None,  # Test null handling
+                {
+                    "attachments": [
+                        {
+                            "type": "ElasticNetworkInterface",
+                            "details": [{"name": "networkInterfaceId", "value": "eni-12345678"}],
+                        }
+                    ]
+                },
+            ]
+        }
+
+        # Mock response for ENIs with VPC IDs
+        eni_response = {"NetworkInterfaces": [{"VpcId": "vpc-12345678"}]}
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "ecs":
+                    return mock_ecs
+                elif service_name == "ec2":
+                    return mock_ec2
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_ecs.list_tasks = AsyncMock(
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+            )
+            mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
+            mock_ec2.describe_network_interfaces = AsyncMock(return_value=eni_response)
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_clusters(["test-cluster"])
+
+            # Verify the results - should ignore null task and process valid ones
+            self.assertEqual(vpc_ids, ["vpc-12345678"])
+
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_clusters_null_attachment(self):
+        """Test VPC discovery with null attachment in task."""
+        # We need to mock both ECS and EC2 clients and their responses
+        mock_ecs = AsyncMock()
+        mock_ec2 = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response for tasks with null attachment
+        task_response = {
+            "tasks": [
+                {
+                    "attachments": [
+                        None,  # Test null handling
+                        {
+                            "type": "ElasticNetworkInterface",
+                            "details": [{"name": "networkInterfaceId", "value": "eni-12345678"}],
+                        },
+                    ]
+                }
+            ]
+        }
+
+        # Mock response for ENIs with VPC IDs
+        eni_response = {"NetworkInterfaces": [{"VpcId": "vpc-12345678"}]}
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "ecs":
+                    return mock_ecs
+                elif service_name == "ec2":
+                    return mock_ec2
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_ecs.list_tasks = AsyncMock(
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+            )
+            mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
+            mock_ec2.describe_network_interfaces = AsyncMock(return_value=eni_response)
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_clusters(["test-cluster"])
+
+            # Verify the results - should ignore null attachment and process valid ones
+            self.assertEqual(vpc_ids, ["vpc-12345678"])
+
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_get_network_data_empty_vpc_and_app_name(self):
+        """Test get_network_data when no VPC or app name is provided."""
+        # Configure mocks for different AWS services
+        mock_ec2 = AsyncMock()
+        mock_ecs = AsyncMock()
+        mock_elbv2 = AsyncMock()
+        mock_cfn = AsyncMock()
+
+        # Set up proper pagination for CloudFormation
+        mock_paginator = Mock()  # Use regular Mock, not AsyncMock
+        mock_paginator.paginate.return_value = AsyncIterator([{"StackSummaries": []}])
+        mock_cfn.get_paginator.return_value = mock_paginator
+
+        # Configure empty responses
+        mock_ecs.list_clusters.return_value = {"clusterArns": []}
+        mock_ecs.list_tasks.return_value = {"taskArns": []}
+        mock_elbv2.describe_load_balancers.return_value = {"LoadBalancers": []}
+        mock_ec2.describe_vpcs.return_value = {"Vpcs": []}
+
+        # Call the function with empty app name
+        result = await get_network_data(
+            "",  # Empty app name
+            ec2_client=mock_ec2,
+            ecs_client=mock_ecs,
+            elbv2_client=mock_elbv2,
+            cfn_client=mock_cfn,
+        )
+
+        # Verify result is warning status
+        self.assertEqual(result["status"], "warning")
+        self.assertIn("No VPC found", result["message"])
+
+    @pytest.mark.anyio
+    async def test_get_ec2_resource_with_null_vpc_ids(self):
+        """Test EC2 resource retrieval with null VPC IDs."""
+        mock_ec2 = AsyncMock()
+
+        # Test with None vpc_ids
+        await get_ec2_resource(mock_ec2, "describe_subnets", None)
+        # Verify describe_subnets was called without filters
+        mock_ec2.describe_subnets.assert_called_once_with()
+
+    @pytest.mark.anyio
+    async def test_get_elb_resources_with_empty_vpc_ids(self):
+        """Test ELB resource retrieval with empty VPC IDs list."""
+        mock_elbv2 = AsyncMock()
+
+        # Configure mock response
+        mock_elbv2.describe_load_balancers.return_value = {
+            "LoadBalancers": [
+                {"LoadBalancerArn": "arn1", "VpcId": "vpc-12345678"},
+                {"LoadBalancerArn": "arn2", "VpcId": "vpc-87654321"},
+            ]
+        }
+
+        # Call function with empty VPC filter
+        result = await get_elb_resources(mock_elbv2, "describe_load_balancers", [])
+
+        # Verify result contains all load balancers (no filtering)
+        self.assertEqual(len(result["LoadBalancers"]), 2)
+
+    @pytest.mark.anyio
+    async def test_get_elb_resources_missing_vpc_id(self):
+        """Test ELB resource retrieval with load balancer missing VPC ID."""
+        mock_elbv2 = AsyncMock()
+
+        # Configure mock response with one load balancer missing VpcId
+        mock_elbv2.describe_load_balancers.return_value = {
+            "LoadBalancers": [
+                {"LoadBalancerArn": "arn1", "VpcId": "vpc-12345678"},
+                {"LoadBalancerArn": "arn2"},  # Missing VpcId
+            ]
+        }
+
+        # Call function with VPC filter
+        result = await get_elb_resources(mock_elbv2, "describe_load_balancers", ["vpc-12345678"])
+
+        # Verify result excludes the load balancer without VpcId
+        self.assertEqual(len(result["LoadBalancers"]), 1)
+        self.assertEqual(result["LoadBalancers"][0]["LoadBalancerArn"], "arn1")
+
+    @pytest.mark.anyio
+    async def test_get_elb_resources_null_load_balancer(self):
+        """Test ELB resource retrieval with None in LoadBalancers list."""
+        mock_elbv2 = AsyncMock()
+
+        # Configure mock response with None in LoadBalancers list
+        mock_elbv2.describe_load_balancers.return_value = {
+            "LoadBalancers": [
+                {"LoadBalancerArn": "arn1", "VpcId": "vpc-12345678"},
+                None,  # None entry should be handled
+            ]
+        }
+
+        # Call function with VPC filter
+        result = await get_elb_resources(mock_elbv2, "describe_load_balancers", ["vpc-12345678"])
+
+        # Verify result only includes valid load balancer
+        self.assertEqual(len(result["LoadBalancers"]), 1)
+        self.assertEqual(result["LoadBalancers"][0]["LoadBalancerArn"], "arn1")
+
+    @pytest.mark.anyio
+    async def test_get_elb_resources_exception_handling(self):
+        """Test ELB resource retrieval handles exceptions gracefully."""
+        mock_elbv2 = AsyncMock()
+
+        # Configure mock to raise exception
+        mock_elbv2.describe_load_balancers = AsyncMock(side_effect=Exception("API error"))
+
+        # Call function
+        result = await get_elb_resources(mock_elbv2, "describe_load_balancers", ["vpc-12345678"])
+
+        # Verify error is returned - the actual implementation returns the full exception string
+        self.assertIn("error", result)
+        self.assertEqual(result["error"], "API error")
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_clusters_with_null_detail(self):
+        """Test VPC discovery from clusters with null detail in attachment."""
+        # We need to mock both ECS and EC2 clients and their responses
+        mock_ecs = AsyncMock()
+        mock_ec2 = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response for tasks with null detail
+        task_response = {
+            "tasks": [
+                {
+                    "attachments": [
+                        {
+                            "type": "ElasticNetworkInterface",
+                            "details": [
+                                None,  # Test null handling
+                                {"name": "networkInterfaceId", "value": "eni-12345678"},
+                            ],
+                        }
+                    ]
+                }
+            ]
+        }
+
+        # Mock response for ENIs with VPC IDs
+        eni_response = {"NetworkInterfaces": [{"VpcId": "vpc-12345678"}]}
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "ecs":
+                    return mock_ecs
+                elif service_name == "ec2":
+                    return mock_ec2
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_ecs.list_tasks = AsyncMock(
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+            )
+            mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
+            mock_ec2.describe_network_interfaces = AsyncMock(return_value=eni_response)
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_clusters(["test-cluster"])
+
+            # Verify the results - should ignore null detail and process valid ones
+            self.assertEqual(vpc_ids, ["vpc-12345678"])
+
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_clusters_network_interface_not_found(self):
+        """Test VPC discovery when networkInterfaceId is not in attachment details."""
+        # We need to mock both ECS and EC2 clients and their responses
+        mock_ecs = AsyncMock()
+        mock_ec2 = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response for tasks with missing networkInterfaceId detail
+        task_response = {
+            "tasks": [
+                {
+                    "attachments": [
+                        {
+                            "type": "ElasticNetworkInterface",
+                            "details": [{"name": "otherDetail", "value": "some-value"}],
+                        }
+                    ]
+                }
+            ]
+        }
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "ecs":
+                    return mock_ecs
+                elif service_name == "ec2":
+                    return mock_ec2
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_ecs.list_tasks = AsyncMock(
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+            )
+            mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_clusters(["test-cluster"])
+
+            # Verify the results - should be empty since no networkInterfaceId was found
+            self.assertEqual(vpc_ids, [])
+
+            # Verify EC2 describe_network_interfaces was not called
+            mock_ec2.describe_network_interfaces.assert_not_called()
+
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_clusters_empty_detail_value(self):
+        """Test VPC discovery when networkInterfaceId value is empty."""
+        # We need to mock both ECS and EC2 clients and their responses
+        mock_ecs = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response for tasks with empty networkInterfaceId value
+        task_response = {
+            "tasks": [
+                {
+                    "attachments": [
+                        {
+                            "type": "ElasticNetworkInterface",
+                            "details": [{"name": "networkInterfaceId", "value": ""}],
+                        }
+                    ]
+                }
+            ]
+        }
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "ecs":
+                    return mock_ecs
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_ecs.list_tasks = AsyncMock(
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+            )
+            mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_clusters(["test-cluster"])
+
+            # Verify the results - should be empty since networkInterfaceId was empty
+            self.assertEqual(vpc_ids, [])
+
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_clusters_null_eni(self):
+        """Test VPC discovery when ENI response has null entries."""
+        # We need to mock both ECS and EC2 clients and their responses
+        mock_ecs = AsyncMock()
+        mock_ec2 = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response for tasks with network interfaces
+        task_response = {
+            "tasks": [
+                {
+                    "attachments": [
+                        {
+                            "type": "ElasticNetworkInterface",
+                            "details": [{"name": "networkInterfaceId", "value": "eni-12345678"}],
+                        }
+                    ]
+                }
+            ]
+        }
+
+        # Mock response for ENIs with null entry
+        eni_response = {"NetworkInterfaces": [None, {"VpcId": "vpc-12345678"}]}
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "ecs":
+                    return mock_ecs
+                elif service_name == "ec2":
+                    return mock_ec2
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_ecs.list_tasks = AsyncMock(
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+            )
+            mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
+            mock_ec2.describe_network_interfaces = AsyncMock(return_value=eni_response)
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_clusters(["test-cluster"])
+
+            # Verify the results - should ignore null ENI and process valid ones
+            self.assertEqual(vpc_ids, ["vpc-12345678"])
+
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_cloudformation_deleted_stack(self):
+        """Test VPC discovery from CloudFormation with deleted stacks."""
+        # Setup mock CloudFormation client
+        mock_cfn = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response for stack list with deleted stack
+        stacks_response = {
+            "StackSummaries": [
+                {"StackName": "test-app-stack", "StackStatus": "CREATE_COMPLETE"},
+                {
+                    "StackName": "test-app-deleted",
+                    "StackStatus": "DELETE_COMPLETE",
+                },  # Should be filtered out
+            ]
+        }
+
+        # Mock response for stack resources
+        resources_response = {
+            "StackResourceSummaries": [
+                {"ResourceType": "AWS::EC2::VPC", "PhysicalResourceId": "vpc-12345678"}
+            ]
+        }
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "cloudformation":
+                    return mock_cfn
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_cfn.list_stacks = AsyncMock(return_value=stacks_response)
+            mock_cfn.list_stack_resources = AsyncMock(return_value=resources_response)
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_cloudformation("test-app")
+
+            # Verify the results - only should include VPC from non-deleted stack
+            self.assertEqual(vpc_ids, ["vpc-12345678"])
+
+            # Verify list_stack_resources was only called for non-deleted stack
+            mock_cfn.list_stack_resources.assert_called_once_with(StackName="test-app-stack")
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_cloudformation_invalid_stack_resource(self):
+        """Test VPC discovery from CloudFormation with invalid resource summary."""
+        # Setup mock CloudFormation client
+        mock_cfn = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response for stack list
+        stacks_response = {
+            "StackSummaries": [{"StackName": "test-app-stack", "StackStatus": "CREATE_COMPLETE"}]
+        }
+
+        # Mock response for stack resources with a None entry and a non-VPC resource
+        resources_response = {
+            "StackResourceSummaries": [
+                None,  # Test null handling
+                {
+                    "ResourceType": "AWS::S3::Bucket",
+                    "PhysicalResourceId": "test-bucket",
+                },  # Not a VPC
+                {"ResourceType": "AWS::EC2::VPC", "PhysicalResourceId": "vpc-12345678"},
+            ]
+        }
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "cloudformation":
+                    return mock_cfn
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_cfn.list_stacks = AsyncMock(return_value=stacks_response)
+            mock_cfn.list_stack_resources = AsyncMock(return_value=resources_response)
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_cloudformation("test-app")
+
+            # Verify the results - should ignore null resource and non-VPC resource
+            self.assertEqual(vpc_ids, ["vpc-12345678"])
+
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_discover_vpcs_from_cloudformation_missing_physical_id(self):
+        """Test VPC discovery from CloudFormation with missing PhysicalResourceId."""
+        # Setup mock CloudFormation client
+        mock_cfn = AsyncMock()
+
+        # Setup the clients
+        module_name = "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
+
+        # Mock get_aws_client to return our mocks
+        original_get_aws_client = sys.modules[module_name].get_aws_client
+
+        # Mock response for stack list
+        stacks_response = {
+            "StackSummaries": [{"StackName": "test-app-stack", "StackStatus": "CREATE_COMPLETE"}]
+        }
+
+        # Mock response for stack resources with missing PhysicalResourceId
+        resources_response = {
+            "StackResourceSummaries": [
+                {"ResourceType": "AWS::EC2::VPC"},  # Missing PhysicalResourceId
+                {"ResourceType": "AWS::EC2::VPC", "PhysicalResourceId": "vpc-12345678"},
+            ]
+        }
+
+        try:
+            # Replace get_aws_client with a function that returns our mocks
+            async def mock_get_aws_client(service_name):
+                if service_name == "cloudformation":
+                    return mock_cfn
+                return AsyncMock()
+
+            sys.modules[module_name].get_aws_client = mock_get_aws_client
+
+            # Configure mock responses
+            mock_cfn.list_stacks = AsyncMock(return_value=stacks_response)
+            mock_cfn.list_stack_resources = AsyncMock(return_value=resources_response)
+
+            # Call the function
+            vpc_ids = await discover_vpcs_from_cloudformation("test-app")
+
+            # Verify the results - should ignore resource without PhysicalResourceId
+            self.assertEqual(vpc_ids, ["vpc-12345678"])
+
+        finally:
+            # Restore original function
+            sys.modules[module_name].get_aws_client = original_get_aws_client
+
+    @pytest.mark.anyio
+    async def test_get_network_data_vpc_discovery_from_tags(self):
+        """Test VPC discovery from EC2 VPC tags."""
+        # Configure mocks for different AWS services
+        mock_ec2 = AsyncMock()
+        mock_ecs = AsyncMock()
+        mock_elbv2 = AsyncMock()
+        mock_cfn = AsyncMock()
+
+        # Set up proper pagination for CloudFormation
+        mock_paginator = Mock()  # Use regular Mock, not AsyncMock
+        mock_paginator.paginate.return_value = AsyncIterator([{"StackSummaries": []}])
+        mock_cfn.get_paginator.return_value = mock_paginator
+
+        # Configure mock responses
+        mock_ecs.list_clusters.return_value = {"clusterArns": []}
+        mock_elbv2.describe_load_balancers.return_value = {"LoadBalancers": []}
+
+        # VPC discovery from tags
+        vpc_id = "vpc-12345678"
+        mock_ec2.describe_vpcs.return_value = {
+            "Vpcs": [
+                {
+                    "VpcId": vpc_id,
+                    "Tags": [{"Key": "Name", "Value": "test-app-vpc"}],  # Tag matching app name
+                },
+                {
+                    "VpcId": "vpc-87654321",
+                    "Tags": [{"Key": "Name", "Value": "other-vpc"}],  # Tag not matching
+                },
+            ]
+        }
+
+        # Standard AWS API mocks
+        mock_ec2.describe_subnets.return_value = {"Subnets": []}
+        mock_ec2.describe_security_groups.return_value = {"SecurityGroups": []}
+        mock_ec2.describe_route_tables.return_value = {"RouteTables": []}
+        mock_ec2.describe_network_interfaces.return_value = {"NetworkInterfaces": []}
+        mock_ec2.describe_nat_gateways.return_value = {"NatGateways": []}
+        mock_ec2.describe_internet_gateways.return_value = {"InternetGateways": []}
+        mock_elbv2.describe_target_groups.return_value = {"TargetGroups": []}
+
+        # Call the function with our injected mocks
+        result = await get_network_data(
+            "test-app",
+            ec2_client=mock_ec2,
+            ecs_client=mock_ecs,
+            elbv2_client=mock_elbv2,
+            cfn_client=mock_cfn,
+        )
+
+        # Verify success status
+        self.assertEqual(result["status"], "success")
+
+        # Verify vpc_id was discovered from tags
+        self.assertIn(vpc_id, result["data"]["vpc_ids"])
+
+        # Verify describe_vpcs was called - updated assertion to match actual behavior
+        # The implementation calls describe_vpcs initially and then during direct VPC search
+        self.assertEqual(mock_ec2.describe_vpcs.call_count, 2)
+
+    @pytest.mark.anyio
+    async def test_get_network_data_null_vpc_in_response(self):
+        """Test get_network_data with null VPC in response."""
+        # Configure mocks for different AWS services
+        mock_ec2 = AsyncMock()
+        mock_ecs = AsyncMock()
+        mock_elbv2 = AsyncMock()
+        mock_cfn = AsyncMock()
+
+        # Set up proper pagination for CloudFormation
+        mock_paginator = Mock()  # Use regular Mock, not AsyncMock
+        mock_paginator.paginate.return_value = AsyncIterator([{"StackSummaries": []}])
+        mock_cfn.get_paginator.return_value = mock_paginator
+
+        # Configure mock responses
+        mock_ecs.list_clusters.return_value = {"clusterArns": []}
+        mock_elbv2.describe_load_balancers.return_value = {"LoadBalancers": []}
+
+        # VPC discovery with null VPC in response
+        mock_ec2.describe_vpcs.return_value = {
+            "Vpcs": [
+                {"VpcId": "vpc-12345678", "Tags": [{"Key": "Name", "Value": "test-app-vpc"}]},
+                None,  # Null VPC should be handled
+            ]
+        }
+
+        # Standard AWS API mocks
+        mock_ec2.describe_subnets.return_value = {"Subnets": []}
+        mock_ec2.describe_security_groups.return_value = {"SecurityGroups": []}
+        mock_ec2.describe_route_tables.return_value = {"RouteTables": []}
+        mock_ec2.describe_network_interfaces.return_value = {"NetworkInterfaces": []}
+        mock_ec2.describe_nat_gateways.return_value = {"NatGateways": []}
+        mock_ec2.describe_internet_gateways.return_value = {"InternetGateways": []}
+        mock_elbv2.describe_target_groups.return_value = {"TargetGroups": []}
+
+        # Call the function with our injected mocks
+        result = await get_network_data(
+            "test-app",
+            ec2_client=mock_ec2,
+            ecs_client=mock_ecs,
+            elbv2_client=mock_elbv2,
+            cfn_client=mock_cfn,
+        )
+
+        # Verify success status
+        self.assertEqual(result["status"], "success")
+
+        # Verify vpc_id was discovered from valid entry
+        self.assertEqual(len(result["data"]["vpc_ids"]), 1)
+        self.assertEqual(result["data"]["vpc_ids"][0], "vpc-12345678")

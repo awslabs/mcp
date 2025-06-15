@@ -143,26 +143,32 @@ async def get_task_definitions(app_name: str, ecs_client=None) -> List[Dict[str,
 
     try:
         # Get list of task definition ARNs
-        paginator = await ecs_client.get_paginator("list_task_definitions")
+        paginator = await handle_aws_api_call(
+            ecs_client.get_paginator, None, "list_task_definitions"
+        )
         families_by_latest = {}
 
         # Use pagination to handle large lists efficiently
-        async for page in paginator.paginate(status="ACTIVE", maxResults=100):
-            for arn in page.get("taskDefinitionArns", []):
-                parsed_arn = parse_arn(arn)
-                if not parsed_arn:
-                    continue
+        if paginator is not None:
+            async for page in paginator.paginate(status="ACTIVE", maxResults=100):
+                for arn in page.get("taskDefinitionArns", []):
+                    parsed_arn = parse_arn(arn)
+                    if not parsed_arn:
+                        continue
 
-                # Extract family and revision directly using the parsed ARN
-                resource_parts = parsed_arn.resource_id.split(":")
-                family = resource_parts[0]
-                revision = int(resource_parts[1]) if len(resource_parts) > 1 else 0
+                    # Extract family and revision directly using the parsed ARN
+                    resource_parts = parsed_arn.resource_id.split(":")
+                    family = resource_parts[0]
+                    revision = int(resource_parts[1]) if len(resource_parts) > 1 else 0
 
-                # Check if app name is in the family name
-                if app_name_lower in family.lower():
-                    # Track only the latest revision
-                    if family not in families_by_latest or revision > families_by_latest[family][1]:
-                        families_by_latest[family] = (arn, revision)
+                    # Check if app name is in the family name
+                    if app_name_lower in family.lower():
+                        # Track only the latest revision
+                        if (
+                            family not in families_by_latest
+                            or revision > families_by_latest[family][1]
+                        ):
+                            families_by_latest[family] = (arn, revision)
 
         # Get task definitions for the latest revision of each matching family
         for arn, _ in families_by_latest.values():
@@ -314,12 +320,12 @@ async def validate_image(image_uri: str, ecr_client=None) -> Dict[str, Any]:
 
         # Check if repository exists
         try:
-            # Just check if the repository exists without storing the result
+            # Just check if the repository exists
             await ecr_client.describe_repositories(repositoryNames=[repo_name])
 
             # Check if image with tag exists
             try:
-                # Just check if the image exists without storing the result
+                # Just check if the image exists
                 await ecr_client.describe_images(
                     repositoryName=repo_name, imageIds=[{"imageTag": tag}]
                 )
