@@ -274,6 +274,10 @@ async def get_cost_and_usage(
     Returns:
         Dictionary containing cost report data grouped according to the specified parameters
     """
+    # Initialize variables at function scope to avoid unbound variable issues
+    billing_period_start = date_range.start_date
+    billing_period_end = date_range.end_date
+
     try:
         # Process inputs - simplified granularity validation
         granularity = str(granularity).upper()
@@ -282,9 +286,6 @@ async def get_cost_and_usage(
             return {
                 'error': f'Invalid granularity: {granularity}. Valid values are DAILY, MONTHLY, and HOURLY.'
             }
-
-        billing_period_start = date_range.start_date
-        billing_period_end = date_range.end_date
 
         # Define valid metrics and their expected data structure
         valid_metrics = {
