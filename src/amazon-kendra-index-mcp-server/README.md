@@ -5,7 +5,7 @@ An AWS Labs Model Context Protocol (MCP) server for Amazon Kendra. This MCP serv
 ### Features:
 
 * Enhance your existing MCP-enabled ChatBot with additional RAG indices
-* Enhance the responses from coding assitants such as Cline, Cursor, Windsurf, Amazon Q Developer, etc.
+* Enhance the responses from coding assistants such as Cline, Cursor, Windsurf, Amazon Q Developer, etc.
 
 ### Pre-Requisites:
 
@@ -29,7 +29,7 @@ An AWS Labs Model Context Protocol (MCP) server for Amazon Kendra. This MCP serv
 
 #### KendraListIndexesTool
 
-  - The KendraListIndexesTool lists the Kendra Indexes in your account. By default it will list all the indices in the regions provided as environment variables to the mcp config file. Otherwise the region can bev specified in the prompt.
+  - The KendraListIndexesTool lists the Kendra Indexes in your account. By default it will list all the indices in the regions provided as environment variables to the mcp config file. Otherwise the region can be specified in the prompt.
   - Optional Parameters: region (str)
   - Example:
     * `Can you list the Kendra Indexes in my account in the us-west-2 region`
