@@ -92,6 +92,8 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 
 **Set up Cursor**
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.eks-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwiY29tbWFuZCI6InV2eCBhd3NsYWJzLmVrcy1tY3Atc2VydmVyQGxhdGVzdCAtLWFsbG93LXdyaXRlIC0tYWxsb3ctc2Vuc2l0aXZlLWRhdGEtYWNjZXNzIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D)
+
 1. Open Cursor.
 2. Click the gear icon (⚙️) in the top right to open the settings panel, click **MCP**, **Add new global MCP server**.
 3. Paste your MCP server definition. For example, this example shows how to configure the EKS MCP Server, including enabling mutating actions with the `--allow-write` flag and access to sensitive data with the `--allow-sensitive-data-access` flag (see the Arguments section for more details):
