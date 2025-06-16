@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 from awslabs.openapi_mcp_server.prompts.generators.operation_prompts import extract_prompt_arguments
 
 
@@ -33,7 +32,7 @@ def test_parameter_with_description_and_enum():
     ]
 
     arguments = extract_prompt_arguments(parameters)
-    
+
     assert len(arguments) == 1
     assert arguments[0].name == 'status'
     assert 'Status values that need to be considered for filter' in arguments[0].description
@@ -54,7 +53,7 @@ def test_parameter_without_description():
     ]
 
     arguments = extract_prompt_arguments(parameters)
-    
+
     assert len(arguments) == 1
     assert arguments[0].name == 'petId'
     assert arguments[0].required is True
@@ -94,20 +93,20 @@ def test_request_body_with_required_properties():
     }
 
     arguments = extract_prompt_arguments([], request_body)
-    
+
     assert len(arguments) == 4
-    
+
     # Find the name parameter
     name_param = next((p for p in arguments if p.name == 'name'), None)
     assert name_param is not None
     assert name_param.description == 'The name of the pet'
     assert name_param.required is True
-    
+
     # Find the photoUrls parameter
     photo_param = next((p for p in arguments if p.name == 'photoUrls'), None)
     assert photo_param is not None
     assert photo_param.required is True
-    
+
     # Find the status parameter
     status_param = next((p for p in arguments if p.name == 'status'), None)
     assert status_param is not None
@@ -115,7 +114,7 @@ def test_request_body_with_required_properties():
     assert 'Default: "available"' in status_param.description
     assert 'Allowed values: ("available", "pending", "sold")' in status_param.description
     assert status_param.required is False
-    
+
     # Find the tags parameter
     tags_param = next((p for p in arguments if p.name == 'tags'), None)
     assert tags_param is not None

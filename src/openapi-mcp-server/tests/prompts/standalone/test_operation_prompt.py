@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import json
-import pytest
-from unittest.mock import MagicMock
 from awslabs.openapi_mcp_server.prompts.generators.operation_prompts import create_operation_prompt
 from fastmcp import FastMCP
 
@@ -23,7 +21,7 @@ def test_create_operation_prompt():
     """Test creating an operation prompt."""
     # Create a mock server
     server = FastMCP(name='test-server')
-    
+
     # Create a test operation
     operation_id = 'findPetsByStatus'
     method = 'get'
@@ -83,7 +81,7 @@ def test_create_operation_prompt():
 
     # Verify prompt was created successfully
     assert success is True
-    
+
     # Check that the prompt has the expected properties
     if hasattr(server, '_prompt_manager') and hasattr(server._prompt_manager, '_prompts'):
         prompt = server._prompt_manager._prompts.get(operation_id)
@@ -160,7 +158,11 @@ if __name__ == '__main__':
     print(f'Prompt creation success: {success}')
 
     # Print the prompt
-    if success and hasattr(server, '_prompt_manager') and hasattr(server._prompt_manager, '_prompts'):
+    if (
+        success
+        and hasattr(server, '_prompt_manager')
+        and hasattr(server._prompt_manager, '_prompts')
+    ):
         prompt = server._prompt_manager._prompts.get(operation_id)
         if prompt:
             # Convert to dict and remove function reference for serialization
