@@ -171,7 +171,7 @@ Accelerate development with code analysis, documentation, and testing utilities.
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams and technical illustrations
 - **[Frontend MCP Server](src/frontend-mcp-server/)** - React and modern web development guidance
 - **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for development and ML
-- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic MCP tools and resources from OpenAPI specifications
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 #### 📡 Integration & Messaging
 
