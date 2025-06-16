@@ -1,13 +1,13 @@
 """Tests for exception handling in Cognito authentication provider."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from awslabs.openapi_mcp_server.auth.cognito_auth import CognitoAuthProvider
 from awslabs.openapi_mcp_server.auth.auth_errors import (
     ConfigurationError,
     MissingCredentialsError,
     NetworkError,
 )
+from awslabs.openapi_mcp_server.auth.cognito_auth import CognitoAuthProvider
+from unittest.mock import MagicMock, patch
 
 
 class TestCognitoAuthExceptions:
@@ -26,19 +26,25 @@ class TestCognitoAuthExceptions:
 
         # Add exception to client.exceptions
         mock_client.exceptions.UserNotConfirmedException = UserNotConfirmedException
-        mock_client.exceptions.InvalidParameterException = type('InvalidParameterException', (Exception,), {})
-        mock_client.exceptions.ResourceNotFoundException = type('ResourceNotFoundException', (Exception,), {})
-        mock_client.exceptions.NotAuthorizedException = type('NotAuthorizedException', (Exception,), {})
+        mock_client.exceptions.InvalidParameterException = type(
+            'InvalidParameterException', (Exception,), {}
+        )
+        mock_client.exceptions.ResourceNotFoundException = type(
+            'ResourceNotFoundException', (Exception,), {}
+        )
+        mock_client.exceptions.NotAuthorizedException = type(
+            'NotAuthorizedException', (Exception,), {}
+        )
 
         # Make initiate_auth raise UserNotConfirmedException
-        mock_client.initiate_auth.side_effect = UserNotConfirmedException("User is not confirmed")
+        mock_client.initiate_auth.side_effect = UserNotConfirmedException('User is not confirmed')
 
         # Create auth provider instance without calling __init__
         provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
         provider._is_valid = True
         provider._token_lock = MagicMock()
         provider._username = 'testuser'
-        provider._password = 'testpass'
+        provider._password = 'testpass'  # pragma: allowlist secret
         provider._client_id = 'test_client_id'
         provider._user_pool_id = 'us-east-1_test123'
         provider._region = 'us-east-1'
@@ -51,7 +57,7 @@ class TestCognitoAuthExceptions:
             provider._get_cognito_token()
 
         # Verify the error message
-        assert "User not confirmed" in str(excinfo.value)
+        assert 'User not confirmed' in str(excinfo.value)
 
     @patch('boto3.client')
     def test_resource_not_found_exception(self, mock_boto_client):
@@ -65,20 +71,26 @@ class TestCognitoAuthExceptions:
             pass
 
         # Add exception to client.exceptions
-        mock_client.exceptions.UserNotConfirmedException = type('UserNotConfirmedException', (Exception,), {})
-        mock_client.exceptions.InvalidParameterException = type('InvalidParameterException', (Exception,), {})
+        mock_client.exceptions.UserNotConfirmedException = type(
+            'UserNotConfirmedException', (Exception,), {}
+        )
+        mock_client.exceptions.InvalidParameterException = type(
+            'InvalidParameterException', (Exception,), {}
+        )
         mock_client.exceptions.ResourceNotFoundException = ResourceNotFoundException
-        mock_client.exceptions.NotAuthorizedException = type('NotAuthorizedException', (Exception,), {})
+        mock_client.exceptions.NotAuthorizedException = type(
+            'NotAuthorizedException', (Exception,), {}
+        )
 
         # Make initiate_auth raise ResourceNotFoundException
-        mock_client.initiate_auth.side_effect = ResourceNotFoundException("User pool not found")
+        mock_client.initiate_auth.side_effect = ResourceNotFoundException('User pool not found')
 
         # Create auth provider instance without calling __init__
         provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
         provider._is_valid = True
         provider._token_lock = MagicMock()
         provider._username = 'testuser'
-        provider._password = 'testpass'
+        provider._password = 'testpass'  # pragma: allowlist secret
         provider._client_id = 'test_client_id'
         provider._user_pool_id = 'us-east-1_test123'
         provider._region = 'us-east-1'
@@ -91,7 +103,7 @@ class TestCognitoAuthExceptions:
             provider._get_cognito_token()
 
         # Verify the error message
-        assert "Cognito resource not found" in str(excinfo.value)
+        assert 'Cognito resource not found' in str(excinfo.value)
 
     @patch('boto3.client')
     def test_general_exception(self, mock_boto_client):
@@ -101,20 +113,28 @@ class TestCognitoAuthExceptions:
         mock_boto_client.return_value = mock_client
 
         # Add exception classes to client.exceptions
-        mock_client.exceptions.UserNotConfirmedException = type('UserNotConfirmedException', (Exception,), {})
-        mock_client.exceptions.InvalidParameterException = type('InvalidParameterException', (Exception,), {})
-        mock_client.exceptions.ResourceNotFoundException = type('ResourceNotFoundException', (Exception,), {})
-        mock_client.exceptions.NotAuthorizedException = type('NotAuthorizedException', (Exception,), {})
+        mock_client.exceptions.UserNotConfirmedException = type(
+            'UserNotConfirmedException', (Exception,), {}
+        )
+        mock_client.exceptions.InvalidParameterException = type(
+            'InvalidParameterException', (Exception,), {}
+        )
+        mock_client.exceptions.ResourceNotFoundException = type(
+            'ResourceNotFoundException', (Exception,), {}
+        )
+        mock_client.exceptions.NotAuthorizedException = type(
+            'NotAuthorizedException', (Exception,), {}
+        )
 
         # Make initiate_auth raise a general Exception
-        mock_client.initiate_auth.side_effect = Exception("Network connection error")
+        mock_client.initiate_auth.side_effect = Exception('Network connection error')
 
         # Create auth provider instance without calling __init__
         provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
         provider._is_valid = True
         provider._token_lock = MagicMock()
         provider._username = 'testuser'
-        provider._password = 'testpass'
+        provider._password = 'testpass'  # pragma: allowlist secret
         provider._client_id = 'test_client_id'
         provider._user_pool_id = 'us-east-1_test123'
         provider._region = 'us-east-1'
@@ -138,20 +158,28 @@ class TestCognitoAuthExceptions:
             pass
 
         # Add exception to client.exceptions
-        mock_client.exceptions.UserNotConfirmedException = type('UserNotConfirmedException', (Exception,), {})
+        mock_client.exceptions.UserNotConfirmedException = type(
+            'UserNotConfirmedException', (Exception,), {}
+        )
         mock_client.exceptions.InvalidParameterException = InvalidParameterException
-        mock_client.exceptions.ResourceNotFoundException = type('ResourceNotFoundException', (Exception,), {})
-        mock_client.exceptions.NotAuthorizedException = type('NotAuthorizedException', (Exception,), {})
+        mock_client.exceptions.ResourceNotFoundException = type(
+            'ResourceNotFoundException', (Exception,), {}
+        )
+        mock_client.exceptions.NotAuthorizedException = type(
+            'NotAuthorizedException', (Exception,), {}
+        )
 
         # Make initiate_auth raise InvalidParameterException with "Missing required parameter"
-        mock_client.initiate_auth.side_effect = InvalidParameterException("Missing required parameter ClientId")
+        mock_client.initiate_auth.side_effect = InvalidParameterException(
+            'Missing required parameter ClientId'
+        )
 
         # Create auth provider instance without calling __init__
         provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
         provider._is_valid = True
         provider._token_lock = MagicMock()
         provider._username = 'testuser'
-        provider._password = 'testpass'
+        provider._password = 'testpass'  # pragma: allowlist secret
         provider._client_id = ''  # Empty client ID
         provider._user_pool_id = 'us-east-1_test123'
         provider._region = 'us-east-1'
@@ -164,7 +192,7 @@ class TestCognitoAuthExceptions:
             provider._get_cognito_token()
 
         # Verify the error message
-        assert "Missing Cognito client ID" in str(excinfo.value)
+        assert 'Missing Cognito client ID' in str(excinfo.value)
 
     @patch('boto3.client')
     def test_invalid_parameter_exception_with_missing_user_pool_id(self, mock_boto_client):
@@ -178,20 +206,28 @@ class TestCognitoAuthExceptions:
             pass
 
         # Add exception to client.exceptions
-        mock_client.exceptions.UserNotConfirmedException = type('UserNotConfirmedException', (Exception,), {})
+        mock_client.exceptions.UserNotConfirmedException = type(
+            'UserNotConfirmedException', (Exception,), {}
+        )
         mock_client.exceptions.InvalidParameterException = InvalidParameterException
-        mock_client.exceptions.ResourceNotFoundException = type('ResourceNotFoundException', (Exception,), {})
-        mock_client.exceptions.NotAuthorizedException = type('NotAuthorizedException', (Exception,), {})
+        mock_client.exceptions.ResourceNotFoundException = type(
+            'ResourceNotFoundException', (Exception,), {}
+        )
+        mock_client.exceptions.NotAuthorizedException = type(
+            'NotAuthorizedException', (Exception,), {}
+        )
 
         # Make initiate_auth raise InvalidParameterException with "Missing required parameter"
-        mock_client.initiate_auth.side_effect = InvalidParameterException("Missing required parameter UserPoolId")
+        mock_client.initiate_auth.side_effect = InvalidParameterException(
+            'Missing required parameter UserPoolId'
+        )
 
         # Create auth provider instance without calling __init__
         provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
         provider._is_valid = True
         provider._token_lock = MagicMock()
         provider._username = 'testuser'
-        provider._password = 'testpass'
+        provider._password = 'testpass'  # pragma: allowlist secret
         provider._client_id = 'test_client_id'
         provider._user_pool_id = None  # No user pool ID
         provider._region = 'us-east-1'
@@ -204,7 +240,7 @@ class TestCognitoAuthExceptions:
             provider._get_cognito_token()
 
         # Verify the error message
-        assert "Missing User Pool ID" in str(excinfo.value)
+        assert 'Missing User Pool ID' in str(excinfo.value)
 
     @patch('boto3.client')
     def test_invalid_parameter_exception_with_other_issue(self, mock_boto_client):
@@ -218,20 +254,28 @@ class TestCognitoAuthExceptions:
             pass
 
         # Add exception to client.exceptions
-        mock_client.exceptions.UserNotConfirmedException = type('UserNotConfirmedException', (Exception,), {})
+        mock_client.exceptions.UserNotConfirmedException = type(
+            'UserNotConfirmedException', (Exception,), {}
+        )
         mock_client.exceptions.InvalidParameterException = InvalidParameterException
-        mock_client.exceptions.ResourceNotFoundException = type('ResourceNotFoundException', (Exception,), {})
-        mock_client.exceptions.NotAuthorizedException = type('NotAuthorizedException', (Exception,), {})
+        mock_client.exceptions.ResourceNotFoundException = type(
+            'ResourceNotFoundException', (Exception,), {}
+        )
+        mock_client.exceptions.NotAuthorizedException = type(
+            'NotAuthorizedException', (Exception,), {}
+        )
 
         # Make initiate_auth raise InvalidParameterException with some other message
-        mock_client.initiate_auth.side_effect = InvalidParameterException("Some other parameter issue")
+        mock_client.initiate_auth.side_effect = InvalidParameterException(
+            'Some other parameter issue'
+        )
 
         # Create auth provider instance without calling __init__
         provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
         provider._is_valid = True
         provider._token_lock = MagicMock()
         provider._username = 'testuser'
-        provider._password = 'testpass'
+        provider._password = 'testpass'  # pragma: allowlist secret
         provider._client_id = 'test_client_id'
         provider._user_pool_id = 'us-east-1_test123'
         provider._region = 'us-east-1'
@@ -244,4 +288,4 @@ class TestCognitoAuthExceptions:
             provider._get_cognito_token()
 
         # Verify the error message
-        assert "Invalid parameter for Cognito authentication" in str(excinfo.value)
+        assert 'Invalid parameter for Cognito authentication' in str(excinfo.value)
