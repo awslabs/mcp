@@ -22,6 +22,7 @@ import os
 import pandas as pd
 import sys
 from awslabs.cost_explorer_mcp_server.helpers import (
+    format_date_for_api,
     get_cost_explorer_client,
     get_dimension_values,
     get_tag_values,
@@ -71,6 +72,12 @@ class DateRange(BaseModel):
         if not is_valid:
             raise ValueError(error)
 
+    def validate_with_granularity(self, granularity: str):
+        """Validate the date range with granularity-specific constraints."""
+        is_valid, error = validate_date_range(self.start_date, self.end_date, granularity)
+        if not is_valid:
+            raise ValueError(error)
+
 
 class DimensionKey(BaseModel):
     """Dimension key model."""
@@ -90,7 +97,7 @@ async def get_today_date(ctx: Context) -> Dict[str, str]:
     """Retrieve current date information.
 
     This tool retrieves the current date in YYYY-MM-DD format and the current month in YYYY-MM format.
-    It's useful for comparing if the billing period requested by the user is not in the future.
+    It's useful for calculating relevent date when user ask last N months/days.
 
     Args:
         ctx: MCP context
@@ -168,7 +175,7 @@ async def get_cost_and_usage(
         description='The granularity at which cost data is aggregated. Valid values are DAILY, MONTHLY, and HOURLY. If not provided, defaults to MONTHLY.',
     ),
     group_by: Optional[Union[Dict[str, str], str]] = Field(
-        None,
+        'SERVICE',
         description="Either a dictionary with Type and Key for grouping costs, or simply a string key to group by (which will default to DIMENSION type). Example dictionary: {'Type': 'DIMENSION', 'Key': 'SERVICE'}. Example string: 'SERVICE'.",
     ),
     filter_expression: Optional[Dict[str, Any]] = Field(
@@ -287,6 +294,12 @@ async def get_cost_and_usage(
                 'error': f'Invalid granularity: {granularity}. Valid values are DAILY, MONTHLY, and HOURLY.'
             }
 
+        # Validate date range with granularity-specific constraints
+        try:
+            date_range.validate_with_granularity(granularity)
+        except ValueError as e:
+            return {'error': str(e)}
+
         # Define valid metrics and their expected data structure
         valid_metrics = {
             'AmortizedCost': {'has_unit': True, 'is_cost': True},
@@ -324,7 +337,7 @@ async def get_cost_and_usage(
                 return validation_result
 
         # Process group_by
-        if not group_by:
+        if group_by is None:
             group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
         elif isinstance(group_by, str):
             group_by = {'Type': 'DIMENSION', 'Key': group_by}
@@ -337,8 +350,8 @@ async def get_cost_and_usage(
         # Prepare API call parameters
         common_params = {
             'TimePeriod': {
-                'Start': billing_period_start,
-                'End': billing_period_end_adj,
+                'Start': format_date_for_api(billing_period_start, granularity),
+                'End': format_date_for_api(billing_period_end_adj, granularity),
             },
             'Granularity': granularity,
             'GroupBy': [{'Type': group_by['Type'].upper(), 'Key': group_by['Key']}],

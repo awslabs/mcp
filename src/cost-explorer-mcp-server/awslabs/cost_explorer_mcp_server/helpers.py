@@ -79,12 +79,35 @@ def validate_date_format(date_str: str) -> Tuple[bool, str]:
         return False, f"Invalid date '{date_str}': {str(e)}"
 
 
-def validate_date_range(start_date: str, end_date: str) -> Tuple[bool, str]:
+def format_date_for_api(date_str: str, granularity: str) -> str:
+    """Format date string appropriately for AWS Cost Explorer API based on granularity.
+
+    Args:
+        date_str: Date string in YYYY-MM-DD format
+        granularity: The granularity (DAILY, MONTHLY, HOURLY)
+
+    Returns:
+        Formatted date string appropriate for the API call
+    """
+    if granularity.upper() == 'HOURLY':
+        # For hourly granularity, AWS expects datetime format
+        # Convert YYYY-MM-DD to YYYY-MM-DDTHH:MM:SSZ
+        dt = datetime.strptime(date_str, '%Y-%m-%d')
+        return dt.strftime('%Y-%m-%dT00:00:00Z')
+    else:
+        # For DAILY and MONTHLY, use the original date format
+        return date_str
+
+
+def validate_date_range(
+    start_date: str, end_date: str, granularity: Optional[str] = None
+) -> Tuple[bool, str]:
     """Validate date range with format and logical checks.
 
     Args:
         start_date: The start date string in YYYY-MM-DD format
         end_date: The end date string in YYYY-MM-DD format
+        granularity: Optional granularity to check specific constraints
 
     Returns:
         Tuple of (is_valid, error_message)
@@ -105,6 +128,16 @@ def validate_date_range(start_date: str, end_date: str) -> Tuple[bool, str]:
     if start_dt > end_dt:
         return False, f"Start date '{start_date}' cannot be after end date '{end_date}'"
 
+    # Validate granularity-specific constraints
+    if granularity and granularity.upper() == 'HOURLY':
+        # HOURLY granularity supports maximum 14 days
+        date_diff = (end_dt - start_dt).days
+        if date_diff > 14:
+            return (
+                False,
+                f'HOURLY granularity supports a maximum of 14 days. Current range is {date_diff} days ({start_date} to {end_date}). Please use a shorter date range.',
+            )
+
     return True, ''
 
 
@@ -112,7 +145,7 @@ def get_dimension_values(
     key: str, billing_period_start: str, billing_period_end: str
 ) -> Dict[str, Any]:
     """Get available values for a specific dimension."""
-    # Validate date range
+    # Validate date range (no granularity constraint for dimension values)
     is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
     if not is_valid:
         return {'error': error_message}
@@ -137,7 +170,7 @@ def get_tag_values(
     tag_key: str, billing_period_start: str, billing_period_end: str
 ) -> Dict[str, Any]:
     """Get available values for a specific tag key."""
-    # Validate date range
+    # Validate date range (no granularity constraint for tag values)
     is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
     if not is_valid:
         return {'error': error_message}
@@ -196,7 +229,7 @@ def validate_expression(
     Returns:
         Empty dictionary if valid, or an error dictionary
     """
-    # Validate date range
+    # Validate date range (no granularity constraint for filter validation)
     is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
     if not is_valid:
         return {'error': error_message}
