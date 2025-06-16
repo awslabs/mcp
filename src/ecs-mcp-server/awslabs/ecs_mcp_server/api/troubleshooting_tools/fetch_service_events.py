@@ -79,7 +79,7 @@ def _extract_filtered_events(
 async def _check_target_group_health(elb_client, target_group_arn: str) -> Optional[Dict[str, Any]]:
     """Check target group health and return any unhealthy targets."""
     try:
-        tg_health = elb_client.describe_target_health(TargetGroupArn=target_group_arn)
+        tg_health = await elb_client.describe_target_health(TargetGroupArn=target_group_arn)
 
         # Find unhealthy targets
         unhealthy_targets = [
@@ -105,7 +105,7 @@ async def _check_port_mismatch(
 ) -> Optional[Dict[str, Any]]:
     """Check if container port and target group port match."""
     try:
-        tg = elb_client.describe_target_groups(TargetGroupArns=[target_group_arn])
+        tg = await elb_client.describe_target_groups(TargetGroupArns=[target_group_arn])
         if tg["TargetGroups"] and tg["TargetGroups"][0]["Port"] != container_port:
             return {
                 "type": "port_mismatch",
@@ -117,14 +117,16 @@ async def _check_port_mismatch(
         return {"type": "target_group_error", "error": str(error)}
 
 
-async def _analyze_load_balancer_issues(service: Dict[str, Any]) -> List[Dict[str, Any]]:
+async def _analyze_load_balancer_issues(
+    service: Dict[str, Any], elb_client=None
+) -> List[Dict[str, Any]]:
     """Analyze load balancer configuration for common issues."""
     load_balancers = service.get("loadBalancers", [])
     if not load_balancers:
         return []
 
     load_balancer_issues = []
-    elb = await get_aws_client("elbv2")
+    elb = elb_client or await get_aws_client("elbv2")
 
     for lb in load_balancers:
         lb_issues = []
@@ -156,6 +158,8 @@ async def fetch_service_events(
     time_window: int = 3600,
     start_time: Optional[datetime.datetime] = None,
     end_time: Optional[datetime.datetime] = None,
+    ecs_client=None,
+    elb_client=None,
 ) -> Dict[str, Any]:
     """
     Service-level diagnostics for ECS services.
@@ -195,12 +199,11 @@ async def fetch_service_events(
             "raw_data": {},
         }
 
-        # Initialize ECS client using get_aws_client
-        ecs = await get_aws_client("ecs")
+        ecs = ecs_client or await get_aws_client("ecs")
 
         # Check if service exists
         try:
-            services = ecs.describe_services(cluster=cluster_name, services=[service_name])
+            services = await ecs.describe_services(cluster=cluster_name, services=[service_name])
 
             if not services["services"] or services["services"][0]["status"] == "INACTIVE":
                 response["message"] = (
@@ -271,7 +274,7 @@ async def fetch_service_events(
                     )
 
                 # Check for load balancer issues
-                lb_issues = await _analyze_load_balancer_issues(service)
+                lb_issues = await _analyze_load_balancer_issues(service, elb_client)
                 if lb_issues:
                     issues.extend(lb_issues)
 

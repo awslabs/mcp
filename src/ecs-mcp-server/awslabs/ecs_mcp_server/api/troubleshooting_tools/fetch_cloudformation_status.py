@@ -30,7 +30,7 @@ from awslabs.ecs_mcp_server.utils.aws import get_aws_client
 logger = logging.getLogger(__name__)
 
 
-async def fetch_cloudformation_status(stack_id: str) -> Dict[str, Any]:
+async def fetch_cloudformation_status(stack_id: str, cloudformation_client=None) -> Dict[str, Any]:
     """
     Infrastructure-level diagnostics for CloudFormation stacks.
 
@@ -38,6 +38,8 @@ async def fetch_cloudformation_status(stack_id: str) -> Dict[str, Any]:
     ----------
     stack_id : str
         The CloudFormation stack identifier to analyze
+    cloudformation_client : object, optional
+        Client for CloudFormation API interactions, useful for testing
 
     Returns
     -------
@@ -54,19 +56,19 @@ async def fetch_cloudformation_status(stack_id: str) -> Dict[str, Any]:
             "raw_events": [],
         }
 
-        # Initialize CloudFormation client using get_aws_client
-        cloudformation = await get_aws_client("cloudformation")
+        # Use provided client or create a default one
+        cloudformation = cloudformation_client or await get_aws_client("cloudformation")
 
         # Check if stack exists
         try:
-            stack_response = cloudformation.describe_stacks(StackName=stack_id)
+            stack_response = await cloudformation.describe_stacks(stack_id)
             stack = stack_response["Stacks"][0]
             response["stack_exists"] = True
             response["stack_status"] = stack["StackStatus"]
 
             # Get stack resources
             try:
-                resources_response = cloudformation.list_stack_resources(StackName=stack_id)
+                resources_response = await cloudformation.list_stack_resources(stack_id)
                 response["resources"] = resources_response["StackResourceSummaries"]
 
                 # Extract failed resources
@@ -85,7 +87,7 @@ async def fetch_cloudformation_status(stack_id: str) -> Dict[str, Any]:
 
             # Get stack events for deeper analysis
             try:
-                events_response = cloudformation.describe_stack_events(StackName=stack_id)
+                events_response = await cloudformation.describe_stack_events(stack_id)
                 response["raw_events"] = events_response["StackEvents"]
 
                 # Extract additional failure reasons from events
@@ -118,12 +120,7 @@ async def fetch_cloudformation_status(stack_id: str) -> Dict[str, Any]:
             if "does not exist" in str(e):
                 # Stack doesn't exist, check for deleted stacks
                 try:
-                    deleted_stacks = []
-                    paginator = cloudformation.get_paginator("list_stacks")
-                    for page in paginator.paginate(StackStatusFilter=["DELETE_COMPLETE"]):
-                        for stack_summary in page["StackSummaries"]:
-                            if stack_summary["StackName"] == stack_id:
-                                deleted_stacks.append(stack_summary)
+                    deleted_stacks = await cloudformation.list_deleted_stacks(stack_id)
 
                     if deleted_stacks:
                         response["deleted_stacks"] = deleted_stacks
