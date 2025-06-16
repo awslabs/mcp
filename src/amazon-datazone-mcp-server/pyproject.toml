@@ -1,0 +1,108 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "datazone-mcp-server"
+dynamic = ["version"]
+description = "MCP server for AWS DataZone service"
+authors = [
+    {name = "AWS DataZone MCP Community", email = "trwang@amazon.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+keywords = ["aws", "datazone", "mcp", "model-context-protocol", "data-governance"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11", 
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Database",
+    "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = [
+    "boto3",
+    "httpx",
+    "mcp[cli]>=1.9.2",
+]
+
+[project.optional-dependencies]
+cli = [
+    "click>=8.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "flake8>=6.0.0",
+    "pre-commit>=3.0.0",
+]
+
+[project.scripts]
+datazone-mcp-server = "datazone_mcp_server.server:main"
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+known_first_party = ["datazone_mcp_server"]
+
+# required for compatibility with black:
+profile = "black"
+
+# To maintain consistency with other settings
+line_length = 100
+
+[tool.mypy]
+# See https://mypy.readthedocs.io/en/latest/config_file.html for more mypy options.
+
+# Enables the type-checker on the interior of functions without type annotations.
+check_untyped_defs = true
+
+# Displaying specific error codes makes it easier to silence specific errors
+# See also https://mypy.readthedocs.io/en/latest/error_codes.html
+show_error_codes = true
+
+# Show source code snippets and location markers in error messages
+pretty = true
+
+# Suppresses errors about packages which do not implement type-hint sharing.
+# See also https://mypy.readthedocs.io/en/latest/running_mypy.html#missing-imports.
+ignore_missing_imports = true
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "venv"]
+skips = ["B101"]  # Skip assert statements (commonly used in tests)
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests requiring AWS credentials",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/wangtianren/datazone-mcp-server"
+"Documentation" = "https://github.com/wangtianren/datazone-mcp-server/blob/main/docs/README.md"
+"Repository" = "https://github.com/wangtianren/datazone-mcp-server"
+"Issues" = "https://github.com/wangtianren/datazone-mcp-server/issues"
+"Changelog" = "https://github.com/wangtianren/datazone-mcp-server/blob/main/CHANGELOG.md"
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
