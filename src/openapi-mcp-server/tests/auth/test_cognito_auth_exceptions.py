@@ -173,6 +173,10 @@ class TestCognitoAuthExceptions:
         mock_client.initiate_auth.side_effect = InvalidParameterException(
             'Missing required parameter ClientId'
         )
+        # Also mock admin_initiate_auth to raise the same exception
+        mock_client.admin_initiate_auth.side_effect = InvalidParameterException(
+            'Missing required parameter ClientId'
+        )
 
         # Create auth provider instance without calling __init__
         provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
@@ -221,6 +225,10 @@ class TestCognitoAuthExceptions:
         mock_client.initiate_auth.side_effect = InvalidParameterException(
             'Missing required parameter UserPoolId'
         )
+        # Also mock admin_initiate_auth to raise the same exception
+        mock_client.admin_initiate_auth.side_effect = InvalidParameterException(
+            'Missing required parameter UserPoolId'
+        )
 
         # Create auth provider instance without calling __init__
         provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
@@ -267,6 +275,10 @@ class TestCognitoAuthExceptions:
 
         # Make initiate_auth raise InvalidParameterException with some other message
         mock_client.initiate_auth.side_effect = InvalidParameterException(
+            'Some other parameter issue'
+        )
+        # Also mock admin_initiate_auth to raise the same exception
+        mock_client.admin_initiate_auth.side_effect = InvalidParameterException(
             'Some other parameter issue'
         )
 

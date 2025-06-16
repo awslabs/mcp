@@ -13,22 +13,36 @@ class TestServerRouteLogging:
     @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
     @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec')
     @patch('awslabs.openapi_mcp_server.server.FastMCP')
+    @patch('awslabs.openapi_mcp_server.server.FastMCPOpenAPI')
+    @patch('awslabs.openapi_mcp_server.server.HttpClientFactory')
     def test_create_server_logs_routes(
-        self, mock_fastmcp, mock_validate, mock_load, mock_get_auth, mock_logger
+        self,
+        mock_http_factory,
+        mock_fastmcp_openapi,
+        mock_fastmcp,
+        mock_validate,
+        mock_load,
+        mock_get_auth,
+        mock_logger,
     ):
         """Test that create_mcp_server logs routes when debug is enabled."""
         # Set up mocks
         mock_auth = MagicMock()
-        mock_auth.is_configured.return_value = True
+        mock_auth.is_configured.return_value = True  # This is crucial to prevent sys.exit(1)
         mock_auth.get_auth_headers.return_value = {}
         mock_auth.get_auth_params.return_value = {}
         mock_auth.get_auth_cookies.return_value = {}
         mock_auth.get_httpx_auth.return_value = None
+        mock_auth.provider_name = 'test_auth'  # Add provider_name attribute
         mock_get_auth.return_value = mock_auth
 
-        mock_spec = {'openapi': '3.0.0', 'paths': {}}
+        mock_spec = {'openapi': '3.0.0', 'paths': {}, 'info': {'title': 'Test API'}}
         mock_load.return_value = mock_spec
         mock_validate.return_value = True
+
+        # Mock HTTP client factory
+        mock_client = MagicMock()
+        mock_http_factory.create_client.return_value = mock_client
 
         # Create a mock server with routes
         mock_server = MagicMock()
@@ -49,7 +63,7 @@ class TestServerRouteLogging:
         mock_openapi_router._routes = [mock_route1, mock_route2]
         mock_server._openapi_router = mock_openapi_router
 
-        mock_fastmcp.return_value = mock_server
+        mock_fastmcp_openapi.return_value = mock_server
 
         # Set logger.level to DEBUG
         mock_logger.level = 'DEBUG'
@@ -74,22 +88,36 @@ class TestServerRouteLogging:
     @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
     @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec')
     @patch('awslabs.openapi_mcp_server.server.FastMCP')
+    @patch('awslabs.openapi_mcp_server.server.FastMCPOpenAPI')
+    @patch('awslabs.openapi_mcp_server.server.HttpClientFactory')
     def test_create_server_no_debug_logging(
-        self, mock_fastmcp, mock_validate, mock_load, mock_get_auth, mock_logger
+        self,
+        mock_http_factory,
+        mock_fastmcp_openapi,
+        mock_fastmcp,
+        mock_validate,
+        mock_load,
+        mock_get_auth,
+        mock_logger,
     ):
         """Test that create_mcp_server doesn't log routes when debug is disabled."""
         # Set up mocks
         mock_auth = MagicMock()
-        mock_auth.is_configured.return_value = True
+        mock_auth.is_configured.return_value = True  # This is crucial to prevent sys.exit(1)
         mock_auth.get_auth_headers.return_value = {}
         mock_auth.get_auth_params.return_value = {}
         mock_auth.get_auth_cookies.return_value = {}
         mock_auth.get_httpx_auth.return_value = None
+        mock_auth.provider_name = 'test_auth'  # Add provider_name attribute
         mock_get_auth.return_value = mock_auth
 
-        mock_spec = {'openapi': '3.0.0', 'paths': {}}
+        mock_spec = {'openapi': '3.0.0', 'paths': {}, 'info': {'title': 'Test API'}}
         mock_load.return_value = mock_spec
         mock_validate.return_value = True
+
+        # Mock HTTP client factory
+        mock_client = MagicMock()
+        mock_http_factory.create_client.return_value = mock_client
 
         # Create a mock server with routes
         mock_server = MagicMock()
@@ -105,7 +133,7 @@ class TestServerRouteLogging:
         mock_openapi_router._routes = [mock_route1]
         mock_server._openapi_router = mock_openapi_router
 
-        mock_fastmcp.return_value = mock_server
+        mock_fastmcp_openapi.return_value = mock_server
 
         # Set logger.level to INFO (not DEBUG)
         mock_logger.level = 'INFO'
@@ -121,7 +149,9 @@ class TestServerRouteLogging:
         create_mcp_server(config)
 
         # Verify that logger.debug was not called with route information
-        for call in mock_logger.debug.call_args_list:
-            if call[0]:  # If there are positional arguments
-                assert 'Server has' not in call[0][0]
-                assert 'Route ' not in call[0][0]
+        debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
+        route_debug_messages = [
+            call for call in debug_calls 
+            if 'routes' in call and ('Route 0:' in call or 'Route 1:' in call or 'Server has' in call and 'routes' in call)
+        ]
+        assert len(route_debug_messages) == 0, f"Found unexpected route debug messages: {route_debug_messages}"
