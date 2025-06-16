@@ -17,29 +17,29 @@
 This server provides tools for analyzing AWS costs and usage data through the AWS Cost Explorer API.
 """
 
-import boto3
 import json
-import logging
+import os
 import pandas as pd
+import sys
 from awslabs.cost_explorer_mcp_server.helpers import (
+    get_cost_explorer_client,
     get_dimension_values,
     get_tag_values,
     validate_date_format,
+    validate_date_range,
     validate_expression,
     validate_group_by,
 )
 from datetime import datetime, timedelta
+from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field, field_validator
 from typing import Any, Dict, Optional, Union
 
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Initialize AWS Cost Explorer client
-ce = boto3.client('ce')
+# Configure Loguru logging
+logger.remove()
+logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 # Constants
 COST_EXPLORER_END_DATE_OFFSET = 1
@@ -56,60 +56,20 @@ class DateRange(BaseModel):
         ..., description='The end date of the billing period in YYYY-MM-DD format.'
     )
 
-    @field_validator('start_date')
+    @field_validator('start_date', 'end_date')
     @classmethod
-    def validate_start_date(cls, v):
-        """Validate that start_date is in YYYY-MM-DD format and is a valid date."""
+    def validate_individual_dates(cls, v):
+        """Validate that individual dates are in YYYY-MM-DD format and are valid dates."""
         is_valid, error = validate_date_format(v)
         if not is_valid:
             raise ValueError(error)
         return v
 
-    @field_validator('end_date')
-    @classmethod
-    def validate_end_date(cls, v, info):
-        """Validate that end_date is in YYYY-MM-DD format and is a valid date, and not before start_date."""
-        is_valid, error = validate_date_format(v)
+    def model_post_init(self, __context):
+        """Validate the date range after both dates are set."""
+        is_valid, error = validate_date_range(self.start_date, self.end_date)
         if not is_valid:
             raise ValueError(error)
-
-        # Access the start_date from the data dictionary
-        start_date = info.data.get('start_date')
-        if start_date and v < start_date:
-            raise ValueError(f"End date '{v}' cannot be before start date '{start_date}'")
-
-        return v
-
-
-class GroupBy(BaseModel):
-    """Group by model for cost queries."""
-
-    type: str = Field(
-        ...,
-        description='Type of grouping. Valid values are DIMENSION, TAG, and COST_CATEGORY.',
-    )
-    key: str = Field(
-        ...,
-        description='Key to group by. For DIMENSION type, valid values include AZ, INSTANCE_TYPE, LEGAL_ENTITY_NAME, INVOICING_ENTITY, LINKED_ACCOUNT, OPERATION, PLATFORM, PURCHASE_TYPE, SERVICE, TENANCY, RECORD_TYPE, and USAGE_TYPE.',
-    )
-
-
-class FilterExpression(BaseModel):
-    """Filter expression model for cost queries."""
-
-    filter_json: str = Field(
-        ...,
-        description="Filter criteria as a Python dictionary to narrow down AWS costs. Supports filtering by Dimensions (SERVICE, REGION, etc.), Tags, or CostCategories. You can use logical operators (And, Or, Not) for complex filters. MatchOptions validation: For Dimensions, valid values are EQUALS and CASE_SENSITIVE. For Tags and CostCategories, valid values are EQUALS, ABSENT, and CASE_SENSITIVE (defaults to EQUALS and CASE_SENSITIVE). Examples: 1) Simple service filter: {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute', 'Amazon Simple Storage Service'], 'MatchOptions': ['EQUALS']}}. 2) Region filter: {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}. 3) Combined filter: {'And': [{'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute'], 'MatchOptions': ['EQUALS']}}, {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}]}.",
-    )
-
-
-class CostMetric(BaseModel):
-    """Cost metric model."""
-
-    metric: str = Field(
-        'UnblendedCost',
-        description='The metric to return in the query. Valid values are AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, and UsageQuantity. Note: For UsageQuantity, the service aggregates usage numbers without considering units. To get meaningful UsageQuantity metrics, filter by UsageType or UsageTypeGroups.',
-    )
 
 
 class DimensionKey(BaseModel):
@@ -168,7 +128,7 @@ async def get_dimension_values_tool(
         )
         return response
     except Exception as e:
-        logger.error(f'Error getting dimension values: {e}')
+        logger.error(f'Error getting dimension values for {dimension.dimension_key}: {e}')
         return {'error': f'Error getting dimension values: {str(e)}'}
 
 
@@ -195,7 +155,7 @@ async def get_tag_values_tool(
         response = get_tag_values(tag_key, date_range.start_date, date_range.end_date)
         return response
     except Exception as e:
-        logger.error(f'Error getting tag values: {e}')
+        logger.error(f'Error getting tag values for {tag_key}: {e}')
         return {'error': f'Error getting tag values: {str(e)}'}
 
 
@@ -390,6 +350,8 @@ async def get_cost_and_usage(
         # Get cost data
         grouped_costs = {}
         next_token = None
+        ce = get_cost_explorer_client()
+
         while True:
             if next_token:
                 common_params['NextPageToken'] = next_token
@@ -456,7 +418,9 @@ async def get_cost_and_usage(
 
         # Process results
         if not grouped_costs:
-            logger.info('No cost data found for the specified parameters')
+            logger.info(
+                f'No cost data found for the specified parameters: {billing_period_start} to {billing_period_end}'
+            )
             return {
                 'message': 'No cost data found for the specified parameters',
                 'GroupedCosts': {},
@@ -523,10 +487,10 @@ async def get_cost_and_usage(
                 return {'error': f'Error serializing result: {str(e)}'}
 
     except Exception as e:
-        logger.error(f'Error generating cost report: {e}')
-        import traceback
+        logger.error(
+            f'Error generating cost report for period {billing_period_start} to {billing_period_end}: {e}'
+        )
 
-        logger.error(f'Traceback: {traceback.format_exc()}')
         return {'error': f'Error generating cost report: {str(e)}'}
 
 

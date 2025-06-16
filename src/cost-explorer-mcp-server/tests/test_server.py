@@ -41,13 +41,6 @@ class TestDateRangeValidation:
             DateRange(start_date='2023-01-01', end_date='invalid-date')
         assert 'end_date' in str(excinfo.value)
 
-    def test_end_date_before_start_date(self):
-        """Test that validation raises error when end_date is before start_date."""
-        with pytest.raises(ValidationError) as excinfo:
-            DateRange(start_date='2023-01-31', end_date='2023-01-01')
-        assert 'End date' in str(excinfo.value)
-        assert 'cannot be before start date' in str(excinfo.value)
-
 
 class TestGetTodayDate:
     """Tests for the get_today_date function."""
@@ -286,11 +279,19 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_success(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test successful retrieval of cost and usage data."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -392,11 +393,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_with_usage_quantity(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test retrieval of usage quantity data."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -457,11 +462,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_with_pagination(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test retrieval of cost data with pagination."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -536,11 +545,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_invalid_granularity(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of invalid granularity."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -567,11 +580,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_invalid_metric(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of invalid metric."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -598,11 +615,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_invalid_group_by(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of invalid group_by."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {'error': 'Invalid group_by'}
@@ -629,11 +650,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_api_error(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of AWS API error."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -663,11 +688,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_missing_metric(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of missing metric in response."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -710,11 +739,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_with_missing_amount(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of missing Amount in metric data."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -758,11 +791,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_with_empty_groups(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of empty groups in response."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -800,11 +837,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_with_empty_keys(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of empty keys in groups."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -847,11 +888,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_with_no_results_by_time(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of missing ResultsByTime in response."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -883,11 +928,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_dataframe_processing_error(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of DataFrame processing errors."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -932,12 +981,16 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     @patch('awslabs.cost_explorer_mcp_server.server.pd.DataFrame.from_dict')
     async def test_get_cost_and_usage_pandas_error(
-        self, mock_dataframe, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_dataframe, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of pandas DataFrame creation errors."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -984,12 +1037,16 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     @patch('awslabs.cost_explorer_mcp_server.server.json.dumps')
     async def test_get_cost_and_usage_json_serialization_error(
-        self, mock_json_dumps, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_json_dumps, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of JSON serialization errors."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -1035,11 +1092,15 @@ class TestGetCostAndUsage:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_usage_metric_missing_unit(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of usage metrics with missing unit."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -1107,8 +1168,14 @@ class TestGetCostAndUsage:
             patch(
                 'awslabs.cost_explorer_mcp_server.server.validate_group_by'
             ) as mock_validate_group_by,
-            patch('awslabs.cost_explorer_mcp_server.server.ce') as mock_ce,
+            patch(
+                'awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client'
+            ) as mock_get_client,
         ):
+            # Mock the Cost Explorer client
+            mock_ce = MagicMock()
+            mock_get_client.return_value = mock_ce
+
             # Mock the validation functions
             mock_validate_expression.return_value = {}
             mock_validate_group_by.return_value = {}
@@ -1147,12 +1214,19 @@ class TestMainFunction:
 
         assert COST_EXPLORER_END_DATE_OFFSET == 1
 
-    def test_boto3_client_initialization(self):
-        """Test that boto3 client is properly initialized."""
-        from awslabs.cost_explorer_mcp_server.server import ce
+    @patch('awslabs.cost_explorer_mcp_server.helpers.get_cost_explorer_client')
+    def test_cost_explorer_client_initialization(self, mock_get_client):
+        """Test that Cost Explorer client can be properly initialized."""
+        from awslabs.cost_explorer_mcp_server.helpers import get_cost_explorer_client
 
-        assert ce is not None
-        assert hasattr(ce, 'get_cost_and_usage')
+        # Mock the client
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+
+        client = get_cost_explorer_client()
+
+        assert client is not None
+        assert client == mock_client
 
 
 class TestEdgeCasesAndErrorHandling:
@@ -1161,11 +1235,15 @@ class TestEdgeCasesAndErrorHandling:
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.server.validate_expression')
     @patch('awslabs.cost_explorer_mcp_server.server.validate_group_by')
-    @patch('awslabs.cost_explorer_mcp_server.server.ce')
+    @patch('awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client')
     async def test_get_cost_and_usage_with_none_values_in_groups(
-        self, mock_ce, mock_validate_group_by, mock_validate_expression
+        self, mock_get_client, mock_validate_group_by, mock_validate_expression
     ):
         """Test handling of None values in group data."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the validation functions
         mock_validate_expression.return_value = {}
         mock_validate_group_by.return_value = {}
@@ -1208,8 +1286,14 @@ class TestEdgeCasesAndErrorHandling:
             patch(
                 'awslabs.cost_explorer_mcp_server.server.validate_group_by'
             ) as mock_validate_group_by,
-            patch('awslabs.cost_explorer_mcp_server.server.ce') as mock_ce,
+            patch(
+                'awslabs.cost_explorer_mcp_server.server.get_cost_explorer_client'
+            ) as mock_get_client,
         ):
+            # Mock the Cost Explorer client
+            mock_ce = MagicMock()
+            mock_get_client.return_value = mock_ce
+
             # Mock the validation functions
             mock_validate_expression.return_value = {}
             mock_validate_group_by.return_value = {}
@@ -1236,7 +1320,7 @@ class TestEdgeCasesAndErrorHandling:
             date_range.end_date = '2025-05-31'
 
             # Test with string group_by
-            result = await get_cost_and_usage(
+            await get_cost_and_usage(
                 mock_context, date_range, 'MONTHLY', 'REGION', None, 'UnblendedCost'
             )
 

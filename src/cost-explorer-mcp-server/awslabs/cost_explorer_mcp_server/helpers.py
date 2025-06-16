@@ -15,17 +15,47 @@
 """Helper functions for the Cost Explorer MCP server."""
 
 import boto3
-import logging
+import os
 import re
+import sys
 from datetime import datetime
+from loguru import logger
 from typing import Any, Dict, Optional, Tuple
 
 
-# Set up logging
-logger = logging.getLogger(__name__)
+# Configure Loguru logging
+logger.remove()
+logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
-# Initialize AWS Cost Explorer client
-ce = boto3.client('ce')
+# Global client cache
+_cost_explorer_client = None
+
+
+def get_cost_explorer_client():
+    """Get Cost Explorer client with proper session management and caching.
+
+    Returns:
+        boto3.client: Configured Cost Explorer client (cached after first call)
+    """
+    global _cost_explorer_client
+
+    if _cost_explorer_client is None:
+        try:
+            # Read environment variables dynamically
+            aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+            aws_profile = os.environ.get('AWS_PROFILE')
+
+            if aws_profile:
+                _cost_explorer_client = boto3.Session(
+                    profile_name=aws_profile, region_name=aws_region
+                ).client('ce')
+            else:
+                _cost_explorer_client = boto3.Session(region_name=aws_region).client('ce')
+        except Exception as e:
+            logger.error(f'Error creating Cost Explorer client: {str(e)}')
+            raise
+
+    return _cost_explorer_client
 
 
 def validate_date_format(date_str: str) -> Tuple[bool, str]:
@@ -49,26 +79,46 @@ def validate_date_format(date_str: str) -> Tuple[bool, str]:
         return False, f"Invalid date '{date_str}': {str(e)}"
 
 
+def validate_date_range(start_date: str, end_date: str) -> Tuple[bool, str]:
+    """Validate date range with format and logical checks.
+
+    Args:
+        start_date: The start date string in YYYY-MM-DD format
+        end_date: The end date string in YYYY-MM-DD format
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    # Validate start date format
+    is_valid_start, error_start = validate_date_format(start_date)
+    if not is_valid_start:
+        return False, error_start
+
+    # Validate end date format
+    is_valid_end, error_end = validate_date_format(end_date)
+    if not is_valid_end:
+        return False, error_end
+
+    # Validate date range logic
+    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+    end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+    if start_dt > end_dt:
+        return False, f"Start date '{start_date}' cannot be after end date '{end_date}'"
+
+    return True, ''
+
+
 def get_dimension_values(
     key: str, billing_period_start: str, billing_period_end: str
 ) -> Dict[str, Any]:
     """Get available values for a specific dimension."""
-    # Validate date formats
-    is_valid_start, error_start = validate_date_format(billing_period_start)
-    if not is_valid_start:
-        return {'error': error_start}
-
-    is_valid_end, error_end = validate_date_format(billing_period_end)
-    if not is_valid_end:
-        return {'error': error_end}
-
     # Validate date range
-    if billing_period_start > billing_period_end:
-        return {
-            'error': f"Start date '{billing_period_start}' cannot be after end date '{billing_period_end}'"
-        }
+    is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
+    if not is_valid:
+        return {'error': error_message}
 
     try:
+        ce = get_cost_explorer_client()
         response = ce.get_dimension_values(
             TimePeriod={'Start': billing_period_start, 'End': billing_period_end},
             Dimension=key.upper(),
@@ -77,7 +127,9 @@ def get_dimension_values(
         values = [value['Value'] for value in dimension_values]
         return {'dimension': key.upper(), 'values': values}
     except Exception as e:
-        logger.error(f'Error getting dimension values: {e}')
+        logger.error(
+            f'Error getting dimension values for {key.upper()} ({billing_period_start} to {billing_period_end}): {e}'
+        )
         return {'error': str(e)}
 
 
@@ -85,22 +137,13 @@ def get_tag_values(
     tag_key: str, billing_period_start: str, billing_period_end: str
 ) -> Dict[str, Any]:
     """Get available values for a specific tag key."""
-    # Validate date formats
-    is_valid_start, error_start = validate_date_format(billing_period_start)
-    if not is_valid_start:
-        return {'error': error_start}
-
-    is_valid_end, error_end = validate_date_format(billing_period_end)
-    if not is_valid_end:
-        return {'error': error_end}
-
     # Validate date range
-    if billing_period_start > billing_period_end:
-        return {
-            'error': f"Start date '{billing_period_start}' cannot be after end date '{billing_period_end}'"
-        }
+    is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
+    if not is_valid:
+        return {'error': error_message}
 
     try:
+        ce = get_cost_explorer_client()
         response = ce.get_tags(
             TimePeriod={'Start': billing_period_start, 'End': billing_period_end},
             TagKey=tag_key,
@@ -108,7 +151,9 @@ def get_tag_values(
         tag_values = response['Tags']
         return {'tag_key': tag_key, 'values': tag_values}
     except Exception as e:
-        logger.error(f'Error getting tag values: {e}')
+        logger.error(
+            f'Error getting tag values for {tag_key} ({billing_period_start} to {billing_period_end}): {e}'
+        )
         return {'error': str(e)}
 
 
@@ -151,20 +196,10 @@ def validate_expression(
     Returns:
         Empty dictionary if valid, or an error dictionary
     """
-    # Validate date formats
-    is_valid_start, error_start = validate_date_format(billing_period_start)
-    if not is_valid_start:
-        return {'error': error_start}
-
-    is_valid_end, error_end = validate_date_format(billing_period_end)
-    if not is_valid_end:
-        return {'error': error_end}
-
     # Validate date range
-    if billing_period_start > billing_period_end:
-        return {
-            'error': f"Start date '{billing_period_start}' cannot be after end date '{billing_period_end}'"
-        }
+    is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
+    if not is_valid:
+        return {'error': error_message}
 
     try:
         if 'Dimensions' in expression:
