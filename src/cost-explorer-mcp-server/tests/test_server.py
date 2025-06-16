@@ -1329,37 +1329,38 @@ class TestEdgeCasesAndErrorHandling:
             call_args = mock_ce.get_cost_and_usage.call_args[1]
             assert call_args['GroupBy'] == [{'Type': 'DIMENSION', 'Key': 'REGION'}]
 
+
 class TestDateRangeGranularityValidation:
     """Tests for DateRange granularity validation methods."""
 
     def test_date_range_validate_with_granularity_hourly_valid(self):
         """Test DateRange.validate_with_granularity with valid HOURLY range."""
         date_range = DateRange(start_date='2025-01-01', end_date='2025-01-10')
-        
+
         # Should not raise an exception
         date_range.validate_with_granularity('HOURLY')
 
     def test_date_range_validate_with_granularity_hourly_invalid(self):
         """Test DateRange.validate_with_granularity with invalid HOURLY range."""
         date_range = DateRange(start_date='2025-01-01', end_date='2025-01-20')
-        
+
         with pytest.raises(ValueError) as excinfo:
             date_range.validate_with_granularity('HOURLY')
-        
+
         assert '14 days' in str(excinfo.value)
         assert 'Current range is 19 days' in str(excinfo.value)
 
     def test_date_range_validate_with_granularity_daily(self):
         """Test DateRange.validate_with_granularity with DAILY granularity."""
         date_range = DateRange(start_date='2025-01-01', end_date='2025-12-31')
-        
+
         # Should not raise an exception for DAILY
         date_range.validate_with_granularity('DAILY')
 
     def test_date_range_validate_with_granularity_monthly(self):
         """Test DateRange.validate_with_granularity with MONTHLY granularity."""
         date_range = DateRange(start_date='2024-01-01', end_date='2025-12-31')
-        
+
         # Should not raise an exception for MONTHLY
         date_range.validate_with_granularity('MONTHLY')
 
@@ -1369,9 +1370,9 @@ class TestDateRangeGranularityValidation:
         date_range = DateRange(start_date='2025-01-01', end_date='2025-01-31')
         assert date_range.start_date == '2025-01-01'
         assert date_range.end_date == '2025-01-31'
-        
+
         # Invalid date range should raise ValueError
         with pytest.raises(ValueError) as excinfo:
             DateRange(start_date='2025-01-31', end_date='2025-01-01')
-        
+
         assert 'cannot be after end date' in str(excinfo.value)
