@@ -112,6 +112,32 @@ def get_tag_values(
         return {'error': str(e)}
 
 
+def validate_match_options(match_options: list, filter_type: str) -> Dict[str, Any]:
+    """Validate MatchOptions based on filter type.
+
+    Args:
+        match_options: List of match options to validate
+        filter_type: Type of filter ('Dimensions', 'Tags', 'CostCategories')
+
+    Returns:
+        Empty dictionary if valid, or an error dictionary
+    """
+    if filter_type == 'Dimensions':
+        valid_options = ['EQUALS', 'CASE_SENSITIVE']
+    elif filter_type in ['Tags', 'CostCategories']:
+        valid_options = ['EQUALS', 'ABSENT', 'CASE_SENSITIVE']
+    else:
+        return {'error': f'Unknown filter type: {filter_type}'}
+
+    for option in match_options:
+        if option not in valid_options:
+            return {
+                'error': f"Invalid MatchOption '{option}' for {filter_type}. Valid values are: {valid_options}"
+            }
+
+    return {}
+
+
 def validate_expression(
     expression: Dict[str, Any], billing_period_start: str, billing_period_end: str
 ) -> Dict[str, Any]:
@@ -152,6 +178,11 @@ def validate_expression(
                     'error': 'Dimensions filter must include "Key", "Values", and "MatchOptions".'
                 }
 
+            # Validate MatchOptions for Dimensions
+            match_options_result = validate_match_options(dimension['MatchOptions'], 'Dimensions')
+            if 'error' in match_options_result:
+                return match_options_result
+
             dimension_key = dimension['Key']
             dimension_values = dimension['Values']
             valid_values_response = get_dimension_values(
@@ -170,6 +201,11 @@ def validate_expression(
             tag = expression['Tags']
             if 'Key' not in tag or 'Values' not in tag or 'MatchOptions' not in tag:
                 return {'error': 'Tags filter must include "Key", "Values", and "MatchOptions".'}
+
+            # Validate MatchOptions for Tags
+            match_options_result = validate_match_options(tag['MatchOptions'], 'Tags')
+            if 'error' in match_options_result:
+                return match_options_result
 
             tag_key = tag['Key']
             tag_values = tag['Values']
@@ -195,6 +231,13 @@ def validate_expression(
                 return {
                     'error': 'CostCategories filter must include "Key", "Values", and "MatchOptions".'
                 }
+
+            # Validate MatchOptions for CostCategories
+            match_options_result = validate_match_options(
+                cost_category['MatchOptions'], 'CostCategories'
+            )
+            if 'error' in match_options_result:
+                return match_options_result
 
         logical_operators = ['And', 'Or', 'Not']
         logical_count = sum(1 for op in logical_operators if op in expression)
