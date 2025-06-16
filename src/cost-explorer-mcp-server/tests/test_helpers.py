@@ -762,3 +762,155 @@ class TestValidateGroupBy:
         assert 'error' in result
         # Adjust the expected error message to match the actual implementation
         assert 'Filter Expression must include' in result['error']
+
+
+class TestFormatDateForApi:
+    """Tests for the format_date_for_api function."""
+
+    def test_format_date_for_hourly_granularity(self):
+        """Test date formatting for HOURLY granularity."""
+        from awslabs.cost_explorer_mcp_server.helpers import format_date_for_api
+        
+        result = format_date_for_api('2025-01-01', 'HOURLY')
+        assert result == '2025-01-01T00:00:00Z'
+        
+        result = format_date_for_api('2025-12-31', 'hourly')  # Test case insensitive
+        assert result == '2025-12-31T00:00:00Z'
+
+    def test_format_date_for_daily_granularity(self):
+        """Test date formatting for DAILY granularity."""
+        from awslabs.cost_explorer_mcp_server.helpers import format_date_for_api
+        
+        result = format_date_for_api('2025-01-01', 'DAILY')
+        assert result == '2025-01-01'
+
+    def test_format_date_for_monthly_granularity(self):
+        """Test date formatting for MONTHLY granularity."""
+        from awslabs.cost_explorer_mcp_server.helpers import format_date_for_api
+        
+        result = format_date_for_api('2025-01-01', 'MONTHLY')
+        assert result == '2025-01-01'
+
+    def test_format_date_for_none_granularity(self):
+        """Test date formatting when granularity is None or empty."""
+        from awslabs.cost_explorer_mcp_server.helpers import format_date_for_api
+        
+        # The function expects a string, so test with empty string instead of None
+        result = format_date_for_api('2025-01-01', '')
+        assert result == '2025-01-01'
+        
+        result = format_date_for_api('2025-01-01', 'OTHER')
+        assert result == '2025-01-01'
+
+class TestValidateDateRangeWithGranularity:
+    """Tests for validate_date_range function with granularity constraints."""
+
+    def test_validate_date_range_hourly_within_limit(self):
+        """Test HOURLY granularity with date range within 14 days."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+        
+        is_valid, error = validate_date_range('2025-01-01', '2025-01-14', 'HOURLY')
+        assert is_valid
+        assert error == ''
+
+    def test_validate_date_range_hourly_at_limit(self):
+        """Test HOURLY granularity with date range exactly at 14 days."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+        
+        is_valid, error = validate_date_range('2025-01-01', '2025-01-15', 'HOURLY')
+        assert is_valid
+        assert error == ''
+
+    def test_validate_date_range_hourly_exceeds_limit(self):
+        """Test HOURLY granularity with date range exceeding 14 days."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+        
+        is_valid, error = validate_date_range('2025-01-01', '2025-01-20', 'HOURLY')
+        assert not is_valid
+        assert '14 days' in error
+        assert 'Current range is 19 days' in error
+        assert 'Please use a shorter date range' in error
+
+    def test_validate_date_range_hourly_case_insensitive(self):
+        """Test HOURLY granularity validation is case insensitive."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+        
+        is_valid, error = validate_date_range('2025-01-01', '2025-01-20', 'hourly')
+        assert not is_valid
+        assert '14 days' in error
+
+    def test_validate_date_range_daily_no_limit(self):
+        """Test DAILY granularity has no date range limit."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+        
+        is_valid, error = validate_date_range('2025-01-01', '2025-12-31', 'DAILY')
+        assert is_valid
+        assert error == ''
+
+    def test_validate_date_range_monthly_no_limit(self):
+        """Test MONTHLY granularity has no date range limit."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+        
+        is_valid, error = validate_date_range('2024-01-01', '2025-12-31', 'MONTHLY')
+        assert is_valid
+        assert error == ''
+class TestValidateMatchOptions:
+    """Tests for the validate_match_options function."""
+
+    def test_validate_match_options_dimensions_valid(self):
+        """Test validate_match_options with valid Dimensions options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+        
+        result = validate_match_options(['EQUALS'], 'Dimensions')
+        assert result == {}
+        
+        result = validate_match_options(['CASE_SENSITIVE'], 'Dimensions')
+        assert result == {}
+        
+        result = validate_match_options(['EQUALS', 'CASE_SENSITIVE'], 'Dimensions')
+        assert result == {}
+
+    def test_validate_match_options_dimensions_invalid(self):
+        """Test validate_match_options with invalid Dimensions options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+        
+        result = validate_match_options(['ABSENT'], 'Dimensions')
+        assert 'error' in result
+        assert 'Invalid MatchOption' in result['error']
+        assert 'ABSENT' in result['error']
+
+    def test_validate_match_options_tags_valid(self):
+        """Test validate_match_options with valid Tags options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+        
+        result = validate_match_options(['EQUALS'], 'Tags')
+        assert result == {}
+        
+        result = validate_match_options(['ABSENT'], 'Tags')
+        assert result == {}
+        
+        result = validate_match_options(['CASE_SENSITIVE'], 'Tags')
+        assert result == {}
+
+    def test_validate_match_options_tags_invalid(self):
+        """Test validate_match_options with invalid Tags options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+        
+        result = validate_match_options(['INVALID_OPTION'], 'Tags')
+        assert 'error' in result
+        assert 'Invalid MatchOption' in result['error']
+
+    def test_validate_match_options_cost_categories_valid(self):
+        """Test validate_match_options with valid CostCategories options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+        
+        result = validate_match_options(['EQUALS'], 'CostCategories')
+        assert result == {}
+
+    def test_validate_match_options_unknown_filter_type(self):
+        """Test validate_match_options with unknown filter type."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+        
+        result = validate_match_options(['EQUALS'], 'UnknownFilter')
+        assert 'error' in result
+        assert 'Unknown filter type' in result['error']
