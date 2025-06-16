@@ -156,6 +156,10 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
 
+##### Search & Analytics
+
+- **[Amazon OpenSearch MCP Server](https://github.com/opensearch-project/opensearch-mcp-server-py)** - OpenSearch powered search, Analytics, and Observability
+
 ##### Caching & Performance
 
 - **[Amazon ElastiCache MCP Server](src/elasticache-mcp-server/)** - Complete ElastiCache operations
