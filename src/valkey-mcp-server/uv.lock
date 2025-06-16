@@ -46,7 +46,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-valkey-mcp-server"
-version = "0.1.0"
+version = "1.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "dotenv" },

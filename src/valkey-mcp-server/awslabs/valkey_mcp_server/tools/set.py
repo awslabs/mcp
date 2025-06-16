@@ -16,6 +16,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from typing import Any, Optional
 from valkey.exceptions import ValkeyError
 
@@ -31,6 +32,10 @@ async def set_add(key: str, member: str) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot add to set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.sadd(key, member)
@@ -50,6 +55,10 @@ async def set_remove(key: str, member: str) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot remove from set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.srem(key, member)
@@ -69,6 +78,10 @@ async def set_pop(key: str, count: Optional[int] = None) -> str:
     Returns:
         Popped member(s) or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot pop from set in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         if count:
@@ -94,6 +107,10 @@ async def set_move(source: str, destination: str, member: Any) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot move set members in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.smove(source, destination, member)
