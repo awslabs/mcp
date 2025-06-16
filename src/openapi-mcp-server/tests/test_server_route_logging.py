@@ -151,7 +151,16 @@ class TestServerRouteLogging:
         # Verify that logger.debug was not called with route information
         debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
         route_debug_messages = [
-            call for call in debug_calls 
-            if 'routes' in call and ('Route 0:' in call or 'Route 1:' in call or 'Server has' in call and 'routes' in call)
+            call
+            for call in debug_calls
+            if 'routes' in call
+            and (
+                'Route 0:' in call
+                or 'Route 1:' in call
+                or 'Server has' in call
+                and 'routes' in call
+            )
         ]
-        assert len(route_debug_messages) == 0, f"Found unexpected route debug messages: {route_debug_messages}"
+        assert len(route_debug_messages) == 0, (
+            f'Found unexpected route debug messages: {route_debug_messages}'
+        )
