@@ -1,10 +1,8 @@
 """Tests for authentication error handling in server.py."""
 
-import pytest
-import sys
-from unittest.mock import MagicMock, patch
 from awslabs.openapi_mcp_server.api.config import Config
 from awslabs.openapi_mcp_server.server import create_mcp_server
+from unittest.mock import MagicMock, patch
 
 
 class TestServerAuthErrors:

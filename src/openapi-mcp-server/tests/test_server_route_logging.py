@@ -1,9 +1,8 @@
 """Tests for route logging in server.py."""
 
-import pytest
-from unittest.mock import MagicMock, patch
 from awslabs.openapi_mcp_server.api.config import Config
 from awslabs.openapi_mcp_server.server import create_mcp_server
+from unittest.mock import MagicMock, patch
 
 
 class TestServerRouteLogging:
@@ -33,38 +32,38 @@ class TestServerRouteLogging:
 
         # Create a mock server with routes
         mock_server = MagicMock()
-        
+
         # Create mock routes
         mock_route1 = MagicMock()
         mock_route1.path = '/api/v1/pets'
         mock_route1.method = 'GET'
         mock_route1.route_type = 'resource'
-        
+
         mock_route2 = MagicMock()
         mock_route2.path = '/api/v1/pets/{id}'
         mock_route2.method = 'POST'
         mock_route2.route_type = 'tool'
-        
+
         # Set up the _openapi_router attribute with routes
         mock_openapi_router = MagicMock()
         mock_openapi_router._routes = [mock_route1, mock_route2]
         mock_server._openapi_router = mock_openapi_router
-        
+
         mock_fastmcp.return_value = mock_server
-        
+
         # Set logger.level to DEBUG
         mock_logger.level = 'DEBUG'
-        
+
         # Create config
         config = Config(
             api_name='test',
             api_base_url='https://api.example.com',
             api_spec_url='https://api.example.com/spec.json',
         )
-        
+
         # Call create_mcp_server
         create_mcp_server(config)
-        
+
         # Verify that logger.debug was called with the expected messages
         mock_logger.debug.assert_any_call('Server has 2 routes')
         mock_logger.debug.assert_any_call('Route 0: GET /api/v1/pets - Type: resource')
@@ -94,33 +93,33 @@ class TestServerRouteLogging:
 
         # Create a mock server with routes
         mock_server = MagicMock()
-        
+
         # Create mock routes
         mock_route1 = MagicMock()
         mock_route1.path = '/api/v1/pets'
         mock_route1.method = 'GET'
         mock_route1.route_type = 'resource'
-        
+
         # Set up the _openapi_router attribute with routes
         mock_openapi_router = MagicMock()
         mock_openapi_router._routes = [mock_route1]
         mock_server._openapi_router = mock_openapi_router
-        
+
         mock_fastmcp.return_value = mock_server
-        
+
         # Set logger.level to INFO (not DEBUG)
         mock_logger.level = 'INFO'
-        
+
         # Create config
         config = Config(
             api_name='test',
             api_base_url='https://api.example.com',
             api_spec_url='https://api.example.com/spec.json',
         )
-        
+
         # Call create_mcp_server
         create_mcp_server(config)
-        
+
         # Verify that logger.debug was not called with route information
         for call in mock_logger.debug.call_args_list:
             if call[0]:  # If there are positional arguments
