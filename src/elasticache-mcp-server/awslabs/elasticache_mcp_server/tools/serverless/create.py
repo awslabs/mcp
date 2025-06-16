@@ -22,7 +22,7 @@ from .models import CreateServerlessCacheRequest
 from typing import Dict
 
 
-@mcp.tool(name='create_serverless_cache')
+@mcp.tool(name='create-serverless-cache')
 @handle_exceptions
 async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict:
     """Create a new Amazon ElastiCache serverless cache.

@@ -151,3 +151,70 @@ async def test_get_metric_statistics_error():
 
         # Verify error response
         assert result == {'error': 'Test error'}
+
+
+@pytest.mark.asyncio
+async def test_get_metric_statistics_engine_cpu_utilization():
+    """Test get metric statistics for EngineCPUUtilization with Name/Value dimension format."""
+    mock_client = MagicMock()
+
+    # Mock response with multiple datapoints similar to actual API response
+    mock_response = {
+        'Label': 'EngineCPUUtilization',
+        'Datapoints': [
+            {
+                'Timestamp': '2025-06-07T11:04:00Z',
+                'Average': 0.40006667777962995,
+                'Unit': 'Percent',
+            },
+            {
+                'Timestamp': '2025-06-07T11:05:00Z',
+                'Average': 0.43333333333333335,
+                'Unit': 'Percent',
+            },
+            {
+                'Timestamp': '2025-06-07T11:06:00Z',
+                'Average': 0.4167361226871145,
+                'Unit': 'Percent',
+            },
+        ],
+    }
+    mock_client.get_metric_statistics.return_value = mock_response
+
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.CloudWatchConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        # Call function with Name/Value dimension format
+        result = await get_metric_statistics(
+            metric_name='EngineCPUUtilization',
+            start_time='2025-06-07T11:04:00Z',
+            end_time='2025-06-07T12:04:00Z',
+            period=60,
+            dimensions=[
+                {'Name': 'CacheClusterId', 'Value': 'logtesting-0001-001'},
+                {'Name': 'CacheNodeId', 'Value': '0001'},
+            ],
+            statistics=['Average'],
+        )
+
+        # Verify client call
+        mock_client.get_metric_statistics.assert_called_once()
+        call_args = mock_client.get_metric_statistics.call_args[1]
+        assert call_args['Namespace'] == 'AWS/ElastiCache'
+        assert call_args['MetricName'] == 'EngineCPUUtilization'
+        assert call_args['Period'] == 60
+        assert call_args['Statistics'] == ['Average']
+
+        # Verify dimensions are correctly passed through
+        assert len(call_args['Dimensions']) == 2
+        assert {'Name': 'CacheClusterId', 'Value': 'logtesting-0001-001'} in call_args[
+            'Dimensions'
+        ]
+        assert {'Name': 'CacheNodeId', 'Value': '0001'} in call_args['Dimensions']
+
+        # Verify response
+        assert result == {
+            'Label': 'EngineCPUUtilization',
+            'Datapoints': mock_response['Datapoints'],
+        }

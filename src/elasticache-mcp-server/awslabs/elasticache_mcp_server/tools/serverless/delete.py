@@ -20,7 +20,7 @@ from ...common.server import mcp
 from typing import Dict, Optional
 
 
-@mcp.tool(name='delete_serverless_cache')
+@mcp.tool(name='delete-serverless-cache')
 @handle_exceptions
 async def delete_serverless_cache(
     serverless_cache_name: str,
