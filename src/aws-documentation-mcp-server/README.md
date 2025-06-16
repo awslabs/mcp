@@ -41,7 +41,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 > **Note**: Set `AWS_DOCUMENTATION_PARTITION` to `aws-cn` to query AWS China documentation instead of global AWS documentation.
 
-or docker after a successful `docker build -t awslabs/aws-documentation-mcp-server .`:
+or docker after a successful `docker build -t mcp/aws-documentation .`:
 
 ```json
 {
@@ -56,7 +56,7 @@ or docker after a successful `docker build -t awslabs/aws-documentation-mcp-serv
         "FASTMCP_LOG_LEVEL=ERROR",
         "--env",
         "AWS_DOCUMENTATION_PARTITION=aws",
-        "awslabs/aws-documentation-mcp-server:latest"
+        "mcp/aws-documentation:latest"
       ],
       "env": {},
       "disabled": false,
