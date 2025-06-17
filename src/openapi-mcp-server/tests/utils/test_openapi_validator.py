@@ -13,10 +13,7 @@
 # limitations under the License.
 """Tests for the OpenAPI validator module."""
 
-import pytest
 from awslabs.openapi_mcp_server.utils.openapi_validator import (
-    OPENAPI_CORE_AVAILABLE,
-    USE_OPENAPI_CORE,
     extract_api_structure,
     find_pagination_endpoints,
     validate_openapi_spec,
@@ -70,7 +67,6 @@ class TestOpenAPIValidator:
         # Should still pass basic validation but log a warning
         assert validate_openapi_spec(spec) is True
 
-    @pytest.mark.skipif(not OPENAPI_CORE_AVAILABLE, reason='openapi-core not available')
     def test_validate_openapi_spec_with_openapi_core(self):
         """Test validation using openapi-core if available."""
         spec = {
@@ -79,18 +75,23 @@ class TestOpenAPIValidator:
             'paths': {'/test': {'get': {'responses': {'200': {'description': 'OK'}}}}},
         }
 
-        with patch(
-            'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
-        ) as mock_openapi_core:
+        # Mock both the availability and the module itself
+        with (
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.OPENAPI_CORE_AVAILABLE', True
+            ),
+            patch('awslabs.openapi_mcp_server.utils.openapi_validator.USE_OPENAPI_CORE', True),
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
+            ) as mock_openapi_core,
+        ):
             # Mock the create_spec method
             mock_create_spec = MagicMock()
             mock_openapi_core.create_spec = mock_create_spec
 
             assert validate_openapi_spec(spec) is True
-            if USE_OPENAPI_CORE:
-                mock_create_spec.assert_called_once_with(spec)
+            mock_create_spec.assert_called_once_with(spec)
 
-    @pytest.mark.skipif(not OPENAPI_CORE_AVAILABLE, reason='openapi-core not available')
     def test_validate_openapi_spec_with_openapi_core_exception(self):
         """Test validation when openapi-core raises an exception."""
         spec = {
@@ -99,9 +100,16 @@ class TestOpenAPIValidator:
             'paths': {'/test': {'get': {'responses': {'200': {'description': 'OK'}}}}},
         }
 
-        with patch(
-            'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
-        ) as mock_openapi_core:
+        # Mock both the availability and the module itself
+        with (
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.OPENAPI_CORE_AVAILABLE', True
+            ),
+            patch('awslabs.openapi_mcp_server.utils.openapi_validator.USE_OPENAPI_CORE', True),
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
+            ) as mock_openapi_core,
+        ):
             # Mock the create_spec method to raise an exception
             mock_create_spec = MagicMock(side_effect=Exception('Test exception'))
             mock_openapi_core.create_spec = mock_create_spec
@@ -109,7 +117,6 @@ class TestOpenAPIValidator:
             # Should still return True as we already passed basic validation
             assert validate_openapi_spec(spec) is True
 
-    @pytest.mark.skipif(not OPENAPI_CORE_AVAILABLE, reason='openapi-core not available')
     def test_validate_openapi_spec_with_openapi_spec_class(self):
         """Test validation using OpenAPISpec class if available."""
         spec = {
@@ -118,9 +125,16 @@ class TestOpenAPIValidator:
             'paths': {'/test': {'get': {'responses': {'200': {'description': 'OK'}}}}},
         }
 
-        with patch(
-            'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
-        ) as mock_openapi_core:
+        # Mock both the availability and the module itself
+        with (
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.OPENAPI_CORE_AVAILABLE', True
+            ),
+            patch('awslabs.openapi_mcp_server.utils.openapi_validator.USE_OPENAPI_CORE', True),
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
+            ) as mock_openapi_core,
+        ):
             # Remove create_spec attribute
             if hasattr(mock_openapi_core, 'create_spec'):
                 del mock_openapi_core.create_spec
@@ -137,14 +151,9 @@ class TestOpenAPIValidator:
 
             assert validate_openapi_spec(spec) is True
 
-            # Skip assertion if USE_OPENAPI_CORE is False
-            if not USE_OPENAPI_CORE:
-                return
-
             # The validation function should have called OpenAPISpec.create
             mock_create.assert_called_once_with(spec)
 
-    @pytest.mark.skipif(not OPENAPI_CORE_AVAILABLE, reason='openapi-core not available')
     def test_validate_openapi_spec_with_spec_class(self):
         """Test validation using Spec class if available."""
         spec = {
@@ -153,9 +162,16 @@ class TestOpenAPIValidator:
             'paths': {'/test': {'get': {'responses': {'200': {'description': 'OK'}}}}},
         }
 
-        with patch(
-            'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
-        ) as mock_openapi_core:
+        # Mock both the availability and the module itself
+        with (
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.OPENAPI_CORE_AVAILABLE', True
+            ),
+            patch('awslabs.openapi_mcp_server.utils.openapi_validator.USE_OPENAPI_CORE', True),
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
+            ) as mock_openapi_core,
+        ):
             # Remove create_spec attribute
             del mock_openapi_core.create_spec
 
@@ -169,10 +185,8 @@ class TestOpenAPIValidator:
             mock_openapi_core.Spec = mock_spec
 
             assert validate_openapi_spec(spec) is True
-            if USE_OPENAPI_CORE:
-                mock_spec.create.assert_called_once_with(spec)
+            mock_spec.create.assert_called_once_with(spec)
 
-    @pytest.mark.skipif(not OPENAPI_CORE_AVAILABLE, reason='openapi-core not available')
     def test_validate_openapi_spec_with_unsupported_openapi_core(self):
         """Test validation with unsupported openapi-core version."""
         spec = {
@@ -181,9 +195,16 @@ class TestOpenAPIValidator:
             'paths': {'/test': {'get': {'responses': {'200': {'description': 'OK'}}}}},
         }
 
-        with patch(
-            'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
-        ) as mock_openapi_core:
+        # Mock both the availability and the module itself
+        with (
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.OPENAPI_CORE_AVAILABLE', True
+            ),
+            patch('awslabs.openapi_mcp_server.utils.openapi_validator.USE_OPENAPI_CORE', True),
+            patch(
+                'awslabs.openapi_mcp_server.utils.openapi_validator.openapi_core'
+            ) as mock_openapi_core,
+        ):
             # Remove all supported attributes
             if hasattr(mock_openapi_core, 'create_spec'):
                 del mock_openapi_core.create_spec
