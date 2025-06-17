@@ -119,14 +119,37 @@ def setup_environment(config):
     """Setup and validate environment variables."""
     logger.info('Setting up environment...')
 
-    # Validate Prometheus URL
-    if not config['prometheus_url']:
-        logger.error(
-            'ERROR: Prometheus URL not configured. Please set using --url parameter or PROMETHEUS_URL environment variable.'
-        )
-        return False
-
     try:
+        # Create session with profile if specified
+        if config['aws_profile']:
+            logger.info(f'  Using AWS Profile: {config["aws_profile"]}')
+            session = boto3.Session(
+                profile_name=config['aws_profile'], 
+                region_name=config['aws_region']
+            )
+        else:
+            logger.info('  Using default AWS credentials')
+            session = boto3.Session(region_name=config['aws_region'])
+
+        # If Prometheus URL is not provided, try to get it from AWS
+        if not config['prometheus_url']:
+            try:
+                aps_client = session.client('amp')
+                workspaces = aps_client.list_workspaces()
+                if workspaces['workspaces']:
+                    workspace = workspaces['workspaces'][0]  # Use the first workspace
+                    workspace_id = workspace['workspaceId']
+                    region = config['aws_region']
+                    config['prometheus_url'] = f'https://aps-workspaces.{region}.amazonaws.com/workspaces/ws-{workspace_id}'
+                    logger.info(f'Found Prometheus workspace: {workspace_id}')
+                else:
+                    logger.error('No Prometheus workspaces found in the current region')
+                    return False
+            except Exception as e:
+                logger.error(f'Error getting Prometheus workspace: {e}')
+                return False
+
+        # Validate Prometheus URL
         parsed_url = urlparse(config['prometheus_url'])
         if not all([parsed_url.scheme, parsed_url.netloc]):
             logger.error(f'ERROR: Invalid Prometheus URL format: {config["prometheus_url"]}')
@@ -143,33 +166,17 @@ def setup_environment(config):
             logger.warning(
                 'Expected format: https://aps-workspaces.[region].amazonaws.com/workspaces/ws-[id]'
             )
-    except Exception as e:
-        logger.error(f'ERROR: Error parsing Prometheus URL: {e}')
-        return False
 
-    logger.info('Prometheus configuration:')
-    logger.info(f'  Server URL: {config["prometheus_url"]}')
-    logger.info(f'  AWS Region: {config["aws_region"]}')
+        logger.info('Prometheus configuration:')
+        logger.info(f'  Server URL: {config["prometheus_url"]}')
+        logger.info(f'  AWS Region: {config["aws_region"]}')
 
-    # Test AWS credentials
-    try:
+        # Test AWS credentials
         if not config['aws_region']:
             logger.error(
                 'ERROR: AWS region not configured. Please set using --region parameter or AWS_REGION environment variable.'
             )
             return False
-
-        logger.info(f'  AWS Region: {config["aws_region"]}')
-
-        # Create session with profile if specified
-        if config['aws_profile']:
-            logger.info(f'  Using AWS Profile: {config["aws_profile"]}')
-            session = boto3.Session(
-                profile_name=config['aws_profile'], region_name=config['aws_region']
-            )
-        else:
-            logger.info('  Using default AWS credentials')
-            session = boto3.Session(region_name=config['aws_region'])
 
         credentials = session.get_credentials()
         if credentials:
