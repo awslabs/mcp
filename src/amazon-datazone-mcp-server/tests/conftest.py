@@ -345,11 +345,11 @@ def mock_aws_credentials():
     with patch.dict(
         os.environ,
         {
-            "AWS_ACCESS_KEY_ID": "testing", # nosec
-            "AWS_SECRET_ACCESS_KEY": "testing", # nosec
-            "AWS_SECURITY_TOKEN": "testing", # nosec
-            "AWS_SESSION_TOKEN": "testing", # nosec
-            "AWS_DEFAULT_REGION": "us-east-1", # nosec
+            "AWS_ACCESS_KEY_ID": "testing", #pragma: allowlist secret
+            "AWS_SECRET_ACCESS_KEY": "testing", #pragma: allowlist secret
+            "AWS_SECURITY_TOKEN": "testing", #pragma: allowlist secret
+            "AWS_SESSION_TOKEN": "testing", #pragma: allowlist secret
+            "AWS_DEFAULT_REGION": "us-east-1", #pragma: allowlist secret
         },
     ):
         yield

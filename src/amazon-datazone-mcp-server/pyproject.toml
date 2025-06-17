@@ -45,6 +45,7 @@ dev = [
     "mypy>=1.0.0",
     "flake8>=6.0.0",
     "pre-commit>=3.0.0",
+    "pyright>=1.1.350"
 ]
 
 [project.scripts]
