@@ -21,4 +21,4 @@ import pytest
 
 def test_datazone_mcp_server_importable():
     """Test datazone_mcp_server is importable."""
-    import datazone_mcp_server  # noqa: F401
+    import awslabs.datazone_mcp_server  # noqa: F401

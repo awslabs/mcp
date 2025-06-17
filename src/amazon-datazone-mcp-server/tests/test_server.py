@@ -14,14 +14,14 @@ class TestMCPServer:
 
     def test_server_imports_successfully(self):
         """Test that server imports without errors."""
-        from datazone_mcp_server import server
+        from awslabs.datazone_mcp_server import server
 
         assert hasattr(server, "mcp")
         assert hasattr(server, "main")
 
     def test_server_has_fastmcp_instance(self):
         """Test that server has FastMCP instance."""
-        from datazone_mcp_server import server
+        from awslabs.datazone_mcp_server import server
 
         assert server.mcp is not None
         # Verify it's a FastMCP instance (name property is available)
@@ -30,7 +30,7 @@ class TestMCPServer:
     @patch("mcp.server.fastmcp.FastMCP.run")
     def test_main_function_normal_operation(self, mock_run):
         """Test main function under normal operation."""
-        from datazone_mcp_server.server import main
+        from awslabs.datazone_mcp_server.server import main
 
         # Arrange
         mock_run.return_value = None
@@ -46,7 +46,7 @@ class TestMCPServer:
     @patch("builtins.print")
     def test_main_function_error_handling(self, mock_print, mock_exit, mock_run):
         """Test main function error handling."""
-        from datazone_mcp_server.server import main
+        from awslabs.datazone_mcp_server.server import main
 
         # Arrange
         mock_run.side_effect = Exception("Test error")
@@ -67,7 +67,7 @@ class TestMCPServer:
     @patch("builtins.print")
     def test_runtime_error_handling(self, mock_print, mock_exit, mock_run):
         """Test handling of runtime errors."""
-        from datazone_mcp_server.server import main
+        from awslabs.datazone_mcp_server.server import main
 
         # Arrange
         mock_run.side_effect = RuntimeError("Runtime error occurred")
@@ -86,7 +86,7 @@ class TestMCPServer:
     @patch("builtins.print")
     def test_keyboard_interrupt_handling(self, mock_print, mock_exit, mock_run):
         """Test handling of keyboard interrupts."""
-        from datazone_mcp_server.server import main
+        from awslabs.datazone_mcp_server.server import main
 
         # Arrange
         mock_run.side_effect = KeyboardInterrupt()
@@ -105,7 +105,7 @@ class TestMCPServer:
     @patch("builtins.print")
     def test_json_error_response_format(self, mock_print, mock_exit, mock_run):
         """Test that error responses are valid JSON."""
-        from datazone_mcp_server.server import main
+        from awslabs.datazone_mcp_server.server import main
 
         # Arrange
         mock_run.side_effect = ValueError("Test value error")
@@ -135,7 +135,7 @@ class TestServerConfiguration:
         """Test that logger is properly configured."""
         import logging
 
-        from datazone_mcp_server import server
+        from awslabs.datazone_mcp_server import server
 
         # Check that the logger exists and has the right level
         logger = logging.getLogger(server.__name__)
@@ -143,7 +143,7 @@ class TestServerConfiguration:
 
     def test_server_name(self):
         """Test that server is initialized with correct name."""
-        from datazone_mcp_server import server
+        from awslabs.datazone_mcp_server import server
 
         # This verifies the MCP server is named 'datazone'
         assert server.mcp.name == "datazone"
@@ -154,7 +154,7 @@ class TestToolRegistration:
 
     def test_server_initialization_registers_tools(self):
         """Test that server initializes and has tools registered."""
-        from datazone_mcp_server import server
+        from awslabs.datazone_mcp_server import server
 
         # The server should have been initialized with tools
         assert server.mcp is not None
@@ -169,7 +169,7 @@ class TestToolRegistration:
 
     def test_tool_modules_have_register_functions(self):
         """Test that all tool modules have register_tools functions."""
-        from datazone_mcp_server.tools import (
+        from awslabs.datazone_mcp_server.tools import (
             data_management,
             domain_management,
             environment,
@@ -203,7 +203,7 @@ class TestModuleImports:
 
     def test_tool_modules_import(self):
         """Test that all tool modules can be imported."""
-        from datazone_mcp_server.tools import (
+        from awslabs.datazone_mcp_server.tools import (
             data_management,
             domain_management,
             environment,
@@ -239,7 +239,7 @@ class TestCommandLineInterface:
         """Test that __main__ execution works."""
         # This test verifies that the if __name__ == "__main__" block can execute
         # We can't easily test this directly, but we can test the main() function
-        from datazone_mcp_server.server import main
+        from awslabs.datazone_mcp_server.server import main
 
         main()
         mock_run.assert_called_once_with(transport="stdio")
@@ -248,7 +248,7 @@ class TestCommandLineInterface:
         """Test that the entry point exists in setup."""
         # This would normally check setup.py or pyproject.toml
         # For now, just verify the main function exists and is callable
-        from datazone_mcp_server.server import main
+        from awslabs.datazone_mcp_server.server import main
 
         assert callable(main)
 
@@ -266,7 +266,7 @@ class TestServerIntegration:
         # Re-import to test initialization time
         import importlib
 
-        from datazone_mcp_server import server
+        from awslabs.datazone_mcp_server import server
 
         importlib.reload(server)
 
@@ -286,7 +286,7 @@ class TestServerIntegration:
         memory_before = process.memory_info().rss
 
         # Import server
-        from datazone_mcp_server import server
+        from awslabs.datazone_mcp_server import server
 
         memory_after = process.memory_info().rss
         memory_increase = memory_after - memory_before

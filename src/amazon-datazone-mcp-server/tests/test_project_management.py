@@ -206,7 +206,7 @@ class TestProjectManagement:
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
 
-        with patch("datazone_mcp_server.tools.common.httpx.AsyncClient", return_value=mock_client):
+        with patch("awslabs.datazone_mcp_server.tools.common.httpx.AsyncClient", return_value=mock_client):
             # Act
             result = await create_project_membership(domain_id, project_id, designation, member_id)
 
@@ -380,7 +380,7 @@ class TestProjectManagement:
     def test_register_tools(self, mock_fastmcp):
         """Test that tools are properly registered with FastMCP."""
         # Import here to avoid circular import issues
-        from datazone_mcp_server.tools import project_management
+        from awslabs.datazone_mcp_server.tools import project_management
 
         # Act
         project_management.register_tools(mock_fastmcp)

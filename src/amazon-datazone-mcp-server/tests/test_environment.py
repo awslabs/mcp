@@ -291,7 +291,7 @@ class TestEnvironment:
     def test_register_tools(self, mock_fastmcp):
         """Test that tools are properly registered with FastMCP."""
         # Import here to avoid circular import issues
-        from datazone_mcp_server.tools import environment
+        from awslabs.datazone_mcp_server.tools import environment
 
         # Act
         environment.register_tools(mock_fastmcp)

@@ -99,7 +99,7 @@
 # @pytest.fixture
 # async def mcp_server_with_tools():
 #     """Setup MCP server for integration testing."""
-#     from datazone_mcp_server import server
+#     from awslabs.datazone_mcp_server import server
 
 #     # Return the actual server instance for integration tests
 #     return server.mcp
@@ -112,7 +112,7 @@
 #     def _extract_tool(mcp_server, tool_name):
 #         # For integration tests, we need to access the actual implementation
 #         # This is a simplified version - in real integration we'd call through MCP
-#         from datazone_mcp_server.tools import (
+#         from awslabs.datazone_mcp_server.tools import (
 #             data_management,
 #             domain_management,
 #             environment,
@@ -159,7 +159,7 @@
 
 #         # Temporarily replace the client for this test
 #         with patch(
-#             "datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
 #         ):
 #             result = await get_domain(test_domain_id)
 
@@ -177,7 +177,7 @@
 #         list_domains = tool_extractor(mcp_server_with_tools, "list_domains")
 
 #         with patch(
-#             "datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
 #         ):
 #             result = await list_domains(max_results=5)
 
@@ -193,7 +193,7 @@
 #         search = tool_extractor(mcp_server_with_tools, "search")
 
 #         with patch(
-#             "datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
 #         ):
 #             result = await search(
 #                 domain_identifier=test_domain_id, search_scope="ASSET", max_results=10
@@ -215,7 +215,7 @@
 #         list_projects = tool_extractor(mcp_server_with_tools, "list_projects")
 
 #         with patch(
-#             "datazone_mcp_server.tools.project_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.project_management.datazone_client", real_datazone_client
 #         ):
 #             result = await list_projects(domain_identifier=test_domain_id, max_results=10)
 
@@ -236,7 +236,7 @@
 #         get_project = tool_extractor(mcp_server_with_tools, "get_project")
 
 #         with patch(
-#             "datazone_mcp_server.tools.project_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.project_management.datazone_client", real_datazone_client
 #         ):
 #             result = await get_project(test_domain_id, test_project_id)
 
@@ -259,7 +259,7 @@
 #         search_listings = tool_extractor(mcp_server_with_tools, "search_listings")
 
 #         with patch(
-#             "datazone_mcp_server.tools.data_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.data_management.datazone_client", real_datazone_client
 #         ):
 #             result = await search_listings(domain_identifier=test_domain_id, max_results=10)
 
@@ -275,7 +275,7 @@
 #         list_form_types = tool_extractor(mcp_server_with_tools, "list_form_types")
 
 #         with patch(
-#             "datazone_mcp_server.tools.data_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.data_management.datazone_client", real_datazone_client
 #         ):
 #             result = await list_form_types(domain_identifier=test_domain_id, max_results=10)
 
@@ -295,7 +295,7 @@
 #         get_domain = tool_extractor(mcp_server_with_tools, "get_domain")
 
 #         with patch(
-#             "datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
 #         ):
 #             with pytest.raises(Exception) as exc_info:
 #                 await get_domain("nonexistent-domain-id")
@@ -313,7 +313,7 @@
 #         search = tool_extractor(mcp_server_with_tools, "search")
 
 #         with patch(
-#             "datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
 #         ):
 #             with pytest.raises(Exception) as exc_info:
 #                 await search(
@@ -340,7 +340,7 @@
 #         get_domain = tool_extractor(mcp_server_with_tools, "get_domain")
 
 #         with patch(
-#             "datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.domain_management.datazone_client", real_datazone_client
 #         ):
 #             start_time = time.time()
 #             await get_domain(test_domain_id)
@@ -359,7 +359,7 @@
 #         list_projects = tool_extractor(mcp_server_with_tools, "list_projects")
 
 #         with patch(
-#             "datazone_mcp_server.tools.project_management.datazone_client", real_datazone_client
+#             "awslabs.datazone_mcp_server.tools.project_management.datazone_client", real_datazone_client
 #         ):
 #             # Request small page size to test pagination
 #             result = await list_projects(domain_identifier=test_domain_id, max_results=1)

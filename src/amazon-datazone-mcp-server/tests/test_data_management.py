@@ -395,7 +395,7 @@ class TestDataManagement:
     def test_register_tools(self, mock_fastmcp):
         """Test that all data management tools are registered."""
         # Import here to avoid circular import issues
-        from datazone_mcp_server.tools import data_management
+        from awslabs.datazone_mcp_server.tools import data_management
 
         # Act
         data_management.register_tools(mock_fastmcp)

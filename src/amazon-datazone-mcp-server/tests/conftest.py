@@ -31,7 +31,7 @@ def mock_datazone_client():
         "name": "Test Domain",
         "description": "Test domain description",
         "status": "AVAILABLE",
-        "arn": "arn:aws:datazone:us-east-1:123456789012:domain/dzd_test123",
+        "arn": os.getenv("ARN"),
         "portalUrl": "https://dzd_test123.datazone.aws.amazon.com",
         "domainVersion": "V2",
         "rootDomainUnitId": "root_unit_123",
@@ -42,7 +42,7 @@ def mock_datazone_client():
         "name": "New Test Domain",
         "description": "New test domain description",
         "status": "CREATING",
-        "arn": "arn:aws:datazone:us-east-1:123456789012:domain/dzd_new123",
+        "arn": os.getenv("ARN"),
         "portalUrl": "https://dzd_new123.datazone.aws.amazon.com",
         "domainVersion": "V2",
         "rootDomainUnitId": "root_unit_new123",
@@ -199,8 +199,8 @@ def sample_domain_data():
     return {
         "name": "Test Domain",
         "description": "Test domain description",
-        "domain_execution_role": "arn:aws:iam::123456789012:role/DataZoneDomainExecutionRole",
-        "service_role": "arn:aws:iam::123456789012:role/DataZoneServiceRole",
+        "domain_execution_role": os.getenv("DOMAIN_EXECUTION_ROLE"),
+        "service_role": os.getenv("SERVICE_ROLE"),
         "domain_version": "V2",
     }
 

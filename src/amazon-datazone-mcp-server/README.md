@@ -265,6 +265,15 @@ The Amazon DataZone MCP server provides **38 tools** organized into 5 categories
 
 > **For detailed documentation** of each tool with parameters and examples, see our [Tool Reference](docs/TOOL_REFERENCE.md).
 
+## Testing
+To excute the tests, need to set up your `.env` file with arn credentials 
+```bash
+export ARN=your_arn
+export DOMAIN_EXECUTION_ROLE=your_domain_execution_role
+export SERVICE_ROLERN=your_service_role
+```
+
+
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
