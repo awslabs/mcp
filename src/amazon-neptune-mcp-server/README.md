@@ -31,6 +31,8 @@ Note: This server will run any query sent to it, which could include both mutati
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=Neptune%20Query&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLW5lcHR1bmUtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJJTkZPIiwiTkVQVFVORV9FTkRQT0lOVCI6IjxJTlNFUlQgTkVQVFVORSBFTkRQT0lOVCBJTiBGT1JNQVQgU1BFQ0lGSUVEIEJFTE9XPiJ9fQ%3D%3D)
+
 Below is an example of how to configure your MCP client, although different clients may require a different format.
 
 

@@ -28,6 +28,8 @@ Here are some example prompts that this MCP server can help with:
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.amazon-keyspaces-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWtleXNwYWNlcy1tY3Atc2VydmVyIiwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119)
+
 ### Prerequisites
 
 - Python 3.10 or 3.11 (Python 3.12+ is not fully supported due to asyncore module removal)
