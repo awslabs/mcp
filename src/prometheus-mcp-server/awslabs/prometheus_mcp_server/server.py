@@ -139,31 +139,31 @@ def find_active_workspace(aps_client):
         return None
 
 
-def setup_environment(config):
+def setup_environment(config_data):
     """Setup and validate environment variables."""
     logger.info('Setting up environment...')
 
     try:
         # Create session with profile if specified
-        if config['aws_profile']:
-            logger.info(f'  Using AWS Profile: {config["aws_profile"]}')
+        if config_data['aws_profile']:
+            logger.info(f'  Using AWS Profile: {config_data["aws_profile"]}')
             session = boto3.Session(
-                profile_name=config['aws_profile'], 
-                region_name=config['aws_region']
+                profile_name=config_data['aws_profile'], 
+                region_name=config_data['aws_region']
             )
         else:
             logger.info('  Using default AWS credentials')
-            session = boto3.Session(region_name=config['aws_region'])
+            session = boto3.Session(region_name=config_data['aws_region'])
 
         # If Prometheus URL is not provided, try to get it from AWS
-        if not config['prometheus_url']:
+        if not config_data['prometheus_url']:
             try:
                 aps_client = session.client('amp')
                 active_workspace = find_active_workspace(aps_client)
                 if active_workspace:
                     workspace_id = active_workspace['workspaceId']
-                    region = config['aws_region']
-                    config['prometheus_url'] = f'https://aps-workspaces.{region}.amazonaws.com/workspaces/ws-{workspace_id}'
+                    region = config_data['aws_region']
+                    config_data['prometheus_url'] = f'https://aps-workspaces.{region}.amazonaws.com/workspaces/ws-{workspace_id}'
                     logger.info(f'Found active Prometheus workspace: {workspace_id}')
                 else:
                     logger.error('No active Prometheus workspaces found in the current region')
@@ -173,9 +173,9 @@ def setup_environment(config):
                 return False
 
         # Validate Prometheus URL
-        parsed_url = urlparse(config['prometheus_url'])
+        parsed_url = urlparse(config_data['prometheus_url'])
         if not all([parsed_url.scheme, parsed_url.netloc]):
-            logger.error(f'ERROR: Invalid Prometheus URL format: {config["prometheus_url"]}')
+            logger.error(f'ERROR: Invalid Prometheus URL format: {config_data["prometheus_url"]}')
             logger.error('URL must include scheme (https://) and hostname')
             return False
 
@@ -184,18 +184,18 @@ def setup_environment(config):
             parsed_url.netloc.endswith('.amazonaws.com') and 'aps-workspaces' in parsed_url.netloc
         ):
             logger.warning(
-                f"WARNING: URL doesn't appear to be an AWS Managed Prometheus endpoint: {config['prometheus_url']}"
+                f"WARNING: URL doesn't appear to be an AWS Managed Prometheus endpoint: {config_data['prometheus_url']}"
             )
             logger.warning(
                 'Expected format: https://aps-workspaces.[region].amazonaws.com/workspaces/ws-[id]'
             )
 
         logger.info('Prometheus configuration:')
-        logger.info(f'  Server URL: {config["prometheus_url"]}')
-        logger.info(f'  AWS Region: {config["aws_region"]}')
+        logger.info(f'  Server URL: {config_data["prometheus_url"]}')
+        logger.info(f'  AWS Region: {config_data["aws_region"]}')
 
         # Test AWS credentials
-        if not config['aws_region']:
+        if not config_data['aws_region']:
             logger.error(
                 'ERROR: AWS region not configured. Please set using --region parameter or AWS_REGION environment variable.'
             )
@@ -668,21 +668,22 @@ def main():
     # Load configuration
     config_data = load_config(args)
 
+    # Setup environment to discover workspace if needed
+    if not config_data['prometheus_url']:
+        if not setup_environment(config_data):
+            logger.error('Environment setup failed')
+            sys.exit(1)
+
     # Create config object
     global config
     config = PrometheusConfig(
-        prometheus_url=config_data['prometheus_url'],
+        prometheus_url=config_data['prometheus_url'] or "https://placeholder-url.com",  # Temporary placeholder
         aws_region=config_data['aws_region'],
         aws_profile=config_data['aws_profile'],
         service_name=config_data['service_name'],
         retry_delay=config_data['retry_delay'],
         max_retries=config_data['max_retries'],
     )
-
-    # Setup environment
-    if not setup_environment(config_data):
-        logger.error('Environment setup failed')
-        sys.exit(1)
 
     # Run async initialization in an event loop
     import asyncio
