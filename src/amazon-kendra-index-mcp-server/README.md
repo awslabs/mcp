@@ -45,6 +45,8 @@ An AWS Labs Model Context Protocol (MCP) server for Amazon Kendra. This MCP serv
 
 ### Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.amazon-kendra-index-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWtlbmRyYS1pbmRleC1tY3Atc2VydmVyIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IiLCJLRU5EUkFfSU5ERVhfSUQiOiJbWW91ciBLZW5kcmEgSW5kZXggSWRdIiwiQVdTX1BST0ZJTEUiOiJbWW91ciBBV1MgUHJvZmlsZSBOYW1lXSIsIkFXU19SRUdJT04iOiJbUmVnaW9uIHdoZXJlIHlvdXIgS2VuZHJhIEluZGV4IHJlc2lkZXNdIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
+
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json

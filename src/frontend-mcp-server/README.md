@@ -25,6 +25,8 @@ This MCP Server provides comprehensive documentation on modern React application
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.frontend-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZnJvbnRlbmQtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
+
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json

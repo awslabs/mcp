@@ -20,6 +20,9 @@ An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB. Thi
     - Consider starting with Read-only permission if you don't want the LLM to modify any resources
 
 ## Installation
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.timestream-for-influxdb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMudGltZXN0cmVhbS1mb3ItaW5mbHV4ZGItbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119)
+
 You can modify the settings of your MCP client to run your local server (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`)
 
 ```json

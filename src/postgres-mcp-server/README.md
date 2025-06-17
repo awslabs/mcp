@@ -22,6 +22,8 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora Postgres
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.postgres-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMucG9zdGdyZXMtbWNwLXNlcnZlckBsYXRlc3QgLS1yZXNvdXJjZV9hcm4gW3lvdXIgZGF0YV0gLS1zZWNyZXRfYXJuIFt5b3VyIGRhdGFdIC0tZGF0YWJhc2UgW3lvdXIgZGF0YV0gLS1yZWdpb24gW3lvdXIgZGF0YV0gLS1yZWFkb25seSBUcnVlIiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
+
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
