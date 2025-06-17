@@ -32,7 +32,7 @@ class TestListRegistries:
             'Registries': [
                 {
                     'RegistryName': 'test-registry',
-                    'RegistryArn': 'arn:aws:schemas:us-east-1:123456789012:registry/test-registry',
+                    'RegistryArn': 'arn:aws:schemas:us-east-1:000000000000:registry/test-registry',
                 }
             ],
             'NextToken': None,
@@ -80,7 +80,7 @@ class TestSearchSchema:
             'Schemas': [
                 {
                     'SchemaName': 'test-schema',
-                    'SchemaArn': 'arn:aws:schemas:us-east-1:123456789012:schema/test-registry/test-schema',
+                    'SchemaArn': 'arn:aws:schemas:us-east-1:000000000000:schema/test-registry/test-schema',
                 }
             ],
             'NextToken': None,
@@ -129,7 +129,7 @@ class TestDescribeSchema:
         """Test describe_schema with required parameters."""
         mock_response = {
             'SchemaName': 'test-schema',
-            'SchemaArn': 'arn:aws:schemas:us-east-1:123456789012:schema/test-registry/test-schema',
+            'SchemaArn': 'arn:aws:schemas:us-east-1:000000000000:schema/test-registry/test-schema',
             'Content': '{"type": "object"}',
             'SchemaVersion': '1',
             'LastModified': '2025-05-09T12:00:00Z',

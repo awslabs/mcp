@@ -113,7 +113,7 @@ class TestFrontendConfiguration:
             index_document='main.html',
             error_document='error.html',
             custom_domain='example.com',
-            certificate_arn='arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012',
+            certificate_arn='arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-3',
             # Add all possible parameters here, if any new ones exist in the model
             # For example, if there are additional fields like "routing_rules" or "metadata", include them:
             # routing_rules=[{'condition': '...', 'redirect': '...'}],
@@ -126,7 +126,7 @@ class TestFrontendConfiguration:
         assert config.custom_domain == 'example.com'
         assert (
             config.certificate_arn
-            == 'arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012'
+            == 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-3'
         )
 
 
@@ -215,7 +215,7 @@ class TestDeployWebAppRequest:
             index_document='main.html',
             error_document='error.html',
             custom_domain='example.com',
-            certificate_arn='arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012',
+            certificate_arn='arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-3',
         )
         request = DeployWebAppRequest(
             deployment_type='fullstack',
