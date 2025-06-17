@@ -115,6 +115,30 @@ def load_config(args):
     return config_data
 
 
+def find_active_workspace(aps_client):
+    """Find an active Prometheus workspace.
+    
+    Args:
+        aps_client: The AMP boto3 client
+        
+    Returns:
+        The first active workspace found, or None if no active workspaces exist
+    """
+    try:
+        workspaces = aps_client.list_workspaces()
+        active_workspaces = [ws for ws in workspaces['workspaces'] if ws['status']['statusCode'] == 'ACTIVE']
+        
+        if active_workspaces:
+            logger.info(f'Found {len(active_workspaces)} active Prometheus workspaces')
+            return active_workspaces[0]
+        else:
+            logger.warning('No active Prometheus workspaces found')
+            return None
+    except Exception as e:
+        logger.error(f'Error finding active workspaces: {e}')
+        return None
+
+
 def setup_environment(config):
     """Setup and validate environment variables."""
     logger.info('Setting up environment...')
@@ -135,15 +159,14 @@ def setup_environment(config):
         if not config['prometheus_url']:
             try:
                 aps_client = session.client('amp')
-                workspaces = aps_client.list_workspaces()
-                if workspaces['workspaces']:
-                    workspace = workspaces['workspaces'][0]  # Use the first workspace
-                    workspace_id = workspace['workspaceId']
+                active_workspace = find_active_workspace(aps_client)
+                if active_workspace:
+                    workspace_id = active_workspace['workspaceId']
                     region = config['aws_region']
                     config['prometheus_url'] = f'https://aps-workspaces.{region}.amazonaws.com/workspaces/ws-{workspace_id}'
-                    logger.info(f'Found Prometheus workspace: {workspace_id}')
+                    logger.info(f'Found active Prometheus workspace: {workspace_id}')
                 else:
-                    logger.error('No Prometheus workspaces found in the current region')
+                    logger.error('No active Prometheus workspaces found in the current region')
                     return False
             except Exception as e:
                 logger.error(f'Error getting Prometheus workspace: {e}')
