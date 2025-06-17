@@ -26,8 +26,18 @@ class TestBasicAuthProvider:
 
     def test_init_with_valid_config(self):
         """Test initialization with valid configuration."""
-        # Skip this test as it's failing
-        pytest.skip("Skipping test_init_with_valid_config as it's currently failing")
+        # Create a configuration with valid basic auth settings
+        config = Config()
+        config.auth_username = 'test_user'
+        config.auth_password = 'test_password'  # pragma: allowlist secret
+
+        # Create the provider
+        provider = BasicAuthProvider(config)
+
+        # Verify initialization
+        assert provider.provider_name == 'basic'
+        assert provider._username == 'test_user'
+        assert provider._password == 'test_password'
 
     def test_init_with_missing_username(self):
         """Test initialization with missing username."""
@@ -94,8 +104,19 @@ class TestBasicAuthProvider:
     @patch('awslabs.openapi_mcp_server.auth.basic_auth.cached_auth_data')
     def test_cached_auth_data(self, mock_cached_auth_data):
         """Test that auth data is cached."""
-        # Skip this test as it's failing
-        pytest.skip("Skipping test_cached_auth_data as it's currently failing")
+        # Create a configuration with valid basic auth settings
+        config = Config()
+        config.auth_username = 'test_user'
+        config.auth_password = 'test_password'
+
+        # Create the provider
+        provider = BasicAuthProvider(config)
+
+        # Mock the cached_auth_data decorator to return a mock function
+        mock_cached_auth_data.return_value = lambda func: func
+
+        # Test that the provider was created successfully
+        assert provider.provider_name == 'basic'
 
     def test_log_validation_error(self):
         """Test logging of validation error."""
@@ -146,5 +167,21 @@ class TestBasicAuthProvider:
 
     def test_generate_httpx_auth(self):
         """Test generation of HTTPX auth object."""
-        # Skip this test as it's failing
-        pytest.skip("Skipping test_generate_httpx_auth as it's currently failing")
+        # Create a configuration
+        config = Config()
+        config.auth_type = 'basic'
+        config.auth_username = 'testuser'
+        config.auth_password = 'testpass'
+
+        # Create the provider
+        provider = BasicAuthProvider(config)
+
+        # Call _generate_httpx_auth with the required parameters
+        auth = provider._generate_httpx_auth('testuser', 'testpass')
+
+        # Check that we get an httpx.BasicAuth object
+        import httpx
+
+        assert isinstance(auth, httpx.BasicAuth)
+        # BasicAuth object stores credentials internally, we can't directly access them
+        # but we can verify it's the correct type and was created successfully

@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
+from awslabs.openapi_mcp_server.prompts.generators.operation_prompts import create_operation_prompt
 from fastmcp import FastMCP
 from fastmcp.prompts.prompt import Prompt
-from awslabs.openapi_mcp_server.prompts.generators.operation_prompts import create_operation_prompt
 
 
 def test_operation_prompt_with_security():
@@ -34,13 +33,10 @@ def test_operation_prompt_with_security():
         '200': {'description': 'successful operation'},
         '401': {'description': 'Unauthorized'},
     }
-    
+
     # Add security requirements
-    security = [
-        {'api_key': []},
-        {'oauth2': ['read', 'write']}
-    ]
-    
+    security = [{'api_key': []}, {'oauth2': ['read', 'write']}]
+
     paths = {
         '/secure/endpoint': {
             'post': {
@@ -50,7 +46,7 @@ def test_operation_prompt_with_security():
                 'operationId': 'secureOperation',
                 'parameters': parameters,
                 'responses': responses,
-                'security': security
+                'security': security,
             }
         }
     }
@@ -67,7 +63,7 @@ def test_operation_prompt_with_security():
         parameters=parameters,
         responses=responses,
         paths=paths,
-        security=security
+        security=security,
     )
 
     # Verify prompt was created successfully
@@ -78,10 +74,10 @@ def test_operation_prompt_with_security():
         prompt = server._prompt_manager._prompts.get(operation_id)
         assert prompt is not None
         assert prompt.name == 'secureOperation'
-        
+
         # Check that the prompt has been registered
         assert prompt in server._prompt_manager._prompts.values()
-        
+
         # Since we can't directly check the security info in the prompt object,
         # we'll verify that the prompt was created successfully
         assert isinstance(prompt, Prompt)
@@ -98,7 +94,7 @@ def test_operation_prompt_with_enum_parameters():
     path = '/enum/endpoint'
     summary = 'Operation with enum parameters'
     description = 'This operation has enum parameters'
-    
+
     # Define parameters with enum values
     parameters = [
         {
@@ -120,13 +116,13 @@ def test_operation_prompt_with_enum_parameters():
                 'type': 'integer',
                 'enum': [1, 2, 3],
             },
-        }
+        },
     ]
-    
+
     responses = {
         '200': {'description': 'successful operation'},
     }
-    
+
     paths = {
         '/enum/endpoint': {
             'get': {
@@ -162,10 +158,10 @@ def test_operation_prompt_with_enum_parameters():
         prompt = server._prompt_manager._prompts.get(operation_id)
         assert prompt is not None
         assert prompt.name == 'enumOperation'
-        
+
         # Check that the prompt has arguments
         assert len(prompt.arguments) == 2
-        
+
         # Check argument names
         arg_names = [arg.name for arg in prompt.arguments]
         assert 'string_enum' in arg_names
@@ -184,7 +180,7 @@ def test_operation_prompt_with_request_body_schema():
     summary = 'Create resource'
     description = 'Create a new resource with schema'
     parameters = []
-    
+
     # Define request body with schema
     request_body = {
         'description': 'Resource to create',
@@ -195,36 +191,23 @@ def test_operation_prompt_with_request_body_schema():
                     'type': 'object',
                     'required': ['name', 'type', 'active'],
                     'properties': {
-                        'name': {
-                            'type': 'string'
-                        },
-                        'type': {
-                            'type': 'string',
-                            'enum': ['type1', 'type2']
-                        },
-                        'active': {
-                            'type': 'boolean'
-                        },
-                        'count': {
-                            'type': 'integer'
-                        },
-                        'tags': {
-                            'type': 'array'
-                        },
-                        'metadata': {
-                            'type': 'object'
-                        }
-                    }
+                        'name': {'type': 'string'},
+                        'type': {'type': 'string', 'enum': ['type1', 'type2']},
+                        'active': {'type': 'boolean'},
+                        'count': {'type': 'integer'},
+                        'tags': {'type': 'array'},
+                        'metadata': {'type': 'object'},
+                    },
                 }
             }
-        }
+        },
     }
-    
+
     responses = {
         '201': {'description': 'Resource created'},
-        '400': {'description': 'Invalid request'}
+        '400': {'description': 'Invalid request'},
     }
-    
+
     paths = {
         '/create/resource': {
             'post': {
@@ -251,7 +234,7 @@ def test_operation_prompt_with_request_body_schema():
         parameters=parameters,
         responses=responses,
         paths=paths,
-        request_body=request_body
+        request_body=request_body,
     )
 
     # Verify prompt was created successfully
@@ -262,11 +245,11 @@ def test_operation_prompt_with_request_body_schema():
         prompt = server._prompt_manager._prompts.get(operation_id)
         assert prompt is not None
         assert prompt.name == 'createWithSchema'
-        
+
         # Get the full prompt metadata to check for request body schema
         prompt_metadata = prompt.model_dump()
         prompt_metadata_str = str(prompt_metadata)
-        
+
         # Check that request body schema information is included
         assert 'name' in prompt_metadata_str
         assert 'type' in prompt_metadata_str
@@ -276,9 +259,6 @@ def test_operation_prompt_with_request_body_schema():
 
 def test_operation_prompt_error_handling():
     """Test error handling in create_operation_prompt."""
-    # Create a mock server
-    server = FastMCP(name='test-server')
-
     # Create the operation prompt with invalid inputs to trigger an exception
     success = create_operation_prompt(
         server=None,  # Invalid server
@@ -290,7 +270,7 @@ def test_operation_prompt_error_handling():
         description='This should fail',
         parameters=[],
         responses={},
-        paths={}
+        paths={},
     )
 
     # Verify prompt creation failed
