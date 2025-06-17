@@ -59,7 +59,7 @@ Available tools: 38 tools across 5 categories
 
 ### Step 2: Configure AWS Credentials
 
-**Option A: Using AWS CLI (Recommended)**
+**=Using AWS CLI (Recommended)**
 ```bash
 # Install AWS CLI if you haven't already
 pip install awscli
@@ -69,16 +69,10 @@ aws configure
 ```
 
 You'll be prompted for:
-- AWS Access Key ID: `your_access_key_here`
-- AWS Secret Access Key: `your_secret_key_here`
-- Default region: `us-east-1` (or your preferred region)
+- AWS Access Key ID
+- AWS Secret Access Key
+- Default region
 - Default output format: `json`
-
-**Option B: Using Environment Variables**
-```bash
-export AWS_ACCESS_KEY_ID="your_access_key_here"
-export AWS_SECRET_ACCESS_KEY="your_secret_key_here"
-export AWS_DEFAULT_REGION="us-east-1"
 ```
 
 **If you have a specific DataZone domain ID:**

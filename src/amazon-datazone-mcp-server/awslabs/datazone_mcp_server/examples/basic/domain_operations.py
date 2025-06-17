@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Example: Domain Operations
+Example: Domain Operations.
 
 Description: Demonstrates basic domain operations including getting domain information,
 listing available domains, and understanding domain structure.
