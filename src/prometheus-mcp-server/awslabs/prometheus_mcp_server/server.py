@@ -673,11 +673,16 @@ def main():
         if not setup_environment(config_data):
             logger.error('Environment setup failed')
             sys.exit(1)
+        
+        # Double-check that we have a URL after setup_environment
+        if not config_data['prometheus_url']:
+            logger.error('Failed to discover Prometheus URL')
+            sys.exit(1)
 
     # Create config object
     global config
     config = PrometheusConfig(
-        prometheus_url=config_data['prometheus_url'] or "https://placeholder-url.com",  # Temporary placeholder
+        prometheus_url=config_data['prometheus_url'],
         aws_region=config_data['aws_region'],
         aws_profile=config_data['aws_profile'],
         service_name=config_data['service_name'],
