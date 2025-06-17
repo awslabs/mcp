@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
@@ -13,56 +11,56 @@
 
 """AWS S3 Tables MCP Server models."""
 
+from awslabs.s3_tables_mcp_server.constants import (
+    TABLE_ARN_PATTERN,
+    TABLE_BUCKET_ARN_PATTERN,
+    TABLE_BUCKET_NAME_PATTERN,
+    TABLE_NAME_PATTERN,
+)
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from pydantic import BaseModel, Field, model_validator
+from typing import List, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator, model_validator
-
-from awslabs.s3_tables_mcp_server.constants import (
-    TABLE_BUCKET_ARN_FIELD,
-    TABLE_ARN_FIELD,
-    NAMESPACE_NAME_FIELD,
-    TABLE_NAME_FIELD,
-    REGION_NAME_FIELD,
-    TABLE_BUCKET_ARN_PATTERN,
-    TABLE_ARN_PATTERN,
-    TABLE_NAME_PATTERN,
-    TABLE_BUCKET_NAME_PATTERN,
-)
 
 # Enums
 class SSEAlgorithm(str, Enum):
     """Server-side encryption algorithm."""
+
     AES256 = 'AES256'
     AWS_KMS = 'aws:kms'
 
 
 class OpenTableFormat(str, Enum):
     """Supported open table formats."""
+
     ICEBERG = 'ICEBERG'
 
 
 class TableBucketType(str, Enum):
     """Table bucket type."""
+
     CUSTOMER = 'customer'
     AWS = 'aws'
 
 
 class TableType(str, Enum):
     """Table type."""
+
     CUSTOMER = 'customer'
     AWS = 'aws'
 
 
 class MaintenanceStatus(str, Enum):
     """Maintenance status."""
+
     ENABLED = 'enabled'
     DISABLED = 'disabled'
 
 
 class JobStatus(str, Enum):
     """Job status."""
+
     NOT_YET_RUN = 'Not_Yet_Run'
     SUCCESSFUL = 'Successful'
     FAILED = 'Failed'
@@ -71,17 +69,20 @@ class JobStatus(str, Enum):
 
 class TableBucketMaintenanceType(str, Enum):
     """Table bucket maintenance type."""
+
     ICEBERG_UNREFERENCED_FILE_REMOVAL = 'icebergUnreferencedFileRemoval'
 
 
 class TableMaintenanceType(str, Enum):
     """Table maintenance type."""
+
     ICEBERG_COMPACTION = 'icebergCompaction'
     ICEBERG_SNAPSHOT_MANAGEMENT = 'icebergSnapshotManagement'
 
 
 class TableMaintenanceJobType(str, Enum):
     """Table maintenance job type."""
+
     ICEBERG_COMPACTION = 'icebergCompaction'
     ICEBERG_SNAPSHOT_MANAGEMENT = 'icebergSnapshotManagement'
     ICEBERG_UNREFERENCED_FILE_REMOVAL = 'icebergUnreferencedFileRemoval'
@@ -90,6 +91,7 @@ class TableMaintenanceJobType(str, Enum):
 # Core Models
 class TableBucketSummary(BaseModel):
     """Table bucket summary."""
+
     arn: str = Field(pattern=TABLE_BUCKET_ARN_PATTERN)
     name: str = Field(min_length=3, max_length=63, pattern=TABLE_BUCKET_NAME_PATTERN)
     owner_account_id: str = Field(min_length=12, max_length=12, pattern=r'[0-9].*')
@@ -100,6 +102,7 @@ class TableBucketSummary(BaseModel):
 
 class TableBucket(BaseModel):
     """Complete table bucket information."""
+
     arn: str = Field(pattern=TABLE_BUCKET_ARN_PATTERN)
     name: str = Field(min_length=3, max_length=63, pattern=TABLE_BUCKET_NAME_PATTERN)
     owner_account_id: str = Field(min_length=12, max_length=12, pattern=r'[0-9].*')
@@ -110,6 +113,7 @@ class TableBucket(BaseModel):
 
 class NamespaceSummary(BaseModel):
     """Namespace summary."""
+
     namespace: List[str]
     created_at: datetime
     created_by: str = Field(min_length=12, max_length=12, pattern=r'[0-9].*')
@@ -120,6 +124,7 @@ class NamespaceSummary(BaseModel):
 
 class TableSummary(BaseModel):
     """Table summary."""
+
     namespace: List[str]
     name: str = Field(min_length=1, max_length=255, pattern=TABLE_NAME_PATTERN)
     type: TableType
@@ -132,6 +137,7 @@ class TableSummary(BaseModel):
 
 class Table(BaseModel):
     """Complete table information."""
+
     name: str = Field(min_length=1, max_length=255, pattern=TABLE_NAME_PATTERN)
     type: TableType
     table_arn: str = Field(pattern=TABLE_ARN_PATTERN, alias='tableARN')
@@ -153,17 +159,20 @@ class Table(BaseModel):
 # Maintenance Models
 class IcebergCompactionSettings(BaseModel):
     """Settings for Iceberg compaction."""
+
     target_file_size_mb: Optional[int] = Field(None, ge=1, le=2147483647)
 
 
 class IcebergSnapshotManagementSettings(BaseModel):
     """Settings for Iceberg snapshot management."""
+
     min_snapshots_to_keep: Optional[int] = Field(None, ge=1, le=2147483647)
     max_snapshot_age_hours: Optional[int] = Field(None, ge=1, le=2147483647)
 
 
 class TableMaintenanceJobStatusValue(BaseModel):
     """Table maintenance job status value."""
+
     status: JobStatus
     last_run_timestamp: Optional[datetime] = None
     failure_message: Optional[str] = None
@@ -171,29 +180,29 @@ class TableMaintenanceJobStatusValue(BaseModel):
 
 class TableMaintenanceConfigurationValue(BaseModel):
     """Table maintenance configuration value."""
+
     status: Optional[MaintenanceStatus] = None
     settings: Optional[Union[IcebergCompactionSettings, IcebergSnapshotManagementSettings]] = None
 
 
 class IcebergUnreferencedFileRemovalSettings(BaseModel):
     """Settings for unreferenced file removal."""
+
     unreferenced_days: Optional[int] = Field(None, ge=1, le=2147483647)
     non_current_days: Optional[int] = Field(None, ge=1, le=2147483647)
 
 
 class TableBucketMaintenanceSettings(BaseModel):
     """Contains details about the maintenance settings for the table bucket."""
+
     iceberg_unreferenced_file_removal: Optional[IcebergUnreferencedFileRemovalSettings] = Field(
-        None,
-        description='Settings for unreferenced file removal.'
+        None, description='Settings for unreferenced file removal.'
     )
 
     @model_validator(mode='after')
     def validate_only_one_setting(self) -> 'TableBucketMaintenanceSettings':
         """Validate that only one setting is specified."""
-        settings = [
-            self.iceberg_unreferenced_file_removal
-        ]
+        settings = [self.iceberg_unreferenced_file_removal]
         if sum(1 for s in settings if s is not None) > 1:
             raise ValueError('Only one maintenance setting can be specified')
         return self
@@ -201,31 +210,33 @@ class TableBucketMaintenanceSettings(BaseModel):
 
 class TableBucketMaintenanceConfigurationValue(BaseModel):
     """Details about the values that define the maintenance configuration for a table bucket."""
+
     settings: Optional[TableBucketMaintenanceSettings] = Field(
-        None,
-        description='Contains details about the settings of the maintenance configuration.'
+        None, description='Contains details about the settings of the maintenance configuration.'
     )
     status: Optional[MaintenanceStatus] = Field(
-        None,
-        description='The status of the maintenance configuration.'
+        None, description='The status of the maintenance configuration.'
     )
 
 
 # Resource Models
 class TableBucketsResource(BaseModel):
     """Resource containing all table buckets."""
+
     table_buckets: List[TableBucketSummary]
     total_count: int
 
 
 class NamespacesResource(BaseModel):
     """Resource containing all namespaces."""
+
     namespaces: List[NamespaceSummary]
     total_count: int
 
 
 class TablesResource(BaseModel):
     """Resource containing all tables."""
+
     tables: List[TableSummary]
     total_count: int
 
@@ -233,6 +244,7 @@ class TablesResource(BaseModel):
 # Error Models
 class S3TablesError(BaseModel):
     """S3 Tables error response."""
+
     error_code: str
     error_message: str
     request_id: Optional[str] = None
@@ -242,15 +254,16 @@ class S3TablesError(BaseModel):
 # Encryption Models
 class EncryptionConfiguration(BaseModel):
     """Configuration specifying how data should be encrypted."""
+
     sse_algorithm: SSEAlgorithm = Field(
         ...,
         alias='sseAlgorithm',
-        description='The server-side encryption algorithm to use. Valid values are AES256 for S3-managed encryption keys, or aws:kms for AWS KMS-managed encryption keys.'
+        description='The server-side encryption algorithm to use. Valid values are AES256 for S3-managed encryption keys, or aws:kms for AWS KMS-managed encryption keys.',
     )
     kms_key_arn: Optional[str] = Field(
         None,
         alias='kmsKeyARN',
-        description='The ARN of the KMS key to use for encryption. Required when sseAlgorithm is aws:kms.'
+        description='The ARN of the KMS key to use for encryption. Required when sseAlgorithm is aws:kms.',
     )
 
     @model_validator(mode='after')
@@ -264,6 +277,7 @@ class EncryptionConfiguration(BaseModel):
 # Schema Models
 class SchemaField(BaseModel):
     """Iceberg schema field."""
+
     name: str
     type: str
     required: Optional[bool] = None
@@ -271,14 +285,17 @@ class SchemaField(BaseModel):
 
 class IcebergSchema(BaseModel):
     """Iceberg table schema."""
+
     fields: List[SchemaField]
 
 
 class IcebergMetadata(BaseModel):
     """Iceberg table metadata."""
+
     table_schema: IcebergSchema = Field(alias='schema')
 
 
 class TableMetadata(BaseModel):
     """Table metadata union."""
+
     iceberg: Optional[IcebergMetadata] = None

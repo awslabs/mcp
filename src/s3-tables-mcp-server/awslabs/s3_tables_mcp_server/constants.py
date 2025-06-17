@@ -1,5 +1,15 @@
-"""
-Constants used throughout the S3 Tables MCP Server.
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
+# with the License. A copy of the License is located at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
+# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
+# and limitations under the License.
+
+"""Constants used throughout the S3 Tables MCP Server.
 
 This module contains all the constant values used across the S3 Tables MCP Server,
 including version information, regex patterns for validation, and field definitions
@@ -8,8 +18,6 @@ for Pydantic models.
 
 from pydantic import Field
 
-# Version
-MCP_SERVER_VERSION = '0.0.0'  # Current version of the S3 Tables MCP Server
 
 # Patterns
 TABLE_BUCKET_NAME_PATTERN = r'[a-z0-9][a-z0-9-]{1,61}[a-z0-9]'
@@ -22,7 +30,9 @@ Valid bucket names must:
 - Not contain consecutive hyphens
 """
 
-TABLE_BUCKET_ARN_PATTERN = r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
+TABLE_BUCKET_ARN_PATTERN = (
+    r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}'
+)
 """
 Regex pattern for validating S3 bucket ARNs.
 Format: arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[bucket-name]
@@ -37,7 +47,9 @@ Valid table names must:
 - Have a maximum length of 255 characters
 """
 
-TABLE_ARN_PATTERN = r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}/table/[0-9a-f-]{36}'
+TABLE_ARN_PATTERN = (
+    r'arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}/table/[0-9a-f-]{36}'
+)
 """
 Regex pattern for validating table ARNs.
 Format: arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[bucket-name]/table/[uuid]
@@ -45,7 +57,13 @@ Example: arn:aws:s3:::my-bucket/table/123e4567-e89b-12d3-a456-426614174000
 """
 
 # Field Definitions
-TABLE_BUCKET_ARN_FIELD = Field(..., description='Table bucket ARN', pattern=TABLE_BUCKET_ARN_PATTERN)
+TABLE_BUCKET_ARN_FIELD = Field(
+    ...,
+    description='Table bucket ARN',
+    pattern=TABLE_BUCKET_ARN_PATTERN,
+    min_length=1,
+    max_length=2048,
+)
 """
 Pydantic field for table bucket ARN validation.
 Required field that must match the TABLE_BUCKET_ARN_PATTERN.
@@ -57,7 +75,9 @@ Pydantic field for table ARN validation.
 Required field that must match the TABLE_ARN_PATTERN.
 """
 
-NAMESPACE_NAME_FIELD = Field(..., description='Namespace name', pattern=r'^[0-9a-z_]+$', max_length=255)
+NAMESPACE_NAME_FIELD = Field(
+    ..., description='Namespace name', pattern=r'^[0-9a-z_]+$', min_length=1, max_length=255
+)
 """
 Pydantic field for namespace name validation.
 Required field that must:
@@ -65,7 +85,9 @@ Required field that must:
 - Have a maximum length of 255 characters
 """
 
-TABLE_NAME_FIELD = Field(..., description='Table name', pattern=TABLE_NAME_PATTERN, max_length=255)
+TABLE_NAME_FIELD = Field(
+    ..., description='Table name', pattern=TABLE_NAME_PATTERN, min_length=1, max_length=255
+)
 """
 Pydantic field for table name validation.
 Required field that must:
@@ -78,4 +100,41 @@ REGION_NAME_FIELD = Field(default=None, description='AWS region name')
 Pydantic field for AWS region name.
 Optional field that can be used to specify the AWS region for operations.
 Example values: 'us-east-1', 'eu-west-1', 'ap-southeast-2'
-""" 
+"""
+
+# Query-specific fields
+QUERY_FIELD = Field(
+    default=None,
+    description='Optional SQL query. If not provided, will execute SELECT * FROM table. Must be a read operation.',
+    min_length=1,
+    max_length=10000,
+)
+"""
+Pydantic field for SQL query validation.
+Optional field that must be a valid read operation.
+"""
+
+OUTPUT_LOCATION_FIELD = Field(
+    default=None,
+    description='Optional S3 location for query results. If not provided, will use default Athena results bucket.',
+    pattern=r'^s3://[a-z0-9-]+/[a-z0-9-./]*$',
+    min_length=1,
+    max_length=2048,
+)
+"""
+Pydantic field for output location validation.
+Optional field that must be a valid S3 URI.
+"""
+
+WORKGROUP_FIELD = Field(
+    default='primary',
+    description='Athena workgroup to use for query execution.',
+    pattern=r'^[a-zA-Z0-9_-]+$',
+    min_length=1,
+    max_length=128,
+)
+"""
+Pydantic field for workgroup validation.
+Optional field that must contain only letters, numbers, hyphens, and underscores.
+Defaults to 'primary'.
+"""

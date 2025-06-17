@@ -11,6 +11,4 @@
 
 """AWS S3 Tables MCP Server."""
 
-from awslabs.s3_tables_mcp_server.constants import MCP_SERVER_VERSION
-
-__version__ = MCP_SERVER_VERSION
+__version__ = '0.0.0'

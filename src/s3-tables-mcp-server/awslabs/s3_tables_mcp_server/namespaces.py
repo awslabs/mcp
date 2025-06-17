@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
@@ -13,9 +11,8 @@
 
 """Namespace Management tools for S3 Tables MCP Server."""
 
-from typing import Any, Dict, Optional
-
 from .utils import get_s3tables_client, handle_exceptions
+from typing import Any, Dict, Optional
 
 
 @handle_exceptions
@@ -27,8 +24,9 @@ async def create_namespace(
     """Create a new namespace."""
     client = get_s3tables_client(region_name)
     response = client.create_namespace(tableBucketARN=table_bucket_arn, namespace=[namespace])
-    
+
     return dict(response)
+
 
 @handle_exceptions
 async def delete_namespace(
@@ -37,7 +35,7 @@ async def delete_namespace(
     region_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Delete a namespace.
-    
+
     Permissions:
     You must have the s3tables:DeleteNamespace permission to use this operation.
     """
@@ -45,22 +43,18 @@ async def delete_namespace(
     response = client.delete_namespace(tableBucketARN=table_bucket_arn, namespace=namespace)
     return dict(response)
 
+
 @handle_exceptions
 async def get_namespace(
-    table_bucket_arn: str,
-    namespace: str,
-    region_name: Optional[str] = None
+    table_bucket_arn: str, namespace: str, region_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """Get details about a namespace.
-    
+
     Gets details about a namespace.
-    
+
     Permissions:
     You must have the s3tables:GetNamespace permission to use this operation.
     """
     client = get_s3tables_client(region_name)
-    response = client.get_namespace(
-        tableBucketARN=table_bucket_arn,
-        namespace=namespace
-    )
+    response = client.get_namespace(tableBucketARN=table_bucket_arn, namespace=namespace)
     return dict(response)
