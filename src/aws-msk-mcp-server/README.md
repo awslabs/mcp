@@ -14,6 +14,7 @@ The AWS MSK MCP Server provides a set of tools for interacting with Amazon MSK t
 - **Monitoring and Telemetry**: Access cluster metrics, logs, and operational data
 - **Security Management**: Configure authentication, encryption, and access policies
 - **Best Practices**: Get recommendations for cluster sizing, configuration, and performance optimization
+- **Read-Only Mode**: Server runs in read-only mode by default, protecting against accidental modifications
 
 ## Tools
 
@@ -75,6 +76,7 @@ To use this MCP server with your MCP client, add the following configuration to 
         "<absolute path to your server code>",
         "run",
         "server.py"
+        // Add "--allow-writes" here to enable write operations
     ],
     "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -104,7 +106,25 @@ The server requires AWS credentials to access MSK resources. These can be provid
 2. AWS credentials file (`~/.aws/credentials`)
 3. IAM roles for Amazon EC2 or ECS tasks
 
-### Region Selection
+### Server Configuration Options
+
+#### `--allow-writes`
+
+By default, the MSK MCP server runs in read-only mode, which disables all write operations. In this mode, only read operations (tools in directories prefixed with "read_") and utility tools are available. Write operations (tools in directories prefixed with "mutate_") are disabled.
+
+To enable write operations, add the `--allow-writes` parameter to your MCP client configuration:
+
+```json
+"args": [
+    "--directory",
+    "<absolute path to your server code>",
+    "run",
+    "server.py",
+    "--allow-writes"
+]
+```
+
+#### Region Selection
 
 Most tools require specifying an AWS region. The server will prompt for a region if one is not provided.
 

@@ -5,11 +5,13 @@ This module implements the Model Context Protocol (MCP) server for Amazon MSK.
 It exposes the abstracted APIs via the MCP protocol.
 """
 
+import argparse
 import os
 import signal
 
 from anyio import create_task_group, open_signal_receiver, run
 from anyio.abc import CancelScope
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
 from awslabs.aws_msk_mcp_server.tools import (
@@ -23,6 +25,10 @@ from awslabs.aws_msk_mcp_server.tools import (
     read_vpc,
     static_tools,
 )
+
+# Global variables
+read_only = True  # Default to read-only mode
+ERROR_WRITE_OPERATION_IN_READ_ONLY_MODE = "Your MSK MCP server does not allow writes. To use write operations, change the MCP configuration to include the --allow-writes parameter."
 
 async def signal_handler(scope: CancelScope):
     """Handle SIGINT and SIGTERM signals asynchronously.
@@ -46,16 +52,22 @@ async def run_server():
         name="GrandCanyonMSKMCPServer"
     )
 
-    # Register modules
+    # Register read modules (always available)
     read_cluster.register_module(mcp)
     read_global.register_module(mcp)
     read_vpc.register_module(mcp)
     read_config.register_module(mcp)
-    mutate_cluster.register_module(mcp)
-    mutate_config.register_module(mcp)
-    mutate_vpc.register_module(mcp)
     logs_and_telemetry.register_module(mcp)
     static_tools.register_module(mcp)
+    
+    # Only register mutate modules if write operations are allowed
+    if not read_only:
+        logger.info("Write operations are enabled")
+        mutate_cluster.register_module(mcp)
+        mutate_config.register_module(mcp)
+        mutate_vpc.register_module(mcp)
+    else:
+        logger.info("Server running in read-only mode. Write operations are disabled.")
 
     # Register prompts
 
@@ -67,6 +79,26 @@ async def run_server():
 
 def main():
     """Entry point for the MCP server."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server for Amazon MSK'
+    )
+    parser.add_argument(
+        '--allow-writes',
+        action='store_true',
+        help='Allow use of tools that may perform write operations'
+    )
+    args = parser.parse_args()
+    
+    # Set global read_only flag based on command-line arguments
+    global read_only
+    read_only = not args.allow_writes
+    
+    logger.info(
+        'AWS MSK MCP server initialized with ALLOW-WRITES:{}',
+        not read_only
+    )
+    
     run(run_server)
 
 
