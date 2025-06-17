@@ -484,6 +484,8 @@ def validate_query(query: str) -> bool:
     return True
 
 
+@mcp.tool(name='ExecuteQuery')
+@mcp.tool(name='ExecuteQuery')
 async def execute_query(
     ctx: Context,
     query: str = Field(..., description='The PromQL query to execute'),
@@ -643,6 +645,130 @@ async def get_server_info(ctx: Context) -> ServerInfo:
         )
     except Exception as e:
         error_msg = f'Error retrieving server info: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
+
+
+@mcp.tool(name='SetPrometheusWorkspace')
+async def set_prometheus_workspace(
+    ctx: Context,
+    workspace_id: str = Field(..., description='The Prometheus workspace ID to use'),
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
+) -> ServerInfo:
+    """Set the Prometheus workspace ID and build the URL.
+
+    ## Usage
+    - Use this tool to set the Prometheus workspace ID
+    - The URL will be built automatically using the workspace ID and region
+    - Returns updated server configuration
+
+    ## Example
+    ```
+    info = await set_prometheus_workspace(workspace_id='ws-12345678-abcd-1234-efgh-123456789012')
+    print(f'Connected to Prometheus workspace: {info.prometheus_url}')
+    ```
+    """
+    try:
+        logger.info(f'Setting Prometheus workspace ID to: {workspace_id}')
+        
+        # Validate workspace ID format
+        if not workspace_id.startswith('ws-'):
+            logger.warning(f'Workspace ID "{workspace_id}" does not start with "ws-", which is unusual')
+        
+        # Use provided region or current config region or default
+        aws_region = region
+        if not aws_region and config and config.aws_region:
+            aws_region = config.aws_region
+        if not aws_region:
+            aws_region = DEFAULT_AWS_REGION
+            
+        # Build the URL
+        url = f'https://aps-workspaces.{aws_region}.amazonaws.com/workspaces/{workspace_id}'
+        logger.info(f'Built Prometheus URL: {url}')
+        
+        # Update global config
+        global config
+        if not config:
+            config = PrometheusConfig(
+                prometheus_url=url,
+                aws_region=aws_region,
+                aws_profile=None,
+                service_name=DEFAULT_SERVICE_NAME,
+            )
+        else:
+            config.prometheus_url = url
+            if region:  # Only update region if explicitly provided
+                config.aws_region = aws_region
+
+        # Test connection with new URL
+        if not await test_prometheus_connection():
+            error_msg = 'Failed to connect to Prometheus with new workspace ID'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        logger.info('Successfully updated Prometheus workspace')
+        return await get_server_info(ctx)
+    except Exception as e:
+        error_msg = f'Error setting Prometheus workspace: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
+
+
+@mcp.tool(name='SetPrometheusURL')
+async def set_prometheus_url(
+    ctx: Context,
+    url: str = Field(..., description='The Prometheus URL to set'),
+) -> ServerInfo:
+    """Set the Prometheus server URL.
+
+    ## Usage
+    - Use this tool to set or update the Prometheus server URL
+    - The URL must include scheme (https://) and hostname
+    - Returns updated server configuration
+
+    ## Example
+    ```
+    info = await set_prometheus_url(url='https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123')
+    print(f'Updated Prometheus URL to: {info.prometheus_url}')
+    ```
+    """
+    try:
+        logger.info(f'Setting Prometheus URL to: {url}')
+        
+        # Validate URL format
+        parsed_url = urlparse(url)
+        if not all([parsed_url.scheme, parsed_url.netloc]):
+            error_msg = 'Invalid URL format: Must include scheme (https://) and hostname'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            raise ValueError(error_msg)
+
+        # Update global config
+        global config
+        if not config:
+            config = PrometheusConfig(
+                prometheus_url=url,
+                aws_region=DEFAULT_AWS_REGION,
+                aws_profile=None,
+                service_name=DEFAULT_SERVICE_NAME,
+            )
+        else:
+            config.prometheus_url = url
+
+        # Test connection with new URL
+        if not await test_prometheus_connection():
+            error_msg = 'Failed to connect to Prometheus with new URL'
+            logger.error(error_msg)
+            await ctx.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        logger.info('Successfully updated Prometheus URL')
+        return await get_server_info(ctx)
+    except Exception as e:
+        error_msg = f'Error setting Prometheus URL: {str(e)}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise
