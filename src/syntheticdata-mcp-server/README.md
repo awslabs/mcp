@@ -31,6 +31,8 @@ This MCP server provides tools for generating synthetic data based on business d
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.syntheticdata-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuc3ludGhldGljZGF0YS1tY3Atc2VydmVyIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IiLCJBV1NfUFJPRklMRSI6InlvdXItYXdzLXByb2ZpbGUiLCJBV1NfUkVHSU9OIjoidXMtZWFzdC0xIn0sImF1dG9BcHByb3ZlIjpbXSwiZGlzYWJsZWQiOmZhbHNlfQ%3D%3D)
+
 ```json
 {
   "mcpServers": {
