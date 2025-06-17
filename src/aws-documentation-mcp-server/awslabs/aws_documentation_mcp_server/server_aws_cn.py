@@ -32,6 +32,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import AnyUrl, Field
 from typing import Union
 
+
 SESSION_UUID = str(uuid.uuid4())
 
 mcp = FastMCP(
