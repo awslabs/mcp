@@ -17,28 +17,33 @@
 This server provides tools for analyzing AWS costs and usage data through the AWS Cost Explorer API.
 """
 
-import boto3
-import logging
+import json
+import os
 import pandas as pd
+import sys
 from awslabs.cost_explorer_mcp_server.helpers import (
+    format_date_for_api,
+    get_cost_explorer_client,
     get_dimension_values,
     get_tag_values,
     validate_date_format,
+    validate_date_range,
     validate_expression,
     validate_group_by,
 )
 from datetime import datetime, timedelta
+from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field, field_validator
 from typing import Any, Dict, Optional, Union
 
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Configure Loguru logging
+logger.remove()
+logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
-# Initialize AWS Cost Explorer client
-ce = boto3.client('ce')
+# Constants
+COST_EXPLORER_END_DATE_OFFSET = 1
 
 
 class DateRange(BaseModel):
@@ -52,60 +57,26 @@ class DateRange(BaseModel):
         ..., description='The end date of the billing period in YYYY-MM-DD format.'
     )
 
-    @field_validator('start_date')
+    @field_validator('start_date', 'end_date')
     @classmethod
-    def validate_start_date(cls, v):
-        """Validate that start_date is in YYYY-MM-DD format and is a valid date."""
+    def validate_individual_dates(cls, v):
+        """Validate that individual dates are in YYYY-MM-DD format and are valid dates."""
         is_valid, error = validate_date_format(v)
         if not is_valid:
             raise ValueError(error)
         return v
 
-    @field_validator('end_date')
-    @classmethod
-    def validate_end_date(cls, v, info):
-        """Validate that end_date is in YYYY-MM-DD format and is a valid date, and not before start_date."""
-        is_valid, error = validate_date_format(v)
+    def model_post_init(self, __context):
+        """Validate the date range after both dates are set."""
+        is_valid, error = validate_date_range(self.start_date, self.end_date)
         if not is_valid:
             raise ValueError(error)
 
-        # Access the start_date from the data dictionary
-        start_date = info.data.get('start_date')
-        if start_date and v < start_date:
-            raise ValueError(f"End date '{v}' cannot be before start date '{start_date}'")
-
-        return v
-
-
-class GroupBy(BaseModel):
-    """Group by model for cost queries."""
-
-    type: str = Field(
-        ...,
-        description='Type of grouping. Valid values are DIMENSION, TAG, and COST_CATEGORY.',
-    )
-    key: str = Field(
-        ...,
-        description='Key to group by. For DIMENSION type, valid values include AZ, INSTANCE_TYPE, LEGAL_ENTITY_NAME, INVOICING_ENTITY, LINKED_ACCOUNT, OPERATION, PLATFORM, PURCHASE_TYPE, SERVICE, TENANCY, RECORD_TYPE, and USAGE_TYPE.',
-    )
-
-
-class FilterExpression(BaseModel):
-    """Filter expression model for cost queries."""
-
-    filter_json: str = Field(
-        ...,
-        description="Filter criteria as a Python dictionary to narrow down AWS costs. Supports filtering by Dimensions (SERVICE, REGION, etc.), Tags, or CostCategories. You can use logical operators (And, Or, Not) for complex filters. Examples: 1) Simple service filter: {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute', 'Amazon Simple Storage Service'], 'MatchOptions': ['EQUALS']}}. 2) Region filter: {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}. 3) Combined filter: {'And': [{'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute'], 'MatchOptions': ['EQUALS']}}, {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}]}.",
-    )
-
-
-class CostMetric(BaseModel):
-    """Cost metric model."""
-
-    metric: str = Field(
-        'UnblendedCost',
-        description='The metric to return in the query. Valid values are AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, and UsageQuantity. Note: For UsageQuantity, the service aggregates usage numbers without considering units. To get meaningful UsageQuantity metrics, filter by UsageType or UsageTypeGroups.',
-    )
+    def validate_with_granularity(self, granularity: str):
+        """Validate the date range with granularity-specific constraints."""
+        is_valid, error = validate_date_range(self.start_date, self.end_date, granularity)
+        if not is_valid:
+            raise ValueError(error)
 
 
 class DimensionKey(BaseModel):
@@ -126,7 +97,7 @@ async def get_today_date(ctx: Context) -> Dict[str, str]:
     """Retrieve current date information.
 
     This tool retrieves the current date in YYYY-MM-DD format and the current month in YYYY-MM format.
-    It's useful for comparing if the billing period requested by the user is not in the future.
+    It's useful for calculating relevent date when user ask last N months/days.
 
     Args:
         ctx: MCP context
@@ -164,7 +135,7 @@ async def get_dimension_values_tool(
         )
         return response
     except Exception as e:
-        logger.error(f'Error getting dimension values: {e}')
+        logger.error(f'Error getting dimension values for {dimension.dimension_key}: {e}')
         return {'error': f'Error getting dimension values: {str(e)}'}
 
 
@@ -191,7 +162,7 @@ async def get_tag_values_tool(
         response = get_tag_values(tag_key, date_range.start_date, date_range.end_date)
         return response
     except Exception as e:
-        logger.error(f'Error getting tag values: {e}')
+        logger.error(f'Error getting tag values for {tag_key}: {e}')
         return {'error': f'Error getting tag values: {str(e)}'}
 
 
@@ -204,16 +175,16 @@ async def get_cost_and_usage(
         description='The granularity at which cost data is aggregated. Valid values are DAILY, MONTHLY, and HOURLY. If not provided, defaults to MONTHLY.',
     ),
     group_by: Optional[Union[Dict[str, str], str]] = Field(
-        None,
+        'SERVICE',
         description="Either a dictionary with Type and Key for grouping costs, or simply a string key to group by (which will default to DIMENSION type). Example dictionary: {'Type': 'DIMENSION', 'Key': 'SERVICE'}. Example string: 'SERVICE'.",
     ),
     filter_expression: Optional[Dict[str, Any]] = Field(
         None,
-        description="Filter criteria as a Python dictionary to narrow down AWS costs. Supports filtering by Dimensions (SERVICE, REGION, etc.), Tags, or CostCategories. You can use logical operators (And, Or, Not) for complex filters. Examples: 1) Simple service filter: {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute', 'Amazon Simple Storage Service'], 'MatchOptions': ['EQUALS']}}. 2) Region filter: {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}. 3) Combined filter: {'And': [{'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute'], 'MatchOptions': ['EQUALS']}}, {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}]}.",
+        description="Filter criteria as a Python dictionary to narrow down AWS costs. Supports filtering by Dimensions (SERVICE, REGION, etc.), Tags, or CostCategories. You can use logical operators (And, Or, Not) for complex filters. MatchOptions validation: For Dimensions, valid values are EQUALS and CASE_SENSITIVE. For Tags and CostCategories, valid values are EQUALS, ABSENT, and CASE_SENSITIVE (defaults to EQUALS and CASE_SENSITIVE). Examples: 1) Simple service filter: {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute', 'Amazon Simple Storage Service'], 'MatchOptions': ['EQUALS']}}. 2) Region filter: {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}. 3) Combined filter: {'And': [{'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute'], 'MatchOptions': ['EQUALS']}}, {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}]}.",
     ),
     metric: str = Field(
         'UnblendedCost',
-        description='The metric to return in the query. Valid values are AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, and UsageQuantity.',
+        description='The metric to return in the query. Valid values are AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, and UsageQuantity. IMPORTANT: For UsageQuantity, the service aggregates usage numbers without considering units, making results meaningless when mixing different unit types (e.g., compute hours + data transfer GB). To get meaningful UsageQuantity metrics, you MUST filter by USAGE_TYPE or group by USAGE_TYPE/USAGE_TYPE_GROUP to ensure consistent units.',
     ),
 ) -> Dict[str, Any]:
     """Retrieve AWS cost and usage data.
@@ -225,6 +196,10 @@ async def get_cost_and_usage(
     Note: The end_date is treated as inclusive in this tool, meaning if you specify an end_date of
     "2025-01-31", the results will include data for January 31st. This differs from the AWS Cost Explorer
     API which treats end_date as exclusive.
+
+    IMPORTANT: When using UsageQuantity metric, AWS aggregates usage numbers without considering units.
+    This makes results meaningless when different usage types have different units (e.g., EC2 compute hours
+    vs data transfer GB). For meaningful UsageQuantity results, you MUST be very specific with filtering, including USAGE_TYPE or USAGE_TYPE_GROUP.
 
     Example: Get monthly costs for EC2 and S3 services in us-east-1 for May 2025
         await get_cost_and_usage(
@@ -256,6 +231,45 @@ async def get_cost_and_usage(
             metric="UnblendedCost"
         )
 
+    Example: Get meaningful UsageQuantity for specific EC2 instance usage
+        await get_cost_and_usage(
+            ctx=context,
+            {
+            "date_range": {
+                "end_date": "2025-05-01",
+                "start_date": "2025-05-31"
+            },
+            "filter_expression": {
+                "And": [
+                {
+                    "Dimensions": {
+                    "Values": [
+                        "Amazon Elastic Compute Cloud - Compute"
+                    ],
+                    "Key": "SERVICE",
+                    "MatchOptions": [
+                        "EQUALS"
+                    ]
+                    }
+                },
+                {
+                    "Dimensions": {
+                    "Values": [
+                        "EC2: Running Hours"
+                    ],
+                    "Key": "USAGE_TYPE_GROUP",
+                    "MatchOptions": [
+                        "EQUALS"
+                    ]
+                    }
+                }
+                ]
+            },
+            "metric": "UsageQuantity",
+            "group_by": "USAGE_TYPE",
+            "granularity": "MONTHLY"
+            }
+
     Args:
         ctx: MCP context
         date_range: The billing period start and end dates in YYYY-MM-DD format (end date is inclusive)
@@ -267,21 +281,24 @@ async def get_cost_and_usage(
     Returns:
         Dictionary containing cost report data grouped according to the specified parameters
     """
+    # Initialize variables at function scope to avoid unbound variable issues
+    billing_period_start = date_range.start_date
+    billing_period_end = date_range.end_date
+
     try:
-        # Process inputs
-        if isinstance(granularity, str):
-            granularity = granularity.upper()
-        else:
-            # Handle case where granularity is a Pydantic FieldInfo object
-            granularity = str(granularity).upper()
+        # Process inputs - simplified granularity validation
+        granularity = str(granularity).upper()
 
         if granularity not in ['DAILY', 'MONTHLY', 'HOURLY']:
             return {
                 'error': f'Invalid granularity: {granularity}. Valid values are DAILY, MONTHLY, and HOURLY.'
             }
 
-        billing_period_start = date_range.start_date
-        billing_period_end = date_range.end_date
+        # Validate date range with granularity-specific constraints
+        try:
+            date_range.validate_with_granularity(granularity)
+        except ValueError as e:
+            return {'error': str(e)}
 
         # Define valid metrics and their expected data structure
         valid_metrics = {
@@ -303,7 +320,8 @@ async def get_cost_and_usage(
         # Adjust end date for Cost Explorer API (exclusive)
         # Add one day to make the end date inclusive for the user
         billing_period_end_adj = (
-            datetime.strptime(billing_period_end, '%Y-%m-%d') + timedelta(days=1)
+            datetime.strptime(billing_period_end, '%Y-%m-%d')
+            + timedelta(days=COST_EXPLORER_END_DATE_OFFSET)
         ).strftime('%Y-%m-%d')
 
         # Process filter
@@ -319,7 +337,7 @@ async def get_cost_and_usage(
                 return validation_result
 
         # Process group_by
-        if not group_by:
+        if group_by is None:
             group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
         elif isinstance(group_by, str):
             group_by = {'Type': 'DIMENSION', 'Key': group_by}
@@ -332,8 +350,8 @@ async def get_cost_and_usage(
         # Prepare API call parameters
         common_params = {
             'TimePeriod': {
-                'Start': billing_period_start,
-                'End': billing_period_end_adj,
+                'Start': format_date_for_api(billing_period_start, granularity),
+                'End': format_date_for_api(billing_period_end_adj, granularity),
             },
             'Granularity': granularity,
             'GroupBy': [{'Type': group_by['Type'].upper(), 'Key': group_by['Key']}],
@@ -346,6 +364,8 @@ async def get_cost_and_usage(
         # Get cost data
         grouped_costs = {}
         next_token = None
+        ce = get_cost_explorer_client()
+
         while True:
             if next_token:
                 common_params['NextPageToken'] = next_token
@@ -372,17 +392,6 @@ async def get_cost_and_usage(
                         )
                         return {
                             'error': f"Metric '{metric}' not found in response for group {group_key}"
-                        }
-
-                    metric_data = group['Metrics'][metric]
-
-                    # Validate metric data structure
-                    if 'Amount' not in metric_data:
-                        logger.error(
-                            f'Amount not found in metric data for {group_key}: {metric_data}'
-                        )
-                        return {
-                            'error': "Invalid response format: 'Amount' not found in metric data"
                         }
 
                     try:
@@ -414,7 +423,7 @@ async def get_cost_and_usage(
                             amount = float(metric_data['Amount'])
                             grouped_costs.setdefault(date, {}).update({group_key: (amount, unit)})
                     except (ValueError, TypeError) as e:
-                        logger.error(f'Error processing metric data: {e}, data: {metric_data}')
+                        logger.error(f'Error processing metric data: {e}, group: {group_key}')
                         return {'error': f'Error processing metric data: {str(e)}'}
 
             next_token = response.get('NextPageToken')
@@ -423,7 +432,9 @@ async def get_cost_and_usage(
 
         # Process results
         if not grouped_costs:
-            logger.info('No cost data found for the specified parameters')
+            logger.info(
+                f'No cost data found for the specified parameters: {billing_period_start} to {billing_period_end}'
+            )
             return {
                 'message': 'No cost data found for the specified parameters',
                 'GroupedCosts': {},
@@ -433,26 +444,34 @@ async def get_cost_and_usage(
             if metric_config['is_cost']:
                 # Process cost metrics
                 df = pd.DataFrame.from_dict(grouped_costs).round(2)
-                df['Service total'] = df.sum(axis=1).round(2)
-                df.loc['Total Costs'] = df.sum().round(2)
-                df = df.sort_values(by='Service total', ascending=False)
-            else:
-                # Process usage metrics (UsageQuantity, NormalizedUsageAmount)
-                usage_df = pd.DataFrame(
-                    {
-                        (k, 'Amount'): {k1: v1[0] for k1, v1 in v.items()}
-                        for k, v in grouped_costs.items()
-                    }
-                )
-                units_df = pd.DataFrame(
-                    {
-                        (k, 'Unit'): {k1: v1[1] for k1, v1 in v.items()}
-                        for k, v in grouped_costs.items()
-                    }
-                )
-                df = pd.concat([usage_df, units_df], axis=1)
 
-            result = {'GroupedCosts': df.to_dict()}
+                # Dynamic labeling based on group dimension
+                group_dimension = group_by['Key'].lower().replace('_', ' ')
+                df[f'{group_dimension.title()} Total'] = df.sum(axis=1).round(2)
+                df.loc[f'Total {metric}'] = df.sum().round(2)
+                df = df.sort_values(by=f'{group_dimension.title()} Total', ascending=False)
+
+                result = {'GroupedCosts': df.to_dict()}
+            else:
+                # Process usage metrics with cleaner structure
+                result_data = {}
+                for date, groups in grouped_costs.items():
+                    result_data[date] = {}
+                    for group_key, (amount, unit) in groups.items():
+                        result_data[date][group_key] = {
+                            'amount': round(float(amount), 2),
+                            'unit': unit,
+                        }
+
+                # Add metadata for usage metrics
+                result = {
+                    'metadata': {
+                        'grouped_by': group_by['Key'],
+                        'metric': metric,
+                        'period': f'{billing_period_start} to {billing_period_end}',
+                    },
+                    'GroupedUsage': result_data,
+                }
         except Exception as e:
             logger.error(f'Error processing cost data into DataFrame: {e}')
             return {
@@ -460,29 +479,32 @@ async def get_cost_and_usage(
                 'raw_data': grouped_costs,
             }
 
-        result = {'GroupedCosts': df.to_dict()}
-
-        # Convert all keys to strings for JSON serialization
-        def stringify_keys(d: Any) -> Any:
-            if isinstance(d, dict):
-                return {str(k): stringify_keys(v) for k, v in d.items()}
-            elif isinstance(d, list):
-                return [{} if i is None else stringify_keys(i) for i in d]  # Handle None values
-            else:
-                return d
-
+        # Test JSON serialization first, only stringify if needed
         try:
-            result = stringify_keys(result)
+            json.dumps(result)
             return result
-        except Exception as e:
-            logger.error(f'Error serializing result: {e}')
-            return {'error': f'Error serializing result: {str(e)}'}
+        except (TypeError, ValueError):
+            # Only stringify if JSON serialization fails
+            def stringify_keys(d: Any) -> Any:
+                if isinstance(d, dict):
+                    return {str(k): stringify_keys(v) for k, v in d.items()}
+                elif isinstance(d, list):
+                    return [stringify_keys(i) if i is not None else None for i in d]
+                else:
+                    return d
+
+            try:
+                result = stringify_keys(result)
+                return result
+            except Exception as e:
+                logger.error(f'Error serializing result: {e}')
+                return {'error': f'Error serializing result: {str(e)}'}
 
     except Exception as e:
-        logger.error(f'Error generating cost report: {e}')
-        import traceback
+        logger.error(
+            f'Error generating cost report for period {billing_period_start} to {billing_period_end}: {e}'
+        )
 
-        logger.error(f'Traceback: {traceback.format_exc()}')
         return {'error': f'Error generating cost report: {str(e)}'}
 
 
