@@ -163,7 +163,7 @@ def setup_environment(config_data):
                 if active_workspace:
                     workspace_id = active_workspace['workspaceId']
                     region = config_data['aws_region']
-                    config_data['prometheus_url'] = f'https://aps-workspaces.{region}.amazonaws.com/workspaces/ws-{workspace_id}'
+                    config_data['prometheus_url'] = f'https://aps-workspaces.{region}.amazonaws.com/workspaces/{workspace_id}'
                     logger.info(f'Found active Prometheus workspace: {workspace_id}')
                 else:
                     logger.error('No active Prometheus workspaces found in the current region')
