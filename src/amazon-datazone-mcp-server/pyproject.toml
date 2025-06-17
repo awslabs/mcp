@@ -29,6 +29,7 @@ dependencies = [
     "boto3",
     "httpx",
     "mcp[cli]>=1.9.2",
+    "psutil"
 ]
 
 [project.optional-dependencies]

@@ -1,6 +1,4 @@
-"""
-Tests for the main MCP server functionality.
-"""
+"""Tests for the main MCP server functionality."""
 
 import json
 import sys

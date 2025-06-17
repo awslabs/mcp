@@ -1,6 +1,4 @@
-"""
-Project management tools for Amazon DataZone.
-"""
+"""Project management tools for Amazon DataZone."""
 
 from typing import Any, Dict, List, Optional
 
@@ -201,7 +199,7 @@ def register_tools(mcp: FastMCP):
         environment_configurations: Optional[List[Dict[str, Any]]] = None,
         status: str = "ENABLED",
     ) -> Dict[str, Any]:
-        """
+        r"""
         Creates a new project profile in Amazon DataZone.
 
         Args:
@@ -447,23 +445,23 @@ def register_tools(mcp: FastMCP):
         Lists the memberships of a specified Amazon DataZone project within a domain.
 
         Args:
-            domainIdentifier (str): The identifier of the Amazon DataZone domain.
+            domain_identifier (str): The identifier of the Amazon DataZone domain.
                 Pattern: ^dzd[-_][a-zA-Z0-9_-]{1,36}$
                 Required: Yes
 
-            projectIdentifier (str): The identifier of the project whose memberships you want to list.
+            project_identifier (str): The identifier of the project whose memberships you want to list.
                 Pattern: ^[a-zA-Z0-9_-]{1,36}$
                 Required: Yes
 
-            maxResults (int, optional): The maximum number of memberships to return in a single call (1–50).
+            max_results (int, optional): The maximum number of memberships to return in a single call (1–50).
 
-            nextToken (str, optional): A token for pagination. Use this token from a previous response to retrieve the next set of memberships.
+            next_token (str, optional): A token for pagination. Use this token from a previous response to retrieve the next set of memberships.
                 Length: 1–8192 characters
 
-            sortBy (str, optional): The attribute by which to sort the memberships.
+            sort_by (str, optional): The attribute by which to sort the memberships.
                 Valid Values: "NAME"
 
-            sortOrder (str, optional): The sort order for the results.
+            sort_order (str, optional): The sort order for the results.
                 Valid Values: "ASCENDING" | "DESCENDING"
 
         Returns:

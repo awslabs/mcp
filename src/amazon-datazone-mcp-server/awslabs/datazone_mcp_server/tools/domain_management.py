@@ -1,6 +1,4 @@
-"""
-Domain management tools for Amazon DataZone.
-"""
+"""Domain management tools for Amazon DataZone."""
 
 from typing import Any, Dict, List, Optional
 
@@ -240,7 +238,7 @@ def register_tools(mcp: FastMCP):
         description: Optional[str] = None,
         client_token: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
+        r"""
         Creates a new domain unit in Amazon DataZone.
 
         Args:
@@ -1003,12 +1001,12 @@ def register_tools(mcp: FastMCP):
         max_results: int = 50,
         next_token: Optional[str] = None,
         search_in: Optional[List[Dict[str, str]]] = None,
-        owning_project_identifier: Optional[str] = None,
         search_text: Optional[str] = None,
         sort: Optional[Dict[str, str]] = None,
     ) -> Any:
         """
         Invokes the SearchTypes action in a specified Amazon DataZone domain to retrieve type definitions
+
         (e.g., asset types, form types, or lineage node types) that match the search criteria.
 
         Args:
@@ -1115,9 +1113,8 @@ def register_tools(mcp: FastMCP):
                 Pattern: ^dzd[-_][a-zA-Z0-9_-]{1,36}$
                 Required: Yes
 
-            type (str): The type of the user profile.
+            user_type (str): The type of the user profile.
                 Valid values: "IAM" | "SSO"
-                Required: Yes
 
             user_identifier (str): The identifier of the user for whom to retrieve the profile.
                 Pattern: r"(^([0-9a-f]{10}-|)[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]

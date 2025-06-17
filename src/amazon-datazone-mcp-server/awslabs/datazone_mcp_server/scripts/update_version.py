@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Script to update version badges in README.md from VERSION file.
+
 Run this script after updating the VERSION file.
 """
 

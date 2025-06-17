@@ -12,7 +12,6 @@ Prerequisites:
 
 Usage:
     python examples/basic/domain_operations.py
-    
     # With custom domain ID
     DATAZONE_DOMAIN_ID=dzd_abc123 python examples/basic/domain_operations.py
 """
@@ -29,6 +28,7 @@ class DomainOperationsExample:
     """Example class demonstrating domain operations."""
 
     def __init__(self, domain_id: str = None):
+        """Initialize with optional domain_id."""
         self.domain_id = domain_id or os.getenv("DATAZONE_DOMAIN_ID")
         self.client = None
 
@@ -168,9 +168,7 @@ class DomainOperationsExample:
 
 
 async def main():
-    """
-    Main function demonstrating domain operations.
-    """
+    """Main function demonstrating domain operations."""
     print("AWS DataZone Domain Operations Example")
     print("=" * 50)
 

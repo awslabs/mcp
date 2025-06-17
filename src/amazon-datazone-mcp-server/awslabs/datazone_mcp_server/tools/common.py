@@ -1,6 +1,4 @@
-"""
-Common utilities, imports, and constants for DataZone MCP Server tools.
-"""
+"""Common utilities, imports, and constants for DataZone MCP Server tools."""
 
 import logging
 from typing import Any, Dict, List, Optional

@@ -1,6 +1,4 @@
-"""
-Test configuration and fixtures for Amazon DataZone MCP Server tests.
-"""
+"""Test configuration and fixtures for Amazon DataZone MCP Server tests."""
 
 import asyncio
 import os
@@ -143,11 +141,11 @@ def mcp_server_with_tools(mock_datazone_client):
         # Now import and reload the modules to get the mocked client
         import importlib
 
-        from datazone_mcp_server.tools import common
+        from awslabs.datazone_mcp_server.tools import common
 
         importlib.reload(common)  # This will recreate datazone_client with our mock
 
-        from datazone_mcp_server.tools import (
+        from awslabs.datazone_mcp_server.tools import (
             data_management,
             domain_management,
             environment,
@@ -255,22 +253,27 @@ class TestDataHelper:
 
     @staticmethod
     def get_domain_id() -> str:
+        """get domain id"""
         return "dzd_test123"
 
     @staticmethod
     def get_project_id() -> str:
+        """get project id"""
         return "prj_test123"
 
     @staticmethod
     def get_asset_id() -> str:
+        """get asset id"""
         return "asset_test123"
 
     @staticmethod
     def get_glossary_id() -> str:
+        """get glossary id"""
         return "glossary_test123"
 
     @staticmethod
     def get_environment_id() -> str:
+        """get environment id"""
         return "env_test123"
 
     @staticmethod

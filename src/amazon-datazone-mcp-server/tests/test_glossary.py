@@ -1,6 +1,4 @@
-"""
-Unit tests for glossary tools.
-"""
+"""Unit tests for glossary tools."""
 
 from unittest.mock import Mock
 

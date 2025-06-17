@@ -1,6 +1,4 @@
-"""
-Environment management tools for Amazon DataZone.
-"""
+"""Environment management tools for Amazon DataZone."""
 
 from typing import Any, Dict, List, Optional
 
@@ -232,6 +230,7 @@ def register_tools(mcp: FastMCP):
     ) -> Any:
         """
         Creates a new connection in Amazon DataZone. A connection enables you to connect your resources
+
         (domains, projects, and environments) to external resources and services.
 
         This is specifically for creating DataZone connections and should be used in the DataZone MCP server.
@@ -382,6 +381,7 @@ def register_tools(mcp: FastMCP):
     ) -> Any:
         """
         Gets a connection in Amazon DataZone. A connection enables you to connect your resources
+
         (domains, projects, and environments) to external resources and services.
 
         This is specifically for retrieving DataZone connections and should be used in the DataZone MCP server.
@@ -813,7 +813,7 @@ def register_tools(mcp: FastMCP):
         name: Optional[str] = None,
         next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
+        r"""
         Lists environment blueprints in an Amazon DataZone domain.
 
         Args:
@@ -1045,29 +1045,29 @@ def register_tools(mcp: FastMCP):
         Lists environment profiles within a specified Amazon DataZone domain, optionally filtered by AWS account, region, blueprint, and project.
 
         Args:
-            domainIdentifier (str): The identifier of the Amazon DataZone domain.
+            domain_identifier (str): The identifier of the Amazon DataZone domain.
                 Pattern: ^dzd[-_][a-zA-Z0-9_-]{1,36}$
                 Required: Yes
 
-            awsAccountId (str, optional): The AWS account ID to filter results.
+            aws_account_id (str, optional): The AWS account ID to filter results.
                 Pattern: r"^\d{12}$"
 
-            awsAccountRegion (str, optional): The AWS region to filter results.
+            aws_account_region (str, optional): The AWS region to filter results.
                 Pattern: ^[a-z]{2}-[a-z]{4,10}-\d$
 
-            environmentBlueprintIdentifier (str, optional): The identifier of the blueprint used to create the environment profiles.
+            environment_blueprint_identifier (str, optional): The identifier of the blueprint used to create the environment profiles.
                 Pattern: ^[a-zA-Z0-9_-]{1,36}$
 
-            maxResults (int, optional): Maximum number of results to return (1–50).
+            max_results (int, optional): Maximum number of results to return (1–50).
 
             name (str, optional): Filter environment profiles by name.
                 Length: 1–64 characters
                 Pattern: ^[\w -]+$
 
-            nextToken (str, optional): A pagination token returned from a previous call to retrieve the next set of results.
+            next_token (str, optional): A pagination token returned from a previous call to retrieve the next set of results.
                 Length: 1–8192 characters
 
-            projectIdentifier (str, optional): The identifier of the Amazon DataZone project.
+            project_identifier (str, optional): The identifier of the Amazon DataZone project.
                 Pattern: ^[a-zA-Z0-9_-]{1,36}$
 
         Returns:
@@ -1123,7 +1123,6 @@ def register_tools(mcp: FastMCP):
                     "aws_account_region": profile.get("awsAccountRegion"),
                     "created_at": profile.get("createdAt"),
                     "created_by": profile.get("createdBy"),
-                    "description": profile.get("description"),
                     "domain_id": profile.get("domain_id"),
                     "environment_blueprint_id": profile.get("environmentBlueprintId"),
                     "id": profile.get("id"),

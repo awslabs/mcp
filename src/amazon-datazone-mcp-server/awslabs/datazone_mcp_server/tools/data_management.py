@@ -1,6 +1,4 @@
-"""
-Data management tools for Amazon DataZone.
-"""
+"""Data management tools for Amazon DataZone."""
 
 from typing import Any, Dict, List, Optional
 
@@ -544,6 +542,7 @@ def register_tools(mcp: FastMCP):
     ) -> Any:
         """
         Gets a listing (a record of an asset at a given time) in Amazon DataZone.
+
         If a listing version is specified, only details specific to that version are returned.
 
         Args:
@@ -1538,18 +1537,18 @@ def register_tools(mcp: FastMCP):
         Lists all form types available in an Amazon DataZone domain.
 
         Args:
-            domainIdentifier (str): The identifier of the Amazon DataZone domain in which to list the data sources.
+            domain_identifier (str): The identifier of the Amazon DataZone domain in which to list the data sources.
                 Pattern: ^dzd[-_][a-zA-Z0-9_-]{1,36}$
                 Required: Yes
-            projectIdentifier (str): The identifier of the project in which to list data sources.
+            project_identifier (str): The identifier of the project in which to list data sources.
                 Required: Yes
-            connectionIdentifier (str, optional): The ID of the connection used to filter the data sources.
-            environmentIdentifier (str, optional): The identifier of the environment in which to list the data sources.
-            maxResults (int, optional): The maximum number of data sources to return in one response.
+            connection_identifier (str, optional): The ID of the connection used to filter the data sources.
+            environment_identifier (str, optional): The identifier of the environment in which to list the data sources.
+            max_results (int, optional): The maximum number of data sources to return in one response.
                 Valid Range: 1–50
             name (str, optional): Filter by name of the data source.
                 Length Constraints: 1–256 characters
-            nextToken (str, optional): A pagination token for fetching the next set of results.
+            next_token (str, optional): A pagination token for fetching the next set of results.
                 Length Constraints: 1–8192 characters
             status (str, optional): Filter data sources by their current status.
                 Valid values:
@@ -1561,7 +1560,7 @@ def register_tools(mcp: FastMCP):
                     - RUNNING
                     - DELETING
                     - FAILED_DELETION
-            type (str, optional): Filter by the type of data source (e.g., GLUE, REDSHIFT).
+            data_source_type (str, optional): Filter by the type of data source (e.g., GLUE, REDSHIFT).
                 Length Constraints: 1–256 characters
 
         Returns:

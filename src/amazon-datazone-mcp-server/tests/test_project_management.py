@@ -1,6 +1,4 @@
-"""
-Unit tests for project_management tools.
-"""
+"""Unit tests for project_management tools."""
 
 from unittest.mock import AsyncMock, Mock, patch
 

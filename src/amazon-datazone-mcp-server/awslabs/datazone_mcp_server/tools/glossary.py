@@ -1,6 +1,4 @@
-"""
-Glossary management tools for Amazon DataZone.
-"""
+"""Glossary management tools for Amazon DataZone."""
 
 from typing import Any, Dict, List, Optional
 
@@ -80,7 +78,7 @@ def register_tools(mcp: FastMCP):
         term_relations: Optional[Dict[str, List[str]]] = None,
         client_token: Optional[str] = None,
     ) -> Any:
-        """
+        r"""
         Creates a new business glossary term in Amazon DataZone.
 
         Args:

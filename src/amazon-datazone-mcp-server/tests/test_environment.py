@@ -1,6 +1,4 @@
-"""
-Unit tests for environment tools.
-"""
+"""Unit tests for environment tools."""
 
 from unittest.mock import Mock
 

@@ -1,6 +1,4 @@
-"""
-Unit tests for data_management tools.
-"""
+"""Unit tests for data_management tools."""
 
 from unittest.mock import Mock
 
