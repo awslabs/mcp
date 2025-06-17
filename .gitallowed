@@ -1,0 +1,16 @@
+# Allow specific ARN patterns that are placeholder/example values in test files
+# These are not real secrets but placeholder values for testing purposes
+
+# Allow the specific certificate ARNs that are causing issues
+arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012
+arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890
+arn:aws:acm:us-east-1:123456789012:certificate/abcd1234
+
+# Allow the attachment set ID pattern
+12345678-1234-1234-1234-123456789012
+
+# Allow the template ID pattern
+abcdef12-3456-7890-abcd-ef1234567890
+
+# Allow the short certificate ID pattern
+abcd1234
