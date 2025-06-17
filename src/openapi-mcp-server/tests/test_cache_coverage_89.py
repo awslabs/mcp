@@ -49,7 +49,7 @@ class TestCacheCoverage89:
         try:
             cache = CachetoolsProvider(ttl_seconds=60)
         except Exception:
-            pytest.skip("cachetools not available")
+            pytest.skip('cachetools not available')
 
         # Add an entry
         cache.set('test_key', 'test_value')
@@ -74,7 +74,7 @@ class TestCacheCoverage89:
         try:
             cache = CachetoolsProvider(ttl_seconds=60)
         except Exception:
-            pytest.skip("cachetools not available")
+            pytest.skip('cachetools not available')
 
         # Try to invalidate a non-existent key
         result = cache.invalidate('nonexistent_key')
@@ -88,7 +88,7 @@ class TestCacheCoverage89:
         try:
             cache = CachetoolsProvider(ttl_seconds=60)
         except Exception:
-            pytest.skip("cachetools not available")
+            pytest.skip('cachetools not available')
 
         # Add some entries
         cache.set('key1', 'value1')
@@ -112,12 +112,18 @@ class TestCacheCoverage89:
         """Test fallback to in-memory provider when cachetools fails."""
         # Mock cachetools to be available but raise an exception
         with patch('awslabs.openapi_mcp_server.utils.cache_provider.USE_CACHETOOLS', True):
-            with patch('awslabs.openapi_mcp_server.utils.cache_provider.CACHETOOLS_AVAILABLE', True):
-                with patch('awslabs.openapi_mcp_server.utils.cache_provider.CachetoolsProvider') as mock_cachetools:
+            with patch(
+                'awslabs.openapi_mcp_server.utils.cache_provider.CACHETOOLS_AVAILABLE', True
+            ):
+                with patch(
+                    'awslabs.openapi_mcp_server.utils.cache_provider.CachetoolsProvider'
+                ) as mock_cachetools:
                     mock_cachetools.side_effect = Exception('Cachetools initialization failed')
 
                     # Mock logger to capture error and info messages
-                    with patch('awslabs.openapi_mcp_server.utils.cache_provider.logger') as mock_logger:
+                    with patch(
+                        'awslabs.openapi_mcp_server.utils.cache_provider.logger'
+                    ) as mock_logger:
                         # Get cache provider - should fall back to in-memory
                         provider = create_cache_provider(ttl_seconds=60)
 
@@ -128,4 +134,6 @@ class TestCacheCoverage89:
                         mock_logger.error.assert_called_with(
                             'Failed to create cachetools cache provider: Cachetools initialization failed'
                         )
-                        mock_logger.info.assert_called_with('Falling back to in-memory cache provider')
+                        mock_logger.info.assert_called_with(
+                            'Falling back to in-memory cache provider'
+                        )

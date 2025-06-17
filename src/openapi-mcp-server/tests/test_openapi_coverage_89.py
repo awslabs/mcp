@@ -38,6 +38,7 @@ paths:
         try:
             # Mock yaml import to raise ImportError
             with patch('builtins.__import__') as mock_import:
+
                 def side_effect(name, *args, **kwargs):
                     if name == 'yaml':
                         raise ImportError('No module named yaml')
@@ -93,6 +94,7 @@ paths:
             # Mock prance to not be available and yaml import to fail
             with patch('awslabs.openapi_mcp_server.utils.openapi.PRANCE_AVAILABLE', False):
                 with patch('builtins.__import__') as mock_import:
+
                     def side_effect(name, *args, **kwargs):
                         if name == 'yaml':
                             raise ImportError('No module named yaml')
@@ -101,7 +103,9 @@ paths:
                     mock_import.side_effect = side_effect
 
                     # This should raise ImportError about pyyaml
-                    with pytest.raises(ImportError, match="Required dependency 'pyyaml' not installed"):
+                    with pytest.raises(
+                        ImportError, match="Required dependency 'pyyaml' not installed"
+                    ):
                         load_openapi_spec(path=temp_path)
         finally:
             # Clean up
@@ -123,7 +127,9 @@ paths:
         try:
             # Mock prance to be available but raise an exception
             with patch('awslabs.openapi_mcp_server.utils.openapi.PRANCE_AVAILABLE', True):
-                with patch('awslabs.openapi_mcp_server.utils.openapi.ResolvingParser') as mock_parser:
+                with patch(
+                    'awslabs.openapi_mcp_server.utils.openapi.ResolvingParser'
+                ) as mock_parser:
                     mock_parser.side_effect = Exception('Prance parsing failed')
 
                     # Mock logger to capture the warning
