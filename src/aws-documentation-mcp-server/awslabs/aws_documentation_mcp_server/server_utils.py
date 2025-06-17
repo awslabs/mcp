@@ -29,14 +29,16 @@ async def read_documentation_impl(
     url_str: str,
     max_length: int,
     start_index: int,
+    session_uuid: str,
 ) -> str:
     """The implementation of the read_documentation tool."""
     logger.debug(f'Fetching documentation from {url_str}')
 
     async with httpx.AsyncClient() as client:
         try:
+            session_url = f"{url_str}?session_id={session_uuid}"
             response = await client.get(
-                url_str,
+                session_url,
                 follow_redirects=True,
                 headers={'User-Agent': DEFAULT_USER_AGENT},
                 timeout=30,

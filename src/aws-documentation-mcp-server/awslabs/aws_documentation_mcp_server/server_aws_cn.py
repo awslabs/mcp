@@ -15,6 +15,7 @@
 
 import httpx
 import re
+import uuid
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
     read_documentation_impl,
@@ -31,6 +32,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import AnyUrl, Field
 from typing import Union
 
+SESSION_UUID = str(uuid.uuid4())
 
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
@@ -128,7 +130,7 @@ async def read_documentation(
         await ctx.error(error_msg)
         return error_msg
 
-    return await read_documentation_impl(ctx, url_str, max_length, start_index)
+    return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
 
 @mcp.tool()

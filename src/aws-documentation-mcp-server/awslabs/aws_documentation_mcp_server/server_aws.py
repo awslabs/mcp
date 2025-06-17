@@ -16,6 +16,7 @@
 import httpx
 import json
 import re
+import uuid
 
 # Import models
 from awslabs.aws_documentation_mcp_server.models import (
@@ -36,10 +37,9 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import List
 
-
 SEARCH_API_URL = 'https://proxy.search.docs.aws.amazon.com/search'
 RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'
-
+SESSION_UUID = str(uuid.uuid4())
 
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
@@ -139,7 +139,7 @@ async def read_documentation(
         await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
         raise ValueError('URL must end with .html')
 
-    return await read_documentation_impl(ctx, url_str, max_length, start_index)
+    return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
 
 @mcp.tool()
@@ -196,8 +196,9 @@ async def search_documentation(
 
     async with httpx.AsyncClient() as client:
         try:
+            session_search_url = f"{SEARCH_API_URL}?session_id={SESSION_UUID}"
             response = await client.post(
-                SEARCH_API_URL,
+                session_search_url,
                 json=request_body,
                 headers={
                     'Content-Type': 'application/json',
@@ -360,10 +361,8 @@ async def recommend(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    # Log startup information
-    logger.info('Starting AWS Documentation MCP Server')
 
-    # Run server with appropriate transport
+    logger.info('Starting AWS Documentation MCP Server')
     mcp.run()
 
 
