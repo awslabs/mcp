@@ -118,14 +118,10 @@ async def test_github_repository_search_with_limit_live():
     ctx = MockContext()
 
     # Small number of results
-    small_result = await search_repos_on_github(
-        ctx, keywords=['aws', 'dynamodb'], num_results=2
-    )
+    small_result = await search_repos_on_github(ctx, keywords=['aws', 'dynamodb'], num_results=2)
 
     # Larger number of results
-    large_result = await search_repos_on_github(
-        ctx, keywords=['aws', 'dynamodb'], num_results=5
-    )
+    large_result = await search_repos_on_github(ctx, keywords=['aws', 'dynamodb'], num_results=5)
 
     # Verify the responses are valid
     assert small_result is not None
@@ -154,9 +150,7 @@ async def test_github_repository_order_by_stars_live():
     ctx = MockContext()
 
     # Search for popular AWS repositories
-    search_result = await search_repos_on_github(
-        ctx, keywords=['aws', 'cdk'], num_results=10
-    )
+    search_result = await search_repos_on_github(ctx, keywords=['aws', 'cdk'], num_results=10)
 
     # Verify the results structure
     assert search_result is not None
