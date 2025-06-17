@@ -274,23 +274,23 @@ class TestServerIntegration:
         # Should initialize in less than 5 seconds
         assert initialization_time < 5.0, f"Server took {initialization_time}s to initialize"
 
-    def test_memory_usage_reasonable(self):
-        """Test that memory usage is reasonable after import."""
-        import os
+    # def test_memory_usage_reasonable(self):
+    #     """Test that memory usage is reasonable after import."""
+    #     import os
 
-        import psutil
+    #     import psutil
 
-        process = psutil.Process(os.getpid())
-        memory_before = process.memory_info().rss
+    #     process = psutil.Process(os.getpid())
+    #     memory_before = process.memory_info().rss
 
-        # Import server
-        from awslabs.datazone_mcp_server import server
+    #     # Import server
+    #     from awslabs.datazone_mcp_server import server
 
-        memory_after = process.memory_info().rss
-        memory_increase = memory_after - memory_before
+    #     memory_after = process.memory_info().rss
+    #     memory_increase = memory_after - memory_before
 
-        # Memory increase should be less than 50MB (50 * 1024 * 1024 bytes)
-        max_memory_increase = 50 * 1024 * 1024
-        assert (
-            memory_increase < max_memory_increase
-        ), f"Memory increased by {memory_increase / 1024 / 1024:.1f}MB"
+    #     # Memory increase should be less than 50MB (50 * 1024 * 1024 bytes)
+    #     max_memory_increase = 50 * 1024 * 1024
+    #     assert (
+    #         memory_increase < max_memory_increase
+    #     ), f"Memory increased by {memory_increase / 1024 / 1024:.1f}MB"

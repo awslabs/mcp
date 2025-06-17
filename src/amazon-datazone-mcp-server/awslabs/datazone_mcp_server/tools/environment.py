@@ -1,3 +1,16 @@
+# Copyright 2024 AWS DataZone MCP Server Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Environment management tools for Amazon DataZone."""
 
 from typing import Any, Dict, List, Optional
@@ -229,7 +242,7 @@ def register_tools(mcp: FastMCP):
         props: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """
-        Creates a new connection in Amazon DataZone. A connection enables you to connect your resources
+        Creates a new connection in Amazon DataZone. A connection enables you to connect your resources.
 
         (domains, projects, and environments) to external resources and services.
 
@@ -380,7 +393,7 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str, identifier: str, with_secret: bool = False
     ) -> Any:
         """
-        Gets a connection in Amazon DataZone. A connection enables you to connect your resources
+        Gets a connection in Amazon DataZone. A connection enables you to connect your resources.
 
         (domains, projects, and environments) to external resources and services.
 

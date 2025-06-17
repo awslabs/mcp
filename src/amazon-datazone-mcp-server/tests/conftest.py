@@ -253,27 +253,27 @@ class TestDataHelper:
 
     @staticmethod
     def get_domain_id() -> str:
-        """get domain id"""
+        """get domain id."""
         return "dzd_test123"
 
     @staticmethod
     def get_project_id() -> str:
-        """get project id"""
+        """get project id."""
         return "prj_test123"
 
     @staticmethod
     def get_asset_id() -> str:
-        """get asset id"""
+        """get asset id."""
         return "asset_test123"
 
     @staticmethod
     def get_glossary_id() -> str:
-        """get glossary id"""
+        """get glossary id."""
         return "glossary_test123"
 
     @staticmethod
     def get_environment_id() -> str:
-        """get environment id"""
+        """get environment id."""
         return "env_test123"
 
     @staticmethod
@@ -345,11 +345,11 @@ def mock_aws_credentials():
     with patch.dict(
         os.environ,
         {
-            "AWS_ACCESS_KEY_ID": "testing",
-            "AWS_SECRET_ACCESS_KEY": "testing",
-            "AWS_SECURITY_TOKEN": "testing",
-            "AWS_SESSION_TOKEN": "testing",
-            "AWS_DEFAULT_REGION": "us-east-1",
+            "AWS_ACCESS_KEY_ID": "testing", # nosec
+            "AWS_SECRET_ACCESS_KEY": "testing", # nosec
+            "AWS_SECURITY_TOKEN": "testing", # nosec
+            "AWS_SESSION_TOKEN": "testing", # nosec
+            "AWS_DEFAULT_REGION": "us-east-1", # nosec
         },
     ):
         yield
