@@ -75,7 +75,7 @@ def load_config(args):
     config_data = {
         'aws_profile': None,
         'aws_region': DEFAULT_AWS_REGION,
-        'prometheus_url': '',
+        'prometheus_url': None,
         'service_name': DEFAULT_SERVICE_NAME,
         'max_retries': DEFAULT_MAX_RETRIES,
         'retry_delay': DEFAULT_RETRY_DELAY,
@@ -704,8 +704,14 @@ def main():
     asyncio.run(async_main())
 
     logger.info('Starting server...')
+    
     # Run with stdio transport
-    mcp.run(transport='stdio')
+    try:
+        logger.info('Starting with stdio transport...')
+        mcp.run(transport='stdio')
+    except Exception as e:
+        logger.error(f'Error starting server with stdio transport: {e}')
+        sys.exit(1)
 
 
 if __name__ == '__main__':
