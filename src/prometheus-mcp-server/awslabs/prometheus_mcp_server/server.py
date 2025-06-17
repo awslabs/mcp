@@ -668,8 +668,9 @@ def main():
     # Load configuration
     config_data = load_config(args)
 
-    # Setup environment to discover workspace if needed
+    # If no URL is provided, try to discover one
     if not config_data['prometheus_url']:
+        logger.info('No Prometheus URL provided, attempting to auto-discover...')
         if not setup_environment(config_data):
             logger.error('Environment setup failed')
             sys.exit(1)
@@ -677,6 +678,13 @@ def main():
         # Double-check that we have a URL after setup_environment
         if not config_data['prometheus_url']:
             logger.error('Failed to discover Prometheus URL')
+            sys.exit(1)
+    else:
+        # If URL is provided, still validate AWS credentials
+        logger.info(f'Using provided Prometheus URL: {config_data["prometheus_url"]}')
+        # Just validate AWS credentials without changing the URL
+        if not setup_environment(config_data):
+            logger.error('Environment setup failed')
             sys.exit(1)
 
     # Create config object
