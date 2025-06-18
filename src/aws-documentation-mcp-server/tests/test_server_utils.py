@@ -325,5 +325,5 @@ class TestVersionImport:
 
         # Verify it fell back to the __init__.py version
         mock_version.assert_called_once_with('awslabs.aws-documentation-mcp-server')
-        assert '0.0.1' in server_utils.DEFAULT_USER_AGENT
-        assert 'ModelContextProtocol/0.0.1' in server_utils.DEFAULT_USER_AGENT
+        assert '1.1.0' in server_utils.DEFAULT_USER_AGENT
+        assert 'ModelContextProtocol/1.1.0' in server_utils.DEFAULT_USER_AGENT
