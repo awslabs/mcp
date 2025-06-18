@@ -14,9 +14,8 @@
 
 """Tests for the main function in server.py."""
 
-import pytest
-from unittest.mock import patch, MagicMock
-from awslabs.s3_tables_mcp_server.server import main, app
+from awslabs.s3_tables_mcp_server.server import app, main
+from unittest.mock import patch
 
 
 class TestMain:
@@ -24,25 +23,33 @@ class TestMain:
 
     def test_main_default(self):
         """Test main function with default arguments."""
-        with patch('sys.argv', ['server.py']), \
-             patch('awslabs.s3_tables_mcp_server.server.app.run') as mock_run:
+        with (
+            patch('sys.argv', ['server.py']),
+            patch('awslabs.s3_tables_mcp_server.server.app.run') as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
             assert app.allow_write is False
 
     def test_main_with_write_permission(self):
         """Test main function with --allow-write argument."""
-        with patch('sys.argv', ['server.py', '--allow-write']), \
-             patch('awslabs.s3_tables_mcp_server.server.app.run') as mock_run:
+        with (
+            patch('sys.argv', ['server.py', '--allow-write']),
+            patch('awslabs.s3_tables_mcp_server.server.app.run') as mock_run,
+        ):
             main()
             mock_run.assert_called_once()
             assert app.allow_write is True
 
     def test_main_with_exception(self):
         """Test main function when an exception occurs."""
-        with patch('sys.argv', ['server.py']), \
-             patch('awslabs.s3_tables_mcp_server.server.app.run', side_effect=Exception('Test error')), \
-             patch('builtins.print') as mock_print:
+        with (
+            patch('sys.argv', ['server.py']),
+            patch(
+                'awslabs.s3_tables_mcp_server.server.app.run', side_effect=Exception('Test error')
+            ),
+            patch('builtins.print') as mock_print,
+        ):
             main()
             mock_print.assert_called_once_with('Failed to start server: Test error')
 

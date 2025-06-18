@@ -16,7 +16,6 @@
 
 import importlib
 import re
-import pytest
 
 
 class TestInit:
@@ -64,8 +63,8 @@ class TestInit:
 
     def test_constants_defined(self):
         """Test that required constants are defined."""
-        from awslabs.s3_tables_mcp_server.constants import MCP_SERVER_VERSION
-
         # Check that MCP_SERVER_VERSION is defined and matches __version__
         import awslabs.s3_tables_mcp_server
+        from awslabs.s3_tables_mcp_server.constants import MCP_SERVER_VERSION
+
         assert MCP_SERVER_VERSION == awslabs.s3_tables_mcp_server.__version__
