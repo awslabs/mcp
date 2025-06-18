@@ -1,0 +1,55 @@
+[project]
+name = "awslabs.aws-wa-sec-review-mcp-server"
+version = "0.1.0"
+description = "AWS Well-Architected Security Assessment Tool MCP Server"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[server]>=1.7.1",
+    "boto3>=1.28.0",
+    "loguru>=0.7.0",
+    "pydantic>=2.0.0",
+    "fastapi>=0.100.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.0.291",
+    "pyright>=1.1.0",
+]
+
+[tool.setuptools]
+packages = {find = {where = ["."]}}
+
+[project.scripts]
+"awslabs.aws-wa-sec-tool-mcp-server" = "awslabs.aws_wa_sec_tool_mcp_server.server:server"
+
+[project.entry-points.mcp]
+aws-wa-sec-tool-mcp-server = "awslabs.aws_wa_sec_tool_mcp_server.server:mcp"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/aws_wa_sec_review_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.ruff]
+line-length = 99
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "Q"]
+ignore = ["E203", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["awslabs"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
