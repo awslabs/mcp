@@ -156,6 +156,10 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
 
+##### Search & Analytics
+
+- **[Amazon OpenSearch MCP Server](https://github.com/opensearch-project/opensearch-mcp-server-py)** - OpenSearch powered search, Analytics, and Observability
+
 ##### Caching & Performance
 
 - **[Amazon ElastiCache MCP Server](src/elasticache-mcp-server/)** - Complete ElastiCache operations
@@ -171,6 +175,7 @@ Accelerate development with code analysis, documentation, and testing utilities.
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams and technical illustrations
 - **[Frontend MCP Server](src/frontend-mcp-server/)** - React and modern web development guidance
 - **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for development and ML
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 #### 📡 Integration & Messaging
 
@@ -180,6 +185,7 @@ Connect systems with messaging, workflows, and location services.
 - **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker management for RabbitMQ and ActiveMQ
 - **[AWS Step Functions Tool MCP Server](src/stepfunctions-tool-mcp-server/)** - Execute complex workflows and business processes
 - **[Amazon Location Service MCP Server](src/aws-location-mcp-server/)** - Place search, geocoding, and route optimization
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 #### 💰 Cost & Operations
 
@@ -215,6 +221,7 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 - **[Frontend MCP Server](src/frontend-mcp-server/)** - React and modern web development patterns with AWS integration
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams as you design
 - **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Auto-generate docs from your codebase
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 ##### Container & Serverless Development
 

@@ -563,3 +563,10 @@ samples/mcp-integration-with-nova-canvas/output/*
 
 memory-bank/*
 .clinerules
+
+# OpenAPI MCP Server specific ignores
+src/openapi-mcp-server/generated-diagrams/*
+src/openapi-mcp-server/*.txt
+src/openapi-mcp-server/*-coverage.xml
+src/openapi-mcp-server/junit.xml
+executive-summary.md
