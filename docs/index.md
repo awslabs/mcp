@@ -231,6 +231,22 @@ A server for accessing AWS Location Service capabilities, focusing on place sear
 
 [Learn more about the AWS Location Service MCP Server](servers/aws-location-mcp-server.md)
 
+### AWS OpenAPI MCP Server
+
+The OpenAPI MCP Server dynamically creates Model Context Protocol (MCP) tools and resources from OpenAPI specifications, allowing LLMs to interact with APIs through the Model Context Protocol.
+
+**Features:**
+
+- Dynamic Tool Generation: Automatically creates MCP tools from OpenAPI endpoints
+- Intelligent Route Mapping: Maps GET operations with query parameters to TOOLS
+- Dynamic Prompt Generation: Creates helpful prompts based on API structure
+- Transport Options: Supports stdio transport
+- Flexible Configuration via environment variables or command line arguments
+- Authentication Support: Works with multiple authentication methods (Basic, Bearer Token, API Key, Cognito)
+- AWS Best Practices: Implements AWS best practices for caching, resilience, and observability
+
+[Learn more about the AWS OpenAPI MCP Server](servers/openapi-mcp-server.md)
+
 ### AWS CloudFormation MCP Server
 
 A server for managing your AWS resources directly and through cloudformation.
