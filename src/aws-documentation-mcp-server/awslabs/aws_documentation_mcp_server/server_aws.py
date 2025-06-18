@@ -197,13 +197,13 @@ async def search_documentation(
 
     async with httpx.AsyncClient() as client:
         try:
-            session_search_url = f'{SEARCH_API_URL}?session_id={SESSION_UUID}'
             response = await client.post(
-                session_search_url,
+                SEARCH_API_URL,
                 json=request_body,
                 headers={
                     'Content-Type': 'application/json',
                     'User-Agent': DEFAULT_USER_AGENT,
+                    'X-MCP-Session-Id': SESSION_UUID,
                 },
                 timeout=30,
             )

@@ -36,11 +36,13 @@ async def read_documentation_impl(
 
     async with httpx.AsyncClient() as client:
         try:
-            session_url = f'{url_str}?session_id={session_uuid}'
             response = await client.get(
-                session_url,
+                url_str,
                 follow_redirects=True,
-                headers={'User-Agent': DEFAULT_USER_AGENT},
+                headers={
+                    'User-Agent': DEFAULT_USER_AGENT,
+                    'X-MCP-Session-Id': session_uuid,
+                },
                 timeout=30,
             )
         except httpx.HTTPError as e:

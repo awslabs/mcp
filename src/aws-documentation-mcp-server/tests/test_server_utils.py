@@ -71,9 +71,12 @@ class TestReadDocumentationImpl:
 
                         # Verify the mock was called correctly
                         mock_client.get.assert_called_once_with(
-                            f'{url}?session_id=test-uuid',
+                            url,
                             follow_redirects=True,
-                            headers={'User-Agent': DEFAULT_USER_AGENT},
+                            headers={
+                                'User-Agent': DEFAULT_USER_AGENT,
+                                'X-MCP-Session-Id': 'test-uuid',
+                            },
                             timeout=30,
                         )
 
