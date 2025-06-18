@@ -34,7 +34,7 @@ import json
 import os
 from typing import Any, Dict
 
-from mcp import create_client
+from mcp import create_client # type: ignore
 from typing import Optional
 
 
@@ -44,7 +44,7 @@ class DomainOperationsExample:
     def __init__(self, domain_id: Optional[str] = None):
         """Initialize with optional domain_id."""
         self.domain_id = domain_id or os.getenv("DATAZONE_DOMAIN_ID")
-        self.client = None
+        self.client: Optional[Any] = None
 
     async def setup_client(self):
         """Initialize the MCP client connection."""
@@ -61,8 +61,10 @@ class DomainOperationsExample:
         """
         print(f"\nGetting details for domain: {self.domain_id}")
 
+        if self.client is None:
+            raise RuntimeError("Client not initialized")
+
         try:
-            assert self.client is not None
             result = await self.client.call_tool("get_domain", {"identifier": self.domain_id})
 
             domain_data = json.loads(result.content[0].text)
@@ -96,6 +98,9 @@ class DomainOperationsExample:
         """
         print("\nListing all available domains...")
 
+        if self.client is None:
+            raise RuntimeError("Client not initialized")
+
         try:
             result = await self.client.call_tool("list_domains", {})
             domains_data = json.loads(result.content[0].text)
@@ -126,9 +131,10 @@ class DomainOperationsExample:
         """
         print(f"\nChecking access to domain: {self.domain_id}")
 
+        if self.client is None:
+            raise RuntimeError("Client not initialized")
+
         try:
-            # Try to get domain details
-            assert self.client is not None
             result = await self.client.call_tool("get_domain", {"identifier": self.domain_id})
 
             domain_data = json.loads(result.content[0].text)
@@ -152,8 +158,10 @@ class DomainOperationsExample:
         """
         print(f"\nGetting organizational units for domain: {self.domain_id}")
 
+        if self.client is None:
+            raise RuntimeError("Client not initialized")
+
         try:
-            assert self.client is not None
             result = await self.client.call_tool(
                 "list_domain_units", {"domain_identifier": self.domain_id}
             )
