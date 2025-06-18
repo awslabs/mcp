@@ -36,7 +36,7 @@ async def read_documentation_impl(
 
     async with httpx.AsyncClient() as client:
         try:
-            session_url = f"{url_str}?session_id={session_uuid}"
+            session_url = f'{url_str}?session_id={session_uuid}'
             response = await client.get(
                 session_url,
                 follow_redirects=True,

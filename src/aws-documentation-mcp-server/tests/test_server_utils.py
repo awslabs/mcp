@@ -62,14 +62,16 @@ class TestReadDocumentationImpl:
                         'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
                         return_value='AWS Documentation from URL: # Test\n\nContent',
                     ):
-                        result = await read_documentation_impl(ctx, url, max_length, start_index, "test-uuid")
+                        result = await read_documentation_impl(
+                            ctx, url, max_length, start_index, 'test-uuid'
+                        )
 
                         # Verify the result
                         assert result == 'AWS Documentation from URL: # Test\n\nContent'
 
                         # Verify the mock was called correctly
                         mock_client.get.assert_called_once_with(
-                            f"{url}?session_id=test-uuid",
+                            f'{url}?session_id=test-uuid',
                             follow_redirects=True,
                             headers={'User-Agent': DEFAULT_USER_AGENT},
                             timeout=30,
@@ -107,7 +109,9 @@ class TestReadDocumentationImpl:
                     'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
                     return_value='AWS Documentation from URL: Plain text content',
                 ):
-                    result = await read_documentation_impl(ctx, url, max_length, start_index, "test-uuid")
+                    result = await read_documentation_impl(
+                        ctx, url, max_length, start_index, 'test-uuid'
+                    )
 
                     # Verify the result
                     assert result == 'AWS Documentation from URL: Plain text content'
@@ -130,7 +134,7 @@ class TestReadDocumentationImpl:
             mock_client.get = AsyncMock(side_effect=httpx.HTTPError('Connection error'))
             mock_client_class.return_value = mock_client
 
-            result = await read_documentation_impl(ctx, url, max_length, start_index, "test-uuid")
+            result = await read_documentation_impl(ctx, url, max_length, start_index, 'test-uuid')
 
             # Verify the result contains the error message
             assert 'Failed to fetch' in result
@@ -164,7 +168,7 @@ class TestReadDocumentationImpl:
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
-            result = await read_documentation_impl(ctx, url, max_length, start_index, "test-uuid")
+            result = await read_documentation_impl(ctx, url, max_length, start_index, 'test-uuid')
 
             # Verify the result contains the error message
             assert 'Failed to fetch' in result
@@ -217,7 +221,9 @@ class TestReadDocumentationImpl:
                             'AWS Documentation from URL: # Test\n\nLong... (truncated)'
                         )
 
-                        result = await read_documentation_impl(ctx, url, max_length, start_index, "test-uuid")
+                        result = await read_documentation_impl(
+                            ctx, url, max_length, start_index, 'test-uuid'
+                        )
 
                         # Verify the result
                         assert (
@@ -270,7 +276,9 @@ class TestReadDocumentationImpl:
                         'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
                         mock_format,
                     ):
-                        result = await read_documentation_impl(ctx, url, max_length, start_index, "test-uuid")
+                        result = await read_documentation_impl(
+                            ctx, url, max_length, start_index, 'test-uuid'
+                        )
 
                         # Verify the result
                         assert result == 'AWS Documentation from URL: Content'

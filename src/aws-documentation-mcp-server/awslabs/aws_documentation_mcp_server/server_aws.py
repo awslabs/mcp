@@ -197,7 +197,7 @@ async def search_documentation(
 
     async with httpx.AsyncClient() as client:
         try:
-            session_search_url = f"{SEARCH_API_URL}?session_id={SESSION_UUID}"
+            session_search_url = f'{SEARCH_API_URL}?session_id={SESSION_UUID}'
             response = await client.post(
                 session_search_url,
                 json=request_body,
