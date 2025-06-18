@@ -35,12 +35,13 @@ import os
 from typing import Any, Dict
 
 from mcp import create_client
+from typing import Optional
 
 
 class DomainOperationsExample:
     """Example class demonstrating domain operations."""
 
-    def __init__(self, domain_id: str = None):
+    def __init__(self, domain_id: Optional[str] = None):
         """Initialize with optional domain_id."""
         self.domain_id = domain_id or os.getenv("DATAZONE_DOMAIN_ID")
         self.client = None
@@ -61,6 +62,7 @@ class DomainOperationsExample:
         print(f"\nGetting details for domain: {self.domain_id}")
 
         try:
+            assert self.client is not None
             result = await self.client.call_tool("get_domain", {"identifier": self.domain_id})
 
             domain_data = json.loads(result.content[0].text)
@@ -126,6 +128,7 @@ class DomainOperationsExample:
 
         try:
             # Try to get domain details
+            assert self.client is not None
             result = await self.client.call_tool("get_domain", {"identifier": self.domain_id})
 
             domain_data = json.loads(result.content[0].text)
@@ -150,6 +153,7 @@ class DomainOperationsExample:
         print(f"\nGetting organizational units for domain: {self.domain_id}")
 
         try:
+            assert self.client is not None
             result = await self.client.call_tool(
                 "list_domain_units", {"domain_identifier": self.domain_id}
             )
