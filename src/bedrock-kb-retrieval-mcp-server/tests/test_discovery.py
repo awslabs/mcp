@@ -197,15 +197,13 @@ class TestDiscoverKnowledgeBases:
     @pytest.mark.asyncio
     async def test_discover_knowledge_bases_with_kb_id_override(self, mock_bedrock_agent_client):
         """Test discovering knowledge bases with kb_id_override parameter."""
+
         # Set up the mock for the specific knowledge base
         def get_kb_side_effect(knowledgeBaseId):
-            return {
-                'knowledgeBase': {
-                    'name': 'Override Knowledge Base'
-                }
-            }
+            return {'knowledgeBase': {'name': 'Override Knowledge Base'}}
+
         mock_bedrock_agent_client.get_knowledge_base.side_effect = get_kb_side_effect
-        
+
         # Set up data sources paginator for the override KB
         ds_paginator = MagicMock()
         ds_paginator.paginate.return_value = [
@@ -221,7 +219,9 @@ class TestDiscoverKnowledgeBases:
         mock_bedrock_agent_client.get_paginator.return_value = ds_paginator
 
         # Call the function with kb_id_override
-        result = await discover_knowledge_bases(mock_bedrock_agent_client, kb_id_override='kb-override-123')
+        result = await discover_knowledge_bases(
+            mock_bedrock_agent_client, kb_id_override='kb-override-123'
+        )
 
         # Check that the result contains only the override knowledge base
         assert len(result) == 1
@@ -234,38 +234,48 @@ class TestDiscoverKnowledgeBases:
         assert result['kb-override-123']['data_sources'][1]['name'] == 'Override Data Source 2'
 
         # Check that get_knowledge_base was called with the override KB ID
-        mock_bedrock_agent_client.get_knowledge_base.assert_called_once_with(knowledgeBaseId='kb-override-123')
-        
+        mock_bedrock_agent_client.get_knowledge_base.assert_called_once_with(
+            knowledgeBaseId='kb-override-123'
+        )
+
         # Check that list_knowledge_bases paginator was NOT called (because we skip discovery)
         mock_bedrock_agent_client.get_paginator.assert_called_once_with('list_data_sources')
 
     @pytest.mark.asyncio
-    async def test_discover_knowledge_bases_with_invalid_kb_id_override(self, mock_bedrock_agent_client):
+    async def test_discover_knowledge_bases_with_invalid_kb_id_override(
+        self, mock_bedrock_agent_client
+    ):
         """Test discovering knowledge bases with invalid kb_id_override parameter."""
         # Set up the mock to raise an exception
-        mock_bedrock_agent_client.get_knowledge_base.side_effect = Exception('Knowledge base not found')
+        mock_bedrock_agent_client.get_knowledge_base.side_effect = Exception(
+            'Knowledge base not found'
+        )
 
         # Call the function with invalid kb_id_override
-        result = await discover_knowledge_bases(mock_bedrock_agent_client, kb_id_override='kb-invalid-123')
+        result = await discover_knowledge_bases(
+            mock_bedrock_agent_client, kb_id_override='kb-invalid-123'
+        )
 
         # Check that the result is empty due to the error
         assert len(result) == 0
 
         # Check that get_knowledge_base was called with the invalid KB ID
-        mock_bedrock_agent_client.get_knowledge_base.assert_called_once_with(knowledgeBaseId='kb-invalid-123')
+        mock_bedrock_agent_client.get_knowledge_base.assert_called_once_with(
+            knowledgeBaseId='kb-invalid-123'
+        )
 
     @pytest.mark.asyncio
-    async def test_discover_knowledge_bases_kb_id_override_takes_precedence(self, mock_bedrock_agent_client):
+    async def test_discover_knowledge_bases_kb_id_override_takes_precedence(
+        self, mock_bedrock_agent_client
+    ):
         """Test that kb_id_override takes precedence over tag-based discovery."""
+
         # Set up the mock for the override knowledge base
         def get_kb_side_effect(knowledgeBaseId):
-            return {
-                'knowledgeBase': {
-                    'name': 'Override Knowledge Base'
-                }
-            }
+            return {'knowledgeBase': {'name': 'Override Knowledge Base'}}
+
         mock_bedrock_agent_client.get_knowledge_base.side_effect = get_kb_side_effect
-        
+
         # Set up data sources paginator
         ds_paginator = MagicMock()
         ds_paginator.paginate.return_value = [
@@ -282,9 +292,7 @@ class TestDiscoverKnowledgeBases:
         # Call the function with both custom tag and kb_id_override
         # The override should take precedence and tag should be ignored
         result = await discover_knowledge_bases(
-            mock_bedrock_agent_client, 
-            tag_key='custom-tag',
-            kb_id_override='kb-override-123'
+            mock_bedrock_agent_client, tag_key='custom-tag', kb_id_override='kb-override-123'
         )
 
         # Check that the result contains only the override knowledge base
@@ -293,8 +301,10 @@ class TestDiscoverKnowledgeBases:
         assert result['kb-override-123']['name'] == 'Override Knowledge Base'
 
         # Check that get_knowledge_base was called with the override KB ID
-        mock_bedrock_agent_client.get_knowledge_base.assert_called_once_with(knowledgeBaseId='kb-override-123')
-        
+        mock_bedrock_agent_client.get_knowledge_base.assert_called_once_with(
+            knowledgeBaseId='kb-override-123'
+        )
+
         # Check that tag-based discovery was skipped (list_knowledge_bases not called)
         calls = mock_bedrock_agent_client.get_paginator.call_args_list
         kb_paginator_calls = [call for call in calls if call[0][0] == 'list_knowledge_bases']

@@ -133,7 +133,9 @@ class TestQueryKnowledgeBasesTool:
     @pytest.mark.asyncio
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', 'EXAMPLEKBID')
-    async def test_query_knowledge_bases_tool_with_override_no_kb_id(self, mock_query_knowledge_base):
+    async def test_query_knowledge_bases_tool_with_override_no_kb_id(
+        self, mock_query_knowledge_base
+    ):
         """Test the query_knowledge_bases_tool function with override and no knowledge_base_id."""
         # Set up the mock
         mock_query_knowledge_base.return_value = json.dumps(
@@ -173,7 +175,9 @@ class TestQueryKnowledgeBasesTool:
     @pytest.mark.asyncio
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', 'EXAMPLEKBID')
-    async def test_query_knowledge_bases_tool_with_override_and_explicit_kb_id(self, mock_query_knowledge_base):
+    async def test_query_knowledge_bases_tool_with_override_and_explicit_kb_id(
+        self, mock_query_knowledge_base
+    ):
         """Test the query_knowledge_bases_tool function with override but explicit knowledge_base_id provided."""
         # Set up the mock
         mock_query_knowledge_base.return_value = json.dumps(
@@ -213,7 +217,9 @@ class TestQueryKnowledgeBasesTool:
     @pytest.mark.asyncio
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', None)
-    async def test_query_knowledge_bases_tool_no_override_no_kb_id_raises_error(self, mock_query_knowledge_base):
+    async def test_query_knowledge_bases_tool_no_override_no_kb_id_raises_error(
+        self, mock_query_knowledge_base
+    ):
         """Test the query_knowledge_bases_tool function with no override and no knowledge_base_id raises error."""
         # This should raise a ValueError since neither override nor explicit KB ID is provided
         with pytest.raises(ValueError) as exc_info:
@@ -225,9 +231,12 @@ class TestQueryKnowledgeBasesTool:
                 reranking_model_name='AMAZON',
                 data_source_ids=None,
             )
-        
-        assert 'Either knowledge_base_id parameter or BEDROCK_KB_ID environment variable must be provided' in str(exc_info.value)
-        
+
+        assert (
+            'Either knowledge_base_id parameter or BEDROCK_KB_ID environment variable must be provided'
+            in str(exc_info.value)
+        )
+
         # query_knowledge_base should not have been called
         mock_query_knowledge_base.assert_not_called()
 
@@ -235,13 +244,20 @@ class TestQueryKnowledgeBasesTool:
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', 'EXAMPLEKBID')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_force_override', True)
-    async def test_query_knowledge_bases_tool_force_override_ignores_provided_kb_id(self, mock_query_knowledge_base):
+    async def test_query_knowledge_bases_tool_force_override_ignores_provided_kb_id(
+        self, mock_query_knowledge_base
+    ):
         """Test that force override ignores provided knowledge_base_id and uses environment KB ID."""
         # Set up the mock
         mock_query_knowledge_base.return_value = json.dumps(
             {
-                'content': {'text': 'This is a test document from forced override KB.', 'type': 'TEXT'},
-                'location': {'s3Location': {'uri': 's3://test-bucket/force-override-document.txt'}},
+                'content': {
+                    'text': 'This is a test document from forced override KB.',
+                    'type': 'TEXT',
+                },
+                'location': {
+                    's3Location': {'uri': 's3://test-bucket/force-override-document.txt'}
+                },
                 'score': 0.95,
             }
         )
@@ -276,13 +292,20 @@ class TestQueryKnowledgeBasesTool:
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_id_override', 'EXAMPLEKBID')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.kb_force_override', True)
-    async def test_query_knowledge_bases_tool_force_override_with_no_kb_id(self, mock_query_knowledge_base):
+    async def test_query_knowledge_bases_tool_force_override_with_no_kb_id(
+        self, mock_query_knowledge_base
+    ):
         """Test that force override works even when no knowledge_base_id is provided."""
         # Set up the mock
         mock_query_knowledge_base.return_value = json.dumps(
             {
-                'content': {'text': 'This is a test document from forced override KB without explicit ID.', 'type': 'TEXT'},
-                'location': {'s3Location': {'uri': 's3://test-bucket/force-override-no-id-document.txt'}},
+                'content': {
+                    'text': 'This is a test document from forced override KB without explicit ID.',
+                    'type': 'TEXT',
+                },
+                'location': {
+                    's3Location': {'uri': 's3://test-bucket/force-override-no-id-document.txt'}
+                },
                 'score': 0.97,
             }
         )

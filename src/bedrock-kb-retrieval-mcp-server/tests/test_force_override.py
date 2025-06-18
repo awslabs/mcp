@@ -16,7 +16,6 @@
 
 import importlib
 import os
-import pytest
 from unittest.mock import patch
 
 
@@ -43,6 +42,7 @@ class TestBedrockKbForceOverrideConfig:
         """Test that the BEDROCK_KB_FORCE_OVERRIDE is False by default when no env var is set."""
         # Force reload the module to reset the global variables
         import awslabs.bedrock_kb_retrieval_mcp_server.server
+
         importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
         # Verify that the default value is False when the env var is not set
@@ -50,7 +50,9 @@ class TestBedrockKbForceOverrideConfig:
 
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_runtime_client')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
-    def test_bedrock_kb_force_override_enabled_with_true(self, mock_agent_client, mock_runtime_client):
+    def test_bedrock_kb_force_override_enabled_with_true(
+        self, mock_agent_client, mock_runtime_client
+    ):
         """Test that the BEDROCK_KB_FORCE_OVERRIDE is enabled when set to 'true'."""
         # Set both environment variables
         os.environ['BEDROCK_KB_ID'] = 'EXAMPLEKBID'
@@ -58,6 +60,7 @@ class TestBedrockKbForceOverrideConfig:
 
         # Force reload the module to pick up the new environment variables
         import awslabs.bedrock_kb_retrieval_mcp_server.server
+
         importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
         # Verify that the force override is enabled
@@ -65,10 +68,12 @@ class TestBedrockKbForceOverrideConfig:
 
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_runtime_client')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
-    def test_bedrock_kb_force_override_various_true_values(self, mock_agent_client, mock_runtime_client):
+    def test_bedrock_kb_force_override_various_true_values(
+        self, mock_agent_client, mock_runtime_client
+    ):
         """Test that BEDROCK_KB_FORCE_OVERRIDE accepts various true values."""
         true_values = ['true', '1', 'yes', 'on', 'TRUE', 'True', 'YES', 'ON']
-        
+
         for true_value in true_values:
             # Set the environment variables
             os.environ['BEDROCK_KB_ID'] = 'EXAMPLEKBID'
@@ -76,24 +81,30 @@ class TestBedrockKbForceOverrideConfig:
 
             # Force reload the module to pick up the new environment variables
             import awslabs.bedrock_kb_retrieval_mcp_server.server
+
             importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
             # Verify that the force override is enabled
-            assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_force_override is True, f"Failed for value: {true_value}"
-            
+            assert awslabs.bedrock_kb_retrieval_mcp_server.server.kb_force_override is True, (
+                f'Failed for value: {true_value}'
+            )
+
             # Clean up for next iteration
             del os.environ['BEDROCK_KB_ID']
             del os.environ['BEDROCK_KB_FORCE_OVERRIDE']
 
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_runtime_client')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
-    def test_bedrock_kb_force_override_disabled_with_invalid_value(self, mock_agent_client, mock_runtime_client):
+    def test_bedrock_kb_force_override_disabled_with_invalid_value(
+        self, mock_agent_client, mock_runtime_client
+    ):
         """Test that force override remains disabled with invalid values."""
         # Set the environment variable to an invalid value
         os.environ['BEDROCK_KB_FORCE_OVERRIDE'] = 'invalid'
 
         # Force reload the module to pick up the new environment variable
         import awslabs.bedrock_kb_retrieval_mcp_server.server
+
         importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
         # Verify that the force override remains False

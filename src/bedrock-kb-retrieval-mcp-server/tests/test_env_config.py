@@ -182,6 +182,7 @@ class TestBedrockKbIdOverrideConfig:
         """Test that the BEDROCK_KB_ID override is None by default when no env var is set."""
         # Force reload the module to reset the global variables
         import awslabs.bedrock_kb_retrieval_mcp_server.server
+
         importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
         # Verify that the default value is None when the env var is not set
@@ -196,6 +197,7 @@ class TestBedrockKbIdOverrideConfig:
 
         # Force reload the module to pick up the new environment variable
         import awslabs.bedrock_kb_retrieval_mcp_server.server
+
         importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
         # Verify that the value is set correctly
@@ -203,13 +205,16 @@ class TestBedrockKbIdOverrideConfig:
 
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_runtime_client')
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
-    def test_bedrock_kb_id_override_empty_string_treated_as_none(self, mock_agent_client, mock_runtime_client):
+    def test_bedrock_kb_id_override_empty_string_treated_as_none(
+        self, mock_agent_client, mock_runtime_client
+    ):
         """Test that empty string for BEDROCK_KB_ID is treated as None."""
         # Set the environment variable to empty string
         os.environ['BEDROCK_KB_ID'] = ''
 
         # Force reload the module to pick up the new environment variable
         import awslabs.bedrock_kb_retrieval_mcp_server.server
+
         importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
         # Verify that empty string is treated as falsy (None-like behavior)
@@ -219,19 +224,15 @@ class TestBedrockKbIdOverrideConfig:
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.get_bedrock_agent_client')
     def test_bedrock_kb_id_override_various_values(self, mock_agent_client, mock_runtime_client):
         """Test that BEDROCK_KB_ID accepts various knowledge base ID formats."""
-        test_values = [
-            'EXAMPLEKBID',
-            'kb-12345',
-            'KB_TEST_123',
-            'some-other-format-456'
-        ]
-        
+        test_values = ['EXAMPLEKBID', 'kb-12345', 'KB_TEST_123', 'some-other-format-456']
+
         for test_value in test_values:
             # Set the environment variable
             os.environ['BEDROCK_KB_ID'] = test_value
 
             # Force reload the module to pick up the new environment variable
             import awslabs.bedrock_kb_retrieval_mcp_server.server
+
             importlib.reload(awslabs.bedrock_kb_retrieval_mcp_server.server)
 
             # Verify that the value is set correctly

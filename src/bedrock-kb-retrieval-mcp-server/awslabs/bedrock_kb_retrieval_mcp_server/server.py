@@ -69,9 +69,13 @@ if kb_force_override_raw is not None:
     if kb_force_override_raw in ('true', '1', 'yes', 'on'):
         kb_force_override = True
         if kb_id_override:
-            logger.info(f'Force override enabled: will ignore knowledgeBaseId parameter and always use {kb_id_override}')
+            logger.info(
+                f'Force override enabled: will ignore knowledgeBaseId parameter and always use {kb_id_override}'
+            )
         else:
-            logger.warning('Force override enabled but BEDROCK_KB_ID not set - force override will have no effect')
+            logger.warning(
+                'Force override enabled but BEDROCK_KB_ID not set - force override will have no effect'
+            )
 
 # Parse reranking enabled environment variable
 kb_reranking_enabled_raw = os.getenv('BEDROCK_KB_RERANKING_ENABLED')
@@ -138,7 +142,9 @@ async def knowledgebases_resource() -> str:
     2. Note the data source IDs if you want to filter queries to specific data sources
     3. Use the names to determine which knowledge base and data source(s) are most relevant to the user's query
     """
-    return json.dumps(await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key, kb_id_override))
+    return json.dumps(
+        await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key, kb_id_override)
+    )
 
 
 @mcp.tool(name='QueryKnowledgeBases')
@@ -197,7 +203,9 @@ async def query_knowledge_bases_tool(
     # Handle force override first - always use environment KB ID when force override is enabled
     if kb_force_override and kb_id_override:
         if knowledge_base_id and knowledge_base_id != kb_id_override:
-            logger.info(f'Force override enabled: ignoring provided knowledge_base_id "{knowledge_base_id}" and using "{kb_id_override}"')
+            logger.info(
+                f'Force override enabled: ignoring provided knowledge_base_id "{knowledge_base_id}" and using "{kb_id_override}"'
+            )
         knowledge_base_id = kb_id_override
         logger.info(f'Using force override knowledge base ID: {knowledge_base_id}')
     # Use override KB ID if no knowledge_base_id is provided
@@ -205,10 +213,12 @@ async def query_knowledge_bases_tool(
         knowledge_base_id = kb_id_override
         logger.info(f'Using override knowledge base ID: {knowledge_base_id}')
     elif not knowledge_base_id:
-        raise ValueError('Either knowledge_base_id parameter or BEDROCK_KB_ID environment variable must be provided')
+        raise ValueError(
+            'Either knowledge_base_id parameter or BEDROCK_KB_ID environment variable must be provided'
+        )
     else:
         logger.info(f'Querying knowledge base ID: {knowledge_base_id}')
-    
+
     return await query_knowledge_base(
         query=query,
         knowledge_base_id=knowledge_base_id,
