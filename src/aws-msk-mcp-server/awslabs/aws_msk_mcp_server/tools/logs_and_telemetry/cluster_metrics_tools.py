@@ -1,14 +1,28 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Common functions that may be shared amongst tools
+
 """Tools for MSK cluster metrics operations."""
 
 import json
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
-
-from botocore.exceptions import ClientError
-from loguru import logger
-
 from ..common_functions import get_cluster_name
 from .metric_config import METRICS, get_metric_config
+from botocore.exceptions import ClientError
+from datetime import datetime
+from loguru import logger
+from typing import Any, Dict, List, Optional, Union
 
 
 def get_monitoring_level_rank(level: str) -> int:
@@ -20,7 +34,12 @@ def get_monitoring_level_rank(level: str) -> int:
     Returns:
         Numeric rank where higher number means more detailed monitoring
     """
-    ranks = {"DEFAULT": 0, "PER_BROKER": 1, "PER_TOPIC_PER_BROKER": 2, "PER_TOPIC_PER_PARTITION": 3}
+    ranks = {
+        'DEFAULT': 0,
+        'PER_BROKER': 1,
+        'PER_TOPIC_PER_BROKER': 2,
+        'PER_TOPIC_PER_PARTITION': 3,
+    }
     return ranks.get(level, -1)
 
 
@@ -37,12 +56,12 @@ def list_available_metrics(monitoring_level: str) -> Dict[str, Any]:
         ValueError: If no monitoring level is provided
     """
     if monitoring_level is None:
-        raise ValueError("Monitoring level must be provided")
+        raise ValueError('Monitoring level must be provided')
 
     return {
         name: config
         for name, config in METRICS.items()
-        if config["monitoring_level"] == monitoring_level
+        if config['monitoring_level'] == monitoring_level
     }
 
 
@@ -58,10 +77,10 @@ def get_cluster_metrics(
     label_options: Optional[Dict[str, str]] = None,
     pagination_config: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """
-    Get metrics for an MSK cluster.
+    """Get metrics for an MSK cluster.
 
     Args:
+        region: AWS region where the MSK cluster is located
         cluster_arn: The ARN of the MSK cluster
         start_time: Start time for metric data retrieval
         end_time: End time for metric data retrieval
@@ -91,155 +110,159 @@ def get_cluster_metrics(
         # Validate client manager
         if client_manager is None:
             raise ValueError(
-                "Client manager must be provided. This function should only be called from get_cluster_telemetry."
+                'Client manager must be provided. This function should only be called from get_cluster_telemetry.'
             )
 
         # Get clients from the client manager
-        kafka_client = client_manager.get_client(region, "kafka")
-        cloudwatch_client = client_manager.get_client(region, "cloudwatch")
+        kafka_client = client_manager.get_client(region, 'kafka')
+        cloudwatch_client = client_manager.get_client(region, 'cloudwatch')
 
         # Get cluster's monitoring level
-        cluster_info = kafka_client.describe_cluster(ClusterArn=cluster_arn)["ClusterInfo"]
-        cluster_monitoring = cluster_info.get("EnhancedMonitoring", "DEFAULT")
+        cluster_info = kafka_client.describe_cluster(ClusterArn=cluster_arn)['ClusterInfo']
+        cluster_monitoring = cluster_info.get('EnhancedMonitoring', 'DEFAULT')
         cluster_monitoring_rank = get_monitoring_level_rank(cluster_monitoring)
         metric_queries = []
 
         # Convert list of metrics to dict with None statistics to use defaults
         if isinstance(metrics, list):
-            metrics = {metric: None for metric in metrics}
+            metrics = dict.fromkeys(metrics)
         # Process each metric
         for i, (metric_name, statistic) in enumerate(metrics.items()):
-            logger.info(f"Processing metric {metric_name} with statistic {statistic}")
+            logger.info(f'Processing metric {metric_name} with statistic {statistic}')
             try:
                 # Get metric configuration
                 metric_config = get_metric_config(metric_name)
 
                 # Check if metric's monitoring level is supported
-                metric_level_rank = get_monitoring_level_rank(metric_config["monitoring_level"])
+                metric_level_rank = get_monitoring_level_rank(metric_config['monitoring_level'])
                 if metric_level_rank > cluster_monitoring_rank:
                     logger.warning(
-                        f"Metric {metric_name} requires {metric_config['monitoring_level']} monitoring "
-                        f"but cluster is configured for {cluster_monitoring}. Skipping metric."
+                        f'Metric {metric_name} requires {metric_config["monitoring_level"]} monitoring '
+                        f'but cluster is configured for {cluster_monitoring}. Skipping metric.'
                     )
                     continue
 
                 # Get default statistic if none provided
                 if not statistic:
-                    statistic = metric_config["default_statistic"]
+                    statistic = metric_config['default_statistic']
 
                 # Check if metric needs broker-specific data
-                if "Broker ID" in metric_config["dimensions"]:
+                if 'Broker ID' in metric_config['dimensions']:
                     # Get broker IDs from the cluster
                     nodes = kafka_client.list_nodes(ClusterArn=cluster_arn)
-                    logger.info(f"Got nodes response: {nodes}")
+                    logger.info(f'Got nodes response: {nodes}')
                     broker_ids = [
-                        str(int(node["BrokerNodeInfo"]["BrokerId"]))
-                        for node in nodes["NodeInfoList"]
+                        str(int(node['BrokerNodeInfo']['BrokerId']))
+                        for node in nodes['NodeInfoList']
                     ]
-                    logger.info(f"Extracted broker IDs: {broker_ids}")
+                    logger.info(f'Extracted broker IDs: {broker_ids}')
 
                     # Create a query for each broker
                     for broker_id in broker_ids:
                         dimensions = []
-                        for dim_name in metric_config["dimensions"]:
-                            if dim_name == "Cluster Name":
+                        for dim_name in metric_config['dimensions']:
+                            if dim_name == 'Cluster Name':
                                 dimensions.append(
-                                    {"Name": dim_name, "Value": get_cluster_name(cluster_arn)}
+                                    {'Name': dim_name, 'Value': get_cluster_name(cluster_arn)}
                                 )
-                            elif dim_name == "Broker ID":
-                                dimensions.append({"Name": dim_name, "Value": broker_id})
-                            elif dim_name == "ClientAuthentication":
+                            elif dim_name == 'Broker ID':
+                                dimensions.append({'Name': dim_name, 'Value': broker_id})
+                            elif dim_name == 'ClientAuthentication':
                                 # Skip client auth dimensions for now
                                 logger.warning(
-                                    f"ClientAuthentication dimension not yet supported for metric {metric_name}"
+                                    f'ClientAuthentication dimension not yet supported for metric {metric_name}'
                                 )
                             else:
                                 logger.warning(
-                                    f"Unsupported dimension {dim_name} for metric {metric_name}"
+                                    f'Unsupported dimension {dim_name} for metric {metric_name}'
                                 )
                         query = {
-                            "Id": f"m{i}_{broker_id}",
-                            "MetricStat": {
-                                "Metric": {
-                                    "Namespace": "AWS/Kafka",
-                                    "MetricName": metric_name,
-                                    "Dimensions": dimensions,
+                            'Id': f'm{i}_{broker_id}',
+                            'MetricStat': {
+                                'Metric': {
+                                    'Namespace': 'AWS/Kafka',
+                                    'MetricName': metric_name,
+                                    'Dimensions': dimensions,
                                 },
-                                "Period": period,
-                                "Stat": statistic,
+                                'Period': period,
+                                'Stat': statistic,
                             },
                         }
                         metric_queries.append(query)
                 else:
                     # Non-broker-specific metric
                     dimensions = []
-                    for dim_name in metric_config["dimensions"]:
-                        if dim_name == "Cluster Name":
+                    for dim_name in metric_config['dimensions']:
+                        if dim_name == 'Cluster Name':
                             dimensions.append(
-                                {"Name": dim_name, "Value": get_cluster_name(cluster_arn)}
+                                {'Name': dim_name, 'Value': get_cluster_name(cluster_arn)}
                             )
-                        elif dim_name == "ClientAuthentication":
+                        elif dim_name == 'ClientAuthentication':
                             # Skip client auth dimensions for now
                             logger.warning(
-                                f"ClientAuthentication dimension not yet supported for metric {metric_name}"
+                                f'ClientAuthentication dimension not yet supported for metric {metric_name}'
                             )
                         else:
                             logger.warning(
-                                f"Unsupported dimension {dim_name} for metric {metric_name}"
+                                f'Unsupported dimension {dim_name} for metric {metric_name}'
                             )
                     # If no dimensions were added, use cluster name as fallback
                     if not dimensions:
                         dimensions.append(
-                            {"Name": "Cluster Name", "Value": get_cluster_name(cluster_arn)}
+                            {'Name': 'Cluster Name', 'Value': get_cluster_name(cluster_arn)}
                         )
 
                     query = {
-                        "Id": f"m{i}",
-                        "MetricStat": {
-                            "Metric": {
-                                "Namespace": "AWS/Kafka",
-                                "MetricName": metric_name,
-                                "Dimensions": dimensions,
+                        'Id': f'm{i}',
+                        'MetricStat': {
+                            'Metric': {
+                                'Namespace': 'AWS/Kafka',
+                                'MetricName': metric_name,
+                                'Dimensions': dimensions,
                             },
-                            "Period": period,
-                            "Stat": statistic,
+                            'Period': period,
+                            'Stat': statistic,
                         },
                     }
                     metric_queries.append(query)
             except KeyError:
                 # Fallback to basic configuration if metric not found
                 logger.warning(
-                    f"No configuration found for metric {metric_name}, using default configuration"
+                    f'No configuration found for metric {metric_name}, using default configuration'
                 )
-                statistic = statistic or "Average"
-                dimensions = [{"Name": "Cluster Name", "Value": get_cluster_name(cluster_arn)}]
+                statistic = statistic or 'Average'
+                dimensions = [{'Name': 'Cluster Name', 'Value': get_cluster_name(cluster_arn)}]
 
                 query = {
-                    "Id": f"m{i}",
-                    "MetricStat": {
-                        "Metric": {
-                            "Namespace": "AWS/Kafka",
-                            "MetricName": metric_name,
-                            "Dimensions": dimensions,
+                    'Id': f'm{i}',
+                    'MetricStat': {
+                        'Metric': {
+                            'Namespace': 'AWS/Kafka',
+                            'MetricName': metric_name,
+                            'Dimensions': dimensions,
                         },
-                        "Period": period,
-                        "Stat": statistic,
+                        'Period': period,
+                        'Stat': statistic,
                     },
                 }
                 metric_queries.append(query)
         # Prepare GetMetricData parameters
-        params = {"MetricDataQueries": metric_queries, "StartTime": start_time, "EndTime": end_time}
-        logger.info(f"Final metric queries: {json.dumps(metric_queries, indent=2)}")
+        params = {
+            'MetricDataQueries': metric_queries,
+            'StartTime': start_time,
+            'EndTime': end_time,
+        }
+        logger.info(f'Final metric queries: {json.dumps(metric_queries, indent=2)}')
 
         # Add optional parameters if provided
         if scan_by:
-            params["ScanBy"] = scan_by
+            params['ScanBy'] = scan_by
         if label_options:
-            params["LabelOptions"] = label_options
+            params['LabelOptions'] = label_options
 
         # Handle pagination if config is provided
         if pagination_config:
-            paginator = cloudwatch_client.get_paginator("get_metric_data")
+            paginator = cloudwatch_client.get_paginator('get_metric_data')
             response = paginator.paginate(
                 **params, PaginationConfig=pagination_config
             ).build_full_result()
@@ -249,9 +272,9 @@ def get_cluster_metrics(
         return response
     except ClientError as e:
         logger.error(
-            f"AWS API error: {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            f'AWS API error: {e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
         )
         raise
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
+        logger.error(f'Unexpected error: {str(e)}')
         raise

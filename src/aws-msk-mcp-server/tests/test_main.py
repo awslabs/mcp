@@ -20,12 +20,12 @@ from unittest.mock import patch
 
 class TestMain:
     """Tests for the main function."""
-    
+
     @patch('awslabs.aws_msk_mcp_server.server.run')
     def test_main_calls_run(self, mock_run):
         """Test that main calls the run function."""
         # Act
         main()
-        
+
         # Assert
         mock_run.assert_called_once()

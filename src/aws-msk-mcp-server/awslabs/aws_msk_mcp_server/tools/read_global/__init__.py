@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Global Information API Module
 
@@ -6,6 +20,7 @@ This module provides functions to retrieve global information about MSK resource
 
 import boto3
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from .list_clusters import list_clusters
 from .list_configurations import list_configurations
@@ -14,8 +29,15 @@ from .list_vpc_connections import list_vpc_connections
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name="get_global_info")
-    def get_global_info(region, info_type="all", kwargs={}):
+    @mcp.tool(name='get_global_info')
+    def get_global_info(
+        region: str = Field(..., description='AWS region'),
+        info_type: str = Field(
+            'all',
+            description='Type of information to retrieve (clusters, configurations, vpc_connections, kafka_versions, all)',
+        ),
+        kwargs: dict = Field({}, description='Additional arguments specific to each info type'),
+    ):
         """
         Unified API to retrieve various types of global information about MSK resources.
 
@@ -44,36 +66,36 @@ def register_module(mcp: FastMCP) -> None:
                     - KafkaVersions (list): List of Kafka version strings
         """
         # Create a single boto3 client to be shared across all function calls
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
-        if info_type == "all":
+        if info_type == 'all':
             # Retrieve all types of information
             result = {
-                "clusters": list_clusters(
+                'clusters': list_clusters(
                     client,
-                    cluster_name_filter=kwargs.get("cluster_name_filter"),
-                    cluster_type_filter=kwargs.get("cluster_type_filter"),
-                    max_results=kwargs.get("max_results", 10),
-                    next_token=kwargs.get("next_token"),
+                    cluster_name_filter=kwargs.get('cluster_name_filter'),
+                    cluster_type_filter=kwargs.get('cluster_type_filter'),
+                    max_results=kwargs.get('max_results', 10),
+                    next_token=kwargs.get('next_token'),
                 ),
-                "configurations": list_configurations(
+                'configurations': list_configurations(
                     client,
-                    max_results=kwargs.get("max_results", 10),
-                    next_token=kwargs.get("next_token"),
+                    max_results=kwargs.get('max_results', 10),
+                    next_token=kwargs.get('next_token'),
                 ),
-                "vpc_connections": list_vpc_connections(
+                'vpc_connections': list_vpc_connections(
                     client,
-                    max_results=kwargs.get("max_results", 10),
-                    next_token=kwargs.get("next_token"),
+                    max_results=kwargs.get('max_results', 10),
+                    next_token=kwargs.get('next_token'),
                 ),
-                "kafka_versions": list_kafka_versions(client),
+                'kafka_versions': list_kafka_versions(client),
             }
             return result
-        elif info_type == "clusters":
-            cluster_name_filter = kwargs.get("cluster_name_filter")
-            cluster_type_filter = kwargs.get("cluster_type_filter")
-            max_results = kwargs.get("max_results", 10)
-            next_token = kwargs.get("next_token")
+        elif info_type == 'clusters':
+            cluster_name_filter = kwargs.get('cluster_name_filter')
+            cluster_type_filter = kwargs.get('cluster_type_filter')
+            max_results = kwargs.get('max_results', 10)
+            next_token = kwargs.get('next_token')
 
             return list_clusters(
                 client,
@@ -82,17 +104,17 @@ def register_module(mcp: FastMCP) -> None:
                 max_results=max_results,
                 next_token=next_token,
             )
-        elif info_type == "configurations":
-            max_results = kwargs.get("max_results", 10)
-            next_token = kwargs.get("next_token")
+        elif info_type == 'configurations':
+            max_results = kwargs.get('max_results', 10)
+            next_token = kwargs.get('next_token')
 
             return list_configurations(client, max_results=max_results, next_token=next_token)
-        elif info_type == "vpc_connections":
-            max_results = kwargs.get("max_results", 10)
-            next_token = kwargs.get("next_token")
+        elif info_type == 'vpc_connections':
+            max_results = kwargs.get('max_results', 10)
+            next_token = kwargs.get('next_token')
 
             return list_vpc_connections(client, max_results=max_results, next_token=next_token)
-        elif info_type == "kafka_versions":
+        elif info_type == 'kafka_versions':
             return list_kafka_versions(client)
         else:
-            raise ValueError(f"Unsupported info_type: {info_type}")
+            raise ValueError(f'Unsupported info_type: {info_type}')

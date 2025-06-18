@@ -1,17 +1,30 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Common functions that may be shared amongst tools
+
 """Tools for managing IAM access to MSK clusters."""
 
 import re
-from typing import Any, Dict
-
+from .. import common_functions
 from botocore.exceptions import ClientError
 from loguru import logger
-
-from .. import common_functions
+from typing import Any, Dict
 
 
 def list_customer_iam_access(cluster_arn: str, client_manager=None) -> Dict[str, Any]:
-    """
-    List IAM access information for an MSK cluster.
+    """List IAM access information for an MSK cluster.
 
     Args:
         cluster_arn: The ARN of the MSK cluster
@@ -27,69 +40,69 @@ def list_customer_iam_access(cluster_arn: str, client_manager=None) -> Dict[str,
         # Validate client manager
         if client_manager is None:
             raise ValueError(
-                "Client manager must be provided. This function should only be called from a tool function."
+                'Client manager must be provided. This function should only be called from a tool function.'
             )
 
         # Get clients from the client manager
-        kafka = client_manager.get_client("kafka")
-        iam = client_manager.get_client("iam")
+        kafka = client_manager.get_client('kafka')
+        iam = client_manager.get_client('iam')
 
-        if not cluster_arn.startswith("arn:aws:kafka:"):
-            raise ValueError("cluster_arn must be a valid MSK cluster ARN")
+        if not cluster_arn.startswith('arn:aws:kafka:'):
+            raise ValueError('cluster_arn must be a valid MSK cluster ARN')
 
         # Get cluster details
-        cluster_info = kafka.describe_cluster(ClusterArn=cluster_arn)["ClusterInfo"]
+        cluster_info = kafka.describe_cluster(ClusterArn=cluster_arn)['ClusterInfo']
 
         # Extract cluster name from ARN
         cluster_name = common_functions.get_cluster_name(cluster_arn)
 
         # Check IAM authentication status
         iam_auth_enabled = (
-            cluster_info.get("BrokerNodeGroupInfo", {})
-            .get("ConnectivityInfo", {})
-            .get("VpcConnectivity", {})
-            .get("ClientAuthentication", {})
-            .get("Sasl", {})
-            .get("Iam", {})
-            .get("Enabled", False)
+            cluster_info.get('BrokerNodeGroupInfo', {})
+            .get('ConnectivityInfo', {})
+            .get('VpcConnectivity', {})
+            .get('ClientAuthentication', {})
+            .get('Sasl', {})
+            .get('Iam', {})
+            .get('Enabled', False)
         )
 
         # Get resource-based policies
         try:
-            resource_policies = kafka.get_cluster_policy(ClusterArn=cluster_arn).get("Policy", [])
+            resource_policies = kafka.get_cluster_policy(ClusterArn=cluster_arn).get('Policy', [])
         except ClientError as e:
-            if e.response["Error"]["Code"] == "NotFoundException":
+            if e.response['Error']['Code'] == 'NotFoundException':
                 resource_policies = []
             else:
                 raise
 
         # First find policies that explicitly reference this cluster
         matching_policies = {}
-        paginator = iam.get_paginator("list_policies")
-        for page in paginator.paginate(Scope="Local"):  # Only look at customer-managed policies
-            for policy in page["Policies"]:
+        paginator = iam.get_paginator('list_policies')
+        for page in paginator.paginate(Scope='Local'):  # Only look at customer-managed policies
+            for policy in page['Policies']:
                 try:
                     version = iam.get_policy_version(
-                        PolicyArn=policy["Arn"], VersionId=policy["DefaultVersionId"]
+                        PolicyArn=policy['Arn'], VersionId=policy['DefaultVersionId']
                     )
 
-                    for statement in version["PolicyVersion"]["Document"]["Statement"]:
-                        resources = statement.get("Resource", [])
+                    for statement in version['PolicyVersion']['Document']['Statement']:
+                        resources = statement.get('Resource', [])
                         if isinstance(resources, str):
                             resources = [resources]
 
                         # Check if any kafka-related actions are allowed
-                        actions = statement.get("Action", [])
+                        actions = statement.get('Action', [])
                         if isinstance(actions, str):
                             actions = [actions]
 
                         logger.info(
-                            f"Checking policy {policy['PolicyName']} with actions: {actions}"
+                            f'Checking policy {policy["PolicyName"]} with actions: {actions}'
                         )
                         if any(
-                            action.startswith(("kafka:", "kafka-cluster:")) for action in actions
+                            action.startswith(('kafka:', 'kafka-cluster:')) for action in actions
                         ):
-                            logger.info(f"Found kafka actions in policy {policy['PolicyName']}")
+                            logger.info(f'Found kafka actions in policy {policy["PolicyName"]}')
                             # Check various resource patterns that could match this cluster
                             matches = False
                             match_type = None
@@ -97,39 +110,39 @@ def list_customer_iam_access(cluster_arn: str, client_manager=None) -> Dict[str,
                             for resource in resources:
                                 if resource == cluster_arn:
                                     matches = True
-                                    match_type = "exact"
+                                    match_type = 'exact'
                                     break
-                                elif resource == "*":
+                                elif resource == '*':
                                     matches = True
-                                    match_type = "global_wildcard"
+                                    match_type = 'global_wildcard'
                                     break
                                 # Extract region from cluster ARN
-                                cluster_region = cluster_arn.split(":")[3]
+                                cluster_region = cluster_arn.split(':')[3]
 
                                 if (
                                     resource
-                                    == f"arn:aws:kafka:{cluster_region}:*:cluster/{cluster_name}/*"
+                                    == f'arn:aws:kafka:{cluster_region}:*:cluster/{cluster_name}/*'
                                 ):
                                     matches = True
-                                    match_type = "cluster_wildcard"
+                                    match_type = 'cluster_wildcard'
                                     break
-                                elif resource.startswith("arn:aws:kafka:") and "*" in resource:
+                                elif resource.startswith('arn:aws:kafka:') and '*' in resource:
                                     # Check if wildcard pattern could match this cluster
-                                    pattern = resource.replace("*", ".*").replace("?", ".")
+                                    pattern = resource.replace('*', '.*').replace('?', '.')
                                     if re.match(pattern, cluster_arn):
                                         matches = True
-                                        match_type = "pattern_match"
+                                        match_type = 'pattern_match'
                                         break
                             if matches:
-                                matching_policies[policy["Arn"]] = {
-                                    "PolicyName": policy["PolicyName"],
-                                    "Statement": statement,
-                                    "ResourceType": match_type,
-                                    "AttachedRoles": [],
+                                matching_policies[policy['Arn']] = {
+                                    'PolicyName': policy['PolicyName'],
+                                    'Statement': statement,
+                                    'ResourceType': match_type,
+                                    'AttachedRoles': [],
                                 }
                                 break
                 except Exception as e:
-                    logger.error(f"Error processing policy {policy['PolicyName']}: {str(e)}")
+                    logger.error(f'Error processing policy {policy["PolicyName"]}: {str(e)}')
                     continue
         # For each matching policy, find attached roles
         for policy_arn in matching_policies:
@@ -137,22 +150,22 @@ def list_customer_iam_access(cluster_arn: str, client_manager=None) -> Dict[str,
                 attached_entities = iam.list_entities_for_policy(PolicyArn=policy_arn)
                 matching_policies[policy_arn].update(attached_entities)
             except Exception as e:
-                logger.error(f"Error getting roles for policy {policy_arn}: {str(e)}")
+                logger.error(f'Error getting roles for policy {policy_arn}: {str(e)}')
                 continue
         return {
-            "cluster_info": {
-                "cluster_arn": cluster_arn,
-                "cluster_name": cluster_name,
-                "iam_auth_enabled": iam_auth_enabled,
+            'cluster_info': {
+                'cluster_arn': cluster_arn,
+                'cluster_name': cluster_name,
+                'iam_auth_enabled': iam_auth_enabled,
             },
-            "resource_policies": resource_policies,
-            "matching_policies": matching_policies,
+            'resource_policies': resource_policies,
+            'matching_policies': matching_policies,
         }
     except ClientError as e:
         logger.error(
-            f"AWS API error: {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            f'AWS API error: {e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
         )
         raise
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
+        logger.error(f'Unexpected error: {str(e)}')
         raise

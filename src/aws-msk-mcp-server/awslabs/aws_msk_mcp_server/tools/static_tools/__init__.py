@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Static Tools API Module
 
@@ -5,13 +19,22 @@ This module provides static tools that do not require AWS API calls.
 """
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from .cluster_best_practices import get_cluster_best_practices
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name="get_cluster_best_practices")
-    def get_cluster_best_practices_tool(instance_type: str, number_of_brokers: int):
+    @mcp.tool(name='get_cluster_best_practices')
+    def get_cluster_best_practices_tool(
+        instance_type: str = Field(
+            ...,
+            description='The AWS MSK broker instance type (e.g., kafka.m5.large, kafka.m5.xlarge, express.m7g.large)',
+        ),
+        number_of_brokers: int = Field(
+            ..., description='The total number of brokers in the MSK cluster'
+        ),
+    ):
         """
         Provides detailed best practices and quotas for AWS MSK clusters to guide in evaluating cluster health and identifying deviations.
 

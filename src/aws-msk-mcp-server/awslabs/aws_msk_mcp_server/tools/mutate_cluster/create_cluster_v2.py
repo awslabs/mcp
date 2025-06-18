@@ -1,12 +1,24 @@
-"""
-Function to create a new MSK cluster.
-Maps to AWS CLI command: aws kafka create-cluster-v2
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Function to create a new MSK cluster.
+
+Maps to AWS CLI command: aws kafka create-cluster-v2.
 """
 
 
-def create_cluster_v2(cluster_name, cluster_type="PROVISIONED", client=None, **kwargs):
-    """
-    Creates a new MSK cluster.
+def create_cluster_v2(cluster_name, cluster_type='PROVISIONED', client=None, **kwargs):
+    """Creates a new MSK cluster.
 
     Args:
         cluster_name (str): The name of the cluster
@@ -35,57 +47,57 @@ def create_cluster_v2(cluster_name, cluster_type="PROVISIONED", client=None, **k
     """
     if client is None:
         raise ValueError(
-            "Client must be provided. This function should only be called from a tool function."
+            'Client must be provided. This function should only be called from a tool function.'
         )
 
     # Base parameters
-    params = {"ClusterName": cluster_name}
+    params = {'ClusterName': cluster_name}
 
     # Add cluster type specific parameters
-    if cluster_type == "PROVISIONED":
+    if cluster_type == 'PROVISIONED':
         provisioned_params = {}
 
         # Add required parameters for provisioned clusters
-        if "broker_node_group_info" in kwargs:
-            provisioned_params["BrokerNodeGroupInfo"] = kwargs.get("broker_node_group_info")
+        if 'broker_node_group_info' in kwargs:
+            provisioned_params['BrokerNodeGroupInfo'] = kwargs.get('broker_node_group_info')
 
-        if "kafka_version" in kwargs:
-            provisioned_params["KafkaVersion"] = kwargs.get("kafka_version")
+        if 'kafka_version' in kwargs:
+            provisioned_params['KafkaVersion'] = kwargs.get('kafka_version')
 
-        if "number_of_broker_nodes" in kwargs:
-            provisioned_params["NumberOfBrokerNodes"] = kwargs.get("number_of_broker_nodes")
+        if 'number_of_broker_nodes' in kwargs:
+            provisioned_params['NumberOfBrokerNodes'] = kwargs.get('number_of_broker_nodes')
 
         # Add optional parameters if provided
         for param, key in [
-            ("client_authentication", "ClientAuthentication"),
-            ("encryption_info", "EncryptionInfo"),
-            ("enhanced_monitoring", "EnhancedMonitoring"),
-            ("open_monitoring", "OpenMonitoring"),
-            ("logging_info", "LoggingInfo"),
-            ("configuration_info", "ConfigurationInfo"),
-            ("storage_mode", "StorageMode"),
+            ('client_authentication', 'ClientAuthentication'),
+            ('encryption_info', 'EncryptionInfo'),
+            ('enhanced_monitoring', 'EnhancedMonitoring'),
+            ('open_monitoring', 'OpenMonitoring'),
+            ('logging_info', 'LoggingInfo'),
+            ('configuration_info', 'ConfigurationInfo'),
+            ('storage_mode', 'StorageMode'),
         ]:
             if param in kwargs:
                 provisioned_params[key] = kwargs.get(param)
 
-        params["Provisioned"] = provisioned_params
+        params['Provisioned'] = provisioned_params
 
-    elif cluster_type == "SERVERLESS":
+    elif cluster_type == 'SERVERLESS':
         serverless_params = {}
 
         # Add required parameters for serverless clusters
-        if "vpc_configs" in kwargs:
-            serverless_params["VpcConfigs"] = kwargs.get("vpc_configs")
+        if 'vpc_configs' in kwargs:
+            serverless_params['VpcConfigs'] = kwargs.get('vpc_configs')
 
         # Add optional parameters if provided
-        if "client_authentication" in kwargs:
-            serverless_params["ClientAuthentication"] = kwargs.get("client_authentication")
+        if 'client_authentication' in kwargs:
+            serverless_params['ClientAuthentication'] = kwargs.get('client_authentication')
 
-        params["Serverless"] = serverless_params
+        params['Serverless'] = serverless_params
 
     # Add tags if provided
-    if "tags" in kwargs:
-        params["Tags"] = kwargs.get("tags")
+    if 'tags' in kwargs:
+        params['Tags'] = kwargs.get('tags')
 
     # Example implementation
     response = client.create_cluster_v2(**params)

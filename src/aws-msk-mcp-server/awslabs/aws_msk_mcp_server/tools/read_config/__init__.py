@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Configuration and Resource Information API Module
 
@@ -6,6 +20,7 @@ This module provides functions to retrieve information about MSK configurations 
 
 import boto3
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from .describe_configuration import describe_configuration
 from .describe_configuration_revision import describe_configuration_revision
@@ -14,8 +29,16 @@ from .list_tags_for_resource import list_tags_for_resource
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name="get_configuration_info")
-    def get_configuration_info(region, action, arn, kwargs={}):
+    @mcp.tool(name='get_configuration_info')
+    def get_configuration_info(
+        region: str = Field(..., description='AWS region'),
+        action: str = Field(
+            ...,
+            description="The operation to perform: 'describe', 'revisions', or 'revision_details'",
+        ),
+        arn: str = Field(..., description='The Amazon Resource Name (ARN) of the configuration'),
+        kwargs: dict = Field({}, description='Additional arguments based on the action'),
+    ):
         """
         Get information about MSK configurations.
 
@@ -66,28 +89,31 @@ def register_module(mcp: FastMCP) -> None:
             get_configuration_info(action="revision_details", arn="arn:aws:kafka:us-east-1:123456789012:configuration/example-config", revision=3)
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
-        if action == "describe":
+        if action == 'describe':
             return describe_configuration(arn, client)
-        elif action == "revisions":
-            max_results = kwargs.get("max_results", 10)
-            next_token = kwargs.get("next_token", "")
+        elif action == 'revisions':
+            max_results = kwargs.get('max_results', 10)
+            next_token = kwargs.get('next_token', '')
             return list_configuration_revisions(
                 arn, client, max_results=max_results, next_token=next_token
             )
-        elif action == "revision_details":
-            revision = kwargs.get("revision")
+        elif action == 'revision_details':
+            revision = kwargs.get('revision')
             if not revision:
-                raise ValueError("Revision number is required for revision_details action")
+                raise ValueError('Revision number is required for revision_details action')
             return describe_configuration_revision(arn, revision, client)
         else:
             raise ValueError(
-                f"Unsupported action: {action}. Supported actions are: describe, revisions, revision_details"
+                f'Unsupported action: {action}. Supported actions are: describe, revisions, revision_details'
             )
 
-    @mcp.tool(name="list_tags_for_resource")
-    def list_tags_for_resource_tool(region, arn):
+    @mcp.tool(name='list_tags_for_resource')
+    def list_tags_for_resource_tool(
+        region: str = Field(description='AWS region'),
+        arn: str = Field(description='The Amazon Resource Name (ARN) of the resource'),
+    ):
         """
         List all tags for an MSK resource.
 
@@ -105,5 +131,5 @@ def register_module(mcp: FastMCP) -> None:
                 }
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
         return list_tags_for_resource(arn, client)

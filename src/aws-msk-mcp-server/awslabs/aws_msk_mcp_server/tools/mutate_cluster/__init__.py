@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Infrastructure Management API Module
 
@@ -5,9 +19,11 @@ This module provides functions to manage infrastructure aspects of MSK clusters.
 """
 
 import json
+from typing import Optional
 
 import boto3
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from ..common_functions import check_mcp_generated_tag
 from .batch_associate_scram_secret import batch_associate_scram_secret
@@ -24,8 +40,20 @@ from .update_security import update_security
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name="create_cluster")
-    def create_cluster_tool(region, cluster_name, cluster_type="PROVISIONED", kwargs="{}"):
+    @mcp.tool(name='create_cluster')
+    def create_cluster_tool(
+        region: str = Field(..., description="AWS region (e.g., 'us-east-1', 'eu-west-1')"),
+        cluster_name: str = Field(
+            ...,
+            description='The name of the cluster (must be 1-64 characters, alphanumeric and hyphens only)',
+        ),
+        cluster_type: str = Field(
+            'PROVISIONED', description='Type of cluster to create (PROVISIONED or SERVERLESS)'
+        ),
+        kwargs: str = Field(
+            '{}', description='JSON string containing additional arguments based on cluster type'
+        ),
+    ):
         """
         Create a new MSK cluster.
 
@@ -117,7 +145,7 @@ def register_module(mcp: FastMCP) -> None:
             tag_resource_tool(resource_arn=response["ClusterArn"], tags={"MCP Generated": "true"})
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Handle kwargs whether it's a string or a dictionary
         if kwargs:
@@ -134,9 +162,17 @@ def register_module(mcp: FastMCP) -> None:
 
         return create_cluster_v2(cluster_name, cluster_type, client=client, **kwargs_dict)
 
-    @mcp.tool(name="update_broker_storage")
+    @mcp.tool(name='update_broker_storage')
     def update_broker_storage_tool(
-        region, cluster_arn, current_version, target_broker_ebs_volume_info
+        region: str = Field(..., description='AWS region'),
+        cluster_arn: str = Field(
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
+        ),
+        current_version: str = Field(..., description='The version of cluster to update from'),
+        target_broker_ebs_volume_info: str = Field(
+            ...,
+            description='List of dictionaries describing the target volume size and broker IDs',
+        ),
     ):
         """
         Update the storage size of brokers in an MSK cluster.
@@ -167,7 +203,7 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -180,8 +216,19 @@ def register_module(mcp: FastMCP) -> None:
             cluster_arn, current_version, target_broker_ebs_volume_info, client
         )
 
-    @mcp.tool(name="update_broker_type")
-    def update_broker_type_tool(region, cluster_arn, current_version, target_instance_type):
+    @mcp.tool(name='update_broker_type')
+    def update_broker_type_tool(
+        region: str = Field(..., description='AWS region'),
+        cluster_arn: str = Field(
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
+        ),
+        current_version: str = Field(
+            ..., description='The cluster version that you want to change'
+        ),
+        target_instance_type: str = Field(
+            ..., description='The Amazon MSK broker type that you want all brokers to be'
+        ),
+    ):
         """
         Update the broker type in an MSK cluster.
 
@@ -200,7 +247,7 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -211,9 +258,21 @@ def register_module(mcp: FastMCP) -> None:
 
         return update_broker_type(cluster_arn, current_version, target_instance_type, client)
 
-    @mcp.tool(name="update_cluster_configuration")
+    @mcp.tool(name='update_cluster_configuration')
     def update_cluster_configuration_tool(
-        region, cluster_arn, configuration_arn, configuration_revision, current_version
+        region: str = Field(..., description='AWS region'),
+        cluster_arn: str = Field(
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
+        ),
+        configuration_arn: str = Field(
+            ..., description='The Amazon Resource Name (ARN) of the configuration to use'
+        ),
+        configuration_revision: int = Field(
+            ..., description='The revision of the configuration to use'
+        ),
+        current_version: str = Field(
+            ..., description='The version of the cluster that you want to update'
+        ),
     ):
         """
         Update the configuration of an MSK cluster.
@@ -233,7 +292,7 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -246,14 +305,24 @@ def register_module(mcp: FastMCP) -> None:
             cluster_arn, configuration_arn, configuration_revision, current_version, client
         )
 
-    @mcp.tool(name="update_monitoring")
+    @mcp.tool(name='update_monitoring')
     def update_monitoring_tool(
-        region,
-        cluster_arn,
-        current_version,
-        enhanced_monitoring,
-        open_monitoring=None,
-        logging_info=None,
+        region: str = Field(..., description='AWS region'),
+        cluster_arn: str = Field(
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
+        ),
+        current_version: str = Field(
+            ..., description='The version of the cluster that you want to update'
+        ),
+        enhanced_monitoring: str = Field(
+            ..., description='Specifies the level of monitoring for the MSK cluster'
+        ),
+        open_monitoring: Optional[dict] = Field(
+            None, description='The settings for open monitoring with Prometheus'
+        ),
+        logging_info: Optional[dict] = Field(
+            None, description='The settings for broker logs delivery'
+        ),
     ):
         """
         Update the monitoring settings of an MSK cluster.
@@ -288,7 +357,7 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -299,17 +368,27 @@ def register_module(mcp: FastMCP) -> None:
 
         kwargs = {}
         if open_monitoring:
-            kwargs["open_monitoring"] = open_monitoring
+            kwargs['open_monitoring'] = open_monitoring
         if logging_info:
-            kwargs["logging_info"] = logging_info
+            kwargs['logging_info'] = logging_info
 
         return update_monitoring(
             cluster_arn, current_version, enhanced_monitoring, client=client, **kwargs
         )
 
-    @mcp.tool(name="update_security")
+    @mcp.tool(name='update_security')
     def update_security_tool(
-        region, cluster_arn, current_version, client_authentication=None, encryption_info=None
+        region: str = Field(..., description='AWS region'),
+        cluster_arn: str = Field(
+            ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
+        ),
+        current_version: str = Field(
+            ..., description='The version of the cluster that you want to update'
+        ),
+        client_authentication: Optional[dict] = Field(
+            None, description='Client authentication settings'
+        ),
+        encryption_info: Optional[dict] = Field(None, description='Encryption settings'),
     ):
         """
         Update the security settings of an MSK cluster.
@@ -345,7 +424,7 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -356,14 +435,20 @@ def register_module(mcp: FastMCP) -> None:
 
         kwargs = {}
         if client_authentication:
-            kwargs["client_authentication"] = client_authentication
+            kwargs['client_authentication'] = client_authentication
         if encryption_info:
-            kwargs["encryption_info"] = encryption_info
+            kwargs['encryption_info'] = encryption_info
 
         return update_security(cluster_arn, current_version, client=client, **kwargs)
 
-    @mcp.tool(name="put_cluster_policy")
-    def put_cluster_policy_tool(region, cluster_arn, policy):
+    @mcp.tool(name='put_cluster_policy')
+    def put_cluster_policy_tool(
+        region: str = Field(description='AWS region'),
+        cluster_arn: str = Field(
+            description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
+        ),
+        policy: dict = Field(description='The JSON policy to attach to the cluster'),
+    ):
         """
         Put a resource policy on an MSK cluster.
 
@@ -394,7 +479,7 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -405,9 +490,18 @@ def register_module(mcp: FastMCP) -> None:
 
         return put_cluster_policy(cluster_arn, policy, client)
 
-    @mcp.tool(name="update_broker_count")
+    @mcp.tool(name='update_broker_count')
     def update_broker_count_tool(
-        region, cluster_arn, current_version, target_number_of_broker_nodes
+        region: str = Field(description='AWS region'),
+        cluster_arn: str = Field(
+            description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
+        ),
+        current_version: str = Field(
+            description='The version of the cluster that you want to update'
+        ),
+        target_number_of_broker_nodes: int = Field(
+            description='The number of broker nodes that you want the cluster to have'
+        ),
     ):
         """
         Update the number of brokers in an MSK cluster.
@@ -427,7 +521,7 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -440,8 +534,12 @@ def register_module(mcp: FastMCP) -> None:
             cluster_arn, current_version, target_number_of_broker_nodes, client
         )
 
-    @mcp.tool(name="associate_scram_secret")
-    def associate_scram_secret_tool(region, cluster_arn, secret_arns):
+    @mcp.tool(name='associate_scram_secret')
+    def associate_scram_secret_tool(
+        region: str = Field(description='AWS region'),
+        cluster_arn: str = Field(description='The ARN of the cluster'),
+        secret_arns: list = Field(description='List of secret ARNs to associate'),
+    ):
         """
         Associate SCRAM secrets with an MSK cluster.
 
@@ -458,7 +556,7 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -469,8 +567,12 @@ def register_module(mcp: FastMCP) -> None:
 
         return batch_associate_scram_secret(cluster_arn, secret_arns, client)
 
-    @mcp.tool(name="disassociate_scram_secret")
-    def disassociate_scram_secret_tool(region, cluster_arn, secret_arns):
+    @mcp.tool(name='disassociate_scram_secret')
+    def disassociate_scram_secret_tool(
+        region: str = Field(description='AWS region'),
+        cluster_arn: str = Field(description='The ARN of the cluster'),
+        secret_arns: list = Field(description='List of secret ARNs to disassociate'),
+    ):
         """
         Disassociate SCRAM secrets from an MSK cluster.
 
@@ -487,7 +589,7 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -498,8 +600,12 @@ def register_module(mcp: FastMCP) -> None:
 
         return batch_disassociate_scram_secret(cluster_arn, secret_arns, client)
 
-    @mcp.tool(name="reboot_broker")
-    def reboot_broker_tool(region, cluster_arn, broker_ids):
+    @mcp.tool(name='reboot_broker')
+    def reboot_broker_tool(
+        region: str = Field(description='AWS region'),
+        cluster_arn: str = Field(description='The ARN of the cluster'),
+        broker_ids: list = Field(description='List of broker IDs to reboot'),
+    ):
         """
         Reboot brokers in an MSK cluster.
 
@@ -512,5 +618,5 @@ def register_module(mcp: FastMCP) -> None:
             dict: Result of the operation
         """
         # Create a boto3 client
-        client = boto3.client("kafka", region_name=region)
+        client = boto3.client('kafka', region_name=region)
         return reboot_broker(cluster_arn, broker_ids, client)

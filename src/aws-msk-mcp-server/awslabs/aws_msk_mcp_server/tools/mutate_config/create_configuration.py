@@ -1,12 +1,24 @@
-"""
-Function to create a new MSK configuration.
-Maps to AWS CLI command: aws kafka create-configuration
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Function to create a new MSK configuration.
+
+Maps to AWS CLI command: aws kafka create-configuration.
 """
 
 
-def create_configuration(name, server_properties, client, description="", kafka_versions=None):
-    """
-    Creates a new MSK configuration.
+def create_configuration(name, server_properties, client, description='', kafka_versions=None):
+    """Creates a new MSK configuration.
 
     Args:
         name (str): The name of the configuration
@@ -21,18 +33,18 @@ def create_configuration(name, server_properties, client, description="", kafka_
     """
     if client is None:
         raise ValueError(
-            "Client must be provided. This function should only be called from a tool function."
+            'Client must be provided. This function should only be called from a tool function.'
         )
 
     # Build the request parameters
-    params = {"Name": name, "ServerProperties": server_properties}
+    params = {'Name': name, 'ServerProperties': server_properties}
 
     # Add optional parameters if provided
     if description:
-        params["Description"] = description
+        params['Description'] = description
 
     if kafka_versions:
-        params["KafkaVersions"] = kafka_versions
+        params['KafkaVersions'] = kafka_versions
 
     response = client.create_configuration(**params)
 

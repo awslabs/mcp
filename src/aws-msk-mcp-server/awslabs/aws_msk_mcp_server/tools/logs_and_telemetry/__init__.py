@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Logs and Telemetry API Module
 
@@ -6,6 +20,7 @@ as well as a separate tool for IAM access information.
 """
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from ..common_functions.client_manager import AWSClientManager
 from .cluster_metrics_tools import get_cluster_metrics, list_available_metrics
@@ -13,8 +28,17 @@ from .list_customer_iam_access import list_customer_iam_access
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name="get_cluster_telemetry")
-    def get_cluster_telemetry(region, action, cluster_arn=None, kwargs={}):
+    @mcp.tool(name='get_cluster_telemetry')
+    def get_cluster_telemetry(
+        region: str = Field(..., description='AWS region'),
+        action: str = Field(
+            ..., description='The operation to perform (metrics, available_metrics)'
+        ),
+        cluster_arn: str = Field(
+            None, description='The ARN of the cluster (required for cluster operations)'
+        ),
+        kwargs: dict = Field({}, description='Additional arguments based on the action type'),
+    ):
         """
         Unified API to retrieve telemetry data for MSK clusters. Current implementation of metrics uses a static table of available metrics.
         Would be better to have a resource to pull this data from and force read it first.
@@ -92,30 +116,30 @@ def register_module(mcp: FastMCP) -> None:
                     - Metrics (list): List of available metrics based on the monitoring level
                     - MonitoringLevel (str): The monitoring level used to filter metrics
         """
-        if action == "metrics" and cluster_arn:
+        if action == 'metrics' and cluster_arn:
             # Create a client manager instance
             client_manager = AWSClientManager()
 
             # Extract required parameters from kwargs
-            start_time = kwargs.get("start_time")
-            end_time = kwargs.get("end_time")
-            period = kwargs.get("period")
-            metrics = kwargs.get("metrics")
+            start_time = kwargs.get('start_time')
+            end_time = kwargs.get('end_time')
+            period = kwargs.get('period')
+            metrics = kwargs.get('metrics')
 
             # Check if required parameters exist
             if start_time is None:
-                raise ValueError("start_time is required for metrics action")
+                raise ValueError('start_time is required for metrics action')
             if end_time is None:
-                raise ValueError("end_time is required for metrics action")
+                raise ValueError('end_time is required for metrics action')
             if period is None:
-                raise ValueError("period is required for metrics action")
+                raise ValueError('period is required for metrics action')
             if metrics is None:
-                raise ValueError("metrics is required for metrics action")
+                raise ValueError('metrics is required for metrics action')
 
             # Extract optional parameters from kwargs
-            scan_by = kwargs.get("scan_by")
-            label_options = kwargs.get("label_options")
-            pagination_config = kwargs.get("pagination_config")
+            scan_by = kwargs.get('scan_by')
+            label_options = kwargs.get('label_options')
+            pagination_config = kwargs.get('pagination_config')
 
             # Pass the extracted parameters to the get_cluster_metrics function
             return get_cluster_metrics(
@@ -130,28 +154,31 @@ def register_module(mcp: FastMCP) -> None:
                 label_options=label_options,
                 pagination_config=pagination_config,
             )
-        elif action == "available_metrics":
+        elif action == 'available_metrics':
             if cluster_arn:
                 # Create a client manager instance
                 client_manager = AWSClientManager()
 
                 # Configure the client manager with the region
-                kafka_client = client_manager.get_client(region, "kafka")
+                kafka_client = client_manager.get_client(region, 'kafka')
 
                 # Get cluster's monitoring level
-                cluster_info = kafka_client.describe_cluster(ClusterArn=cluster_arn)["ClusterInfo"]
-                cluster_monitoring = cluster_info.get("EnhancedMonitoring", "DEFAULT")
+                cluster_info = kafka_client.describe_cluster(ClusterArn=cluster_arn)['ClusterInfo']
+                cluster_monitoring = cluster_info.get('EnhancedMonitoring', 'DEFAULT')
 
                 # Return metrics filtered by the cluster's monitoring level
                 return list_available_metrics(monitoring_level=cluster_monitoring)
             else:
                 # If no cluster ARN is provided, raise an error as monitoring level is required
-                raise ValueError("Cluster ARN must be provided to determine monitoring level")
+                raise ValueError('Cluster ARN must be provided to determine monitoring level')
         else:
-            raise ValueError(f"Unsupported action or missing required arguments for {action}")
+            raise ValueError(f'Unsupported action or missing required arguments for {action}')
 
-    @mcp.tool(name="list_customer_iam_access")
-    def list_customer_iam_access_tool(region, cluster_arn):
+    @mcp.tool(name='list_customer_iam_access')
+    def list_customer_iam_access_tool(
+        region: str = Field(description='AWS region'),
+        cluster_arn: str = Field(description='The ARN of the MSK cluster'),
+    ):
         """
         List IAM access information for an MSK cluster.
 

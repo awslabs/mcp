@@ -14,8 +14,9 @@
 
 """Tests for the aws-msk MCP Server."""
 
-import pytest
-from awslabs.aws_msk_mcp_server.tools.static_tools.cluster_best_practices import get_cluster_best_practices
+from awslabs.aws_msk_mcp_server.tools.static_tools.cluster_best_practices import (
+    get_cluster_best_practices,
+)
 
 
 class TestClusterBestPractices:
@@ -24,58 +25,61 @@ class TestClusterBestPractices:
     def test_valid_instance_type(self):
         """Test with a valid instance type."""
         # Arrange
-        instance_type = "kafka.m5.large"
+        instance_type = 'kafka.m5.large'
         number_of_brokers = 3
-        
+
         # Act
         result = get_cluster_best_practices(instance_type, number_of_brokers)
-        
+
         # Assert
-        assert result["Instance Type"] == f"{instance_type} (provided as input)"
-        assert result["Number of Brokers"] == f"{number_of_brokers} (provided as input)"
-        assert result["vCPU per Broker"] == 2
-        assert result["Memory (GB) per Broker"] == "8 (available on the host)"
-        assert result["Recommended Partitions per Broker"] == 1000
-        assert result["Recommended Max Partitions per Cluster"] == 3000  # 1000 * 3
-        assert result["Replication Factor"] == "3 (recommended)"
-        assert result["Minimum In-Sync Replicas"] == 2
+        assert result['Instance Type'] == f'{instance_type} (provided as input)'
+        assert result['Number of Brokers'] == f'{number_of_brokers} (provided as input)'
+        assert result['vCPU per Broker'] == 2
+        assert result['Memory (GB) per Broker'] == '8 (available on the host)'
+        assert result['Recommended Partitions per Broker'] == 1000
+        assert result['Recommended Max Partitions per Cluster'] == 3000  # 1000 * 3
+        assert result['Replication Factor'] == '3 (recommended)'
+        assert result['Minimum In-Sync Replicas'] == 2
 
     def test_express_instance_type(self):
         """Test with an express instance type."""
         # Arrange
-        instance_type = "express.m7g.large"
+        instance_type = 'express.m7g.large'
         number_of_brokers = 3
-        
+
         # Act
         result = get_cluster_best_practices(instance_type, number_of_brokers)
-        
+
         # Assert
-        assert result["Instance Type"] == f"{instance_type} (provided as input)"
-        assert "express clusters" in result["Replication Factor"]
-        assert result["Replication Factor"] == "3 (Note: For express clusters, replication factor should always be 3)"
+        assert result['Instance Type'] == f'{instance_type} (provided as input)'
+        assert 'express clusters' in result['Replication Factor']
+        assert (
+            result['Replication Factor']
+            == '3 (Note: For express clusters, replication factor should always be 3)'
+        )
 
     def test_invalid_instance_type(self):
         """Test with an invalid instance type."""
         # Arrange
-        instance_type = "invalid.instance.type"
+        instance_type = 'invalid.instance.type'
         number_of_brokers = 3
-        
+
         # Act
         result = get_cluster_best_practices(instance_type, number_of_brokers)
-        
+
         # Assert
-        assert "Error" in result
-        assert f"Instance type '{instance_type}' is not supported or recognized" in result["Error"]
+        assert 'Error' in result
+        assert f"Instance type '{instance_type}' is not supported or recognized" in result['Error']
 
     def test_small_broker_count(self):
         """Test with a broker count less than the recommended replication factor."""
         # Arrange
-        instance_type = "kafka.m5.large"
+        instance_type = 'kafka.m5.large'
         number_of_brokers = 2  # Less than recommended replication factor of 3
-        
+
         # Act
         result = get_cluster_best_practices(instance_type, number_of_brokers)
-        
+
         # Assert
-        assert result["Replication Factor"] == "2 (recommended)"
-        assert result["Minimum In-Sync Replicas"] == 2
+        assert result['Replication Factor'] == '2 (recommended)'
+        assert result['Minimum In-Sync Replicas'] == 2
