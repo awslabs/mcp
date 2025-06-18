@@ -32,7 +32,6 @@ from .models import (
     TABLE_BUCKET_ARN_FIELD,
     TABLE_BUCKET_NAME_PATTERN,
     TABLE_NAME_FIELD,
-    EncryptionConfiguration,
     TableBucketMaintenanceConfigurationValue,
     TableBucketMaintenanceType,
     TableMaintenanceConfigurationValue,
@@ -131,18 +130,11 @@ async def create_table_bucket(
             pattern=TABLE_BUCKET_NAME_PATTERN,
         ),
     ],
-    encryption_configuration: Annotated[
-        Optional[EncryptionConfiguration],
-        Field(
-            None,
-            description='The encryption configuration to use for the table bucket. This configuration specifies the default encryption settings that will be applied to all tables created in this bucket unless overridden at the table level.',
-        ),
-    ] = None,
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ):
     """Creates a table bucket."""
     return await table_buckets.create_table_bucket(
-        name=name, encryption_configuration=encryption_configuration, region_name=region_name
+        name=name, region_name=region_name
     )
 
 
@@ -178,24 +170,16 @@ async def create_table(
     metadata: Annotated[
         Optional[Dict[str, Any]], Field(None, description='The metadata for the S3 table.')
     ] = None,
-    encryption_configuration: Annotated[
-        Optional[EncryptionConfiguration],
-        Field(
-            None,
-            description='The encryption configuration to use for the S3 table. This configuration specifies the encryption algorithm and, if using SSE-KMS, the KMS key to use for encrypting the table.',
-        ),
-    ] = None,
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ):
     """Create a new S3 table.
 
     Creates a new S3 table associated with the given namespace in a table bucket.
-    The table can be configured with specific format, metadata, and encryption settings.
+    The table can be configured with specific format and metadata settings.
 
     Permissions:
     You must have the s3tables:CreateTable permission to use this operation.
     If using metadata parameter, you must have the s3tables:PutTableData permission.
-    If using encryption_configuration parameter, you must have the s3tables:PutTableEncryption permission.
     """
     from .models import OpenTableFormat, TableMetadata
 
@@ -211,7 +195,6 @@ async def create_table(
         name=name,
         format=format_enum,
         metadata=table_metadata,
-        encryption_configuration=encryption_configuration,
         region_name=region_name,
     )
 
@@ -283,32 +266,6 @@ async def delete_table(
 
 @app.tool()
 @write_operation
-async def put_table_bucket_encryption(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    encryption_configuration: Annotated[
-        EncryptionConfiguration,
-        Field(..., description='The encryption configuration to apply to the table bucket.'),
-    ],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Set the encryption configuration for a table bucket.
-
-    Permissions:
-    You must have the s3tables:PutTableBucketEncryption permission to use this operation.
-
-    Note:
-    If you choose SSE-KMS encryption you must grant the S3 Tables maintenance principal access to your KMS key.
-    For more information, see Permissions requirements for S3 Tables SSE-KMS encryption in the Amazon Simple Storage Service User Guide.
-    """
-    return await table_buckets.put_table_bucket_encryption(
-        table_bucket_arn=table_bucket_arn,
-        encryption_configuration=encryption_configuration,
-        region_name=region_name,
-    )
-
-
-@app.tool()
-@write_operation
 async def put_table_bucket_maintenance_configuration(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     maintenance_type: Annotated[
@@ -367,24 +324,6 @@ async def put_table_bucket_policy(
 
 @app.tool()
 @write_operation
-async def delete_table_bucket_encryption(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Delete the encryption configuration for a table bucket.
-
-    Deletes the encryption configuration for a table bucket.
-
-    Permissions:
-    You must have the s3tables:DeleteTableBucketEncryption permission to use this operation.
-    """
-    return await table_buckets.delete_table_bucket_encryption(
-        table_bucket_arn=table_bucket_arn, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
 async def delete_table_bucket_policy(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
@@ -417,27 +356,6 @@ async def delete_table_policy(
     You must have the s3tables:DeleteTablePolicy permission to use this operation.
     """
     return await tables.delete_table_policy(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
-async def get_table_encryption(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    name: Annotated[str, TABLE_NAME_FIELD],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Get the encryption configuration for an S3 table.
-
-    Gets the encryption configuration for an S3 table, including the encryption algorithm
-    and KMS key information if SSE-KMS is used.
-
-    Permissions:
-    You must have the s3tables:GetTableEncryption permission to use this operation.
-    """
-    return await tables.get_table_encryption(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region_name
     )
 

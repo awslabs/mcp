@@ -19,6 +19,10 @@ from awslabs.s3_tables_mcp_server.constants import (
     TABLE_BUCKET_ARN_PATTERN,
     TABLE_BUCKET_NAME_PATTERN,
     TABLE_NAME_PATTERN,
+    NAMESPACE_NAME_FIELD,
+    REGION_NAME_FIELD,
+    TABLE_BUCKET_ARN_FIELD,
+    TABLE_NAME_FIELD,
 )
 from datetime import datetime
 from enum import Enum
@@ -27,13 +31,6 @@ from typing import List, Optional, Union
 
 
 # Enums
-class SSEAlgorithm(str, Enum):
-    """Server-side encryption algorithm."""
-
-    AES256 = 'AES256'
-    AWS_KMS = 'aws:kms'
-
-
 class OpenTableFormat(str, Enum):
     """Supported open table formats."""
 
@@ -252,29 +249,6 @@ class S3TablesError(BaseModel):
     error_message: str
     request_id: Optional[str] = None
     resource_name: Optional[str] = None
-
-
-# Encryption Models
-class EncryptionConfiguration(BaseModel):
-    """Configuration specifying how data should be encrypted."""
-
-    sse_algorithm: SSEAlgorithm = Field(
-        ...,
-        alias='sseAlgorithm',
-        description='The server-side encryption algorithm to use. Valid values are AES256 for S3-managed encryption keys, or aws:kms for AWS KMS-managed encryption keys.',
-    )
-    kms_key_arn: Optional[str] = Field(
-        None,
-        alias='kmsKeyARN',
-        description='The ARN of the KMS key to use for encryption. Required when sseAlgorithm is aws:kms.',
-    )
-
-    @model_validator(mode='after')
-    def validate_kms_key_required_for_kms(self) -> 'EncryptionConfiguration':
-        """Validate that KMS key is provided when using KMS encryption."""
-        if self.sse_algorithm == SSEAlgorithm.AWS_KMS and not self.kms_key_arn:
-            raise ValueError('KMS key ARN is required when using KMS encryption')
-        return self
 
 
 # Schema Models

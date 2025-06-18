@@ -15,7 +15,6 @@
 """Table Management tools for S3 Tables MCP Server."""
 
 from .models import (
-    EncryptionConfiguration,
     OpenTableFormat,
     TableMaintenanceConfigurationValue,
     TableMaintenanceType,
@@ -32,7 +31,6 @@ async def create_table(
     name: str,
     format: OpenTableFormat = OpenTableFormat.ICEBERG,
     metadata: Optional[TableMetadata] = None,
-    encryption_configuration: Optional[EncryptionConfiguration] = None,
     region_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a new table associated with the given namespace in a table bucket.
@@ -40,7 +38,6 @@ async def create_table(
     Permissions:
     You must have the s3tables:CreateTable permission to use this operation.
     If using metadata parameter, you must have the s3tables:PutTableData permission.
-    If using encryption_configuration parameter, you must have the s3tables:PutTableEncryption permission.
     """
     client = get_s3tables_client(region_name)
 
@@ -55,12 +52,6 @@ async def create_table(
     # Add metadata if provided
     if metadata:
         params['metadata'] = metadata.model_dump(by_alias=True, exclude_none=True)
-
-    # Add encryption configuration if provided
-    if encryption_configuration:
-        params['encryptionConfiguration'] = encryption_configuration.model_dump(
-            by_alias=True, exclude_none=True
-        )
 
     response = client.create_table(**params)
     return dict(response)
@@ -121,24 +112,6 @@ async def delete_table_policy(
     """
     client = get_s3tables_client(region_name)
     response = client.delete_table_policy(
-        tableBucketARN=table_bucket_arn, namespace=namespace, name=name
-    )
-    return dict(response)
-
-
-@handle_exceptions
-async def get_table_encryption(
-    table_bucket_arn: str, namespace: str, name: str, region_name: Optional[str] = None
-) -> Dict[str, Any]:
-    """Get the encryption configuration for a table.
-
-    Gets the encryption configuration for a table.
-
-    Permissions:
-    You must have the s3tables:GetTableEncryption permission to use this operation.
-    """
-    client = get_s3tables_client(region_name)
-    response = client.get_table_encryption(
         tableBucketARN=table_bucket_arn, namespace=namespace, name=name
     )
     return dict(response)
