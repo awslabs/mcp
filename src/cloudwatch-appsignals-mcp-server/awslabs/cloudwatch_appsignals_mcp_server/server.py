@@ -111,9 +111,9 @@ async def list_monitored_services() -> str:
 
     except ClientError as e:
         logger.error(
-            f"AWS ClientError in list_monitored_services: {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            f'AWS ClientError in list_monitored_services: {e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
         )
-        return f"AWS Error: {e.response['Error']['Message']}"
+        return f'AWS Error: {e.response["Error"]["Message"]}'
     except Exception as e:
         logger.error(f'Unexpected error in list_monitored_services: {str(e)}', exc_info=True)
         return f'Error: {str(e)}'
@@ -154,7 +154,9 @@ async def get_service_detail(service_name: str) -> str:
         start_time = end_time - timedelta(hours=24)
 
         # First, get all services to find the one we want
-        services_response = appsignals.list_services(StartTime=start_time, EndTime=end_time, MaxResults=100)
+        services_response = appsignals.list_services(
+            StartTime=start_time, EndTime=end_time, MaxResults=100
+        )
 
         # Find the service with matching name
         target_service = None
@@ -201,12 +203,12 @@ async def get_service_detail(service_name: str) -> str:
         if metric_refs:
             result += f'Metric References ({len(metric_refs)} total):\n'
             for metric in metric_refs:
-                result += f"  • {metric.get('Namespace', '')}/{metric.get('MetricName', '')}\n"
-                result += f"    Type: {metric.get('MetricType', '')}\n"
+                result += f'  • {metric.get("Namespace", "")}/{metric.get("MetricName", "")}\n'
+                result += f'    Type: {metric.get("MetricType", "")}\n'
                 dimensions = metric.get('Dimensions', [])
                 if dimensions:
                     result += '    Dimensions: '
-                    dim_strs = [f"{d['Name']}={d['Value']}" for d in dimensions]
+                    dim_strs = [f'{d["Name"]}={d["Value"]}' for d in dimensions]
                     result += ', '.join(dim_strs) + '\n'
                 result += '\n'
 
@@ -227,9 +229,12 @@ async def get_service_detail(service_name: str) -> str:
         logger.error(
             f"AWS ClientError in get_service_healthy_detail for '{service_name}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
         )
-        return f"AWS Error: {e.response['Error']['Message']}"
+        return f'AWS Error: {e.response["Error"]["Message"]}'
     except Exception as e:
-        logger.error(f"Unexpected error in get_service_healthy_detail for '{service_name}': {str(e)}", exc_info=True)
+        logger.error(
+            f"Unexpected error in get_service_healthy_detail for '{service_name}': {str(e)}",
+            exc_info=True,
+        )
         return f'Error: {str(e)}'
 
 
