@@ -1,5 +1,5 @@
-    ---
-    title: Amazon Aurora DSQL MCP Server
-    ---
+---
+title: Amazon Aurora DSQL MCP Server
+---
 
-    {% include "../../src/aurora-dsql-mcp-server/README.md" %}
+{% include "../../src/aurora-dsql-mcp-server/README.md" %}
