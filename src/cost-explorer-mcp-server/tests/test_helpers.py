@@ -14,14 +14,100 @@
 
 """Tests for the helpers module of the cost-explorer-mcp-server."""
 
+import pytest
 from awslabs.cost_explorer_mcp_server.helpers import (
+    get_cost_explorer_client,
     get_dimension_values,
     get_tag_values,
     validate_date_format,
     validate_expression,
     validate_group_by,
 )
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+
+class TestGetCostExplorerClient:
+    """Tests for the get_cost_explorer_client function."""
+
+    @patch('awslabs.cost_explorer_mcp_server.helpers.boto3.Session')
+    @patch('os.environ.get')
+    def test_get_client_with_profile_and_region(self, mock_env_get, mock_session):
+        """Test client creation with AWS profile and custom region."""
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+
+        # Mock environment variables
+        def env_side_effect(key, default=None):
+            env_vars = {
+                'AWS_PROFILE': 'test-profile',
+                'AWS_REGION': 'us-west-2',
+                'FASTMCP_LOG_LEVEL': 'WARNING',
+            }
+            return env_vars.get(key, default)
+
+        mock_env_get.side_effect = env_side_effect
+
+        # Reset the global client cache
+        import awslabs.cost_explorer_mcp_server.helpers
+
+        awslabs.cost_explorer_mcp_server.helpers._cost_explorer_client = None
+
+        client = get_cost_explorer_client()
+
+        mock_session.assert_called_once_with(profile_name='test-profile', region_name='us-west-2')
+        mock_session.return_value.client.assert_called_once_with('ce')
+        assert client == mock_client
+
+    @patch.dict('os.environ', {}, clear=True)
+    @patch('awslabs.cost_explorer_mcp_server.helpers.boto3.Session')
+    def test_get_client_with_defaults(self, mock_session):
+        """Test client creation with default settings."""
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+
+        # Reset the global client cache
+        import awslabs.cost_explorer_mcp_server.helpers
+
+        awslabs.cost_explorer_mcp_server.helpers._cost_explorer_client = None
+
+        client = get_cost_explorer_client()
+
+        mock_session.assert_called_once_with(region_name='us-east-1')
+        mock_session.return_value.client.assert_called_once_with('ce')
+        assert client == mock_client
+
+    @patch('awslabs.cost_explorer_mcp_server.helpers.boto3.Session')
+    def test_get_client_caching(self, mock_session):
+        """Test that client is cached after first call."""
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+
+        # Reset the global client cache
+        import awslabs.cost_explorer_mcp_server.helpers
+
+        awslabs.cost_explorer_mcp_server.helpers._cost_explorer_client = None
+
+        # First call
+        client1 = get_cost_explorer_client()
+        # Second call
+        client2 = get_cost_explorer_client()
+
+        # Session should only be called once due to caching
+        mock_session.assert_called_once()
+        assert client1 == client2 == mock_client
+
+    @patch('awslabs.cost_explorer_mcp_server.helpers.boto3.Session')
+    def test_get_client_exception_handling(self, mock_session):
+        """Test exception handling during client creation."""
+        mock_session.side_effect = Exception('AWS credentials not found')
+
+        # Reset the global client cache
+        import awslabs.cost_explorer_mcp_server.helpers
+
+        awslabs.cost_explorer_mcp_server.helpers._cost_explorer_client = None
+
+        with pytest.raises(Exception, match='AWS credentials not found'):
+            get_cost_explorer_client()
 
 
 class TestValidateDateFormat:
@@ -71,9 +157,13 @@ class TestValidateDateFormat:
 class TestGetDimensionValues:
     """Tests for the get_dimension_values function."""
 
-    @patch('awslabs.cost_explorer_mcp_server.helpers.ce')
-    def test_get_dimension_values_success(self, mock_ce):
+    @patch('awslabs.cost_explorer_mcp_server.helpers.get_cost_explorer_client')
+    def test_get_dimension_values_success(self, mock_get_client):
         """Test successful retrieval of dimension values."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the AWS Cost Explorer response
         mock_response = {
             'DimensionValues': [
@@ -102,10 +192,12 @@ class TestGetDimensionValues:
             ],
         }
 
-    @patch('awslabs.cost_explorer_mcp_server.helpers.ce')
-    def test_get_dimension_values_error(self, mock_ce):
+    @patch('awslabs.cost_explorer_mcp_server.helpers.get_cost_explorer_client')
+    def test_get_dimension_values_error(self, mock_get_client):
         """Test error handling when retrieving dimension values."""
-        # Mock the AWS Cost Explorer to raise an exception
+        # Mock the Cost Explorer client to raise an exception
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
         mock_ce.get_dimension_values.side_effect = Exception('API Error')
 
         # Call the function
@@ -137,9 +229,13 @@ class TestGetDimensionValues:
 class TestGetTagValues:
     """Tests for the get_tag_values function."""
 
-    @patch('awslabs.cost_explorer_mcp_server.helpers.ce')
-    def test_get_tag_values_success(self, mock_ce):
+    @patch('awslabs.cost_explorer_mcp_server.helpers.get_cost_explorer_client')
+    def test_get_tag_values_success(self, mock_get_client):
         """Test successful retrieval of tag values."""
+        # Mock the Cost Explorer client
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
+
         # Mock the AWS Cost Explorer response
         mock_response = {'Tags': ['dev', 'prod', 'test']}
         mock_ce.get_tags.return_value = mock_response
@@ -156,10 +252,12 @@ class TestGetTagValues:
         # Verify the result
         assert result == {'tag_key': 'Environment', 'values': ['dev', 'prod', 'test']}
 
-    @patch('awslabs.cost_explorer_mcp_server.helpers.ce')
-    def test_get_tag_values_error(self, mock_ce):
+    @patch('awslabs.cost_explorer_mcp_server.helpers.get_cost_explorer_client')
+    def test_get_tag_values_error(self, mock_get_client):
         """Test error handling when retrieving tag values."""
-        # Mock the AWS Cost Explorer to raise an exception
+        # Mock the Cost Explorer client to raise an exception
+        mock_ce = MagicMock()
+        mock_get_client.return_value = mock_ce
         mock_ce.get_tags.side_effect = Exception('API Error')
 
         # Call the function
@@ -664,3 +762,158 @@ class TestValidateGroupBy:
         assert 'error' in result
         # Adjust the expected error message to match the actual implementation
         assert 'Filter Expression must include' in result['error']
+
+
+class TestFormatDateForApi:
+    """Tests for the format_date_for_api function."""
+
+    def test_format_date_for_hourly_granularity(self):
+        """Test date formatting for HOURLY granularity."""
+        from awslabs.cost_explorer_mcp_server.helpers import format_date_for_api
+
+        result = format_date_for_api('2025-01-01', 'HOURLY')
+        assert result == '2025-01-01T00:00:00Z'
+
+        result = format_date_for_api('2025-12-31', 'hourly')  # Test case insensitive
+        assert result == '2025-12-31T00:00:00Z'
+
+    def test_format_date_for_daily_granularity(self):
+        """Test date formatting for DAILY granularity."""
+        from awslabs.cost_explorer_mcp_server.helpers import format_date_for_api
+
+        result = format_date_for_api('2025-01-01', 'DAILY')
+        assert result == '2025-01-01'
+
+    def test_format_date_for_monthly_granularity(self):
+        """Test date formatting for MONTHLY granularity."""
+        from awslabs.cost_explorer_mcp_server.helpers import format_date_for_api
+
+        result = format_date_for_api('2025-01-01', 'MONTHLY')
+        assert result == '2025-01-01'
+
+    def test_format_date_for_none_granularity(self):
+        """Test date formatting when granularity is None or empty."""
+        from awslabs.cost_explorer_mcp_server.helpers import format_date_for_api
+
+        # The function expects a string, so test with empty string instead of None
+        result = format_date_for_api('2025-01-01', '')
+        assert result == '2025-01-01'
+
+        result = format_date_for_api('2025-01-01', 'OTHER')
+        assert result == '2025-01-01'
+
+
+class TestValidateDateRangeWithGranularity:
+    """Tests for validate_date_range function with granularity constraints."""
+
+    def test_validate_date_range_hourly_within_limit(self):
+        """Test HOURLY granularity with date range within 14 days."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+
+        is_valid, error = validate_date_range('2025-01-01', '2025-01-14', 'HOURLY')
+        assert is_valid
+        assert error == ''
+
+    def test_validate_date_range_hourly_at_limit(self):
+        """Test HOURLY granularity with date range exactly at 14 days."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+
+        is_valid, error = validate_date_range('2025-01-01', '2025-01-15', 'HOURLY')
+        assert is_valid
+        assert error == ''
+
+    def test_validate_date_range_hourly_exceeds_limit(self):
+        """Test HOURLY granularity with date range exceeding 14 days."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+
+        is_valid, error = validate_date_range('2025-01-01', '2025-01-20', 'HOURLY')
+        assert not is_valid
+        assert '14 days' in error
+        assert 'Current range is 19 days' in error
+        assert 'Please use a shorter date range' in error
+
+    def test_validate_date_range_hourly_case_insensitive(self):
+        """Test HOURLY granularity validation is case insensitive."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+
+        is_valid, error = validate_date_range('2025-01-01', '2025-01-20', 'hourly')
+        assert not is_valid
+        assert '14 days' in error
+
+    def test_validate_date_range_daily_no_limit(self):
+        """Test DAILY granularity has no date range limit."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+
+        is_valid, error = validate_date_range('2025-01-01', '2025-12-31', 'DAILY')
+        assert is_valid
+        assert error == ''
+
+    def test_validate_date_range_monthly_no_limit(self):
+        """Test MONTHLY granularity has no date range limit."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_date_range
+
+        is_valid, error = validate_date_range('2024-01-01', '2025-12-31', 'MONTHLY')
+        assert is_valid
+        assert error == ''
+
+
+class TestValidateMatchOptions:
+    """Tests for the validate_match_options function."""
+
+    def test_validate_match_options_dimensions_valid(self):
+        """Test validate_match_options with valid Dimensions options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+
+        result = validate_match_options(['EQUALS'], 'Dimensions')
+        assert result == {}
+
+        result = validate_match_options(['CASE_SENSITIVE'], 'Dimensions')
+        assert result == {}
+
+        result = validate_match_options(['EQUALS', 'CASE_SENSITIVE'], 'Dimensions')
+        assert result == {}
+
+    def test_validate_match_options_dimensions_invalid(self):
+        """Test validate_match_options with invalid Dimensions options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+
+        result = validate_match_options(['ABSENT'], 'Dimensions')
+        assert 'error' in result
+        assert 'Invalid MatchOption' in result['error']
+        assert 'ABSENT' in result['error']
+
+    def test_validate_match_options_tags_valid(self):
+        """Test validate_match_options with valid Tags options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+
+        result = validate_match_options(['EQUALS'], 'Tags')
+        assert result == {}
+
+        result = validate_match_options(['ABSENT'], 'Tags')
+        assert result == {}
+
+        result = validate_match_options(['CASE_SENSITIVE'], 'Tags')
+        assert result == {}
+
+    def test_validate_match_options_tags_invalid(self):
+        """Test validate_match_options with invalid Tags options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+
+        result = validate_match_options(['INVALID_OPTION'], 'Tags')
+        assert 'error' in result
+        assert 'Invalid MatchOption' in result['error']
+
+    def test_validate_match_options_cost_categories_valid(self):
+        """Test validate_match_options with valid CostCategories options."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+
+        result = validate_match_options(['EQUALS'], 'CostCategories')
+        assert result == {}
+
+    def test_validate_match_options_unknown_filter_type(self):
+        """Test validate_match_options with unknown filter type."""
+        from awslabs.cost_explorer_mcp_server.helpers import validate_match_options
+
+        result = validate_match_options(['EQUALS'], 'UnknownFilter')
+        assert 'error' in result
+        assert 'Unknown filter type' in result['error']
