@@ -84,8 +84,7 @@ def validate_read_only_query(query: str) -> bool:
 def _execute_database_query(
     table_bucket_arn: str,
     namespace: str,
-    name: str,
-    query: Optional[str] = None,
+    query: str,
     output_location: Optional[str] = None,
     workgroup: str = 'primary',
     validate_read_only: bool = True,
@@ -96,8 +95,7 @@ def _execute_database_query(
     Args:
         table_bucket_arn: The ARN of the table bucket containing the table
         namespace: The namespace containing the table
-        name: The name of the table to query
-        query: Optional custom SQL query
+        query: Custom SQL query
         output_location: Optional S3 location for query results
         workgroup: Athena workgroup to use for query execution
         validate_read_only: Whether to validate that the query is read-only
@@ -141,10 +139,6 @@ def _execute_database_query(
     if not engine.test_connection():
         raise ConnectionError('Failed to connect to Athena')
 
-    # Set default query if none provided
-    if not query:
-        query = f'SELECT * FROM {namespace}.{name}'
-
     # Validate that the query is read-only if required
     if validate_read_only:
         validate_read_only_query(query)
@@ -167,8 +161,7 @@ def _execute_database_query(
 async def query_database_resource(
     table_bucket_arn: str,
     namespace: str,
-    name: str,
-    query: Optional[str] = None,
+    query: str,
     output_location: Optional[str] = None,
     workgroup: str = 'primary',
     region_name: Optional[str] = None,
@@ -178,8 +171,7 @@ async def query_database_resource(
     Args:
         table_bucket_arn: The ARN of the table bucket containing the table
         namespace: The namespace containing the table
-        name: The name of the table to query
-        query: Optional custom SQL query
+        query: Custom SQL query
         output_location: Optional S3 location for query results
         workgroup: Athena workgroup to use for query execution
         region_name: Optional AWS region name. If not provided, uses AWS_REGION environment variable
@@ -194,7 +186,6 @@ async def query_database_resource(
     return _execute_database_query(
         table_bucket_arn=table_bucket_arn,
         namespace=namespace,
-        name=name,
         query=query,
         output_location=output_location,
         workgroup=workgroup,
@@ -206,8 +197,7 @@ async def query_database_resource(
 async def modify_database_resource(
     table_bucket_arn: str,
     namespace: str,
-    name: str,
-    query: Optional[str] = None,
+    query: str,
     output_location: Optional[str] = None,
     workgroup: str = 'primary',
     region_name: Optional[str] = None,
@@ -217,8 +207,7 @@ async def modify_database_resource(
     Args:
         table_bucket_arn: The ARN of the table bucket containing the table
         namespace: The namespace containing the table
-        name: The name of the table to query
-        query: Optional custom SQL query
+        query: Custom SQL query
         output_location: Optional S3 location for query results
         workgroup: Athena workgroup to use for query execution
         region_name: Optional AWS region name. If not provided, uses AWS_REGION environment variable
@@ -233,7 +222,6 @@ async def modify_database_resource(
     return _execute_database_query(
         table_bucket_arn=table_bucket_arn,
         namespace=namespace,
-        name=name,
         query=query,
         output_location=output_location,
         workgroup=workgroup,

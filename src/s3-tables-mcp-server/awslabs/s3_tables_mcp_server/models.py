@@ -19,10 +19,6 @@ from awslabs.s3_tables_mcp_server.constants import (
     TABLE_BUCKET_ARN_PATTERN,
     TABLE_BUCKET_NAME_PATTERN,
     TABLE_NAME_PATTERN,
-    NAMESPACE_NAME_FIELD,
-    REGION_NAME_FIELD,
-    TABLE_BUCKET_ARN_FIELD,
-    TABLE_NAME_FIELD,
 )
 from datetime import datetime
 from enum import Enum

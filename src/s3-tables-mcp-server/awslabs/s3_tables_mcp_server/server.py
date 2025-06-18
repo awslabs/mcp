@@ -20,13 +20,23 @@ It supports operations for table buckets, namespaces, and individual S3 tables.
 """
 
 import argparse
-import asyncio
 import functools
 
 # Import modular components
-from . import __version__, database, namespaces, resources, table_buckets, tables
-from .constants import OUTPUT_LOCATION_FIELD, QUERY_FIELD, WORKGROUP_FIELD
-from .models import (
+from awslabs.s3_tables_mcp_server import (
+    __version__,
+    database,
+    namespaces,
+    resources,
+    table_buckets,
+    tables,
+)
+from awslabs.s3_tables_mcp_server.constants import (
+    OUTPUT_LOCATION_FIELD,
+    QUERY_FIELD,
+    WORKGROUP_FIELD,
+)
+from awslabs.s3_tables_mcp_server.models import (
     NAMESPACE_NAME_FIELD,
     REGION_NAME_FIELD,
     TABLE_BUCKET_ARN_FIELD,
@@ -132,10 +142,8 @@ async def create_table_bucket(
     ],
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ):
-    """Creates a table bucket."""
-    return await table_buckets.create_table_bucket(
-        name=name, region_name=region_name
-    )
+    """Creates an S3 table bucket."""
+    return await table_buckets.create_table_bucket(name=name, region_name=region_name)
 
 
 @app.tool()
@@ -145,10 +153,10 @@ async def create_namespace(
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ):
-    """Create a new namespace.
+    """Create a new namespace in an S3 table bucket.
 
-    Creates a namespace. A namespace is a logical grouping of tables within your table bucket,
-    which you can use to organize tables.
+    Creates a namespace. A namespace is a logical grouping of tables within your S3 table bucket,
+    which you can use to organize S3 tables.
 
     Permissions:
     You must have the s3tables:CreateNamespace permission to use this operation.
@@ -172,16 +180,37 @@ async def create_table(
     ] = None,
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ):
-    """Create a new S3 table.
+    """Create a new S3 table in an S3 table bucket.
 
-    Creates a new S3 table associated with the given namespace in a table bucket.
-    The table can be configured with specific format and metadata settings.
+    Creates a new S3 table associated with the given S3 namespace in an S3 table bucket.
+    The S3 table can be configured with specific format and metadata settings.
+
+    Example of S3 table metadata:
+    {
+        "metadata": {
+            "iceberg": {
+                "schema": {
+                    "type": "struct",
+                    "fields": [{
+                            "id": 1,
+                            "name": "customer_id",
+                            "type": "long",
+                            "required": true
+                        },
+                    ]
+                },
+                "table-properties": {
+                    "description": "Customer information table with customer_id for joining with transactions"
+                }
+            }
+        }
+    }
 
     Permissions:
     You must have the s3tables:CreateTable permission to use this operation.
     If using metadata parameter, you must have the s3tables:PutTableData permission.
     """
-    from .models import OpenTableFormat, TableMetadata
+    from awslabs.s3_tables_mcp_server.models import OpenTableFormat, TableMetadata
 
     # Convert string parameter to enum value
     format_enum = OpenTableFormat(format) if format != 'ICEBERG' else OpenTableFormat.ICEBERG
@@ -205,9 +234,9 @@ async def delete_table_bucket(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ):
-    """Delete a table bucket.
+    """Delete an S3 table bucket.
 
-    Deletes a table bucket.
+    Deletes an S3 table bucket.
 
     Permissions:
     You must have the s3tables:DeleteTableBucket permission to use this operation.
@@ -499,9 +528,9 @@ async def rename_table(
     ] = None,
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ):
-    """Rename an S3 table or move it to a different namespace.
+    """Rename an S3 table or move it to a different S3 namespace.
 
-    Renames an S3 table or moves it to a different namespace within the same table bucket.
+    Renames an S3 table or moves it to a different S3 namespace within the same S3 table bucket.
     This operation maintains the table's data and configuration while updating its location.
 
     Permissions:
@@ -528,7 +557,7 @@ async def update_table_metadata_location(
         str,
         Field(
             ...,
-            description='The new metadata location for the table. Must be 1-2048 characters long.',
+            description='The new metadata location for the S3 table. Must be 1-2048 characters long.',
             min_length=1,
             max_length=2048,
         ),
@@ -537,17 +566,17 @@ async def update_table_metadata_location(
         str,
         Field(
             ...,
-            description='The version token of the table. Must be 1-2048 characters long.',
+            description='The version token of the S3 table. Must be 1-2048 characters long.',
             min_length=1,
             max_length=2048,
         ),
     ],
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ):
-    """Update the metadata location for a table.
+    """Update the metadata location for an S3 table.
 
-    Updates the metadata location for a table. The metadata location of a table must be an S3 URI that begins with the table's warehouse location.
-    The metadata location for an Apache Iceberg table must end with .metadata.json, or if the metadata file is Gzip-compressed, .metadata.json.gz.
+    Updates the metadata location for an S3 table. The metadata location of an S3 table must be an S3 URI that begins with the S3 table's warehouse location.
+    The metadata location for an Apache Iceberg S3 table must end with .metadata.json, or if the metadata file is Gzip-compressed, .metadata.json.gz.
 
     Permissions:
     You must have the s3tables:UpdateTableMetadataLocation permission to use this operation.
@@ -566,8 +595,7 @@ async def update_table_metadata_location(
 async def query_database(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    name: Annotated[str, TABLE_NAME_FIELD],
-    query: Annotated[Optional[str], QUERY_FIELD] = None,
+    query: Annotated[str, QUERY_FIELD],
     output_location: Annotated[Optional[str], OUTPUT_LOCATION_FIELD] = None,
     workgroup: Annotated[str, WORKGROUP_FIELD] = 'primary',
 ):
@@ -578,13 +606,12 @@ async def query_database(
     SHOW, DESCRIBE, and Common Table Expressions (CTEs). If a write operation is detected, the tool will return an error.
 
     The tool automatically handles query execution, result retrieval, and proper formatting of the
-    response. If no query is provided, it defaults to selecting all columns from the specified table.
+    response.
 
-    Returns:
-        Dict containing:
-            - status: 'success' or 'error'
-            - data: Query results if successful
-            - error: Error message if failed
+    Examples:
+    - SELECT c.customer_id, c.first_name, c.last_name, c.email, t.transaction_id, t.product_name, t.total_amount, t.transaction_date FROM customers c INNER JOIN transactions t ON CONCAT('CUST-', CAST(c.customer_id AS VARCHAR)) = t.customer_id
+    - SELECT * FROM customers ORDER BY customer_id LIMIT 10
+    - DESCRIBE transactions
 
     Permissions:
     You must have the necessary Athena permissions to execute queries, including:
@@ -596,7 +623,6 @@ async def query_database(
         return await database.query_database_resource(
             table_bucket_arn=table_bucket_arn,
             namespace=namespace,
-            name=name,
             query=query,
             output_location=output_location,
             workgroup=workgroup,
@@ -610,8 +636,7 @@ async def query_database(
 async def modify_database(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    name: Annotated[str, TABLE_NAME_FIELD],
-    query: Annotated[Optional[str], QUERY_FIELD] = None,
+    query: Annotated[str, QUERY_FIELD],
     output_location: Annotated[Optional[str], OUTPUT_LOCATION_FIELD] = None,
     workgroup: Annotated[str, WORKGROUP_FIELD] = 'primary',
 ):
@@ -622,13 +647,12 @@ async def modify_database(
     query execution and supports all standard SQL operations.
 
     The tool automatically handles query execution, result retrieval, and proper formatting of the
-    response. If no query is provided, it defaults to selecting all columns from the specified table.
+    response.
 
-    Returns:
-        Dict containing:
-            - status: 'success' or 'error'
-            - data: Query results if successful
-            - error: Error message if failed
+    Examples:
+    - INSERT INTO customers (customer_id, first_name, last_name, email) VALUES (1, 'John', 'Doe', 'john.doe@example.com')
+    - UPDATE customers SET email = 'john.doe@example.com' WHERE customer_id = 1
+    - DELETE FROM customers WHERE customer_id = 1
 
     Permissions:
     You must have the necessary Athena permissions to execute queries, including:
@@ -641,7 +665,6 @@ async def modify_database(
         return await database.modify_database_resource(
             table_bucket_arn=table_bucket_arn,
             namespace=namespace,
-            name=name,
             query=query,
             output_location=output_location,
             workgroup=workgroup,
@@ -668,25 +691,6 @@ def main():
     args = parser.parse_args()
 
     app.allow_write = args.allow_write
-
-    # Run a test select query before starting the server
-    async def run_test_query():
-        try:
-            # Test query using actual values from the server response
-            result = await query_database(
-                table_bucket_arn='arn:aws:s3tables:us-west-2:484907528679:bucket/test',
-                namespace='store',
-                name='transactions',
-                query='SELECT * FROM transactions LIMIT 5',
-                output_location='s3://aws-athena-query-results-484907528679-us-west-2/',
-                workgroup='primary',
-            )
-            print('Test query result:', result)
-        except Exception as e:
-            print(f'Test query failed: {str(e)}')
-
-    # Run the test query and wait for completion
-    asyncio.run(run_test_query())
 
     try:
         app.run()
