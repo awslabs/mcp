@@ -20,6 +20,8 @@ This MCP server provides tools to access AWS documentation, search for content, 
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-documentation-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWRvY3VtZW50YXRpb24tbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiIsIkFXU19ET0NVTUVOVEFUSU9OX1BBUlRJVElPTiI6ImF3cyJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
+
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
@@ -41,7 +43,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 > **Note**: Set `AWS_DOCUMENTATION_PARTITION` to `aws-cn` to query AWS China documentation instead of global AWS documentation.
 
-or docker after a successful `docker build -t awslabs/aws-documentation-mcp-server .`:
+or docker after a successful `docker build -t mcp/aws-documentation .`:
 
 ```json
 {
@@ -56,7 +58,7 @@ or docker after a successful `docker build -t awslabs/aws-documentation-mcp-serv
         "FASTMCP_LOG_LEVEL=ERROR",
         "--env",
         "AWS_DOCUMENTATION_PARTITION=aws",
-        "awslabs/aws-documentation-mcp-server:latest"
+        "mcp/aws-documentation:latest"
       ],
       "env": {},
       "disabled": false,
