@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import FastMCP
+from typing import Callable, Optional
 
 
 @pytest.fixture(scope="session")
@@ -120,18 +121,17 @@ def mock_datazone_client():
 def mcp_server_with_tools(mock_datazone_client):
     """Create MCP server instance with all tools registered and mocked client."""
     mcp = FastMCP("test-datazone")
+    import boto3
 
     # Start a persistent patch that will last for the entire test
     # Patch boto3.client to return our mock for datazone
-    original_boto3_client = None
+    original_boto3_client: Callable = boto3.client
 
     def mock_boto3_client(service_name, **kwargs):
         if service_name == "datazone":
             return mock_datazone_client
         # For other services, use the original client function
         return original_boto3_client(service_name, **kwargs)
-
-    import boto3
 
     original_boto3_client = boto3.client
     patcher = patch("boto3.client", side_effect=mock_boto3_client)
@@ -167,8 +167,8 @@ def mcp_server_with_tools(mock_datazone_client):
         environment.register_tools(mcp)
 
         # Store the mock client and patcher on the server for test access
-        mcp._mock_client = mock_datazone_client
-        mcp._patcher = patcher
+        setattr(mcp, "_mock_client", mock_datazone_client)
+        setattr(mcp, "_patcher", patcher)
 
         yield mcp
 
@@ -181,7 +181,7 @@ def mcp_server_with_tools(mock_datazone_client):
 def client_error_helper():
     """Helper function to create ClientError exceptions for testing."""
 
-    def create_client_error(error_code: str, message: str = None):
+    def create_client_error(error_code: str, message: Optional[str] = None):
         if message is None:
             message = f"An error occurred ({error_code})"
 
