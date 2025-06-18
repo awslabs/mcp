@@ -265,17 +265,9 @@ async def check_security_services(
             elif service_name.lower() == "securityhub":
                 service_result = await check_security_hub(region, session, ctx)
             elif service_name.lower() == "trustedadvisor":
-                print("[DEBUG:CheckSecurityServices] Calling check_trusted_advisor")
                 service_result = await check_trusted_advisor(region, session, ctx)
-                print(
-                    f"[DEBUG:CheckSecurityServices] check_trusted_advisor returned: enabled={service_result.get('enabled', False)}"
-                )
             elif service_name.lower() == "macie":
-                print("[DEBUG:CheckSecurityServices] Calling check_macie")
                 service_result = await check_macie(region, session, ctx)
-                print(
-                    f"[DEBUG:CheckSecurityServices] check_macie returned: enabled={service_result.get('enabled', False)}"
-                )
             else:
                 # Log warning
                 print(f"WARNING: Unknown service: {service_name}. Skipping.")
