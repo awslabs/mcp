@@ -144,7 +144,11 @@ async def create_table_bucket(
     ],
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ):
-    """Creates an S3 table bucket."""
+    """Creates an S3 table bucket.
+
+    Permissions:
+    You must have the s3tables:CreateTableBucket permission to use this operation.
+    """
     return await table_buckets.create_table_bucket(name=name, region_name=region_name)
 
 
@@ -199,6 +203,18 @@ async def create_table(
                             "type": "long",
                             "required": true
                         },
+                        {
+                            "id": 2,
+                            "name": "customer_name",
+                            "type": "string",
+                            "required": true
+                        },
+                        {
+                            "id": 3,
+                            "name": "customer_balance",
+                            "type": "double",
+                            "required": false
+                        }
                     ]
                 },
                 "table-properties": {
@@ -686,13 +702,6 @@ async def preview_csv_file(
     understanding the schema and data format without downloading the entire file.
     It can be used before creating an s3 table from a csv file to get the schema and data format.
 
-    Returns:
-        A dictionary containing:
-        - headers: List of column names from the first row
-        - first_row: Dictionary mapping column names to their values from the first data row
-        - total_columns: Number of columns in the CSV
-        - file_name: Name of the CSV file
-
     Returns error dictionary with status and error message if:
         - URL is not a valid S3 URL
         - File is not a CSV file
@@ -722,19 +731,6 @@ async def import_csv_to_table(
 
     To create a table, first use the preview_csv_file tool to get the schema and data format.
     Then use the create_table tool to create the table.
-
-    Args:
-        table_bucket_arn: The ARN of the table bucket containing the table
-        namespace: The namespace containing the table
-        name: The name of the table to import data into
-        s3_url: The S3 URL of the CSV file (format: s3://bucket-name/key)
-        region_name: Optional AWS region name
-
-    Returns:
-        A dictionary containing:
-        - status: 'success' or 'error'
-        - message: Success message or error details
-        - rows_processed: Number of rows processed (on success)
 
     Returns error dictionary with status and error message if:
         - URL is not a valid S3 URL
