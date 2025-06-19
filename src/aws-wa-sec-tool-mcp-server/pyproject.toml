@@ -28,6 +28,10 @@ packages = {find = {where = ["."]}}
 [project.entry-points.mcp]
 aws-wa-sec-tool-mcp-server = "awslabs.aws_wa_sec_tool_mcp_server.server:mcp"
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "0.1.0"
@@ -38,14 +42,15 @@ version_files = [
 ]
 update_changelog_on_bump = true
 
-[tool.uv]
-package = true
-
 [tool.ruff]
 line-length = 99
 target-version = "py310"
+exclude = [
+    ".venv",
+    "**/__pycache__"]
 
 [tool.ruff.lint]
+exclude = ["__init__.py"]
 select = ["E", "F", "I", "B", "Q"]
 ignore = ["E203", "E501"]
 
@@ -56,3 +61,29 @@ known-first-party = ["awslabs"]
 quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv", ".venv", "tests"]
+
+[tool.pytest.ini_options]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+testpaths = [ "tests"]
+asyncio_mode = "auto"
+markers = [
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
+]
+
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:\n    main()',
+]
+
+[tool.coverage.run]
+source = ["awslabs"]
