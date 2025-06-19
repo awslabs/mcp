@@ -17,7 +17,7 @@ Maps to AWS CLI command: aws kafka create-configuration.
 """
 
 
-def create_configuration(name, server_properties, client, description='', kafka_versions=None):
+def create_configuration(name, server_properties, client, description, kafka_versions=None):
     """Creates a new MSK configuration.
 
     Args:

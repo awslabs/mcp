@@ -17,7 +17,7 @@ Maps to AWS CLI command: aws kafka update-configuration.
 """
 
 
-def update_configuration(arn, server_properties, client, description=''):
+def update_configuration(arn, server_properties, client, description):
     """Updates an MSK configuration.
 
     Args:
