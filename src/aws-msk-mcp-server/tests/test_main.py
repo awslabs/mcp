@@ -15,15 +15,21 @@
 """Tests for the main function in server.py."""
 
 from awslabs.aws_msk_mcp_server.server import main
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 class TestMain:
     """Tests for the main function."""
 
     @patch('awslabs.aws_msk_mcp_server.server.run')
-    def test_main_calls_run(self, mock_run):
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_calls_run(self, mock_parse_args, mock_run):
         """Test that main calls the run function."""
+        # Arrange
+        mock_args = MagicMock()
+        mock_args.allow_writes = False
+        mock_parse_args.return_value = mock_args
+
         # Act
         main()
 
