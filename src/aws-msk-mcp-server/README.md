@@ -72,10 +72,7 @@ To use this MCP server with your MCP client, add the following configuration to 
 "awslabs.aws-msk-mcp-server": {
     "command": "uv",
     "args": [
-        "--directory",
-        "<absolute path to your server code>",
-        "run",
-        "server.py"
+        "awslabs.aws-msk-mcp-server"
         // Add "--allow-writes" here to enable write operations
     ],
     "env": {
@@ -84,7 +81,6 @@ To use this MCP server with your MCP client, add the following configuration to 
     "disabled": false,
     "autoApprove": []
 }
-```
 
 Replace `<absolute path to your server code>` with the absolute path to the server code, for example: `/Users/myuser/mcp/src/aws-msk-mcp-server/awslabs/aws_msk_mcp_server`.
 
