@@ -18,7 +18,7 @@ import pytest
 
 # Import the server functions
 from awslabs.git_repo_research_mcp_server.server import (
-    mcp_search_github_repos as search_repositories_on_github,
+    mcp_search_github_repos as search_repos_on_github,
 )
 
 
@@ -42,7 +42,7 @@ async def test_github_repository_search_live():
 
     # Test searching for "aws lambda serverless"
     # This should return repositories from AWS organizations related to Lambda and serverless
-    search_result = await search_repositories_on_github(
+    search_result = await search_repos_on_github(
         ctx, keywords=['aws', 'lambda', 'serverless'], num_results=5
     )
 
@@ -89,7 +89,7 @@ async def test_github_repository_search_no_results_live():
     ctx = MockContext()
 
     # Test with a very specific query that is unlikely to have repositories
-    search_result = await search_repositories_on_github(
+    search_result = await search_repos_on_github(
         ctx, keywords=['unlikely123456789', 'nonexistentrepo987654321'], num_results=5
     )
 
@@ -118,14 +118,10 @@ async def test_github_repository_search_with_limit_live():
     ctx = MockContext()
 
     # Small number of results
-    small_result = await search_repositories_on_github(
-        ctx, keywords=['aws', 'dynamodb'], num_results=2
-    )
+    small_result = await search_repos_on_github(ctx, keywords=['aws', 'dynamodb'], num_results=2)
 
     # Larger number of results
-    large_result = await search_repositories_on_github(
-        ctx, keywords=['aws', 'dynamodb'], num_results=5
-    )
+    large_result = await search_repos_on_github(ctx, keywords=['aws', 'dynamodb'], num_results=5)
 
     # Verify the responses are valid
     assert small_result is not None
@@ -154,9 +150,7 @@ async def test_github_repository_order_by_stars_live():
     ctx = MockContext()
 
     # Search for popular AWS repositories
-    search_result = await search_repositories_on_github(
-        ctx, keywords=['aws', 'cdk'], num_results=10
-    )
+    search_result = await search_repos_on_github(ctx, keywords=['aws', 'cdk'], num_results=10)
 
     # Verify the results structure
     assert search_result is not None
