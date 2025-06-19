@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-bedrock-data-automation-mcp-server"
-version = "0.0.2"
+version = "0.0.3"
 description = "An AWS Labs Model Context Protocol (MCP) server for Bedrock Data Automation"
 readme = "README.md"
 requires-python = ">=3.10"
