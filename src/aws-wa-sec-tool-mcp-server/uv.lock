@@ -27,9 +27,9 @@ wheels = [
 ]
 
 [[package]]
-name = "awslabs-aws-wa-sec-review-mcp-server"
+name = "awslabs-aws-wa-sec-tool-mcp-server"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "boto3" },
     { name = "fastapi" },
