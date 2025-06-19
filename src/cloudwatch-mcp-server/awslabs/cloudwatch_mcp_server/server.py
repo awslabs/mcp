@@ -15,6 +15,7 @@
 """awslabs cloudwatch-logs MCP Server implementation."""
 
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTools
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -33,8 +34,11 @@ try:
     cloudwatch_logs_tools = CloudWatchLogsTools()
     cloudwatch_logs_tools.register(mcp)
     logger.info('CloudWatch Logs tools registered successfully')
+    cloudwatch_metrics_tools = CloudWatchMetricsTools()
+    cloudwatch_metrics_tools.register(mcp)
+    logger.info('CloudWatch Metrics tools registered successfully')
 except Exception as e:
-    logger.error(f'Error initializing CloudWatch Logs tools: {str(e)}')
+    logger.error(f'Error initializing CloudWatch tools: {str(e)}')
     raise
 
 
