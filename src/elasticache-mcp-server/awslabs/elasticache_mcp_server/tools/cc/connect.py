@@ -19,7 +19,7 @@ from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
 from botocore.exceptions import ClientError
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 
 async def _configure_security_groups(
@@ -252,18 +252,20 @@ async def get_ssh_tunnel_command_cc(
 @handle_exceptions
 async def create_jump_host_cc(
     cache_cluster_id: str,
-    subnet_id: str,
-    security_group_id: str,
     key_name: str,
+    subnet_id: Optional[str] = None,
+    security_group_id: Optional[str] = None,
     instance_type: str = 't3.small',
 ) -> Dict[str, Any]:
     """Creates an EC2 jump host instance to access an ElastiCache cluster via SSH tunnel.
 
     Args:
         cache_cluster_id (str): ID of the ElastiCache cluster to connect to
-        subnet_id (str): ID of the subnet to launch the EC2 instance in (must be public)
-        security_group_id (str): ID of the security group to assign to the EC2 instance
         key_name (str): Name of the EC2 key pair to use for SSH access
+        subnet_id (str, optional): ID of the subnet to launch the EC2 instance in (must be public).
+            If not provided and cache uses default VPC, will auto-select a default subnet.
+        security_group_id (str, optional): ID of the security group to assign to the EC2 instance.
+            If not provided and cache uses default VPC, will use the default security group.
         instance_type (str, optional): EC2 instance type. Defaults to "t3.small"
 
     Returns:
@@ -306,6 +308,59 @@ async def create_jump_host_cc(
         )['CacheSubnetGroups'][0]
         cache_vpc_id = cache_subnet_group['VpcId']
 
+        # Check if cache is in default VPC
+        vpcs = ec2_client.describe_vpcs(VpcIds=[cache_vpc_id])['Vpcs']
+        cache_vpc = vpcs[0] if vpcs else None
+        is_default_vpc = cache_vpc and cache_vpc.get('IsDefault', False)
+
+        # Auto-select subnet if not provided and cache is in default VPC
+        if not subnet_id and is_default_vpc:
+            # Get default subnets in the default VPC
+            subnets = ec2_client.describe_subnets(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [cache_vpc_id]},
+                    {'Name': 'default-for-az', 'Values': ['true']},
+                ]
+            )['Subnets']
+
+            if subnets:
+                # Pick the first available default subnet
+                subnet_id = subnets[0]['SubnetId']
+            else:
+                # Fallback to any public subnet in the VPC
+                all_subnets = ec2_client.describe_subnets(
+                    Filters=[{'Name': 'vpc-id', 'Values': [cache_vpc_id]}]
+                )['Subnets']
+
+                for subnet in all_subnets:
+                    if subnet.get('MapPublicIpOnLaunch', False):
+                        subnet_id = subnet['SubnetId']
+                        break
+
+        # Auto-select security group if not provided and cache is in default VPC
+        if not security_group_id and is_default_vpc:
+            # Get the default security group for the VPC
+            security_groups = ec2_client.describe_security_groups(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [cache_vpc_id]},
+                    {'Name': 'group-name', 'Values': ['default']},
+                ]
+            )['SecurityGroups']
+
+            if security_groups:
+                security_group_id = security_groups[0]['GroupId']
+
+        # Validate required parameters after auto-selection
+        if not subnet_id:
+            raise ValueError(
+                'subnet_id is required. Either provide a subnet_id or ensure the cache cluster is in the default VPC with default subnets available.'
+            )
+
+        if not security_group_id:
+            raise ValueError(
+                'security_group_id is required. Either provide a security_group_id or ensure the cache cluster is in the default VPC.'
+            )
+
         # Get subnet details and verify it's public
         subnet_response = ec2_client.describe_subnets(SubnetIds=[subnet_id])
         subnet = subnet_response['Subnets'][0]
@@ -318,6 +373,7 @@ async def create_jump_host_cc(
             )
 
         # Check if subnet is public by looking for route to internet gateway
+        # or if it's a default subnet in the default VPC (which are automatically public)
         route_tables = ec2_client.describe_route_tables(
             Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}]
         )['RouteTables']
@@ -331,9 +387,21 @@ async def create_jump_host_cc(
             if is_public:
                 break
 
+        # If not found via route table, check if it's a default subnet in default VPC
+        if not is_public:
+            # Check if this is the default VPC
+            vpcs = ec2_client.describe_vpcs(VpcIds=[subnet_vpc_id])['Vpcs']
+            vpc = vpcs[0] if vpcs else None
+
+            if vpc and vpc.get('IsDefault', False):
+                # In default VPC, check if this is a default subnet
+                # Default subnets have MapPublicIpOnLaunch set to True
+                if subnet.get('DefaultForAz', False) or subnet.get('MapPublicIpOnLaunch', False):
+                    is_public = True
+
         if not is_public:
             raise ValueError(
-                f'Subnet {subnet_id} is not public (no route to internet gateway found). '
+                f'Subnet {subnet_id} is not public (no route to internet gateway found and not a default subnet in default VPC). '
                 'The subnet must be public to allow SSH access to the jump host.'
             )
 

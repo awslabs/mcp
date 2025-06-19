@@ -415,12 +415,12 @@ async def test_create_jump_host_cc_main_route_table():
             return_value=mock_elasticache,
         ),
     ):
-        result = await create_jump_host_cc('cluster-1', 'subnet-123', 'sg-123', 'test-key')
+        result = await create_jump_host_cc('cluster-1', 'test-key', 'subnet-123', 'sg-123')
 
         # Should fail because subnet is not public
         assert 'error' in result
         assert (
-            'Subnet subnet-123 is not public (no route to internet gateway found)'
+            'Subnet subnet-123 is not public (no route to internet gateway found and not a default subnet in default VPC)'
             in result['error']
         )
 
