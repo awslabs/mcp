@@ -39,6 +39,7 @@ nav:
     - Cost Explorer MCP Server: servers/cost-explorer-mcp-server.md
     - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
     - Amazon Q index MCP Server: servers/amazon-qindex-mcp-server.md
+    - Amazon Rekognition MCP Server: servers/amazon-rekognition-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
     - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
