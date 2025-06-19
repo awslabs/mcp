@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.12-slim
+#FROM public.ecr.aws/sam/build-python3.10:1.137.1-20250411084548
+FROM public.ecr.aws/sam/build-python3.10@sha256:d821662474d65f3cf2fc97dba2fa807a3adb580d02895fc4545527812550ea65 AS uv
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
-
-# Set working directory
+# Install the project into `/app`
 WORKDIR /app
 
 # Enable bytecode compilation
@@ -32,25 +30,43 @@ ENV UV_PYTHON_PREFERENCE=only-system
 # Run without updating the uv.lock file like running with `--frozen`
 ENV UV_FROZEN=true
 
-# Copy project files
-COPY pyproject.toml uv.lock ./
-COPY awslabs/ ./awslabs/
+# Copy all files at once to ensure uv.lock is available
+COPY . /app
 
-# Install dependencies
-RUN uv sync --frozen --no-dev
+# Install uv and sync dependencies
+RUN --mount=type=cache,target=/root/.cache/uv \
+    pip install uv==0.7.11 && \
+    uv sync --frozen --no-dev --no-editable
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash app
+# Make the directory just in case it doesn't exist
+RUN mkdir -p /root/.local
+
+FROM public.ecr.aws/sam/build-python3.10@sha256:d821662474d65f3cf2fc97dba2fa807a3adb580d02895fc4545527812550ea65
+
+# Place executables in the environment at the front of the path and include other binaries
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+
+# Install lsof for the healthcheck
+# Install other tools as needed for the MCP server
+# Add non-root user and ability to change directory into /root
+RUN yum update -y && \
+    yum install -y lsof && \
+    yum clean all -y && \
+    rm -rf /var/cache/yum && \
+    groupadd --force --system app && \
+    useradd app -g app -d /app && \
+    chmod o+x /root
+
+# Get the project from the uv layer
+COPY --from=uv --chown=app:app /root/.local /root/.local
+COPY --from=uv --chown=app:app /app/.venv /app/.venv
+
+# Get healthcheck script
+COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+
+# Run as non-root
 USER app
 
-# Set environment variables
-ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app"
-
-# Health check
-COPY docker-healthcheck.sh /usr/local/bin/
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD ["/usr/local/bin/docker-healthcheck.sh"]
-
-# Run the server
-ENTRYPOINT ["python", "-m", "awslabs.iam_mcp_server.server"]
+# When running the container, add --db-path and a bind mount to the host's db file
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
+ENTRYPOINT ["awslabs.iam-mcp-server"]
