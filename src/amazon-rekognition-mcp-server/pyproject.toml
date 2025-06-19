@@ -1,7 +1,7 @@
 [project]
 name = "awslabs.amazon-rekognition-mcp-server"
 
-version = "0.0.1"
+version = "0.0.2"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for Amazon Rekognition"
 readme = "README.md"
