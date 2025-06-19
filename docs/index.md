@@ -118,6 +118,22 @@ The AWS Lambda Tool MCP Server enables AI assistants to select and run AWS Lambd
 
 [Learn more about the AWS Lambda Tool MCP Server](servers/lambda-tool-mcp-server.md)
 
+### AWS IAM MCP Server
+
+The AWS IAM MCP Server provides comprehensive AWS Identity and Access Management (IAM) operations with security best practices and read-only mode support.
+
+**Features:**
+
+- User Management: Create, list, retrieve, and delete IAM users
+- Role Management: Create, list, and manage IAM roles with trust policies
+- Policy Management: List and manage IAM policies (managed and inline)
+- Permission Management: Attach/detach policies to users and roles
+- Access Key Management: Create and delete access keys for users
+- Security Simulation: Test policy permissions before applying them
+- Read-Only Mode: Run server in read-only mode to prevent modifications
+
+[Learn more about the AWS IAM MCP Server](servers/iam-mcp-server.md)
+
 ### Amazon Aurora DSQL MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
