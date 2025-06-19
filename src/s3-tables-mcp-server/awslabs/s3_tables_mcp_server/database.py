@@ -19,6 +19,7 @@ It handles query execution, result retrieval, and proper formatting of responses
 """
 
 import os
+from . import __version__
 from .config import AthenaConfig
 from .engines.athena import AthenaEngine
 from typing import Any, Dict, Optional
@@ -143,7 +144,11 @@ def _execute_database_query(
     if validate_read_only:
         validate_read_only_query(query)
 
-    results = engine.execute_query(query)
+    # Prepend version comment to the query
+    version_comment = f'/* awslabs/mcp/s3-tables-mcp-server/{__version__} */'
+    query_with_comment = f'{version_comment}\n{query}'
+
+    results = engine.execute_query(query_with_comment)
 
     return {
         'status': 'success',
