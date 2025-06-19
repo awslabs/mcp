@@ -1,23 +1,23 @@
 [project]
-name = "awslabs.aws-documentation-mcp-server"
-version = "1.1.0"
-description = "An AWS Labs Model Context Protocol (MCP) server for AWS Documentation"
+name = "awslabs.amazon-rekognition-mcp-server"
+
+version = "0.0.2"
+
+description = "An AWS Labs Model Context Protocol (MCP) server for Amazon Rekognition"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "markdownify>=1.1.0",
+    "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
-    "httpx>=0.27.0",
-    "loguru>=0.7.0",
-    "beautifulsoup4>=4.12.0",
+    "boto3>=1.38.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
-
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    {name = "Ayush Goyal", email="ayush987goyal@gmail.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -30,15 +30,15 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 
-[project.scripts]
-"awslabs.aws-documentation-mcp-server" = "awslabs.aws_documentation_mcp_server.server:main"
-
 [project.urls]
-Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/"
-Source = "https://github.com/awslabs/mcp.git"
-"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-documentation-mcp-server/CHANGELOG.md"
+homepage = "https://awslabs.github.io/mcp/"
+docs = "https://awslabs.github.io/mcp/servers/amazon-rekognition-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/amazon-rekognition-mcp-server/"
+repository = "https://github.com/awslabs/mcp.git"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-rekognition-mcp-server/CHANGELOG.md"
+
+[project.scripts]
+"awslabs.amazon-rekognition-mcp-server" = "awslabs.amazon_rekognition_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -46,10 +46,10 @@ dev = [
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.11.1",
+    "pytest>=8.0.0",
     "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
 ]
 
 [build-system]
@@ -97,29 +97,42 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.0.1"
+version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/aws-documentation_mcp_server.__init__py:__version__"
+    "awslabs/amazon_rekognition_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
 
+[tool.bandit]
+exclude_dirs = ["venv", ".venv", "tests"]
+
 [tool.pytest.ini_options]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+testpaths = [ "tests"]
+asyncio_mode = "auto"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"
 ]
-asyncio_mode = "strict"
-asyncio_default_fixture_loop_scope = "function"
 
-[tool.bandit]
-exclude_dirs = ["venv","tests"]
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:\n    main()',
+]
 
 [tool.coverage.run]
 source = ["awslabs"]
