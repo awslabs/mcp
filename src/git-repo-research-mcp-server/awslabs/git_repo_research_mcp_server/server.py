@@ -78,7 +78,7 @@ Perform semantic search within an indexed repository.
 ### delete_research_repository
 Delete an indexed repository.
 
-### search_repositories_on_github
+### search_repos_on_github
 Search for GitHub repositories based on keywords, scoped to specific organizations.
 
 ### access_file
@@ -150,7 +150,7 @@ delete_research_repository(repository_name_or_path="repo_name")
 
 ### Searching for GitHub Repositories
 ```
-search_repositories_on_github(
+search_repos_on_github(
     keywords=["serverless", "lambda"],
     num_results=10
 )
@@ -666,7 +666,7 @@ async def mcp_search_repository(
         raise
 
 
-@mcp.tool(name='search_repositories_on_github')
+@mcp.tool(name='search_repos_on_github')
 async def mcp_search_github_repos(
     ctx: Context,
     keywords: List[str] = Field(description='List of keywords to search for GitHub repositories'),
