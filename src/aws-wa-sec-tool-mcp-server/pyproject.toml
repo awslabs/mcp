@@ -1,5 +1,5 @@
 [project]
-name = "awslabs.aws-wa-sec-review-mcp-server"
+name = "awslabs.aws-wa-sec-tool-mcp-server"
 version = "0.1.0"
 description = "AWS Well-Architected Security Assessment Tool MCP Server"
 readme = "README.md"

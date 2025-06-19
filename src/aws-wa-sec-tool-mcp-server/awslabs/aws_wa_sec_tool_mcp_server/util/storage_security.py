@@ -305,7 +305,7 @@ async def check_s3_buckets(
                     bucket_result["issues"].append("Default encryption not enabled")
                     bucket_result["checks"]["default_encryption"] = {"enabled": False}
                     bucket_result["checks"]["using_cmk"] = False
-            except s3_client.exceptions.ClientError:
+            except Exception:
                 # No encryption configuration found
                 bucket_result["compliant"] = False
                 bucket_result["issues"].append("Default encryption not enabled")

@@ -74,6 +74,8 @@ Avoid using the tool in production for:
 
 ## Configuration
 
+[![Install in Cursor](https://cursor.sh/install-button.svg)](https://cursor.sh/installMcpServer?name=awslabs.aws-wa-sec-tool-mcp-server&command=uvx&args=%5B%22--from%22%2C%22awslabs-aws-wa-sec-tool-mcp-server%22%2C%22aws-wa-sec-tool-mcp-server%22%5D)
+
 Add the AWS Well-Architected Security Assessment Tool MCP Server to your MCP client configuration:
 
 ```json
@@ -195,6 +197,36 @@ These tools help you assess your AWS environment against the Well-Architected Fr
 - Python 3.10+
 - AWS credentials with read-only permissions for security services
 - AWS CLI configured with appropriate profiles (optional)
+
+## Testing
+
+The AWS Well-Architected Security Assessment Tool MCP Server includes a comprehensive test suite to ensure functionality and reliability. The tests are organized by module and use pytest with mocks to avoid making actual AWS API calls.
+
+### Test Structure
+
+- `test_prompt_utils.py`: Tests for prompt template utilities
+- `test_resource_utils.py`: Tests for AWS resource operations
+- `test_storage_security.py`: Tests for storage encryption checks
+- `test_network_security.py`: Tests for network security checks
+- `test_security_services.py`: Tests for AWS security services
+
+### Running Tests
+
+The easiest way to run all tests is to use the provided script:
+
+```bash
+# Make the script executable if needed
+chmod +x run_tests.sh
+
+# Run the tests
+./run_tests.sh
+```
+
+This script will:
+1. Install required dependencies (pytest, pytest-asyncio, pytest-cov)
+2. Run all tests with coverage reporting
+
+For more detailed information about testing, see the [tests/README.md](tests/README.md) file.
 
 ## License
 
