@@ -721,56 +721,81 @@ def test_types_model_dump_edge_cases():
     assert img.model_dump_json()
 
 
-def test_handle_image_byte_stream():
-    """Test handling of image byte streams."""
+def test_handle_image_byte_streams():
+    """Test handling of image byte streams for various formats."""
     handler = MCPLambdaHandler('test-server')
 
-    # Create a simple PNG image as bytes
-    # This is a 1x1 transparent PNG
-    png_bytes = (
-        b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00'
-        b'\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc'
-        b"\x00\x00\x00\x02\x00\x01\xe5'\xde\xfc\x00\x00\x00\x00IEND\xaeB`\x82"
-    )
-
-    @handler.tool()
-    def get_image() -> bytes:
-        """Return a simple PNG image as bytes."""
-        return png_bytes
-
-    # Simulate a valid JSON-RPC request using the 'tools/call' pattern
-    req = {
-        'jsonrpc': '2.0',
-        'id': 3,
-        'method': 'tools/call',
-        'params': {'name': 'getImage', 'arguments': {}},
+    # Test data for different image formats with minimal valid bytes
+    image_data = {
+        'png': {
+            'bytes': (
+                b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00'
+                b'\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc'
+                b'\x00\x00\x00\x02\x00\x01\xe5\x27\xde\xfc\x00\x00\x00\x00IEND\xaeB`\x82'
+            ),
+            'mime': 'image/png',
+        },
+        'jpeg': {
+            'bytes': (
+                b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xd9'
+            ),
+            'mime': 'image/jpeg',
+        },
+        'gif': {
+            'bytes': (
+                b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04'
+                b'\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+            ),
+            'mime': 'image/gif',
+        },
+        'webp': {
+            'bytes': (b'RIFF\x1a\x00\x00\x00WEBPVP8 \x0e\x00\x00\x00\x10\x00\x00\x00'),
+            'mime': 'image/webp',
+        },
     }
-    event = make_lambda_event(req)
-    context = None
 
-    resp = handler.handle_request(event, context)
+    for format_name, format_data in image_data.items():
 
-    # Parse the response
-    if isinstance(resp, dict) and 'body' in resp:
-        body = json.loads(resp['body'])
-        assert 'result' in body
-        assert isinstance(body['result'], dict)
-        assert 'content' in body['result']
-        assert isinstance(body['result']['content'], list)
+        @handler.tool()
+        def get_image() -> bytes:
+            """Return a simple image as bytes."""
+            return format_data['bytes']
 
-        # Verify that we got an image content object
-        content = body['result']['content'][0]
-        assert content['type'] == 'image'
-        assert content['mimeType'] == 'image/png'
-        assert 'data' in content
+        # Simulate a valid JSON-RPC request using the 'tools/call' pattern
+        req = {
+            'jsonrpc': '2.0',
+            'id': 3,
+            'method': 'tools/call',
+            'params': {'name': 'getImage', 'arguments': {}},
+        }
+        event = make_lambda_event(req)
+        context = None
 
-        # Verify that the data can be decoded back to the original bytes
-        import base64
+        resp = handler.handle_request(event, context)
 
-        decoded_bytes = base64.b64decode(content['data'])
-        assert decoded_bytes == png_bytes
-    else:
-        pytest.fail(f'Unexpected response: {resp}')
+        # Parse the response
+        if isinstance(resp, dict) and 'body' in resp:
+            body = json.loads(resp['body'])
+            assert 'result' in body, f'No result in response for {format_name}'
+            assert isinstance(body['result'], dict), f'Result not a dict for {format_name}'
+            assert 'content' in body['result'], f'No content in result for {format_name}'
+            assert isinstance(body['result']['content'], list), (
+                f'Content not a list for {format_name}'
+            )
+
+            # Verify that we got an image content object
+            content = body['result']['content'][0]
+            assert content['type'] == 'image', f'Wrong content type for {format_name}'
+            assert content['mimeType'] == format_data['mime'], f'Wrong MIME type for {format_name}'
+            assert 'data' in content, f'No data in content for {format_name}'
+
+            # Verify that the data can be decoded back to the original bytes
+            import base64
+
+            decoded_bytes = base64.b64decode(content['data'])
+            assert decoded_bytes == format_data['bytes'], f'Data mismatch for {format_name}'
+        else:
+            pytest.fail(f'Unexpected response for {format_name}: {resp}')
 
 
 def test_handle_request_delete_session_failure():
