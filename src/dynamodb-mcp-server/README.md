@@ -65,7 +65,9 @@ All tools support an optional `region_name` parameter to specify which AWS regio
 
 ## Installation
 
-Add the MCP to your favorite agentic tools. e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.dynamodb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZHluYW1vZGItbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiRERCLU1DUC1SRUFET05MWSI6InRydWUiLCJBV1NfUFJPRklMRSI6ImRlZmF1bHQiLCJBV1NfUkVHSU9OIjoidXMtd2VzdC0yIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
+
+Add the MCP to your favorite agentic tools. (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {

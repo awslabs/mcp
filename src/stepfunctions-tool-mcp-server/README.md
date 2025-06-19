@@ -37,7 +37,9 @@ graph LR
 
 ## Installation
 
-Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.stepfunctions-tool-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuc3RlcGZ1bmN0aW9ucy10b29sLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJTVEFURV9NQUNISU5FX1BSRUZJWCI6InlvdXItc3RhdGUtbWFjaGluZS1wcmVmaXgiLCJTVEFURV9NQUNISU5FX0xJU1QiOiJ5b3VyLWZpcnN0LXN0YXRlLW1hY2hpbmUsIHlvdXItc2Vjb25kLXN0YXRlLW1hY2hpbmUiLCJTVEFURV9NQUNISU5FX1RBR19LRVkiOiJ5b3VyLXRhZy1rZXkiLCJTVEFURV9NQUNISU5FX1RBR19WQUxVRSI6InlvdXItdGFnLXZhbHVlIiwiU1RBVEVfTUFDSElORV9JTlBVVF9TQ0hFTUFfQVJOX1RBR19LRVkiOiJ5b3VyLXN0YXRlLW1hY2hpbmUtdGFnLWZvci1pbnB1dC1zY2hlbWEifX0%3D)
+
+Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
 {

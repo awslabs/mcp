@@ -36,19 +36,29 @@ nav:
     - Amazon Bedrock Knowledge Base Retrieval MCP Server: servers/bedrock-kb-retrieval-mcp-server.md
     - AWS CDK MCP Server: servers/cdk-mcp-server.md
     - Cost Analysis MCP Server: servers/cost-analysis-mcp-server.md
+    - Cost Explorer MCP Server: servers/cost-explorer-mcp-server.md
     - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
+    - Amazon Q index MCP Server: servers/amazon-qindex-mcp-server.md
+    - Amazon Rekognition MCP Server: servers/amazon-rekognition-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
+    - AWS IAM MCP Server: servers/iam-mcp-server.md
     - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
     - AWS Step Functions Tool MCP Server: servers/stepfunctions-tool-mcp-server.md
     - AWS Terraform MCP Server: servers/terraform-mcp-server.md
+    - Amazon ElastiCache MCP Server: servers/elasticache-mcp-server.md
+    - Amazon ElastiCache/MemoryDB for Valkey MCP Server: servers/valkey-mcp-server.md
+    - Amazon ElastiCache for Memcached MCP Server: servers/memcached-mcp-server.md
     - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
+    - OpenAPI MCP Server: servers/openapi-mcp-server.md
     - CloudFormation MCP Server: servers/cfn-mcp-server.md
     - AWS Serverless MCP Server: servers/aws-serverless-mcp-server.md
     - Finch MCP Server: servers/finch-mcp-server.md
     - Amazon EKS MCP Server: servers/eks-mcp-server.md
     - Amazon ECS MCP Server: servers/ecs-mcp-server.md
     - AWS Support MCP Server: servers/aws-support-mcp-server.md
+    - AWS Managed Prometheus MCP Server: servers/prometheus-mcp-server.md
+    - Amazon Timestream for InfluxDB MCP Server: servers/timestream-for-influxdb-mcp-server.md
   - Samples:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md

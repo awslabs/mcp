@@ -35,6 +35,8 @@ This MCP server enables developers to research external Git repositories and inf
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.git-repo-research-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZ2l0LXJlcG8tcmVzZWFyY2gtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJ5b3VyLXByb2ZpbGUtbmFtZSIsIkFXU19SRUdJT04iOiJ1cy13ZXN0LTIiLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiR0lUSFVCX1RPS0VOIjoieW91ci1naXRodWItdG9rZW4ifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119)
+
 To add this MCP server to your Amazon Q or Claude, add the following to your MCP config file:
 
 ```json
@@ -87,12 +89,12 @@ search_research_repository(
 ) -> Dict
 ```
 
-### search_repositories_on_github
+### search_repos_on_github
 
 Searches for GitHub repositories based on keywords, scoped to AWS organizations.
 
 ```python
-search_repositories_on_github(
+search_repos_on_github(
     keywords: List[str],
     num_results: int = 5
 ) -> Dict

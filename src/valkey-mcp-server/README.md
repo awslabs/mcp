@@ -19,6 +19,7 @@ This MCP server provides tools to operate on Valkey data types. For example, it 
 - **Cluster Support**: Support for standalone and clustered Valkey deployments.
 - **SSL/TLS Security**: Configure secure connections using SSL/TLS.
 - **Connection Pooling**: Pools connections by default to enable efficient connection management.
+- **Readonly Mode**: Prevent write operations to ensure data safety.
 
 ## Prerequisites
 
@@ -30,6 +31,8 @@ This MCP server provides tools to operate on Valkey data types. For example, it 
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.valkey-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMudmFsa2V5LW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IlZBTEtFWV9IT1NUIjoiMTI3LjAuMC4xIiwiVkFMS0VZX1BPUlQiOiI2Mzc5IiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZX0%3D)
+
 Here are some ways you can work with MCP across AWS tools (e.g., for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
@@ -39,6 +42,29 @@ Here are some ways you can work with MCP across AWS tools (e.g., for Amazon Q De
       "command": "uvx",
       "args": [
         "awslabs.valkey-mcp-server@latest"
+      ],
+      "env": {
+        "VALKEY_HOST": "127.0.0.1",
+        "VALKEY_PORT": "6379",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "autoApprove": [],
+      "disabled": false
+    }
+  }
+}
+```
+
+To run in readonly mode:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.valkey-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.valkey-mcp-server@latest",
+        "--readonly"
       ],
       "env": {
         "VALKEY_HOST": "127.0.0.1",
@@ -70,6 +96,34 @@ Or using Docker after a successful `docker build -t awslabs/valkey-mcp-server .`
         "--env",
         "VALKEY_PORT=6379",
         "awslabs/valkey-mcp-server:latest"
+      ],
+      "env": {},
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+To run in readonly mode with Docker:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.valkey-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--interactive",
+        "--env",
+        "FASTMCP_LOG_LEVEL=ERROR",
+        "--env",
+        "VALKEY_HOST=127.0.0.1",
+        "--env",
+        "VALKEY_PORT=6379",
+        "awslabs/valkey-mcp-server:latest",
+        "--readonly"
       ],
       "env": {},
       "disabled": false,
@@ -131,4 +185,12 @@ docker run -p 8080:8080 \
   -e VALKEY_HOST=host.docker.internal \
   -e VALKEY_PORT=6379 \
   awslabs/valkey-mcp-server
+```
+
+To run in readonly mode:
+```bash
+docker run -p 8080:8080 \
+  -e VALKEY_HOST=host.docker.internal \
+  -e VALKEY_PORT=6379 \
+  awslabs/valkey-mcp-server --readonly
 ```
