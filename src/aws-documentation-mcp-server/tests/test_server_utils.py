@@ -62,7 +62,9 @@ class TestReadDocumentationImpl:
                         'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
                         return_value='AWS Documentation from URL: # Test\n\nContent',
                     ):
-                        result = await read_documentation_impl(ctx, url, max_length, start_index)
+                        result = await read_documentation_impl(
+                            ctx, url, max_length, start_index, 'test-uuid'
+                        )
 
                         # Verify the result
                         assert result == 'AWS Documentation from URL: # Test\n\nContent'
@@ -71,7 +73,10 @@ class TestReadDocumentationImpl:
                         mock_client.get.assert_called_once_with(
                             url,
                             follow_redirects=True,
-                            headers={'User-Agent': DEFAULT_USER_AGENT},
+                            headers={
+                                'User-Agent': DEFAULT_USER_AGENT,
+                                'X-MCP-Session-Id': 'test-uuid',
+                            },
                             timeout=30,
                         )
 
@@ -107,7 +112,9 @@ class TestReadDocumentationImpl:
                     'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
                     return_value='AWS Documentation from URL: Plain text content',
                 ):
-                    result = await read_documentation_impl(ctx, url, max_length, start_index)
+                    result = await read_documentation_impl(
+                        ctx, url, max_length, start_index, 'test-uuid'
+                    )
 
                     # Verify the result
                     assert result == 'AWS Documentation from URL: Plain text content'
@@ -130,7 +137,7 @@ class TestReadDocumentationImpl:
             mock_client.get = AsyncMock(side_effect=httpx.HTTPError('Connection error'))
             mock_client_class.return_value = mock_client
 
-            result = await read_documentation_impl(ctx, url, max_length, start_index)
+            result = await read_documentation_impl(ctx, url, max_length, start_index, 'test-uuid')
 
             # Verify the result contains the error message
             assert 'Failed to fetch' in result
@@ -164,7 +171,7 @@ class TestReadDocumentationImpl:
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
-            result = await read_documentation_impl(ctx, url, max_length, start_index)
+            result = await read_documentation_impl(ctx, url, max_length, start_index, 'test-uuid')
 
             # Verify the result contains the error message
             assert 'Failed to fetch' in result
@@ -217,7 +224,9 @@ class TestReadDocumentationImpl:
                             'AWS Documentation from URL: # Test\n\nLong... (truncated)'
                         )
 
-                        result = await read_documentation_impl(ctx, url, max_length, start_index)
+                        result = await read_documentation_impl(
+                            ctx, url, max_length, start_index, 'test-uuid'
+                        )
 
                         # Verify the result
                         assert (
@@ -270,7 +279,9 @@ class TestReadDocumentationImpl:
                         'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
                         mock_format,
                     ):
-                        result = await read_documentation_impl(ctx, url, max_length, start_index)
+                        result = await read_documentation_impl(
+                            ctx, url, max_length, start_index, 'test-uuid'
+                        )
 
                         # Verify the result
                         assert result == 'AWS Documentation from URL: Content'
@@ -279,3 +290,40 @@ class TestReadDocumentationImpl:
                         mock_format.assert_called_once_with(
                             url, '# Test\n\nContent', start_index, max_length
                         )
+
+
+class TestVersionImport:
+    """Test version import logic with metadata and fallback scenarios."""
+
+    @patch('importlib.metadata.version')
+    def test_version_from_metadata_success(self, mock_version):
+        """Test successful version retrieval from importlib.metadata."""
+        mock_version.return_value = '1.1.0'
+
+        # Re-import the module to trigger the version logic
+        import awslabs.aws_documentation_mcp_server.server_utils as server_utils
+        import importlib
+
+        importlib.reload(server_utils)
+
+        # Verify the version was retrieved from metadata
+        mock_version.assert_called_once_with('awslabs.aws-documentation-mcp-server')
+        assert '1.1.0' in server_utils.DEFAULT_USER_AGENT
+        assert 'ModelContextProtocol/1.1.0' in server_utils.DEFAULT_USER_AGENT
+
+    @patch('importlib.metadata.version')
+    def test_version_fallback_to_init(self, mock_version):
+        """Test fallback to __init__.py version when metadata fails."""
+        # Make metadata version raise an exception
+        mock_version.side_effect = Exception('Package not found')
+
+        # Re-import the module to trigger the fallback logic
+        import awslabs.aws_documentation_mcp_server.server_utils as server_utils
+        import importlib
+
+        importlib.reload(server_utils)
+
+        # Verify it fell back to the __init__.py version
+        mock_version.assert_called_once_with('awslabs.aws-documentation-mcp-server')
+        assert '1.1.0' in server_utils.DEFAULT_USER_AGENT
+        assert 'ModelContextProtocol/1.1.0' in server_utils.DEFAULT_USER_AGENT
