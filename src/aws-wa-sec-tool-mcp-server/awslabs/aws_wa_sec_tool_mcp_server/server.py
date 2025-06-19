@@ -22,13 +22,14 @@ import sys
 from typing import Dict, List, Optional
 
 import boto3
-from consts import INSTRUCTIONS
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
-from util.network_security import check_network_security
-from util.resource_utils import list_services_in_region
-from util.security_services import (
+
+from awslabs.aws_wa_sec_tool_mcp_server.consts import INSTRUCTIONS
+from awslabs.aws_wa_sec_tool_mcp_server.util.network_security import check_network_security
+from awslabs.aws_wa_sec_tool_mcp_server.util.resource_utils import list_services_in_region
+from awslabs.aws_wa_sec_tool_mcp_server.util.security_services import (
     check_access_analyzer,
     check_guard_duty,
     check_inspector,
@@ -42,7 +43,7 @@ from util.security_services import (
     get_securityhub_findings,
     get_trusted_advisor_findings,
 )
-from util.storage_security import check_storage_encryption
+from awslabs.aws_wa_sec_tool_mcp_server.util.storage_security import check_storage_encryption
 
 # Set up AWS region and profile from environment variables
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
