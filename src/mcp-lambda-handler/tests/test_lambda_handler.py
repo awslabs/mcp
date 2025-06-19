@@ -721,6 +721,58 @@ def test_types_model_dump_edge_cases():
     assert img.model_dump_json()
 
 
+def test_handle_image_byte_stream():
+    """Test handling of image byte streams."""
+    handler = MCPLambdaHandler('test-server')
+
+    # Create a simple PNG image as bytes
+    # This is a 1x1 transparent PNG
+    png_bytes = (
+        b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00'
+        b'\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc'
+        b"\x00\x00\x00\x02\x00\x01\xe5'\xde\xfc\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+    @handler.tool()
+    def get_image() -> bytes:
+        """Return a simple PNG image as bytes."""
+        return png_bytes
+
+    # Simulate a valid JSON-RPC request using the 'tools/call' pattern
+    req = {
+        'jsonrpc': '2.0',
+        'id': 3,
+        'method': 'tools/call',
+        'params': {'name': 'getImage', 'arguments': {}},
+    }
+    event = make_lambda_event(req)
+    context = None
+
+    resp = handler.handle_request(event, context)
+
+    # Parse the response
+    if isinstance(resp, dict) and 'body' in resp:
+        body = json.loads(resp['body'])
+        assert 'result' in body
+        assert isinstance(body['result'], dict)
+        assert 'content' in body['result']
+        assert isinstance(body['result']['content'], list)
+
+        # Verify that we got an image content object
+        content = body['result']['content'][0]
+        assert content['type'] == 'image'
+        assert content['mimeType'] == 'image/png'
+        assert 'data' in content
+
+        # Verify that the data can be decoded back to the original bytes
+        import base64
+
+        decoded_bytes = base64.b64decode(content['data'])
+        assert decoded_bytes == png_bytes
+    else:
+        pytest.fail(f'Unexpected response: {resp}')
+
+
 def test_handle_request_delete_session_failure():
     """Test handle_request when session deletion fails."""
 
