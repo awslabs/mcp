@@ -71,6 +71,9 @@ jobs:
       - name: Install Bandit
         run: pip install bandit[toml]
 
+      - name: Install pyright
+        run: npm install -g pyright
+
       - name: Security check - Bandit
         id: bandit-check
         working-directory: src/${{ matrix.package }}
