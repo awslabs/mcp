@@ -43,6 +43,13 @@ async def test_security_assessment_precheck(mock_ctx):
     assert "Step 4: Summarize Security Posture" in result
     assert "Best Practices" in result
 
+    # Check for code examples
+    assert "```python" in result
+    assert "await use_mcp_tool" in result
+    assert 'server_name="aws-wa-sec-tool-mcp-server"' in result
+    assert 'tool_name="CheckSecurityServices"' in result
+    assert 'tool_name="GetSecurityFindings"' in result
+
 
 @pytest.mark.asyncio
 async def test_check_storage_security_prompt(mock_ctx):
@@ -65,6 +72,14 @@ async def test_check_storage_security_prompt(mock_ctx):
     assert "Best Practices for Storage Security" in result
     assert "CheckStorageEncryption" in result
 
+    # Check for code examples and specific storage services
+    assert "```python" in result
+    assert "await use_mcp_tool" in result
+    assert 'tool_name="CheckStorageEncryption"' in result
+    assert 'tool_name="ListServicesInRegion"' in result
+    assert "storage_services = ['s3', 'ebs', 'rds', 'dynamodb', 'efs', 'elasticache']" in result
+    assert "include_unencrypted_only" in result
+
 
 @pytest.mark.asyncio
 async def test_check_network_security_prompt(mock_ctx):
@@ -86,3 +101,17 @@ async def test_check_network_security_prompt(mock_ctx):
     assert "Step 6: Implement Recommendations" in result
     assert "Best Practices for Network Security" in result
     assert "CheckNetworkSecurity" in result
+
+    # Check for code examples and specific network services
+    assert "```python" in result
+    assert "await use_mcp_tool" in result
+    assert 'tool_name="CheckNetworkSecurity"' in result
+    assert 'tool_name="ListServicesInRegion"' in result
+    assert "network_services = ['elb', 'vpc', 'apigateway', 'cloudfront']" in result
+    assert "include_non_compliant_only" in result
+
+    # Check for best practices
+    assert "Use HTTPS/TLS" in result
+    assert "Configure security policies" in result
+    assert "Implement strict security headers" in result
+    assert "Use AWS Certificate Manager" in result

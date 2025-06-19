@@ -636,8 +636,6 @@ async def check_storage_encryption_tool(
         if store_in_context:
             context_key = f"storage_encryption_{region}"
             context_storage[context_key] = results
-            print(f"Stored storage encryption results in context with key: {context_key}")
-
         return results
 
     except Exception as e:
@@ -709,8 +707,6 @@ async def list_services_in_region_tool(
     if store_in_context:
         context_key = f"services_in_region_{region}"
         context_storage[context_key] = results
-        print(f"Stored services list in context with key: {context_key}")
-
     return results
 
 
@@ -763,8 +759,6 @@ async def check_network_security_tool(
         if store_in_context:
             context_key = f"network_security_{region}"
             context_storage[context_key] = results
-            print(f"Stored network security results in context with key: {context_key}")
-
         return results
 
     except Exception as e:
