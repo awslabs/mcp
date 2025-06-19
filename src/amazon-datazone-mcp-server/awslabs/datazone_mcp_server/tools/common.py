@@ -15,6 +15,8 @@
 
 import boto3
 import logging
+import httpx
+from botocore.exceptions import ClientError
 
 
 # Constants
