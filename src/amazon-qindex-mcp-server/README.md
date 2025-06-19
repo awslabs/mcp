@@ -70,6 +70,8 @@ For Amazon Q Business application owners, direct integration support is not yet 
 
 ### Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.amazon_qindex_mcp_server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uX3FpbmRleF9tY3Bfc2VydmVyIiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEifX0%3D)
+
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json

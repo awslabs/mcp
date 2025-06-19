@@ -33,9 +33,13 @@ CONTROL_CONNECTION_TIMEOUT = 10.0
 # Protocol version for Cassandra driver
 PROTOCOL_VERSION = 4
 
-# Certificate paths
+# Certificate path, relative to the user's home directory.
+CERT_DIRECTORY = '.keyspaces-mcp/certs'
 CERT_FILENAME = 'sf-class2-root.crt'
-CERT_DIRECTORY = 'certs'
+
+# Env config path with database connection settings, relative to the user's home directory.
+ENV_DIRECTORY = '.keyspaces-mcp'
+ENV_FILENAME = 'env'
 
 # Query validation
 UNSAFE_OPERATIONS = [
