@@ -438,6 +438,22 @@ time-series data using InfluxDB.
 
 [Learn more about the Amazon Timestream for InfluxDB MCP Server](servers/timestream-for-influxdb-mcp-server.md)
 
+### Amazon Rekognition MCP Server
+
+A Model Context Protocol (MCP) server for Amazon Rekognition that enables AI assistants to analyze images using Amazon Rekognition's powerful computer vision capabilities.
+
+**Features:**
+
+- **Face Collection Management**: Create and manage collections of faces
+- **Face Recognition**: Index and search for faces in images
+- **Object and Scene Detection**: Identify objects, scenes, and activities in images
+- **Content Moderation**: Detect unsafe or inappropriate content
+- **Celebrity Recognition**: Identify celebrities in images
+- **Face Comparison**: Compare faces between images for similarity
+- **Text Detection**: Extract text from images
+
+[Learn more about the Amazon Rekognition MCP Server](servers/amazon-rekognition-mcp-server.md)
+
 ### AWS Cost Explorer MCP Server
 
 A server for interacting with AWS Cost Explorer to analyze AWS costs and usage data.
