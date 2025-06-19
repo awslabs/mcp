@@ -44,7 +44,7 @@ Create a new AWS DataZone domain.
 **Parameters:**
 - `name` (str, required): Domain name
 - `domain_execution_role` (str, required): ARN of domain execution role
-- `service_role` (str, required): ARN of service role  
+- `service_role` (str, required): ARN of service role
 - `domain_version` (str, optional): Domain version ("V1" or "V2", default: "V2")
 - `description` (str, optional): Domain description
 - `kms_key_identifier` (str, optional): KMS key ARN for encryption
@@ -662,7 +662,7 @@ All tools may return the following common errors:
 - **NoCredentialsError**: AWS credentials not configured
 - **AccessDeniedException**: Insufficient permissions for the operation
 
-### Validation Errors  
+### Validation Errors
 - **ValidationException**: Invalid parameters provided
 - **ConflictException**: Resource already exists or conflicts with existing state
 
@@ -688,7 +688,7 @@ Many workflows require multiple tool calls:
 # 1. Create project
 project = await client.call_tool("create_project", {...})
 
-# 2. Add project members  
+# 2. Add project members
 await client.call_tool("create_project_membership", {
     "project_identifier": project["id"],
     ...
@@ -713,10 +713,10 @@ while True:
         "domain_identifier": domain_id,
         "next_token": next_token
     })
-    
+
     projects = json.loads(result.content[0].text)
     all_projects.extend(projects["items"])
-    
+
     next_token = projects.get("nextToken")
     if not next_token:
         break
@@ -742,4 +742,4 @@ async def retry_operation(operation, max_retries=3):
 
 ---
 
-**Need help?** Check the [User Guide](./USER_GUIDE.md) for setup instructions and [examples](../examples/) for complete usage scenarios. 
+**Need help?** Check the [User Guide](./USER_GUIDE.md) for setup instructions and [examples](../examples/) for complete usage scenarios.

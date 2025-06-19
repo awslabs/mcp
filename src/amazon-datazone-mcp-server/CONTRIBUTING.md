@@ -40,7 +40,7 @@ This project adheres to a code of conduct. By participating, you are expected to
    # Create a virtual environment
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   
+
    # Install the package in development mode
    pip install -e ".[dev]"
    ```
@@ -114,15 +114,15 @@ When adding new DataZone API operations:
    ) -> Any:
        """
        Brief description of what this tool does.
-       
+
        Args:
            domain_identifier (str): The domain identifier
            required_param (str): Description of required parameter
            optional_param (str, optional): Description of optional parameter
-       
+
        Returns:
            Any: Description of return value
-           
+
        Example:
            ```python
            result = await client.call_tool("your_new_tool", {
@@ -137,14 +137,14 @@ When adding new DataZone API operations:
                "domainIdentifier": domain_identifier,
                "requiredParam": required_param
            }
-           
+
            if optional_param:
                params["optionalParam"] = optional_param
-           
+
            # Call AWS DataZone API
            response = datazone_client.your_api_method(**params)
            return response
-           
+
        except ClientError as e:
            error_code = e.response['Error']['Code']
            if error_code == 'AccessDeniedException':
@@ -216,14 +216,14 @@ pytest tests/test_domain_management.py::test_create_domain
    async def test_your_function(mock_client):
        # Arrange
        mock_client.your_api_method.return_value = {"result": "success"}
-       
+
        # Act
        result = await your_module.your_function("param1", "param2")
-       
+
        # Assert
        assert result["result"] == "success"
        mock_client.your_api_method.assert_called_once_with(
-           param1="param1", 
+           param1="param1",
            param2="param2"
        )
    ```
@@ -372,4 +372,4 @@ Contributors will be recognized in:
 - CHANGELOG.md release notes
 - GitHub contributors list
 
-Thank you for contributing to AWS DataZone MCP Server! ## 
+Thank you for contributing to AWS DataZone MCP Server! ##

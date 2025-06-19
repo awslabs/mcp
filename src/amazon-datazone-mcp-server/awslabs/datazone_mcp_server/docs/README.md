@@ -10,7 +10,7 @@ Welcome to the comprehensive documentation for the AWS DataZone MCP server. This
 - **[Installation & Setup](./USER_GUIDE.md#set-up-your-environment)** - Install and configure the server
 - **[Claude Desktop Integration](./USER_GUIDE.md#testing-with-claude-for-desktop)** - Connect with Claude for Desktop
 
-### Reference Materials  
+### Reference Materials
 - **[Tool Reference](./TOOL_REFERENCE.md)** - Complete documentation of all 38 available tools
 - **[Usage Examples](../examples/)** - Practical examples and code samples
 - **[Troubleshooting](./USER_GUIDE.md#troubleshooting)** - Common issues and solutions
@@ -27,7 +27,7 @@ Welcome to the comprehensive documentation for the AWS DataZone MCP server. This
 
 1. **[Getting Started Guide](./GETTING_STARTED.md)** - Complete tutorials in 40 minutes
    - Tutorial 1: Quick Start (5 min)
-   - Tutorial 2: Claude Integration (10 min) 
+   - Tutorial 2: Claude Integration (10 min)
    - Tutorial 3: First Operations (10 min)
    - Tutorial 4: Real Workflow (15 min)
 
@@ -72,7 +72,7 @@ Choose your path based on your needs:
 #### For Developers
 
 - **[Quick Setup](./GETTING_STARTED.md#tutorial-1-quick-start-5-minutes)**: Get running in 5 minutes
-- **[Tool Reference](./TOOL_REFERENCE.md)**: Complete tool documentation  
+- **[Tool Reference](./TOOL_REFERENCE.md)**: Complete tool documentation
 - **[Examples](../examples/)**: Code samples and patterns
 
 #### For Project Managers
@@ -126,7 +126,7 @@ Choose your path based on your needs:
 ### Key Features
 
 **Domain Management**: Complete lifecycle management of DataZone domains
-**Project Operations**: Project creation, membership, and configuration  
+**Project Operations**: Project creation, membership, and configuration
 **Data Assets**: Asset creation, publishing, and catalog management
 **Business Glossary**: Term definitions and business vocabulary management
 **Environment Management**: Data source connections and environment setup
@@ -136,14 +136,14 @@ Choose your path based on your needs:
 ### Performance Metrics
 
 - **Tool Count**: 38 specialized tools
-- **Response Time**: <2s average for most operations  
+- **Response Time**: <2s average for most operations
 - **Memory Usage**: <100MB typical runtime footprint
 - **Reliability**: 99%+ success rate in testing environments
 
 ### Architecture Quality
 
 **Code Organization**: Modular design with clear separation of concerns
-**Error Handling**: Comprehensive AWS exception handling and user-friendly messages  
+**Error Handling**: Comprehensive AWS exception handling and user-friendly messages
 **Documentation**: 83KB of documentation across multiple comprehensive guides
 **Testing**: High-coverage test suite with both unit and integration tests
 **Maintainability**: Clean, documented code following Python best practices
@@ -180,7 +180,7 @@ Choose your path based on your needs:
 
 ### Common Issues
 - **Setup Problems**: Check the [Getting Started guide](./GETTING_STARTED.md#-troubleshooting-guide)
-- **Tool Errors**: Review [troubleshooting guide](./USER_GUIDE.md#troubleshooting)  
+- **Tool Errors**: Review [troubleshooting guide](./USER_GUIDE.md#troubleshooting)
 - **AWS Permissions**: See [authentication setup](./USER_GUIDE.md#configure-aws-credentials)
 - **Claude Integration**: Follow [Claude Desktop tutorial](./GETTING_STARTED.md#-tutorial-2-claude-desktop-integration-10-minutes)
 

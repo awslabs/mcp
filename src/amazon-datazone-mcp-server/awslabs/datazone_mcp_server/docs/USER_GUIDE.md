@@ -8,7 +8,7 @@ Many data teams need to manage AWS DataZone resources - domains, projects, asset
 
 This server exposes **25+ tools** for comprehensive AWS DataZone management:
 - **Domain Management**: Get domains, create domain units, manage permissions
-- **Project Management**: Create projects, manage memberships, configure profiles  
+- **Project Management**: Create projects, manage memberships, configure profiles
 - **Data Management**: Create assets, publish to catalog, manage subscriptions
 - **Glossary Management**: Create glossaries and terms for data governance
 - **Environment Management**: List environments, create connections
@@ -108,7 +108,7 @@ The AWS DataZone MCP server provides **25+ tools** organized into 5 categories:
 
 ### Domain Management Tools
 - `get_domain` - Retrieve domain information
-- `create_domain` - Create a new DataZone domain  
+- `create_domain` - Create a new DataZone domain
 - `list_domain_units` - List organizational units
 - `create_domain_unit` - Create domain organizational units
 - `get_domain_unit` - Get domain unit details
@@ -181,7 +181,7 @@ Add the DataZone MCP server to your configuration:
         "datazone": {
             "command": "python",
             "args": [
-                "-m", 
+                "-m",
                 "datazone_mcp_server.server"
             ],
             "env": {
@@ -214,7 +214,7 @@ Once connected, you can use natural language to interact with your DataZone reso
 "Create a domain unit called 'Data Engineering' under the root unit"
 ```
 
-### Project Management  
+### Project Management
 ```
 "List all projects in my domain"
 "Create a new project called 'Customer Analytics' in domain dzd_abc123"
@@ -231,7 +231,7 @@ Once connected, you can use natural language to interact with your DataZone reso
 
 ### Glossary Management
 ```
-"Create a glossary called 'Business Terms' in project prj_123456"  
+"Create a glossary called 'Business Terms' in project prj_123456"
 "Add a glossary term 'Customer LTV' with definition 'Customer Lifetime Value'"
 "What glossary terms are defined for project prj_123456?"
 ```
@@ -248,7 +248,7 @@ Once connected, you can use natural language to interact with your DataZone reso
 When you ask a question:
 
 1. **Claude analyzes** your request and available DataZone tools
-2. **Claude selects** the appropriate tool(s) to use  
+2. **Claude selects** the appropriate tool(s) to use
 3. **MCP client executes** the chosen tool(s) through our server
 4. **Our server calls** the AWS DataZone API with your credentials
 5. **Results are returned** to Claude via MCP protocol
@@ -365,7 +365,7 @@ Use the actual path returned by `which uv` in your configuration.
 
 If Claude attempts to use tools but they fail:
 
-1. Check Claude's logs for errors  
+1. Check Claude's logs for errors
 2. Verify AWS credentials are configured correctly
 3. Test AWS DataZone access: `aws datazone list-domains`
 4. Check your IAM permissions for DataZone operations
@@ -392,7 +392,7 @@ You don't have sufficient DataZone permissions:
 2. Check you're in the correct AWS region
 3. Ensure the DataZone domain exists and you have access
 
-**Error: "ResourceNotFoundException"**  
+**Error: "ResourceNotFoundException"**
 
 The specified resource (domain, project, asset) doesn't exist:
 
@@ -434,7 +434,7 @@ from mcp import create_client
 
 async def test_tool():
     client = await create_client("stdio", ["python", "-m", "datazone_mcp_server.server"])
-    
+
     # Test domain listing
     result = await client.call_tool("list_domains", {})
     print(result.content[0].text)
@@ -445,12 +445,12 @@ asyncio.run(test_tool())
 ## Best Practices
 
 ### Security
-- Use IAM roles instead of access keys when possible  
+- Use IAM roles instead of access keys when possible
 - Follow principle of least privilege for DataZone permissions
 - Don't commit AWS credentials to version control
 - Rotate access keys regularly
 
-### Performance  
+### Performance
 - Set `DATAZONE_DOMAIN_ID` to avoid repeated domain lookups
 - Use specific identifiers rather than searching when possible
 - Consider AWS region proximity for better latency
@@ -467,7 +467,7 @@ asyncio.run(test_tool())
 - **[Best Practices](../examples/best_practices/)** - Learn recommended patterns
 - **[Workflows](../examples/workflows/)** - End-to-end workflow examples
 
-### Integration  
+### Integration
 - **[Building Custom Clients](https://modelcontextprotocol.io/quickstart/client)** - Create your own MCP client
 - **[MCP Specification](https://modelcontextprotocol.io/)** - Understand the MCP protocol
 - **[AWS DataZone API](https://docs.aws.amazon.com/datazone/latest/APIReference/)** - Learn the underlying AWS APIs
@@ -478,4 +478,4 @@ asyncio.run(test_tool())
 
 ---
 
-**Need help?** Check out our [troubleshooting guide](./TROUBLESHOOTING.md) or open an [issue](https://github.com/wangtianren/datazone-mcp-server/issues). 
+**Need help?** Check out our [troubleshooting guide](./TROUBLESHOOTING.md) or open an [issue](https://github.com/wangtianren/datazone-mcp-server/issues).

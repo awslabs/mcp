@@ -13,11 +13,9 @@
 # limitations under the License.
 """Glossary management tools for Amazon DataZone."""
 
-from typing import Any, Dict, List, Optional
-
+from .common import ClientError, datazone_client
 from mcp.server.fastmcp import FastMCP
-
-from .common import ClientError, datazone_client, logger
+from typing import Any, Dict, List, Optional
 
 
 def register_tools(mcp: FastMCP):
@@ -29,11 +27,10 @@ def register_tools(mcp: FastMCP):
         name: str,
         owning_project_identifier: str,
         description: Optional[str] = None,
-        status: str = "ENABLED",
+        status: str = 'ENABLED',
         client_token: Optional[str] = None,
     ) -> Any:
-        """
-        Creates a new business glossary in Amazon DataZone.
+        """Creates a new business glossary in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain where the glossary will be created
@@ -49,36 +46,38 @@ def register_tools(mcp: FastMCP):
         Example:
             ```python
             response = await create_glossary(
-                domain_identifier="dzd_123456789",
-                name="Sales Glossary",
-                owning_project_identifier="prj_987654321",
-                description="Glossary for sales-related terms",
-                status="ENABLED"
+                domain_identifier='dzd_123456789',
+                name='Sales Glossary',
+                owning_project_identifier='prj_987654321',
+                description='Glossary for sales-related terms',
+                status='ENABLED',
             )
             ```
         """
         try:
             # Validate status
-            if status not in ["ENABLED", "DISABLED"]:
+            if status not in ['ENABLED', 'DISABLED']:
                 raise ValueError("status must be either 'ENABLED' or 'DISABLED'")
 
             # Prepare the request parameters
             params = {
-                "name": name,
-                "owningProjectIdentifier": owning_project_identifier,
-                "status": status,
+                'name': name,
+                'owningProjectIdentifier': owning_project_identifier,
+                'status': status,
             }
 
             # Add optional parameters if provided
             if description:
-                params["description"] = description
+                params['description'] = description
             if client_token:
-                params["clientToken"] = client_token
+                params['clientToken'] = client_token
 
-            response = datazone_client.create_glossary(domainIdentifier=domain_identifier, **params)
+            response = datazone_client.create_glossary(
+                domainIdentifier=domain_identifier, **params
+            )
             return response
         except ClientError as e:
-            raise Exception(f"Error creating glossary in domain {domain_identifier}: {e}")
+            raise Exception(f'Error creating glossary in domain {domain_identifier}: {e}')
 
     @mcp.tool()
     async def create_glossary_term(
@@ -87,12 +86,11 @@ def register_tools(mcp: FastMCP):
         name: str,
         short_description: Optional[str] = None,
         long_description: Optional[str] = None,
-        status: str = "ENABLED",
+        status: str = 'ENABLED',
         term_relations: Optional[Dict[str, List[str]]] = None,
         client_token: Optional[str] = None,
     ) -> Any:
-        r"""
-        Creates a new business glossary term in Amazon DataZone.
+        r"""Creates a new business glossary term in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain where the glossary term will be created
@@ -117,52 +115,48 @@ def register_tools(mcp: FastMCP):
         Example:
             ```python
             response = await create_glossary_term(
-                domain_identifier="dzd_123456789",
-                glossary_identifier="gloss_987654321",
-                name="Customer",
-                short_description="A person or organization that purchases goods or services",
-                long_description="In business, a customer is an individual or organization that purchases goods or services from a company. Customers are vital to the success of any business as they provide revenue and feedback.",
-                status="ENABLED",
-                term_relations={
-                    "classifies": ["term_123", "term_456"],
-                    "isA": ["term_789"]
-                }
+                domain_identifier='dzd_123456789',
+                glossary_identifier='gloss_987654321',
+                name='Customer',
+                short_description='A person or organization that purchases goods or services',
+                long_description='In business, a customer is an individual or organization that purchases goods or services from a company. Customers are vital to the success of any business as they provide revenue and feedback.',
+                status='ENABLED',
+                term_relations={'classifies': ['term_123', 'term_456'], 'isA': ['term_789']},
             )
             ```
         """
         try:
             # Validate status
-            if status not in ["ENABLED", "DISABLED"]:
+            if status not in ['ENABLED', 'DISABLED']:
                 raise ValueError("status must be either 'ENABLED' or 'DISABLED'")
 
             # Prepare the request parameters
             params: Dict[str, Any] = {
-                "glossaryIdentifier": glossary_identifier,
-                "name": name,
-                "status": status,
+                'glossaryIdentifier': glossary_identifier,
+                'name': name,
+                'status': status,
             }
 
             # Add optional parameters if provided
             if short_description:
-                params["shortDescription"] = short_description
+                params['shortDescription'] = short_description
             if long_description:
-                params["longDescription"] = long_description
+                params['longDescription'] = long_description
             if term_relations:
-                params["termRelations"] = term_relations
+                params['termRelations'] = term_relations
             if client_token:
-                params["clientToken"] = client_token
+                params['clientToken'] = client_token
 
             response = datazone_client.create_glossary_term(
                 domainIdentifier=domain_identifier, **params
             )
             return response
         except ClientError as e:
-            raise Exception(f"Error creating glossary term in domain {domain_identifier}: {e}")
+            raise Exception(f'Error creating glossary term in domain {domain_identifier}: {e}')
 
     @mcp.tool()
     async def get_glossary(domain_identifier: str, identifier: str) -> Any:
-        """
-        Retrieves detailed information about a specific business glossary in Amazon DataZone.
+        """Retrieves detailed information about a specific business glossary in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain where the glossary exists
@@ -186,8 +180,7 @@ def register_tools(mcp: FastMCP):
         Example:
             ```python
             response = await get_glossary(
-                domain_identifier="dzd_123456789",
-                identifier="gloss_987654321"
+                domain_identifier='dzd_123456789', identifier='gloss_987654321'
             )
             ```
         """
@@ -198,13 +191,12 @@ def register_tools(mcp: FastMCP):
             return response
         except ClientError as e:
             raise Exception(
-                f"Error getting glossary {identifier} in domain {domain_identifier}: {e}"
+                f'Error getting glossary {identifier} in domain {domain_identifier}: {e}'
             )
 
     @mcp.tool()
     async def get_glossary_term(domain_identifier: str, identifier: str) -> Any:
-        """
-        Retrieves detailed information about a specific business glossary term in Amazon DataZone.
+        """Retrieves detailed information about a specific business glossary term in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain where the glossary term exists
@@ -234,8 +226,7 @@ def register_tools(mcp: FastMCP):
         Example:
             ```python
             response = await get_glossary_term(
-                domain_identifier="dzd_123456789",
-                identifier="term_987654321"
+                domain_identifier='dzd_123456789', identifier='term_987654321'
             )
             ```
         """
@@ -246,13 +237,13 @@ def register_tools(mcp: FastMCP):
             return response
         except ClientError as e:
             raise Exception(
-                f"Error getting glossary term {identifier} in domain {domain_identifier}: {e}"
+                f'Error getting glossary term {identifier} in domain {domain_identifier}: {e}'
             )
 
     # Return the decorated functions for testing purposes
     return {
-        "create_glossary": create_glossary,
-        "create_glossary_term": create_glossary_term,
-        "get_glossary": get_glossary,
-        "get_glossary_term": get_glossary_term,
+        'create_glossary': create_glossary,
+        'create_glossary_term': create_glossary_term,
+        'get_glossary': get_glossary,
+        'get_glossary_term': get_glossary_term,
     }

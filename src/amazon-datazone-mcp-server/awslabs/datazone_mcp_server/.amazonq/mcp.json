@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "datazone-mcp": {
-      "command": "python /Users/jiayixin/Desktop/AWS-datazone-mcp-server/src/datazone_mcp_server/server.py",
       "args": [],
+      "command": "python /Users/jiayixin/Desktop/AWS-datazone-mcp-server/src/datazone_mcp_server/server.py",
       "env": {},
       "timeout": 120000
     }

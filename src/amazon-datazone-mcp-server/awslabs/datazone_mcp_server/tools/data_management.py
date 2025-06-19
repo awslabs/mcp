@@ -13,11 +13,9 @@
 # limitations under the License.
 """Data management tools for Amazon DataZone."""
 
-from typing import Any, Dict, List, Optional
-
-from mcp.server.fastmcp import FastMCP
-
 from .common import ClientError, datazone_client, logger
+from mcp.server.fastmcp import FastMCP
+from typing import Any, Dict, List, Optional
 
 
 def register_tools(mcp: FastMCP):
@@ -27,8 +25,7 @@ def register_tools(mcp: FastMCP):
     async def get_asset(
         domain_identifier: str, asset_identifier: str, revision: Optional[str] = None
     ) -> Any:
-        """
-        Retrieves detailed information about a specific asset in Amazon DataZone.
+        """Retrieves detailed information about a specific asset in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain containing the asset
@@ -48,65 +45,65 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Prepare the request parameters
-            params = {"domainIdentifier": domain_identifier, "identifier": asset_identifier}
+            params = {'domainIdentifier': domain_identifier, 'identifier': asset_identifier}
 
             # Add optional revision if provided
             if revision:
-                params["revision"] = revision
+                params['revision'] = revision
 
             response = datazone_client.get_asset(**params)
             return response
         except ClientError as e:
-            error_code = e.response["Error"]["Code"]
-            if error_code == "AccessDeniedException":
+            error_code = e.response['Error']['Code']
+            if error_code == 'AccessDeniedException':
                 logger.error(
-                    f"Access denied while getting asset {asset_identifier} in domain {domain_identifier}"
+                    f'Access denied while getting asset {asset_identifier} in domain {domain_identifier}'
                 )
                 raise Exception(
-                    f"Access denied while getting asset {asset_identifier} in domain {domain_identifier}"
+                    f'Access denied while getting asset {asset_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "InternalServerException":
+            elif error_code == 'InternalServerException':
                 logger.error(
-                    f"Unknown error, exception or failure while getting asset {asset_identifier} in domain {domain_identifier}"
+                    f'Unknown error, exception or failure while getting asset {asset_identifier} in domain {domain_identifier}'
                 )
                 raise Exception(
-                    f"Unknown error, exception or failure while getting asset {asset_identifier} in domain {domain_identifier}"
+                    f'Unknown error, exception or failure while getting asset {asset_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "ResourceNotFoundException":
+            elif error_code == 'ResourceNotFoundException':
                 logger.error(
-                    f"Data asset {asset_identifier} not found in domain {domain_identifier}"
+                    f'Data asset {asset_identifier} not found in domain {domain_identifier}'
                 )
                 raise Exception(
-                    f"Data asset {asset_identifier} or domain {domain_identifier} not found"
+                    f'Data asset {asset_identifier} or domain {domain_identifier} not found'
                 )
-            elif error_code == "ThrottlingException":
+            elif error_code == 'ThrottlingException':
                 logger.error(
-                    f"Request throttled while getting asset {asset_identifier} in domain {domain_identifier}"
+                    f'Request throttled while getting asset {asset_identifier} in domain {domain_identifier}'
                 )
                 raise Exception(
-                    f"Request throttled while getting asset {asset_identifier} in domain {domain_identifier}"
+                    f'Request throttled while getting asset {asset_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "UnauthorizedException":
+            elif error_code == 'UnauthorizedException':
                 logger.error(
-                    f"Unauthorized to get asset {asset_identifier} in domain {domain_identifier}"
+                    f'Unauthorized to get asset {asset_identifier} in domain {domain_identifier}'
                 )
                 raise Exception(
-                    f"Unauthorized to get asset {asset_identifier} in domain {domain_identifier}"
+                    f'Unauthorized to get asset {asset_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "ValidationException":
+            elif error_code == 'ValidationException':
                 logger.error(
-                    f"Invalid input while getting asset {asset_identifier} in domain {domain_identifier}"
+                    f'Invalid input while getting asset {asset_identifier} in domain {domain_identifier}'
                 )
                 raise Exception(
-                    f"Invalid input while getting asset {asset_identifier} in domain {domain_identifier}"
+                    f'Invalid input while getting asset {asset_identifier} in domain {domain_identifier}'
                 )
             else:
                 raise Exception(
-                    f"Error getting asset {asset_identifier} in domain {domain_identifier}"
+                    f'Error getting asset {asset_identifier} in domain {domain_identifier}'
                 )
-        except Exception as e:
+        except Exception:
             raise Exception(
-                f"Unexpected error getting asset {asset_identifier} in domain {domain_identifier}"
+                f'Unexpected error getting asset {asset_identifier} in domain {domain_identifier}'
             )
 
     @mcp.tool()
@@ -123,8 +120,7 @@ def register_tools(mcp: FastMCP):
         type_revision: Optional[str] = None,
         client_token: Optional[str] = None,
     ) -> Any:
-        """
-        Creates an asset in the Amazon DataZone catalog.
+        """Creates an asset in the Amazon DataZone catalog.
 
         Args:
             domain_identifier (str): The ID of the domain where the asset is created
@@ -160,69 +156,73 @@ def register_tools(mcp: FastMCP):
         try:
             # Prepare the request parameters
             params: Dict[str, Any] = {
-                "domainIdentifier": domain_identifier,
-                "name": name,
-                "typeIdentifier": type_identifier,
-                "owningProjectIdentifier": owning_project_identifier,
+                'domainIdentifier': domain_identifier,
+                'name': name,
+                'typeIdentifier': type_identifier,
+                'owningProjectIdentifier': owning_project_identifier,
             }
 
             # Add optional parameters if provided
             if description:
-                params["description"] = description
+                params['description'] = description
             if external_identifier:
-                params["externalIdentifier"] = external_identifier
+                params['externalIdentifier'] = external_identifier
             if forms_input:
-                params["formsInput"] = forms_input
+                params['formsInput'] = forms_input
             if glossary_terms:
-                params["glossaryTerms"] = glossary_terms
+                params['glossaryTerms'] = glossary_terms
             if prediction_configuration:
-                params["predictionConfiguration"] = prediction_configuration
+                params['predictionConfiguration'] = prediction_configuration
             if type_revision:
-                params["typeRevision"] = type_revision
+                params['typeRevision'] = type_revision
             if client_token:
-                params["clientToken"] = client_token
+                params['clientToken'] = client_token
 
             response = datazone_client.create_asset(**params)
             return response
         except ClientError as e:
-            error_code = e.response["Error"]["Code"]
-            if error_code == "AccessDeniedException":
-                logger.error(f"Access denied while creating asset in domain {domain_identifier}")
-                raise Exception(f"Access denied while creating asset in domain {domain_identifier}")
-            elif error_code == "InternalServerException":
+            error_code = e.response['Error']['Code']
+            if error_code == 'AccessDeniedException':
+                logger.error(f'Access denied while creating asset in domain {domain_identifier}')
+                raise Exception(
+                    f'Access denied while creating asset in domain {domain_identifier}'
+                )
+            elif error_code == 'InternalServerException':
                 logger.error(
-                    f"Unknown error, exception or failure while creating asset in domain {domain_identifier}"
+                    f'Unknown error, exception or failure while creating asset in domain {domain_identifier}'
                 )
                 raise Exception(
-                    f"Unknown error, exception or failure while creating asset in domain {domain_identifier}"
+                    f'Unknown error, exception or failure while creating asset in domain {domain_identifier}'
                 )
-            elif error_code == "ResourceNotFoundException":
-                logger.error(f"Domain {domain_identifier} not found")
-                raise Exception(f"Domain {domain_identifier} not found")
-            elif error_code == "ThrottlingException":
+            elif error_code == 'ResourceNotFoundException':
+                logger.error(f'Domain {domain_identifier} not found')
+                raise Exception(f'Domain {domain_identifier} not found')
+            elif error_code == 'ThrottlingException':
                 logger.error(
-                    f"Request throttled while creating asset in domain {domain_identifier}"
+                    f'Request throttled while creating asset in domain {domain_identifier}'
                 )
                 raise Exception(
-                    f"Request throttled while creating asset in domain {domain_identifier}"
+                    f'Request throttled while creating asset in domain {domain_identifier}'
                 )
-            elif error_code == "UnauthorizedException":
-                logger.error(f"Unauthorized to create asset in domain {domain_identifier}")
-                raise Exception(f"Unauthorized to create asset in domain {domain_identifier}")
-            elif error_code == "ValidationException":
-                logger.error(f"Invalid input while creating asset in domain {domain_identifier}")
-                raise Exception(f"Invalid input while creating asset in domain {domain_identifier}")
-            elif error_code == "ConflictException":
+            elif error_code == 'UnauthorizedException':
+                logger.error(f'Unauthorized to create asset in domain {domain_identifier}')
+                raise Exception(f'Unauthorized to create asset in domain {domain_identifier}')
+            elif error_code == 'ValidationException':
+                logger.error(f'Invalid input while creating asset in domain {domain_identifier}')
+                raise Exception(
+                    f'Invalid input while creating asset in domain {domain_identifier}'
+                )
+            elif error_code == 'ConflictException':
                 logger.error(
-                    f"There is a conflict while creating asset in domain {domain_identifier}"
+                    f'There is a conflict while creating asset in domain {domain_identifier}'
                 )
                 raise Exception(
-                    f"There is a conflict while creating asset in domain {domain_identifier}"
+                    f'There is a conflict while creating asset in domain {domain_identifier}'
                 )
             else:
-                raise Exception(f"Error creating asset in domain {domain_identifier}")
-        except Exception as e:
-            raise Exception(f"Unexpected error creating asset in domain {domain_identifier}")
+                raise Exception(f'Error creating asset in domain {domain_identifier}')
+        except Exception:
+            raise Exception(f'Unexpected error creating asset in domain {domain_identifier}')
 
     # @mcp.tool()
     # async def delete_asset(
@@ -287,8 +287,7 @@ def register_tools(mcp: FastMCP):
         revision: Optional[str] = None,
         client_token: Optional[str] = None,
     ) -> Any:
-        """
-        Publishes an asset to the Amazon DataZone catalog.
+        """Publishes an asset to the Amazon DataZone catalog.
 
         Args:
             domain_identifier (str): The ID of the domain containing the asset
@@ -308,19 +307,19 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Prepare the request parameters
-            params = {"domainIdentifier": domain_identifier, "identifier": asset_identifier}
+            params = {'domainIdentifier': domain_identifier, 'identifier': asset_identifier}
 
             # Add optional parameters if provided
             if revision:
-                params["revision"] = revision
+                params['revision'] = revision
             if client_token:
-                params["clientToken"] = client_token
+                params['clientToken'] = client_token
 
             response = datazone_client.publish_asset(**params)
             return response
         except ClientError as e:
             raise Exception(
-                f"Error publishing asset {asset_identifier} in domain {domain_identifier}: {e}"
+                f'Error publishing asset {asset_identifier} in domain {domain_identifier}: {e}'
             )
 
     # @mcp.tool()
@@ -553,8 +552,7 @@ def register_tools(mcp: FastMCP):
     async def get_listing(
         domain_identifier: str, identifier: str, listing_revision: Optional[str] = None
     ) -> Any:
-        """
-        Gets a listing (a record of an asset at a given time) in Amazon DataZone.
+        """Gets a listing (a record of an asset at a given time) in Amazon DataZone.
 
         If a listing version is specified, only details specific to that version are returned.
 
@@ -578,17 +576,17 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Prepare the request parameters
-            params = {"domainIdentifier": domain_identifier, "identifier": identifier}
+            params = {'domainIdentifier': domain_identifier, 'identifier': identifier}
 
             # Add optional parameters if provided
             if listing_revision:
-                params["listingRevision"] = listing_revision
+                params['listingRevision'] = listing_revision
 
             response = datazone_client.get_listing(**params)
             return response
         except ClientError as e:
             raise Exception(
-                f"Error getting listing {identifier} in domain {domain_identifier}: {e}"
+                f'Error getting listing {identifier} in domain {domain_identifier}: {e}'
             )
 
     @mcp.tool()
@@ -601,8 +599,7 @@ def register_tools(mcp: FastMCP):
         search_in: Optional[List[Dict[str, str]]] = None,
         sort: Optional[Dict[str, str]] = None,
     ) -> Any:
-        """
-        Searches listings (records of assets) in Amazon DataZone with various filtering and sorting options.
+        """Searches listings (records of assets) in Amazon DataZone with various filtering and sorting options.
 
         Args:
             domain_identifier (str): The ID of the domain to search in
@@ -622,26 +619,26 @@ def register_tools(mcp: FastMCP):
         try:
             # Prepare the request parameters
             params = {
-                "domainIdentifier": domain_identifier,
-                "maxResults": min(max_results, 50),  # Ensure maxResults is within valid range
+                'domainIdentifier': domain_identifier,
+                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters if provided
             if search_text:
-                params["searchText"] = search_text
+                params['searchText'] = search_text
             if next_token:
-                params["nextToken"] = next_token
+                params['nextToken'] = next_token
             if additional_attributes:
-                params["additionalAttributes"] = additional_attributes
+                params['additionalAttributes'] = additional_attributes
             if search_in:
-                params["searchIn"] = search_in
+                params['searchIn'] = search_in
             if sort:
-                params["sort"] = sort
+                params['sort'] = sort
 
             response = datazone_client.search_listings(**params)
             return response
         except ClientError as e:
-            raise Exception(f"Error searching listings in domain {domain_identifier}: {e}")
+            raise Exception(f'Error searching listings in domain {domain_identifier}: {e}')
 
     @mcp.tool()
     async def create_data_source(
@@ -650,7 +647,7 @@ def register_tools(mcp: FastMCP):
         name: str,
         data_src_type: str,
         description: Optional[str] = None,
-        enable_setting: str = "ENABLED",
+        enable_setting: str = 'ENABLED',
         environment_identifier: Optional[str] = None,
         connection_identifier: Optional[str] = None,
         configuration: Optional[Dict[str, Any]] = None,
@@ -660,8 +657,7 @@ def register_tools(mcp: FastMCP):
         schedule: Optional[Dict[str, str]] = None,
         client_token: Optional[str] = None,
     ) -> Any:
-        """
-        Creates a data source in Amazon DataZone and associates it with a project.
+        """Creates a data source in Amazon DataZone and associates it with a project.
 
         Args:
             domain_identifier (str): The ID of the domain where the data source is created
@@ -708,41 +704,40 @@ def register_tools(mcp: FastMCP):
         try:
             # Prepare the request parameters
             params = {
-                "domainIdentifier": domain_identifier,
-                "projectIdentifier": project_identifier,
-                "name": name,
-                "type": data_src_type,
-                "enableSetting": enable_setting,
-                "publishOnImport": publish_on_import,
+                'domainIdentifier': domain_identifier,
+                'projectIdentifier': project_identifier,
+                'name': name,
+                'type': data_src_type,
+                'enableSetting': enable_setting,
+                'publishOnImport': publish_on_import,
             }
 
             # Add optional parameters if provided
             if description:
-                params["description"] = description
+                params['description'] = description
             if environment_identifier:
-                params["environmentIdentifier"] = environment_identifier
+                params['environmentIdentifier'] = environment_identifier
             if connection_identifier:
-                params["connectionIdentifier"] = connection_identifier
+                params['connectionIdentifier'] = connection_identifier
             if configuration:
-                params["configuration"] = configuration
+                params['configuration'] = configuration
             if asset_forms_input:
-                params["assetFormsInput"] = asset_forms_input
+                params['assetFormsInput'] = asset_forms_input
             if recommendation:
-                params["recommendation"] = recommendation
+                params['recommendation'] = recommendation
             if schedule:
-                params["schedule"] = schedule
+                params['schedule'] = schedule
             if client_token:
-                params["clientToken"] = client_token
+                params['clientToken'] = client_token
 
             response = datazone_client.create_data_source(**params)
             return response
         except ClientError as e:
-            raise Exception(f"Error creating data source in domain {domain_identifier}: {e}")
+            raise Exception(f'Error creating data source in domain {domain_identifier}: {e}')
 
     @mcp.tool()
     async def get_data_source(domain_identifier: str, identifier: str) -> Any:
-        """
-        Retrieves detailed information about a specific data source in Amazon DataZone.
+        """Retrieves detailed information about a specific data source in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain where the data source exists
@@ -757,7 +752,7 @@ def register_tools(mcp: FastMCP):
             )
             return response
         except ClientError as e:
-            raise Exception(f"Error getting data source {identifier}: {e}")
+            raise Exception(f'Error getting data source {identifier}: {e}')
 
     # @mcp.tool()
     # async def get_time_series_data_point(
@@ -961,8 +956,7 @@ def register_tools(mcp: FastMCP):
     async def start_data_source_run(
         domain_identifier: str, data_source_identifier: str, client_token: Optional[str] = None
     ) -> Any:
-        """
-        Starts a data source run in Amazon DataZone.
+        """Starts a data source run in Amazon DataZone.
 
         Args:
             domain_identifier (str): The identifier of the Amazon DataZone domain in which to start a data source run
@@ -996,66 +990,66 @@ def register_tools(mcp: FastMCP):
         Example:
             ```python
             response = await start_data_source_run(
-                domain_identifier="dzd-1234567890",
-                data_source_identifier="ds-1234567890",
-                client_token="unique-token-123"
+                domain_identifier='dzd-1234567890',
+                data_source_identifier='ds-1234567890',
+                client_token='unique-token-123',
             )
             ```
         """
         try:
             # Prepare the request parameters
             params = {
-                "domainIdentifier": domain_identifier,
-                "dataSourceIdentifier": data_source_identifier,
+                'domainIdentifier': domain_identifier,
+                'dataSourceIdentifier': data_source_identifier,
             }
 
             # Add optional client_token if provided
             if client_token:
-                params["clientToken"] = client_token
+                params['clientToken'] = client_token
 
             response = datazone_client.start_data_source_run(**params)
             return response
         except ClientError as e:
-            error_code = e.response["Error"]["Code"]
-            if error_code == "AccessDeniedException":
+            error_code = e.response['Error']['Code']
+            if error_code == 'AccessDeniedException':
                 raise Exception(
-                    f"Access denied while starting data source run for {data_source_identifier} in domain {domain_identifier}"
+                    f'Access denied while starting data source run for {data_source_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "ConflictException":
+            elif error_code == 'ConflictException':
                 raise Exception(
-                    f"Conflict while starting data source run for {data_source_identifier} in domain {domain_identifier}"
+                    f'Conflict while starting data source run for {data_source_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "InternalServerException":
+            elif error_code == 'InternalServerException':
                 raise Exception(
-                    f"Internal server error while starting data source run for {data_source_identifier} in domain {domain_identifier}"
+                    f'Internal server error while starting data source run for {data_source_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "ResourceNotFoundException":
+            elif error_code == 'ResourceNotFoundException':
                 raise Exception(
-                    f"Data source {data_source_identifier} or domain {domain_identifier} not found"
+                    f'Data source {data_source_identifier} or domain {domain_identifier} not found'
                 )
-            elif error_code == "ServiceQuotaExceededException":
+            elif error_code == 'ServiceQuotaExceededException':
                 raise Exception(
-                    f"Service quota exceeded while starting data source run for {data_source_identifier} in domain {domain_identifier}"
+                    f'Service quota exceeded while starting data source run for {data_source_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "ThrottlingException":
+            elif error_code == 'ThrottlingException':
                 raise Exception(
-                    f"Request throttled while starting data source run for {data_source_identifier} in domain {domain_identifier}"
+                    f'Request throttled while starting data source run for {data_source_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "UnauthorizedException":
+            elif error_code == 'UnauthorizedException':
                 raise Exception(
-                    f"Unauthorized to start data source run for {data_source_identifier} in domain {domain_identifier}"
+                    f'Unauthorized to start data source run for {data_source_identifier} in domain {domain_identifier}'
                 )
-            elif error_code == "ValidationException":
+            elif error_code == 'ValidationException':
                 raise Exception(
-                    f"Invalid input while starting data source run for {data_source_identifier} in domain {domain_identifier}"
+                    f'Invalid input while starting data source run for {data_source_identifier} in domain {domain_identifier}'
                 )
             else:
                 raise Exception(
-                    f"Error starting data source run for {data_source_identifier} in domain {domain_identifier}: {str(e)}"
+                    f'Error starting data source run for {data_source_identifier} in domain {domain_identifier}: {str(e)}'
                 )
         except Exception as e:
             raise Exception(
-                f"Unexpected error starting data source run for {data_source_identifier} in domain {domain_identifier}: {str(e)}"
+                f'Unexpected error starting data source run for {data_source_identifier} in domain {domain_identifier}: {str(e)}'
             )
 
     # @mcp.tool()
@@ -1223,8 +1217,7 @@ def register_tools(mcp: FastMCP):
         metadata_forms: Optional[List[Dict[str, str]]] = None,
         client_token: Optional[str] = None,
     ) -> Any:
-        """
-        Creates a subscription request in Amazon DataZone.
+        """Creates a subscription request in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain where the subscription request is created
@@ -1256,23 +1249,23 @@ def register_tools(mcp: FastMCP):
         try:
             # Prepare the request parameters
             params = {
-                "domainIdentifier": domain_identifier,
-                "requestReason": request_reason,
-                "subscribedListings": subscribed_listings,
-                "subscribedPrincipals": subscribed_principals,
+                'domainIdentifier': domain_identifier,
+                'requestReason': request_reason,
+                'subscribedListings': subscribed_listings,
+                'subscribedPrincipals': subscribed_principals,
             }
 
             # Add optional parameters if provided
             if metadata_forms:
-                params["metadataForms"] = metadata_forms
+                params['metadataForms'] = metadata_forms
             if client_token:
-                params["clientToken"] = client_token
+                params['clientToken'] = client_token
 
             response = datazone_client.create_subscription_request(**params)
             return response
         except ClientError as e:
             raise Exception(
-                f"Error creating subscription request in domain {domain_identifier}: {e}"
+                f'Error creating subscription request in domain {domain_identifier}: {e}'
             )
 
     @mcp.tool()
@@ -1282,8 +1275,7 @@ def register_tools(mcp: FastMCP):
         asset_scopes: Optional[List[Dict[str, Any]]] = None,
         decision_comment: Optional[str] = None,
     ) -> Any:
-        """
-        Accepts a subscription request to a specific asset in Amazon DataZone.
+        """Accepts a subscription request to a specific asset in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain where the subscription request exists
@@ -1306,27 +1298,26 @@ def register_tools(mcp: FastMCP):
         try:
             # Prepare the request parameters
             params: Dict[str, Any] = {
-                "domainIdentifier": domain_identifier,
-                "identifier": identifier,
+                'domainIdentifier': domain_identifier,
+                'identifier': identifier,
             }
 
             # Add optional parameters if provided
             if asset_scopes:
-                params["assetScopes"] = asset_scopes
+                params['assetScopes'] = asset_scopes
             if decision_comment:
-                params["decisionComment"] = decision_comment
+                params['decisionComment'] = decision_comment
 
             response = datazone_client.accept_subscription_request(**params)
             return response
         except ClientError as e:
             raise Exception(
-                f"Error accepting subscription request {identifier} in domain {domain_identifier}: {e}"
+                f'Error accepting subscription request {identifier} in domain {domain_identifier}: {e}'
             )
 
     @mcp.tool()
     async def get_subscription(domain_identifier: str, identifier: str) -> Any:
-        """
-        Gets a subscription in Amazon DataZone.
+        """Gets a subscription in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the Amazon DataZone domain in which the subscription exists
@@ -1352,15 +1343,14 @@ def register_tools(mcp: FastMCP):
             return response
         except ClientError as e:
             raise Exception(
-                f"Error getting subscription {identifier} in domain {domain_identifier}: {e}"
+                f'Error getting subscription {identifier} in domain {domain_identifier}: {e}'
             )
 
     @mcp.tool()
     async def get_form_type(
         domain_identifier: str, form_type_identifier: str, revision: Optional[str] = None
     ) -> Any:
-        """
-        Retrieves detailed information about a specific metadata form type in Amazon DataZone.
+        """Retrieves detailed information about a specific metadata form type in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain where the form type exists
@@ -1391,28 +1381,28 @@ def register_tools(mcp: FastMCP):
         Example:
             ```python
             response = await get_form_type(
-                domain_identifier="dzd_123456789",
-                form_type_identifier="amazon.datazone.customer_profile",
-                revision="1.0.0"
+                domain_identifier='dzd_123456789',
+                form_type_identifier='amazon.datazone.customer_profile',
+                revision='1.0.0',
             )
             ```
         """
         try:
             # Prepare the request parameters
             params = {
-                "domainIdentifier": domain_identifier,
-                "formTypeIdentifier": form_type_identifier,
+                'domainIdentifier': domain_identifier,
+                'formTypeIdentifier': form_type_identifier,
             }
 
             # Add optional revision if provided
             if revision:
-                params["revision"] = revision
+                params['revision'] = revision
 
             response = datazone_client.get_form_type(**params)
             return response
         except ClientError as e:
             raise Exception(
-                f"Error getting form type {form_type_identifier} in domain {domain_identifier}: {e}"
+                f'Error getting form type {form_type_identifier} in domain {domain_identifier}: {e}'
             )
 
     # @mcp.tool()
@@ -1462,10 +1452,9 @@ def register_tools(mcp: FastMCP):
         model: Dict[str, Any],
         owning_project_identifier: str,
         description: Optional[str] = None,
-        status: str = "ENABLED",
+        status: str = 'ENABLED',
     ) -> Any:
-        """
-        Creates a new metadata form type in Amazon DataZone.
+        """Creates a new metadata form type in Amazon DataZone.
 
         Args:
             domain_identifier (str): The ID of the domain where the form type will be created
@@ -1491,48 +1480,48 @@ def register_tools(mcp: FastMCP):
         Example:
             ```python
             response = await create_form_type(
-                domain_identifier="dzd_123456789",
-                name="amazon.datazone.customer_profile",
+                domain_identifier='dzd_123456789',
+                name='amazon.datazone.customer_profile',
                 model={
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "customer_id": {"type": "string"},
-                            "customer_name": {"type": "string"},
-                            "email": {"type": "string", "format": "email"}
+                    'schema': {
+                        'type': 'object',
+                        'properties': {
+                            'customer_id': {'type': 'string'},
+                            'customer_name': {'type': 'string'},
+                            'email': {'type': 'string', 'format': 'email'},
                         },
-                        "required": ["customer_id", "customer_name"]
+                        'required': ['customer_id', 'customer_name'],
                     }
                 },
-                owning_project_identifier="prj_987654321",
-                description="Form type for customer profile information",
-                status="ENABLED"
+                owning_project_identifier='prj_987654321',
+                description='Form type for customer profile information',
+                status='ENABLED',
             )
             ```
         """
         try:
             # Validate status
-            if status not in ["ENABLED", "DISABLED"]:
+            if status not in ['ENABLED', 'DISABLED']:
                 raise ValueError("status must be either 'ENABLED' or 'DISABLED'")
 
             # Prepare the request parameters
             params = {
-                "name": name,
-                "model": model,
-                "owningProjectIdentifier": owning_project_identifier,
-                "status": status,
+                'name': name,
+                'model': model,
+                'owningProjectIdentifier': owning_project_identifier,
+                'status': status,
             }
 
             # Add optional parameters if provided
             if description:
-                params["description"] = description
+                params['description'] = description
 
             response = datazone_client.create_form_type(
                 domainIdentifier=domain_identifier, **params
             )
             return response
         except ClientError as e:
-            raise Exception(f"Error creating form type in domain {domain_identifier}: {e}")
+            raise Exception(f'Error creating form type in domain {domain_identifier}: {e}')
 
     @mcp.tool()
     async def list_data_sources(
@@ -1546,8 +1535,7 @@ def register_tools(mcp: FastMCP):
         status: Optional[str] = None,
         data_source_type: Optional[str] = None,
     ) -> Any:
-        """
-        Lists all form types available in an Amazon DataZone domain.
+        """Lists all form types available in an Amazon DataZone domain.
 
         Args:
             domain_identifier (str): The identifier of the Amazon DataZone domain in which to list the data sources.
@@ -1601,57 +1589,57 @@ def register_tools(mcp: FastMCP):
         try:
             # Prepare the request parameters
             params = {
-                "domainIdentifier": domain_identifier,
-                "maxResults": min(max_results, 50),  # Ensure maxResults is within valid range
-                "projectIdentifier": project_identifier,
+                'domainIdentifier': domain_identifier,
+                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'projectIdentifier': project_identifier,
             }
 
             # Add optional parameters if provided
             if next_token:
-                params["nextToken"] = next_token
+                params['nextToken'] = next_token
             if status:
-                params["status"] = status
+                params['status'] = status
             if connection_identifier:
-                params["connectionIdentifier"] = connection_identifier
+                params['connectionIdentifier'] = connection_identifier
             if environment_identifier:
-                params["environmentIdentifier"] = environment_identifier
+                params['environmentIdentifier'] = environment_identifier
             if name:
-                params["name"] = name
+                params['name'] = name
             if data_source_type:
-                params["type"] = data_source_type
+                params['type'] = data_source_type
 
             response = datazone_client.list_data_sources(**params)
             return response
         except ClientError as e:
             raise Exception(
-                f"Error listing data sources in project {project_identifier} in domain {domain_identifier}: {e}"
+                f'Error listing data sources in project {project_identifier} in domain {domain_identifier}: {e}'
             )
 
     # Return the decorated functions for testing purposes
     return {
-        "get_asset": get_asset,
-        "create_asset": create_asset,
+        'get_asset': get_asset,
+        'create_asset': create_asset,
         # "delete_asset": delete_asset,
-        "publish_asset": publish_asset,
+        'publish_asset': publish_asset,
         # "get_asset_filter": get_asset_filter,
         # "list_asset_filters": list_asset_filters,
         # "get_asset_type": get_asset_type,
-        "get_listing": get_listing,
-        "search_listings": search_listings,
-        "create_data_source": create_data_source,
-        "get_data_source": get_data_source,
+        'get_listing': get_listing,
+        'search_listings': search_listings,
+        'create_data_source': create_data_source,
+        'get_data_source': get_data_source,
         # "get_time_series_data_point": get_time_series_data_point,
         # "list_time_series_data_points": list_time_series_data_points,
         # "get_data_product": get_data_product,
         # "get_lineage_node": get_lineage_node,
-        "start_data_source_run": start_data_source_run,
+        'start_data_source_run': start_data_source_run,
         # "get_job_run": get_job_run,
         # "list_job_runs": list_job_runs,
-        "create_subscription_request": create_subscription_request,
-        "accept_subscription_request": accept_subscription_request,
-        "get_subscription": get_subscription,
-        "get_form_type": get_form_type,
+        'create_subscription_request': create_subscription_request,
+        'accept_subscription_request': accept_subscription_request,
+        'get_subscription': get_subscription,
+        'get_form_type': get_form_type,
         # "list_form_types": list_form_types,
-        "create_form_type": create_form_type,
-        "list_data_sources": list_data_sources,
+        'create_form_type': create_form_type,
+        'list_data_sources': list_data_sources,
     }

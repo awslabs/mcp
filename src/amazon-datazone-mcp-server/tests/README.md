@@ -8,7 +8,7 @@ This directory contains comprehensive tests for the AWS DataZone MCP Server. The
 tests/
 ├── conftest.py                    # Shared fixtures and configuration
 ├── test_domain_management.py      # Domain operations tests
-├── test_project_management.py     # Project operations tests  
+├── test_project_management.py     # Project operations tests
 ├── test_data_management.py        # Data/asset operations tests
 ├── test_glossary.py              # Glossary operations tests
 ├── test_environment.py           # Environment operations tests
@@ -57,7 +57,7 @@ SKIP_AWS_TESTS=true pytest
 
 Fast, isolated tests that mock AWS API calls:
 - Test success scenarios
-- Test error handling 
+- Test error handling
 - Test parameter validation
 - Test tool registration
 - Mock all external dependencies
@@ -68,10 +68,10 @@ async def test_get_domain_success(self, mock_client, test_data_helper):
     # Arrange
     expected_response = test_data_helper.get_domain_response("dzd_test123")
     mock_client.get_domain.return_value = expected_response
-    
+
     # Act
     result = await domain_management.get_domain("dzd_test123")
-    
+
     # Assert
     assert result == expected_response
 ```
@@ -105,7 +105,7 @@ Tests for the main MCP server functionality:
 
 **Data Fixtures:**
 - `sample_domain_data` - Test domain data
-- `sample_project_data` - Test project data  
+- `sample_project_data` - Test project data
 - `sample_asset_data` - Test asset data
 - `sample_glossary_data` - Test glossary data
 
@@ -168,14 +168,14 @@ async def test_create_domain_success(self, mock_client, sample_domain_data):
     # Arrange
     expected_response = {"id": "dzd_new123", "name": "Test Domain"}
     mock_client.create_domain.return_value = expected_response
-    
-    # Act  
+
+    # Act
     result = await domain_management.create_domain(
         name=sample_domain_data["name"],
         domain_execution_role=sample_domain_data["domain_execution_role"],
         service_role=sample_domain_data["service_role"]
     )
-    
+
     # Assert
     assert result == expected_response
     mock_client.create_domain.assert_called_once_with(
@@ -192,10 +192,10 @@ async def test_create_domain_success(self, mock_client, sample_domain_data):
 async def test_create_domain_access_denied(self, mock_client, mock_client_error):
     # Arrange
     mock_client.create_domain.side_effect = mock_client_error(
-        "AccessDeniedException", 
+        "AccessDeniedException",
         "Insufficient permissions"
     )
-    
+
     # Act & Assert
     with pytest.raises(Exception) as exc_info:
         await domain_management.create_domain(
@@ -203,7 +203,7 @@ async def test_create_domain_access_denied(self, mock_client, mock_client_error)
             domain_execution_role="arn:aws:iam::123456789012:role/ExecRole",
             service_role="arn:aws:iam::123456789012:role/ServiceRole"
         )
-    
+
     assert "Access denied while creating domain" in str(exc_info.value)
 ```
 
@@ -220,7 +220,7 @@ async def test_create_domain_with_all_optional_params(self, mock_client):
         description="Full description",
         kms_key_identifier="arn:aws:kms:us-east-1:123456789012:key/12345"
     )
-    
+
     # Assert all parameters passed correctly
     mock_client.create_domain.assert_called_once_with(
         name="Full Domain",
@@ -290,10 +290,10 @@ class TestNewModule:
         # Arrange
         expected_response = {"result": "success"}
         mock_client.some_operation.return_value = expected_response
-        
+
         # Act
         result = await new_module.new_function("param1", "param2")
-        
+
         # Assert
         assert result == expected_response
         mock_client.some_operation.assert_called_once_with(
@@ -317,13 +317,13 @@ async def test_new_function_integration(self, real_datazone_client, test_domain_
     import datazone_mcp_server.tools.new_module as nm
     original_client = nm.datazone_client
     nm.datazone_client = real_datazone_client
-    
+
     try:
         result = await nm.new_function(test_domain_id, "param")
-        
+
         # Verify response structure
         assert "expected_field" in result
-        
+
     finally:
         nm.datazone_client = original_client
 ```

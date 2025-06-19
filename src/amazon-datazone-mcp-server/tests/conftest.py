@@ -2,16 +2,14 @@
 
 import asyncio
 import os
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, Mock, patch
-
 import pytest
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import FastMCP
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Optional
+from unittest.mock import Mock, patch
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def event_loop():
     """Create an instance of the default event loop for the test session."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
@@ -26,92 +24,92 @@ def mock_datazone_client():
 
     # Domain responses
     mock_client.get_domain.return_value = {
-        "id": "dzd_test123",
-        "name": "Test Domain",
-        "description": "Test domain description",
-        "status": "AVAILABLE",
-        "arn": os.getenv("ARN"),
-        "portalUrl": "https://dzd_test123.datazone.aws.amazon.com",
-        "domainVersion": "V2",
-        "rootDomainUnitId": "root_unit_123",
+        'id': 'dzd_test123',
+        'name': 'Test Domain',
+        'description': 'Test domain description',
+        'status': 'AVAILABLE',
+        'arn': os.getenv('ARN'),
+        'portalUrl': 'https://dzd_test123.datazone.aws.amazon.com',
+        'domainVersion': 'V2',
+        'rootDomainUnitId': 'root_unit_123',
     }
 
     mock_client.create_domain.return_value = {
-        "id": "dzd_new123",
-        "name": "New Test Domain",
-        "description": "New test domain description",
-        "status": "CREATING",
-        "arn": os.getenv("ARN"),
-        "portalUrl": "https://dzd_new123.datazone.aws.amazon.com",
-        "domainVersion": "V2",
-        "rootDomainUnitId": "root_unit_new123",
+        'id': 'dzd_new123',
+        'name': 'New Test Domain',
+        'description': 'New test domain description',
+        'status': 'CREATING',
+        'arn': os.getenv('ARN'),
+        'portalUrl': 'https://dzd_new123.datazone.aws.amazon.com',
+        'domainVersion': 'V2',
+        'rootDomainUnitId': 'root_unit_new123',
     }
 
     # Project responses
     mock_client.get_project.return_value = {
-        "id": "prj_test123",
-        "name": "Test Project",
-        "description": "Test project description",
-        "domainId": "dzd_test123",
-        "status": "ACTIVE",
-        "createdAt": "2024-01-01T00:00:00Z",
-        "createdBy": "test-user",
+        'id': 'prj_test123',
+        'name': 'Test Project',
+        'description': 'Test project description',
+        'domainId': 'dzd_test123',
+        'status': 'ACTIVE',
+        'createdAt': '2024-01-01T00:00:00Z',
+        'createdBy': 'test-user',
     }
 
     mock_client.create_project.return_value = {
-        "id": "prj_new123",
-        "name": "New Test Project",
-        "description": "New test project description",
-        "domainId": "dzd_test123",
-        "status": "ACTIVE",
-        "createdAt": "2024-01-01T00:00:00Z",
-        "createdBy": "test-user",
+        'id': 'prj_new123',
+        'name': 'New Test Project',
+        'description': 'New test project description',
+        'domainId': 'dzd_test123',
+        'status': 'ACTIVE',
+        'createdAt': '2024-01-01T00:00:00Z',
+        'createdBy': 'test-user',
     }
 
     # Asset responses
     mock_client.get_asset.return_value = {
-        "id": "asset_test123",
-        "name": "Test Asset",
-        "description": "Test asset description",
-        "domainId": "dzd_test123",
-        "projectId": "prj_test123",
-        "status": "ACTIVE",
-        "typeIdentifier": "amazon.datazone.S3Asset",
-        "typeRevision": "1",
+        'id': 'asset_test123',
+        'name': 'Test Asset',
+        'description': 'Test asset description',
+        'domainId': 'dzd_test123',
+        'projectId': 'prj_test123',
+        'status': 'ACTIVE',
+        'typeIdentifier': 'amazon.datazone.S3Asset',
+        'typeRevision': '1',
     }
 
     mock_client.create_asset.return_value = {
-        "id": "asset_new123",
-        "name": "New Test Asset",
-        "description": "New test asset description",
-        "domainId": "dzd_test123",
-        "projectId": "prj_test123",
-        "status": "ACTIVE",
-        "typeIdentifier": "amazon.datazone.S3Asset",
-        "typeRevision": "1",
+        'id': 'asset_new123',
+        'name': 'New Test Asset',
+        'description': 'New test asset description',
+        'domainId': 'dzd_test123',
+        'projectId': 'prj_test123',
+        'status': 'ACTIVE',
+        'typeIdentifier': 'amazon.datazone.S3Asset',
+        'typeRevision': '1',
     }
 
     # Environment responses
     mock_client.list_environments.return_value = {
-        "items": [
+        'items': [
             {
-                "id": "env_test123",
-                "name": "Test Environment",
-                "description": "Test environment description",
-                "domainId": "dzd_test123",
-                "projectId": "prj_test123",
-                "status": "ACTIVE",
+                'id': 'env_test123',
+                'name': 'Test Environment',
+                'description': 'Test environment description',
+                'domainId': 'dzd_test123',
+                'projectId': 'prj_test123',
+                'status': 'ACTIVE',
             }
         ]
     }
 
     # Glossary responses
     mock_client.create_glossary.return_value = {
-        "id": "glossary_new123",
-        "name": "New Test Glossary",
-        "description": "New test glossary description",
-        "domainId": "dzd_test123",
-        "status": "ENABLED",
+        'id': 'glossary_new123',
+        'name': 'New Test Glossary',
+        'description': 'New test glossary description',
+        'domainId': 'dzd_test123',
+        'status': 'ENABLED',
     }
 
     return mock_client
@@ -120,7 +118,7 @@ def mock_datazone_client():
 @pytest.fixture
 def mcp_server_with_tools(mock_datazone_client):
     """Create MCP server instance with all tools registered and mocked client."""
-    mcp = FastMCP("test-datazone")
+    mcp = FastMCP('test-datazone')
     import boto3
 
     # Start a persistent patch that will last for the entire test
@@ -128,19 +126,18 @@ def mcp_server_with_tools(mock_datazone_client):
     original_boto3_client: Callable = boto3.client
 
     def mock_boto3_client(service_name, **kwargs):
-        if service_name == "datazone":
+        if service_name == 'datazone':
             return mock_datazone_client
         # For other services, use the original client function
         return original_boto3_client(service_name, **kwargs)
 
     original_boto3_client = boto3.client
-    patcher = patch("boto3.client", side_effect=mock_boto3_client)
+    patcher = patch('boto3.client', side_effect=mock_boto3_client)
     patcher.start()
 
     try:
         # Now import and reload the modules to get the mocked client
         import importlib
-
         from awslabs.datazone_mcp_server.tools import common
 
         importlib.reload(common)  # This will recreate datazone_client with our mock
@@ -167,8 +164,8 @@ def mcp_server_with_tools(mock_datazone_client):
         environment.register_tools(mcp)
 
         # Store the mock client and patcher on the server for test access
-        setattr(mcp, "_mock_client", mock_datazone_client)
-        setattr(mcp, "_patcher", patcher)
+        setattr(mcp, '_mock_client', mock_datazone_client)
+        setattr(mcp, '_patcher', patcher)
 
         yield mcp
 
@@ -183,10 +180,10 @@ def client_error_helper():
 
     def create_client_error(error_code: str, message: Optional[str] = None):
         if message is None:
-            message = f"An error occurred ({error_code})"
+            message = f'An error occurred ({error_code})'
 
-        error_response = {"Error": {"Code": error_code, "Message": message}}
-        return ClientError(error_response, "TestOperation")
+        error_response = {'Error': {'Code': error_code, 'Message': message}}
+        return ClientError(error_response, 'TestOperation')
 
     return create_client_error
 
@@ -195,11 +192,11 @@ def client_error_helper():
 def sample_domain_data():
     """Sample domain data for testing."""
     return {
-        "name": "Test Domain",
-        "description": "Test domain description",
-        "domain_execution_role": os.getenv("DOMAIN_EXECUTION_ROLE"),
-        "service_role": os.getenv("SERVICE_ROLE"),
-        "domain_version": "V2",
+        'name': 'Test Domain',
+        'description': 'Test domain description',
+        'domain_execution_role': os.getenv('DOMAIN_EXECUTION_ROLE'),
+        'service_role': os.getenv('SERVICE_ROLE'),
+        'domain_version': 'V2',
     }
 
 
@@ -207,10 +204,10 @@ def sample_domain_data():
 def sample_project_data():
     """Sample project data for testing."""
     return {
-        "name": "Test Project",
-        "description": "Test project description",
-        "domain_identifier": "dzd_test123",
-        "glossary_terms": ["term1", "term2"],
+        'name': 'Test Project',
+        'description': 'Test project description',
+        'domain_identifier': 'dzd_test123',
+        'glossary_terms': ['term1', 'term2'],
     }
 
 
@@ -218,12 +215,12 @@ def sample_project_data():
 def sample_asset_data():
     """Sample asset data for testing."""
     return {
-        "name": "Test Asset",
-        "description": "Test asset description",
-        "domain_identifier": "dzd_test123",
-        "owning_project_identifier": "prj_test123",
-        "type_identifier": "amazon.datazone.S3Asset",
-        "type_revision": "1",
+        'name': 'Test Asset',
+        'description': 'Test asset description',
+        'domain_identifier': 'dzd_test123',
+        'owning_project_identifier': 'prj_test123',
+        'type_identifier': 'amazon.datazone.S3Asset',
+        'type_revision': '1',
     }
 
 
@@ -231,10 +228,10 @@ def sample_asset_data():
 def sample_glossary_data():
     """Sample glossary data for testing."""
     return {
-        "name": "Test Glossary",
-        "description": "Test glossary description",
-        "domain_identifier": "dzd_test123",
-        "owning_project_identifier": "prj_test123",
+        'name': 'Test Glossary',
+        'description': 'Test glossary description',
+        'domain_identifier': 'dzd_test123',
+        'owning_project_identifier': 'prj_test123',
     }
 
 
@@ -242,9 +239,9 @@ def sample_glossary_data():
 def sample_environment_data():
     """Sample environment data for testing."""
     return {
-        "domain_id": "dzd_test123",
-        "project_id": "prj_test123",
-        "environment_id": "env_test123",
+        'domain_id': 'dzd_test123',
+        'project_id': 'prj_test123',
+        'environment_id': 'env_test123',
     }
 
 
@@ -253,54 +250,54 @@ class TestDataHelper:
 
     @staticmethod
     def get_domain_id() -> str:
-        """get domain id."""
-        return "dzd_test123"
+        """Get domain id."""
+        return 'dzd_test123'
 
     @staticmethod
     def get_project_id() -> str:
-        """get project id."""
-        return "prj_test123"
+        """Get project id."""
+        return 'prj_test123'
 
     @staticmethod
     def get_asset_id() -> str:
-        """get asset id."""
-        return "asset_test123"
+        """Get asset id."""
+        return 'asset_test123'
 
     @staticmethod
     def get_glossary_id() -> str:
-        """get glossary id."""
-        return "glossary_test123"
+        """Get glossary id."""
+        return 'glossary_test123'
 
     @staticmethod
     def get_environment_id() -> str:
-        """get environment id."""
-        return "env_test123"
+        """Get environment id."""
+        return 'env_test123'
 
     @staticmethod
     def get_project_response(project_id: str) -> Dict[str, Any]:
         """Generate a mock project response."""
         return {
-            "id": project_id,
-            "name": "Test Project",
-            "description": "Test project description",
-            "domainId": "dzd_test123",
-            "status": "ACTIVE",
-            "createdAt": "2024-01-01T00:00:00Z",
-            "createdBy": "test-user",
+            'id': project_id,
+            'name': 'Test Project',
+            'description': 'Test project description',
+            'domainId': 'dzd_test123',
+            'status': 'ACTIVE',
+            'createdAt': '2024-01-01T00:00:00Z',
+            'createdBy': 'test-user',
         }
 
     @staticmethod
     def get_asset_response(asset_id: str) -> Dict[str, Any]:
         """Generate a mock asset response."""
         return {
-            "id": asset_id,
-            "name": "Test Asset",
-            "description": "Test asset description",
-            "domainId": "dzd_test123",
-            "projectId": "prj_test123",
-            "status": "ACTIVE",
-            "typeIdentifier": "amazon.datazone.S3Asset",
-            "typeRevision": "1",
+            'id': asset_id,
+            'name': 'Test Asset',
+            'description': 'Test asset description',
+            'domainId': 'dzd_test123',
+            'projectId': 'prj_test123',
+            'status': 'ACTIVE',
+            'typeIdentifier': 'amazon.datazone.S3Asset',
+            'typeRevision': '1',
         }
 
 
@@ -314,26 +311,29 @@ def test_data_helper():
 def aws_error_scenarios():
     """Common AWS error scenarios for testing."""
     return {
-        "access_denied": {
-            "error_code": "AccessDeniedException",
-            "message": "User is not authorized to perform this action",
+        'access_denied': {
+            'error_code': 'AccessDeniedException',
+            'message': 'User is not authorized to perform this action',
         },
-        "resource_not_found": {
-            "error_code": "ResourceNotFoundException",
-            "message": "The requested resource was not found",
+        'resource_not_found': {
+            'error_code': 'ResourceNotFoundException',
+            'message': 'The requested resource was not found',
         },
-        "conflict": {
-            "error_code": "ConflictException",
-            "message": "The request conflicts with the current state",
+        'conflict': {
+            'error_code': 'ConflictException',
+            'message': 'The request conflicts with the current state',
         },
-        "validation_error": {
-            "error_code": "ValidationException",
-            "message": "The input fails to satisfy the constraints",
+        'validation_error': {
+            'error_code': 'ValidationException',
+            'message': 'The input fails to satisfy the constraints',
         },
-        "throttling": {"error_code": "ThrottlingException", "message": "The request was throttled"},
-        "internal_error": {
-            "error_code": "InternalServerException",
-            "message": "An internal server error occurred",
+        'throttling': {
+            'error_code': 'ThrottlingException',
+            'message': 'The request was throttled',
+        },
+        'internal_error': {
+            'error_code': 'InternalServerException',
+            'message': 'An internal server error occurred',
         },
     }
 
@@ -345,11 +345,11 @@ def mock_aws_credentials():
     with patch.dict(
         os.environ,
         {
-            "AWS_ACCESS_KEY_ID": "testing", #pragma: allowlist secret
-            "AWS_SECRET_ACCESS_KEY": "testing", #pragma: allowlist secret
-            "AWS_SECURITY_TOKEN": "testing", #pragma: allowlist secret
-            "AWS_SESSION_TOKEN": "testing", #pragma: allowlist secret
-            "AWS_DEFAULT_REGION": "us-east-1", #pragma: allowlist secret
+            'AWS_ACCESS_KEY_ID': 'testing',  # pragma: allowlist secret
+            'AWS_SECRET_ACCESS_KEY': 'testing',  # pragma: allowlist secret
+            'AWS_SECURITY_TOKEN': 'testing',  # pragma: allowlist secret
+            'AWS_SESSION_TOKEN': 'testing',  # pragma: allowlist secret
+            'AWS_DEFAULT_REGION': 'us-east-1',  # pragma: allowlist secret
         },
     ):
         yield
@@ -359,17 +359,17 @@ def mock_aws_credentials():
 def pytest_configure(config):
     """Configure pytest with custom markers."""
     config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests (may require AWS credentials)"
+        'markers', 'integration: marks tests as integration tests (may require AWS credentials)'
     )
-    config.addinivalue_line("markers", "slow: marks tests as slow running")
+    config.addinivalue_line('markers', 'slow: marks tests as slow running')
 
 
 def pytest_collection_modifyitems(config, items):
     """Automatically skip integration tests if SKIP_AWS_TESTS is set."""
-    if os.getenv("SKIP_AWS_TESTS", "false").lower() == "true":
-        skip_integration = pytest.mark.skip(reason="SKIP_AWS_TESTS environment variable is set")
+    if os.getenv('SKIP_AWS_TESTS', 'false').lower() == 'true':
+        skip_integration = pytest.mark.skip(reason='SKIP_AWS_TESTS environment variable is set')
         for item in items:
-            if "integration" in item.keywords:
+            if 'integration' in item.keywords:
                 item.add_marker(skip_integration)
 
 
@@ -377,11 +377,11 @@ def pytest_collection_modifyitems(config, items):
 def get_tool_function(mcp_server: FastMCP, tool_name: str):
     """Extract a tool function from the MCP server by name."""
     # Access the tool through the tool manager
-    if hasattr(mcp_server, "_tool_manager"):
+    if hasattr(mcp_server, '_tool_manager'):
         tool_manager = mcp_server._tool_manager
         try:
             tool = tool_manager.get_tool(tool_name)
-            if tool and hasattr(tool, "fn"):
+            if tool and hasattr(tool, 'fn'):
                 return tool.fn
         except Exception:
             pass

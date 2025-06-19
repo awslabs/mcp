@@ -100,10 +100,10 @@ async def main():
     """Main example function with clear steps."""
     # Step 1: Setup
     client = await create_client("stdio", ["python", "-m", "datazone_mcp_server.server"])
-    
+
     # Step 2: Core operations
     # ... example code ...
-    
+
     # Step 3: Cleanup (if needed)
     # ... cleanup code ...
 
@@ -254,4 +254,4 @@ See our [Contributing Guide](../CONTRIBUTING.md) for details.
 
 ---
 
-**Need help?** Check out our [documentation](../docs/) or open an [issue](https://github.com/wangtianren/datazone-mcp-server/issues). 
+**Need help?** Check out our [documentation](../docs/) or open an [issue](https://github.com/wangtianren/datazone-mcp-server/issues).

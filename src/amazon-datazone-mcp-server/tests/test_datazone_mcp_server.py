@@ -1,6 +1,5 @@
 """Tests for Datazone_mcp_server module."""
 
-import pytest
 
 # @pytest.mark.xfail
 # def test_that_you_wrote_tests():

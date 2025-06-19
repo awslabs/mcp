@@ -76,11 +76,11 @@ from mcp import create_client
 async def main():
     # Connect to the DataZone MCP server
     client = await create_client("stdio", ["python", "-m", "datazone_mcp_server.server"])
-    
+
     # List available tools
     tools = await client.list_tools()
     print(f"Available tools: {len(tools.tools)}")
-    
+
     # Call a DataZone operation
     result = await client.call_tool("get_domain", {
         "identifier": "dzd_your_domain_id"
@@ -266,7 +266,7 @@ The Amazon DataZone MCP server provides **38 tools** organized into 5 categories
 > **For detailed documentation** of each tool with parameters and examples, see our [Tool Reference](docs/TOOL_REFERENCE.md).
 
 ## Testing
-To excute the tests, need to set up your `.env` file with arn credentials 
+To excute the tests, need to set up your `.env` file with arn credentials
 ```bash
 export ARN=your_arn
 export DOMAIN_EXECUTION_ROLE=your_domain_execution_role

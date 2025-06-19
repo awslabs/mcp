@@ -76,10 +76,10 @@ class TestFeatureName:
         """Test [specific success scenario]."""
         # Arrange
         tool_function = tool_extractor(mcp_server_with_tools, 'tool_name')
-        
+
         # Act
         result = await tool_function(param1="value1", param2="value2")
-        
+
         # Assert
         assert result["key"] == "expected_value"
 
@@ -87,10 +87,10 @@ class TestFeatureName:
     async def test_error_scenario(self, mcp_server_with_tools, tool_extractor):
         """Test [specific error scenario]."""
         tool_function = tool_extractor(mcp_server_with_tools, 'tool_name')
-        
+
         with pytest.raises(Exception) as exc_info:
             await tool_function(invalid_param="invalid")
-        
+
         assert "expected error message" in str(exc_info.value)
 ```
 
@@ -112,10 +112,10 @@ mock_client.list_something.return_value = mock_response
 async def test_parameter_validation(self, mcp_server_with_tools, tool_extractor):
     """Test parameter validation."""
     tool_function = tool_extractor(mcp_server_with_tools, 'tool_name')
-    
+
     with pytest.raises(Exception) as exc_info:
         await tool_function()  # Missing required parameter
-    
+
     assert "required" in str(exc_info.value).lower()
 ```
 
@@ -125,9 +125,9 @@ async def test_parameter_validation(self, mcp_server_with_tools, tool_extractor)
 async def test_pagination(self, mcp_server_with_tools, tool_extractor):
     """Test pagination handling."""
     tool_function = tool_extractor(mcp_server_with_tools, 'list_tool')
-    
+
     result = await tool_function(max_results=10, next_token="token123")
-    
+
     assert "items" in result
     assert isinstance(result["items"], list)
 ```
@@ -239,7 +239,7 @@ markers = [
 - name: Run Tests
   run: |
     pytest tests/ --cov=src --cov-report=xml --cov-fail-under=50
-    
+
 - name: Upload Coverage
   uses: codecov/codecov-action@v1
   with:
@@ -256,4 +256,4 @@ markers = [
   ```bash
   pip install pytest-xdist
   pytest tests/ -n auto
-  ``` 
+  ```

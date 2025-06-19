@@ -9,7 +9,7 @@ exclude =
     */site-packages/*
 
 # Add extra rules to Flake8's own default ignore list
-extend-ignore = 
+extend-ignore =
     W293,
     W504,
     W291,

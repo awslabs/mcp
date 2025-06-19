@@ -82,7 +82,7 @@ You'll be prompted for:
         "aws-datazone": {
             "command": "python",
             "args": [
-                "-m", 
+                "-m",
                 "datazone_mcp_server.server"
             ],
             "env": {
@@ -200,7 +200,7 @@ Add this configuration to your `claude_desktop_config.json`:
         "aws-datazone": {
             "command": "python",
             "args": [
-                "-m", 
+                "-m",
                 "datazone_mcp_server.server"
             ],
             "env": {
@@ -218,7 +218,7 @@ Add this configuration to your `claude_desktop_config.json`:
         "aws-datazone": {
             "command": "python",
             "args": [
-                "-m", 
+                "-m",
                 "datazone_mcp_server.server"
             ],
             "env": {
@@ -281,7 +281,7 @@ I found 2 DataZone domains in your account:
    - Description: Domain for analytics workloads
 
 2. **Data Lake Domain** (dzd_xyz789)
-   - Status: ACTIVE  
+   - Status: ACTIVE
    - Created: 2024-02-01
    - Description: Central data lake domain
 ```
@@ -492,7 +492,7 @@ which python
 #### 2. AWS Permission Errors
 
 **Symptoms:**
-- "AccessDeniedException" 
+- "AccessDeniedException"
 - "NoCredentialsError"
 
 **Solutions:**
@@ -603,14 +603,14 @@ from mcp import create_client
 
 async def automate_project_setup():
     client = await create_client("stdio", ["python", "-m", "datazone_mcp_server.server"])
-    
+
     # Create project
     project = await client.call_tool("create_project", {
         "domain_identifier": "dzd_abc123",
         "name": "Automated Project",
         "description": "Created via automation"
     })
-    
+
     # Add more automation steps...
 ```
 
@@ -698,4 +698,4 @@ export DATAZONE_MCP_DEBUG="true"  # For debugging
 
 This getting started guide has taken you from installation to real-world usage. You now have the foundation to manage AWS DataZone resources through natural language conversation.
 
-**Happy data governing!** 
+**Happy data governing!**
