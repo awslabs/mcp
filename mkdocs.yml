@@ -43,6 +43,7 @@ nav:
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
     - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
+    - AWS MSK MCP Server: servers/aws-msk-mcp-server.md
     - AWS Step Functions Tool MCP Server: servers/stepfunctions-tool-mcp-server.md
     - AWS Terraform MCP Server: servers/terraform-mcp-server.md
     - Amazon ElastiCache MCP Server: servers/elasticache-mcp-server.md

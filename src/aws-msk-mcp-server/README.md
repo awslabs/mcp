@@ -98,6 +98,9 @@ npx @modelcontextprotocol/inspector \
   server.py
 ```
 
+Cursor deeplink install button:
+cursor://anysphere.cursor-deeplink/mcp/install?name=awslabs.aws-msk-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjp0cnVlLCJ0aW1lb3V0Ijo2MCwidHlwZSI6InN0ZGlvIiwiY29tbWFuZCI6InV2IC0tZGlyZWN0b3J5IC9Vc2Vycy9zb25ncnkvRG9jdW1lbnRzL1B5dGhvbi9hd3NsYWJzLW1jcC9zcmMvYXdzLW1zay1tY3Atc2VydmVyL2F3c2xhYnMvYXdzX21za19tY3Bfc2VydmVyLyBydW4gc2VydmVyLnB5IC0tYWxsb3ctd3JpdGVzIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifX0=
+
 ### AWS Credentials
 
 The server requires AWS credentials to access MSK resources. These can be provided through:

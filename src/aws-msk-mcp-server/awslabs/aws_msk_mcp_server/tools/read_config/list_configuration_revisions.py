@@ -18,7 +18,7 @@ Maps to AWS CLI command: aws kafka list-configuration-revisions.
 """
 
 
-def list_configuration_revisions(arn, client, max_results=10, next_token=''):
+def list_configuration_revisions(arn, client, next_token, max_results=10):
     """Returns a list of all revisions of an MSK configuration.
 
     Args:
