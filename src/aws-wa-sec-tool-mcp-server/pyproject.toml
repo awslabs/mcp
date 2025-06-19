@@ -23,7 +23,7 @@ dev = [
 packages = {find = {where = ["."]}}
 
 [project.scripts]
-"awslabs.aws-wa-sec-tool-mcp-server" = "awslabs.aws_wa_sec_tool_mcp_server.server:server"
+"awslabs.aws-wa-sec-tool-mcp-server" = "awslabs.aws_wa_sec_tool_mcp_server.server:main"
 
 [project.entry-points.mcp]
 aws-wa-sec-tool-mcp-server = "awslabs.aws_wa_sec_tool_mcp_server.server:mcp"
@@ -34,9 +34,12 @@ version = "0.1.0"
 tag_format = "$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/aws_wa_sec_review_mcp_server/__init__.py:__version__"
+    "awslabs/aws_wa_sec_tool_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
+
+[tool.uv]
+package = true
 
 [tool.ruff]
 line-length = 99
