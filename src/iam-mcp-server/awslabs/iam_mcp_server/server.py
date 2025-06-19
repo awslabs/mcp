@@ -97,7 +97,7 @@ async def list_users(
 
         iam = get_iam_client()
 
-        kwargs = {'MaxItems': max_items}
+        kwargs: Dict[str, Any] = {'MaxItems': max_items}
         if path_prefix:
             kwargs['PathPrefix'] = path_prefix
 
@@ -131,7 +131,6 @@ async def list_users(
     except Exception as e:
         error = handle_iam_error(e)
         logger.error(f'Error listing users: {error}')
-        await ctx.error(f'Failed to list users: {error}')
         raise error
 
 
@@ -220,7 +219,6 @@ async def get_user(
     except Exception as e:
         error = handle_iam_error(e)
         logger.error(f'Error getting user details: {error}')
-        await ctx.error(f'Failed to get user details: {error}')
         raise error
 
 
@@ -279,6 +277,9 @@ async def create_user(
             arn=user['Arn'],
             path=user['Path'],
             create_date=user['CreateDate'].isoformat(),
+            password_last_used=user.get('PasswordLastUsed').isoformat()
+            if user.get('PasswordLastUsed')
+            else None,
         )
 
         result = CreateUserResponse(
@@ -291,7 +292,6 @@ async def create_user(
     except Exception as e:
         error = handle_iam_error(e)
         logger.error(f'Error creating user: {error}')
-        await ctx.error(f'Failed to create user: {error}')
         raise error
 
 
@@ -368,7 +368,7 @@ async def list_roles(
     try:
         iam = get_iam_client()
 
-        kwargs = {'MaxItems': max_items}
+        kwargs: Dict[str, Any] = {'MaxItems': max_items}
         if path_prefix:
             kwargs['PathPrefix'] = path_prefix
 

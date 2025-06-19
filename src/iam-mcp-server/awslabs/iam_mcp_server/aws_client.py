@@ -16,11 +16,12 @@
 
 import boto3
 from awslabs.iam_mcp_server.context import Context
+from botocore.config import Config
 from loguru import logger
-from typing import Optional
+from typing import Any, Optional
 
 
-def get_iam_client(region: Optional[str] = None) -> boto3.client:
+def get_iam_client(region: Optional[str] = None) -> Any:
     """Get an IAM client with proper configuration.
 
     Args:
@@ -37,7 +38,7 @@ def get_iam_client(region: Optional[str] = None) -> boto3.client:
         client_region = region or Context.get_region()
 
         # Add user agent to identify this MCP server in AWS logs
-        config = boto3.session.Config(user_agent_extra='awslabs-iam-mcp-server/1.0.0')
+        config = Config(user_agent_extra='awslabs-iam-mcp-server/1.0.0')
 
         if client_region:
             logger.debug(f'Creating IAM client for region: {client_region}')
@@ -51,7 +52,7 @@ def get_iam_client(region: Optional[str] = None) -> boto3.client:
         raise Exception(f'Failed to create IAM client: {str(e)}')
 
 
-def get_aws_client(service_name: str, region: Optional[str] = None) -> boto3.client:
+def get_aws_client(service_name: str, region: Optional[str] = None) -> Any:
     """Get a generic AWS client for any service.
 
     Args:
@@ -69,7 +70,7 @@ def get_aws_client(service_name: str, region: Optional[str] = None) -> boto3.cli
         client_region = region or Context.get_region()
 
         # Add user agent to identify this MCP server in AWS logs
-        config = boto3.session.Config(user_agent_extra='awslabs-iam-mcp-server/1.0.0')
+        config = Config(user_agent_extra='awslabs-iam-mcp-server/1.0.0')
 
         if client_region:
             logger.debug(f'Creating {service_name} client for region: {client_region}')
