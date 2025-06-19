@@ -399,6 +399,20 @@ async def test_create_role():
 
 
 @pytest.mark.asyncio
+async def test_create_role_invalid_json():
+    """Test create_role function with invalid JSON policy document."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    # Disable readonly mode
+    Context.initialize(readonly=False)
+
+    with pytest.raises(Exception) as exc_info:
+        await create_role(role_name='test-role', assume_role_policy_document='invalid json')
+
+    assert 'Invalid JSON' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 async def test_create_role_readonly():
     """Test create_role function in readonly mode."""
     from awslabs.iam_mcp_server.server import create_role
@@ -496,6 +510,234 @@ async def test_get_user_not_found():
 @pytest.mark.asyncio
 async def test_delete_user():
     """Test delete_user function."""
+
+
+# Additional tests for better error handling coverage
+
+
+@pytest.mark.asyncio
+async def test_list_users_with_exception():
+    """Test list_users function with generic exception."""
+    from awslabs.iam_mcp_server.server import list_users
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.list_users.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await list_users()
+
+
+@pytest.mark.asyncio
+async def test_get_user_with_exception():
+    """Test get_user function with generic exception."""
+    from awslabs.iam_mcp_server.server import get_user
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.get_user.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await get_user(user_name='test-user')
+
+
+@pytest.mark.asyncio
+async def test_create_user_with_exception():
+    """Test create_user function with generic exception."""
+    from awslabs.iam_mcp_server.server import create_user
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.create_user.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await create_user(user_name='test-user')
+
+
+@pytest.mark.asyncio
+async def test_delete_user_with_exception():
+    """Test delete_user function with generic exception."""
+    from awslabs.iam_mcp_server.server import delete_user
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.delete_user.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await delete_user(user_name='test-user')
+
+
+@pytest.mark.asyncio
+async def test_list_roles_with_exception():
+    """Test list_roles function with generic exception."""
+    from awslabs.iam_mcp_server.server import list_roles
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.list_roles.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await list_roles()
+
+
+@pytest.mark.asyncio
+async def test_create_role_with_exception():
+    """Test create_role function with generic exception."""
+    from awslabs.iam_mcp_server.server import create_role
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.create_role.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await create_role(
+                role_name='test-role', assume_role_policy_document={'Version': '2012-10-17'}
+            )
+
+
+@pytest.mark.asyncio
+async def test_list_policies_with_exception():
+    """Test list_policies function with generic exception."""
+    from awslabs.iam_mcp_server.server import list_policies
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.list_policies.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await list_policies()
+
+
+@pytest.mark.asyncio
+async def test_attach_user_policy_with_exception():
+    """Test attach_user_policy function with generic exception."""
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.attach_user_policy.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await attach_user_policy(
+                user_name='test-user', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+            )
+
+
+@pytest.mark.asyncio
+async def test_detach_user_policy_with_exception():
+    """Test detach_user_policy function with generic exception."""
+    from awslabs.iam_mcp_server.server import detach_user_policy
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.detach_user_policy.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await detach_user_policy(
+                user_name='test-user', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+            )
+
+
+@pytest.mark.asyncio
+async def test_create_access_key_with_exception():
+    """Test create_access_key function with generic exception."""
+    from awslabs.iam_mcp_server.server import create_access_key
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.create_access_key.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await create_access_key(user_name='test-user')
+
+
+@pytest.mark.asyncio
+async def test_delete_access_key_with_exception():
+    """Test delete_access_key function with generic exception."""
+    from awslabs.iam_mcp_server.server import delete_access_key
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.delete_access_key.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await delete_access_key(
+                user_name='test-user',
+                access_key_id='AKIAIOSFODNN7EXAMPLE',  # pragma: allowlist secret
+            )
+
+
+@pytest.mark.asyncio
+async def test_simulate_principal_policy_success():
+    """Test simulate_principal_policy function success case."""
+    from awslabs.iam_mcp_server.server import simulate_principal_policy
+
+    mock_response = {
+        'EvaluationResults': [
+            {
+                'EvalActionName': 's3:GetObject',
+                'EvalResourceName': 'arn:aws:s3:::my-bucket/*',
+                'EvalDecision': 'allowed',
+                'MatchedStatements': [{'SourcePolicyId': 'policy1'}],
+                'MissingContextValues': [],
+            }
+        ],
+        'IsTruncated': False,
+        'Marker': 'marker123',
+    }
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.simulate_principal_policy.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = await simulate_principal_policy(
+            policy_source_arn='arn:aws:iam::123456789012:user/test-user',
+            action_names=['s3:GetObject'],
+            resource_arns=['arn:aws:s3:::my-bucket/*'],
+            context_entries={'aws:RequestedRegion': 'us-east-1'},
+        )
+
+        assert len(result['EvaluationResults']) == 1
+        assert result['EvaluationResults'][0]['EvalActionName'] == 's3:GetObject'
+        assert result['EvaluationResults'][0]['EvalResourceName'] == 'arn:aws:s3:::my-bucket/*'
+        assert result['EvaluationResults'][0]['EvalDecision'] == 'allowed'
+        assert result['IsTruncated'] is False
+        assert result['Marker'] == 'marker123'
+        assert result['PolicySourceArn'] == 'arn:aws:iam::123456789012:user/test-user'
+
+
+@pytest.mark.asyncio
+async def test_simulate_principal_policy_with_exception():
+    """Test simulate_principal_policy function with generic exception."""
+    from awslabs.iam_mcp_server.server import simulate_principal_policy
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.simulate_principal_policy.side_effect = Exception('Generic error')
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(Exception):
+            await simulate_principal_policy(
+                policy_source_arn='arn:aws:iam::123456789012:user/test-user',
+                action_names=['s3:GetObject'],
+            )
+
+
+@pytest.mark.asyncio
+async def test_delete_user_success():
+    """Test delete_user function success case."""
     from awslabs.iam_mcp_server.server import delete_user
 
     # Disable readonly mode
