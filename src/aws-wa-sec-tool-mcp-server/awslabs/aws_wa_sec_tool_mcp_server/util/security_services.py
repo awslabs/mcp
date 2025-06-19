@@ -1531,9 +1531,7 @@ async def check_macie(region: str, session: boto3.Session, ctx: Context) -> Dict
                 "finding_publishing_frequency": status.get("findingPublishingFrequency"),
                 "message": "Amazon Macie is enabled in this region.",
             }
-        except macie_client.exceptions.AccessDeniedException as e:
-            print(f"[DEBUG:Macie] AccessDeniedException indicates Macie is not enabled: {e}")
-            # Macie is not enabled or permissions issue
+        except macie_client.exceptions.AccessDeniedException:
             return {
                 "enabled": False,
                 "setup_instructions": """
@@ -1597,14 +1595,9 @@ async def get_macie_findings(
 
         # Set up default finding criteria if none provided
         if filter_criteria is None:
-            print("[DEBUG:Macie] No filter criteria provided, creating default criteria")
-            # By default, get findings with high severity
             filter_criteria = {"criterion": {"severity.score": {"gt": 7}}}
-        else:
-            print(f"[DEBUG:Macie] Using provided filter criteria: {json.dumps(filter_criteria)}")
 
         # List findings with the filter criteria
-        print(f"[DEBUG:Macie] Calling list_findings with max results: {max_findings}")
         findings_response = macie_client.list_findings(
             findingCriteria=filter_criteria, maxResults=max_findings
         )
@@ -1613,7 +1606,6 @@ async def get_macie_findings(
         print(f"[DEBUG:Macie] Retrieved {len(finding_ids)} finding IDs")
 
         if not finding_ids:
-            print("[DEBUG:Macie] No findings match the filter criteria")
             return {
                 "enabled": True,
                 "message": "No Macie findings match the filter criteria",

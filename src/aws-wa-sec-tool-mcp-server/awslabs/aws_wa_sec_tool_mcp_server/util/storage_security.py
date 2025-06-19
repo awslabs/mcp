@@ -367,7 +367,6 @@ async def check_s3_buckets(
         return results
 
     except botocore.exceptions.BotoCoreError as e:
-        print(f"[DEBUG:StorageSecurity] Error checking S3 buckets: {e}")
         await ctx.error(f"Error checking S3 buckets: {e}")
         return {
             "service": "s3",
