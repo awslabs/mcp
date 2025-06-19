@@ -26,6 +26,7 @@ import functools
 from awslabs.s3_tables_mcp_server import (
     __version__,
     database,
+    file_processor,
     namespaces,
     resources,
     table_buckets,
@@ -34,6 +35,7 @@ from awslabs.s3_tables_mcp_server import (
 from awslabs.s3_tables_mcp_server.constants import (
     OUTPUT_LOCATION_FIELD,
     QUERY_FIELD,
+    S3_URL_FIELD,
     WORKGROUP_FIELD,
 )
 from awslabs.s3_tables_mcp_server.models import (
@@ -183,7 +185,7 @@ async def create_table(
     """Create a new S3 table in an S3 table bucket.
 
     Creates a new S3 table associated with the given S3 namespace in an S3 table bucket.
-    The S3 table can be configured with specific format and metadata settings.
+    The S3 table can be configured with specific format and metadata settings. Use double type for decimals.
 
     Example of S3 table metadata:
     {
@@ -673,6 +675,92 @@ async def modify_database(
         return {'status': 'error', 'error': str(e)}
 
 
+@app.tool()
+async def preview_csv_file(
+    s3_url: Annotated[str, S3_URL_FIELD],
+) -> dict:
+    """Preview the structure of a CSV file stored in S3.
+
+    This tool provides a quick preview of a CSV file's structure by reading
+    only the headers and first row of data from an S3 location. It's useful for
+    understanding the schema and data format without downloading the entire file.
+    It can be used before creating an s3 table from a csv file to get the schema and data format.
+
+    Returns:
+        A dictionary containing:
+        - headers: List of column names from the first row
+        - first_row: Dictionary mapping column names to their values from the first data row
+        - total_columns: Number of columns in the CSV
+        - file_name: Name of the CSV file
+
+    Returns error dictionary with status and error message if:
+        - URL is not a valid S3 URL
+        - File is not a CSV file
+        - File cannot be accessed
+        - Any other error occurs
+
+    Permissions:
+    You must have the s3:GetObject permission for the S3 bucket and key.
+    """
+    return file_processor.preview_csv_structure(s3_url)
+
+
+@app.tool()
+@write_operation
+async def import_csv_to_table(
+    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
+    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
+    name: Annotated[str, TABLE_NAME_FIELD],
+    s3_url: Annotated[str, S3_URL_FIELD],
+    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
+) -> dict:
+    """Import data from a CSV file into an S3 table.
+
+    This tool reads data from a CSV file stored in S3 and imports it into an existing S3 table.
+    The CSV file must have headers that match the table's schema. The tool will validate the CSV structure
+    before attempting to import the data.
+
+    To create a table, first use the preview_csv_file tool to get the schema and data format.
+    Then use the create_table tool to create the table.
+
+    Args:
+        table_bucket_arn: The ARN of the table bucket containing the table
+        namespace: The namespace containing the table
+        name: The name of the table to import data into
+        s3_url: The S3 URL of the CSV file (format: s3://bucket-name/key)
+        region_name: Optional AWS region name
+
+    Returns:
+        A dictionary containing:
+        - status: 'success' or 'error'
+        - message: Success message or error details
+        - rows_processed: Number of rows processed (on success)
+
+    Returns error dictionary with status and error message if:
+        - URL is not a valid S3 URL
+        - File is not a CSV file
+        - File cannot be accessed
+        - Table does not exist
+        - CSV headers don't match table schema
+        - Any other error occurs
+
+    Permissions:
+    You must have:
+    - s3:GetObject permission for the CSV file
+    - glue:GetCatalog permission to access the Glue catalog
+    - glue:GetDatabase and glue:GetDatabases permissions to access database information
+    - glue:GetTable and glue:GetTables permissions to access table information
+    - glue:CreateTable and glue:UpdateTable permissions to modify table metadata
+    """
+    return await file_processor.import_csv_to_table(
+        table_bucket_arn=table_bucket_arn,
+        namespace=namespace,
+        name=name,
+        s3_url=s3_url,
+        region_name=region_name,
+    )
+
+
 def main():
     """Run the MCP server with CLI argument support.
 
@@ -692,10 +780,7 @@ def main():
 
     app.allow_write = args.allow_write
 
-    try:
-        app.run()
-    except Exception as e:
-        print(f'Failed to start server: {str(e)}')
+    app.run()
 
 
 # FastMCP application runner

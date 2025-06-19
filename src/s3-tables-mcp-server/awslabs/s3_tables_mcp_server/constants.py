@@ -141,3 +141,13 @@ Pydantic field for workgroup validation.
 Optional field that must contain only letters, numbers, hyphens, and underscores.
 Defaults to 'primary'.
 """
+
+S3_URL_FIELD = Field(
+    ...,
+    description='The S3 URL of the file to preview (format: s3://bucket-name/key)',
+    min_length=1,
+)
+"""
+Pydantic field for S3 URL validation.
+Required field that must be a valid S3 URI.
+"""

@@ -48,3 +48,35 @@ def get_s3tables_client(region_name: str = None) -> boto3.client:
     config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
     session = boto3.Session()
     return session.client('s3tables', region_name=region, config=config)
+
+
+def get_s3_client(region_name: str = None) -> boto3.client:
+    """Create a boto3 S3 client.
+
+    Args:
+        region_name: Optional AWS region name. If not provided, uses AWS_REGION environment variable
+                    or defaults to 'us-east-1'.
+
+    Returns:
+        boto3.client: Configured S3 client
+    """
+    region = region_name or os.getenv('AWS_REGION') or 'us-east-1'
+    config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
+    session = boto3.Session()
+    return session.client('s3', region_name=region, config=config)
+
+
+def get_sts_client(region_name: str = None) -> boto3.client:
+    """Create a boto3 STS client.
+
+    Args:
+        region_name: Optional AWS region name. If not provided, uses AWS_REGION environment variable
+                    or defaults to 'us-east-1'.
+
+    Returns:
+        boto3.client: Configured STS client
+    """
+    region = region_name or os.getenv('AWS_REGION') or 'us-east-1'
+    config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
+    session = boto3.Session()
+    return session.client('sts', region_name=region, config=config)
