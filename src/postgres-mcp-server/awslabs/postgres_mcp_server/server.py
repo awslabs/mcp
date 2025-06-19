@@ -294,7 +294,7 @@ async def get_table_schema(
         FROM
             pg_attribute a
         WHERE
-            a.attrelid = :table_name::regclass
+            a.attrelid = to_regclass(:table_name)
             AND a.attnum > 0
             AND NOT a.attisdropped
         ORDER BY a.attnum
