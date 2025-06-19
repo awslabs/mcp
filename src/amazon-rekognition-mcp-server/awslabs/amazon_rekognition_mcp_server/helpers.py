@@ -17,6 +17,8 @@
 import boto3
 import functools
 import os
+from awslabs.amazon_rekognition_mcp_server import __version__
+from botocore.config import Config
 from loguru import logger
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Optional, TypeVar, cast
@@ -50,7 +52,8 @@ def get_aws_session():
 def get_rekognition_client():
     """Get a Rekognition client."""
     session = get_aws_session()
-    return session.client('rekognition')
+    config = Config(user_agent_extra=f'awslabs/mcp/amazon_rekognition_mcp_server/{__version__}')
+    return session.client('rekognition', config=config)
 
 
 def handle_exceptions(func: T) -> T:

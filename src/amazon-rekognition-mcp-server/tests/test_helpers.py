@@ -51,11 +51,20 @@ def test_get_rekognition_client():
     mock_client = MagicMock()
     mock_session.client.return_value = mock_client
 
-    with patch(
-        'awslabs.amazon_rekognition_mcp_server.helpers.get_aws_session', return_value=mock_session
+    with (
+        patch(
+            'awslabs.amazon_rekognition_mcp_server.helpers.get_aws_session',
+            return_value=mock_session,
+        ),
+        patch('awslabs.amazon_rekognition_mcp_server.helpers.__version__', '1.0.0'),
+        patch('awslabs.amazon_rekognition_mcp_server.helpers.Config') as mock_config,
     ):
+        mock_config.return_value = 'mock_config'
         client = get_rekognition_client()
-        mock_session.client.assert_called_once_with('rekognition')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/amazon_rekognition_mcp_server/1.0.0'
+        )
+        mock_session.client.assert_called_once_with('rekognition', config='mock_config')
         assert client == mock_client
 
 
