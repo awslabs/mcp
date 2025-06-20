@@ -29,6 +29,7 @@ from awslabs.s3_tables_mcp_server import (
     file_processor,
     namespaces,
     resources,
+    s3_operations,
     table_buckets,
     tables,
 )
@@ -189,7 +190,8 @@ async def create_table(
     """Create a new S3 table in an S3 table bucket.
 
     Creates a new S3 table associated with the given S3 namespace in an S3 table bucket.
-    The S3 table can be configured with specific format and metadata settings. Use double type for decimals.
+    The S3 table can be configured with specific format and metadata settings. Metadata contains the schema of the table. Use double type for decimals.
+    Do not use the metadata parameter if the schema is unclear.
 
     Example of S3 table metadata:
     {
@@ -217,6 +219,14 @@ async def create_table(
                         }
                     ]
                 },
+                "partition-spec": [
+                    {
+                        "source-id": 1,
+                        "field-id": 1000,
+                        "transform": "month",
+                        "name": "sale_date_month"
+                    }
+                ],
                 "table-properties": {
                     "description": "Customer information table with customer_id for joining with transactions"
                 }
@@ -712,6 +722,66 @@ async def preview_csv_file(
     You must have the s3:GetObject permission for the S3 bucket and key.
     """
     return file_processor.preview_csv_structure(s3_url)
+
+
+@app.tool()
+async def get_bucket_metadata_table_configuration(
+    bucket: Annotated[
+        str,
+        Field(
+            ...,
+            description='The name of the S3 bucket to get metadata table configuration for.',
+            min_length=1,
+        ),
+    ],
+    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
+) -> dict:
+    """Get the metadata table configuration for a regular general purpose S3 bucket.
+
+    Retrieves the metadata table configuration for a regular general purpose bucket in s3. This configuration
+    determines how metadata is stored and managed for the bucket.
+    The response includes:
+    - S3 Table Bucket ARN
+    - S3 Table ARN
+    - S3 Table Name
+    - S3 Table Namespace
+
+    Description:
+    Amazon S3 Metadata accelerates data discovery by automatically capturing metadata for the objects in your general purpose buckets and storing it in read-only, fully managed Apache Iceberg tables that you can query. These read-only tables are called metadata tables. As objects are added to, updated, and removed from your general purpose buckets, S3 Metadata automatically refreshes the corresponding metadata tables to reflect the latest changes.
+    By default, S3 Metadata provides three types of metadata:
+    - System-defined metadata, such as an object's creation time and storage class
+    - Custom metadata, such as tags and user-defined metadata that was included during object upload
+    - Event metadata, such as when an object is updated or deleted, and the AWS account that made the request
+
+    Metadata table schema:
+    - bucket: String
+    - key: String
+    - sequence_number: String
+    - record_type: String
+    - record_timestamp: Timestamp (no time zone)
+    - version_id: String
+    - is_delete_marker: Boolean
+    - size: Long
+    - last_modified_date: Timestamp (no time zone)
+    - e_tag: String
+    - storage_class: String
+    - is_multipart: Boolean
+    - encryption_status: String
+    - is_bucket_key_enabled: Boolean
+    - kms_key_arn: String
+    - checksum_algorithm: String
+    - object_tags: Map<String, String>
+    - user_metadata: Map<String, String>
+    - requester: String
+    - source_ip_address: String
+    - request_id: String
+
+    Permissions:
+    You must have the s3:GetBucketMetadataTableConfiguration permission to use this operation.
+    """
+    return await s3_operations.get_bucket_metadata_table_configuration(
+        bucket=bucket, region_name=region_name
+    )
 
 
 @app.tool()
