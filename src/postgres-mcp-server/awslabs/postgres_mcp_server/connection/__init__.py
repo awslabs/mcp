@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.postgres-mcp-server"""
+"""Connection management package for PostgreSQL MCP Server."""
 
-__version__ = '1.0.0'
+from .connection_factory import ConnectionFactory
+from .enhanced_singleton import DBConnectionSingleton
+from .pool_manager import ConnectionPoolManager
+
+__all__ = ['ConnectionFactory', 'DBConnectionSingleton', 'ConnectionPoolManager']
