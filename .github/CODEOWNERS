@@ -23,6 +23,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/aws-documentation-mcp-server       @Lavoiedavidw @JonLim            @awslabs/mcp-admins
 #/src/aws-location-mcp-server           @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/aws-serverless-mcp-server          @bx9900                          @awslabs/mcp-admins
+/src/aws-healthomics-mcp-server         @markjschreiber			 @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/cdk-mcp-server                     @jimini55                        @awslabs/mcp-admins
 /src/cfn-mcp-server                     @karamvsingh                     @awslabs/mcp-admins # @5herlocked @peternigh
