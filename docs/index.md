@@ -4,6 +4,19 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 
 ## Available MCP Servers
 
+### AWS S3 Tables MCP Server
+
+The S3 Tables MCP Server simplifies the management of S3-based tables by providing capabilities to create and query tables, generate tables directly from CSV files uploaded to S3, and access metadata through the S3 Metadata Table. This allows for streamlined data operations and easier integration with S3-stored datasets.
+
+**Features**
+
+- Create and manage S3 tables
+- Query table data bidirectly
+- Generate tables from uploaded CSV files in S3
+- Query metadata from the S3 Metadata Table
+
+[Learn more about the AWS S3 Tables MCP Server](servers/s3-tables-mcp-server.md)
+
 ### Core MCP Server
 
 The Core MCP Server manages and coordinates other MCP servers in your environment, providing automatic installation, configuration, and management.
