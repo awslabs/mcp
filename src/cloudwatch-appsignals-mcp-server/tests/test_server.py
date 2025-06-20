@@ -1,13 +1,11 @@
 """Tests for CloudWatch Application Signals MCP Server."""
 
 import pytest
-from unittest.mock import MagicMock, patch
-from datetime import datetime, timedelta
-
 from awslabs.cloudwatch_appsignals_mcp_server.server import (
-    list_monitored_services,
     get_service_detail,
+    list_monitored_services,
 )
+from unittest.mock import MagicMock, patch
 
 
 @pytest.mark.asyncio

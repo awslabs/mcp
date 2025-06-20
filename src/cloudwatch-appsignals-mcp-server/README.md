@@ -116,7 +116,7 @@ I found 3 services being monitored:
     Type: AWS::ECS::Service
     Environment: production
     Platform: ECS
-    
+
 • Service: payment-lambda
   Type: AWS::Lambda::Function
   Key Attributes:
@@ -150,7 +150,7 @@ Metric References (15 total):
     Dimensions: Service=order-service, Operation=GetOrder
 
   • AWS/ApplicationSignals/ErrorRate
-    Type: GAUGE  
+    Type: GAUGE
     Dimensions: Service=order-service, Operation=CreateOrder
 
 Log Group References (2 total):
