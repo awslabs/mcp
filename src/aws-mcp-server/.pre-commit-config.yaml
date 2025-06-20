@@ -1,0 +1,20 @@
+repos:
+-   repo: local
+    hooks:
+        - id: install-deps
+          name: Install project dependencies
+          entry: bash -c 'python -m ensurepip --upgrade && python -m pip install importlib_resources && cd src/aws-mcp-server && python -m pip install -e .'
+          language: system
+          require_serial: true
+          pass_filenames: false
+          stages: [pre-commit]
+          always_run: true
+        - id: metadata-script
+          name: ensure confirm-list up-to-date
+          entry: bash -c 'cd src/aws-mcp-server && python awslabs/aws_mcp_server/core/metadata/confirm_list.py --output awslabs/aws_mcp_server/core/data/confirm_list.json'
+          description: Ensure confirm-list is updated. If failed, review the generated change and add.
+          language: system
+          stages: [pre-commit]
+          always_run: true
+          require_serial: true
+          pass_filenames: false

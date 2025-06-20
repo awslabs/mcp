@@ -17,6 +17,19 @@ The Core MCP Server manages and coordinates other MCP servers in your environmen
 
 [Learn more about the Core MCP Server](servers/core-mcp-server.md)
 
+### AWS MCP Server
+
+Model Context Protocol (MCP) server for interacting with AWS services and resources through AWS CLI commands. Provides secure access to manage your AWS infrastructure.
+
+**Features:**
+
+- Create, update, and manage AWS resources across all services
+- Help in AWS CLI command selection
+- Access to latest AWS API features and services beyond LLM knowledge cutoff dates
+- Safe resource management with proper consent mechanisms
+
+[Learn more about the aws MCP Server](servers/aws-mcp-server.md)
+
 ### AWS Documentation MCP Server
 
 The AWS Documentation MCP Server provides access to AWS documentation and best practices.
