@@ -55,21 +55,17 @@ async def check_access_analyzer(region: str, session: boto3.Session, ctx: Contex
         Dictionary with status information about IAM Access Analyzer
     """
     try:
-        print(f"[DEBUG:AccessAnalyzer] Starting Access Analyzer check for region: {region}")
-        # Create Access Analyzer client
         analyzer_client = session.client("accessanalyzer", region_name=region)
-
-        print("[DEBUG:AccessAnalyzer] Created client successfully, calling list_analyzers API")
-        # List existing analyzers
         response = analyzer_client.list_analyzers()
 
-        print(f"[DEBUG:AccessAnalyzer] list_analyzers response: {json.dumps(response)}")
-
         # Extract analyzers - verify the field exists to prevent KeyError
+        flag = True
         if "analyzers" not in response:
-            print(
-                "[DEBUG:AccessAnalyzer] No 'analyzers' field in response, reporting as not enabled"
-            )
+            flag = False
+        elif len(response["analyzers"]) == 0:
+            flag = False
+
+        if not flag:
             return {
                 "enabled": False,
                 "analyzers": [],
@@ -94,45 +90,6 @@ async def check_access_analyzer(region: str, session: boto3.Session, ctx: Contex
             }
 
         analyzers = response.get("analyzers", [])
-
-        # Log what we found for debugging
-        print(f"[DEBUG:AccessAnalyzer] Found {len(analyzers)} analyzers in region {region}")
-        for analyzer in analyzers:
-            analyzer_name = analyzer.get("name", "unnamed")
-            analyzer_type = analyzer.get("type", "unknown")
-            analyzer_status = analyzer.get("status", "unknown")
-            analyzer_arn = analyzer.get("arn", "unknown")
-            print(
-                f"[DEBUG:AccessAnalyzer] Analyzer: {analyzer_name}, Type: {analyzer_type}, Status: {analyzer_status}, ARN: {analyzer_arn}"
-            )
-
-        if not analyzers:
-            # Access Analyzer is not enabled
-            print("[DEBUG:AccessAnalyzer] No analyzers found, reporting as not enabled")
-            return {
-                "enabled": False,
-                "analyzers": [],
-                "setup_instructions": """
-                # IAM Access Analyzer Setup Instructions
-
-                IAM Access Analyzer is not enabled in this region. To enable it:
-
-                1. Open the IAM console: https://console.aws.amazon.com/iam/
-                2. Choose Access analyzer
-                3. Choose Create analyzer
-                4. Enter a name for the analyzer
-                5. Choose the type of analyzer (account or organization)
-                6. Choose Create analyzer
-
-                This is strongly recommended before proceeding with the security review.
-
-                Learn more: https://docs.aws.amazon.com/IAM/latest/UserGuide/access-analyzer-getting-started.html
-                """,
-                "message": "IAM Access Analyzer is not enabled in this region.",
-            }
-
-        # Force to TRUE if any analyzers exist
-        print("[DEBUG:AccessAnalyzer] Analyzers found, setting enabled=TRUE")
 
         # Check if any of the analyzers are active
         active_analyzers = [a for a in analyzers if a.get("status") == "ACTIVE"]
