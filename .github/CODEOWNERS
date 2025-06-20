@@ -72,6 +72,10 @@ NOTICE                                @awslabs/mcp-admins
 /src/terraform-mcp-server               @alexa-perlov                    @awslabs/mcp-admins
 /src/timestream-for-influxdb-mcp-server @lokendrp-aws                    @awslabs/mcp-admins
 /src/valkey-mcp-server                  @seaofawareness                  @awslabs/mcp-admins
+/src/finch-mcp-server                   @Shubhranshu153 @pendo324        @awslabs/mcp-admins
+/src/aws-support-mcp-server             @Wook133                         @awslabs/mcp-admins
+/src/s3-tables-mcp-server               @okhomin                         @awslabs/mcp-admins
+/src/amazon-rekognition-mcp-server      @ayush987goyal                   @awslabs/mcp-admins
 
 ## Secure the CODEOWNERS file
 
