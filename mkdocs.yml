@@ -41,6 +41,7 @@ nav:
     - Amazon Q index MCP Server: servers/amazon-qindex-mcp-server.md
     - Amazon Rekognition MCP Server: servers/amazon-rekognition-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
+    - AWS IAM MCP Server: servers/iam-mcp-server.md
     - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
     - AWS MSK MCP Server: servers/aws-msk-mcp-server.md
