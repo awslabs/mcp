@@ -104,7 +104,7 @@ class IAMHandler:
             managed_policies = self._get_managed_policies(ctx, iam_client, role_name)
 
             # Get inline policies
-            inline_policies = self._get_inline_policies(ctx, iam_client, role_name)
+            inline_policies = self._get_inline_policies(iam_client, role_name)
 
             # Parse the assume role policy document if it's a string, otherwise use it directly
             if isinstance(role['AssumeRolePolicyDocument'], str):
@@ -271,11 +271,10 @@ class IAMHandler:
 
         return managed_policies
 
-    def _get_inline_policies(self, ctx, iam_client, role_name):
+    def _get_inline_policies(self, iam_client, role_name):
         """Get inline policies embedded in a role.
 
         Args:
-            ctx: The MCP context
             iam_client: IAM client to use
             role_name: Name of the IAM role
 
