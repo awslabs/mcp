@@ -387,6 +387,23 @@ async def create_jump_host_cc(
             if is_public:
                 break
 
+        # If no explicit route table association, check the main route table for the VPC
+        if not is_public and not route_tables:
+            main_route_tables = ec2_client.describe_route_tables(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [subnet_vpc_id]},
+                    {'Name': 'association.main', 'Values': ['true']},
+                ]
+            )['RouteTables']
+
+            for rt in main_route_tables:
+                for route in rt.get('Routes', []):
+                    if route.get('GatewayId', '').startswith('igw-'):
+                        is_public = True
+                        break
+                if is_public:
+                    break
+
         # If not found via route table, check if it's a default subnet in default VPC
         if not is_public:
             # Check if this is the default VPC
