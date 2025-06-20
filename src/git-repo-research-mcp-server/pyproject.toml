@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.git-repo-research-mcp-server"
-version = "1.0.3"
+version = "1.0.4"
 description = "An AWS Labs Model Context Protocol (MCP) server for researching git repositories"
 readme = "README.md"
 requires-python = ">=3.10"
