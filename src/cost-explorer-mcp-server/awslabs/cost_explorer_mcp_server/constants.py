@@ -84,6 +84,13 @@ VALID_GROUP_BY_DIMENSIONS: List[str] = [
     'TENANCY',
     'RECORD_TYPE',
     'USAGE_TYPE',
+    'REGION',
+    'DATABASE_ENGINE',
+    'INSTANCE_TYPE_FAMILY',
+    'OPERATING_SYSTEM',
+    'CACHE_ENGINE',
+    'DEPLOYMENT_OPTION',
+    'BILLING_ENTITY',
 ]
 
 # Valid forecast metrics (UsageQuantity forecasting is not supported by AWS)
