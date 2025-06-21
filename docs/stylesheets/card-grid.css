@@ -1,0 +1,414 @@
+/* AWS MCP Server Card Grid Styles */
+/* Integrates with existing Cloudscape theme */
+
+/* ==========================================================================
+   Card Grid Container
+   ========================================================================== */
+
+.server-cards-container {
+  max-width: 100%;
+  margin: 2rem 0;
+}
+
+/* Search and Filter Controls */
+.card-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background-color: var(--md-default-bg-color--light);
+  border-radius: 8px;
+  border: 1px solid var(--md-border-color);
+}
+
+.card-controls__search {
+  flex: 1;
+  min-width: 300px;
+}
+
+.card-controls__search input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--md-border-color);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background-color: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  transition: border-color 0.2s ease;
+}
+
+.card-controls__search input:focus {
+  outline: none;
+  border-color: var(--md-primary-fg-color);
+  box-shadow: 0 0 0 2px rgba(0, 115, 187, 0.1);
+}
+
+.card-controls__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.card-controls__filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-controls__filter-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--md-default-fg-color--light);
+}
+
+.card-controls__select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--md-border-color);
+  border-radius: 6px;
+  background-color: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  font-size: 0.875rem;
+  min-width: 150px;
+}
+
+.card-controls__select:focus {
+  outline: none;
+  border-color: var(--md-primary-fg-color);
+}
+
+/* Results Stats */
+.card-stats {
+  margin-bottom: 1rem;
+  padding: 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.card-stats__count {
+  font-weight: 600;
+  color: var(--md-primary-fg-color);
+}
+
+/* ==========================================================================
+   Card Grid Layout
+   ========================================================================== */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+/* Always use two columns on wide screens */
+@media screen and (min-width: 1200px) {
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+}
+
+/* Single column on smaller screens */
+@media screen and (max-width: 768px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .card-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .card-controls__search {
+    min-width: auto;
+  }
+
+  .card-controls__filters {
+    justify-content: flex-start;
+  }
+}
+
+/* ==========================================================================
+   Individual Card Styles - Simplified
+   ========================================================================== */
+
+/* Define global card layout variables for consistent alignment */
+:root {
+  --card-content-left-margin: 32px; /* Icon width (24px) + gap (8px) */
+}
+
+.server-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--md-default-bg-color);
+  border: 1px solid var(--md-border-color);
+  border-radius: 6px;
+  padding: 0.6rem 0.7rem !important;
+  transition: all 0.2s ease;
+  box-shadow: var(--md-shadow-z1);
+  max-height: 185px !important;
+}
+
+.server-card:hover {
+  border-color: var(--md-primary-fg-color--light);
+  box-shadow: var(--md-shadow-z2);
+  transform: translateY(-2px);
+}
+
+/* Card Header */
+.server-card__header {
+  display: flex;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  margin-bottom: 0.35rem !important;
+  min-height: 2.2rem !important;
+  height: auto !important;
+  padding: 0.15rem 0 !important;
+}
+
+.server-card__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px !important;
+  height: 24px !important;
+  /* Icon is centered vertically */
+}
+
+.server-card__title-section {
+  flex: 1;
+  padding-left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.server-card__title,
+.server-card__title.name,
+.md-typeset .server-card__title {
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  margin: 0.1rem 0 !important;
+  padding: 0.1rem 0 !important;
+  color: var(--md-default-fg-color) !important;
+  text-align: left !important;
+}
+
+.server-card__category {
+  margin-top: 0.15rem !important;
+  display: inline-block;
+  padding: 0.25rem 0.25rem !important;
+  background-color: var(--md-primary-fg-color);
+  color: white;
+  font-size: 0.6rem !important;
+  font-weight: 500;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0em !important;
+  width: fit-content;
+}
+
+/* Category Colors */
+.server-card__category--documentation { background-color: #2196F3; }
+.server-card__category--infrastructure-deployment { background-color: #FF9800; }
+.server-card__category--ai-ml { background-color: #9C27B0; }
+.server-card__category--data-analytics { background-color: #4CAF50; }
+.server-card__category--developer-tools { background-color: #607D8B; }
+.server-card__category--integration-messaging { background-color: #795548; }
+.server-card__category--cost-operations { background-color: #E91E63; }
+.server-card__category--core { background-color: #FFC107; color: #000; }
+
+/* Card Content */
+.server-card__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.server-card__description,
+.md-typeset .server-card__description {
+  font-size: 0.7rem !important;
+  line-height: 1.3 !important;
+  color: var(--md-default-fg-color) !important; /* Darker text for better contrast */
+  opacity: 0.85 !important; /* Slightly dimmed but still very readable */
+  margin-top: 0.3rem !important;
+  margin-bottom: 0.5rem !important;
+  /* Calculate exact left margin based on icon width + gap */
+  margin-left: var(--card-content-left-margin, 32px) !important;
+  flex: 1;
+  max-height: 3.8rem !important;
+  overflow: hidden !important;
+  text-align: left !important;
+}
+
+/* Hide subcategory by default - we'll show it via JavaScript if needed */
+.server-card__subcategory {
+  display: none;
+}
+
+/* Card Footer */
+.server-card__footer {
+  margin-top: auto;
+  margin-left: 0 !important;
+  padding-top: 0.25rem !important;
+  padding-left: 0 !important;
+  border-top: 1px solid var(--md-border-color--light);
+  min-height: 0 !important;
+  height: auto !important;
+  padding-bottom: 0.05rem !important;
+  width: 100%;
+}
+
+/* Hide tags completely */
+.server-card__tags {
+  display: none;
+}
+
+.server-card__workflows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-left: var(--card-content-left-margin, 32px) !important; /* Use the same left margin as description */
+}
+
+.server-card__workflow {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem !important;
+  padding: 0.12rem 0.25rem !important;
+  background-color: var(--md-accent-fg-color--transparent);
+  color: var(--md-primary-fg-color);
+  font-size: 0.65rem !important;
+  font-weight: 500;
+  border-radius: 3px;
+}
+
+.server-card__workflow-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==========================================================================
+   Loading and Empty States
+   ========================================================================== */
+
+.card-grid--loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.card-grid__loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 3rem;
+  color: var(--md-default-fg-color--lighter);
+}
+
+.card-grid__empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 3rem;
+  color: var(--md-default-fg-color--lighter);
+}
+
+.card-grid__empty-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.card-grid__empty-message {
+  font-size: 0.875rem;
+}
+
+/* ==========================================================================
+   Dark Mode Adjustments
+   ========================================================================== */
+
+[data-md-color-scheme="slate"] {
+  .server-card {
+    background-color: var(--md-default-bg-color--light);
+    border-color: var(--md-border-color);
+  }
+
+  .server-card:hover {
+    border-color: var(--md-primary-fg-color);
+    box-shadow: 0 4px 12px rgba(77, 166, 217, 0.15);
+  }
+
+  .card-controls {
+    background-color: var(--md-default-bg-color--lighter);
+    border-color: var(--md-border-color);
+  }
+
+  .server-card__tag {
+    background-color: var(--md-default-bg-color--lighter);
+    border-color: var(--md-border-color);
+  }
+}
+
+/* ==========================================================================
+   Accessibility Improvements
+   ========================================================================== */
+
+/* Focus indicators */
+.server-card:focus-within {
+  outline: 2px solid var(--md-primary-fg-color);
+  outline-offset: 2px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .server-card {
+    transition: none;
+  }
+
+  .server-card:hover {
+    transform: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .server-card {
+    border-width: 2px;
+  }
+
+  .server-card__category {
+    border: 1px solid currentColor;
+  }
+}
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+
+@media print {
+  .card-controls {
+    display: none;
+  }
+
+  .card-stats {
+    display: none;
+  }
+
+  .card-grid {
+    display: block;
+  }
+
+  .server-card {
+    break-inside: avoid;
+    margin-bottom: 1rem;
+    box-shadow: none;
+    border: 1px solid #000;
+  }
+}
