@@ -17,10 +17,12 @@
 import boto3
 import os
 import sys
+from . import __version__
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 from time import perf_counter as timer
 
 
@@ -39,7 +41,10 @@ logger.debug(f'Using AWS region: {AWS_REGION}')
 
 # Initialize AWS clients with logging
 try:
-    logs_client = boto3.client('logs', region_name=AWS_REGION)
+    config = boto3.session.Config(
+        user_agent_extra=f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}'
+    )
+    logs_client = boto3.client('logs', region_name=AWS_REGION, config=config)
     logger.debug('AWS CloudWatch Logs client initialized successfully')
 except Exception as e:
     logger.error(f'Failed to initialize AWS CloudWatch Logs client: {str(e)}')
@@ -130,7 +135,11 @@ async def list_monitored_services() -> str:
 
 
 @mcp.tool()
-async def get_service_detail(service_name: str) -> str:
+async def get_service_detail(
+    service_name: str = Field(
+        ..., description='Name of the service to get details for (case-sensitive)'
+    ),
+) -> str:
     """Get detailed information about a specific Application Signals service.
 
     Use this tool when you need to:
@@ -148,9 +157,6 @@ async def get_service_detail(service_name: str) -> str:
 
     This tool is essential before querying specific metrics, as it shows
     which metrics are available for the service.
-
-    Args:
-        service_name: Name of the service to get details for (case-sensitive)
     """
     start_time_perf = timer()
     logger.debug(f'Starting get_service_healthy_detail request for service: {service_name}')

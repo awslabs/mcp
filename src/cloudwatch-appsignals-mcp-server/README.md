@@ -28,6 +28,12 @@ To install CloudWatch Application Signals MCP Server for Claude Desktop automati
 npx @smithery/cli install awslabs.cloudwatch-appsignals-mcp-server --client claude
 ```
 
+### Installing via Cursor
+
+To install CloudWatch Application Signals MCP Server for Cursor automatically:
+
+[![Install in Cursor](https://img.shields.io/badge/Install%20in%20Cursor-Install-blue?style=for-the-badge&logo=cursor&logoColor=white)](https://cursor.com/settings/extensions/install?server=awslabs.cloudwatch-appsignals-mcp-server)
+
 ### Installing via `uv`
 
 When using [`uv`](https://docs.astral.sh/uv/) no specific installation is needed. We will
