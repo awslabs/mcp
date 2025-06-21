@@ -150,20 +150,33 @@ The Cost Explorer MCP Server provides the following tools:
 
 ## Example Usage
 
-Here are some examples of how to use the Cost Explorer MCP Server:
+Here are some examples of how to use the Cost Explorer MCP Server through natural language queries:
 
-
-### Generate a cost report
+### Cost Analysis Examples
 
 ```
 Show me my AWS costs for the last 3 months grouped by service in us-east-1 region
-```
-```
-What AWS services did I use last month?
+Break down my S3 costs by storage class for Q1 2025
+Show me costs for production resources tagged with Environment=prod
+What were my costs for reserved instances vs on-demand in May?
+What was my EC2 instance usage by instance type?
 ```
 
+### Cost Comparison Examples
+
 ```
-What were my EC2 costs excluding us-east-2 for January 2025?
+Compare my AWS costs between April and May 2025
+How did my EC2 costs change from last month to this month?
+Why did my AWS bill increase in June compared to May?
+What caused the spike in my S3 costs last month?
+```
+
+### Forecasting Examples
+
+```
+Forecast my AWS costs for next month
+Predict my EC2 spending for the next quarter
+What will my total AWS bill be for the rest of 2025?
 ```
 
 ## License
