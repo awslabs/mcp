@@ -88,7 +88,8 @@ class TestDimensionKey:
     def test_none_dimension_key(self):
         """Test None dimension key."""
         with pytest.raises(ValidationError):
-            DimensionKey(dimension_key=None)
+            # Type ignore because we're intentionally testing invalid input
+            DimensionKey(dimension_key=None)  # type: ignore
 
     def test_dimension_key_str_representation(self):
         """Test string representation of DimensionKey."""

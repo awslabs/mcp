@@ -793,7 +793,8 @@ class TestAdditionalCoverage:
 
     def test_validate_group_by_string_invalid(self):
         """Test group_by validation with string instead of dict."""
-        result = validate_group_by('INVALID_KEY')
+        # Type ignore because we're intentionally testing invalid input
+        result = validate_group_by('INVALID_KEY')  # type: ignore
         assert 'error' in result
         assert 'must be a dictionary with "Type" and "Key" keys' in result['error']
 
