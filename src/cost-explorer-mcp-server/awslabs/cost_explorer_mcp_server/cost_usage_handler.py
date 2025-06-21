@@ -21,6 +21,11 @@ import json
 import os
 import pandas as pd
 import sys
+from awslabs.cost_explorer_mcp_server.constants import (
+    VALID_COST_METRICS,
+    VALID_GRANULARITIES,
+    VALID_MATCH_OPTIONS,
+)
 from awslabs.cost_explorer_mcp_server.helpers import (
     format_date_for_api,
     get_cost_explorer_client,
@@ -48,7 +53,7 @@ async def get_cost_and_usage(
     date_range: DateRange,
     granularity: str = Field(
         'MONTHLY',
-        description='The granularity at which cost data is aggregated. Valid values are DAILY, MONTHLY, and HOURLY. If not provided, defaults to MONTHLY.',
+        description=f'The granularity at which cost data is aggregated. Valid values are {", ".join(VALID_GRANULARITIES)}. If not provided, defaults to MONTHLY.',
     ),
     group_by: Optional[Union[Dict[str, str], str]] = Field(
         'SERVICE',
@@ -56,11 +61,11 @@ async def get_cost_and_usage(
     ),
     filter_expression: Optional[Dict[str, Any]] = Field(
         None,
-        description="Filter criteria as a Python dictionary to narrow down AWS costs. Supports filtering by Dimensions (SERVICE, REGION, etc.), Tags, or CostCategories. You can use logical operators (And, Or, Not) for complex filters. MatchOptions validation: For Dimensions, valid values are EQUALS and CASE_SENSITIVE. For Tags and CostCategories, valid values are EQUALS, ABSENT, and CASE_SENSITIVE (defaults to EQUALS and CASE_SENSITIVE). Examples: 1) Simple service filter: {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute', 'Amazon Simple Storage Service'], 'MatchOptions': ['EQUALS']}}. 2) Region filter: {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}. 3) Combined filter: {'And': [{'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute'], 'MatchOptions': ['EQUALS']}}, {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}]}.",
+        description=f"Filter criteria as a Python dictionary to narrow down AWS costs. Supports filtering by Dimensions (SERVICE, REGION, etc.), Tags, or CostCategories. You can use logical operators (And, Or, Not) for complex filters. MatchOptions validation: For Dimensions, valid values are {VALID_MATCH_OPTIONS['Dimensions']}. For Tags and CostCategories, valid values are {VALID_MATCH_OPTIONS['Tags']} (defaults to EQUALS and CASE_SENSITIVE). Examples: 1) Simple service filter: {{'Dimensions': {{'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute', 'Amazon Simple Storage Service'], 'MatchOptions': ['EQUALS']}}}}. 2) Region filter: {{'Dimensions': {{'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}}}. 3) Combined filter: {{'And': [{{'Dimensions': {{'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute'], 'MatchOptions': ['EQUALS']}}}}, {{'Dimensions': {{'Key': 'REGION', 'Values': ['us-east-1'], 'MatchOptions': ['EQUALS']}}}}]}}.",
     ),
     metric: str = Field(
         'UnblendedCost',
-        description='The metric to return in the query. Valid values are AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, and UsageQuantity. IMPORTANT: For UsageQuantity, the service aggregates usage numbers without considering units, making results meaningless when mixing different unit types (e.g., compute hours + data transfer GB). To get meaningful UsageQuantity metrics, you MUST filter by USAGE_TYPE or group by USAGE_TYPE/USAGE_TYPE_GROUP to ensure consistent units.',
+        description=f'The metric to return in the query. Valid values are {", ".join(VALID_COST_METRICS)}. IMPORTANT: For UsageQuantity, the service aggregates usage numbers without considering units, making results meaningless when mixing different unit types (e.g., compute hours + data transfer GB). To get meaningful UsageQuantity metrics, you MUST filter by USAGE_TYPE or group by USAGE_TYPE/USAGE_TYPE_GROUP to ensure consistent units.',
     ),
 ) -> Dict[str, Any]:
     """Retrieve AWS cost and usage data.
@@ -165,9 +170,9 @@ async def get_cost_and_usage(
         # Process inputs - simplified granularity validation
         granularity = str(granularity).upper()
 
-        if granularity not in ['DAILY', 'MONTHLY', 'HOURLY']:
+        if granularity not in VALID_GRANULARITIES:
             return {
-                'error': f'Invalid granularity: {granularity}. Valid values are DAILY, MONTHLY, and HOURLY.'
+                'error': f'Invalid granularity: {granularity}. Valid values are {", ".join(VALID_GRANULARITIES)}.'
             }
 
         # Validate date range with granularity-specific constraints
@@ -178,17 +183,13 @@ async def get_cost_and_usage(
 
         # Define valid metrics and their expected data structure
         valid_metrics = {
-            'AmortizedCost': {'has_unit': True, 'is_cost': True},
-            'BlendedCost': {'has_unit': True, 'is_cost': True},
-            'NetAmortizedCost': {'has_unit': True, 'is_cost': True},
-            'NetUnblendedCost': {'has_unit': True, 'is_cost': True},
-            'UnblendedCost': {'has_unit': True, 'is_cost': True},
-            'UsageQuantity': {'has_unit': True, 'is_cost': False},
+            metric: {'has_unit': True, 'is_cost': metric != 'UsageQuantity'}
+            for metric in VALID_COST_METRICS
         }
 
-        if metric not in valid_metrics:
+        if metric not in VALID_COST_METRICS:
             return {
-                'error': f'Invalid metric: {metric}. Valid values are {", ".join(valid_metrics.keys())}.'
+                'error': f'Invalid metric: {metric}. Valid values are {", ".join(VALID_COST_METRICS)}.'
             }
 
         metric_config = valid_metrics[metric]

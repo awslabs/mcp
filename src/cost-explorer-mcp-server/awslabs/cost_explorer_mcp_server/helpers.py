@@ -18,6 +18,12 @@ import boto3
 import os
 import re
 import sys
+from awslabs.cost_explorer_mcp_server.constants import (
+    VALID_DIMENSIONS,
+    VALID_GROUP_BY_DIMENSIONS,
+    VALID_GROUP_BY_TYPES,
+    VALID_MATCH_OPTIONS,
+)
 from datetime import datetime, timezone
 from loguru import logger
 from typing import Any, Dict, Optional, Tuple
@@ -58,10 +64,35 @@ def get_cost_explorer_client():
     return _cost_explorer_client
 
 
+def validate_dimension_key(dimension_key: str) -> Dict[str, Any]:
+    """Validate that the dimension key is supported by AWS Cost Explorer.
+
+    Args:
+        dimension_key: The dimension key to validate
+
+    Returns:
+        Empty dictionary if valid, or an error dictionary
+    """
+    try:
+        dimension_upper = dimension_key.upper()
+        if dimension_upper not in VALID_DIMENSIONS:
+            return {
+                'error': f"Invalid dimension key '{dimension_key}'. Valid dimensions are: {', '.join(VALID_DIMENSIONS)}"
+            }
+        return {}
+    except Exception as e:
+        return {'error': f'Error validating dimension key: {str(e)}'}
+
+
 def get_available_dimension_values(
     key: str, billing_period_start: str, billing_period_end: str
 ) -> Dict[str, Any]:
     """Get available values for a specific dimension."""
+    # Validate dimension key first
+    dimension_validation = validate_dimension_key(key)
+    if 'error' in dimension_validation:
+        return dimension_validation
+
     # Validate date range (no granularity constraint for dimension values)
     is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
     if not is_valid:
@@ -200,12 +231,10 @@ def validate_match_options(match_options: list, filter_type: str) -> Dict[str, A
     Returns:
         Empty dictionary if valid, or an error dictionary
     """
-    if filter_type == 'Dimensions':
-        valid_options = ['EQUALS', 'CASE_SENSITIVE']
-    elif filter_type in ['Tags', 'CostCategories']:
-        valid_options = ['EQUALS', 'ABSENT', 'CASE_SENSITIVE']
-    else:
+    if filter_type not in VALID_MATCH_OPTIONS:
         return {'error': f'Unknown filter type: {filter_type}'}
+
+    valid_options = VALID_MATCH_OPTIONS[filter_type]
 
     for option in match_options:
         if option not in valid_options:
@@ -379,10 +408,21 @@ def validate_group_by(group_by: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         ):
             return {'error': 'group_by must be a dictionary with "Type" and "Key" keys.'}
 
-        if group_by['Type'].upper() not in ['DIMENSION', 'TAG', 'COST_CATEGORY']:
+        group_type = group_by['Type'].upper()
+        group_key = group_by['Key']
+
+        if group_type not in VALID_GROUP_BY_TYPES:
             return {
-                'error': 'Invalid group Type. Valid types are DIMENSION, TAG, and COST_CATEGORY.'
+                'error': f'Invalid group Type: {group_type}. Valid types are {", ".join(VALID_GROUP_BY_TYPES)}.'
             }
+
+        # Validate dimension key if type is DIMENSION
+        if group_type == 'DIMENSION':
+            dimension_upper = group_key.upper()
+            if dimension_upper not in VALID_GROUP_BY_DIMENSIONS:
+                return {
+                    'error': f'Invalid dimension key for GROUP BY: {group_key}. Valid values for the DIMENSION type are {", ".join(VALID_GROUP_BY_DIMENSIONS)}.'
+                }
 
         return {}
     except Exception as e:

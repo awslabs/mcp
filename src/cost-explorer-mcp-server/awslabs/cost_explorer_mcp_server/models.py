@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from awslabs.cost_explorer_mcp_server.constants import VALID_DIMENSIONS
 from awslabs.cost_explorer_mcp_server.helpers import validate_date_format, validate_date_range
 from pydantic import BaseModel, Field, field_validator
 
@@ -54,5 +55,16 @@ class DimensionKey(BaseModel):
     """Dimension key model."""
 
     dimension_key: str = Field(
-        description='The name of the dimension to retrieve values for. Valid values are AZ, INSTANCE_TYPE, LINKED_ACCOUNT, OPERATION, PURCHASE_TYPE, SERVICE, USAGE_TYPE, PLATFORM, TENANCY, RECORD_TYPE, LEGAL_ENTITY_NAME, INVOICING_ENTITY, DEPLOYMENT_OPTION, DATABASE_ENGINE, CACHE_ENGINE, INSTANCE_TYPE_FAMILY, REGION, BILLING_ENTITY, RESERVATION_ID, SAVINGS_PLANS_TYPE, SAVINGS_PLAN_ARN, OPERATING_SYSTEM.'
+        description=f'The name of the dimension to retrieve values for. Valid values are {", ".join(VALID_DIMENSIONS)}.'
     )
+
+    @field_validator('dimension_key')
+    @classmethod
+    def validate_dimension_key(cls, v):
+        """Validate that the dimension key is supported by AWS Cost Explorer."""
+        dimension_upper = v.upper()
+        if dimension_upper not in VALID_DIMENSIONS:
+            raise ValueError(
+                f"Invalid dimension key '{v}'. Valid dimensions are: {', '.join(VALID_DIMENSIONS)}"
+            )
+        return v

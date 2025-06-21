@@ -19,6 +19,11 @@ Forecasting tools for Cost Explorer MCP Server.
 
 import os
 import sys
+from awslabs.cost_explorer_mcp_server.constants import (
+    VALID_FORECAST_GRANULARITIES,
+    VALID_FORECAST_METRICS,
+    VALID_PREDICTION_INTERVALS,
+)
 from awslabs.cost_explorer_mcp_server.helpers import (
     get_cost_explorer_client,
     validate_expression,
@@ -42,7 +47,7 @@ async def get_cost_forecast(
     date_range: DateRange,
     granularity: str = Field(
         'MONTHLY',
-        description='The granularity at which forecast data is aggregated. Valid values are DAILY and MONTHLY. DAILY forecasts support up to 3 months, MONTHLY forecasts support up to 12 months. If not provided, defaults to MONTHLY.',
+        description=f'The granularity at which forecast data is aggregated. Valid values are {" and ".join(VALID_FORECAST_GRANULARITIES)}. DAILY forecasts support up to 3 months, MONTHLY forecasts support up to 12 months. If not provided, defaults to MONTHLY.',
     ),
     filter_expression: Optional[Dict[str, Any]] = Field(
         None,
@@ -50,11 +55,11 @@ async def get_cost_forecast(
     ),
     metric: str = Field(
         'UNBLENDED_COST',
-        description='The metric to forecast. Valid values are AMORTIZED_COST,BLENDED_COST, NET_AMORTIZED_COST,NET_UNBLENDED_COST,UNBLENDED_COST. Note: UsageQuantity forecasting is not supported by AWS Cost Explorer.',
+        description=f'The metric to forecast. Valid values are {",".join(VALID_FORECAST_METRICS)}. Note: UsageQuantity forecasting is not supported by AWS Cost Explorer.',
     ),
     prediction_interval_level: int = Field(
         80,
-        description='The confidence level for the forecast prediction interval. Valid values are 80 and 95. Higher values provide wider confidence ranges.',
+        description=f'The confidence level for the forecast prediction interval. Valid values are {" and ".join(map(str, VALID_PREDICTION_INTERVALS))}. Higher values provide wider confidence ranges.',
     ),
 ) -> Dict[str, Any]:
     """Retrieve AWS cost forecasts based on historical usage patterns.
@@ -108,9 +113,9 @@ async def get_cost_forecast(
         # Process inputs - simplified granularity validation
         granularity = str(granularity).upper()
 
-        if granularity not in ['DAILY', 'MONTHLY']:
+        if granularity not in VALID_FORECAST_GRANULARITIES:
             return {
-                'error': f'Invalid granularity: {granularity}. Valid values for forecasting are DAILY and MONTHLY.'
+                'error': f'Invalid granularity: {granularity}. Valid values for forecasting are {" and ".join(VALID_FORECAST_GRANULARITIES)}.'
             }
 
         # Validate forecast date range with granularity-specific limits
@@ -119,23 +124,14 @@ async def get_cost_forecast(
             return {'error': error}
 
         # Validate prediction interval level
-        if prediction_interval_level not in [80, 95]:
+        if prediction_interval_level not in VALID_PREDICTION_INTERVALS:
             return {
-                'error': f'Invalid prediction_interval_level: {prediction_interval_level}. Valid values are 80 and 95.'
+                'error': f'Invalid prediction_interval_level: {prediction_interval_level}. Valid values are {" and ".join(map(str, VALID_PREDICTION_INTERVALS))}.'
             }
 
-        # Define valid forecast metrics
-        valid_forecast_metrics = [
-            'AMORTIZED_COST',
-            'BLENDED_COST',
-            'NET_AMORTIZED_COST',
-            'NET_UNBLENDED_COST',
-            'UNBLENDED_COST',
-        ]
-
-        if metric not in valid_forecast_metrics:
+        if metric not in VALID_FORECAST_METRICS:
             return {
-                'error': f'Invalid metric: {metric}. Valid values for forecasting are {", ".join(valid_forecast_metrics)}.'
+                'error': f'Invalid metric: {metric}. Valid values for forecasting are {", ".join(VALID_FORECAST_METRICS)}.'
             }
 
         # Process filter - reuse existing validation

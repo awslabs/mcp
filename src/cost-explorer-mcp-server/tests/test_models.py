@@ -80,10 +80,11 @@ class TestDimensionKey:
         assert dimension.dimension_key == 'service'
 
     def test_empty_dimension_key(self):
-        """Test empty dimension key (should be accepted by current model)."""
-        # Current model doesn't validate empty strings, so this should pass
-        dimension = DimensionKey(dimension_key='')
-        assert dimension.dimension_key == ''
+        """Test empty dimension key (should raise ValidationError)."""
+        # Empty string is not a valid dimension key, should raise ValidationError
+        with pytest.raises(ValidationError) as excinfo:
+            DimensionKey(dimension_key='')
+        assert 'Invalid dimension key' in str(excinfo.value)
 
     def test_none_dimension_key(self):
         """Test None dimension key."""

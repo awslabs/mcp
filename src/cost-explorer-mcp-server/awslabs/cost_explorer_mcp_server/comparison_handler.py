@@ -19,6 +19,7 @@ Comparison tools for Cost Explorer MCP Server.
 
 import os
 import sys
+from awslabs.cost_explorer_mcp_server.constants import VALID_COST_METRICS
 from awslabs.cost_explorer_mcp_server.helpers import (
     create_detailed_group_key,
     extract_group_key_from_complex_selector,
@@ -46,7 +47,7 @@ async def get_cost_and_usage_comparisons(
     comparison_date_range: DateRange,
     metric_for_comparison: str = Field(
         'UnblendedCost',
-        description='The cost and usage metric to compare. Valid values are AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, and UsageQuantity.',
+        description=f'The cost and usage metric to compare. Valid values are {", ".join(VALID_COST_METRICS)}.',
     ),
     group_by: Optional[Union[Dict[str, str], str]] = Field(
         'SERVICE',
@@ -124,20 +125,9 @@ async def get_cost_and_usage_comparisons(
         if not is_valid_comparison:
             return {'error': f'Comparison period error: {error_comparison}'}
 
-        # Define valid comparison metrics
-        valid_comparison_metrics = [
-            'AmortizedCost',
-            'BlendedCost',
-            'NetAmortizedCost',
-            'NetUnblendedCost',
-            'NormalizedUsageAmount',
-            'UnblendedCost',
-            'UsageQuantity',
-        ]
-
-        if metric_for_comparison not in valid_comparison_metrics:
+        if metric_for_comparison not in VALID_COST_METRICS:
             return {
-                'error': f'Invalid metric_for_comparison: {metric_for_comparison}. Valid values are {", ".join(valid_comparison_metrics)}.'
+                'error': f'Invalid metric_for_comparison: {metric_for_comparison}. Valid values are {", ".join(VALID_COST_METRICS)}.'
             }
 
         # Process filter - reuse existing validation
@@ -321,7 +311,7 @@ async def get_cost_comparison_drivers(
     comparison_date_range: DateRange,
     metric_for_comparison: str = Field(
         'UnblendedCost',
-        description='The cost and usage metric to analyze drivers for. Valid values are AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, and UsageQuantity.',
+        description=f'The cost and usage metric to analyze drivers for. Valid values are {", ".join(VALID_COST_METRICS)}.',
     ),
     group_by: Optional[Union[Dict[str, str], str]] = Field(
         'SERVICE',
@@ -429,20 +419,9 @@ async def get_cost_comparison_drivers(
         if not is_valid_comparison:
             return {'error': f'Comparison period error: {error_comparison}'}
 
-        # Define valid comparison metrics
-        valid_comparison_metrics = [
-            'AmortizedCost',
-            'BlendedCost',
-            'NetAmortizedCost',
-            'NetUnblendedCost',
-            'NormalizedUsageAmount',
-            'UnblendedCost',
-            'UsageQuantity',
-        ]
-
-        if metric_for_comparison not in valid_comparison_metrics:
+        if metric_for_comparison not in VALID_COST_METRICS:
             return {
-                'error': f'Invalid metric_for_comparison: {metric_for_comparison}. Valid values are {", ".join(valid_comparison_metrics)}.'
+                'error': f'Invalid metric_for_comparison: {metric_for_comparison}. Valid values are {", ".join(VALID_COST_METRICS)}.'
             }
 
         # Process filter - reuse existing validation
