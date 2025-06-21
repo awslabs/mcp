@@ -1,0 +1,61 @@
+/* Import Open Sans font family from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600;1,700&display=swap');
+
+/* Override Material Design font variables with Cloudscape typography */
+:root {
+  /* Primary text font - Open Sans with fallbacks matching AWS documentation */
+  --md-text-font: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Code font - Professional monospace stack */
+  --md-code-font: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+}
+
+/* Base typography improvements for AWS documentation style */
+body {
+  font-feature-settings: "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Heading typography adjustments */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4,
+.md-typeset h5,
+.md-typeset h6 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.md-typeset h1 {
+  font-size: 2.25rem;
+  line-height: 1.2;
+}
+
+.md-typeset h2 {
+  font-size: 1.875rem;
+  line-height: 1.25;
+}
+
+.md-typeset h3 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+/* Body text improvements */
+.md-typeset p,
+.md-typeset li {
+  line-height: 1.6;
+}
+
+/* Code block typography */
+.md-typeset code {
+  font-size: 0.85em;
+  font-weight: 400;
+}
+
+.md-typeset pre code {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}

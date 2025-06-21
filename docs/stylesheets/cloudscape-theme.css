@@ -1,0 +1,247 @@
+/* Cloudscape Design System Theme for MkDocs Material */
+/* Based on AWS Cloudscape colors and design principles */
+
+/* ==========================================================================
+   Light Mode Color Variables (Default)
+   ========================================================================== */
+
+:root {
+  /* Primary colors - Cloudscape Blue palette */
+  --md-primary-fg-color: #0073bb;        /* blue-600 */
+  --md-primary-fg-color--light: #4da6d9; /* blue-400 */
+  --md-primary-fg-color--dark: #0062a3;  /* blue-700 */
+
+  /* Accent colors */
+  --md-accent-fg-color: #0073bb;
+  --md-accent-fg-color--transparent: rgba(0, 115, 187, 0.1);
+
+  /* Text colors - Cloudscape Grey palette */
+  --md-default-fg-color: #16191f;        /* grey-900 */
+  --md-default-fg-color--light: #414d5c; /* grey-600 */
+  --md-default-fg-color--lighter: #5f6b7a; /* grey-500 */
+  --md-default-fg-color--lightest: #879596; /* grey-400 */
+
+  /* Background colors */
+  --md-default-bg-color: #ffffff;        /* white */
+  --md-default-bg-color--light: #f9f9f9; /* grey-100 */
+  --md-default-bg-color--lighter: #fafbfc; /* grey-50 */
+  --md-default-bg-color--lightest: #fafbfc;
+
+  /* Code colors */
+  --md-code-fg-color: #879596;           /* grey-400 */
+  --md-code-bg-color: #f9f9f9;           /* grey-100 */
+  --md-code-hl-color: rgba(0, 115, 187, 0.15);
+
+  /* Footer and header */
+  --md-footer-bg-color: #232f3e;         /* AWS dark blue */
+  --md-footer-bg-color--dark: #16191f;
+  --md-footer-fg-color: #ffffff;
+
+  /* Navigation colors */
+  --md-nav-item-section-active-fg-color: #0073bb;
+
+  /* Status colors - Cloudscape semantic colors */
+  --md-success-fg-color: #037f01;        /* green-600 */
+  --md-warning-fg-color: #b7740a;        /* orange-600 */
+  --md-error-fg-color: #d13212;          /* red-600 */
+  --md-info-fg-color: #0073bb;           /* blue-600 */
+
+  /* Link colors */
+  --md-typeset-a-color: #0073bb;
+  --md-typeset-a-color--hover: #0062a3;
+
+  /* Border and divider colors */
+  --md-typeset-table-sort-icon-color: #879596;
+  --md-border-color: #e9ebed;            /* grey-200 */
+  --md-border-color--light: #f2f3f3;     /* grey-150 */
+
+  /* Header specific colors for light mode */
+  --md-header-fg-color: #16191f;         /* dark text for light header */
+  --md-header-bg-color: #ffffff;         /* white header background */
+
+  /* Reduce Material Design elevation/shadows for cleaner AWS look */
+  --md-shadow-z1: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --md-shadow-z2: 0 2px 4px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+  --md-shadow-z3: 0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+/* ==========================================================================
+   Dark Mode Color Variables
+   ========================================================================== */
+
+[data-md-color-scheme="slate"] {
+  /* Primary colors - adjusted for dark mode */
+  --md-primary-fg-color: #4da6d9;        /* blue-400 - lighter for dark bg */
+  --md-primary-fg-color--light: #7cc7e8; /* blue-300 */
+  --md-primary-fg-color--dark: #0073bb;  /* blue-600 */
+
+  /* Accent colors */
+  --md-accent-fg-color: #4da6d9;
+  --md-accent-fg-color--transparent: rgba(77, 166, 217, 0.1);
+
+  /* Text colors - inverted and adjusted */
+  --md-default-fg-color: #e9ebed;        /* grey-200 */
+  --md-default-fg-color--light: #d5dbdb; /* grey-300 */
+  --md-default-fg-color--lighter: #879596; /* grey-400 */
+  --md-default-fg-color--lightest: #5f6b7a; /* grey-500 */
+
+  /* Background colors - dark theme */
+  --md-default-bg-color: #0f1419;        /* dark grey */
+  --md-default-bg-color--light: #16191f; /* grey-900 */
+  --md-default-bg-color--lighter: #232f3e; /* AWS dark blue */
+  --md-default-bg-color--lightest: #2a2a2a;
+
+  /* Code colors for dark mode */
+  --md-code-fg-color: #d5dbdb;           /* grey-300 */
+  --md-code-bg-color: #232f3e;           /* AWS dark blue */
+  --md-code-hl-color: rgba(77, 166, 217, 0.15);
+
+  /* Navigation colors */
+  --md-nav-item-section-active-fg-color: #4da6d9;
+
+  /* Status colors - adjusted for dark mode */
+  --md-success-fg-color: #5bb95b;        /* green-400 */
+  --md-warning-fg-color: #ffa500;        /* orange-400 */
+  --md-error-fg-color: #ff6b6b;          /* red-400 */
+  --md-info-fg-color: #4da6d9;           /* blue-400 */
+
+  /* Link colors */
+  --md-typeset-a-color: #4da6d9;
+  --md-typeset-a-color--hover: #7cc7e8;
+
+  /* Border colors for dark mode */
+  --md-border-color: #414d5c;            /* grey-600 */
+  --md-border-color--light: #5f6b7a;     /* grey-500 */
+
+  /* Header specific colors for dark mode */
+  --md-header-fg-color: #e9ebed;         /* light text for dark header */
+  --md-header-bg-color: #0f1419;         /* dark header background */
+
+  /* Subtle shadows for dark mode */
+  --md-shadow-z1: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --md-shadow-z2: 0 2px 4px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --md-shadow-z3: 0 4px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================================================
+   AWS Documentation Style Improvements
+   ========================================================================== */
+
+/* Header improvements */
+.md-header {
+  background-color: var(--md-default-bg-color);
+  border-bottom: 1px solid var(--md-border-color);
+  box-shadow: var(--md-shadow-z1);
+  color: var(--md-default-fg-color);
+}
+
+.md-header__inner {
+  color: var(--md-default-fg-color);
+}
+
+.md-header__title {
+  color: var(--md-default-fg-color);
+}
+
+.md-header__source {
+  color: var(--md-default-fg-color);
+}
+
+.md-header .md-nav__link {
+  color: var(--md-default-fg-color);
+}
+
+.md-header .md-nav__link:hover {
+  color: var(--md-primary-fg-color);
+}
+
+/* Navigation improvements */
+.md-nav__item--active > .md-nav__link {
+  color: var(--md-primary-fg-color);
+  border-left: 3px solid var(--md-primary-fg-color);
+  padding-left: calc(1rem - 3px);
+}
+
+/* Content area improvements */
+.md-content {
+  max-width: none;
+}
+
+.md-main__inner {
+  max-width: 80rem;
+  margin: 0 auto;
+}
+
+/* Table improvements for AWS documentation style */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--md-border-color);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-default-bg-color--light);
+  border-bottom: 2px solid var(--md-border-color);
+  font-weight: 600;
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset table:not([class]) td {
+  border-bottom: 1px solid var(--md-border-color--light);
+}
+
+/* Code block improvements */
+.md-typeset .highlight {
+  border: 1px solid var(--md-border-color);
+  border-radius: 4px;
+}
+
+.md-typeset pre > code {
+  background-color: transparent;
+}
+
+/* Admonition improvements for AWS style */
+.md-typeset .admonition {
+  border-radius: 4px;
+  border-left: 4px solid;
+  box-shadow: var(--md-shadow-z1);
+}
+
+/* Remove excessive Material Design styling */
+.md-typeset .tabbed-set {
+  border-radius: 4px;
+}
+
+.md-typeset .tabbed-labels::before {
+  display: none;
+}
+
+/* Footer improvements */
+.md-footer {
+  background-color: var(--md-footer-bg-color);
+  color: var(--md-footer-fg-color);
+}
+
+/* Search improvements */
+.md-search__input {
+  border: 1px solid var(--md-border-color);
+  border-radius: 4px;
+}
+
+/* Button improvements for AWS style */
+.md-button {
+  border: 1px solid var(--md-border-color);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.md-button--primary {
+  background-color: var(--md-primary-fg-color);
+  border-color: var(--md-primary-fg-color);
+  color: #ffffff;
+}
+
+.md-button--primary:hover {
+  background-color: var(--md-primary-fg-color--dark);
+  border-color: var(--md-primary-fg-color--dark);
+}
