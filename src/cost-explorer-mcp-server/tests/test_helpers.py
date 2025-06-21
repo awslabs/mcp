@@ -31,7 +31,7 @@ from awslabs.cost_explorer_mcp_server.helpers import (
     validate_group_by,
     validate_match_options,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 
@@ -815,3 +815,323 @@ class TestAdditionalCoverage:
         result = validate_group_by({'Type': 'DIMENSION'})
         assert 'error' in result
         assert 'must be a dictionary with "Type" and "Key" keys' in result['error']
+
+
+class TestValidateMatchOptions:
+    """Tests for the validate_match_options function."""
+
+    def test_validate_match_options_unknown_filter_type(self):
+        """Test validate_match_options with an unknown filter type."""
+        # This test covers the case where an unknown filter type is provided
+        result = validate_match_options(['EQUALS'], 'UnknownFilterType')
+
+        # Verify that an error is returned
+        assert 'error' in result
+        assert 'Unknown filter type' in result['error']
+
+    def test_validate_match_options_invalid_option(self):
+        """Test validate_match_options with an invalid match option."""
+        # This test covers the case where an invalid match option is provided
+        result = validate_match_options(['INVALID_OPTION'], 'Dimensions')
+
+        # Verify that an error is returned
+        assert 'error' in result
+        assert 'Invalid MatchOption' in result['error']
+
+
+class TestExtractUsageContextFromSelector:
+    """Tests for the extract_usage_context_from_selector function."""
+
+    def test_extract_usage_context_with_complex_nested_structure(self):
+        """Test extracting context from a complex nested selector structure."""
+        # Create a complex selector with nested And/Or/Not structures
+        complex_selector = {
+            'And': [
+                {
+                    'Dimensions': {
+                        'Key': 'SERVICE',
+                        'Values': ['Amazon Elastic Compute Cloud - Compute'],
+                    }
+                },
+                {
+                    'Or': [
+                        {'Dimensions': {'Key': 'USAGE_TYPE', 'Values': ['BoxUsage:t3.micro']}},
+                        {'Not': {'Dimensions': {'Key': 'REGION', 'Values': ['us-west-1']}}},
+                    ]
+                },
+                {'Tags': {'Key': 'Environment', 'Values': ['Production']}},
+                {'CostCategories': {'Key': 'Team', 'Values': ['Engineering']}},
+            ]
+        }
+
+        # Extract context from the complex selector
+        context = extract_usage_context_from_selector(complex_selector)
+
+        # Verify that all expected context values are extracted
+        assert context['service'] == 'Amazon Elastic Compute Cloud - Compute'
+        assert context['usage_type'] == 'BoxUsage:t3.micro'
+        assert context['region'] == 'us-west-1'
+        assert context['tag_environment'] == 'Production'
+        assert context['category_team'] == 'Engineering'
+
+
+class TestCreateDetailedGroupKey:
+    """Tests for the create_detailed_group_key function."""
+
+    def test_create_detailed_group_key_with_service_and_usage_type(self):
+        """Test creating a detailed group key with service and usage type context."""
+        # Test data
+        group_key = 'us-east-1'
+        context = {
+            'service': 'Amazon Elastic Compute Cloud - Compute',
+            'usage_type': 'BoxUsage:t3.micro',
+        }
+        group_by = {'Type': 'DIMENSION', 'Key': 'REGION'}
+
+        # Create detailed group key
+        result = create_detailed_group_key(group_key, context, group_by)
+
+        # Verify the result includes both service and usage type
+        assert result == 'us-east-1 - Amazon Elastic Compute Cloud - Compute (BoxUsage:t3.micro)'
+
+    def test_create_detailed_group_key_without_usage_type(self):
+        """Test creating a detailed group key without usage type context."""
+        # Test data
+        group_key = 'us-east-1'
+        context = {'service': 'Amazon Elastic Compute Cloud - Compute'}
+        group_by = {'Type': 'DIMENSION', 'Key': 'REGION'}
+
+        # Create detailed group key
+        result = create_detailed_group_key(group_key, context, group_by)
+
+        # Verify the result includes service but not usage type
+        assert result == 'us-east-1 - Amazon Elastic Compute Cloud - Compute'
+
+    def test_create_detailed_group_key_when_service_is_group_key(self):
+        """Test creating a detailed group key when service is the group key."""
+        # Test data
+        group_key = 'Amazon Elastic Compute Cloud - Compute'
+        context = {
+            'service': 'Amazon Elastic Compute Cloud - Compute',
+            'usage_type': 'BoxUsage:t3.micro',
+        }
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+
+        # Create detailed group key
+        result = create_detailed_group_key(group_key, context, group_by)
+
+        # Verify the result doesn't duplicate the service name
+        assert result == 'Amazon Elastic Compute Cloud - Compute (BoxUsage:t3.micro)'
+
+
+class TestExtractGroupKeyFromComplexSelector:
+    """Tests for the extract_group_key_from_complex_selector function."""
+
+    def test_extract_group_key_from_dimension_selector(self):
+        """Test extracting group key from a dimension selector."""
+        # Create a selector with dimension structure
+        selector = {
+            'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute']}
+        }
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+
+        # Extract the group key
+        result = extract_group_key_from_complex_selector(selector, group_by)
+
+        # Verify the result
+        assert result == 'Amazon Elastic Compute Cloud - Compute'
+
+    def test_extract_group_key_from_tag_selector(self):
+        """Test extracting group key from a tag selector."""
+        # Create a selector with tag structure
+        selector = {'Tags': {'Key': 'Environment', 'Values': ['Production']}}
+        group_by = {'Type': 'TAG', 'Key': 'Environment'}
+
+        # Extract the group key
+        result = extract_group_key_from_complex_selector(selector, group_by)
+
+        # Verify the result
+        assert result == 'Production'
+
+    def test_extract_group_key_from_cost_category_selector(self):
+        """Test extracting group key from a cost category selector."""
+        # Create a selector with cost category structure
+        selector = {'CostCategories': {'Key': 'Team', 'Values': ['Engineering']}}
+        group_by = {'Type': 'COST_CATEGORY', 'Key': 'Team'}
+
+        # Extract the group key
+        result = extract_group_key_from_complex_selector(selector, group_by)
+
+        # Verify the result
+        assert result == 'Engineering'
+
+    def test_extract_group_key_from_nested_selector(self):
+        """Test extracting group key from a nested selector structure."""
+        # Create a complex nested selector
+        selector = {
+            'And': [
+                {
+                    'Or': [
+                        {
+                            'Not': {
+                                'Dimensions': {
+                                    'Key': 'SERVICE',
+                                    'Values': ['Amazon Elastic Compute Cloud - Compute'],
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+
+        # Extract the group key
+        result = extract_group_key_from_complex_selector(selector, group_by)
+
+        # Verify the result
+        assert result == 'Amazon Elastic Compute Cloud - Compute'
+
+    def test_extract_group_key_with_empty_values(self):
+        """Test extracting group key when values array is empty."""
+        # Create a selector with empty values
+        selector = {'Dimensions': {'Key': 'SERVICE', 'Values': []}}
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+
+        # Extract the group key
+        result = extract_group_key_from_complex_selector(selector, group_by)
+
+        # Verify the result shows "No SERVICE" for empty values
+        assert result == 'No SERVICE'
+
+    def test_extract_group_key_not_found(self):
+        """Test extracting group key when the key is not found in the selector."""
+        # Create a selector that doesn't contain the group key
+        selector = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
+        group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+
+        # Extract the group key
+        result = extract_group_key_from_complex_selector(selector, group_by)
+
+        # Verify the result is "Unknown" when key not found
+        assert result == 'Unknown'
+
+
+class TestValidateForecastDateRange:
+    """Tests for the validate_forecast_date_range function."""
+
+    @patch('awslabs.cost_explorer_mcp_server.helpers.datetime')
+    def test_validate_forecast_date_range_future_start_date(self, mock_datetime):
+        """Test validation fails when start date is in the future."""
+        # Create a real datetime object for the current date
+        mock_today = datetime(2025, 6, 1).date()
+
+        # Configure the mock to return real datetime objects, not MagicMock objects
+        mock_datetime.now.return_value.date.return_value = mock_today
+        mock_datetime.strptime.side_effect = datetime.strptime
+        mock_datetime.now.return_value.replace.side_effect = (
+            lambda **kwargs: datetime.now().replace(**kwargs)
+        )
+
+        # Test with start date in the future
+        with patch(
+            'awslabs.cost_explorer_mcp_server.helpers.validate_date_range', return_value=(True, '')
+        ):
+            is_valid, error = validate_forecast_date_range('2025-07-01', '2025-08-01')
+
+            # Verify validation fails with appropriate error message
+            assert not is_valid
+            assert 'must be equal to or no later than the current date' in error
+
+    @patch('awslabs.cost_explorer_mcp_server.helpers.datetime')
+    def test_validate_forecast_date_range_past_end_date(self, mock_datetime):
+        """Test validation fails when end date is not in the future."""
+        # Create a real datetime object for the current date
+        mock_today = datetime(2025, 6, 1).date()
+
+        # Configure the mock to return real datetime objects, not MagicMock objects
+        mock_datetime.now.return_value.date.return_value = mock_today
+        mock_datetime.strptime.side_effect = datetime.strptime
+
+        # Test with end date in the past
+        with patch(
+            'awslabs.cost_explorer_mcp_server.helpers.validate_date_range', return_value=(True, '')
+        ):
+            is_valid, error = validate_forecast_date_range('2025-05-01', '2025-05-31')
+
+            # Verify validation fails with appropriate error message
+            assert not is_valid
+            assert 'must be in the future' in error
+
+    @patch('awslabs.cost_explorer_mcp_server.helpers.datetime')
+    def test_validate_forecast_date_range_daily_too_long(self, mock_datetime):
+        """Test validation fails when daily forecast range is too long."""
+        # Create a real datetime object for the current date
+        mock_today = datetime(2025, 6, 1).date()
+
+        # Configure the mock to return real datetime objects, not MagicMock objects
+        mock_datetime.now.return_value.date.return_value = mock_today
+        mock_datetime.strptime.side_effect = datetime.strptime
+
+        # Test with daily granularity and range > 93 days
+        with patch(
+            'awslabs.cost_explorer_mcp_server.helpers.validate_date_range', return_value=(True, '')
+        ):
+            is_valid, error = validate_forecast_date_range('2025-06-01', '2025-10-01', 'DAILY')
+
+            # Verify validation fails with appropriate error message
+            assert not is_valid
+            assert 'DAILY granularity supports a maximum of 3 months' in error
+
+    @patch('awslabs.cost_explorer_mcp_server.helpers.datetime')
+    def test_validate_forecast_date_range_monthly_too_long(self, mock_datetime):
+        """Test validation fails when monthly forecast range is too long."""
+        # Create a real datetime object for the current date
+        mock_today = datetime(2025, 6, 1).date()
+        mock_now = datetime(2025, 6, 1, tzinfo=timezone.utc)
+
+        # Configure the mock to return real datetime objects, not MagicMock objects
+        mock_datetime.now.return_value.date.return_value = mock_today
+        mock_datetime.now.return_value = mock_now
+        mock_datetime.strptime.side_effect = datetime.strptime
+
+        # Test with monthly granularity and range > 12 months
+        with patch(
+            'awslabs.cost_explorer_mcp_server.helpers.validate_date_range', return_value=(True, '')
+        ):
+            is_valid, error = validate_forecast_date_range('2025-06-01', '2027-01-01', 'MONTHLY')
+
+            # Verify validation fails with appropriate error message
+            assert not is_valid
+            assert 'MONTHLY granularity supports a maximum of 12 months' in error
+
+
+class TestValidateComparisonDateRange:
+    """Tests for the validate_comparison_date_range function."""
+
+    def test_validate_comparison_date_range_not_first_day_of_month_start(self):
+        """Test validation fails when start date is not the first day of a month."""
+        # Test with start date not on first day of month
+        is_valid, error = validate_comparison_date_range('2025-05-15', '2025-06-01')
+
+        # Verify validation fails with appropriate error message
+        assert not is_valid
+        assert 'must be the first day of a month' in error
+
+    def test_validate_comparison_date_range_not_first_day_of_month_end(self):
+        """Test validation fails when end date is not the first day of a month."""
+        # Test with end date not on first day of month
+        is_valid, error = validate_comparison_date_range('2025-05-01', '2025-05-31')
+
+        # Verify validation fails with appropriate error message
+        assert not is_valid
+        assert 'must be the first day of a month' in error
+
+    def test_validate_comparison_date_range_not_exactly_one_month(self):
+        """Test validation fails when period is not exactly one month."""
+        # Test with period not exactly one month
+        is_valid, error = validate_comparison_date_range('2025-05-01', '2025-07-01')
+
+        # Verify validation fails with appropriate error message
+        assert not is_valid
+        assert 'must be exactly one month' in error
