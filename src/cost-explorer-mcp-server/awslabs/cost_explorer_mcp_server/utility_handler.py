@@ -30,6 +30,7 @@ from typing import Dict
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
+
 async def get_today_date(ctx: Context) -> Dict[str, str]:
     """Retrieve current date information in UTC time zone.
 

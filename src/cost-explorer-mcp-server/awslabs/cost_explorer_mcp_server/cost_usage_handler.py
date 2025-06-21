@@ -39,8 +39,9 @@ from typing import Any, Dict, Optional, Union
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
-#Constants
+# Constants
 COST_EXPLORER_END_DATE_OFFSET = 1  # Offset to ensure end date is inclusive
+
 
 async def get_cost_and_usage(
     ctx: Context,
@@ -381,5 +382,3 @@ async def get_cost_and_usage(
         )
 
         return {'error': f'Error generating cost report: {str(e)}'}
-
-
