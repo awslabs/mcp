@@ -919,6 +919,26 @@ Contributions of all kinds are welcome! Check out our [contributor guide](CONTRI
 
 If you want to add a new MCP Server to the library, check out our [development guide](DEVELOPER_GUIDE.md) and be sure to follow our [design guidelines](DESIGN_GUIDELINES.md).
 
+## 🔤 Tool Naming Conventions
+
+To maintain consistency and compatibility, tool names must follow these rules:
+
+- ✅ **Maximum of 64 characters** in total length  
+- ✅ Must start with a letter  
+- ✅ Use only lowercase letters and hyphens (`-`)  
+- ❌ Avoid special characters (e.g., `@`, `$`, `!`)  
+- ❌ Do not start with a number  
+
+### ✅ Valid Examples:
+- `data-cleaner`
+- `csv-uploader`
+- `pdf-generator`
+
+### ❌ Invalid Examples:
+- `123tool`
+- `tool!@#$`
+- `name-that-is-way-too-long-and-goes-beyond-the-sixty-four-character-limit-of-the-rule`
+
 ## License
 
 This project is licensed under the Apache-2.0 License.
