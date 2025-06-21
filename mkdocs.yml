@@ -58,6 +58,7 @@ nav:
     - Amazon ECS MCP Server: servers/ecs-mcp-server.md
     - AWS Support MCP Server: servers/aws-support-mcp-server.md
     - AWS Managed Prometheus MCP Server: servers/prometheus-mcp-server.md
+    - Amazon CloudWatch Application Signals MCP Server: servers/cloudwatch-appsignals-mcp-server.md
     - Amazon Timestream for InfluxDB MCP Server: servers/timestream-for-influxdb-mcp-server.md
   - Samples:
     - Home: samples/index.md
