@@ -1,9 +1,9 @@
 site_name: AWS MCP Servers
 site_url: https://awslabs.github.io/mcp
 
-repo_name: 'awslabs/mcp'
-repo_url: 'https://github.com/awslabs/mcp'
-copyright: '&copy; Amazon Web Services, Inc. or its affiliates. All rights reserved.'
+repo_name: "awslabs/mcp"
+repo_url: "https://github.com/awslabs/mcp"
+copyright: "&copy; Amazon Web Services, Inc. or its affiliates. All rights reserved."
 
 theme:
   name: material
@@ -12,9 +12,10 @@ theme:
     - search.suggest
     - search.highlight
     - navigation.instant
+  custom_dir: overrides
   palette:
     # Palette toggle for light mode
-    - scheme: dracula
+    - scheme: default
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
@@ -23,6 +24,12 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+extra_css:
+  - stylesheets/cloudscape-fonts.css
+  - stylesheets/cloudscape-theme.css
+  - stylesheets/card-grid.css
+extra_javascript:
+  - assets/javascripts/card-grid.js
 plugins:
   - privacy
   - search
@@ -67,11 +74,13 @@ nav:
     - AWS HealthOmics MCP Server: servers/aws-healthomics-mcp-server.md
 
   - Samples:
-    - Home: samples/index.md
-    - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
+      - Home: samples/index.md
+      - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
+      - JSON Card Grid: samples/test-cards.md
 markdown_extensions:
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
+          # This is a workaround to allow mermaid diagrams to be rendered
           format: !!python/name:pymdownx.superfences.fence_code_format
