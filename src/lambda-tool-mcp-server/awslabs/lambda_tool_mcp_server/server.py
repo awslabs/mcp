@@ -57,7 +57,7 @@ logger.info(f'FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY: {FUNCTION_INPUT_SCHEMA_ARN_TAG_
 try:
     session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
 except botocore.exceptions.ProfileNotFound:
-    logger.warning(f'Profile {AWS_PROFILE} not found. Using default session.')
+    logger.warning(f'Profile {AWS_PROFILE} not found. Look for other credentials.')
     session = boto3.Session(region_name=AWS_REGION)
 
 lambda_client = session.client('lambda')
