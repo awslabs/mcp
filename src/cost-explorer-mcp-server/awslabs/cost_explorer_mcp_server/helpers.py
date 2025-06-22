@@ -524,6 +524,23 @@ def validate_comparison_date_range(start_date: str, end_date: str) -> Tuple[bool
             f"Comparison end date '{end_date}' must be the first day of a month (e.g., 2025-02-01)",
         )
 
+    # Comparison periods can only go up to the last complete month
+    # Calculate the first day of current month (last complete month boundary)
+    current_month_start = today.replace(day=1)
+    # The comparison period (start_date) cannot be in the current month or future
+    if start_dt >= current_month_start:
+        # Calculate last complete month for user guidance
+        if current_month_start.month == 1:
+            last_complete_month = current_month_start.replace(
+                year=current_month_start.year - 1, month=12
+            )
+        else:
+            last_complete_month = current_month_start.replace(month=current_month_start.month - 1)
+        return (
+            False,
+            f'Comparison periods can only include complete months. Current month ({current_month_start.strftime("%Y-%m")}) is not complete yet. Latest allowed start date: {last_complete_month.strftime("%Y-%m-%d")}',
+        )
+
     # Must be exactly one month duration
     # Calculate expected end date (first day of next month)
     if start_dt.month == 12:

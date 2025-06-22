@@ -33,12 +33,134 @@ from awslabs.cost_explorer_mcp_server.models import DateRange
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 
 # Configure Loguru logging
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
+
+# Constants
+DEFAULT_GROUP_BY = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
+DEFAULT_METRIC = 'UnblendedCost'
+
+
+def _validate_comparison_inputs(
+    baseline_date_range: DateRange,
+    comparison_date_range: DateRange,
+    metric_for_comparison: str,
+    group_by: Optional[Union[Dict[str, str], str]],
+    filter_expression: Optional[Dict[str, Any]],
+) -> Tuple[bool, Optional[str], Dict[str, Any]]:
+    """Validate inputs and prepare comparison request parameters.
+
+    Args:
+        baseline_date_range: Baseline period for comparison
+        comparison_date_range: Comparison period
+        metric_for_comparison: Cost metric to compare
+        group_by: Grouping configuration
+        filter_expression: Optional filter criteria
+
+    Returns:
+        Tuple of (is_valid, error_message, validated_params)
+    """
+    baseline_start = baseline_date_range.start_date
+    baseline_end = baseline_date_range.end_date
+    comparison_start = comparison_date_range.start_date
+    comparison_end = comparison_date_range.end_date
+
+    # Validate both date ranges meet comparison API requirements
+    is_valid_baseline, error_baseline = validate_comparison_date_range(
+        baseline_start, baseline_end
+    )
+    if not is_valid_baseline:
+        return False, f'Baseline period error: {error_baseline}', {}
+
+    is_valid_comparison, error_comparison = validate_comparison_date_range(
+        comparison_start, comparison_end
+    )
+    if not is_valid_comparison:
+        return False, f'Comparison period error: {error_comparison}', {}
+
+    # Validate metric
+    if metric_for_comparison not in VALID_COST_METRICS:
+        return (
+            False,
+            f'Invalid metric_for_comparison: {metric_for_comparison}. Valid values are {", ".join(VALID_COST_METRICS)}.',
+            {},
+        )
+
+    # Validate filter expression if provided
+    if filter_expression:
+        validation_result = validate_expression(filter_expression, baseline_start, baseline_end)
+        if 'error' in validation_result:
+            return False, validation_result['error'], {}
+
+    # Process and validate group_by
+    if group_by is None:
+        group_by = DEFAULT_GROUP_BY.copy()
+    elif isinstance(group_by, str):
+        group_by = {'Type': 'DIMENSION', 'Key': group_by}
+
+    validation_result = validate_group_by(group_by)
+    if 'error' in validation_result:
+        return False, validation_result['error'], {}
+
+    return (
+        True,
+        None,
+        {
+            'baseline_start': baseline_start,
+            'baseline_end': baseline_end,
+            'comparison_start': comparison_start,
+            'comparison_end': comparison_end,
+            'metric': metric_for_comparison,
+            'group_by': group_by,
+            'filter_criteria': filter_expression,
+        },
+    )
+
+
+def _build_api_params(
+    baseline_start: str,
+    baseline_end: str,
+    comparison_start: str,
+    comparison_end: str,
+    metric: str,
+    group_by: Dict[str, str],
+    filter_criteria: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Build AWS API parameters from validated request parameters.
+
+    Args:
+        baseline_start: Baseline period start date
+        baseline_end: Baseline period end date
+        comparison_start: Comparison period start date
+        comparison_end: Comparison period end date
+        metric: Cost metric to compare
+        group_by: Grouping configuration
+        filter_criteria: Optional filter criteria
+
+    Returns:
+        Dictionary with AWS API parameters
+    """
+    params = {
+        'BaselineTimePeriod': {
+            'Start': baseline_start,
+            'End': baseline_end,
+        },
+        'ComparisonTimePeriod': {
+            'Start': comparison_start,
+            'End': comparison_end,
+        },
+        'MetricForComparison': metric,
+        'GroupBy': [{'Type': group_by['Type'].upper(), 'Key': group_by['Key']}],
+    }
+
+    if filter_criteria:
+        params['Filter'] = filter_criteria
+
+    return params
 
 
 async def get_cost_and_usage_comparisons(
@@ -105,68 +227,44 @@ async def get_cost_and_usage_comparisons(
         Dictionary containing comparison data with percentage changes, absolute differences,
         and detailed cost drivers when available
     """
-    # Initialize variables at function scope
+    # Initialize variables for error handling
     baseline_start = baseline_date_range.start_date
     baseline_end = baseline_date_range.end_date
     comparison_start = comparison_date_range.start_date
     comparison_end = comparison_date_range.end_date
 
     try:
-        # Validate both date ranges meet comparison API requirements
-        is_valid_baseline, error_baseline = validate_comparison_date_range(
-            baseline_start, baseline_end
+        # Validate inputs using validation function
+        is_valid, error_msg, validated_params = _validate_comparison_inputs(
+            baseline_date_range,
+            comparison_date_range,
+            metric_for_comparison,
+            group_by,
+            filter_expression,
         )
-        if not is_valid_baseline:
-            return {'error': f'Baseline period error: {error_baseline}'}
 
-        is_valid_comparison, error_comparison = validate_comparison_date_range(
-            comparison_start, comparison_end
-        )
-        if not is_valid_comparison:
-            return {'error': f'Comparison period error: {error_comparison}'}
+        if not is_valid:
+            return {'error': error_msg}
 
-        if metric_for_comparison not in VALID_COST_METRICS:
-            return {
-                'error': f'Invalid metric_for_comparison: {metric_for_comparison}. Valid values are {", ".join(VALID_COST_METRICS)}.'
-            }
-
-        # Process filter - reuse existing validation
-        filter_criteria = filter_expression
-
-        # Validate filter expression if provided
-        if filter_criteria:
-            validation_result = validate_expression(filter_criteria, baseline_start, baseline_end)
-            if 'error' in validation_result:
-                return validation_result
-
-        # Process group_by - reuse existing logic
-        if group_by is None:
-            group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
-        elif isinstance(group_by, str):
-            group_by = {'Type': 'DIMENSION', 'Key': group_by}
-
-        # Validate group_by using existing function
-        validation_result = validate_group_by(group_by)
-        if 'error' in validation_result:
-            return validation_result
+        # Extract validated parameters
+        validated_baseline_start = validated_params['baseline_start']
+        validated_baseline_end = validated_params['baseline_end']
+        validated_comparison_start = validated_params['comparison_start']
+        validated_comparison_end = validated_params['comparison_end']
+        validated_metric = validated_params['metric']
+        validated_group_by = validated_params['group_by']
+        validated_filter_criteria = validated_params['filter_criteria']
 
         # Prepare API call parameters
-        comparison_params = {
-            'BaselineTimePeriod': {
-                'Start': baseline_start,
-                'End': baseline_end,
-            },
-            'ComparisonTimePeriod': {
-                'Start': comparison_start,
-                'End': comparison_end,
-            },
-            'MetricForComparison': metric_for_comparison,
-            'GroupBy': [{'Type': group_by['Type'].upper(), 'Key': group_by['Key']}],
-        }
-
-        # Add filter if provided
-        if filter_criteria:
-            comparison_params['Filter'] = filter_criteria
+        api_params = _build_api_params(
+            validated_baseline_start,
+            validated_baseline_end,
+            validated_comparison_start,
+            validated_comparison_end,
+            validated_metric,
+            validated_group_by,
+            validated_filter_criteria,
+        )
 
         # Get comparison data
         grouped_comparisons = {}
@@ -175,10 +273,10 @@ async def get_cost_and_usage_comparisons(
 
         while True:
             if next_token:
-                comparison_params['NextPageToken'] = next_token
+                api_params['NextPageToken'] = next_token
 
             try:
-                response = ce.get_cost_and_usage_comparisons(**comparison_params)
+                response = ce.get_cost_and_usage_comparisons(**api_params)
             except Exception as e:
                 logger.error(f'Error calling Cost Explorer comparison API: {e}')
                 return {'error': f'AWS Cost Explorer comparison API error: {str(e)}'}
@@ -287,11 +385,11 @@ async def get_cost_and_usage_comparisons(
             'baseline_period': f'{baseline_start} to {baseline_end}',
             'comparison_period': f'{comparison_start} to {comparison_end}',
             'metric': metric_for_comparison,
-            'grouped_by': group_by['Key'],
+            'grouped_by': validated_group_by['Key'],
             'comparisons': grouped_comparisons,
             'total_comparison': total_data,
             'metadata': {
-                'grouping_type': group_by['Type'],
+                'grouping_type': validated_group_by['Type'],
                 'total_groups': len(grouped_comparisons),
             },
         }
@@ -399,68 +497,43 @@ async def get_cost_comparison_drivers(
     Returns:
         with specific usage types, usage quantity changes, driver types (savings plans, discounts, usage changes, support fees), and contextual information
     """
-    # Initialize variables at function scope
+    # Initialize variables for error handling
     baseline_start = baseline_date_range.start_date
     baseline_end = baseline_date_range.end_date
     comparison_start = comparison_date_range.start_date
     comparison_end = comparison_date_range.end_date
-
     try:
-        # Validate both date ranges meet comparison API requirements
-        is_valid_baseline, error_baseline = validate_comparison_date_range(
-            baseline_start, baseline_end
+        # Validate inputs using validation function
+        is_valid, error_msg, validated_params = _validate_comparison_inputs(
+            baseline_date_range,
+            comparison_date_range,
+            metric_for_comparison,
+            group_by,
+            filter_expression,
         )
-        if not is_valid_baseline:
-            return {'error': f'Baseline period error: {error_baseline}'}
 
-        is_valid_comparison, error_comparison = validate_comparison_date_range(
-            comparison_start, comparison_end
-        )
-        if not is_valid_comparison:
-            return {'error': f'Comparison period error: {error_comparison}'}
+        if not is_valid:
+            return {'error': error_msg}
 
-        if metric_for_comparison not in VALID_COST_METRICS:
-            return {
-                'error': f'Invalid metric_for_comparison: {metric_for_comparison}. Valid values are {", ".join(VALID_COST_METRICS)}.'
-            }
-
-        # Process filter - reuse existing validation
-        filter_criteria = filter_expression
-
-        # Validate filter expression if provided
-        if filter_criteria:
-            validation_result = validate_expression(filter_criteria, baseline_start, baseline_end)
-            if 'error' in validation_result:
-                return validation_result
-
-        # Process group_by - reuse existing logic
-        if group_by is None:
-            group_by = {'Type': 'DIMENSION', 'Key': 'SERVICE'}
-        elif isinstance(group_by, str):
-            group_by = {'Type': 'DIMENSION', 'Key': group_by}
-
-        # Validate group_by using existing function
-        validation_result = validate_group_by(group_by)
-        if 'error' in validation_result:
-            return validation_result
+        # Extract validated parameters
+        validated_baseline_start = validated_params['baseline_start']
+        validated_baseline_end = validated_params['baseline_end']
+        validated_comparison_start = validated_params['comparison_start']
+        validated_comparison_end = validated_params['comparison_end']
+        validated_metric = validated_params['metric']
+        validated_group_by = validated_params['group_by']
+        validated_filter_criteria = validated_params['filter_criteria']
 
         # Prepare API call parameters
-        driver_params = {
-            'BaselineTimePeriod': {
-                'Start': baseline_start,
-                'End': baseline_end,
-            },
-            'ComparisonTimePeriod': {
-                'Start': comparison_start,
-                'End': comparison_end,
-            },
-            'MetricForComparison': metric_for_comparison,
-            'GroupBy': [{'Type': group_by['Type'].upper(), 'Key': group_by['Key']}],
-        }
-
-        # Add filter if provided
-        if filter_criteria:
-            driver_params['Filter'] = filter_criteria
+        driver_api_params = _build_api_params(
+            validated_baseline_start,
+            validated_baseline_end,
+            validated_comparison_start,
+            validated_comparison_end,
+            validated_metric,
+            validated_group_by,
+            validated_filter_criteria,
+        )
 
         # Get cost driver data
         grouped_drivers = {}
@@ -469,10 +542,10 @@ async def get_cost_comparison_drivers(
 
         while True:
             if next_token:
-                driver_params['NextPageToken'] = next_token
+                driver_api_params['NextPageToken'] = next_token
 
             try:
-                response = ce.get_cost_comparison_drivers(**driver_params)
+                response = ce.get_cost_comparison_drivers(**driver_api_params)
             except Exception as e:
                 logger.error(f'Error calling Cost Explorer comparison drivers API: {e}')
                 return {'error': f'AWS Cost Explorer comparison drivers API error: {str(e)}'}
@@ -481,13 +554,15 @@ async def get_cost_comparison_drivers(
             for driver_result in response.get('CostComparisonDrivers', []):
                 # Extract group key from CostSelector using improved logic
                 selector = driver_result.get('CostSelector', {})
-                group_key = extract_group_key_from_complex_selector(selector, group_by)
+                group_key = extract_group_key_from_complex_selector(selector, validated_group_by)
 
                 # Extract comprehensive context (service, usage type, region, etc.)
                 usage_context = extract_usage_context_from_selector(selector)
 
                 # Create detailed group key with context
-                detailed_key = create_detailed_group_key(group_key, usage_context, group_by)
+                detailed_key = create_detailed_group_key(
+                    group_key, usage_context, validated_group_by
+                )
 
                 # Process metrics for this group
                 metrics = driver_result.get('Metrics', {})
@@ -605,7 +680,7 @@ async def get_cost_comparison_drivers(
             'baseline_period': f'{baseline_start} to {baseline_end}',
             'comparison_period': f'{comparison_start} to {comparison_end}',
             'metric': metric_for_comparison,
-            'grouped_by': group_by['Key'],
+            'grouped_by': validated_group_by['Key'],
             'driver_analysis': grouped_drivers,
             'total_analysis': {
                 'baseline_value': round(total_baseline, 2),
@@ -617,7 +692,7 @@ async def get_cost_comparison_drivers(
                 else 'USD',
             },
             'metadata': {
-                'grouping_type': group_by['Type'],
+                'grouping_type': validated_group_by['Type'],
                 'total_groups': len(grouped_drivers),
                 'total_drivers': sum(
                     len(driver.get('cost_drivers', [])) for driver in grouped_drivers.values()
