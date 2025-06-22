@@ -15,6 +15,7 @@
 """awslabs lambda MCP Server implementation."""
 
 import boto3
+import botocore.exceptions
 import json
 import logging
 import os
@@ -53,7 +54,12 @@ FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY = os.environ.get('FUNCTION_INPUT_SCHEMA_ARN_TA
 logger.info(f'FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY: {FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY}')
 
 # Initialize AWS clients
-session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
+try:
+    session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
+except botocore.exceptions.ProfileNotFound:
+    logger.warning(f'Profile {AWS_PROFILE} not found. Using default session.')
+    session = boto3.Session(region_name=AWS_REGION)
+
 lambda_client = session.client('lambda')
 schemas_client = session.client('schemas')
 
