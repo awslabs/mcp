@@ -194,7 +194,8 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 - **[Cost Analysis MCP Server](src/cost-analysis-mcp-server/)** - Pre-deployment cost estimation and optimization
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and reporting
-- **[Amazon CloudWatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
+- **[Amazon CloudWatch MCP Server](src/cloudwatch-mcp-server/)** - Log analysis and operational troubleshooting
+- **[Amazon CloudWatch Logs MCP Server (deprecated)](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
 
 ---
@@ -287,7 +288,8 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 ##### Operations & Monitoring
 
-- **[Amazon CloudWatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
+- **[Amazon CloudWatch MCP Server](src/cloudwatch-mcp-server/)** - Log analysis and operational troubleshooting
+- **[Amazon CloudWatch Logs MCP Server (deprecated)](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Cost monitoring and spend analysis
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
 
