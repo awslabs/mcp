@@ -22,7 +22,7 @@ from .metric_config import METRICS, get_metric_config
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 
 def get_monitoring_level_rank(level: str) -> int:
@@ -71,7 +71,7 @@ def get_cluster_metrics(
     start_time: datetime,
     end_time: datetime,
     period: int,
-    metrics: Union[List[str], Dict[str, Optional[str]]],
+    metrics: Union[List[str], Mapping[str, Optional[str]]],
     client_manager=None,
     scan_by: Optional[str] = None,
     label_options: Optional[Dict[str, str]] = None,

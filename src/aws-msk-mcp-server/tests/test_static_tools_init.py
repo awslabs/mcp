@@ -15,6 +15,8 @@
 """Tests for the static_tools/__init__.py module."""
 
 from awslabs.aws_msk_mcp_server.tools.static_tools import register_module
+from mcp.server.fastmcp import FastMCP
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 
@@ -53,7 +55,7 @@ class TestStaticToolsInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_best_practices_func = decorated_functions['get_cluster_best_practices']
@@ -116,7 +118,7 @@ class TestStaticToolsInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_best_practices_func = decorated_functions['get_cluster_best_practices']
@@ -179,7 +181,7 @@ class TestStaticToolsInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_best_practices_func = decorated_functions['get_cluster_best_practices']

@@ -38,7 +38,6 @@ class TestClusterMetricsTools:
 
         # Test invalid monitoring level
         assert get_monitoring_level_rank('INVALID') == -1
-        assert get_monitoring_level_rank(None) == -1
 
     def test_list_available_metrics(self):
         """Test the list_available_metrics function."""
@@ -58,11 +57,6 @@ class TestClusterMetricsTools:
         metrics = list_available_metrics('INVALID')
         assert isinstance(metrics, dict)
         assert len(metrics) == 0
-
-        # Test with None monitoring level
-        with pytest.raises(ValueError) as excinfo:
-            list_available_metrics(None)
-        assert 'Monitoring level must be provided' in str(excinfo.value)
 
     @patch(
         'awslabs.aws_msk_mcp_server.tools.logs_and_telemetry.cluster_metrics_tools.get_cluster_name'

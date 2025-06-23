@@ -16,6 +16,8 @@
 
 import pytest
 from awslabs.aws_msk_mcp_server.tools.read_config import register_module
+from mcp.server.fastmcp import FastMCP
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 
@@ -56,7 +58,7 @@ class TestReadConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_configuration_info_func = decorated_functions['get_configuration_info']
@@ -127,7 +129,7 @@ class TestReadConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_configuration_info_func = decorated_functions['get_configuration_info']
@@ -205,7 +207,7 @@ class TestReadConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_configuration_info_func = decorated_functions['get_configuration_info']
@@ -270,7 +272,7 @@ class TestReadConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_configuration_info_func = decorated_functions['get_configuration_info']
@@ -319,7 +321,7 @@ class TestReadConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_configuration_info_func = decorated_functions['get_configuration_info']
@@ -369,7 +371,7 @@ class TestReadConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         list_tags_for_resource_tool_func = decorated_functions['list_tags_for_resource']

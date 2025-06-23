@@ -16,6 +16,8 @@
 
 import pytest
 from awslabs.aws_msk_mcp_server.tools.mutate_config import register_module
+from mcp.server.fastmcp import FastMCP
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 
@@ -58,7 +60,7 @@ class TestMutateConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         create_configuration_func = decorated_functions['create_configuration']
@@ -125,7 +127,7 @@ class TestMutateConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         update_configuration_func = decorated_functions['update_configuration']
@@ -184,7 +186,7 @@ class TestMutateConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         tag_resource_func = decorated_functions['tag_resource']
@@ -227,7 +229,7 @@ class TestMutateConfigInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         untag_resource_func = decorated_functions['untag_resource']

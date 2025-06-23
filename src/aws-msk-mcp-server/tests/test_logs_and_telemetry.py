@@ -18,6 +18,7 @@ import pytest
 from awslabs.aws_msk_mcp_server.tools.logs_and_telemetry import register_module
 from datetime import datetime, timedelta
 from mcp.server.fastmcp import FastMCP
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 
@@ -57,7 +58,7 @@ class TestLogsAndTelemetry:
                 return decorator
 
         # Act
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Assert
         assert 'get_cluster_telemetry' in decorated_functions
@@ -83,7 +84,7 @@ class TestLogsAndTelemetry:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_telemetry = decorated_functions['get_cluster_telemetry']
@@ -151,7 +152,7 @@ class TestLogsAndTelemetry:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_telemetry = decorated_functions['get_cluster_telemetry']
@@ -222,7 +223,7 @@ class TestLogsAndTelemetry:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_telemetry = decorated_functions['get_cluster_telemetry']
@@ -300,7 +301,7 @@ class TestLogsAndTelemetry:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_telemetry = decorated_functions['get_cluster_telemetry']
@@ -334,7 +335,7 @@ class TestLogsAndTelemetry:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_telemetry = decorated_functions['get_cluster_telemetry']
@@ -363,7 +364,7 @@ class TestLogsAndTelemetry:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         list_customer_iam_access_tool = decorated_functions['list_customer_iam_access']
@@ -426,7 +427,7 @@ class TestLogsAndTelemetry:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         list_customer_iam_access_tool = decorated_functions['list_customer_iam_access']

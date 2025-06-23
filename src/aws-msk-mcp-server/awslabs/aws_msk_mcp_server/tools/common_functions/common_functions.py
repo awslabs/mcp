@@ -48,16 +48,17 @@ def get_cluster_name(cluster_identifier: str) -> str:
         cluster_identifier: Either:
             - ARN string in format "arn:aws:kafka:region:account:cluster/cluster-name/uuid"
             - Direct cluster name
+            - Other ARN format (treated as direct name)
 
     Returns:
         The cluster name
 
     Raises:
-        ValueError: If the ARN format is invalid when an ARN is provided
+        ValueError: If the ARN format is invalid when an MSK ARN is provided
     """
     if cluster_identifier.startswith('arn:aws:kafka:'):
         try:
-            # Handle ARN format
+            # Handle MSK ARN format
             parts = cluster_identifier.split('/')
             if len(parts) < 3:
                 raise ValueError('Invalid MSK cluster ARN format')
@@ -65,5 +66,5 @@ def get_cluster_name(cluster_identifier: str) -> str:
         except (IndexError, AttributeError) as e:
             raise ValueError(f'Invalid MSK cluster ARN format: {str(e)}')
     else:
-        # Handle direct cluster name
+        # Handle direct cluster name or non-MSK ARN
         return cluster_identifier

@@ -16,6 +16,8 @@
 
 import pytest
 from awslabs.aws_msk_mcp_server.tools.read_global import register_module
+from mcp.server.fastmcp import FastMCP
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 
@@ -65,7 +67,7 @@ class TestReadGlobalInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_global_info_func = decorated_functions['get_global_info']
@@ -133,7 +135,7 @@ class TestReadGlobalInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_global_info_func = decorated_functions['get_global_info']
@@ -193,7 +195,7 @@ class TestReadGlobalInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_global_info_func = decorated_functions['get_global_info']
@@ -244,7 +246,7 @@ class TestReadGlobalInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_global_info_func = decorated_functions['get_global_info']
@@ -295,7 +297,7 @@ class TestReadGlobalInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_global_info_func = decorated_functions['get_global_info']
@@ -341,7 +343,7 @@ class TestReadGlobalInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_global_info_func = decorated_functions['get_global_info']

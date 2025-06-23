@@ -16,6 +16,8 @@
 
 import pytest
 from awslabs.aws_msk_mcp_server.tools.read_cluster import register_module
+from mcp.server.fastmcp import FastMCP
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 
@@ -58,7 +60,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         describe_cluster_operation_tool = decorated_functions['describe_cluster_operation']
@@ -114,7 +116,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -172,7 +174,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -226,7 +228,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -289,7 +291,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -345,7 +347,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -399,7 +401,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -466,7 +468,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -538,7 +540,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -596,7 +598,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -657,7 +659,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
@@ -729,7 +731,7 @@ class TestReadClusterInit:
                 return decorator
 
         # Register the tools with our spy
-        register_module(MockMCP())
+        register_module(cast(FastMCP, MockMCP()))
 
         # Get the captured function
         get_cluster_info_tool = decorated_functions['get_cluster_info']
