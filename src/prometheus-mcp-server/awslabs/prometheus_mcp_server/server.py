@@ -668,6 +668,8 @@ async def set_prometheus_workspace(
     print(f'Connected to Prometheus workspace: {info.prometheus_url}')
     ```
     """
+    global config
+    
     try:
         logger.info(f'Setting Prometheus workspace ID to: {workspace_id}')
         
@@ -687,7 +689,6 @@ async def set_prometheus_workspace(
         logger.info(f'Built Prometheus URL: {url}')
         
         # Update global config
-        global config
         if not config:
             config = PrometheusConfig(
                 prometheus_url=url,
