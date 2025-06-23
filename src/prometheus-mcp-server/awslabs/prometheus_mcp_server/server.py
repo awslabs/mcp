@@ -155,43 +155,31 @@ def setup_environment(config_data):
             logger.info('  Using default AWS credentials')
             session = boto3.Session(region_name=config_data['aws_region'])
 
-        # If Prometheus URL is not provided, try to get it from AWS
-        if not config_data['prometheus_url']:
-            try:
-                aps_client = session.client('amp')
-                active_workspace = find_active_workspace(aps_client)
-                if active_workspace:
-                    workspace_id = active_workspace['workspaceId']
-                    region = config_data['aws_region']
-                    config_data['prometheus_url'] = f'https://aps-workspaces.{region}.amazonaws.com/workspaces/{workspace_id}'
-                    logger.info(f'Found active Prometheus workspace: {workspace_id}')
-                else:
-                    logger.error('No active Prometheus workspaces found in the current region')
-                    return False
-            except Exception as e:
-                logger.error(f'Error getting Prometheus workspace: {e}')
+        # Validate Prometheus URL if provided
+        if config_data['prometheus_url']:
+            parsed_url = urlparse(config_data['prometheus_url'])
+            if not all([parsed_url.scheme, parsed_url.netloc]):
+                logger.error(f'ERROR: Invalid Prometheus URL format: {config_data["prometheus_url"]}')
+                logger.error('URL must include scheme (https://) and hostname')
                 return False
 
-        # Validate Prometheus URL
-        parsed_url = urlparse(config_data['prometheus_url'])
-        if not all([parsed_url.scheme, parsed_url.netloc]):
-            logger.error(f'ERROR: Invalid Prometheus URL format: {config_data["prometheus_url"]}')
-            logger.error('URL must include scheme (https://) and hostname')
-            return False
+            # Verify URL points to AWS Prometheus
+            if not (
+                parsed_url.netloc.endswith('.amazonaws.com') and 'aps-workspaces' in parsed_url.netloc
+            ):
+                logger.warning(
+                    f"WARNING: URL doesn't appear to be an AWS Managed Prometheus endpoint: {config_data['prometheus_url']}"
+                )
+                logger.warning(
+                    'Expected format: https://aps-workspaces.[region].amazonaws.com/workspaces/ws-[id]'
+                )
 
-        # Verify URL points to AWS Prometheus
-        if not (
-            parsed_url.netloc.endswith('.amazonaws.com') and 'aps-workspaces' in parsed_url.netloc
-        ):
-            logger.warning(
-                f"WARNING: URL doesn't appear to be an AWS Managed Prometheus endpoint: {config_data['prometheus_url']}"
-            )
-            logger.warning(
-                'Expected format: https://aps-workspaces.[region].amazonaws.com/workspaces/ws-[id]'
-            )
-
-        logger.info('Prometheus configuration:')
-        logger.info(f'  Server URL: {config_data["prometheus_url"]}')
+            logger.info('Prometheus configuration:')
+            logger.info(f'  Server URL: {config_data["prometheus_url"]}')
+        else:
+            logger.info('Prometheus configuration:')
+            logger.info('  Server URL: Will be set when workspace is selected')
+            
         logger.info(f'  AWS Region: {config_data["aws_region"]}')
 
         # Test AWS credentials
@@ -385,6 +373,74 @@ async def make_prometheus_request(
     return None
 
 
+async def get_available_workspaces():
+    """Get list of available Prometheus workspaces using AWS SDK.
+    
+    Returns:
+        List of workspace dictionaries with id, alias, and status
+    """
+    global config
+    try:
+        # Create session with current config
+        if config and config.aws_profile:
+            session = boto3.Session(
+                profile_name=config.aws_profile, 
+                region_name=config.aws_region
+            )
+        else:
+            session = boto3.Session(region_name=config.aws_region if config else DEFAULT_AWS_REGION)
+        
+        aps_client = session.client('amp')
+        response = aps_client.list_workspaces()
+        
+        workspaces = []
+        for ws in response.get('workspaces', []):
+            workspaces.append({
+                'workspace_id': ws['workspaceId'],
+                'alias': ws.get('alias', 'No alias'),
+                'status': ws['status']['statusCode'],
+                'created_at': ws.get('createdAt', '').isoformat() if ws.get('createdAt') else 'Unknown'
+            })
+        
+        return workspaces
+    except Exception as e:
+        logger.error(f'Error getting available workspaces: {e}')
+        return []
+
+
+async def check_workspace_selection(ctx: Context) -> bool:
+    """Check if workspace is selected, prompt user if not.
+    
+    Returns:
+        bool: True if workspace is selected, False if user needs to select one
+    """
+    global workspace_selected, config
+    
+    if workspace_selected and config and config.prometheus_url:
+        return True
+    
+    # Get available workspaces
+    workspaces = await get_available_workspaces()
+    
+    if not workspaces:
+        await ctx.error('No Prometheus workspaces found in the current region. Please create a workspace first.')
+        return False
+    
+    # Format workspace list for user
+    workspace_list = "\n".join([
+        f"- {ws['workspace_id']} ({ws['alias']}) - Status: {ws['status']}"
+        for ws in workspaces
+    ])
+    
+    await ctx.error(
+        f"No Prometheus workspace selected. Please choose from available workspaces:\n\n"
+        f"{workspace_list}\n\n"
+        f"Use the SetPrometheusWorkspace tool to select a workspace, or use ListWorkspaces to see more details."
+    )
+    
+    return False
+
+
 async def test_prometheus_connection():
     """Test the connection to Prometheus.
 
@@ -445,6 +501,7 @@ mcp = FastMCP(
 
 # Global config object
 config = None  # Will be initialized in main()
+workspace_selected = False  # Track if user has selected a workspace
 
 
 @mcp.tool(name='ExecuteQuery')
@@ -508,6 +565,10 @@ async def execute_query(
     """
     global config
     try:
+        # Check if workspace is selected
+        if not await check_workspace_selection(ctx):
+            return {'error': 'No workspace selected'}
+        
         logger.info(f'Executing instant query: {query}')
 
         # Validate query for security
@@ -560,6 +621,10 @@ async def execute_range_query(
     """
     global config
     try:
+        # Check if workspace is selected
+        if not await check_workspace_selection(ctx):
+            return {'error': 'No workspace selected'}
+        
         logger.info(f'Executing range query: {query} from {start} to {end} with step {step}')
 
         # Validate query for security
@@ -600,6 +665,10 @@ async def list_metrics(ctx: Context) -> MetricsList:
     """
     global config
     try:
+        # Check if workspace is selected
+        if not await check_workspace_selection(ctx):
+            return MetricsList(metrics=[])
+        
         logger.info('Listing all available metrics')
         max_retries = 3  # Default value
         if config and hasattr(config, 'max_retries') and config.max_retries is not None:
@@ -633,6 +702,15 @@ async def get_server_info(ctx: Context) -> ServerInfo:
     """
     global config
     try:
+        # Check if workspace is selected
+        if not await check_workspace_selection(ctx):
+            return ServerInfo(
+                prometheus_url='No workspace selected',
+                aws_region=config.aws_region if config else 'Not configured',
+                aws_profile=config.aws_profile if config else 'Not configured',
+                service_name=config.service_name if config else 'Not configured',
+            )
+        
         logger.info('Retrieving server configuration information')
         if not config:
             return ServerInfo(
@@ -650,6 +728,38 @@ async def get_server_info(ctx: Context) -> ServerInfo:
         )
     except Exception as e:
         error_msg = f'Error retrieving server info: {str(e)}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise
+
+
+@mcp.tool(name='ListWorkspaces')
+async def list_workspaces(ctx: Context) -> Dict[str, Any]:
+    """List all available Prometheus workspaces in the current region.
+
+    ## Usage
+    - Use this tool to see all available Prometheus workspaces
+    - Shows workspace ID, alias, status, and creation date
+    - Useful for selecting which workspace to use
+
+    ## Example
+    ```
+    workspaces = await list_workspaces()
+    for ws in workspaces['workspaces']:
+        print(f"ID: {ws['workspace_id']}, Alias: {ws['alias']}, Status: {ws['status']}")
+    ```
+    """
+    try:
+        logger.info('Listing available Prometheus workspaces')
+        workspaces = await get_available_workspaces()
+        
+        return {
+            'workspaces': workspaces,
+            'count': len(workspaces),
+            'region': config.aws_region if config else DEFAULT_AWS_REGION
+        }
+    except Exception as e:
+        error_msg = f'Error listing workspaces: {str(e)}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise
@@ -674,7 +784,7 @@ async def set_prometheus_workspace(
     print(f'Connected to Prometheus workspace: {info.prometheus_url}')
     ```
     """
-    global config
+    global config, workspace_selected
     
     try:
         logger.info(f'Setting Prometheus workspace ID to: {workspace_id}')
@@ -714,6 +824,8 @@ async def set_prometheus_workspace(
             await ctx.error(error_msg)
             raise RuntimeError(error_msg)
 
+        # Mark workspace as selected
+        workspace_selected = True
         logger.info('Successfully updated Prometheus workspace')
         return await get_server_info(ctx)
     except Exception as e:
@@ -728,12 +840,17 @@ async def set_prometheus_workspace(
 
 async def async_main():
     """Run the async initialization tasks."""
-    # Test connection
-    if not await test_prometheus_connection():
-        logger.error('Prometheus connection test failed')
-        sys.exit(1)
-
-    logger.info('Prometheus connection successful')
+    global workspace_selected
+    
+    # Only test connection if we have a URL configured
+    if config and config.prometheus_url:
+        if not await test_prometheus_connection():
+            logger.error('Prometheus connection test failed')
+            sys.exit(1)
+        workspace_selected = True
+        logger.info('Prometheus connection successful')
+    else:
+        logger.info('No Prometheus URL configured - workspace selection will be prompted on first tool use')
 
 
 def main():
@@ -746,24 +863,16 @@ def main():
     # Load configuration
     config_data = load_config(args)
 
-    # If no URL is provided, try to discover one
+    # Setup environment (validate AWS credentials)
+    if not setup_environment(config_data):
+        logger.error('Environment setup failed')
+        sys.exit(1)
+    
+    # If no URL is provided, we'll prompt for workspace selection later
     if not config_data['prometheus_url']:
-        logger.info('No Prometheus URL provided, attempting to auto-discover...')
-        if not setup_environment(config_data):
-            logger.error('Environment setup failed')
-            sys.exit(1)
-        
-        # Double-check that we have a URL after setup_environment
-        if not config_data['prometheus_url']:
-            logger.error('Failed to discover Prometheus URL')
-            sys.exit(1)
+        logger.info('No Prometheus URL provided - workspace selection will be prompted on first tool use')
     else:
-        # If URL is provided, still validate AWS credentials
         logger.info(f'Using provided Prometheus URL: {config_data["prometheus_url"]}')
-        # Just validate AWS credentials without changing the URL
-        if not setup_environment(config_data):
-            logger.error('Environment setup failed')
-            sys.exit(1)
 
     # Create config object
     global config
