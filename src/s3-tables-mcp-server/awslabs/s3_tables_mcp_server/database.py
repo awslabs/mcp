@@ -68,7 +68,7 @@ def validate_read_only_query(query: str) -> bool:
 
         for stmt in parsed:
             tokens = [token.value.upper() for token in stmt.tokens if not token.is_whitespace]
-            if tokens and tokens[0] in write_keywords:
+            if any(token in write_keywords for token in tokens):
                 return True
         return False
 
