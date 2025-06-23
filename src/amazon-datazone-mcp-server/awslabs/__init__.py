@@ -19,7 +19,10 @@ from pathlib import Path
 # Read version from VERSION file
 _version_file = Path(__file__).parent.parent / 'VERSION'
 if _version_file.exists():
-    __version__ = _version_file.read_text().strip()
+    try:
+        __version__ = _version_file.read_text().strip()
+    except (FileNotFoundError, OSError, IOError):
+        __version__ = 'unknown'
 else:
     __version__ = 'unknown'
 
