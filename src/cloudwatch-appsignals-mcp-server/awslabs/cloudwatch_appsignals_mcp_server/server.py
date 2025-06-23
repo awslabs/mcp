@@ -18,6 +18,7 @@ import boto3
 import os
 import sys
 from . import __version__
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from loguru import logger
@@ -41,9 +42,7 @@ logger.debug(f'Using AWS region: {AWS_REGION}')
 
 # Initialize AWS clients with logging
 try:
-    config = boto3.session.Config(
-        user_agent_extra=f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}'
-    )
+    config = Config(user_agent_extra=f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}')
     logs_client = boto3.client('logs', region_name=AWS_REGION, config=config)
     logger.debug('AWS CloudWatch Logs client initialized successfully')
 except Exception as e:
@@ -125,10 +124,10 @@ async def list_monitored_services() -> str:
         return result
 
     except ClientError as e:
-        logger.error(
-            f'AWS ClientError in list_monitored_services: {e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
-        )
-        return f'AWS Error: {e.response["Error"]["Message"]}'
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+        logger.error(f'AWS ClientError in list_monitored_services: {error_code} - {error_message}')
+        return f'AWS Error: {error_message}'
     except Exception as e:
         logger.error(f'Unexpected error in list_monitored_services: {str(e)}', exc_info=True)
         return f'Error: {str(e)}'
@@ -242,10 +241,12 @@ async def get_service_detail(
         return result
 
     except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
         logger.error(
-            f"AWS ClientError in get_service_healthy_detail for '{service_name}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            f"AWS ClientError in get_service_healthy_detail for '{service_name}': {error_code} - {error_message}"
         )
-        return f'AWS Error: {e.response["Error"]["Message"]}'
+        return f'AWS Error: {error_message}'
     except Exception as e:
         logger.error(
             f"Unexpected error in get_service_healthy_detail for '{service_name}': {str(e)}",
@@ -256,8 +257,6 @@ async def get_service_detail(
 
 def main():
     """Run the MCP server."""
-    import mcp
-
     logger.debug('Starting CloudWatch AppSignals MCP server')
     try:
         mcp.run(transport='stdio')
