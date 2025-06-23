@@ -14,9 +14,9 @@
 """Common utilities, imports, and constants for DataZone MCP Server tools."""
 
 import boto3
+import httpx  # noqa: F401
 import logging
-import httpx # noqa: F401
-from botocore.exceptions import ClientError # noqa: F401
+from botocore.exceptions import ClientError  # noqa: F401
 
 
 # Constants
