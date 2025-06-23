@@ -14,11 +14,15 @@
 
 """Tests for the aws-msk MCP Server."""
 
+import signal
+from anyio.abc import CancelScope
+from awslabs.aws_msk_mcp_server import server
+from awslabs.aws_msk_mcp_server.server import main, run_server, signal_handler
 from awslabs.aws_msk_mcp_server.tools.static_tools.cluster_best_practices import (
     get_cluster_best_practices,
 )
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestClusterBestPractices:
@@ -335,3 +339,230 @@ class TestGetClusterTelemetry:
             assert False, 'Expected ValueError was not raised'
         except ValueError as e:
             assert 'Cluster ARN must be provided to determine monitoring level' in str(e)
+
+
+class TestServer:
+    """Tests for the server.py module."""
+
+    @patch('awslabs.aws_msk_mcp_server.server.FastMCP')
+    @patch('awslabs.aws_msk_mcp_server.server.read_cluster')
+    @patch('awslabs.aws_msk_mcp_server.server.read_global')
+    @patch('awslabs.aws_msk_mcp_server.server.read_vpc')
+    @patch('awslabs.aws_msk_mcp_server.server.read_config')
+    @patch('awslabs.aws_msk_mcp_server.server.logs_and_telemetry')
+    @patch('awslabs.aws_msk_mcp_server.server.static_tools')
+    @patch('awslabs.aws_msk_mcp_server.server.mutate_cluster')
+    @patch('awslabs.aws_msk_mcp_server.server.mutate_config')
+    @patch('awslabs.aws_msk_mcp_server.server.mutate_vpc')
+    @patch('awslabs.aws_msk_mcp_server.server.create_task_group')
+    async def test_run_server_read_only_mode(
+        self,
+        mock_create_task_group,
+        mock_mutate_vpc,
+        mock_mutate_config,
+        mock_mutate_cluster,
+        mock_static_tools,
+        mock_logs_and_telemetry,
+        mock_read_config,
+        mock_read_vpc,
+        mock_read_global,
+        mock_read_cluster,
+        mock_fast_mcp,
+    ):
+        """Test the run_server function in read-only mode."""
+        # Arrange
+        mock_mcp = MagicMock()
+        mock_fast_mcp.return_value = mock_mcp
+        mock_mcp.run_stdio_async = AsyncMock()
+
+        mock_task_group = AsyncMock()
+        mock_create_task_group.return_value.__aenter__.return_value = mock_task_group
+
+        # Set read_only to True
+        server.read_only = True
+
+        # Act
+        await run_server()
+
+        # Assert
+        mock_fast_mcp.assert_called_once_with(
+            name='awslabs.aws-msk-mcp-server',
+            instructions="""
+        AWS MSK MCP Server providing tools to interact with MSK Clusters.
+
+        This server enables you to:
+        - Read global/clusterlevel/configuration/vpc information given a specified region
+        - Get details regarding metrics and customer access
+        - Create and update clusters, configurations, vpc connections
+        """,
+        )
+
+        # Verify that read modules are registered
+        mock_read_cluster.register_module.assert_called_once_with(mock_mcp)
+        mock_read_global.register_module.assert_called_once_with(mock_mcp)
+        mock_read_vpc.register_module.assert_called_once_with(mock_mcp)
+        mock_read_config.register_module.assert_called_once_with(mock_mcp)
+        mock_logs_and_telemetry.register_module.assert_called_once_with(mock_mcp)
+        mock_static_tools.register_module.assert_called_once_with(mock_mcp)
+
+        # Verify that mutate modules are not registered in read-only mode
+        mock_mutate_cluster.register_module.assert_not_called()
+        mock_mutate_config.register_module.assert_not_called()
+        mock_mutate_vpc.register_module.assert_not_called()
+
+        # Verify that the MCP server is run
+        mock_mcp.run_stdio_async.assert_awaited_once()
+
+        # Verify that the task group is created and the signal handler is started
+        mock_create_task_group.assert_called_once()
+        mock_task_group.start_soon.assert_called_once()
+        assert mock_task_group.start_soon.call_args[0][0] == signal_handler
+
+    @patch('awslabs.aws_msk_mcp_server.server.FastMCP')
+    @patch('awslabs.aws_msk_mcp_server.server.read_cluster')
+    @patch('awslabs.aws_msk_mcp_server.server.read_global')
+    @patch('awslabs.aws_msk_mcp_server.server.read_vpc')
+    @patch('awslabs.aws_msk_mcp_server.server.read_config')
+    @patch('awslabs.aws_msk_mcp_server.server.logs_and_telemetry')
+    @patch('awslabs.aws_msk_mcp_server.server.static_tools')
+    @patch('awslabs.aws_msk_mcp_server.server.mutate_cluster')
+    @patch('awslabs.aws_msk_mcp_server.server.mutate_config')
+    @patch('awslabs.aws_msk_mcp_server.server.mutate_vpc')
+    @patch('awslabs.aws_msk_mcp_server.server.create_task_group')
+    async def test_run_server_write_mode(
+        self,
+        mock_create_task_group,
+        mock_mutate_vpc,
+        mock_mutate_config,
+        mock_mutate_cluster,
+        mock_static_tools,
+        mock_logs_and_telemetry,
+        mock_read_config,
+        mock_read_vpc,
+        mock_read_global,
+        mock_read_cluster,
+        mock_fast_mcp,
+    ):
+        """Test the run_server function in write mode."""
+        # Arrange
+        mock_mcp = MagicMock()
+        mock_fast_mcp.return_value = mock_mcp
+        mock_mcp.run_stdio_async = AsyncMock()
+
+        mock_task_group = AsyncMock()
+        mock_create_task_group.return_value.__aenter__.return_value = mock_task_group
+
+        # Set read_only to False
+        server.read_only = False
+
+        # Act
+        await run_server()
+
+        # Assert
+        mock_fast_mcp.assert_called_once_with(
+            name='awslabs.aws-msk-mcp-server',
+            instructions="""
+        AWS MSK MCP Server providing tools to interact with MSK Clusters.
+
+        This server enables you to:
+        - Read global/clusterlevel/configuration/vpc information given a specified region
+        - Get details regarding metrics and customer access
+        - Create and update clusters, configurations, vpc connections
+        """,
+        )
+
+        # Verify that read modules are registered
+        mock_read_cluster.register_module.assert_called_once_with(mock_mcp)
+        mock_read_global.register_module.assert_called_once_with(mock_mcp)
+        mock_read_vpc.register_module.assert_called_once_with(mock_mcp)
+        mock_read_config.register_module.assert_called_once_with(mock_mcp)
+        mock_logs_and_telemetry.register_module.assert_called_once_with(mock_mcp)
+        mock_static_tools.register_module.assert_called_once_with(mock_mcp)
+
+        # Verify that mutate modules are registered in write mode
+        mock_mutate_cluster.register_module.assert_called_once_with(mock_mcp)
+        mock_mutate_config.register_module.assert_called_once_with(mock_mcp)
+        mock_mutate_vpc.register_module.assert_called_once_with(mock_mcp)
+
+        # Verify that the MCP server is run
+        mock_mcp.run_stdio_async.assert_awaited_once()
+
+        # Verify that the task group is created and the signal handler is started
+        mock_create_task_group.assert_called_once()
+        mock_task_group.start_soon.assert_called_once()
+        assert mock_task_group.start_soon.call_args[0][0] == signal_handler
+
+    @patch('awslabs.aws_msk_mcp_server.server.run')
+    @patch('awslabs.aws_msk_mcp_server.server.argparse.ArgumentParser')
+    def test_main_read_only_mode(self, mock_argument_parser, mock_run):
+        """Test the main function in read-only mode."""
+        # Arrange
+        mock_parser = MagicMock()
+        mock_argument_parser.return_value = mock_parser
+        mock_args = MagicMock()
+        mock_args.allow_writes = False
+        mock_parser.parse_args.return_value = mock_args
+
+        # Act
+        main()
+
+        # Assert
+        mock_argument_parser.assert_called_once_with(
+            description='An AWS Labs Model Context Protocol (MCP) server for Amazon MSK'
+        )
+        mock_parser.add_argument.assert_called_once_with(
+            '--allow-writes',
+            action='store_true',
+            help='Allow use of tools that may perform write operations',
+        )
+        mock_parser.parse_args.assert_called_once()
+        assert server.read_only is True
+        mock_run.assert_called_once_with(run_server)
+
+    @patch('awslabs.aws_msk_mcp_server.server.run')
+    @patch('awslabs.aws_msk_mcp_server.server.argparse.ArgumentParser')
+    def test_main_write_mode(self, mock_argument_parser, mock_run):
+        """Test the main function in write mode."""
+        # Arrange
+        mock_parser = MagicMock()
+        mock_argument_parser.return_value = mock_parser
+        mock_args = MagicMock()
+        mock_args.allow_writes = True
+        mock_parser.parse_args.return_value = mock_args
+
+        # Act
+        main()
+
+        # Assert
+        mock_argument_parser.assert_called_once_with(
+            description='An AWS Labs Model Context Protocol (MCP) server for Amazon MSK'
+        )
+        mock_parser.add_argument.assert_called_once_with(
+            '--allow-writes',
+            action='store_true',
+            help='Allow use of tools that may perform write operations',
+        )
+        mock_parser.parse_args.assert_called_once()
+        assert server.read_only is False
+        mock_run.assert_called_once_with(run_server)
+
+    @patch('awslabs.aws_msk_mcp_server.server.os._exit')
+    @patch('awslabs.aws_msk_mcp_server.server.print')
+    async def test_signal_handler(self, mock_print, mock_exit):
+        """Test the signal_handler function."""
+        # Arrange
+        mock_scope = MagicMock(spec=CancelScope)
+        mock_signals = MagicMock()
+        mock_signals.__aiter__.return_value = [signal.SIGINT]  # Simulate receiving SIGINT
+
+        # Mock the open_signal_receiver context manager
+        with patch('awslabs.aws_msk_mcp_server.server.open_signal_receiver') as mock_receiver:
+            mock_receiver.return_value.__enter__.return_value = mock_signals
+
+            # Act
+            await signal_handler(mock_scope)
+
+            # Assert
+            mock_receiver.assert_called_once_with(signal.SIGINT, signal.SIGTERM)
+            mock_print.assert_called_once_with('Shutting down MCP server...')
+            mock_exit.assert_called_once_with(0)
