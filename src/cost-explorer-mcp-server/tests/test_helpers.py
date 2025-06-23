@@ -1135,3 +1135,32 @@ class TestValidateComparisonDateRange:
         # Verify validation fails with appropriate error message
         assert not is_valid
         assert 'must be exactly one month' in error
+
+    @patch('awslabs.cost_explorer_mcp_server.helpers.datetime')
+    def test_validate_comparison_date_range_current_month_january(self, mock_datetime):
+        """Test validation when current month is January (edge case for year rollback)."""
+        # Mock current date to be in January 2025
+        mock_datetime.now.return_value = datetime(2025, 1, 15, tzinfo=timezone.utc)
+        mock_datetime.strptime = datetime.strptime
+
+        # Try to use January 2025 data (should fail because it's current month)
+        is_valid, error = validate_comparison_date_range('2025-01-01', '2025-02-01')
+
+        # Should fail and suggest December 2024 as the latest allowed date
+        assert not is_valid
+        assert 'Current month (2025-01) is not complete yet' in error
+        assert '2024-12-01' in error  # Should suggest December 2024
+
+    @patch('awslabs.cost_explorer_mcp_server.helpers.datetime')
+    def test_validate_comparison_date_range_december_to_january_transition(self, mock_datetime):
+        """Test validation for December to January transition (year boundary)."""
+        # Mock current date to be in February 2025
+        mock_datetime.now.return_value = datetime(2025, 2, 15, tzinfo=timezone.utc)
+        mock_datetime.strptime = datetime.strptime
+
+        # Test December 2024 to January 2025 (should be valid)
+        is_valid, error = validate_comparison_date_range('2024-12-01', '2025-01-01')
+
+        # Should be valid
+        assert is_valid
+        assert error == ''
