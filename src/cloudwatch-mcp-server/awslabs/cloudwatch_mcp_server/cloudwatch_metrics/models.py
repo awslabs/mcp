@@ -18,7 +18,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 
-
 class Dimension(BaseModel):
     """Represents a CloudWatch metric dimension for input parameters."""
 
