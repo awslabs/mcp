@@ -15,6 +15,8 @@
 
 import boto3
 import logging
+from botocore.exceptions import ClientError # noqa: F401
+
 
 # Constants
 USER_AGENT = 'datazone-app/1.0'
