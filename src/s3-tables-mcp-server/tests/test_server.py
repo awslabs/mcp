@@ -41,9 +41,11 @@ from awslabs.s3_tables_mcp_server.server import (
     get_table_maintenance_job_status,
     get_table_metadata_location,
     get_table_policy,
+    import_csv_to_table,
     list_namespaces,
     list_table_buckets,
     list_tables,
+    modify_database,
     put_table_bucket_maintenance_configuration,
     put_table_bucket_policy,
     put_table_maintenance_configuration,
@@ -58,6 +60,14 @@ from unittest.mock import AsyncMock, patch
 def setup_app():
     """Set up app for each test."""
     app.allow_write = True
+    yield
+    app.allow_write = False
+
+
+@pytest.fixture
+def setup_app_readonly():
+    """Set up app in read-only mode for testing write operation restrictions."""
+    app.allow_write = False
     yield
     app.allow_write = False
 
@@ -585,3 +595,390 @@ async def test_update_table_metadata_location(mock_tables):
         version_token=version_token,
         region_name=region,
     )
+
+
+# Write Operation Tests with allow_write disabled
+@pytest.mark.asyncio
+async def test_create_table_bucket_readonly_mode(setup_app_readonly, mock_table_buckets):
+    """Test create_table_bucket tool when allow_write is disabled."""
+    # Arrange
+    name = 'test-bucket'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await create_table_bucket(name=name, region_name=region)
+
+
+@pytest.mark.asyncio
+async def test_create_namespace_readonly_mode(setup_app_readonly, mock_namespaces):
+    """Test create_namespace tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await create_namespace(
+            table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=region
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_table_readonly_mode(setup_app_readonly, mock_tables):
+    """Test create_table tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    format = 'ICEBERG'
+    metadata = TableMetadata(
+        iceberg=IcebergMetadata(
+            schema=IcebergSchema(
+                fields=[
+                    SchemaField(name='id', type='long', required=True),
+                    SchemaField(name='name', type='string', required=True),
+                ]
+            )
+        )
+    )
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await create_table(
+            table_bucket_arn=table_bucket_arn,
+            namespace=namespace,
+            name=name,
+            format=format,
+            metadata=metadata,
+            region_name=region,
+        )
+
+
+@pytest.mark.asyncio
+async def test_delete_table_bucket_readonly_mode(setup_app_readonly, mock_table_buckets):
+    """Test delete_table_bucket tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await delete_table_bucket(table_bucket_arn=table_bucket_arn, region_name=region)
+
+
+@pytest.mark.asyncio
+async def test_delete_namespace_readonly_mode(setup_app_readonly, mock_namespaces):
+    """Test delete_namespace tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await delete_namespace(
+            table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=region
+        )
+
+
+@pytest.mark.asyncio
+async def test_delete_table_readonly_mode(setup_app_readonly, mock_tables):
+    """Test delete_table tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    version_token = 'test-version'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await delete_table(
+            table_bucket_arn=table_bucket_arn,
+            namespace=namespace,
+            name=name,
+            version_token=version_token,
+            region_name=region,
+        )
+
+
+@pytest.mark.asyncio
+async def test_put_table_bucket_maintenance_configuration_readonly_mode(
+    setup_app_readonly, mock_table_buckets
+):
+    """Test put_table_bucket_maintenance_configuration tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
+    value = TableBucketMaintenanceConfigurationValue(
+        status=MaintenanceStatus.ENABLED, settings=None
+    )
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await put_table_bucket_maintenance_configuration(
+            table_bucket_arn=table_bucket_arn,
+            maintenance_type=maintenance_type,
+            value=value,
+            region_name=region,
+        )
+
+
+@pytest.mark.asyncio
+async def test_put_table_bucket_policy_readonly_mode(setup_app_readonly, mock_table_buckets):
+    """Test put_table_bucket_policy tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    resource_policy = '{"Version": "2012-10-17", "Statement": []}'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await put_table_bucket_policy(
+            table_bucket_arn=table_bucket_arn, resource_policy=resource_policy, region_name=region
+        )
+
+
+@pytest.mark.asyncio
+async def test_delete_table_bucket_policy_readonly_mode(setup_app_readonly, mock_table_buckets):
+    """Test delete_table_bucket_policy tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await delete_table_bucket_policy(table_bucket_arn=table_bucket_arn, region_name=region)
+
+
+@pytest.mark.asyncio
+async def test_delete_table_policy_readonly_mode(setup_app_readonly, mock_tables):
+    """Test delete_table_policy tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await delete_table_policy(
+            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_table_maintenance_configuration_readonly_mode(setup_app_readonly, mock_tables):
+    """Test get_table_maintenance_configuration tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await get_table_maintenance_configuration(
+            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_table_maintenance_job_status_readonly_mode(setup_app_readonly, mock_tables):
+    """Test get_table_maintenance_job_status tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await get_table_maintenance_job_status(
+            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_table_metadata_location_readonly_mode(setup_app_readonly, mock_tables):
+    """Test get_table_metadata_location tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await get_table_metadata_location(
+            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_table_policy_readonly_mode(setup_app_readonly, mock_tables):
+    """Test get_table_policy tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await get_table_policy(
+            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+        )
+
+
+@pytest.mark.asyncio
+async def test_put_table_maintenance_configuration_readonly_mode(setup_app_readonly, mock_tables):
+    """Test put_table_maintenance_configuration tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    maintenance_type = TableMaintenanceType.ICEBERG_COMPACTION
+    value = TableMaintenanceConfigurationValue(status=MaintenanceStatus.ENABLED, settings=None)
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await put_table_maintenance_configuration(
+            table_bucket_arn=table_bucket_arn,
+            namespace=namespace,
+            name=name,
+            maintenance_type=maintenance_type,
+            value=value,
+            region_name=region,
+        )
+
+
+@pytest.mark.asyncio
+async def test_rename_table_readonly_mode(setup_app_readonly, mock_tables):
+    """Test rename_table tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    new_name = 'new-table'
+    new_namespace_name = 'new-namespace'
+    version_token = 'test-version'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await rename_table(
+            table_bucket_arn=table_bucket_arn,
+            namespace=namespace,
+            name=name,
+            new_name=new_name,
+            new_namespace_name=new_namespace_name,
+            version_token=version_token,
+            region_name=region,
+        )
+
+
+@pytest.mark.asyncio
+async def test_update_table_metadata_location_readonly_mode(setup_app_readonly, mock_tables):
+    """Test update_table_metadata_location tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    metadata_location = 's3://test-bucket/metadata.json'
+    version_token = 'test-version'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await update_table_metadata_location(
+            table_bucket_arn=table_bucket_arn,
+            namespace=namespace,
+            name=name,
+            metadata_location=metadata_location,
+            version_token=version_token,
+            region_name=region,
+        )
+
+
+@pytest.mark.asyncio
+async def test_modify_database_readonly_mode(setup_app_readonly):
+    """Test modify_database tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    query = 'INSERT INTO test_table VALUES (1, "test")'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await modify_database(
+            table_bucket_arn=table_bucket_arn,
+            namespace=namespace,
+            query=query,
+            region_name=region,
+        )
+
+
+@pytest.mark.asyncio
+async def test_import_csv_to_table_readonly_mode(setup_app_readonly):
+    """Test import_csv_to_table tool when allow_write is disabled."""
+    # Arrange
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    s3_url = 's3://test-bucket/test.csv'
+    region = 'us-west-2'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await import_csv_to_table(
+            table_bucket_arn=table_bucket_arn,
+            namespace=namespace,
+            name=name,
+            s3_url=s3_url,
+            region_name=region,
+        )
