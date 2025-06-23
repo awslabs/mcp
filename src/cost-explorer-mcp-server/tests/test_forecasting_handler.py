@@ -455,3 +455,27 @@ class TestCostForecast:
         # Verify error response
         assert 'error' in result
         assert error_message in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.forecasting_handler.get_cost_explorer_client')
+    async def test_get_cost_forecast_client_creation_exception(self, mock_get_client, future_date_range):
+        """Test cost forecast with client creation exception."""
+        ctx = MagicMock()
+
+        # Mock client creation to raise an exception
+        mock_get_client.side_effect = Exception('Client creation failed')
+
+        result = await get_cost_forecast(
+            ctx,
+            future_date_range,
+            granularity='MONTHLY',
+            filter_expression=None,
+            metric='UNBLENDED_COST',
+            prediction_interval_level=80,
+        )
+
+        # Verify error handling
+        assert isinstance(result, dict)
+        assert 'error' in result
+        assert 'Error generating cost forecast' in result['error']
+        assert 'Client creation failed' in result['error']

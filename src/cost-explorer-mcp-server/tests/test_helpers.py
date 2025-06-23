@@ -26,6 +26,7 @@ from awslabs.cost_explorer_mcp_server.helpers import (
     validate_comparison_date_range,
     validate_date_format,
     validate_date_range,
+    validate_dimension_key,
     validate_expression,
     validate_forecast_date_range,
     validate_group_by,
@@ -1164,3 +1165,31 @@ class TestValidateComparisonDateRange:
         # Should be valid
         assert is_valid
         assert error == ''
+
+
+class TestValidateDimensionKey:
+    """Tests for the validate_dimension_key function."""
+
+    def test_validate_dimension_key_valid(self):
+        """Test validation with valid dimension key."""
+        result = validate_dimension_key('SERVICE')
+        assert result == {}
+
+    def test_validate_dimension_key_valid_lowercase(self):
+        """Test validation with valid dimension key in lowercase."""
+        result = validate_dimension_key('service')
+        assert result == {}
+
+    def test_validate_dimension_key_invalid(self):
+        """Test validation with invalid dimension key."""
+        result = validate_dimension_key('INVALID_DIMENSION')
+        assert 'error' in result
+        assert 'Invalid dimension key' in result['error']
+        assert 'INVALID_DIMENSION' in result['error']
+
+    def test_validate_dimension_key_exception(self):
+        """Test validation with exception during processing."""
+        # Test with None to trigger an exception
+        result = validate_dimension_key(None)
+        assert 'error' in result
+        assert 'Error validating dimension key' in result['error']

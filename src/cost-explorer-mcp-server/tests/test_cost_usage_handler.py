@@ -1258,3 +1258,26 @@ class TestCostAndUsage:
         assert 'GroupBy' in call_args
         assert call_args['GroupBy'][0]['Type'] == 'DIMENSION'
         assert call_args['GroupBy'][0]['Key'] == 'SERVICE'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.cost_explorer_mcp_server.cost_usage_handler.get_cost_explorer_client')
+    async def test_get_cost_and_usage_client_exception(self, mock_get_client, valid_date_range):
+        """Test cost and usage with client creation exception."""
+        ctx = MagicMock()
+        
+        # Mock client creation to raise an exception
+        mock_get_client.side_effect = Exception('Client creation failed')
+        
+        result = await get_cost_and_usage(
+            ctx,
+            valid_date_range,
+            granularity='MONTHLY',
+            metric='UnblendedCost',
+            group_by='SERVICE',
+            filter_expression=None,
+        )
+        
+        # Should return error due to client creation failure
+        assert 'error' in result
+        assert 'Error generating cost report' in result['error']
+        assert 'Client creation failed' in result['error']
