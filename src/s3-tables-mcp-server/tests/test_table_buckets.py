@@ -15,21 +15,21 @@
 """Tests for the table_buckets module."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from awslabs.s3_tables_mcp_server.models import (
+    MaintenanceStatus,
+    TableBucketMaintenanceConfigurationValue,
+    TableBucketMaintenanceType,
+)
 from awslabs.s3_tables_mcp_server.table_buckets import (
     create_table_bucket,
     delete_table_bucket,
-    put_table_bucket_maintenance_configuration,
+    delete_table_bucket_policy,
     get_table_bucket,
     get_table_bucket_maintenance_configuration,
     get_table_bucket_policy,
-    delete_table_bucket_policy,
+    put_table_bucket_maintenance_configuration,
 )
-from awslabs.s3_tables_mcp_server.models import (
-    TableBucketMaintenanceConfigurationValue,
-    TableBucketMaintenanceType,
-    MaintenanceStatus,
-)
+from unittest.mock import MagicMock, patch
 
 
 class TestCreateTableBucket:
@@ -45,11 +45,13 @@ class TestCreateTableBucket:
             'tableBucket': {
                 'arn': 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket',
                 'name': 'test-bucket',
-                'createdAt': '2023-01-01T00:00:00Z'
+                'createdAt': '2023-01-01T00:00:00Z',
             }
         }
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.create_table_bucket.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -70,11 +72,13 @@ class TestCreateTableBucket:
         expected_response = {
             'tableBucket': {
                 'arn': 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket',
-                'name': 'test-bucket'
+                'name': 'test-bucket',
             }
         }
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.create_table_bucket.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -93,7 +97,9 @@ class TestCreateTableBucket:
         name = 'test-bucket'
         error_message = 'Bucket name already exists'
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.create_table_bucket.side_effect = Exception(error_message)
             mock_get_client.return_value = mock_client
@@ -111,7 +117,9 @@ class TestCreateTableBucket:
         name = 'complex-bucket-name-with-dashes-and-underscores'
         region = 'us-east-1'
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.create_table_bucket.return_value = {'tableBucket': {'name': name}}
             mock_get_client.return_value = mock_client
@@ -133,12 +141,11 @@ class TestDeleteTableBucket:
         # Arrange
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         region = 'us-west-2'
-        expected_response = {
-            'status': 'success',
-            'message': 'Table bucket deleted successfully'
-        }
+        expected_response = {'status': 'success', 'message': 'Table bucket deleted successfully'}
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_table_bucket.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -149,7 +156,9 @@ class TestDeleteTableBucket:
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
-            mock_client.delete_table_bucket.assert_called_once_with(tableBucketARN=table_bucket_arn)
+            mock_client.delete_table_bucket.assert_called_once_with(
+                tableBucketARN=table_bucket_arn
+            )
 
     @pytest.mark.asyncio
     async def test_successful_table_bucket_deletion_with_default_region(self):
@@ -158,7 +167,9 @@ class TestDeleteTableBucket:
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         expected_response = {'status': 'success'}
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_table_bucket.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -177,7 +188,9 @@ class TestDeleteTableBucket:
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         error_message = 'Table bucket not found'
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_table_bucket.side_effect = Exception(error_message)
             mock_get_client.return_value = mock_client
@@ -198,16 +211,13 @@ class TestPutTableBucketMaintenanceConfiguration:
         # Arrange
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
-        value = TableBucketMaintenanceConfigurationValue(
-            status=MaintenanceStatus.ENABLED
-        )
+        value = TableBucketMaintenanceConfigurationValue(status=MaintenanceStatus.ENABLED)
         region = 'us-west-2'
-        expected_response = {
-            'status': 'success',
-            'message': 'Maintenance configuration updated'
-        }
+        expected_response = {'status': 'success', 'message': 'Maintenance configuration updated'}
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.put_table_bucket_maintenance_configuration.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -235,9 +245,13 @@ class TestPutTableBucketMaintenanceConfiguration:
         value = TableBucketMaintenanceConfigurationValue(status=MaintenanceStatus.ENABLED)
         error_message = 'Invalid maintenance configuration'
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
-            mock_client.put_table_bucket_maintenance_configuration.side_effect = Exception(error_message)
+            mock_client.put_table_bucket_maintenance_configuration.side_effect = Exception(
+                error_message
+            )
             mock_get_client.return_value = mock_client
 
             # Act
@@ -246,7 +260,10 @@ class TestPutTableBucketMaintenanceConfiguration:
             )
 
             # Assert
-            assert result == {'error': error_message, 'tool': 'put_table_bucket_maintenance_configuration'}
+            assert result == {
+                'error': error_message,
+                'tool': 'put_table_bucket_maintenance_configuration',
+            }
 
 
 class TestGetTableBucket:
@@ -263,11 +280,13 @@ class TestGetTableBucket:
                 'arn': table_bucket_arn,
                 'name': 'test-bucket',
                 'createdAt': '2023-01-01T00:00:00Z',
-                'ownerAccountId': '123456789012'
+                'ownerAccountId': '123456789012',
             }
         }
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_table_bucket.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -287,7 +306,9 @@ class TestGetTableBucket:
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         error_message = 'Table bucket not found'
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_table_bucket.side_effect = Exception(error_message)
             mock_get_client.return_value = mock_client
@@ -311,14 +332,13 @@ class TestGetTableBucketMaintenanceConfiguration:
         expected_response = {
             'maintenanceConfiguration': {
                 'type': 'COMPACTION',
-                'value': {
-                    'enabled': True,
-                    'scheduleExpression': 'cron(0 2 * * ? *)'
-                }
+                'value': {'enabled': True, 'scheduleExpression': 'cron(0 2 * * ? *)'},
             }
         }
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_table_bucket_maintenance_configuration.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -340,16 +360,23 @@ class TestGetTableBucketMaintenanceConfiguration:
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         error_message = 'Maintenance configuration not found'
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
-            mock_client.get_table_bucket_maintenance_configuration.side_effect = Exception(error_message)
+            mock_client.get_table_bucket_maintenance_configuration.side_effect = Exception(
+                error_message
+            )
             mock_get_client.return_value = mock_client
 
             # Act
             result = await get_table_bucket_maintenance_configuration(table_bucket_arn)
 
             # Assert
-            assert result == {'error': error_message, 'tool': 'get_table_bucket_maintenance_configuration'}
+            assert result == {
+                'error': error_message,
+                'tool': 'get_table_bucket_maintenance_configuration',
+            }
 
 
 class TestGetTableBucketPolicy:
@@ -369,13 +396,15 @@ class TestGetTableBucketPolicy:
                         'Effect': 'Allow',
                         'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
                         'Action': 's3tables:*',
-                        'Resource': table_bucket_arn
+                        'Resource': table_bucket_arn,
                     }
-                ]
+                ],
             }
         }
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_table_bucket_policy.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -386,7 +415,9 @@ class TestGetTableBucketPolicy:
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
-            mock_client.get_table_bucket_policy.assert_called_once_with(tableBucketARN=table_bucket_arn)
+            mock_client.get_table_bucket_policy.assert_called_once_with(
+                tableBucketARN=table_bucket_arn
+            )
 
     @pytest.mark.asyncio
     async def test_exception_handling(self):
@@ -395,7 +426,9 @@ class TestGetTableBucketPolicy:
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         error_message = 'Policy not found'
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_table_bucket_policy.side_effect = Exception(error_message)
             mock_get_client.return_value = mock_client
@@ -416,12 +449,11 @@ class TestDeleteTableBucketPolicy:
         # Arrange
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         region = 'us-west-2'
-        expected_response = {
-            'status': 'success',
-            'message': 'Policy deleted successfully'
-        }
+        expected_response = {'status': 'success', 'message': 'Policy deleted successfully'}
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_table_bucket_policy.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -432,7 +464,9 @@ class TestDeleteTableBucketPolicy:
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
-            mock_client.delete_table_bucket_policy.assert_called_once_with(tableBucketARN=table_bucket_arn)
+            mock_client.delete_table_bucket_policy.assert_called_once_with(
+                tableBucketARN=table_bucket_arn
+            )
 
     @pytest.mark.asyncio
     async def test_successful_policy_deletion_with_default_region(self):
@@ -441,7 +475,9 @@ class TestDeleteTableBucketPolicy:
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         expected_response = {'status': 'success'}
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_table_bucket_policy.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -460,7 +496,9 @@ class TestDeleteTableBucketPolicy:
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         error_message = 'Policy not found'
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_table_bucket_policy.side_effect = Exception(error_message)
             mock_get_client.return_value = mock_client
@@ -478,7 +516,9 @@ class TestDeleteTableBucketPolicy:
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         expected_response = {}
 
-        with patch('awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.table_buckets.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_table_bucket_policy.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -487,4 +527,4 @@ class TestDeleteTableBucketPolicy:
             result = await delete_table_bucket_policy(table_bucket_arn)
 
             # Assert
-            assert result == expected_response 
+            assert result == expected_response

@@ -20,8 +20,8 @@ It handles query execution, result retrieval, and proper formatting of responses
 
 import os
 from . import __version__
-from .config import AthenaConfig
 from .engines.athena import AthenaEngine
+from .engines.config import AthenaConfig
 from typing import Any, Dict, Optional
 
 

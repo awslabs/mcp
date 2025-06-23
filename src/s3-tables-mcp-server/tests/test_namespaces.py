@@ -15,12 +15,12 @@
 """Tests for the namespaces module."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from awslabs.s3_tables_mcp_server.namespaces import (
     create_namespace,
     delete_namespace,
     get_namespace,
 )
+from unittest.mock import MagicMock, patch
 
 
 class TestCreateNamespace:
@@ -36,10 +36,12 @@ class TestCreateNamespace:
         expected_response = {
             'namespace': 'test-namespace',
             'createdAt': '2023-01-01T00:00:00Z',
-            'createdBy': 'test-user'
+            'createdBy': 'test-user',
         }
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.create_namespace.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -51,8 +53,7 @@ class TestCreateNamespace:
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.create_namespace.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=[namespace]
+                tableBucketARN=table_bucket_arn, namespace=[namespace]
             )
 
     @pytest.mark.asyncio
@@ -61,12 +62,11 @@ class TestCreateNamespace:
         # Arrange
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         namespace = 'test-namespace'
-        expected_response = {
-            'namespace': 'test-namespace',
-            'createdAt': '2023-01-01T00:00:00Z'
-        }
+        expected_response = {'namespace': 'test-namespace', 'createdAt': '2023-01-01T00:00:00Z'}
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.create_namespace.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -86,7 +86,9 @@ class TestCreateNamespace:
         namespace = 'test-namespace'
         error_message = 'Namespace already exists'
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.create_namespace.side_effect = Exception(error_message)
             mock_get_client.return_value = mock_client
@@ -105,7 +107,9 @@ class TestCreateNamespace:
         namespace = 'complex-namespace-name-with-dashes'
         region = 'us-east-1'
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.create_namespace.return_value = {'namespace': namespace}
             mock_get_client.return_value = mock_client
@@ -116,8 +120,7 @@ class TestCreateNamespace:
             # Assert
             assert result == {'namespace': namespace}
             mock_client.create_namespace.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=[namespace]
+                tableBucketARN=table_bucket_arn, namespace=[namespace]
             )
 
 
@@ -131,12 +134,11 @@ class TestDeleteNamespace:
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         namespace = 'test-namespace'
         region = 'us-west-2'
-        expected_response = {
-            'status': 'success',
-            'message': 'Namespace deleted successfully'
-        }
+        expected_response = {'status': 'success', 'message': 'Namespace deleted successfully'}
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_namespace.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -148,8 +150,7 @@ class TestDeleteNamespace:
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.delete_namespace.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace
+                tableBucketARN=table_bucket_arn, namespace=namespace
             )
 
     @pytest.mark.asyncio
@@ -160,7 +161,9 @@ class TestDeleteNamespace:
         namespace = 'test-namespace'
         expected_response = {'status': 'success'}
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_namespace.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -180,7 +183,9 @@ class TestDeleteNamespace:
         namespace = 'test-namespace'
         error_message = 'Namespace not found'
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_namespace.side_effect = Exception(error_message)
             mock_get_client.return_value = mock_client
@@ -199,7 +204,9 @@ class TestDeleteNamespace:
         namespace = 'test-namespace'
         expected_response = {}
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.delete_namespace.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -226,10 +233,12 @@ class TestGetNamespace:
             'createdAt': '2023-01-01T00:00:00Z',
             'createdBy': 'test-user',
             'ownerAccountId': '123456789012',
-            'namespaceId': 'ns-1234567890abcdef'
+            'namespaceId': 'ns-1234567890abcdef',
         }
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_namespace.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -241,8 +250,7 @@ class TestGetNamespace:
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.get_namespace.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace
+                tableBucketARN=table_bucket_arn, namespace=namespace
             )
 
     @pytest.mark.asyncio
@@ -251,12 +259,11 @@ class TestGetNamespace:
         # Arrange
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         namespace = 'test-namespace'
-        expected_response = {
-            'namespace': 'test-namespace',
-            'createdAt': '2023-01-01T00:00:00Z'
-        }
+        expected_response = {'namespace': 'test-namespace', 'createdAt': '2023-01-01T00:00:00Z'}
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_namespace.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -276,7 +283,9 @@ class TestGetNamespace:
         namespace = 'test-namespace'
         error_message = 'Namespace not found'
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_namespace.side_effect = Exception(error_message)
             mock_get_client.return_value = mock_client
@@ -302,14 +311,13 @@ class TestGetNamespace:
             'tableBucketId': 'tb-1234567890abcdef',
             'additionalMetadata': {
                 'description': 'Test namespace',
-                'tags': {
-                    'environment': 'test',
-                    'project': 's3-tables'
-                }
-            }
+                'tags': {'environment': 'test', 'project': 's3-tables'},
+            },
         }
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_namespace.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -330,7 +338,9 @@ class TestGetNamespace:
         namespace = 'test-namespace'
         expected_response = {}
 
-        with patch('awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client') as mock_get_client:
+        with patch(
+            'awslabs.s3_tables_mcp_server.namespaces.get_s3tables_client'
+        ) as mock_get_client:
             mock_client = MagicMock()
             mock_client.get_namespace.return_value = expected_response
             mock_get_client.return_value = mock_client
@@ -339,4 +349,4 @@ class TestGetNamespace:
             result = await get_namespace(table_bucket_arn, namespace)
 
             # Assert
-            assert result == expected_response 
+            assert result == expected_response

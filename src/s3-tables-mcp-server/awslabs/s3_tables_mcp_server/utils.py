@@ -80,3 +80,19 @@ def get_sts_client(region_name: str = None) -> boto3.client:
     config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
     session = boto3.Session()
     return session.client('sts', region_name=region, config=config)
+
+
+def get_athena_client(region_name: str = None) -> boto3.client:
+    """Create a boto3 Athena client.
+
+    Args:
+        region_name: Optional AWS region name. If not provided, uses AWS_REGION environment variable
+                    or defaults to 'us-east-1'.
+
+    Returns:
+        boto3.client: Configured Athena client
+    """
+    region = region_name or os.getenv('AWS_REGION') or 'us-east-1'
+    config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
+    session = boto3.Session()
+    return session.client('athena', region_name=region, config=config)

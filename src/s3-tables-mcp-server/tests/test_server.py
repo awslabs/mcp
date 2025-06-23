@@ -164,9 +164,7 @@ async def test_create_table_bucket(mock_table_buckets):
 
     # Assert
     assert result == expected_response
-    mock_table_buckets.create_table_bucket.assert_called_once_with(
-        name=name, region_name=region
-    )
+    mock_table_buckets.create_table_bucket.assert_called_once_with(name=name, region_name=region)
 
 
 @pytest.mark.asyncio

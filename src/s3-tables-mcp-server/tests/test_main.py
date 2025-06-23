@@ -48,7 +48,6 @@ class TestMain:
             patch(
                 'awslabs.s3_tables_mcp_server.server.app.run', side_effect=Exception('Test error')
             ),
-            patch('builtins.print') as mock_print,
         ):
             try:
                 main()

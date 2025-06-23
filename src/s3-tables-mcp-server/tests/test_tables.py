@@ -15,12 +15,21 @@
 """Tests for the tables module."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from awslabs.s3_tables_mcp_server.models import (
+    IcebergMetadata,
+    IcebergSchema,
+    MaintenanceStatus,
+    OpenTableFormat,
+    SchemaField,
+    TableMaintenanceConfigurationValue,
+    TableMaintenanceType,
+    TableMetadata,
+)
 from awslabs.s3_tables_mcp_server.tables import (
     create_table,
     delete_table,
-    get_table,
     delete_table_policy,
+    get_table,
     get_table_maintenance_configuration,
     get_table_maintenance_job_status,
     get_table_metadata_location,
@@ -29,16 +38,7 @@ from awslabs.s3_tables_mcp_server.tables import (
     rename_table,
     update_table_metadata_location,
 )
-from awslabs.s3_tables_mcp_server.models import (
-    OpenTableFormat,
-    TableMaintenanceConfigurationValue,
-    TableMaintenanceType,
-    TableMetadata,
-    IcebergMetadata,
-    IcebergSchema,
-    SchemaField,
-    MaintenanceStatus,
-)
+from unittest.mock import MagicMock, patch
 
 
 class TestCreateTable:
@@ -57,7 +57,7 @@ class TestCreateTable:
             'table': {
                 'name': 'test-table',
                 'namespace': 'test-namespace',
-                'createdAt': '2023-01-01T00:00:00Z'
+                'createdAt': '2023-01-01T00:00:00Z',
             }
         }
 
@@ -67,7 +67,9 @@ class TestCreateTable:
             mock_get_client.return_value = mock_client
 
             # Act
-            result = await create_table(table_bucket_arn, namespace, name, format, region_name=region)
+            result = await create_table(
+                table_bucket_arn, namespace, name, format, region_name=region
+            )
 
             # Assert
             assert result == expected_response
@@ -76,7 +78,7 @@ class TestCreateTable:
                 tableBucketARN=table_bucket_arn,
                 namespace=namespace,
                 name=name,
-                format=format.value
+                format=format.value,
             )
 
     @pytest.mark.asyncio
@@ -87,19 +89,17 @@ class TestCreateTable:
         namespace = 'test-namespace'
         name = 'test-table'
         format = OpenTableFormat.ICEBERG
-        
+
         # Create metadata
-        schema_field = SchemaField(name="id", type="int", nullable=False)
+        schema_field = SchemaField(name='id', type='int', nullable=False)
         schema = IcebergSchema(fields=[schema_field])
-        metadata = TableMetadata(
-            iceberg=IcebergMetadata(schema=schema)
-        )
+        metadata = TableMetadata(iceberg=IcebergMetadata(schema=schema))
 
         expected_response = {
             'table': {
                 'name': 'test-table',
                 'namespace': 'test-namespace',
-                'metadata': metadata.model_dump(by_alias=True, exclude_none=True)
+                'metadata': metadata.model_dump(by_alias=True, exclude_none=True),
             }
         }
 
@@ -114,7 +114,9 @@ class TestCreateTable:
             # Assert
             assert result == expected_response
             call_args = mock_client.create_table.call_args
-            assert call_args[1]['metadata'] == metadata.model_dump(by_alias=True, exclude_none=True)
+            assert call_args[1]['metadata'] == metadata.model_dump(
+                by_alias=True, exclude_none=True
+            )
 
     @pytest.mark.asyncio
     async def test_exception_handling(self):
@@ -149,10 +151,7 @@ class TestDeleteTable:
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
-        expected_response = {
-            'status': 'success',
-            'message': 'Table deleted successfully'
-        }
+        expected_response = {'status': 'success', 'message': 'Table deleted successfully'}
 
         with patch('awslabs.s3_tables_mcp_server.tables.get_s3tables_client') as mock_get_client:
             mock_client = MagicMock()
@@ -166,9 +165,7 @@ class TestDeleteTable:
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.delete_table.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace,
-                name=name
+                tableBucketARN=table_bucket_arn, namespace=namespace, name=name
             )
 
     @pytest.mark.asyncio
@@ -231,7 +228,7 @@ class TestGetTable:
                 'name': 'test-table',
                 'namespace': 'test-namespace',
                 'createdAt': '2023-01-01T00:00:00Z',
-                'ownerAccountId': '123456789012'
+                'ownerAccountId': '123456789012',
             }
         }
 
@@ -247,9 +244,7 @@ class TestGetTable:
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.get_table.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace,
-                name=name
+                tableBucketARN=table_bucket_arn, namespace=namespace, name=name
             )
 
     @pytest.mark.asyncio
@@ -284,10 +279,7 @@ class TestDeleteTablePolicy:
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
-        expected_response = {
-            'status': 'success',
-            'message': 'Policy deleted successfully'
-        }
+        expected_response = {'status': 'success', 'message': 'Policy deleted successfully'}
 
         with patch('awslabs.s3_tables_mcp_server.tables.get_s3tables_client') as mock_get_client:
             mock_client = MagicMock()
@@ -301,9 +293,7 @@ class TestDeleteTablePolicy:
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.delete_table_policy.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace,
-                name=name
+                tableBucketARN=table_bucket_arn, namespace=namespace, name=name
             )
 
     @pytest.mark.asyncio
@@ -341,10 +331,7 @@ class TestGetTableMaintenanceConfiguration:
         expected_response = {
             'maintenanceConfiguration': {
                 'type': 'COMPACTION',
-                'value': {
-                    'enabled': True,
-                    'scheduleExpression': 'cron(0 2 * * ? *)'
-                }
+                'value': {'enabled': True, 'scheduleExpression': 'cron(0 2 * * ? *)'},
             }
         }
 
@@ -354,15 +341,15 @@ class TestGetTableMaintenanceConfiguration:
             mock_get_client.return_value = mock_client
 
             # Act
-            result = await get_table_maintenance_configuration(table_bucket_arn, namespace, name, region)
+            result = await get_table_maintenance_configuration(
+                table_bucket_arn, namespace, name, region
+            )
 
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.get_table_maintenance_configuration.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace,
-                name=name
+                tableBucketARN=table_bucket_arn, namespace=namespace, name=name
             )
 
     @pytest.mark.asyncio
@@ -383,7 +370,10 @@ class TestGetTableMaintenanceConfiguration:
             result = await get_table_maintenance_configuration(table_bucket_arn, namespace, name)
 
             # Assert
-            assert result == {'error': error_message, 'tool': 'get_table_maintenance_configuration'}
+            assert result == {
+                'error': error_message,
+                'tool': 'get_table_maintenance_configuration',
+            }
 
 
 class TestGetTableMaintenanceJobStatus:
@@ -398,10 +388,7 @@ class TestGetTableMaintenanceJobStatus:
         name = 'test-table'
         region = 'us-west-2'
         expected_response = {
-            'maintenanceJobStatus': {
-                'status': 'RUNNING',
-                'startedAt': '2023-01-01T00:00:00Z'
-            }
+            'maintenanceJobStatus': {'status': 'RUNNING', 'startedAt': '2023-01-01T00:00:00Z'}
         }
 
         with patch('awslabs.s3_tables_mcp_server.tables.get_s3tables_client') as mock_get_client:
@@ -410,15 +397,15 @@ class TestGetTableMaintenanceJobStatus:
             mock_get_client.return_value = mock_client
 
             # Act
-            result = await get_table_maintenance_job_status(table_bucket_arn, namespace, name, region)
+            result = await get_table_maintenance_job_status(
+                table_bucket_arn, namespace, name, region
+            )
 
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.get_table_maintenance_job_status.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace,
-                name=name
+                tableBucketARN=table_bucket_arn, namespace=namespace, name=name
             )
 
     @pytest.mark.asyncio
@@ -453,9 +440,7 @@ class TestGetTableMetadataLocation:
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
-        expected_response = {
-            'metadataLocation': 's3://test-bucket/metadata/table-metadata.json'
-        }
+        expected_response = {'metadataLocation': 's3://test-bucket/metadata/table-metadata.json'}
 
         with patch('awslabs.s3_tables_mcp_server.tables.get_s3tables_client') as mock_get_client:
             mock_client = MagicMock()
@@ -469,9 +454,7 @@ class TestGetTableMetadataLocation:
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.get_table_metadata_location.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace,
-                name=name
+                tableBucketARN=table_bucket_arn, namespace=namespace, name=name
             )
 
     @pytest.mark.asyncio
@@ -514,9 +497,9 @@ class TestGetTablePolicy:
                         'Effect': 'Allow',
                         'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
                         'Action': 's3tables:*',
-                        'Resource': f'{table_bucket_arn}/table/{namespace}/{name}'
+                        'Resource': f'{table_bucket_arn}/table/{namespace}/{name}',
                     }
-                ]
+                ],
             }
         }
 
@@ -532,9 +515,7 @@ class TestGetTablePolicy:
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.get_table_policy.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace,
-                name=name
+                tableBucketARN=table_bucket_arn, namespace=namespace, name=name
             )
 
     @pytest.mark.asyncio
@@ -569,14 +550,9 @@ class TestPutTableMaintenanceConfiguration:
         namespace = 'test-namespace'
         name = 'test-table'
         maintenance_type = TableMaintenanceType.ICEBERG_COMPACTION
-        value = TableMaintenanceConfigurationValue(
-            status=MaintenanceStatus.ENABLED
-        )
+        value = TableMaintenanceConfigurationValue(status=MaintenanceStatus.ENABLED)
         region = 'us-west-2'
-        expected_response = {
-            'status': 'success',
-            'message': 'Maintenance configuration updated'
-        }
+        expected_response = {'status': 'success', 'message': 'Maintenance configuration updated'}
 
         with patch('awslabs.s3_tables_mcp_server.tables.get_s3tables_client') as mock_get_client:
             mock_client = MagicMock()
@@ -621,7 +597,10 @@ class TestPutTableMaintenanceConfiguration:
             )
 
             # Assert
-            assert result == {'error': error_message, 'tool': 'put_table_maintenance_configuration'}
+            assert result == {
+                'error': error_message,
+                'tool': 'put_table_maintenance_configuration',
+            }
 
 
 class TestRenameTable:
@@ -636,12 +615,7 @@ class TestRenameTable:
         name = 'old-table-name'
         new_name = 'new-table-name'
         region = 'us-west-2'
-        expected_response = {
-            'table': {
-                'name': 'new-table-name',
-                'namespace': 'test-namespace'
-            }
-        }
+        expected_response = {'table': {'name': 'new-table-name', 'namespace': 'test-namespace'}}
 
         with patch('awslabs.s3_tables_mcp_server.tables.get_s3tables_client') as mock_get_client:
             mock_client = MagicMock()
@@ -649,16 +623,15 @@ class TestRenameTable:
             mock_get_client.return_value = mock_client
 
             # Act
-            result = await rename_table(table_bucket_arn, namespace, name, new_name, region_name=region)
+            result = await rename_table(
+                table_bucket_arn, namespace, name, new_name, region_name=region
+            )
 
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
             mock_client.rename_table.assert_called_once_with(
-                tableBucketARN=table_bucket_arn,
-                namespace=namespace,
-                name=name,
-                newName=new_name
+                tableBucketARN=table_bucket_arn, namespace=namespace, name=name, newName=new_name
             )
 
     @pytest.mark.asyncio
@@ -680,8 +653,7 @@ class TestRenameTable:
 
             # Act
             result = await rename_table(
-                table_bucket_arn, namespace, name, new_name, 
-                new_namespace_name, version_token
+                table_bucket_arn, namespace, name, new_name, new_namespace_name, version_token
             )
 
             # Assert
@@ -725,10 +697,7 @@ class TestUpdateTableMetadataLocation:
         metadata_location = 's3://test-bucket/metadata/new-metadata.json'
         version_token = 'test-version-token'
         region = 'us-west-2'
-        expected_response = {
-            'status': 'success',
-            'message': 'Metadata location updated'
-        }
+        expected_response = {'status': 'success', 'message': 'Metadata location updated'}
 
         with patch('awslabs.s3_tables_mcp_server.tables.get_s3tables_client') as mock_get_client:
             mock_client = MagicMock()
@@ -748,7 +717,7 @@ class TestUpdateTableMetadataLocation:
                 namespace=namespace,
                 name=name,
                 metadataLocation=metadata_location,
-                versionToken=version_token
+                versionToken=version_token,
             )
 
     @pytest.mark.asyncio
@@ -773,4 +742,4 @@ class TestUpdateTableMetadataLocation:
             )
 
             # Assert
-            assert result == {'error': error_message, 'tool': 'update_table_metadata_location'} 
+            assert result == {'error': error_message, 'tool': 'update_table_metadata_location'}

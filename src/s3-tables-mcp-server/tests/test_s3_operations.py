@@ -15,8 +15,8 @@
 """Tests for the s3_operations module."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from awslabs.s3_tables_mcp_server.s3_operations import get_bucket_metadata_table_configuration
+from unittest.mock import MagicMock, patch
 
 
 class TestGetBucketMetadataTableConfiguration:
@@ -29,10 +29,7 @@ class TestGetBucketMetadataTableConfiguration:
         bucket = 'test-bucket'
         region = 'us-west-2'
         expected_response = {
-            'MetadataTableConfiguration': {
-                'Status': 'ENABLED',
-                'TableFormat': 'ICEBERG'
-            }
+            'MetadataTableConfiguration': {'Status': 'ENABLED', 'TableFormat': 'ICEBERG'}
         }
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
@@ -46,18 +43,16 @@ class TestGetBucketMetadataTableConfiguration:
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
-            mock_client.get_bucket_metadata_table_configuration.assert_called_once_with(Bucket=bucket)
+            mock_client.get_bucket_metadata_table_configuration.assert_called_once_with(
+                Bucket=bucket
+            )
 
     @pytest.mark.asyncio
     async def test_successful_configuration_retrieval_with_default_region(self):
         """Test successful retrieval with default region."""
         # Arrange
         bucket = 'test-bucket'
-        expected_response = {
-            'MetadataTableConfiguration': {
-                'Status': 'DISABLED'
-            }
-        }
+        expected_response = {'MetadataTableConfiguration': {'Status': 'DISABLED'}}
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
             mock_client = MagicMock()
@@ -70,7 +65,9 @@ class TestGetBucketMetadataTableConfiguration:
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(None)
-            mock_client.get_bucket_metadata_table_configuration.assert_called_once_with(Bucket=bucket)
+            mock_client.get_bucket_metadata_table_configuration.assert_called_once_with(
+                Bucket=bucket
+            )
 
     @pytest.mark.asyncio
     async def test_empty_configuration_response(self):
@@ -99,15 +96,9 @@ class TestGetBucketMetadataTableConfiguration:
             'MetadataTableConfiguration': {
                 'Status': 'ENABLED',
                 'TableFormat': 'ICEBERG',
-                'AdditionalSettings': {
-                    'Compression': 'GZIP',
-                    'Partitioning': 'HIVE'
-                }
+                'AdditionalSettings': {'Compression': 'GZIP', 'Partitioning': 'HIVE'},
             },
-            'ResponseMetadata': {
-                'RequestId': 'test-request-id',
-                'HTTPStatusCode': 200
-            }
+            'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 200},
         }
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
@@ -132,14 +123,19 @@ class TestGetBucketMetadataTableConfiguration:
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
             mock_client = MagicMock()
-            mock_client.get_bucket_metadata_table_configuration.side_effect = Exception(error_message)
+            mock_client.get_bucket_metadata_table_configuration.side_effect = Exception(
+                error_message
+            )
             mock_get_client.return_value = mock_client
 
             # Act
             result = await get_bucket_metadata_table_configuration(bucket)
 
             # Assert
-            assert result == {'error': error_message, 'tool': 'get_bucket_metadata_table_configuration'}
+            assert result == {
+                'error': error_message,
+                'tool': 'get_bucket_metadata_table_configuration',
+            }
 
     @pytest.mark.asyncio
     async def test_client_initialization_with_region(self):
@@ -175,4 +171,6 @@ class TestGetBucketMetadataTableConfiguration:
             await get_bucket_metadata_table_configuration(bucket, region)
 
             # Assert
-            mock_client.get_bucket_metadata_table_configuration.assert_called_once_with(Bucket=bucket) 
+            mock_client.get_bucket_metadata_table_configuration.assert_called_once_with(
+                Bucket=bucket
+            )

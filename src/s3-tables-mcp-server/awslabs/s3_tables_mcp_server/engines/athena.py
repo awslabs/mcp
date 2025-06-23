@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import boto3
 import time
-from .. import __version__
-from ..config import AthenaConfig
-from botocore.config import Config
+from ..utils import get_athena_client
+from .config import AthenaConfig
 from typing import Any, Dict
 
 
@@ -40,12 +38,8 @@ class AthenaEngine:
     def _initialize_connection(self):
         """Initialize the Athena connection using the provided configuration."""
         try:
-            # Create boto3 client with user agent
-            session = boto3.Session()
-            config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
-
-            # Initialize Athena client
-            self._client = session.client('athena', region_name=self.config.region, config=config)
+            # Initialize Athena client using the utility function
+            self._client = get_athena_client(region_name=self.config.region)
 
         except Exception as e:
             raise ConnectionError(f'Failed to initialize Athena connection: {str(e)}')
@@ -76,12 +70,6 @@ class AthenaEngine:
             raise ConnectionError('No active connection to Athena')
 
         try:
-            print(f'\nExecuting Athena query: {query}')
-            print(f'Database: {self.config.database}')
-            print(f'Catalog: {self.config.catalog}')
-            print(f'Workgroup: {self.config.workgroup}')
-            print(f'Output location: {self.config.output_location}')
-
             # Start query execution
             response = self._client.start_query_execution(
                 QueryString=query,
@@ -94,7 +82,6 @@ class AthenaEngine:
             )
 
             query_execution_id = response['QueryExecutionId']
-            print(f'Query execution ID: {query_execution_id}')
 
             # Wait for query to complete
             while True:
@@ -102,7 +89,6 @@ class AthenaEngine:
                     QueryExecutionId=query_execution_id
                 )
                 state = query_status['QueryExecution']['Status']['State']
-                print(f'Query state: {state}')
 
                 if state in ['SUCCEEDED', 'FAILED', 'CANCELLED']:
                     break
@@ -148,14 +134,11 @@ class AthenaEngine:
             columns = [
                 col['Name'] for col in results['ResultSet']['ResultSetMetadata']['ColumnInfo']
             ]
-            print(f'\nColumns found: {columns}')
 
             # Get data from rows (skip header row)
             rows = []
             for row in results['ResultSet']['Rows'][1:]:
                 rows.append([field.get('VarCharValue', '') for field in row['Data']])
-
-            print(f'Number of rows found: {len(rows)}')
 
             return {
                 'columns': columns,
@@ -166,7 +149,6 @@ class AthenaEngine:
             }
 
         except Exception as e:
-            print(f'\nError in execute_query: {str(e)}')
             raise Exception(f'Error executing query: {str(e)}')
 
     def test_connection(self) -> bool:
@@ -179,6 +161,5 @@ class AthenaEngine:
             # Execute a simple query that should work in any Athena database
             self.execute_query('SELECT 1')
             return True
-        except Exception as e:
-            print(f'Connection test failed: {str(e)}')
+        except Exception:
             return False
