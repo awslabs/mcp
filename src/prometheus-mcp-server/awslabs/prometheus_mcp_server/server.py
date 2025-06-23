@@ -302,6 +302,7 @@ async def make_prometheus_request(
         requests.RequestException: If there's a network or HTTP error
         json.JSONDecodeError: If the response is not valid JSON
     """
+    global config
     if not config or not config.prometheus_url:
         raise ValueError('Prometheus URL not configured')
 
@@ -390,6 +391,7 @@ async def test_prometheus_connection():
     Returns:
         bool: True if connection is successful, False otherwise
     """
+    global config
     logger.info('Testing Prometheus connection...')
     try:
         await make_prometheus_request('label/__name__/values', params={})
@@ -504,6 +506,7 @@ async def execute_query(
     - `rate(node_cpu_seconds_total{mode="system"}[1m])` - CPU usage rate
     - `sum by(instance) (rate(node_network_receive_bytes_total[5m]))` - Network receive rate by instance
     """
+    global config
     try:
         logger.info(f'Executing instant query: {query}')
 
@@ -555,6 +558,7 @@ async def execute_range_query(
 
     This will return CPU usage rate sampled every 5 minutes over a 1-hour period.
     """
+    global config
     try:
         logger.info(f'Executing range query: {query} from {start} to {end} with step {step}')
 
@@ -594,6 +598,7 @@ async def list_metrics(ctx: Context) -> MetricsList:
     print('Available metrics:', metrics_response.metrics[:10])  # Show first 10 metrics
     ```
     """
+    global config
     try:
         logger.info('Listing all available metrics')
         max_retries = 3  # Default value
@@ -626,6 +631,7 @@ async def get_server_info(ctx: Context) -> ServerInfo:
     print(f'Connected to Prometheus at {info.prometheus_url} in region {info.aws_region}')
     ```
     """
+    global config
     try:
         logger.info('Retrieving server configuration information')
         if not config:
