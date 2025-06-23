@@ -79,26 +79,40 @@ Required field that must match the TABLE_ARN_PATTERN.
 """
 
 NAMESPACE_NAME_FIELD = Field(
-    ..., description='Namespace name', pattern=r'^[0-9a-z_]+$', min_length=1, max_length=255
+    ...,
+    description='The name of the namespace. Must be 1-255 characters long and contain only alphanumeric characters, underscores, and hyphens.',
+    min_length=1,
+    max_length=255,
+    pattern=r'^[a-zA-Z0-9_-]+$',
 )
 """
 Pydantic field for namespace name validation.
 Required field that must:
-- Contain only lowercase letters, numbers, and underscores
-- Have a maximum length of 255 characters
+- Be 1-255 characters long
+- Contain only alphanumeric characters, underscores, and hyphens
 """
 
 TABLE_NAME_FIELD = Field(
-    ..., description='Table name', pattern=TABLE_NAME_PATTERN, min_length=1, max_length=255
+    ...,
+    description='The name of the table. Must be 1-255 characters long and contain only alphanumeric characters, underscores, and hyphens.',
+    min_length=1,
+    max_length=255,
+    pattern=TABLE_NAME_PATTERN,
 )
 """
 Pydantic field for table name validation.
 Required field that must:
+- Be 1-255 characters long
+- Contain only alphanumeric characters, underscores, and hyphens
 - Match the TABLE_NAME_PATTERN
-- Have a maximum length of 255 characters
 """
 
-REGION_NAME_FIELD = Field(default=None, description='AWS region name')
+REGION_NAME_FIELD = Field(
+    None,
+    description='The AWS region name where the operation should be performed.',
+    min_length=1,
+    max_length=64,
+)
 """
 Pydantic field for AWS region name.
 Optional field that can be used to specify the AWS region for operations.

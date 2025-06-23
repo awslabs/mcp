@@ -34,17 +34,17 @@ from awslabs.s3_tables_mcp_server import (
     tables,
 )
 from awslabs.s3_tables_mcp_server.constants import (
+    NAMESPACE_NAME_FIELD,
     OUTPUT_LOCATION_FIELD,
     QUERY_FIELD,
-    S3_URL_FIELD,
-    WORKGROUP_FIELD,
-)
-from awslabs.s3_tables_mcp_server.models import (
-    NAMESPACE_NAME_FIELD,
     REGION_NAME_FIELD,
+    S3_URL_FIELD,
     TABLE_BUCKET_ARN_FIELD,
     TABLE_BUCKET_NAME_PATTERN,
     TABLE_NAME_FIELD,
+    WORKGROUP_FIELD,
+)
+from awslabs.s3_tables_mcp_server.models import (
     TableBucketMaintenanceConfigurationValue,
     TableBucketMaintenanceType,
     TableMaintenanceConfigurationValue,

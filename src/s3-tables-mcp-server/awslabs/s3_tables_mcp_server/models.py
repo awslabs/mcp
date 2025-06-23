@@ -19,42 +19,15 @@ from awslabs.s3_tables_mcp_server.constants import (
     TABLE_BUCKET_ARN_PATTERN,
     TABLE_BUCKET_NAME_PATTERN,
     TABLE_NAME_PATTERN,
+    NAMESPACE_NAME_FIELD,
+    REGION_NAME_FIELD,
+    TABLE_BUCKET_ARN_FIELD,
+    TABLE_NAME_FIELD,
 )
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Union
-
-
-# Field Definitions
-NAMESPACE_NAME_FIELD = Field(
-    ...,
-    description='The name of the namespace. Must be 1-255 characters long and contain only alphanumeric characters, underscores, and hyphens.',
-    min_length=1,
-    max_length=255,
-    pattern=r'^[a-zA-Z0-9_-]+$',
-)
-
-REGION_NAME_FIELD = Field(
-    None,
-    description='The AWS region name where the operation should be performed.',
-    min_length=1,
-    max_length=64,
-)
-
-TABLE_BUCKET_ARN_FIELD = Field(
-    ...,
-    description='The ARN of the table bucket.',
-    pattern=TABLE_BUCKET_ARN_PATTERN,
-)
-
-TABLE_NAME_FIELD = Field(
-    ...,
-    description='The name of the table. Must be 1-255 characters long and contain only alphanumeric characters, underscores, and hyphens.',
-    min_length=1,
-    max_length=255,
-    pattern=TABLE_NAME_PATTERN,
-)
 
 
 # Enums
