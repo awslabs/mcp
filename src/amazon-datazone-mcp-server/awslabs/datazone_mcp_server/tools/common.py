@@ -15,9 +15,6 @@
 
 import boto3
 import logging
-import httpx
-from botocore.exceptions import ClientError
-
 
 # Constants
 USER_AGENT = 'datazone-app/1.0'
