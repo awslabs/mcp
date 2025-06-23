@@ -1189,7 +1189,7 @@ class TestValidateDimensionKey:
 
     def test_validate_dimension_key_exception(self):
         """Test validation with exception during processing."""
-        # Test with None to trigger an exception
-        result = validate_dimension_key(None)
+        # Test with None to trigger an exception (type: ignore for intentional test)
+        result = validate_dimension_key(None)  # type: ignore[arg-type]
         assert 'error' in result
         assert 'Error validating dimension key' in result['error']
