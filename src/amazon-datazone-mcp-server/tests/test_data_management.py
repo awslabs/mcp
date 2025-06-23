@@ -460,12 +460,12 @@ class TestDataManagement:
             'ValidationException',
             'UnknownErrorCode',  # This will test the 'else' branch
         ]
-        
+
         for error_code in error_codes:
             mcp_server_with_tools._mock_client.start_data_source_run.side_effect = (
                 client_error_helper(error_code)
             )
-            
+
             with pytest.raises(Exception) as exc_info:
                 await start_data_source_run(domain_id, ds_id)
 
@@ -486,9 +486,9 @@ class TestDataManagement:
 
         # Test unexpected exception (non-ClientError)
         mcp_server_with_tools._mock_client.start_data_source_run.side_effect = ValueError(
-            "Unexpected error"
+            'Unexpected error'
         )
-        
+
         with pytest.raises(Exception) as exc_info:
             await start_data_source_run(domain_id, ds_id)
 

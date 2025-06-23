@@ -22,12 +22,12 @@ class TestDataManagementErrorHandling:
 
         with pytest.raises(Exception) as exc_info:
             await get_asset(domain_id, asset_id)
-        
+
         assert f'Access denied while getting asset {asset_id} in domain {domain_id}' in str(
             exc_info.value
         )
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_get_asset_internal_server_error(
         self, mcp_server_with_tools, tool_extractor, client_error_helper
     ):
@@ -42,11 +42,12 @@ class TestDataManagementErrorHandling:
 
         with pytest.raises(Exception) as exc_info:
             await get_asset(domain_id, asset_id)
-        
+
         assert (
             f'Unknown error, exception or failure while getting asset {asset_id} in domain {domain_id}'
             in str(exc_info.value)
         )
+
     @pytest.mark.asyncio
     async def test_get_asset_resource_not_found(
         self, mcp_server_with_tools, tool_extractor, client_error_helper
@@ -204,6 +205,7 @@ class TestDataManagementErrorHandling:
             f'Unknown error, exception or failure while creating asset in domain {domain_id}'
             in str(exc_info.value)
         )
+
     @pytest.mark.asyncio
     async def test_create_asset_resource_not_found(
         self, mcp_server_with_tools, tool_extractor, client_error_helper

@@ -86,9 +86,7 @@ class TestComprehensiveCoverage:
         )
 
     @pytest.mark.asyncio
-    async def test_get_listing_with_revision(
-        self, mcp_server_with_tools, tool_extractor
-    ):
+    async def test_get_listing_with_revision(self, mcp_server_with_tools, tool_extractor):
         """Test get_listing with listing_revision parameter to cover line 583."""
         get_listing = tool_extractor(mcp_server_with_tools, 'get_listing')
 
@@ -188,10 +186,10 @@ class TestComprehensiveCoverage:
             mcp_server_with_tools._mock_client.list_data_sources.side_effect = client_error_helper(
                 error_code
             )
-            
+
             with pytest.raises(Exception) as exc_info:
                 await list_data_sources(domain_id, project_id)
-            
+
             error_message = str(exc_info.value)
             assert domain_id in error_message
             assert project_id in error_message
@@ -261,7 +259,6 @@ class TestComprehensiveCoverage:
         self, mcp_server_with_tools, tool_extractor, client_error_helper
     ):
         """Test various error scenarios to improve overall coverage."""
-
         # Test functions that might have missed error handling
         functions_to_test = [
             ('get_subscription', ['dzd_test123', 'sub_test123']),
