@@ -1264,10 +1264,10 @@ class TestCostAndUsage:
     async def test_get_cost_and_usage_client_exception(self, mock_get_client, valid_date_range):
         """Test cost and usage with client creation exception."""
         ctx = MagicMock()
-        
+
         # Mock client creation to raise an exception
         mock_get_client.side_effect = Exception('Client creation failed')
-        
+
         result = await get_cost_and_usage(
             ctx,
             valid_date_range,
@@ -1276,7 +1276,7 @@ class TestCostAndUsage:
             group_by='SERVICE',
             filter_expression=None,
         )
-        
+
         # Should return error due to client creation failure
         assert 'error' in result
         assert 'Error generating cost report' in result['error']

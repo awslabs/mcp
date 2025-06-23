@@ -458,7 +458,9 @@ class TestCostForecast:
 
     @pytest.mark.asyncio
     @patch('awslabs.cost_explorer_mcp_server.forecasting_handler.get_cost_explorer_client')
-    async def test_get_cost_forecast_client_creation_exception(self, mock_get_client, future_date_range):
+    async def test_get_cost_forecast_client_creation_exception(
+        self, mock_get_client, future_date_range
+    ):
         """Test cost forecast with client creation exception."""
         ctx = MagicMock()
 
