@@ -8,16 +8,18 @@ description = "An AWS Labs Model Context Protocol (MCP) server for Athena"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "boto3>=1.37.0",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
+    "sqlglot>=26.0.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "John Brock", email="johnhbrock@gmail.com"},
+    {name = "John Brock", email="john@embedsecurity.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -121,8 +123,10 @@ exclude_dirs = ["venv", ".venv", "tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-testpaths = [ "tests"]
+testpaths = ["tests", "awslabs"]
 asyncio_mode = "auto"
+addopts = "--doctest-modules"
+doctest_optionflags = "ELLIPSIS"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"

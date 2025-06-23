@@ -118,6 +118,18 @@ The AWS Lambda Tool MCP Server enables AI assistants to select and run AWS Lambd
 
 [Learn more about the AWS Lambda Tool MCP Server](servers/lambda-tool-mcp-server.md)
 
+### Athena MCP Server
+
+An MCP server that enables AI assistants to execute SQL queries against AWS Athena.
+
+**Features:**
+
+- Execute read-only SQL queries
+- View workgroups, databases, tables, and schemas
+- Pagination support
+
+[Learn more about the Athena MCP Server](servers/athena-mcp-server.md)
+
 ### Amazon Aurora DSQL MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL

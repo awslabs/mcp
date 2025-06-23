@@ -1,46 +1,66 @@
 # AWS Labs Athena MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for Athena
+A Model Context Protocol (MCP) server for Amazon Athena.
 
-## Instructions
+## Features
+- **Execute Read-Only SQL Statements**: Run commands such as SELECT, VALUES, DESCRIBE, and SHOW
+- **Data Discovery**: Browse databases, tables, and schema information across multiple regions and catalogs
+- **Workgroup Information**: List and view configuration values for Athena workgroups
+- **Pagination Support**: Handle large result sets via pagination
 
-AWS Athena MCP Server provides tools to execute SQL queries against data stored in Amazon S3 using AWS Athena.
+## Prerequisites
+1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or follow instruction from [the Astral GitHub README](https://github.com/astral-sh/uv#installation)
+2. Install Python 3.10 or newer using, for example: `uv python install 3.10`
+3. Configure AWS credentials with read-only access to Athena. This MCP server will attempt to block queries that are not read-only, but ensuring the credentials are read-only is a belt-and-suspenders approach.
 
-## TODO (REMOVE AFTER COMPLETING)
+## Installation
+Configure the MCP server in your MCP client configuration, for example:
 
-* [ ] Optionally add an ["RFC issue"](https://github.com/awslabs/mcp/issues) for the community to review
-* [ ] Generate a `uv.lock` file with `uv sync` -> See [Getting Started](https://docs.astral.sh/uv/getting-started/)
-* [ ] Remove the example tools in `./awslabs/athena_mcp_server/server.py`
-* [ ] Add your own tool(s) following the [DESIGN_GUIDELINES.md](https://github.com/awslabs/mcp/blob/main/DESIGN_GUIDELINES.md)
-* [ ] Keep test coverage at or above the `main` branch - NOTE: GitHub Actions run this command for CodeCov metrics `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
-* [ ] Document the MCP Server in this "README.md"
-* [ ] Add a section for this Athena MCP Server at the top level of this repository "../../README.md"
-* [ ] Create the "../../doc/servers/athena-mcp-server.md" file with these contents:
+```json
+{
+  "mcpServers": {
+    "awslabs.athena-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.athena-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
 
-    ```markdown
-    ---
-    title: Athena MCP Server
-    ---
+## Basic Usage Examples
+- "Show me the top 10 most popular products in the sales table in Athena"
+- "Show me all databases available in us-west-2 and us-east-1"
+- "What tables are available in the sales database?"
+- "What data is stored in the customers table in the sales database?"
+- "List all Athena workgroups and their configurations"
+- "Execute this SQL query using the workgroup called my_workgroup: SELECT * FROM my_db.my_table LIMIT 10"
 
-    {% include "../../src/athena-mcp-server/README.md" %}
-    ```
+## Tools
+### execute_query
+Executes a read-only SQL query in Athena and returns the results directly.
 
-* [ ] Reference within the "../../doc/index.md" like this:
+### get_query_results
+Retrieves results from a completed query execution (mainly for pagination).
 
-    ```markdown
-    ### Athena MCP Server
+### list_databases
+Lists databases in the specified data catalog.
 
-    An AWS Labs Model Context Protocol (MCP) server for Athena
+### list_tables
+Lists tables within a specified database.
 
-    **Features:**
+### get_table_metadata
+Gets detailed metadata for a specific table including schema.
 
-    - Feature one
-    - Feature two
-    - ...
+### list_work_groups
+Lists available Athena workgroups with their configuration.
 
-    AWS Athena MCP Server provides tools to execute SQL queries against data stored in Amazon S3 using AWS Athena.
+### get_work_group
+Gets detailed workgroup configuration and settings.
 
-    [Learn more about the Athena MCP Server](servers/athena-mcp-server.md)
-    ```
-
-* [ ] Submit a PR and pass all the checks
+### list_data_catalogs
+Lists available data catalogs beyond the default AwsDataCatalog.
