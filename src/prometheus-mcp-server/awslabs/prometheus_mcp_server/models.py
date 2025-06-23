@@ -33,7 +33,7 @@ class PrometheusConfig(BaseModel):
         max_retries: Maximum number of retry attempts (default: 3).
     """
 
-    prometheus_url: str = Field(description='URL of the AWS Managed Prometheus endpoint')
+    prometheus_url: Optional[str] = Field(None, description='URL of the AWS Managed Prometheus endpoint')
     aws_region: str = Field(description='AWS region where the Prometheus service is located')
     aws_profile: Optional[str] = Field(
         None, description='AWS profile name to use for authentication (optional)'
@@ -51,6 +51,9 @@ class PrometheusConfig(BaseModel):
     @field_validator('prometheus_url')
     def validate_prometheus_url(cls, v):
         """Validate that the Prometheus URL is properly formatted."""
+        if v is None:
+            return v
+        
         if not v:
             raise ValueError('Prometheus URL cannot be empty')
 
@@ -102,7 +105,7 @@ class ServerInfo(BaseModel):
         service_name: AWS service name for SigV4 authentication.
     """
 
-    prometheus_url: str = Field(description='URL of the AWS Managed Prometheus endpoint')
+    prometheus_url: Optional[str] = Field(None, description='URL of the AWS Managed Prometheus endpoint')
     aws_region: str = Field(description='AWS region where the Prometheus service is located')
     aws_profile: str = Field(description='AWS profile name used for authentication')
     service_name: str = Field(description='AWS service name for SigV4 authentication')
