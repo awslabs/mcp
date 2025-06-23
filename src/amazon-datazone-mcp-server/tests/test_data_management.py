@@ -444,29 +444,31 @@ class TestDataManagement:
     ):
         """Test start_data_source_run with all error types to cover lines 1008-1031."""
         start_data_source_run = tool_extractor(mcp_server_with_tools, 'start_data_source_run')
-        
+
         domain_id = 'dzd_test123'
         ds_id = 'ds_test123'
-        
+
         # Test all specific error codes
         error_codes = [
             'AccessDeniedException',
-            'ConflictException', 
+            'ConflictException',
             'InternalServerException',
             'ResourceNotFoundException',
             'ServiceQuotaExceededException',
             'ThrottlingException',
             'UnauthorizedException',
             'ValidationException',
-            'UnknownErrorCode'  # This will test the 'else' branch
+            'UnknownErrorCode',  # This will test the 'else' branch
         ]
         
         for error_code in error_codes:
-            mcp_server_with_tools._mock_client.start_data_source_run.side_effect = client_error_helper(error_code)
+            mcp_server_with_tools._mock_client.start_data_source_run.side_effect = (
+                client_error_helper(error_code)
+            )
             
             with pytest.raises(Exception) as exc_info:
                 await start_data_source_run(domain_id, ds_id)
-            
+
             # Verify the error message contains relevant information
             error_message = str(exc_info.value)
             assert ds_id in error_message
@@ -478,16 +480,18 @@ class TestDataManagement:
     ):
         """Test start_data_source_run with unexpected exception to cover line 1012-1013."""
         start_data_source_run = tool_extractor(mcp_server_with_tools, 'start_data_source_run')
-        
+
         domain_id = 'dzd_test123'
         ds_id = 'ds_test123'
-        
+
         # Test unexpected exception (non-ClientError)
-        mcp_server_with_tools._mock_client.start_data_source_run.side_effect = ValueError("Unexpected error")
+        mcp_server_with_tools._mock_client.start_data_source_run.side_effect = ValueError(
+            "Unexpected error"
+        )
         
         with pytest.raises(Exception) as exc_info:
             await start_data_source_run(domain_id, ds_id)
-        
+
         assert 'Unexpected error starting data source run' in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -496,11 +500,11 @@ class TestDataManagement:
     ):
         """Test start_data_source_run with client_token to cover line 1008."""
         start_data_source_run = tool_extractor(mcp_server_with_tools, 'start_data_source_run')
-        
+
         domain_id = 'dzd_test123'
         ds_id = 'ds_test123'
         client_token = 'test_token_123'
-        
+
         expected_response = {
             'id': 'run_test123',
             'dataSourceId': ds_id,
@@ -508,9 +512,9 @@ class TestDataManagement:
             'status': 'REQUESTED',
         }
         mcp_server_with_tools._mock_client.start_data_source_run.return_value = expected_response
-        
+
         result = await start_data_source_run(domain_id, ds_id, client_token)
-        
+
         assert result == expected_response
         mcp_server_with_tools._mock_client.start_data_source_run.assert_called_once_with(
             domainIdentifier=domain_id, dataSourceIdentifier=ds_id, clientToken=client_token

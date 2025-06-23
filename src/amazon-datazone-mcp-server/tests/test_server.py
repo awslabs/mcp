@@ -133,18 +133,17 @@ class TestVersionHandling:
         """Test version handling when VERSION file doesn't exist."""
         # Mock the VERSION file as not existing
         mock_exists.return_value = False
-        
+
         # Import the module to trigger the version reading logic
-        import importlib
         import sys
-        
+
         # Remove the module from cache if it exists
         if 'awslabs' in sys.modules:
             del sys.modules['awslabs']
-        
+
         # Import the module which should trigger the version reading
         import awslabs
-        
+
         # The version should be 'unknown' when file doesn't exist
         assert awslabs.__version__ == 'unknown'
 
@@ -256,20 +255,20 @@ class TestCommandLineInterface:
     def test_main_if_name_main_execution(self, mock_run):
         """Test __main__ execution path."""
         from awslabs.datazone_mcp_server import server
-        
+
         # Execute the main function directly to cover line 76
         server.main()
-        
+
         mock_run.assert_called_once_with(transport='stdio')
 
     def test_console_script_entry_point(self):
         """Test that the console script entry point exists."""
         import importlib.util
-        
+
         # Test that we can import the module
         spec = importlib.util.find_spec('awslabs.datazone_mcp_server.server')
         assert spec is not None
-        
+
         # Test that main function exists
         if spec and spec.loader:
             module = importlib.util.module_from_spec(spec)
@@ -285,11 +284,12 @@ class TestServerIntegration:
     def test_server_initialization_performance(self):
         """Test that server initializes within reasonable time."""
         import time
-        
+
         start_time = time.time()
         from awslabs.datazone_mcp_server import server
+
         end_time = time.time()
-        
+
         # Server should initialize within 2 seconds
         assert (end_time - start_time) < 2.0
         assert server.mcp is not None
