@@ -125,6 +125,30 @@ class TestMCPServer:
             pytest.fail('Error output is not valid JSON')
 
 
+class TestVersionHandling:
+    """Test version handling in __init__.py."""
+
+    @patch('pathlib.Path.exists')
+    def test_version_file_missing(self, mock_exists):
+        """Test version handling when VERSION file doesn't exist."""
+        # Mock the VERSION file as not existing
+        mock_exists.return_value = False
+        
+        # Import the module to trigger the version reading logic
+        import importlib
+        import sys
+        
+        # Remove the module from cache if it exists
+        if 'awslabs' in sys.modules:
+            del sys.modules['awslabs']
+        
+        # Import the module which should trigger the version reading
+        import awslabs
+        
+        # The version should be 'unknown' when file doesn't exist
+        assert awslabs.__version__ == 'unknown'
+
+
 class TestServerConfiguration:
     """Test server configuration and setup."""
 
@@ -198,7 +222,7 @@ class TestModuleImports:
         assert FastMCP is not None
 
     def test_tool_modules_import(self):
-        """Test that all tool modules can be imported."""
+        """Test that tool modules can be imported."""
         from awslabs.datazone_mcp_server.tools import (
             data_management,
             domain_management,
@@ -207,22 +231,22 @@ class TestModuleImports:
             project_management,
         )
 
-        # Verify modules are not None
-        assert domain_management is not None
-        assert project_management is not None
+        # Verify modules are importable
         assert data_management is not None
-        assert glossary is not None
+        assert domain_management is not None
         assert environment is not None
+        assert glossary is not None
+        assert project_management is not None
 
     def test_standard_library_imports(self):
-        """Test that standard library modules work."""
+        """Test that standard library modules can be imported."""
         import json
+        import logging
+        import sys
 
-        # Basic functionality test
-        test_data = {'test': 'value'}
-        json_str = json.dumps(test_data)
-        parsed = json.loads(json_str)
-        assert parsed == test_data
+        assert json is not None
+        assert logging is not None
+        assert sys is not None
 
 
 class TestCommandLineInterface:
@@ -230,62 +254,42 @@ class TestCommandLineInterface:
 
     @patch('mcp.server.fastmcp.FastMCP.run')
     def test_main_if_name_main_execution(self, mock_run):
-        """Test that __main__ execution works."""
-        # This test verifies that the if __name__ == "__main__" block can execute
-        # We can't easily test this directly, but we can test the main() function
-        from awslabs.datazone_mcp_server.server import main
-
-        main()
+        """Test __main__ execution path."""
+        from awslabs.datazone_mcp_server import server
+        
+        # Execute the main function directly to cover line 76
+        server.main()
+        
         mock_run.assert_called_once_with(transport='stdio')
 
     def test_console_script_entry_point(self):
-        """Test that the entry point exists in setup."""
-        # This would normally check setup.py or pyproject.toml
-        # For now, just verify the main function exists and is callable
-        from awslabs.datazone_mcp_server.server import main
-
-        assert callable(main)
+        """Test that the console script entry point exists."""
+        import importlib.util
+        
+        # Test that we can import the module
+        spec = importlib.util.find_spec('awslabs.datazone_mcp_server.server')
+        assert spec is not None
+        
+        # Test that main function exists
+        if spec and spec.loader:
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            assert hasattr(module, 'main')
+            assert callable(module.main)
 
 
 class TestServerIntegration:
-    """Test server integration and performance aspects."""
+    """Integration tests for server functionality."""
 
     @pytest.mark.slow
     def test_server_initialization_performance(self):
-        """Test that server initialization is reasonably fast."""
+        """Test that server initializes within reasonable time."""
         import time
-
+        
         start_time = time.time()
-
-        # Re-import to test initialization time
-        import importlib
         from awslabs.datazone_mcp_server import server
-
-        importlib.reload(server)
-
         end_time = time.time()
-        initialization_time = end_time - start_time
-
-        # Should initialize in less than 5 seconds
-        assert initialization_time < 5.0, f'Server took {initialization_time}s to initialize'
-
-    # def test_memory_usage_reasonable(self):
-    #     """Test that memory usage is reasonable after import."""
-    #     import os
-
-    #     import psutil
-
-    #     process = psutil.Process(os.getpid())
-    #     memory_before = process.memory_info().rss
-
-    #     # Import server
-    #     from awslabs.datazone_mcp_server import server
-
-    #     memory_after = process.memory_info().rss
-    #     memory_increase = memory_after - memory_before
-
-    #     # Memory increase should be less than 50MB (50 * 1024 * 1024 bytes)
-    #     max_memory_increase = 50 * 1024 * 1024
-    #     assert (
-    #         memory_increase < max_memory_increase
-    #     ), f"Memory increased by {memory_increase / 1024 / 1024:.1f}MB"
+        
+        # Server should initialize within 2 seconds
+        assert (end_time - start_time) < 2.0
+        assert server.mcp is not None

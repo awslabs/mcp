@@ -345,3 +345,102 @@ class TestDataManagementErrorHandling:
             )
         
         assert f'Unexpected error creating asset in domain {domain_id}' in str(exc_info.value)
+
+    # Error handling tests for publish_asset function
+    @pytest.mark.asyncio
+    async def test_publish_asset_client_error(
+        self, mcp_server_with_tools, tool_extractor, client_error_helper
+    ):
+        """Test publish_asset with ClientError."""
+        publish_asset = tool_extractor(mcp_server_with_tools, 'publish_asset')
+        
+        domain_id = 'dzd_test123'
+        asset_id = 'asset_test123'
+        mcp_server_with_tools._mock_client.publish_asset.side_effect = client_error_helper(
+            'AccessDeniedException'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await publish_asset(domain_id, asset_id)
+        
+        assert f'Error publishing asset {asset_id} in domain {domain_id}' in str(exc_info.value)
+
+    # Error handling tests for get_listing function
+    @pytest.mark.asyncio
+    async def test_get_listing_client_error(
+        self, mcp_server_with_tools, tool_extractor, client_error_helper
+    ):
+        """Test get_listing with ClientError."""
+        get_listing = tool_extractor(mcp_server_with_tools, 'get_listing')
+        
+        domain_id = 'dzd_test123'
+        listing_id = 'listing_test123'
+        mcp_server_with_tools._mock_client.get_listing.side_effect = client_error_helper(
+            'ResourceNotFoundException'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_listing(domain_id, listing_id)
+        
+        assert f'Error getting listing {listing_id} in domain {domain_id}' in str(exc_info.value)
+
+    # Error handling tests for search_listings function
+    @pytest.mark.asyncio
+    async def test_search_listings_client_error(
+        self, mcp_server_with_tools, tool_extractor, client_error_helper
+    ):
+        """Test search_listings with ClientError."""
+        search_listings = tool_extractor(mcp_server_with_tools, 'search_listings')
+        
+        domain_id = 'dzd_test123'
+        mcp_server_with_tools._mock_client.search_listings.side_effect = client_error_helper(
+            'ValidationException'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await search_listings(domain_id)
+        
+        assert f'Error searching listings in domain {domain_id}' in str(exc_info.value)
+
+    # Error handling tests for create_data_source function
+    @pytest.mark.asyncio
+    async def test_create_data_source_client_error(
+        self, mcp_server_with_tools, tool_extractor, client_error_helper
+    ):
+        """Test create_data_source with ClientError."""
+        create_data_source = tool_extractor(mcp_server_with_tools, 'create_data_source')
+        
+        domain_id = 'dzd_test123'
+        project_id = 'prj_test123'
+        mcp_server_with_tools._mock_client.create_data_source.side_effect = client_error_helper(
+            'AccessDeniedException'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await create_data_source(
+                domain_identifier=domain_id,
+                project_identifier=project_id,
+                name='Test Data Source',
+                data_src_type='S3'
+            )
+        
+        assert f'Error creating data source in domain {domain_id}' in str(exc_info.value)
+
+    # Error handling tests for get_data_source function
+    @pytest.mark.asyncio
+    async def test_get_data_source_client_error(
+        self, mcp_server_with_tools, tool_extractor, client_error_helper
+    ):
+        """Test get_data_source with ClientError."""
+        get_data_source = tool_extractor(mcp_server_with_tools, 'get_data_source')
+        
+        domain_id = 'dzd_test123'
+        ds_id = 'ds_test123'
+        mcp_server_with_tools._mock_client.get_data_source.side_effect = client_error_helper(
+            'ResourceNotFoundException'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_data_source(domain_id, ds_id)
+        
+        assert f'Error getting data source {ds_id}' in str(exc_info.value)
