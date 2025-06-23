@@ -57,6 +57,8 @@ class TestValidateReadOnlyQuery:
             "LOAD DATA FROM 'file.csv' INTO TABLE users",
             "COPY table FROM 's3://bucket/file.csv'",
             'WRITE TO table SELECT * FROM source',
+            'VACUUM table',
+            'INSERT INTO table SELECT * FROM source',
         ]
 
         for query in write_queries:

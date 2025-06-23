@@ -19,6 +19,7 @@ It handles query execution, result retrieval, and proper formatting of responses
 """
 
 import os
+import sqlparse
 from . import __version__
 from .engines.athena import AthenaEngine
 from .engines.config import AthenaConfig
@@ -37,47 +38,42 @@ def validate_read_only_query(query: str) -> bool:
     Raises:
         ValueError: If the query contains write operations
     """
-    # List of write operation keywords to check for (in lowercase)
-    write_operations = [
-        'insert',
-        'update',
-        'delete',
-        'drop',
-        'create',
-        'alter',
-        'truncate',
-        'merge',
-        'upsert',
-        'replace',
-        'load',
-        'copy',
-        'write',
-    ]
 
-    # Convert query to lowercase for case-insensitive matching
-    query_lower = query.lower()
+    def contains_write_operation(sql: str) -> bool:
+        """Check if SQL contains write operations using sqlparse.
 
-    # Add spaces around the query to ensure whole word matches only
-    # This prevents false positives from partial word matches
-    # Examples:
-    # - Without normalization: "insertion".find("insert") would match (false positive)
-    # - With normalization: " insertion ".find(" insert ") won't match (correct)
-    # - Without normalization: "deleted".find("delete") would match (false positive)
-    # - With normalization: " deleted ".find(" delete ") won't match (correct)
-    # - With normalization: " INSERT INTO ".find(" insert ") will match (correct)
-    query_normalized = f' {query_lower} '
+        Args:
+            sql: The SQL query to check
 
-    # Check if query starts with any write operation
-    for operation in write_operations:
-        if query_lower.strip().startswith(operation):
-            raise ValueError(
-                f'Write operations are not allowed. Query cannot start with {operation}'
-            )
+        Returns:
+            bool: True if the query contains write operations, False otherwise
+        """
+        parsed = sqlparse.parse(sql)
+        write_keywords = {
+            'INSERT',
+            'UPDATE',
+            'DELETE',
+            'CREATE',
+            'ALTER',
+            'DROP',
+            'TRUNCATE',
+            'MERGE',
+            'REPLACE',
+            'VACUUM',
+            'LOAD',
+            'COPY',
+            'WRITE',
+            'UPSERT',
+        }
 
-    # Check if query contains any write operations
-    for operation in write_operations:
-        if f' {operation} ' in query_normalized:
-            raise ValueError(f'Write operations are not allowed. Query cannot contain {operation}')
+        for stmt in parsed:
+            tokens = [token.value.upper() for token in stmt.tokens if not token.is_whitespace]
+            if tokens and tokens[0] in write_keywords:
+                return True
+        return False
+
+    if contains_write_operation(query):
+        raise ValueError('Write operations are not allowed in read-only queries')
 
     return True
 
