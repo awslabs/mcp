@@ -22,7 +22,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/aws-diagram-mcp-server             @MichaelWalker-git               @awslabs/mcp-admins
 /src/aws-documentation-mcp-server       @Lavoiedavidw @JonLim            @awslabs/mcp-admins
 #/src/aws-location-mcp-server           @awslabs/mcp-maintainers         @awslabs/mcp-admins
-/src/aws-msk-mcp-server                 @emebnou                         @awslabs/mcp-admins
+/src/aws-msk-mcp-server                 @elmoctarebnou                   @awslabs/mcp-admins
 /src/aws-serverless-mcp-server          @bx9900                          @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/cdk-mcp-server                     @jimini55                        @awslabs/mcp-admins
