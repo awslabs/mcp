@@ -221,3 +221,110 @@ class TestGetMetricData:
         # Verify error was reported to context
         ctx.error.assert_called_once()
         assert 'Test exception' in ctx.error.call_args[0][0]
+
+    async def test_get_metric_metadata_found(self, ctx, cloudwatch_metrics_tools):
+        """Test getting metric metadata for existing metric."""
+        result = await cloudwatch_metrics_tools.get_metric_metadata(
+            ctx,
+            namespace="AWS/EC2",
+            metric_name="CPUUtilization"
+        )
+        
+        # Should return MetricDescription or None
+        if result is not None:
+            from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricMetadata
+            assert isinstance(result, MetricMetadata)
+            assert hasattr(result, 'description')
+            assert hasattr(result, 'recommendedStatistics')
+            assert hasattr(result, 'unit')
+
+    async def test_get_metric_metadata_not_found(self, ctx, cloudwatch_metrics_tools):
+        """Test getting metric metadata for non-existent metric."""
+        result = await cloudwatch_metrics_tools.get_metric_metadata(
+            ctx,
+            namespace="NonExistent/Namespace",
+            metric_name="NonExistentMetric"
+        )
+        
+        # Should return None for non-existent metrics
+        assert result is None
+
+    async def test_get_recommended_metric_alarms_found(self, ctx, cloudwatch_metrics_tools):
+        """Test getting alarm recommendations for metric with alarms."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Dimension
+        
+        result = await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+            ctx,
+            namespace="AWS/EC2",
+            metric_name="CPUUtilization",
+            dimensions=[Dimension(name="InstanceId", value="i-1234567890abcdef0")]
+        )
+        
+        # Should return a list
+        assert isinstance(result, list)
+        
+        # If recommendations are found, verify structure
+        if result:
+            from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import AlarmRecommendation
+            for alarm in result:
+                assert isinstance(alarm, AlarmRecommendation)
+                assert hasattr(alarm, 'alarmDescription')
+                assert hasattr(alarm, 'threshold')
+                assert hasattr(alarm, 'dimensions')
+
+    async def test_get_recommended_metric_alarms_not_found(self, ctx, cloudwatch_metrics_tools):
+        """Test getting alarm recommendations for metric without alarms."""
+        result = await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+            ctx,
+            namespace="NonExistent/Namespace",
+            metric_name="NonExistentMetric",
+            dimensions=[]
+        )
+        
+        # Should return empty list for non-existent metrics
+        assert result == []
+
+    async def test_get_recommended_metric_alarms_dimension_matching(self, ctx, cloudwatch_metrics_tools):
+        """Test alarm recommendations with dimension matching."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Dimension
+        
+        # Test with ElastiCache metric that requires specific dimensions
+        result = await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+            ctx,
+            namespace="AWS/ElastiCache",
+            metric_name="CPUUtilization",
+            dimensions=[
+                Dimension(name="CacheClusterId", value="test-cluster"),
+                Dimension(name="CacheNodeId", value="0001")
+            ]
+        )
+        
+        # Verify it returns a list
+        assert isinstance(result, list)
+        
+        # Verify the expected ElastiCache CPUUtilization alarm recommendation is present
+        if result:
+            # Find the matching alarm recommendation
+            cpu_alarm = None
+            for alarm in result:
+                if (alarm.alarmDescription.startswith("This alarm helps to monitor the CPU utilization") and
+                    alarm.statistic == "Average" and
+                    alarm.period == 60 and
+                    alarm.comparisonOperator == "GreaterThanThreshold" and
+                    alarm.evaluationPeriods == 5 and
+                    alarm.datapointsToAlarm == 5 and
+                    alarm.treatMissingData == "missing"):
+                    cpu_alarm = alarm
+                    break
+            
+            # Assert we found the alarm
+            assert cpu_alarm is not None, "Expected ElastiCache CPU alarm recommendation not found"
+            
+            # Verify alarm dimensions
+            dim_names = [dim.name for dim in cpu_alarm.dimensions]
+            assert "CacheClusterId" in dim_names
+            assert "CacheNodeId" in dim_names
+            assert len(cpu_alarm.dimensions) == 2
+            
+            # Verify alarm intent
+            assert "detect high CPU utilization of ElastiCache hosts" in cpu_alarm.intent

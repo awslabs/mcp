@@ -48,3 +48,63 @@ class GetMetricDataResponse(BaseModel):
     
     metricDataResults: List[MetricDataResult] = Field(default_factory=list, description="The results of the metric data queries")
     messages: List[Dict[str, Any]] = Field(default_factory=list, description="Messages related to the GetMetricData operation")
+
+class MetricMetadataIndexKey:
+    """Key class for indexing metric metadata."""
+    
+    def __init__(self, namespace: str, metric_name: str):
+        self.namespace = namespace
+        self.metric_name = metric_name
+    
+    def __hash__(self) -> int:
+        """Generate hash for use as dictionary key."""
+        return hash((self.namespace, self.metric_name))
+    
+    def __eq__(self, other) -> bool:
+        """Check equality for dictionary key comparison."""
+        if not isinstance(other, MetricMetadataIndexKey):
+            return False
+        return (
+            self.namespace == other.namespace and
+            self.metric_name == other.metric_name
+        )
+    
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f"MetricMetadataIndexKey(namespace='{self.namespace}', metric_name='{self.metric_name}')"
+
+
+class MetricMetadata(BaseModel):
+    """Represents the metadata of a CloudWatch metric including description, unit and recommended statistics."""
+    
+    description: str = Field(..., description="Description of the metric")
+    recommendedStatistics: str = Field(..., description="Recommended statistics for the metric (e.g., 'Average, Maximum')")
+    unit: str = Field(..., description="Unit of measurement for the metric")
+
+class AlarmRecommendationThreshold(BaseModel):
+    """Represents an alarm threshold configuration."""
+    
+    staticValue: float = Field(..., description="The static threshold value")
+    justification: str = Field(..., description="Justification for the threshold value")
+
+
+class AlarmRecommendationDimension(BaseModel):
+    """Represents a dimension for alarm recommendations."""
+    
+    name: str = Field(..., description="The name of the dimension")
+    value: Optional[str] = Field(None, description="The value of the dimension (if specified)")
+
+
+class AlarmRecommendation(BaseModel):
+    """Represents a CloudWatch alarm recommendation."""
+    
+    alarmDescription: str = Field(..., description="Description of what the alarm monitors")
+    threshold: AlarmRecommendationThreshold = Field(..., description="Threshold configuration for the alarm")
+    period: int = Field(..., description="The period in seconds over which the statistic is applied")
+    comparisonOperator: str = Field(..., description="The arithmetic operation to use when comparing the statistic and threshold")
+    statistic: str = Field(..., description="The statistic to apply to the alarm's associated metric")
+    evaluationPeriods: int = Field(..., description="The number of periods over which data is compared to the threshold")
+    datapointsToAlarm: int = Field(..., description="The number of datapoints that must be breaching to trigger the alarm")
+    treatMissingData: str = Field(..., description="How to treat missing data points")
+    dimensions: List[AlarmRecommendationDimension] = Field(default_factory=list, description="List of dimensions for the alarm")
+    intent: str = Field(..., description="The intent or purpose of the alarm")
