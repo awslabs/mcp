@@ -107,5 +107,5 @@ class ServerInfo(BaseModel):
 
     prometheus_url: Optional[str] = Field(None, description='URL of the AWS Managed Prometheus endpoint')
     aws_region: str = Field(description='AWS region where the Prometheus service is located')
-    aws_profile: str = Field(description='AWS profile name used for authentication')
+    aws_profile: Optional[str] = Field(None, description='AWS profile name used for authentication')
     service_name: str = Field(description='AWS service name for SigV4 authentication')
