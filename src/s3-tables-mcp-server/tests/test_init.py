@@ -63,8 +63,9 @@ class TestInit:
 
     def test_constants_defined(self):
         """Test that required constants are defined."""
-        # Check that MCP_SERVER_VERSION is defined and matches __version__
+        # Check that __version__ is defined and accessible
         import awslabs.s3_tables_mcp_server
-        from awslabs.s3_tables_mcp_server.constants import MCP_SERVER_VERSION
 
-        assert MCP_SERVER_VERSION == awslabs.s3_tables_mcp_server.__version__
+        # Check that __version__ is defined
+        assert hasattr(awslabs.s3_tables_mcp_server, '__version__')
+        assert awslabs.s3_tables_mcp_server.__version__ == '0.0.0'

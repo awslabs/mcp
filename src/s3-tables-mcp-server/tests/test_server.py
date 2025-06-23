@@ -16,13 +16,11 @@
 
 import pytest
 from awslabs.s3_tables_mcp_server.models import (
-    EncryptionConfiguration,
     IcebergMetadata,
     IcebergSchema,
     MaintenanceStatus,
     OpenTableFormat,
     SchemaField,
-    SSEAlgorithm,
     TableBucketMaintenanceConfigurationValue,
     TableBucketMaintenanceType,
     TableMaintenanceConfigurationValue,
@@ -37,10 +35,8 @@ from awslabs.s3_tables_mcp_server.server import (
     delete_namespace,
     delete_table,
     delete_table_bucket,
-    delete_table_bucket_encryption,
     delete_table_bucket_policy,
     delete_table_policy,
-    get_table_encryption,
     get_table_maintenance_configuration,
     get_table_maintenance_job_status,
     get_table_metadata_location,
@@ -48,7 +44,6 @@ from awslabs.s3_tables_mcp_server.server import (
     list_namespaces,
     list_table_buckets,
     list_tables,
-    put_table_bucket_encryption,
     put_table_bucket_maintenance_configuration,
     put_table_bucket_policy,
     put_table_maintenance_configuration,
@@ -87,12 +82,10 @@ def mock_table_buckets():
     with patch('awslabs.s3_tables_mcp_server.server.table_buckets') as mock:
         mock.create_table_bucket = AsyncMock(return_value={'status': 'success'})
         mock.delete_table_bucket = AsyncMock(return_value={'status': 'success'})
-        mock.put_table_bucket_encryption = AsyncMock(return_value={'status': 'success'})
         mock.put_table_bucket_maintenance_configuration = AsyncMock(
             return_value={'status': 'success'}
         )
         mock.put_table_bucket_policy = AsyncMock(return_value={'status': 'success'})
-        mock.delete_table_bucket_encryption = AsyncMock(return_value={'status': 'success'})
         mock.delete_table_bucket_policy = AsyncMock(return_value={'status': 'success'})
         yield mock
 
@@ -113,7 +106,6 @@ def mock_tables():
         mock.create_table = AsyncMock(return_value={'status': 'success'})
         mock.delete_table = AsyncMock(return_value={'status': 'success'})
         mock.delete_table_policy = AsyncMock(return_value={'status': 'success'})
-        mock.get_table_encryption = AsyncMock(return_value={'status': 'success'})
         mock.get_table_maintenance_configuration = AsyncMock(return_value={'status': 'success'})
         mock.get_table_maintenance_job_status = AsyncMock(return_value={'status': 'success'})
         mock.get_table_metadata_location = AsyncMock(return_value={'status': 'success'})
@@ -164,19 +156,16 @@ async def test_create_table_bucket(mock_table_buckets):
     """Test create_table_bucket tool."""
     # Arrange
     name = 'test-bucket'
-    encryption_config = EncryptionConfiguration(sseAlgorithm=SSEAlgorithm.AES256)
     region = 'us-west-2'
     expected_response = {'status': 'success'}
 
     # Act
-    result = await create_table_bucket(
-        name=name, encryption_configuration=encryption_config, region_name=region
-    )
+    result = await create_table_bucket(name=name, region_name=region)
 
     # Assert
     assert result == expected_response
     mock_table_buckets.create_table_bucket.assert_called_once_with(
-        name=name, encryption_configuration=encryption_config, region_name=region
+        name=name, region_name=region
     )
 
 
@@ -219,7 +208,6 @@ async def test_create_table(mock_tables):
             )
         )
     )
-    encryption_config = EncryptionConfiguration(sseAlgorithm=SSEAlgorithm.AES256)
     region = 'us-west-2'
     expected_response = {'status': 'success'}
 
@@ -230,7 +218,6 @@ async def test_create_table(mock_tables):
         name=name,
         format=format,
         metadata=metadata,
-        encryption_configuration=encryption_config,
         region_name=region,
     )
 
@@ -242,7 +229,6 @@ async def test_create_table(mock_tables):
         name=name,
         format=OpenTableFormat.ICEBERG,
         metadata=metadata,
-        encryption_configuration=encryption_config,
         region_name=region,
     )
 
@@ -318,31 +304,6 @@ async def test_delete_table(mock_tables):
 
 
 @pytest.mark.asyncio
-async def test_put_table_bucket_encryption(mock_table_buckets):
-    """Test put_table_bucket_encryption tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    encryption_config = EncryptionConfiguration(sseAlgorithm=SSEAlgorithm.AES256)
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await put_table_bucket_encryption(
-        table_bucket_arn=table_bucket_arn,
-        encryption_configuration=encryption_config,
-        region_name=region,
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_table_buckets.put_table_bucket_encryption.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn,
-        encryption_configuration=encryption_config,
-        region_name=region,
-    )
-
-
-@pytest.mark.asyncio
 async def test_put_table_bucket_maintenance_configuration(mock_table_buckets):
     """Test put_table_bucket_maintenance_configuration tool."""
     # Arrange
@@ -394,26 +355,6 @@ async def test_put_table_bucket_policy(mock_table_buckets):
 
 
 @pytest.mark.asyncio
-async def test_delete_table_bucket_encryption(mock_table_buckets):
-    """Test delete_table_bucket_encryption tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await delete_table_bucket_encryption(
-        table_bucket_arn=table_bucket_arn, region_name=region
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_table_buckets.delete_table_bucket_encryption.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn, region_name=region
-    )
-
-
-@pytest.mark.asyncio
 async def test_delete_table_bucket_policy(mock_table_buckets):
     """Test delete_table_bucket_policy tool."""
     # Arrange
@@ -451,28 +392,6 @@ async def test_delete_table_policy(mock_tables):
     # Assert
     assert result == expected_response
     mock_tables.delete_table_policy.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-    )
-
-
-@pytest.mark.asyncio
-async def test_get_table_encryption(mock_tables):
-    """Test get_table_encryption tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await get_table_encryption(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_tables.get_table_encryption.assert_called_once_with(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
     )
 
