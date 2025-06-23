@@ -40,10 +40,12 @@ async def read_documentation_impl(
     """The implementation of the read_documentation tool."""
     logger.debug(f'Fetching documentation from {url_str}')
 
+    url_with_session = f'{url_str}?session={session_uuid}'
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                url_str,
+                url_with_session,
                 follow_redirects=True,
                 headers={
                     'User-Agent': DEFAULT_USER_AGENT,

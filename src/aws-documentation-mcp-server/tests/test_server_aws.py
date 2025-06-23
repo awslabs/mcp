@@ -60,6 +60,9 @@ class TestReadDocumentation:
                 assert '# Test\n\nThis is a test.' in result
                 mock_get.assert_called_once()
                 mock_extract.assert_called_once()
+                called_url = mock_get.call_args[0][0]
+                assert '?session=' in called_url
+                assert called_url.startswith('https://docs.aws.amazon.com/test.html?session=')
 
     @pytest.mark.asyncio
     async def test_read_documentation_error(self):
@@ -140,6 +143,12 @@ class TestSearchDocumentation:
             assert results[1].title == 'Test 2'
             assert results[1].context == 'This is test 2.'
             mock_post.assert_called_once()
+
+            called_url = mock_post.call_args[0][0]
+            assert '?session=' in called_url
+            assert called_url.startswith(
+                'https://proxy.search.docs.aws.amazon.com/search?session='
+            )
 
     @pytest.mark.asyncio
     async def test_search_documentation_http_error(self):
@@ -263,6 +272,13 @@ class TestRecommend:
             assert results[1].title == 'Recommendation 2'
             assert results[1].context == 'This is recommendation 2.'
             mock_get.assert_called_once()
+
+            called_url = mock_get.call_args[0][0]
+            assert '?path=' in called_url
+            assert '&session=' in called_url
+            assert called_url.startswith(
+                'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations?path=https://docs.aws.amazon.com/test&session='
+            )
 
     @pytest.mark.asyncio
     async def test_recommend_http_error(self):

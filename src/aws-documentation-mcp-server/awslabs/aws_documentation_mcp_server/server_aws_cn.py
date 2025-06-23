@@ -159,10 +159,11 @@ async def get_available_services(
         Markdown content of the AWS China documentation about available services
     """
     url_str = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html'
+    url_with_session = f'{url_str}?session={SESSION_UUID}'
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                url_str,
+                url_with_session,
                 follow_redirects=True,
                 headers={'User-Agent': DEFAULT_USER_AGENT},
                 timeout=30,

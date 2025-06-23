@@ -195,10 +195,12 @@ async def search_documentation(
         'locales': ['en_us'],
     }
 
+    search_url_with_session = f'{SEARCH_API_URL}?session={SESSION_UUID}'
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
-                SEARCH_API_URL,
+                search_url_with_session,
                 json=request_body,
                 headers={
                     'Content-Type': 'application/json',
@@ -320,7 +322,7 @@ async def recommend(
     url_str = str(url)
     logger.debug(f'Getting recommendations for: {url_str}')
 
-    recommendation_url = f'{RECOMMENDATIONS_API_URL}?path={url_str}'
+    recommendation_url = f'{RECOMMENDATIONS_API_URL}?path={url_str}&session={SESSION_UUID}'
 
     async with httpx.AsyncClient() as client:
         try:
