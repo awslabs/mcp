@@ -1,7 +1,7 @@
 """Tests for version handling in __init__.py."""
 
 import sys
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
 class TestVersionHandling:
@@ -30,17 +30,35 @@ class TestVersionHandling:
     @patch('pathlib.Path.exists')
     def test_version_file_missing(self, mock_exists):
         """Test version handling when VERSION file doesn't exist - covers line 22."""
-        # Mock the VERSION file as not existing to trigger the else clause
+        # Mock the VERSION file as not existing
         mock_exists.return_value = False
 
-        # Clear module cache to force re-import and trigger version logic
+        # Clear module cache to force re-import
         module_names_to_clear = [name for name in sys.modules.keys() if name.startswith('awslabs')]
         for name in module_names_to_clear:
             del sys.modules[name]
 
-        # Import should use the else branch: __version__ = 'unknown'
+        # Import should fallback to 'unknown'
         import awslabs
 
-        # This should cover line 22: __version__ = 'unknown'
+        # This should trigger line 22: __version__ = 'unknown'
         assert awslabs.__version__ == 'unknown'
-        mock_exists.assert_called_once() 
+        mock_exists.assert_called_once()
+
+    @patch('pathlib.Path.exists')
+    @patch('pathlib.Path.read_text')
+    def test_version_file_read_error(self, mock_read_text, mock_exists):
+        """Test version handling when VERSION file exists but can't be read."""
+        # Mock the VERSION file as existing but reading fails
+        mock_exists.return_value = True
+        mock_read_text.side_effect = FileNotFoundError()
+
+        # Clear module cache
+        module_names_to_clear = [name for name in sys.modules.keys() if name.startswith('awslabs')]
+        for name in module_names_to_clear:
+            del sys.modules[name]
+
+        # Import should fallback to 'unknown' due to read error
+        import awslabs
+
+        assert awslabs.__version__ == 'unknown'
