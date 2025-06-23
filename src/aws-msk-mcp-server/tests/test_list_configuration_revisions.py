@@ -35,27 +35,22 @@ class TestListConfigurationRevisions:
                     'CreationTime': '2025-06-20T10:00:00.000Z',
                     'Description': 'Initial configuration',
                     'Revision': 1,
-                },
-                {
-                    'CreationTime': '2025-06-20T11:00:00.000Z',
-                    'Description': 'Updated configuration',
-                    'Revision': 2,
-                },
+                }
             ]
         }
         mock_client.list_configuration_revisions.return_value = expected_response
 
         # Act
         arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
-        result = list_configuration_revisions(arn, mock_client)
+        result = list_configuration_revisions(arn, mock_client, None)
 
         # Assert
         mock_client.list_configuration_revisions.assert_called_once_with(Arn=arn, MaxResults=10)
         assert result == expected_response
         assert 'Revisions' in result
-        assert len(result['Revisions']) == 2
+        assert len(result['Revisions']) == 1
         assert result['Revisions'][0]['Revision'] == 1
-        assert result['Revisions'][1]['Revision'] == 2
+        assert result['Revisions'][0]['Description'] == 'Initial configuration'
 
     def test_list_configuration_revisions_with_pagination(self):
         """Test the list_configuration_revisions function with pagination parameters."""
@@ -77,7 +72,7 @@ class TestListConfigurationRevisions:
         arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
         max_results = 5
         next_token = 'token'
-        result = list_configuration_revisions(arn, mock_client, max_results, next_token)
+        result = list_configuration_revisions(arn, mock_client, next_token, max_results)
 
         # Assert
         mock_client.list_configuration_revisions.assert_called_once_with(
@@ -97,7 +92,7 @@ class TestListConfigurationRevisions:
 
         # Act
         arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
-        result = list_configuration_revisions(arn, mock_client)
+        result = list_configuration_revisions(arn, mock_client, None)
 
         # Assert
         mock_client.list_configuration_revisions.assert_called_once_with(Arn=arn, MaxResults=10)
@@ -117,7 +112,7 @@ class TestListConfigurationRevisions:
         # Act & Assert
         arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
         with pytest.raises(ClientError) as excinfo:
-            list_configuration_revisions(arn, mock_client)
+            list_configuration_revisions(arn, mock_client, None)
 
         # Verify the error
         assert 'ResourceNotFoundException' in str(excinfo.value)
@@ -129,7 +124,7 @@ class TestListConfigurationRevisions:
         # Act & Assert
         arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
         with pytest.raises(ValueError) as excinfo:
-            list_configuration_revisions(arn, None)
+            list_configuration_revisions(arn, None, None)
 
         # Verify the error
         assert 'Client must be provided' in str(excinfo.value)

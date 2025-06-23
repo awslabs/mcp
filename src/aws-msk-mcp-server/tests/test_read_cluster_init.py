@@ -573,7 +573,6 @@ class TestReadClusterInit:
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_cluster_policy')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_cluster_operations')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_client_vpc_connections')
-    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_scram_secrets')
     def test_get_cluster_info_all(
         self,
         mock_list_client_vpc_connections,
