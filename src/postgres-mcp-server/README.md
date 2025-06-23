@@ -40,7 +40,7 @@ python -m awslabs.postgres_mcp_server.server \
   --hostname "[your-db-host.amazonaws.com]" \
   --port 5432 \
   --secret_arn "[your data]" \  # pragma: allowlist secret
-  --database "your database name]" \
+  --database "[your database name]" \
   --region "[your data]" \
   --readonly "true"
 ```
