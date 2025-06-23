@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""awslabs.aws-documentation-mcp-server"""
 
-__version__ = '1.1.0'
+"""AWS Labs MCP Servers package."""
+
+__version__ = '1.0.0'

@@ -279,14 +279,13 @@ async def test_readonly_query_error_on_write_sql(mocker):
     sql = 'delete from orders'
     with pytest.raises(Exception) as excinfo:
         await readonly_query(sql, ctx)
-    assert READ_ONLY_QUERY_WRITE_ERROR in str(excinfo.value)
+    # Now the readonly enforcement catches DELETE before it gets to the database
+    from awslabs.aurora_dsql_mcp_server.consts import ERROR_WRITE_QUERY_PROHIBITED
+    assert ERROR_WRITE_QUERY_PROHIBITED in str(excinfo.value)
 
-    mock_execute_query.assert_has_calls(
-        [
-            call(ctx, mock_conn, BEGIN_READ_ONLY_TRANSACTION_SQL),
-            call(ctx, mock_conn, sql),
-        ]
-    )
+    # The validation catches the issue before any database operations
+    mock_get_connection.assert_not_called()
+    mock_execute_query.assert_not_called()
 
 
 @patch('awslabs.aurora_dsql_mcp_server.server.read_only', False)
