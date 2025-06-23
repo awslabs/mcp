@@ -15,6 +15,7 @@
 
 import boto3
 import logging
+import httpx # noqa: F401
 from botocore.exceptions import ClientError # noqa: F401
 
 
