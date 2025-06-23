@@ -119,7 +119,7 @@ cd aws-mcp-servers/src/postgres-mcp-server
 # Create virtual environment and install dependencies
 python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e .
 
 # Set AWS credentials
 export AWS_PROFILE=your-profile-name
@@ -481,7 +481,7 @@ For detailed testing information, see [TESTING.md](TESTING.md).
 cd postgres-mcp-server
 python3.10 -m venv .venv
 source .venv/bin/activate
-python3.10 -m pip install -r requirements.txt -e .
+python3.10 -m pip install -e .
 ```
 
 ### Running Tests
