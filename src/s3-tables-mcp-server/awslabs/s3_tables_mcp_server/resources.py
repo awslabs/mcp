@@ -24,11 +24,12 @@ from .models import (
     TableSummary,
 )
 from .utils import get_s3tables_client
+from pydantic import BaseModel
 from typing import Any, Callable, Dict, List, Type, TypeVar
 
 
 T = TypeVar('T')
-ResourceT = TypeVar('ResourceT')
+ResourceT = TypeVar('ResourceT', bound=BaseModel)
 
 
 def create_error_response(error: Exception, resource_name: str) -> str:

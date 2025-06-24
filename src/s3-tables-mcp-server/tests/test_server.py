@@ -35,19 +35,15 @@ from awslabs.s3_tables_mcp_server.server import (
     delete_namespace,
     delete_table,
     delete_table_bucket,
-    delete_table_bucket_policy,
-    delete_table_policy,
     get_table_maintenance_configuration,
     get_table_maintenance_job_status,
     get_table_metadata_location,
-    get_table_policy,
     import_csv_to_table,
     list_namespaces,
     list_table_buckets,
     list_tables,
     modify_database,
     put_table_bucket_maintenance_configuration,
-    put_table_bucket_policy,
     put_table_maintenance_configuration,
     rename_table,
     update_table_metadata_location,
@@ -95,8 +91,6 @@ def mock_table_buckets():
         mock.put_table_bucket_maintenance_configuration = AsyncMock(
             return_value={'status': 'success'}
         )
-        mock.put_table_bucket_policy = AsyncMock(return_value={'status': 'success'})
-        mock.delete_table_bucket_policy = AsyncMock(return_value={'status': 'success'})
         yield mock
 
 
@@ -115,11 +109,9 @@ def mock_tables():
     with patch('awslabs.s3_tables_mcp_server.server.tables') as mock:
         mock.create_table = AsyncMock(return_value={'status': 'success'})
         mock.delete_table = AsyncMock(return_value={'status': 'success'})
-        mock.delete_table_policy = AsyncMock(return_value={'status': 'success'})
         mock.get_table_maintenance_configuration = AsyncMock(return_value={'status': 'success'})
         mock.get_table_maintenance_job_status = AsyncMock(return_value={'status': 'success'})
         mock.get_table_metadata_location = AsyncMock(return_value={'status': 'success'})
-        mock.get_table_policy = AsyncMock(return_value={'status': 'success'})
         mock.put_table_maintenance_configuration = AsyncMock(return_value={'status': 'success'})
         mock.rename_table = AsyncMock(return_value={'status': 'success'})
         mock.update_table_metadata_location = AsyncMock(return_value={'status': 'success'})
@@ -342,69 +334,6 @@ async def test_put_table_bucket_maintenance_configuration(mock_table_buckets):
 
 
 @pytest.mark.asyncio
-async def test_put_table_bucket_policy(mock_table_buckets):
-    """Test put_table_bucket_policy tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    resource_policy = '{"Version": "2012-10-17", "Statement": []}'
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await put_table_bucket_policy(
-        table_bucket_arn=table_bucket_arn, resource_policy=resource_policy, region_name=region
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_table_buckets.put_table_bucket_policy.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn, resource_policy=resource_policy, region_name=region
-    )
-
-
-@pytest.mark.asyncio
-async def test_delete_table_bucket_policy(mock_table_buckets):
-    """Test delete_table_bucket_policy tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await delete_table_bucket_policy(
-        table_bucket_arn=table_bucket_arn, region_name=region
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_table_buckets.delete_table_bucket_policy.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn, region_name=region
-    )
-
-
-@pytest.mark.asyncio
-async def test_delete_table_policy(mock_tables):
-    """Test delete_table_policy tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await delete_table_policy(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_tables.delete_table_policy.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-    )
-
-
-@pytest.mark.asyncio
 async def test_get_table_maintenance_configuration(mock_tables):
     """Test get_table_maintenance_configuration tool."""
     # Arrange
@@ -466,28 +395,6 @@ async def test_get_table_metadata_location(mock_tables):
     # Assert
     assert result == expected_response
     mock_tables.get_table_metadata_location.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-    )
-
-
-@pytest.mark.asyncio
-async def test_get_table_policy(mock_tables):
-    """Test get_table_policy tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await get_table_policy(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_tables.get_table_policy.assert_called_once_with(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
     )
 
@@ -743,55 +650,6 @@ async def test_put_table_bucket_maintenance_configuration_readonly_mode(
 
 
 @pytest.mark.asyncio
-async def test_put_table_bucket_policy_readonly_mode(setup_app_readonly, mock_table_buckets):
-    """Test put_table_bucket_policy tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    resource_policy = '{"Version": "2012-10-17", "Statement": []}'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await put_table_bucket_policy(
-            table_bucket_arn=table_bucket_arn, resource_policy=resource_policy, region_name=region
-        )
-
-
-@pytest.mark.asyncio
-async def test_delete_table_bucket_policy_readonly_mode(setup_app_readonly, mock_table_buckets):
-    """Test delete_table_bucket_policy tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await delete_table_bucket_policy(table_bucket_arn=table_bucket_arn, region_name=region)
-
-
-@pytest.mark.asyncio
-async def test_delete_table_policy_readonly_mode(setup_app_readonly, mock_tables):
-    """Test delete_table_policy tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await delete_table_policy(
-            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-        )
-
-
-@pytest.mark.asyncio
 async def test_get_table_maintenance_configuration_readonly_mode(setup_app_readonly, mock_tables):
     """Test get_table_maintenance_configuration tool when allow_write is disabled."""
     # Arrange
@@ -841,24 +699,6 @@ async def test_get_table_metadata_location_readonly_mode(setup_app_readonly, moc
         ValueError, match='Operation not permitted: Server is configured in read-only mode'
     ):
         await get_table_metadata_location(
-            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-        )
-
-
-@pytest.mark.asyncio
-async def test_get_table_policy_readonly_mode(setup_app_readonly, mock_tables):
-    """Test get_table_policy tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await get_table_policy(
             table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
         )
 

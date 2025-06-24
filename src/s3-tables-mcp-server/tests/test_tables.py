@@ -91,7 +91,7 @@ class TestCreateTable:
         format = OpenTableFormat.ICEBERG
 
         # Create metadata
-        schema_field = SchemaField(name='id', type='int', nullable=False)
+        schema_field = SchemaField(name='id', type='int', required=True)
         schema = IcebergSchema(fields=[schema_field])
         metadata = TableMetadata(iceberg=IcebergMetadata(schema=schema))
 

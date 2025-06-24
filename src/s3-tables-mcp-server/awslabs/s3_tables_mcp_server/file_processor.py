@@ -112,6 +112,10 @@ def preview_csv_structure(s3_url: str) -> Dict:
         if not is_valid:
             return {'status': 'error', 'error': error_msg}
 
+        # At this point, bucket and key are guaranteed to be non-None strings
+        assert bucket is not None
+        assert key is not None
+
         # Check if file has .csv extension
         if not key.lower().endswith('.csv'):
             return {
@@ -156,11 +160,11 @@ def preview_csv_structure(s3_url: str) -> Dict:
         return {'status': 'error', 'error': str(e)}
 
 
-def convert_value(value: str, iceberg_type):
+def convert_value(value: Optional[str], iceberg_type):
     """Convert a string value to the appropriate type based on Iceberg schema type.
 
     Args:
-        value: The string value to convert
+        value: The string value to convert (can be None)
         iceberg_type: The Iceberg type to convert to
 
     Returns:
@@ -365,6 +369,10 @@ async def import_csv_to_table(
     is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
     if not is_valid:
         return {'status': 'error', 'error': error_msg}
+
+    # At this point, bucket and key are guaranteed to be non-None strings
+    assert bucket is not None
+    assert key is not None
 
     # Check if file has .csv extension
     if not key.lower().endswith('.csv'):

@@ -17,8 +17,10 @@
 import boto3
 import os
 from . import __version__
+from botocore.client import BaseClient
 from botocore.config import Config
 from functools import wraps
+from typing import Optional
 
 
 def handle_exceptions(func):
@@ -34,7 +36,7 @@ def handle_exceptions(func):
     return wrapper
 
 
-def get_s3tables_client(region_name: str = None) -> boto3.client:
+def get_s3tables_client(region_name: Optional[str] = None) -> BaseClient:
     """Create a boto3 S3 Tables client.
 
     Args:
@@ -50,7 +52,7 @@ def get_s3tables_client(region_name: str = None) -> boto3.client:
     return session.client('s3tables', region_name=region, config=config)
 
 
-def get_s3_client(region_name: str = None) -> boto3.client:
+def get_s3_client(region_name: Optional[str] = None) -> BaseClient:
     """Create a boto3 S3 client.
 
     Args:
@@ -66,7 +68,7 @@ def get_s3_client(region_name: str = None) -> boto3.client:
     return session.client('s3', region_name=region, config=config)
 
 
-def get_sts_client(region_name: str = None) -> boto3.client:
+def get_sts_client(region_name: Optional[str] = None) -> BaseClient:
     """Create a boto3 STS client.
 
     Args:
@@ -82,7 +84,7 @@ def get_sts_client(region_name: str = None) -> boto3.client:
     return session.client('sts', region_name=region, config=config)
 
 
-def get_athena_client(region_name: str = None) -> boto3.client:
+def get_athena_client(region_name: Optional[str] = None) -> BaseClient:
     """Create a boto3 Athena client.
 
     Args:

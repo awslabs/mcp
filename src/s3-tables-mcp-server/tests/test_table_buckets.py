@@ -211,7 +211,9 @@ class TestPutTableBucketMaintenanceConfiguration:
         # Arrange
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
-        value = TableBucketMaintenanceConfigurationValue(status=MaintenanceStatus.ENABLED)
+        value = TableBucketMaintenanceConfigurationValue(
+            status=MaintenanceStatus.ENABLED, settings=None
+        )
         region = 'us-west-2'
         expected_response = {'status': 'success', 'message': 'Maintenance configuration updated'}
 
@@ -242,7 +244,9 @@ class TestPutTableBucketMaintenanceConfiguration:
         # Arrange
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
-        value = TableBucketMaintenanceConfigurationValue(status=MaintenanceStatus.ENABLED)
+        value = TableBucketMaintenanceConfigurationValue(
+            status=MaintenanceStatus.ENABLED, settings=None
+        )
         error_message = 'Invalid maintenance configuration'
 
         with patch(

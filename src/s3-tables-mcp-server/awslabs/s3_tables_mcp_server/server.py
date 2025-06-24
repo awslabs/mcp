@@ -55,8 +55,22 @@ from pydantic import Field
 from typing import Annotated, Any, Callable, Dict, Optional
 
 
+class S3TablesMCPServer(FastMCP):
+    """Extended FastMCP server with write operation control."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the S3 Tables MCP server with write operation control.
+
+        Args:
+            *args: Positional arguments passed to FastMCP
+            **kwargs: Keyword arguments passed to FastMCP
+        """
+        super().__init__(*args, **kwargs)
+        self.allow_write: bool = False
+
+
 # Initialize FastMCP app
-app = FastMCP(
+app = S3TablesMCPServer(
     name='s3-tables-server',
     instructions='A Model Context Protocol (MCP) server that enables programmatic access to AWS S3 Tables. This server provides a comprehensive interface for creating, managing, and interacting with S3-based table storage, supporting operations for table buckets, namespaces, and individual S3 tables. It integrates with Amazon Athena for SQL query execution, allowing both read and write operations on your S3 Tables data.',
     version=__version__,
@@ -356,69 +370,6 @@ async def put_table_bucket_maintenance_configuration(
 
 @app.tool()
 @write_operation
-async def put_table_bucket_policy(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    resource_policy: Annotated[
-        str,
-        Field(
-            ..., description='The JSON that defines the policy.', min_length=1, max_length=20480
-        ),
-    ],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Create or replace a table bucket policy.
-
-    Creates a new maintenance configuration or replaces an existing table bucket policy for a table bucket.
-    For more information, see Adding a table bucket policy in the Amazon Simple Storage Service User Guide.
-
-    Permissions:
-    You must have the s3tables:PutTableBucketPolicy permission to use this operation.
-    """
-    return await table_buckets.put_table_bucket_policy(
-        table_bucket_arn=table_bucket_arn, resource_policy=resource_policy, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
-async def delete_table_bucket_policy(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Delete a table bucket policy.
-
-    Deletes a table bucket policy.
-
-    Permissions:
-    You must have the s3tables:DeleteTableBucketPolicy permission to use this operation.
-    """
-    return await table_buckets.delete_table_bucket_policy(
-        table_bucket_arn=table_bucket_arn, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
-async def delete_table_policy(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    name: Annotated[str, TABLE_NAME_FIELD],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Delete a table policy.
-
-    Deletes a table policy.
-
-    Permissions:
-    You must have the s3tables:DeleteTablePolicy permission to use this operation.
-    """
-    return await tables.delete_table_policy(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
 async def get_table_maintenance_configuration(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -474,26 +425,6 @@ async def get_table_metadata_location(
     You must have the s3tables:GetTableMetadataLocation permission to use this operation.
     """
     return await tables.get_table_metadata_location(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
-async def get_table_policy(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    name: Annotated[str, TABLE_NAME_FIELD],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Get details about a table policy.
-
-    Gets details about a table policy. For more information, see Viewing a table policy in the Amazon Simple Storage Service User Guide.
-
-    Permissions:
-    You must have the s3tables:GetTablePolicy permission to use this operation.
-    """
-    return await tables.get_table_policy(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region_name
     )
 

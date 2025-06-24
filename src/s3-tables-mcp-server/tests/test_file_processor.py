@@ -27,6 +27,7 @@ from awslabs.s3_tables_mcp_server.file_processor import (
 )
 from datetime import date, datetime, time
 from decimal import Decimal
+from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -39,6 +40,7 @@ from pyiceberg.types import (
     ListType,
     LongType,
     MapType,
+    NestedField,
     StringType,
     StructType,
     TimestampType,
@@ -78,6 +80,7 @@ class TestValidateS3Url:
         is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
 
         assert is_valid is False
+        assert error_msg is not None
         assert 'Invalid URL scheme: https' in error_msg
         assert bucket is None
         assert key is None
@@ -88,6 +91,7 @@ class TestValidateS3Url:
         is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
 
         assert is_valid is False
+        assert error_msg is not None
         assert 'Missing bucket name' in error_msg
         assert bucket is None
         assert key is None
@@ -98,6 +102,7 @@ class TestValidateS3Url:
         is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
 
         assert is_valid is False
+        assert error_msg is not None
         assert 'Missing object key' in error_msg
         assert bucket is None
         assert key is None
@@ -340,19 +345,6 @@ class TestCreatePyarrowSchemaFromIceberg:
 
     def test_basic_types(self):
         """Test conversion of basic Iceberg types to PyArrow schema."""
-        from pyiceberg.schema import NestedField, Schema
-        from pyiceberg.types import (
-            BooleanType,
-            DateType,
-            DoubleType,
-            FloatType,
-            IntegerType,
-            LongType,
-            StringType,
-            TimestampType,
-            TimeType,
-        )
-
         iceberg_schema = Schema(
             NestedField(1, 'bool_field', BooleanType(), required=True),
             NestedField(2, 'int_field', IntegerType(), required=True),
@@ -374,9 +366,6 @@ class TestCreatePyarrowSchemaFromIceberg:
 
     def test_decimal_type(self):
         """Test decimal type conversion."""
-        from pyiceberg.schema import NestedField, Schema
-        from pyiceberg.types import DecimalType
-
         iceberg_schema = Schema(NestedField(1, 'decimal_field', DecimalType(10, 2), required=True))
 
         pa_schema = create_pyarrow_schema_from_iceberg(iceberg_schema)
@@ -386,9 +375,6 @@ class TestCreatePyarrowSchemaFromIceberg:
 
     def test_fixed_type(self):
         """Test fixed type conversion."""
-        from pyiceberg.schema import NestedField, Schema
-        from pyiceberg.types import FixedType
-
         iceberg_schema = Schema(NestedField(1, 'fixed_field', FixedType(10), required=True))
 
         pa_schema = create_pyarrow_schema_from_iceberg(iceberg_schema)
@@ -398,9 +384,6 @@ class TestCreatePyarrowSchemaFromIceberg:
 
     def test_required_and_optional_fields(self):
         """Test handling of required and optional fields."""
-        from pyiceberg.schema import NestedField, Schema
-        from pyiceberg.types import StringType
-
         iceberg_schema = Schema(
             NestedField(1, 'required_field', StringType(), required=True),
             NestedField(2, 'optional_field', StringType(), required=False),
@@ -507,9 +490,6 @@ class TestImportCsvToTable:
     @pytest.fixture
     def mock_schema(self):
         """Create a mock Iceberg schema."""
-        from pyiceberg.schema import NestedField, Schema
-        from pyiceberg.types import IntegerType, StringType
-
         return Schema(
             NestedField(1, 'id', IntegerType(), required=True),
             NestedField(2, 'name', StringType(), required=True),

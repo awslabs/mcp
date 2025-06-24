@@ -29,6 +29,7 @@ from awslabs.s3_tables_mcp_server.resources import (
     list_tables_resource,
     paginate_and_collect,
 )
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 
@@ -180,7 +181,7 @@ class TestCreateResourceResponse:
                 arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
                 name='test-bucket',
                 owner_account_id='123456789012',
-                created_at='2023-01-01T00:00:00Z',
+                created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
             )
         ]
 
@@ -374,7 +375,7 @@ class TestListNamespacesResource:
             arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
             name='test-bucket',
             owner_account_id='123456789012',
-            created_at='2023-01-01T00:00:00Z',
+            created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
 
         with (
@@ -404,7 +405,7 @@ class TestListNamespacesResource:
             arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
             name='test-bucket',
             owner_account_id='123456789012',
-            created_at='2023-01-01T00:00:00Z',
+            created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
 
         with (
@@ -473,7 +474,7 @@ class TestListTablesResource:
             arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
             name='test-bucket',
             owner_account_id='123456789012',
-            created_at='2023-01-01T00:00:00Z',
+            created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
 
         with (
@@ -504,7 +505,7 @@ class TestListTablesResource:
             arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
             name='test-bucket',
             owner_account_id='123456789012',
-            created_at='2023-01-01T00:00:00Z',
+            created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
 
         with (

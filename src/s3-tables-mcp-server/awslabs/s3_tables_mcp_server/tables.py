@@ -42,7 +42,7 @@ async def create_table(
     client = get_s3tables_client(region_name)
 
     # Prepare parameters for create_table
-    params = {
+    params: Dict[str, Any] = {
         'tableBucketARN': table_bucket_arn,
         'namespace': namespace,
         'name': name,
@@ -73,7 +73,11 @@ async def delete_table(
     client = get_s3tables_client(region_name)
 
     # Prepare parameters for delete_table
-    params = {'tableBucketARN': table_bucket_arn, 'namespace': namespace, 'name': name}
+    params: Dict[str, Any] = {
+        'tableBucketARN': table_bucket_arn,
+        'namespace': namespace,
+        'name': name,
+    }
 
     # Add version token if provided
     if version_token:
@@ -209,7 +213,7 @@ async def put_table_maintenance_configuration(
     client = get_s3tables_client(region_name)
 
     # Prepare parameters for put_table_maintenance_configuration
-    params = {
+    params: Dict[str, Any] = {
         'tableBucketARN': table_bucket_arn,
         'namespace': namespace,
         'name': name,
@@ -253,7 +257,11 @@ async def rename_table(
     client = get_s3tables_client(region_name)
 
     # Prepare parameters for rename_table
-    params = {'tableBucketARN': table_bucket_arn, 'namespace': namespace, 'name': name}
+    params: Dict[str, Any] = {
+        'tableBucketARN': table_bucket_arn,
+        'namespace': namespace,
+        'name': name,
+    }
 
     # Add optional parameters if provided
     if new_name:
@@ -287,7 +295,7 @@ async def update_table_metadata_location(
     client = get_s3tables_client(region_name)
 
     # Prepare parameters for update_table_metadata_location
-    params = {
+    params: Dict[str, Any] = {
         'tableBucketARN': table_bucket_arn,
         'namespace': namespace,
         'name': name,
