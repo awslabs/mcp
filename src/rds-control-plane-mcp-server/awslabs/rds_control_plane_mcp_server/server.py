@@ -12,219 +12,90 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""AWS Labs RDS Control Plane MCP Server implementation for Amazon RDS databases."""
+"""awslabs rds-control-plane MCP Server implementation."""
 
-import argparse
-import asyncio
-import os
-import sys
-from typing import Any, Dict, List, Optional
-
-import boto3
-from botocore.config import Config
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-
-from .constants import MCP_SERVER_VERSION
-from .resources import (
-    get_cluster_list_resource,
-    get_cluster_detail_resource,
-    get_instance_list_resource,
-    get_instance_detail_resource,
-)
-
-logger.remove()
-logger.add(sys.stderr, level='INFO')
-
-# global variables
-_rds_client = None
-_readonly = True
-_region = None
-
-
-def get_rds_client():
-    """Get or create RDS client."""
-    global _rds_client, _region
-    if _rds_client is None:
-        config = Config(
-            region_name=_region,
-            retries={'max_attempts': 3, 'mode': 'adaptive'},
-        )
-        _rds_client = boto3.client('rds', config=config)
-    return _rds_client
+from mcp.server.fastmcp import FastMCP
+from typing import Literal
 
 
 mcp = FastMCP(
     'awslabs.rds-control-plane-mcp-server',
-    version=MCP_SERVER_VERSION,
-    instructions="""This server provides access to Amazon RDS database instances and clusters.
-
-Key capabilities:
-- View detailed information about RDS DB instances
-- View detailed information about RDS DB clusters
-- Access connection endpoints, configuration, and status information
-
-The server operates in read-only mode by default, providing safe access to RDS resources.""",
-    dependencies=['boto3', 'botocore', 'pydantic', 'loguru'],
+    instructions='Instructions for using this rds-control-plane MCP server. This can be used by clients to improve the LLM'
+    's understanding of available tools, resources, etc. It can be thought of like a '
+    'hint'
+    ' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.',
+    dependencies=[
+        'pydantic',
+        'loguru',
+    ],
 )
 
-# ===== RESOURCES =====
-# read-only access to RDS data
 
-@mcp.resource(uri='aws-rds://db-cluster', name='DB Clusters', mime_type='application/json')
-async def list_clusters_resource() -> str:
-    """List all available Amazon RDS clusters in your account.
-    
-    <use_case>
-    Use this resource to discover all available RDS database clusters in your AWS account.
-    </use_case>
-    
-    <important_notes>
-    1. The response provides essential information about each cluster
-    2. Cluster identifiers returned can be used with the db-cluster/{cluster_id} resource
-    3. Clusters are filtered to the AWS region specified in your environment configuration
-    </important_notes>
-    
-    ## Response structure
-    Returns a JSON document containing:
-    - `clusters`: Array of DB cluster objects
-    - `count`: Number of clusters found
-    - `resource_uri`: Base URI for accessing clusters
+@mcp.tool(name='ExampleTool')
+async def example_tool(
+    query: str,
+) -> str:
+    """Example tool implementation.
+
+    Replace this with your own tool implementation.
     """
-    return await get_cluster_list_resource(get_rds_client())
+    project_name = 'awslabs rds-control-plane MCP Server'
+    return (
+        f"Hello from {project_name}! Your query was {query}. Replace this with your tool's logic"
+    )
 
 
-@mcp.resource(
-    uri='aws-rds://db-cluster/{cluster_id}',
-    name='DB Cluster Details',
-    mime_type='application/json',
-)
-async def get_cluster_resource(cluster_id: str) -> str:
-    """Get detailed information about a specific Amazon RDS cluster.
-    
-    <use_case>
-    Use this resource to retrieve comprehensive details about a specific RDS database cluster
-    identified by its cluster ID.
-    </use_case>
-    
-    <important_notes>
-    1. The cluster ID must exist in your AWS account and region
-    2. The response contains full configuration details about the specified cluster
-    3. Error responses will be returned if the cluster doesn't exist
-    </important_notes>
-    
-    ## Response structure
-    Returns a JSON document containing detailed cluster information including:
-    - Status, engine type, and version
-    - Endpoints for connection
-    - Backup configuration
-    - Member instances
-    - Security groups
+@mcp.tool(name='MathTool')
+async def math_tool(
+    operation: Literal['add', 'subtract', 'multiply', 'divide'],
+    a: int | float,
+    b: int | float,
+) -> int | float:
+    """Math tool implementation.
+
+    This tool supports the following operations:
+    - add
+    - subtract
+    - multiply
+    - divide
+
+    Parameters:
+        operation (Literal["add", "subtract", "multiply", "divide"]): The operation to perform.
+        a (int): The first number.
+        b (int): The second number.
+
+    Returns:
+        The result of the operation.
     """
-    return await get_cluster_detail_resource(cluster_id, get_rds_client())
-
-
-@mcp.resource(uri='aws-rds://db-instance', name='DB Instances', mime_type='application/json')
-async def list_instances_resource() -> str:
-    """List all available Amazon RDS instances in your account.
-    
-    <use_case>
-    Use this resource to discover all available RDS database instances in your AWS account.
-    </use_case>
-    
-    <important_notes>
-    1. The response provides essential information about each instance
-    2. Instance identifiers returned can be used with the db-instance/{instance_id} resource
-    3. Instances are filtered to the AWS region specified in your environment configuration
-    </important_notes>
-    
-    ## Response structure
-    Returns a JSON document containing:
-    - `instances`: Array of DB instance objects
-    - `count`: Number of instances found
-    - `resource_uri`: Base URI for accessing instances
-    """
-    return await get_instance_list_resource(get_rds_client())
-
-
-@mcp.resource(
-    uri='aws-rds://db-instance/{instance_id}',
-    name='DB Instance Details',
-    mime_type='application/json',
-)
-async def get_instance_resource(instance_id: str) -> str:
-    """Get detailed information about a specific Amazon RDS instance.
-    
-    <use_case>
-    Use this resource to retrieve comprehensive details about a specific RDS database instance
-    identified by its instance ID.
-    </use_case>
-    
-    <important_notes>
-    1. The instance ID must exist in your AWS account and region
-    2. The response contains full configuration details about the specified instance
-    3. Error responses will be returned if the instance doesn't exist
-    </important_notes>
-    
-    ## Response structure
-    Returns a JSON document containing detailed instance information including:
-    - Status, engine type, and version
-    - Instance class and storage configuration
-    - Endpoint for connection
-    - Availability zone and Multi-AZ setting
-    - Security groups
-    """
-    return await get_instance_detail_resource(instance_id, get_rds_client())
+    match operation:
+        case 'add':
+            return a + b
+        case 'subtract':
+            return a - b
+        case 'multiply':
+            return a * b
+        case 'divide':
+            try:
+                return a / b
+            except ZeroDivisionError:
+                raise ValueError(f'The denominator {b} cannot be zero.')
+        case _:
+            raise ValueError(
+                f'Invalid operation: {operation} (must be one of: add, subtract, multiply, divide)'
+            )
 
 
 def main():
     """Run the MCP server with CLI argument support."""
-    global _readonly, _region
-    
-    parser = argparse.ArgumentParser(
-        description='An AWS Labs MCP server for Amazon RDS control plane operations'
-    )
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-    parser.add_argument(
-        '--region',
-        type=str,
-        required=True,
-        help='AWS region for RDS operations'
-    )
-    parser.add_argument(
-        '--readonly',
-        type=str,
-        default='true',
-        choices=['true', 'false'],
-        help='Whether to run in read-only mode (default: true)'
-    )
-    parser.add_argument(
-        '--profile',
-        type=str,
-        help='AWS profile to use for credentials'
-    )
+    logger.trace('A trace message.')
+    logger.debug('A debug message.')
+    logger.info('An info message.')
+    logger.success('A success message.')
+    logger.warning('A warning message.')
+    logger.error('An error message.')
+    logger.critical('A critical message.')
 
-    args = parser.parse_args()
-
-    # global configuration
-    _readonly = args.readonly.lower() == 'true'
-    _region = args.region
-    
-    # AWS profile if provided
-    if args.profile:
-        os.environ['AWS_PROFILE'] = args.profile
-    
-    # log configuration
-    logger.info(f"Starting RDS Control Plane MCP Server v{MCP_SERVER_VERSION}")
-    logger.info(f"Region: {_region}")
-    logger.info(f"Read-only mode: {_readonly}")
-    if args.profile:
-        logger.info(f"AWS Profile: {args.profile}")
-
-    if args.port:
-        mcp.settings.port = args.port
-        
-    # default streamable HTTP transport
     mcp.run()
 
 
