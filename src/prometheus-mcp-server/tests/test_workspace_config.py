@@ -80,8 +80,8 @@ async def test_configure_workspace_for_request_no_config():
         patch('awslabs.prometheus_mcp_server.server.test_prometheus_connection') as mock_test_conn,
         patch('awslabs.prometheus_mcp_server.server.PrometheusConfig') as mock_config_class,
     ):
-        from awslabs.prometheus_mcp_server.server import configure_workspace_for_request
         from awslabs.prometheus_mcp_server.consts import DEFAULT_SERVICE_NAME
+        from awslabs.prometheus_mcp_server.server import configure_workspace_for_request
 
         # Setup
         mock_test_conn.return_value = True
@@ -201,5 +201,7 @@ async def test_get_available_workspaces_custom_region():
         result = await get_available_workspaces(ctx, region=custom_region)
 
         # Assert
-        mock_session.assert_called_once_with(profile_name='test-profile', region_name=custom_region)
+        mock_session.assert_called_once_with(
+            profile_name='test-profile', region_name=custom_region
+        )
         assert result['region'] == custom_region

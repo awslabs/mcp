@@ -284,7 +284,9 @@ def test_setup_environment_invalid_url():
 
     # Assert
     assert result is False  # Should fail because the URL is invalid
-    mock_logger.error.assert_any_call('ERROR: Invalid Prometheus URL format: invalid-url')  # Should warn about invalid URL format
+    mock_logger.error.assert_any_call(
+        'ERROR: Invalid Prometheus URL format: invalid-url'
+    )  # Should warn about invalid URL format
 
 
 def test_setup_environment_no_region():
