@@ -18,6 +18,8 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aurora-dsql-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXVyb3JhLWRzcWwtbWNwLXNlcnZlckBsYXRlc3QgLS1jbHVzdGVyX2VuZHBvaW50IFt5b3VyIGRzcWwgY2x1c3RlciBlbmRwb2ludF0gLS1yZWdpb24gW3lvdXIgZHNxbCBjbHVzdGVyIHJlZ2lvbiwgZS5nLiB1cy1lYXN0LTFdIC0tZGF0YWJhc2VfdXNlciBbeW91ciBkc3FsIHVzZXJuYW1lXSAtLXByb2ZpbGUgZGVmYXVsdCIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
+
 ### Using `uv`
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
@@ -55,7 +57,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 1. 'git clone https://github.com/awslabs/mcp.git'
 2. Go to sub-directory 'src/aurora-dsql-mcp-server/'
 3. Run 'docker build -t awslabs/aurora-dsql-mcp-server:latest .'
-4. Create a env file with tempoary credentials:
+4. Create a env file with temporary credentials:
 
 Either manually:
 ```file
@@ -96,7 +98,9 @@ aws configure export-credentials --profile your-profile-name --format env > temp
 
 ### `--allow-writes`
 
-By default, the dsql mcp server does not allow write operations. Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing `--allow-writes` parameter.
+By default, the dsql mcp server does not allow write operations ("read-only mode"). Any invocations of transact tool will fail in this mode. To use transact tool, allow writes by passing `--allow-writes` parameter.
+
+We recommend using least-privilege access when connecting to DSQL. For example, users should use a role that is read-only when possible. The read-only mode has a best-effort client-side enforcement to reject mutations.
 
 ### `--cluster_endpoint`
 
@@ -128,3 +132,72 @@ If neither is provided, the MCP server defaults to using the "default" profile i
 ### `--region`
 
 This is a mandatory parameter to specify the region of your DSQL database.
+
+## Development and Testing
+
+### Running Tests
+
+This project includes comprehensive tests to validate the readonly enforcement mechanisms. To run the tests:
+
+```bash
+# Install dependencies and run tests
+uv run pytest tests/test_readonly_enforcement.py -v
+
+# Run all tests
+uv run pytest -v
+
+# Run tests with coverage
+uv run pytest --cov=awslabs.aurora_dsql_mcp_server tests/ -v
+```
+
+### Local Docker Testing
+
+To test the MCP server locally using Docker:
+
+1. **Build the Docker image:**
+   ```bash
+   cd src/aurora-dsql-mcp-server
+   docker build -t awslabs/aurora-dsql-mcp-server:latest .
+   ```
+
+2. **Create AWS credentials file:**
+
+   Option A - Manual creation:
+   ```bash
+   # Create .env file with your AWS credentials
+   cat > .env << EOF
+   AWS_ACCESS_KEY_ID=your_access_key_here
+   AWS_SECRET_ACCESS_KEY=your_secret_key_here
+   AWS_SESSION_TOKEN=your_session_token_here
+   EOF
+   ```
+
+   Option B - Export from AWS CLI:
+   ```bash
+   aws configure export-credentials --profile your-profile-name --format env > temp_aws_credentials.env
+   sed 's/^export //' temp_aws_credentials.env > .env
+   rm temp_aws_credentials.env
+   ```
+
+3. **Test the container directly:**
+   ```bash
+   docker run -i --rm \
+     --env-file .env \
+     awslabs/aurora-dsql-mcp-server:latest \
+     --cluster_endpoint "your-dsql-cluster-endpoint" \
+     --database_user "your-username" \
+     --region "us-east-1"
+   ```
+
+4. **Test with write operations enabled:**
+   ```bash
+   docker run -i --rm \
+     --env-file .env \
+     awslabs/aurora-dsql-mcp-server:latest \
+     --cluster_endpoint "your-dsql-cluster-endpoint" \
+     --database_user "your-username" \
+     --region "us-east-1" \
+     --allow-writes
+   ```
+
+**Note:** Replace the placeholder values with your actual DSQL cluster endpoint, username, and region.

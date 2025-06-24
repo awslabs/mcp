@@ -39,20 +39,18 @@ async def test_configure_security_groups_success():
             }
         ]
     }
-    primary_cluster_response = {
+    first_cluster_response = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
                 'SecurityGroups': [{'SecurityGroupId': 'sg-123'}],
                 'CacheNodes': [{'Endpoint': {'Port': 6379}}],
             }
         ]
     }
-    replica_cluster_response = {
+    second_cluster_response = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'REPLICA',
                 'CacheSubnetGroupName': 'subnet-group-1',
                 'SecurityGroups': [{'SecurityGroupId': 'sg-123'}],
                 'CacheNodes': [{'Endpoint': {'Port': 6379}}],
@@ -60,14 +58,12 @@ async def test_configure_security_groups_success():
         ]
     }
     # Need to provide enough responses for all calls:
-    # 2 initial calls to find primary (cluster-1, cluster-2)
-    # 1 call to get primary details again
+    # 1 call to get first cluster details
     # 2 final calls in the loop for security groups (cluster-1, cluster-2)
     mock_elasticache.describe_cache_clusters.side_effect = [
-        primary_cluster_response,  # First call in loop to find primary (cluster-1)
-        primary_cluster_response,  # Second call to get primary details
-        primary_cluster_response,  # Third call in final loop (cluster-1)
-        replica_cluster_response,  # Third call in final loop (cluster-2)
+        first_cluster_response,  # First call to get first cluster details
+        first_cluster_response,  # Second call in final loop (cluster-1)
+        second_cluster_response,  # Third call in final loop (cluster-2)
     ]
     mock_elasticache.describe_cache_subnet_groups.return_value = {
         'CacheSubnetGroups': [{'VpcId': 'vpc-123'}]
@@ -118,7 +114,6 @@ async def test_configure_security_groups_vpc_mismatch():
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
             }
         ]
@@ -194,32 +189,15 @@ async def test_get_ssh_tunnel_command_rg_success():
         ]
     }
 
-    # Mock ElastiCache responses
+    # Mock ElastiCache responses with ConfigurationEndpoint
     mock_elasticache.describe_replication_groups.return_value = {
-        'ReplicationGroups': [{'MemberClusters': ['cluster-1', 'cluster-2']}]
+        'ReplicationGroups': [
+            {
+                'ConfigurationEndpoint': {'Address': 'config.cache.amazonaws.com', 'Port': 6379},
+                'MemberClusters': ['cluster-1', 'cluster-2'],
+            }
+        ]
     }
-    mock_elasticache.describe_cache_clusters.side_effect = [
-        {
-            'CacheClusters': [
-                {
-                    'CacheClusterRole': 'PRIMARY',
-                    'CacheNodes': [
-                        {'Endpoint': {'Address': 'primary.cache.amazonaws.com', 'Port': 6379}}
-                    ],
-                }
-            ]
-        },
-        {
-            'CacheClusters': [
-                {
-                    'CacheClusterRole': 'REPLICA',
-                    'CacheNodes': [
-                        {'Endpoint': {'Address': 'replica.cache.amazonaws.com', 'Port': 6379}}
-                    ],
-                }
-            ]
-        },
-    ]
 
     with (
         patch(
@@ -237,15 +215,15 @@ async def test_get_ssh_tunnel_command_rg_success():
     assert result['keyName'] == 'test-key'
     assert result['user'] == 'ec2-user'
     assert result['jumpHostDns'] == 'ec2-1-2-3-4.compute-1.amazonaws.com'
-    assert len(result['nodes']) == 2
-    assert result['basePort'] == 6379
+    assert result['localPort'] == 6379
+    assert result['remoteEndpoint'] == 'config.cache.amazonaws.com'
+    assert result['remotePort'] == 6379
 
     # Verify command format
-    primary_node = next(node for node in result['nodes'] if node['role'] == 'PRIMARY')
-    assert 'ssh -i "test-key.pem"' in primary_node['command']
-    # Check that both the endpoint and port are in the command, but don't require a specific format
-    assert 'primary.cache.amazonaws.com' in primary_node['command']
-    assert '6379' in primary_node['command']
+    assert 'command' in result
+    assert 'ssh -i "test-key.pem"' in result['command']
+    assert 'config.cache.amazonaws.com' in result['command']
+    assert '6379' in result['command']
 
 
 @pytest.mark.asyncio
@@ -276,7 +254,6 @@ async def test_create_jump_host_rg_success():
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
             }
         ]
@@ -300,7 +277,7 @@ async def test_create_jump_host_rg_success():
         ),
     ):
         result = await create_jump_host_rg(
-            'rg-test', 'subnet-123', 'sg-123', 'test-key', 't3.small'
+            'rg-test', 'test-key', 'subnet-123', 'sg-123', 't3.small'
         )
 
     # Verify response
@@ -340,6 +317,9 @@ async def test_create_jump_host_rg_private_subnet():
         def describe_route_tables(self):
             pass
 
+        def describe_vpcs(self):
+            pass
+
         def describe_instances(self):
             pass
 
@@ -367,8 +347,11 @@ async def test_create_jump_host_rg_private_subnet():
 
     # Set up mocks for EC2
     mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
-    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-123'}]}
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [{'VpcId': 'vpc-123', 'DefaultForAz': False, 'MapPublicIpOnLaunch': False}]
+    }
     mock_ec2.describe_route_tables.return_value = {'RouteTables': [{'Routes': []}]}
+    mock_ec2.describe_vpcs.return_value = {'Vpcs': [{'IsDefault': False}]}
     mock_ec2.describe_images.return_value = {
         'Images': [{'ImageId': 'ami-123', 'CreationDate': '2023-01-01'}]
     }
@@ -380,7 +363,6 @@ async def test_create_jump_host_rg_private_subnet():
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
             }
         ]
@@ -399,10 +381,10 @@ async def test_create_jump_host_rg_private_subnet():
             return_value=mock_elasticache,
         ),
     ):
-        result = await create_jump_host_rg('rg-test', 'subnet-123', 'sg-123', 'test-key')
+        result = await create_jump_host_rg('rg-test', 'test-key', 'subnet-123', 'sg-123')
         assert 'error' in result
         assert (
-            'Subnet subnet-123 is not public (no route to internet gateway found). The subnet must be public to allow SSH access to the jump host.'
+            'Subnet subnet-123 is not public (no route to internet gateway found and not a default subnet in default VPC). The subnet must be public to allow SSH access to the jump host.'
             in result['error']
         )
 
@@ -465,7 +447,6 @@ async def test_create_jump_host_rg_invalid_key():
     mock_elasticache.describe_cache_clusters.return_value = {
         'CacheClusters': [
             {
-                'CacheClusterRole': 'PRIMARY',
                 'CacheSubnetGroupName': 'subnet-group-1',
             }
         ]
@@ -484,6 +465,152 @@ async def test_create_jump_host_rg_invalid_key():
             return_value=mock_elasticache,
         ),
     ):
-        result = await create_jump_host_rg('rg-test', 'subnet-123', 'sg-123', 'invalid-key')
+        result = await create_jump_host_rg('rg-test', 'invalid-key', 'subnet-123', 'sg-123')
         assert 'error' in result
         assert "Key pair 'invalid-key' not found" in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_rg_default_vpc_default_subnet():
+    """Test jump host creation with default subnet in default VPC."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock EC2 responses for default VPC scenario
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [
+            {
+                'VpcId': 'vpc-123',
+                'DefaultForAz': True,  # This is a default subnet
+                'MapPublicIpOnLaunch': True,
+            }
+        ]
+    }
+    mock_ec2.describe_route_tables.return_value = {'RouteTables': [{'Routes': []}]}  # No IGW route
+    mock_ec2.describe_vpcs.return_value = {'Vpcs': [{'IsDefault': True}]}  # Default VPC
+    mock_ec2.describe_images.return_value = {
+        'Images': [{'ImageId': 'ami-123', 'CreationDate': '2023-01-01'}]
+    }
+    mock_ec2.describe_security_groups.return_value = {'SecurityGroups': [{'IpPermissions': []}]}
+    mock_ec2.run_instances.return_value = {'Instances': [{'InstanceId': 'i-new'}]}
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [{'Instances': [{'PublicIpAddress': '1.2.3.4'}]}]
+    }
+
+    # Mock ElastiCache responses
+    mock_elasticache.describe_replication_groups.return_value = {
+        'ReplicationGroups': [{'MemberClusters': ['cluster-1']}]
+    }
+    mock_elasticache.describe_cache_clusters.return_value = {
+        'CacheClusters': [
+            {
+                'CacheSubnetGroupName': 'subnet-group-1',
+            }
+        ]
+    }
+    mock_elasticache.describe_cache_subnet_groups.return_value = {
+        'CacheSubnetGroups': [{'VpcId': 'vpc-123'}]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.tools.rg.connect._configure_security_groups',
+            return_value=(True, 'vpc-123', 6379),
+        ),
+    ):
+        result = await create_jump_host_rg(
+            'rg-test', 'test-key', 'subnet-123', 'sg-123', 't3.small'
+        )
+
+    # Verify successful creation despite no IGW route (because it's default subnet in default VPC)
+    assert result['InstanceId'] == 'i-new'
+    assert result['PublicIpAddress'] == '1.2.3.4'
+    assert result['InstanceType'] == 't3.small'
+    assert result['SubnetId'] == 'subnet-123'
+    assert result['SecurityGroupId'] == 'sg-123'
+    assert result['ReplicationGroupId'] == 'rg-test'
+    assert result['SecurityGroupsConfigured'] is True
+    assert result['CachePort'] == 6379
+    assert result['VpcId'] == 'vpc-123'
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_rg_default_vpc_map_public_ip():
+    """Test jump host creation with MapPublicIpOnLaunch=True in default VPC."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock EC2 responses for default VPC scenario with MapPublicIpOnLaunch
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [
+            {
+                'VpcId': 'vpc-123',
+                'DefaultForAz': False,  # Not a default subnet
+                'MapPublicIpOnLaunch': True,  # But has MapPublicIpOnLaunch=True
+            }
+        ]
+    }
+    mock_ec2.describe_route_tables.return_value = {'RouteTables': [{'Routes': []}]}  # No IGW route
+    mock_ec2.describe_vpcs.return_value = {'Vpcs': [{'IsDefault': True}]}  # Default VPC
+    mock_ec2.describe_images.return_value = {
+        'Images': [{'ImageId': 'ami-123', 'CreationDate': '2023-01-01'}]
+    }
+    mock_ec2.describe_security_groups.return_value = {'SecurityGroups': [{'IpPermissions': []}]}
+    mock_ec2.run_instances.return_value = {'Instances': [{'InstanceId': 'i-new'}]}
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [{'Instances': [{'PublicIpAddress': '1.2.3.4'}]}]
+    }
+
+    # Mock ElastiCache responses
+    mock_elasticache.describe_replication_groups.return_value = {
+        'ReplicationGroups': [{'MemberClusters': ['cluster-1']}]
+    }
+    mock_elasticache.describe_cache_clusters.return_value = {
+        'CacheClusters': [
+            {
+                'CacheSubnetGroupName': 'subnet-group-1',
+            }
+        ]
+    }
+    mock_elasticache.describe_cache_subnet_groups.return_value = {
+        'CacheSubnetGroups': [{'VpcId': 'vpc-123'}]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.tools.rg.connect._configure_security_groups',
+            return_value=(True, 'vpc-123', 6379),
+        ),
+    ):
+        result = await create_jump_host_rg(
+            'rg-test', 'test-key', 'subnet-123', 'sg-123', 't3.small'
+        )
+
+    # Verify successful creation despite no IGW route (because MapPublicIpOnLaunch=True in default VPC)
+    assert result['InstanceId'] == 'i-new'
+    assert result['PublicIpAddress'] == '1.2.3.4'
+    assert result['InstanceType'] == 't3.small'
+    assert result['SubnetId'] == 'subnet-123'
+    assert result['SecurityGroupId'] == 'sg-123'
+    assert result['ReplicationGroupId'] == 'rg-test'
+    assert result['SecurityGroupsConfigured'] is True
+    assert result['CachePort'] == 6379
+    assert result['VpcId'] == 'vpc-123'

@@ -21,7 +21,7 @@ from .models import ModifyServerlessCacheRequest
 from typing import Dict
 
 
-@mcp.tool(name='modify_serverless_cache')
+@mcp.tool(name='modify-serverless-cache')
 @handle_exceptions
 async def modify_serverless_cache(request: ModifyServerlessCacheRequest) -> Dict:
     """Modify an Amazon ElastiCache serverless cache.
@@ -53,7 +53,7 @@ async def modify_serverless_cache(request: ModifyServerlessCacheRequest) -> Dict
                     "Minimum": int   # Minimum ECPU per second
                 }
             }
-        security_group_ids (Optional[List[str]]): List of VPC security group IDs.
+        security_group_ids (Optional[List[str]]): List of security group IDs.
         user_group_id (Optional[str]): ID of the user group to associate with the cache.
 
     Returns:

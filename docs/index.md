@@ -64,6 +64,22 @@ The Amazon Kendra Index MCP Server enables AI assistants to retrieve additional 
 
 [Learn more about the Amazon Kendra Index MCP Server](servers/kendra-index-mcp-server.md)
 
+### Amazon Q index MCP Server
+
+The Amazon Q index MCP Server enables AI assistants to search through enterprise customers' Q index and access relevant content across their data sources using specific authentication and authorization flows.
+
+**Features:**
+
+- Authentication Tools
+-- AuthorizeQIndex: Generates OIDC authorization URLs for Q index authentication
+-- CreateTokenWithIAM: Creates authentication tokens using authorization codes
+-- AssumeRoleWithIdentityContext: Assumes IAM roles using identity context from tokens
+
+- Search Tools
+-- SearchRelevantContent: Searches and retrieves content from Q Business applications
+
+[Learn more about the Amazon Q index MCP Server](servers/amazon-qindex-mcp-server.md)
+
 ### Amazon Bedrock Knowledge Base Retrieval MCP Server
 
 The Bedrock Knowledge Base Retrieval MCP Server enables AI assistants to retrieve information from Amazon Bedrock Knowledge Bases.
@@ -101,6 +117,22 @@ The AWS Lambda Tool MCP Server enables AI assistants to select and run AWS Lambd
 - Use AWS credentials to invoke the Lambda functions
 
 [Learn more about the AWS Lambda Tool MCP Server](servers/lambda-tool-mcp-server.md)
+
+### AWS IAM MCP Server
+
+The AWS IAM MCP Server provides comprehensive AWS Identity and Access Management (IAM) operations with security best practices and read-only mode support.
+
+**Features:**
+
+- User Management: Create, list, retrieve, and delete IAM users
+- Role Management: Create, list, and manage IAM roles with trust policies
+- Policy Management: List and manage IAM policies (managed and inline)
+- Permission Management: Attach/detach policies to users and roles
+- Access Key Management: Create and delete access keys for users
+- Security Simulation: Test policy permissions before applying them
+- Read-Only Mode: Run server in read-only mode to prevent modifications
+
+[Learn more about the AWS IAM MCP Server](servers/iam-mcp-server.md)
 
 ### Amazon Aurora DSQL MCP Server
 
@@ -214,6 +246,22 @@ A server for accessing AWS Location Service capabilities, focusing on place sear
 - Optimize waypoints for efficient routing
 
 [Learn more about the AWS Location Service MCP Server](servers/aws-location-mcp-server.md)
+
+### AWS OpenAPI MCP Server
+
+The OpenAPI MCP Server dynamically creates Model Context Protocol (MCP) tools and resources from OpenAPI specifications, allowing LLMs to interact with APIs through the Model Context Protocol.
+
+**Features:**
+
+- Dynamic Tool Generation: Automatically creates MCP tools from OpenAPI endpoints
+- Intelligent Route Mapping: Maps GET operations with query parameters to TOOLS
+- Dynamic Prompt Generation: Creates helpful prompts based on API structure
+- Transport Options: Supports stdio transport
+- Flexible Configuration via environment variables or command line arguments
+- Authentication Support: Works with multiple authentication methods (Basic, Bearer Token, API Key, Cognito)
+- AWS Best Practices: Implements AWS best practices for caching, resilience, and observability
+
+[Learn more about the AWS OpenAPI MCP Server](servers/openapi-mcp-server.md)
 
 ### AWS CloudFormation MCP Server
 
@@ -405,6 +453,22 @@ time-series data using InfluxDB.
 - Write and query data using InfluxDB's APIs
 
 [Learn more about the Amazon Timestream for InfluxDB MCP Server](servers/timestream-for-influxdb-mcp-server.md)
+
+### Amazon Rekognition MCP Server
+
+A Model Context Protocol (MCP) server for Amazon Rekognition that enables AI assistants to analyze images using Amazon Rekognition's powerful computer vision capabilities.
+
+**Features:**
+
+- **Face Collection Management**: Create and manage collections of faces
+- **Face Recognition**: Index and search for faces in images
+- **Object and Scene Detection**: Identify objects, scenes, and activities in images
+- **Content Moderation**: Detect unsafe or inappropriate content
+- **Celebrity Recognition**: Identify celebrities in images
+- **Face Comparison**: Compare faces between images for similarity
+- **Text Detection**: Extract text from images
+
+[Learn more about the Amazon Rekognition MCP Server](servers/amazon-rekognition-mcp-server.md)
 
 ### AWS Cost Explorer MCP Server
 

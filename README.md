@@ -137,7 +137,9 @@ Enhance AI applications with knowledge retrieval, content generation, and ML cap
 
 - **[Amazon Bedrock Knowledge Bases Retrieval MCP Server](src/bedrock-kb-retrieval-mcp-server/)** - Query enterprise knowledge bases with citation support
 - **[Amazon Kendra Index MCP Server](src/amazon-kendra-index-mcp-server/)** - Enterprise search and RAG enhancement
+- **[Amazon Q index MCP Server](src/amazon-qindex-mcp-server/)** - Data accessors to search through enterprise's Q index
 - **[Amazon Nova Canvas MCP Server](src/nova-canvas-mcp-server/)** - AI image generation with text and color guidance
+- **[Amazon Rekognition MCP Server](src/amazon-rekognition-mcp-server/)** - Analyze images using computer vision capabilities
 - **[Amazon Bedrock Data Automation MCP Server](src/aws-bedrock-data-automation-mcp-server/)** - Analyze documents, images, videos, and audio files
 
 #### 📊 Data & Analytics
@@ -155,6 +157,10 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
 
+##### Search & Analytics
+
+- **[Amazon OpenSearch MCP Server](https://github.com/opensearch-project/opensearch-mcp-server-py)** - OpenSearch powered search, Analytics, and Observability
+
 ##### Caching & Performance
 
 - **[Amazon ElastiCache MCP Server](src/elasticache-mcp-server/)** - Complete ElastiCache operations
@@ -165,11 +171,13 @@ Work with databases, caching systems, and data processing workflows.
 
 Accelerate development with code analysis, documentation, and testing utilities.
 
+- **[AWS IAM MCP Server](src/iam-mcp-server/)** - Comprehensive IAM user, role, and policy management with security best practices
 - **[Git Repo Research MCP Server](src/git-repo-research-mcp-server/)** - Semantic code search and repository analysis
 - **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Automated documentation from code analysis
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams and technical illustrations
 - **[Frontend MCP Server](src/frontend-mcp-server/)** - React and modern web development guidance
 - **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for development and ML
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 #### 📡 Integration & Messaging
 
@@ -179,6 +187,7 @@ Connect systems with messaging, workflows, and location services.
 - **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker management for RabbitMQ and ActiveMQ
 - **[AWS Step Functions Tool MCP Server](src/stepfunctions-tool-mcp-server/)** - Execute complex workflows and business processes
 - **[Amazon Location Service MCP Server](src/aws-location-mcp-server/)** - Place search, geocoding, and route optimization
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 #### 💰 Cost & Operations
 
@@ -214,6 +223,7 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 - **[Frontend MCP Server](src/frontend-mcp-server/)** - React and modern web development patterns with AWS integration
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams as you design
 - **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Auto-generate docs from your codebase
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 ##### Container & Serverless Development
 
@@ -234,11 +244,13 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 - **[Amazon Bedrock Knowledge Bases Retrieval MCP Server](src/bedrock-kb-retrieval-mcp-server/)** - Query enterprise knowledge with citations
 - **[Amazon Kendra Index MCP Server](src/amazon-kendra-index-mcp-server/)** - Enterprise search and document retrieval
+- **[Amazon Q index MCP Server](src/amazon-qindex-mcp-server/)** - Data accessors to search through enterprise's Q index
 - **[AWS Documentation MCP Server](src/aws-documentation-mcp-server/)** - Official AWS documentation for technical answers
 
 ##### Content Processing & Generation
 
 - **[Amazon Nova Canvas MCP Server](src/nova-canvas-mcp-server/)** - Generate images from text descriptions and color palettes
+- **[Amazon Rekognition MCP Server](src/amazon-rekognition-mcp-server/)** - Analyze images using computer vision capabilities
 - **[Amazon Bedrock Data Automation MCP Server](src/aws-bedrock-data-automation-mcp-server/)** - Analyze uploaded documents, images, and media
 
 ##### Business Services
@@ -478,6 +490,21 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 ```
 
 See individual server READMEs for specific requirements and configuration options.
+
+If you have problems with MCP configuration or want to check if the appropriate parameters are in place, you can try the following:
+
+```shell
+# Run MCP server manually with timeout 15s
+$ timeout 15s uv tool run <MCP Name> <args> 2>&1 || echo "Command completed or timed out"
+
+# Example (Aurora MySQL MCP Server)
+$ timeout 15s uv tool run awslabs.mysql-mcp-server --resource_arn <Your Resource ARN> --secret_arn <Your Secret ARN> ... 2>&1 || echo "Command completed or timed out"
+
+# If the arguments are not set appropriately, you may see the following message:
+usage: awslabs.mysql-mcp-server [-h] --resource_arn RESOURCE_ARN --secret_arn SECRET_ARN --database DATABASE
+                                --region REGION --readonly READONLY
+awslabs.mysql-mcp-server: error: the following arguments are required: --resource_arn, --secret_arn, --database, --region, --readonly
+```
 
 **Note about performance when using `uvx` *"@latest"* suffix:**
 

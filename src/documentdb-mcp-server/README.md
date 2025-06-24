@@ -164,6 +164,32 @@ insert_result = await use_mcp_tool(
 # ValueError: "Operation not permitted: Server is configured in read-only mode. Use --allow-write flag when starting the server to enable write operations."
 ```
 
+### Configure in your MCP client
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.documentdb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZG9jdW1lbnRkYi1tY3Atc2VydmVAbGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IiLCJBV1NfUFJPRklMRSI6InlvdXItYXdzLXByb2ZpbGUifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119)
+
+Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit ~/.aws/amazonq/mcp.json):
+
+```json
+{
+  "mcpServers": {
+    "awslabs.documentdb-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.documentdb-mcp-server@latest",
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
 ## Prerequisites
 
 - Network access to your DocumentDB cluster

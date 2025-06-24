@@ -19,7 +19,7 @@ from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
 from botocore.exceptions import ClientError
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 
 async def _configure_security_groups(
@@ -53,15 +53,28 @@ async def _configure_security_groups(
     )['ServerlessCaches'][0]
 
     # Get cache security groups
-    cache_security_groups = serverless_cache['VpcSecurityGroups']
+    cache_security_groups = serverless_cache['SecurityGroupIds']
     if not cache_security_groups:
         raise ValueError(f'No security groups found for serverless cache {serverless_cache_name}')
 
-    # Get cache VPC ID
-    cache_vpc_id = cache_security_groups[0]['VpcId']
+    # Get cache VPC ID from subnet IDs
+    if not serverless_cache.get('SubnetIds'):
+        raise ValueError(f'No subnet IDs found for serverless cache {serverless_cache_name}')
 
-    # Get cache port (default is 6379 for Redis)
-    cache_port = 6379
+    # Get subnet details to find VPC ID
+    subnet_response = ec2_client.describe_subnets(SubnetIds=[serverless_cache['SubnetIds'][0]])
+    cache_vpc_id = subnet_response['Subnets'][0]['VpcId']
+
+    # Get cache port dynamically from endpoint if available
+    # Set default port based on engine type
+    engine = serverless_cache.get('Engine', '').lower()
+    if engine == 'memcached':
+        cache_port = 11211  # Default port for Memcached
+    else:
+        cache_port = 6379  # Default port for Redis/Valkey
+
+    if serverless_cache.get('Endpoint') and serverless_cache['Endpoint'].get('Port'):
+        cache_port = serverless_cache['Endpoint']['Port']
 
     # Get EC2 instance details
     instance_info = ec2_client.describe_instances(InstanceIds=[instance_id])
@@ -83,8 +96,7 @@ async def _configure_security_groups(
         raise ValueError(f'No security groups found for EC2 instance {instance_id}')
 
     # For each cache security group, ensure it allows inbound access from EC2 security groups
-    for cache_sg in cache_security_groups:
-        cache_sg_id = cache_sg['SecurityGroupId']
+    for cache_sg_id in cache_security_groups:
         cache_sg_info = ec2_client.describe_security_groups(GroupIds=[cache_sg_id])[
             'SecurityGroups'
         ][0]
@@ -223,9 +235,19 @@ async def get_ssh_tunnel_command_serverless(
             ServerlessCacheName=serverless_cache_name
         )['ServerlessCaches'][0]
 
-        # Get cache endpoint and port (default port is 6379 for Redis)
+        # Get cache endpoint and port
         cache_endpoint = serverless_cache['Endpoint']['Address']
-        cache_port = 6379
+
+        # Get cache port dynamically from endpoint if available
+        # Set default port based on engine type
+        engine = serverless_cache.get('Engine', '').lower()
+        if engine == 'memcached':
+            cache_port = 11211  # Default port for Memcached
+        else:
+            cache_port = 6379  # Default port for Redis/Valkey
+
+        if serverless_cache.get('Endpoint') and serverless_cache['Endpoint'].get('Port'):
+            cache_port = serverless_cache['Endpoint']['Port']
 
         # Generate SSH tunnel command
         ssh_command = (
@@ -251,18 +273,20 @@ async def get_ssh_tunnel_command_serverless(
 @handle_exceptions
 async def create_jump_host_serverless(
     serverless_cache_name: str,
-    subnet_id: str,
-    security_group_id: str,
     key_name: str,
+    subnet_id: Optional[str] = None,
+    security_group_id: Optional[str] = None,
     instance_type: str = 't3.small',
 ) -> Dict[str, Any]:
     """Creates an EC2 jump host instance to access an ElastiCache serverless cache via SSH tunnel.
 
     Args:
         serverless_cache_name (str): Name of the ElastiCache serverless cache to connect to
-        subnet_id (str): ID of the subnet to launch the EC2 instance in (must be public)
-        security_group_id (str): ID of the security group to assign to the EC2 instance
         key_name (str): Name of the EC2 key pair to use for SSH access
+        subnet_id (str, optional): ID of the subnet to launch the EC2 instance in (must be public).
+            If not provided and serverless cache uses default VPC, will auto-select a default subnet.
+        security_group_id (str, optional): ID of the security group to assign to the EC2 instance.
+            If not provided and serverless cache uses default VPC, will use the default security group.
         instance_type (str, optional): EC2 instance type. Defaults to "t3.small"
 
     Returns:
@@ -301,14 +325,72 @@ async def create_jump_host_serverless(
         )['ServerlessCaches'][0]
 
         # Get cache security groups
-        cache_security_groups = serverless_cache['VpcSecurityGroups']
+        cache_security_groups = serverless_cache['SecurityGroupIds']
         if not cache_security_groups:
             raise ValueError(
                 f'No security groups found for serverless cache {serverless_cache_name}'
             )
 
-        # Get cache VPC ID
-        cache_vpc_id = cache_security_groups[0]['VpcId']
+        # Get cache VPC ID from subnet IDs
+        if not serverless_cache.get('SubnetIds'):
+            raise ValueError(f'No subnet IDs found for serverless cache {serverless_cache_name}')
+
+        # Get subnet details to find VPC ID
+        subnet_response = ec2_client.describe_subnets(SubnetIds=[serverless_cache['SubnetIds'][0]])
+        cache_vpc_id = subnet_response['Subnets'][0]['VpcId']
+
+        # Check if serverless cache is in default VPC
+        vpcs = ec2_client.describe_vpcs(VpcIds=[cache_vpc_id])['Vpcs']
+        cache_vpc = vpcs[0] if vpcs else None
+        is_default_vpc = cache_vpc and cache_vpc.get('IsDefault', False)
+
+        # Auto-select subnet if not provided and serverless cache is in default VPC
+        if not subnet_id and is_default_vpc:
+            # Get default subnets in the default VPC
+            subnets = ec2_client.describe_subnets(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [cache_vpc_id]},
+                    {'Name': 'default-for-az', 'Values': ['true']},
+                ]
+            )['Subnets']
+
+            if subnets:
+                # Pick the first available default subnet
+                subnet_id = subnets[0]['SubnetId']
+            else:
+                # Fallback to any public subnet in the VPC
+                all_subnets = ec2_client.describe_subnets(
+                    Filters=[{'Name': 'vpc-id', 'Values': [cache_vpc_id]}]
+                )['Subnets']
+
+                for subnet in all_subnets:
+                    if subnet.get('MapPublicIpOnLaunch', False):
+                        subnet_id = subnet['SubnetId']
+                        break
+
+        # Auto-select security group if not provided and serverless cache is in default VPC
+        if not security_group_id and is_default_vpc:
+            # Get the default security group for the VPC
+            security_groups = ec2_client.describe_security_groups(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [cache_vpc_id]},
+                    {'Name': 'group-name', 'Values': ['default']},
+                ]
+            )['SecurityGroups']
+
+            if security_groups:
+                security_group_id = security_groups[0]['GroupId']
+
+        # Validate required parameters after auto-selection
+        if not subnet_id:
+            raise ValueError(
+                'subnet_id is required. Either provide a subnet_id or ensure the serverless cache is in the default VPC with default subnets available.'
+            )
+
+        if not security_group_id:
+            raise ValueError(
+                'security_group_id is required. Either provide a security_group_id or ensure the serverless cache is in the default VPC.'
+            )
 
         # Get subnet details and verify it's public
         subnet_response = ec2_client.describe_subnets(SubnetIds=[subnet_id])
@@ -322,6 +404,7 @@ async def create_jump_host_serverless(
             )
 
         # Check if subnet is public by looking for route to internet gateway
+        # or if it's a default subnet in the default VPC (which are automatically public)
         route_tables = ec2_client.describe_route_tables(
             Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}]
         )['RouteTables']
@@ -335,10 +418,38 @@ async def create_jump_host_serverless(
             if is_public:
                 break
 
-        # Raise error if no route to internet gateway found
+        # If no explicit route table association, check the main route table for the VPC
+        if not is_public and not route_tables:
+            main_route_tables = ec2_client.describe_route_tables(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [subnet_vpc_id]},
+                    {'Name': 'association.main', 'Values': ['true']},
+                ]
+            )['RouteTables']
+
+            for rt in main_route_tables:
+                for route in rt.get('Routes', []):
+                    if route.get('GatewayId', '').startswith('igw-'):
+                        is_public = True
+                        break
+                if is_public:
+                    break
+
+        # If not found via route table, check if it's a default subnet in default VPC
+        if not is_public:
+            # Check if this is the default VPC
+            vpcs = ec2_client.describe_vpcs(VpcIds=[subnet_vpc_id])['Vpcs']
+            vpc = vpcs[0] if vpcs else None
+
+            if vpc and vpc.get('IsDefault', False):
+                # In default VPC, check if this is a default subnet
+                # Default subnets have MapPublicIpOnLaunch set to True
+                if subnet.get('DefaultForAz', False) or subnet.get('MapPublicIpOnLaunch', False):
+                    is_public = True
+
         if not is_public:
             raise ValueError(
-                f'Subnet {subnet_id} is not public (no route to internet gateway found). '
+                f'Subnet {subnet_id} is not public (no route to internet gateway found and not a default subnet in default VPC). '
                 'The subnet must be public to allow SSH access to the jump host.'
             )
 

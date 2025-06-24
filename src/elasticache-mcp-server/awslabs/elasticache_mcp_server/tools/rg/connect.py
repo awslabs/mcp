@@ -19,7 +19,7 @@ from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
 from botocore.exceptions import ClientError
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 
 async def _configure_security_groups(
@@ -52,28 +52,21 @@ async def _configure_security_groups(
         ReplicationGroupId=replication_group_id
     )['ReplicationGroups'][0]
 
-    # Get primary cluster details
-    primary_cluster_id = None
-    for member in replication_group['MemberClusters']:
-        cluster = elasticache_client.describe_cache_clusters(
-            CacheClusterId=member, ShowCacheNodeInfo=True
-        )['CacheClusters'][0]
-        if cluster['CacheClusterRole'].lower() == 'primary':
-            primary_cluster_id = member
-            break
+    # Get first cluster details (MemberClusters doesn't have notion of primary cluster)
+    if not replication_group['MemberClusters']:
+        raise ValueError(f'No clusters found in replication group {replication_group_id}')
 
-    if not primary_cluster_id:
-        raise ValueError(f'No primary cluster found in replication group {replication_group_id}')
+    first_cluster_id = replication_group['MemberClusters'][0]
 
-    # Get cache cluster VPC ID from primary cluster
-    primary_cluster = elasticache_client.describe_cache_clusters(
-        CacheClusterId=primary_cluster_id, ShowCacheNodeInfo=True
+    # Get cache cluster VPC ID from first cluster
+    first_cluster = elasticache_client.describe_cache_clusters(
+        CacheClusterId=first_cluster_id, ShowCacheNodeInfo=True
     )['CacheClusters'][0]
 
-    # Get subnet group name from cluster
-    subnet_group_name = primary_cluster.get('CacheSubnetGroupName')
+    # Get subnet group name from first cluster
+    subnet_group_name = first_cluster.get('CacheSubnetGroupName')
     if not subnet_group_name:
-        raise ValueError(f'No cache subnet group found for cluster {primary_cluster_id}')
+        raise ValueError(f'No cache subnet group found for cluster {first_cluster_id}')
 
     # Get VPC ID from subnet group
     try:
@@ -98,8 +91,8 @@ async def _configure_security_groups(
             f'EC2 instance VPC ({instance_vpc_id}) does not match replication group VPC ({cache_vpc_id})'
         )
 
-    # Get cache cluster port from primary node
-    cache_port = primary_cluster['CacheNodes'][0]['Endpoint']['Port']
+    # Get cache cluster port from first node
+    cache_port = first_cluster['CacheNodes'][0]['Endpoint']['Port']
 
     # Get cache cluster security groups from all member clusters
     cache_security_groups = set()
@@ -209,15 +202,15 @@ async def connect_jump_host_rg(replication_group_id: str, instance_id: str) -> D
 @handle_exceptions
 async def get_ssh_tunnel_command_rg(
     replication_group_id: str, instance_id: str
-) -> Dict[str, Union[str, int, List[Dict[str, Any]], None]]:
-    """Generates SSH tunnel commands to connect to an ElastiCache replication group through an EC2 jump host.
+) -> Dict[str, Union[str, int]]:
+    """Generates an SSH tunnel command to connect to an ElastiCache replication group through an EC2 jump host.
 
     Args:
         replication_group_id (str): ID of the ElastiCache replication group to connect to
         instance_id (str): ID of the EC2 instance to use as jump host
 
     Returns:
-        Dict[str, Union[str, int, List[Dict[str, Any]]]]: Dictionary containing SSH tunnel commands and related details
+        Dict[str, Union[str, int]]: Dictionary containing the SSH tunnel command and related details
 
     Raises:
         ValueError: If required resources not found or information cannot be retrieved
@@ -256,52 +249,28 @@ async def get_ssh_tunnel_command_rg(
             ReplicationGroupId=replication_group_id
         )['ReplicationGroups'][0]
 
-        # Get node details for all clusters
-        node_commands = []
-        base_port = None
-
-        for member in replication_group['MemberClusters']:
-            cluster = elasticache_client.describe_cache_clusters(
-                CacheClusterId=member, ShowCacheNodeInfo=True
-            )['CacheClusters'][0]
-
-            if not cluster.get('CacheNodes'):
-                continue
-
-            node = cluster['CacheNodes'][0]
-            endpoint = node['Endpoint']['Address']
-            port = node['Endpoint']['Port']
-
-            if base_port is None:
-                base_port = port
-
-            # For replicas, use different local ports to avoid conflicts
-            local_port = port
-            if cluster['CacheClusterRole'].lower() != 'primary':
-                local_port = port + 1000  # Use a different port range for replicas
-
-            ssh_command = (
-                f'ssh -i "{key_name}.pem" -fN -l {user} '
-                f'-L {local_port}:{endpoint}:{port} {public_dns} -v'
+        # Use the ConfigurationEndpoint for the SSH tunnel
+        if 'ConfigurationEndpoint' not in replication_group:
+            raise ValueError(
+                f'No ConfigurationEndpoint found for replication group {replication_group_id}'
             )
 
-            node_commands.append(
-                {
-                    'role': cluster['CacheClusterRole'],
-                    'clusterId': member,
-                    'command': ssh_command,
-                    'localPort': local_port,
-                    'remoteEndpoint': endpoint,
-                    'remotePort': port,
-                }
-            )
+        endpoint = replication_group['ConfigurationEndpoint']['Address']
+        port = replication_group['ConfigurationEndpoint']['Port']
+
+        # Generate a single SSH tunnel command
+        ssh_command = (
+            f'ssh -i "{key_name}.pem" -fN -l {user} -L {port}:{endpoint}:{port} {public_dns} -v'
+        )
 
         return {
+            'command': ssh_command,
             'keyName': key_name,
             'user': user,
             'jumpHostDns': public_dns,
-            'nodes': node_commands,
-            'basePort': base_port,
+            'localPort': port,
+            'remoteEndpoint': endpoint,
+            'remotePort': port,
         }
 
     except Exception as e:
@@ -312,18 +281,20 @@ async def get_ssh_tunnel_command_rg(
 @handle_exceptions
 async def create_jump_host_rg(
     replication_group_id: str,
-    subnet_id: str,
-    security_group_id: str,
     key_name: str,
+    subnet_id: Optional[str] = None,
+    security_group_id: Optional[str] = None,
     instance_type: str = 't3.small',
 ) -> Dict[str, Any]:
     """Creates an EC2 jump host instance to access an ElastiCache replication group via SSH tunnel.
 
     Args:
         replication_group_id (str): ID of the ElastiCache replication group to connect to
-        subnet_id (str): ID of the subnet to launch the EC2 instance in (must be public)
-        security_group_id (str): ID of the security group to assign to the EC2 instance
         key_name (str): Name of the EC2 key pair to use for SSH access
+        subnet_id (str, optional): ID of the subnet to launch the EC2 instance in (must be public).
+            If not provided and replication group uses default VPC, will auto-select a default subnet.
+        security_group_id (str, optional): ID of the security group to assign to the EC2 instance.
+            If not provided and replication group uses default VPC, will use the default security group.
         instance_type (str, optional): EC2 instance type. Defaults to "t3.small"
 
     Returns:
@@ -361,30 +332,74 @@ async def create_jump_host_rg(
             ReplicationGroupId=replication_group_id
         )['ReplicationGroups'][0]
 
-        # Get primary cluster details
-        primary_cluster_id = None
-        for member in replication_group['MemberClusters']:
-            cluster = elasticache_client.describe_cache_clusters(
-                CacheClusterId=member, ShowCacheNodeInfo=True
-            )['CacheClusters'][0]
-            if cluster['CacheClusterRole'].lower() == 'primary':
-                primary_cluster_id = member
-                break
+        # Get first cluster details (MemberClusters doesn't have notion of primary cluster)
+        if not replication_group['MemberClusters']:
+            raise ValueError(f'No clusters found in replication group {replication_group_id}')
 
-        if not primary_cluster_id:
-            raise ValueError(
-                f'No primary cluster found in replication group {replication_group_id}'
-            )
+        first_cluster_id = replication_group['MemberClusters'][0]
 
-        # Get VPC details from primary cluster
-        primary_cluster = elasticache_client.describe_cache_clusters(
-            CacheClusterId=primary_cluster_id, ShowCacheNodeInfo=True
+        # Get VPC details from first cluster
+        first_cluster = elasticache_client.describe_cache_clusters(
+            CacheClusterId=first_cluster_id, ShowCacheNodeInfo=True
         )['CacheClusters'][0]
 
         cache_subnet_group = elasticache_client.describe_cache_subnet_groups(
-            CacheSubnetGroupName=primary_cluster['CacheSubnetGroupName']
+            CacheSubnetGroupName=first_cluster['CacheSubnetGroupName']
         )['CacheSubnetGroups'][0]
         cache_vpc_id = cache_subnet_group['VpcId']
+
+        # Check if replication group is in default VPC
+        vpcs = ec2_client.describe_vpcs(VpcIds=[cache_vpc_id])['Vpcs']
+        cache_vpc = vpcs[0] if vpcs else None
+        is_default_vpc = cache_vpc and cache_vpc.get('IsDefault', False)
+
+        # Auto-select subnet if not provided and replication group is in default VPC
+        if not subnet_id and is_default_vpc:
+            # Get default subnets in the default VPC
+            subnets = ec2_client.describe_subnets(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [cache_vpc_id]},
+                    {'Name': 'default-for-az', 'Values': ['true']},
+                ]
+            )['Subnets']
+
+            if subnets:
+                # Pick the first available default subnet
+                subnet_id = subnets[0]['SubnetId']
+            else:
+                # Fallback to any public subnet in the VPC
+                all_subnets = ec2_client.describe_subnets(
+                    Filters=[{'Name': 'vpc-id', 'Values': [cache_vpc_id]}]
+                )['Subnets']
+
+                for subnet in all_subnets:
+                    if subnet.get('MapPublicIpOnLaunch', False):
+                        subnet_id = subnet['SubnetId']
+                        break
+
+        # Auto-select security group if not provided and replication group is in default VPC
+        if not security_group_id and is_default_vpc:
+            # Get the default security group for the VPC
+            security_groups = ec2_client.describe_security_groups(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [cache_vpc_id]},
+                    {'Name': 'group-name', 'Values': ['default']},
+                ]
+            )['SecurityGroups']
+
+            if security_groups:
+                security_group_id = security_groups[0]['GroupId']
+
+        # Validate required parameters after auto-selection
+        if not subnet_id:
+            raise ValueError(
+                'subnet_id is required. Either provide a subnet_id or ensure the replication group is in the default VPC with default subnets available.'
+            )
+
+        if not security_group_id:
+            raise ValueError(
+                'security_group_id is required. Either provide a security_group_id or ensure the replication group is in the default VPC.'
+            )
 
         # Get subnet details and verify it's public
         subnet_response = ec2_client.describe_subnets(SubnetIds=[subnet_id])
@@ -398,20 +413,11 @@ async def create_jump_host_rg(
             )
 
         # Check if subnet is public by looking for route to internet gateway
+        # or if it's a default subnet in the default VPC (which are automatically public)
         route_tables = ec2_client.describe_route_tables(
             Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}]
         )['RouteTables']
 
-        # If no explicit route table association, check main route table
-        if not route_tables:
-            route_tables = ec2_client.describe_route_tables(
-                Filters=[
-                    {'Name': 'vpc-id', 'Values': [subnet_vpc_id]},
-                    {'Name': 'association.main', 'Values': ['true']},
-                ]
-            )['RouteTables']
-
-        # Check for route to internet gateway
         is_public = False
         for rt in route_tables:
             for route in rt.get('Routes', []):
@@ -421,10 +427,38 @@ async def create_jump_host_rg(
             if is_public:
                 break
 
-        # Raise error if no route to internet gateway found
+        # If no explicit route table association, check the main route table for the VPC
+        if not is_public and not route_tables:
+            main_route_tables = ec2_client.describe_route_tables(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [subnet_vpc_id]},
+                    {'Name': 'association.main', 'Values': ['true']},
+                ]
+            )['RouteTables']
+
+            for rt in main_route_tables:
+                for route in rt.get('Routes', []):
+                    if route.get('GatewayId', '').startswith('igw-'):
+                        is_public = True
+                        break
+                if is_public:
+                    break
+
+        # If not found via route table, check if it's a default subnet in default VPC
+        if not is_public:
+            # Check if this is the default VPC
+            vpcs = ec2_client.describe_vpcs(VpcIds=[subnet_vpc_id])['Vpcs']
+            vpc = vpcs[0] if vpcs else None
+
+            if vpc and vpc.get('IsDefault', False):
+                # In default VPC, check if this is a default subnet
+                # Default subnets have MapPublicIpOnLaunch set to True
+                if subnet.get('DefaultForAz', False) or subnet.get('MapPublicIpOnLaunch', False):
+                    is_public = True
+
         if not is_public:
             raise ValueError(
-                f'Subnet {subnet_id} is not public (no route to internet gateway found). '
+                f'Subnet {subnet_id} is not public (no route to internet gateway found and not a default subnet in default VPC). '
                 'The subnet must be public to allow SSH access to the jump host.'
             )
 
