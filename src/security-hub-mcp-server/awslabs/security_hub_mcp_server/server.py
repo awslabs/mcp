@@ -23,6 +23,9 @@ mcp = FastMCP(
 profile_name = os.getenv('AWS_PROFILE', 'default')
 logger.info(f'Using AWS profile {profile_name}')
 
+# Valid Security Hub severity levels
+VALID_SEVERITIES = ['INFORMATIONAL', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+
 
 @mcp.tool(name='get_findings')
 async def get_findings(
@@ -34,10 +37,27 @@ async def get_findings(
 ) -> Optional[List[Dict]]:
     """Get findings from the Security Hub service.
 
+    Examples:
+        # Get all HIGH severity findings in us-east-1
+        get_findings(region="us-east-1", severity="HIGH")
+
+        # Get findings with custom workflow status filter
+        get_findings(
+            region="us-east-1", 
+            custom_filters='{"WorkflowStatus": [{"Value": "NEW", "Comparison": "EQUALS"}]}'
+        )
+
+        # Combine basic and custom filters
+        get_findings(
+            region="us-east-1", 
+            severity="HIGH", 
+            custom_filters='{"ProductName": [{"Value": "GuardDuty", "Comparison": "EQUALS"}]}'
+        )
+
     Args:
         region (str): the AWS region to in which to query the SecurityHub service
         aws_account_id (str): (optional) filter the findings to the specified AWS account id
-        severity (str): (optional) filter the findings to the specified finding severity
+        severity (str): (optional) filter the findings to the specified finding severity (INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL)
         custom_filters (str): (optional) JSON string of additional Security Hub filters
                              Example: '{"WorkflowStatus": [{"Value": "NEW", "Comparison": "EQUALS"}]}'
                              See AWS Security Hub GetFindings API documentation for all available filters
@@ -47,6 +67,10 @@ async def get_findings(
     Returns:
         List containing the Security Hub findings for the query; each finding is a dictionary.
     """
+    # Validate severity parameter
+    if severity and severity.upper() not in VALID_SEVERITIES:
+        return [{"error": f"Invalid severity. Must be one of: {', '.join(VALID_SEVERITIES)}"}]
+
     security_hub = boto3.Session(profile_name=profile_name).client(
         'securityhub', region_name=region
     )
@@ -57,7 +81,7 @@ async def get_findings(
         filters['AwsAccountId'] = [{'Value': aws_account_id, 'Comparison': 'EQUALS'}]
 
     if severity:
-        filters['SeverityLabel'] = [{'Value': severity, 'Comparison': 'EQUALS'}]
+        filters['SeverityLabel'] = [{'Value': severity.upper(), 'Comparison': 'EQUALS'}]
 
     # Add custom filters from JSON string
     if custom_filters:
@@ -65,8 +89,10 @@ async def get_findings(
             user_filters = json.loads(custom_filters)
             if not isinstance(user_filters, dict):
                 return [{'error': 'custom_filters must be a JSON object'}]
+            logger.info(f"Applied custom filters: {user_filters}")
             filters.update(user_filters)
         except json.JSONDecodeError as e:
+            logger.warning(f"Invalid custom filters JSON: {e}")
             return [{'error': f'Invalid JSON in custom_filters parameter: {str(e)}'}]
 
     findings = []
@@ -80,7 +106,11 @@ async def get_findings(
         if 'Findings' in page:
             findings.extend(page['Findings'])
 
-    logger.info(f'Found {len(findings)} findings: {findings}')
+    # Log warning if maximum results reached
+    if len(findings) == max_results:
+        logger.warning(f"Maximum results ({max_results}) reached. Some findings may be truncated.")
+
+    logger.info(f'Found {len(findings)} findings')
     return findings
 
 
