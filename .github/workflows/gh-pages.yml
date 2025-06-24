@@ -28,5 +28,5 @@ jobs:
           path: .cache
           restore-keys: |
             mkdocs-material-
-      - run: pip install mkdocs-material mkdocs-include-markdown-plugin mkdocs-mermaid2-plugin
+      - run: pip install --require-hashes --requirement mkdocs-requirements.txt
       - run: mkdocs gh-deploy --force
