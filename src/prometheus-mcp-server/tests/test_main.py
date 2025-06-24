@@ -102,28 +102,28 @@ def test_main_setup_environment_failure():
 @pytest.mark.asyncio
 async def test_async_main_success():
     """Test successful async initialization."""
-    with patch(
-        'awslabs.prometheus_mcp_server.server.logger'
-    ) as mock_logger:
+    with patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger:
         from awslabs.prometheus_mcp_server.server import async_main
 
         # Execute
         await async_main()
 
         # Assert
-        mock_logger.info.assert_called_with('Initializing Prometheus MCP Server - workspace ID will be required for each tool invocation')
+        mock_logger.info.assert_called_with(
+            'Initializing Prometheus MCP Server - workspace ID will be required for each tool invocation'
+        )
 
 
 @pytest.mark.asyncio
 async def test_async_main_connection_failure():
     """Test async initialization with connection failure."""
-    with (
-        patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
-    ):
+    with patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger:
         from awslabs.prometheus_mcp_server.server import async_main
 
         # Execute
         await async_main()
 
         # Assert
-        mock_logger.info.assert_called_with('Initializing Prometheus MCP Server - workspace ID will be required for each tool invocation')
+        mock_logger.info.assert_called_with(
+            'Initializing Prometheus MCP Server - workspace ID will be required for each tool invocation'
+        )

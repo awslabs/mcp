@@ -188,7 +188,7 @@ def test_setup_environment_success():
     from awslabs.prometheus_mcp_server.server import setup_environment
 
     # Setup
-    config = {
+    config_data = {
         'prometheus_url': 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123',
         'aws_region': 'us-east-1',
         'aws_profile': 'test-profile',
@@ -210,7 +210,7 @@ def test_setup_environment_success():
         }
         mock_session_instance.client.return_value = mock_sts
 
-        result = setup_environment(config)
+        result = setup_environment(config_data)
 
     # Assert
     assert result is True
@@ -224,19 +224,33 @@ def test_setup_environment_no_prometheus_url():
     from awslabs.prometheus_mcp_server.server import setup_environment
 
     # Setup
-    config = {
-        'prometheus_url': '',
+    config_data = {
+        'prometheus_url': None,  # Now allowed to be None
         'aws_region': 'us-east-1',
         'aws_profile': 'test-profile',
     }
 
     # Execute
-    with patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger:
-        result = setup_environment(config)
+    with (
+        patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
+        patch('awslabs.prometheus_mcp_server.server.logger'),
+    ):
+        mock_session_instance = mock_session.return_value
+        mock_credentials = MagicMock()
+        mock_credentials.token = None
+        mock_session_instance.get_credentials.return_value = mock_credentials
+
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:iam::123456789012:user/test-user'
+        }
+        mock_session_instance.client.return_value = mock_sts
+
+        result = setup_environment(config_data)
 
     # Assert
-    assert result is False
-    mock_logger.error.assert_called()
+    assert result is True  # Should succeed as Prometheus URL is now optional
+    mock_session.assert_called_once_with(profile_name='test-profile', region_name='us-east-1')
 
 
 def test_setup_environment_invalid_url():
@@ -244,19 +258,33 @@ def test_setup_environment_invalid_url():
     from awslabs.prometheus_mcp_server.server import setup_environment
 
     # Setup
-    config = {
-        'prometheus_url': 'invalid-url',
+    config_data = {
+        'prometheus_url': 'invalid-url',  # Invalid URL will be validated
         'aws_region': 'us-east-1',
         'aws_profile': 'test-profile',
     }
 
     # Execute
-    with patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger:
-        result = setup_environment(config)
+    with (
+        patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
+        patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
+    ):
+        mock_session_instance = mock_session.return_value
+        mock_credentials = MagicMock()
+        mock_credentials.token = None
+        mock_session_instance.get_credentials.return_value = mock_credentials
+
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:iam::123456789012:user/test-user'
+        }
+        mock_session_instance.client.return_value = mock_sts
+
+        result = setup_environment(config_data)
 
     # Assert
-    assert result is False
-    mock_logger.error.assert_called()
+    assert result is False  # Should fail because the URL is invalid
+    mock_logger.error.assert_any_call('ERROR: Invalid Prometheus URL format: invalid-url')  # Should warn about invalid URL format
 
 
 def test_setup_environment_no_region():
@@ -264,7 +292,7 @@ def test_setup_environment_no_region():
     from awslabs.prometheus_mcp_server.server import setup_environment
 
     # Setup
-    config = {
+    config_data = {
         'prometheus_url': 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123',
         'aws_region': '',
         'aws_profile': 'test-profile',
@@ -272,7 +300,7 @@ def test_setup_environment_no_region():
 
     # Execute
     with patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger:
-        result = setup_environment(config)
+        result = setup_environment(config_data)
 
     # Assert
     assert result is False
@@ -284,7 +312,7 @@ def test_setup_environment_no_credentials():
     from awslabs.prometheus_mcp_server.server import setup_environment
 
     # Setup
-    config = {
+    config_data = {
         'prometheus_url': 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123',
         'aws_region': 'us-east-1',
         'aws_profile': 'test-profile',
@@ -298,7 +326,7 @@ def test_setup_environment_no_credentials():
         mock_session_instance = mock_session.return_value
         mock_session_instance.get_credentials.return_value = None
 
-        result = setup_environment(config)
+        result = setup_environment(config_data)
 
     # Assert
     assert result is False
@@ -311,7 +339,7 @@ def test_setup_environment_sts_error():
     from botocore.exceptions import ClientError
 
     # Setup
-    config = {
+    config_data = {
         'prometheus_url': 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-123',
         'aws_region': 'us-east-1',
         'aws_profile': 'test-profile',
@@ -332,7 +360,7 @@ def test_setup_environment_sts_error():
         )
         mock_session_instance.client.return_value = mock_sts
 
-        result = setup_environment(config)
+        result = setup_environment(config_data)
 
     # Assert
     assert result is True  # Should still return True as this is just a warning
