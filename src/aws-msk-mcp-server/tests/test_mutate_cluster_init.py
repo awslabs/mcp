@@ -125,6 +125,66 @@ class TestMutateClusterInit:
         assert result == expected_response
 
     @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.create_cluster_v2')
+    def test_create_cluster_tool_json_decode_error(
+        self, mock_create_cluster_v2, mock_boto3_client
+    ):
+        """Test the create_cluster_tool function with invalid JSON in kwargs."""
+        # Arrange
+        mock_mcp = MagicMock()
+
+        # Configure the tool decorator to capture the decorated function
+        tool_functions = {}
+
+        def mock_tool_decorator(**kwargs):
+            def capture_function(func):
+                tool_functions[kwargs.get('name')] = func
+                return func
+
+            return capture_function
+
+        mock_mcp.tool.side_effect = mock_tool_decorator
+
+        # Register the module to capture the tool functions
+        register_module(mock_mcp)
+
+        # Get the create_cluster_tool function
+        create_cluster_tool = tool_functions['create_cluster']
+
+        # Mock the boto3 client
+        mock_client = MagicMock()
+        mock_boto3_client.return_value = mock_client
+
+        # Mock the create_cluster_v2 function
+        expected_response = {
+            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterName': 'test-cluster',
+            'State': 'CREATING',
+            'ClusterType': 'PROVISIONED',
+            'CreationTime': '2025-06-20T10:00:00.000Z',
+            'CurrentVersion': '1',
+        }
+        mock_create_cluster_v2.return_value = expected_response
+
+        # Act - provide invalid JSON in kwargs
+        invalid_kwargs_json = '{invalid json string'
+
+        result = create_cluster_tool(
+            region='us-east-1',
+            cluster_name='test-cluster',
+            cluster_type='PROVISIONED',
+            kwargs=invalid_kwargs_json,
+        )
+
+        # Assert
+        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        # Should call create_cluster_v2 with empty kwargs_dict when JSON is invalid
+        mock_create_cluster_v2.assert_called_once_with(
+            'test-cluster', 'PROVISIONED', client=mock_client
+        )
+        assert result == expected_response
+
+    @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_storage')
     def test_update_broker_storage_tool(
@@ -696,3 +756,380 @@ class TestMutateClusterInit:
         # Assert
         mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
         # We don't assert on update_monitoring being called since we're bypassing it when the ValueError is raised
+
+    def test_update_security_tool_success_case(self):
+        """Test the update_security_tool function when check_mcp_generated_tag returns True."""
+        # Arrange
+        mock_mcp = MagicMock()
+
+        # Configure the tool decorator to capture the decorated function
+        tool_functions = {}
+
+        def mock_tool_decorator(**kwargs):
+            def capture_function(func):
+                tool_functions[kwargs.get('name')] = func
+                return func
+
+            return capture_function
+
+        mock_mcp.tool.side_effect = mock_tool_decorator
+
+        # Register the module to capture the tool functions
+        register_module(mock_mcp)
+
+        # Get the update_security_tool function
+        update_security_tool = tool_functions['update_security']
+
+        # Use context managers for patching
+        with (
+            patch('boto3.client') as mock_boto3_client,
+            # Patch the function where it's used, not where it's defined
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.check_mcp_generated_tag'
+            ) as mock_check_mcp_generated_tag,
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_security'
+            ) as mock_update_security,
+        ):
+            # Mock the boto3 client
+            mock_client = MagicMock()
+            mock_boto3_client.return_value = mock_client
+
+            # Mock the check_mcp_generated_tag function to return True
+            mock_check_mcp_generated_tag.return_value = True
+
+            # Mock the update_security function
+            expected_response = {
+                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            }
+            mock_update_security.return_value = expected_response
+
+            # Act
+            client_authentication = {
+                'Sasl': {'Scram': {'Enabled': True}, 'Iam': {'Enabled': True}}
+            }
+
+            encryption_info = {'EncryptionInTransit': {'InCluster': True, 'ClientBroker': 'TLS'}}
+
+            result = update_security_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                current_version='1',
+                client_authentication=client_authentication,
+                encryption_info=encryption_info,
+            )
+
+            # Assert
+            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_check_mcp_generated_tag.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+            )
+            mock_update_security.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                '1',
+                client=mock_client,
+                client_authentication=client_authentication,
+                encryption_info=encryption_info,
+            )
+            assert result == expected_response
+
+    def test_update_cluster_configuration_tool_success_case(self):
+        """Test the update_cluster_configuration_tool function when check_mcp_generated_tag returns True."""
+        # Arrange
+        mock_mcp = MagicMock()
+
+        # Configure the tool decorator to capture the decorated function
+        tool_functions = {}
+
+        def mock_tool_decorator(**kwargs):
+            def capture_function(func):
+                tool_functions[kwargs.get('name')] = func
+                return func
+
+            return capture_function
+
+        mock_mcp.tool.side_effect = mock_tool_decorator
+
+        # Register the module to capture the tool functions
+        register_module(mock_mcp)
+
+        # Get the update_cluster_configuration_tool function
+        update_cluster_configuration_tool = tool_functions['update_cluster_configuration']
+
+        # Use context managers for patching
+        with (
+            patch('boto3.client') as mock_boto3_client,
+            # Patch the function where it's used, not where it's defined
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.check_mcp_generated_tag'
+            ) as mock_check_mcp_generated_tag,
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_cluster_configuration'
+            ) as mock_update_cluster_configuration,
+        ):
+            # Mock the boto3 client
+            mock_client = MagicMock()
+            mock_boto3_client.return_value = mock_client
+
+            # Mock the check_mcp_generated_tag function to return True
+            mock_check_mcp_generated_tag.return_value = True
+
+            # Mock the update_cluster_configuration function
+            expected_response = {
+                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            }
+            mock_update_cluster_configuration.return_value = expected_response
+
+            # Act
+            result = update_cluster_configuration_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                configuration_arn='arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+                configuration_revision=3,
+                current_version='1',
+            )
+
+            # Assert
+            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_check_mcp_generated_tag.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+            )
+            mock_update_cluster_configuration.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+                3,
+                '1',
+                mock_client,
+            )
+            assert result == expected_response
+
+    def test_put_cluster_policy_tool_success_case(self):
+        """Test the put_cluster_policy_tool function when check_mcp_generated_tag returns True."""
+        # Arrange
+        mock_mcp = MagicMock()
+
+        # Configure the tool decorator to capture the decorated function
+        tool_functions = {}
+
+        def mock_tool_decorator(**kwargs):
+            def capture_function(func):
+                tool_functions[kwargs.get('name')] = func
+                return func
+
+            return capture_function
+
+        mock_mcp.tool.side_effect = mock_tool_decorator
+
+        # Register the module to capture the tool functions
+        register_module(mock_mcp)
+
+        # Get the put_cluster_policy_tool function
+        put_cluster_policy_tool = tool_functions['put_cluster_policy']
+
+        # Use context managers for patching
+        with (
+            patch('boto3.client') as mock_boto3_client,
+            # Patch the function where it's used, not where it's defined
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.check_mcp_generated_tag'
+            ) as mock_check_mcp_generated_tag,
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.put_cluster_policy'
+            ) as mock_put_cluster_policy,
+        ):
+            # Mock the boto3 client
+            mock_client = MagicMock()
+            mock_boto3_client.return_value = mock_client
+
+            # Mock the check_mcp_generated_tag function to return True
+            mock_check_mcp_generated_tag.return_value = True
+
+            # Mock the put_cluster_policy function
+            expected_response = {}  # put_cluster_policy returns an empty dict on success
+            mock_put_cluster_policy.return_value = expected_response
+
+            # Act
+            policy = {
+                'Version': '2012-10-17',
+                'Statement': [
+                    {
+                        'Effect': 'Allow',
+                        'Principal': {'AWS': 'arn:aws:iam::123456789012:role/ExampleRole'},
+                        'Action': ['kafka:GetBootstrapBrokers', 'kafka:DescribeCluster'],
+                        'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*',
+                    }
+                ],
+            }
+
+            result = put_cluster_policy_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                policy=policy,
+            )
+
+            # Assert
+            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_check_mcp_generated_tag.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+            )
+            mock_put_cluster_policy.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                policy,
+                mock_client,
+            )
+            assert result == expected_response
+
+    def test_update_broker_count_tool_success_case(self):
+        """Test the update_broker_count_tool function when check_mcp_generated_tag returns True."""
+        # Arrange
+        mock_mcp = MagicMock()
+
+        # Configure the tool decorator to capture the decorated function
+        tool_functions = {}
+
+        def mock_tool_decorator(**kwargs):
+            def capture_function(func):
+                tool_functions[kwargs.get('name')] = func
+                return func
+
+            return capture_function
+
+        mock_mcp.tool.side_effect = mock_tool_decorator
+
+        # Register the module to capture the tool functions
+        register_module(mock_mcp)
+
+        # Get the update_broker_count_tool function
+        update_broker_count_tool = tool_functions['update_broker_count']
+
+        # Use context managers for patching
+        with (
+            patch('boto3.client') as mock_boto3_client,
+            # Patch the function where it's used, not where it's defined
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.check_mcp_generated_tag'
+            ) as mock_check_mcp_generated_tag,
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_count'
+            ) as mock_update_broker_count,
+        ):
+            # Mock the boto3 client
+            mock_client = MagicMock()
+            mock_boto3_client.return_value = mock_client
+
+            # Mock the check_mcp_generated_tag function to return True
+            mock_check_mcp_generated_tag.return_value = True
+
+            # Mock the update_broker_count function
+            expected_response = {
+                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            }
+            mock_update_broker_count.return_value = expected_response
+
+            # Act
+            result = update_broker_count_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                current_version='1',
+                target_number_of_broker_nodes=6,
+            )
+
+            # Assert
+            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_check_mcp_generated_tag.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+            )
+            mock_update_broker_count.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                '1',
+                6,
+                mock_client,
+            )
+            assert result == expected_response
+
+    def test_update_monitoring_tool_success_case(self):
+        """Test the update_monitoring_tool function when check_mcp_generated_tag returns True."""
+        # Arrange
+        mock_mcp = MagicMock()
+
+        # Configure the tool decorator to capture the decorated function
+        tool_functions = {}
+
+        def mock_tool_decorator(**kwargs):
+            def capture_function(func):
+                tool_functions[kwargs.get('name')] = func
+                return func
+
+            return capture_function
+
+        mock_mcp.tool.side_effect = mock_tool_decorator
+
+        # Register the module to capture the tool functions
+        register_module(mock_mcp)
+
+        # Get the update_monitoring_tool function
+        update_monitoring_tool = tool_functions['update_monitoring']
+
+        # Use context managers for patching
+        with (
+            patch('boto3.client') as mock_boto3_client,
+            # Patch the function where it's used, not where it's defined
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.check_mcp_generated_tag'
+            ) as mock_check_mcp_generated_tag,
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_monitoring'
+            ) as mock_update_monitoring,
+        ):
+            # Mock the boto3 client
+            mock_client = MagicMock()
+            mock_boto3_client.return_value = mock_client
+
+            # Mock the check_mcp_generated_tag function to return True
+            mock_check_mcp_generated_tag.return_value = True
+
+            # Mock the update_monitoring function
+            expected_response = {
+                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            }
+            mock_update_monitoring.return_value = expected_response
+
+            # Act
+            open_monitoring = {
+                'Prometheus': {
+                    'JmxExporter': {'EnabledInBroker': True},
+                    'NodeExporter': {'EnabledInBroker': True},
+                }
+            }
+
+            logging_info = {
+                'BrokerLogs': {'CloudWatchLogs': {'Enabled': True, 'LogGroup': 'my-log-group'}}
+            }
+
+            result = update_monitoring_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                current_version='1',
+                enhanced_monitoring='PER_BROKER',
+                open_monitoring=open_monitoring,
+                logging_info=logging_info,
+            )
+
+            # Assert
+            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_check_mcp_generated_tag.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+            )
+            mock_update_monitoring.assert_called_once_with(
+                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                '1',
+                'PER_BROKER',
+                client=mock_client,
+                open_monitoring=open_monitoring,
+                logging_info=logging_info,
+            )
+            assert result == expected_response

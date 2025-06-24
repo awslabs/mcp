@@ -20,7 +20,6 @@ as well as a separate tool for IAM access information.
 """
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
 
 from ..common_functions.client_manager import AWSClientManager
 from .cluster_metrics_tools import get_cluster_metrics, list_available_metrics
@@ -29,16 +28,7 @@ from .list_customer_iam_access import list_customer_iam_access
 
 def register_module(mcp: FastMCP) -> None:
     @mcp.tool(name='get_cluster_telemetry')
-    def get_cluster_telemetry(
-        region: str = Field(..., description='AWS region'),
-        action: str = Field(
-            ..., description='The operation to perform (metrics, available_metrics)'
-        ),
-        cluster_arn: str = Field(
-            ..., description='The ARN of the cluster (required for cluster operations)'
-        ),
-        kwargs: dict = Field({}, description='Additional arguments based on the action type'),
-    ):
+    def get_cluster_telemetry(region, action, cluster_arn=None, kwargs={}):
         """
         Unified API to retrieve telemetry data for MSK clusters. Current implementation of metrics uses a static table of available metrics.
         Would be better to have a resource to pull this data from and force read it first.
@@ -58,7 +48,7 @@ def register_module(mcp: FastMCP) -> None:
                           (e.g., {'BytesInPerSec': 'Sum', 'BytesOutPerSec': 'Average'})
 
                         The function will validate that metrics is provided and raise an error if missing.
-                        If you're unsure which metrics to include, consider using these recommended cluster-level metrics:
+                        If you're unsure which metrics to include, consider using these recommended cluster-level metrics for PROVISONED clusters:
 
                           **Why these metrics are important:**
                           - **Total Topics (GlobalTopicCount):** Number of topics in the cluster. A rapidly growing topic count can increase metadata overhead and memory usage on brokers. It's useful for capacity planning; extremely large numbers of topics (hundreds or thousands) may impact controller performance.
@@ -74,6 +64,14 @@ def register_module(mcp: FastMCP) -> None:
                           - **LeaderCount:** Number of partition leaders on this broker. This shows how partition leadership is distributed. In a balanced cluster, each broker has a similar leader count. If one broker's leader count is much higher, that broker carries more responsibility (all client reads/writes for those partitions go through it). Imbalances can lead to hotspots.
                           - **ProduceTotalTimeMsMean:** The mean time in ms to handle produce (write) requests on this broker. This is an average end-to-end latency for producers interacting with the broker. Higher values mean clients are experiencing slower acknowledgments. It can increase if the broker is overloaded (CPU, I/O) or if there are disk flush bottlenecks.
                           - **FetchConsumerTotalTimeMsMean:** The mean time in ms for consumer fetch requests on this broker. Similarly, it reflects how responsive the broker is to consumer reads. If this climbs, consumers may see increased lag or slower deliveries. Causes include high load, I/O bottlenecks, or network saturation affecting that broker.
+
+                        For SERVERLESS clusters:
+                        - **BytesInPerSec:** The number of bytes per second received from clients. This metric is available for each topic.
+                        - **BytesOutPerSec:** The number of bytes per second sent to clients. This metric is available for each topic.
+                        - **FetchMessageConversionsPerSec:** The number of fetch message conversions per second for the topic.
+                        - **MessagesInPerSec:** The number of incoming messages per second for the topic.
+                        - **ProduceMessageConversionsPerSec:** The number of produce message conversions per second for the topic.
+
                     scan_by (str, optional): Scan order for data points ('TimestampDescending' or 'TimestampAscending')
                     label_options (dict, optional): Dictionary containing label options:
                         - timezone: Timezone for labels (e.g., 'UTC', 'US/Pacific')
@@ -175,10 +173,7 @@ def register_module(mcp: FastMCP) -> None:
             raise ValueError(f'Unsupported action or missing required arguments for {action}')
 
     @mcp.tool(name='list_customer_iam_access')
-    def list_customer_iam_access_tool(
-        region: str = Field(description='AWS region'),
-        cluster_arn: str = Field(description='The ARN of the MSK cluster'),
-    ):
+    def list_customer_iam_access_tool(region, cluster_arn):
         """
         List IAM access information for an MSK cluster.
 

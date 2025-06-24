@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Common functions that may be shared amongst tools
-
 """Configuration for MSK cluster metrics."""
 
 from typing import Any, Dict
@@ -654,11 +652,47 @@ METRICS = {
 }
 
 
-def get_metric_config(metric_name: str) -> Dict[str, Any]:
+# Mapping of serverless metrics to their configurations
+SERVERLESS_METRICS = {
+    'BytesInPerSec': {
+        'monitoring_level': 'DEFAULT',
+        'dimensions': ['Cluster Name', 'Topic'],
+        'default_statistic': 'Sum',
+        'description': 'The number of bytes per second received from clients. This metric is available for each topic.',
+    },
+    'BytesOutPerSec': {
+        'monitoring_level': 'DEFAULT',
+        'dimensions': ['Cluster Name', 'Topic'],
+        'default_statistic': 'Sum',
+        'description': 'The number of bytes per second sent to clients. This metric is available for each topic.',
+    },
+    'FetchMessageConversionsPerSec': {
+        'monitoring_level': 'DEFAULT',
+        'dimensions': ['Cluster Name', 'Topic'],
+        'default_statistic': 'Average',
+        'description': 'The number of fetch message conversions per second for the topic.',
+    },
+    'MessagesInPerSec': {
+        'monitoring_level': 'DEFAULT',
+        'dimensions': ['Cluster Name', 'Topic'],
+        'default_statistic': 'Average',
+        'description': 'The number of incoming messages per second for the topic.',
+    },
+    'ProduceMessageConversionsPerSec': {
+        'monitoring_level': 'DEFAULT',
+        'dimensions': ['Cluster Name', 'Topic'],
+        'default_statistic': 'Average',
+        'description': 'The number of produce message conversions per second for the topic.',
+    },
+}
+
+
+def get_metric_config(metric_name: str, serverless: bool = False) -> Dict[str, Any]:
     """Get the configuration for a specific metric.
 
     Args:
         metric_name: The name of the metric
+        serverless: Whether to get metric configuration for serverless clusters (default: False)
 
     Returns:
         Dictionary containing the metric configuration
@@ -666,7 +700,13 @@ def get_metric_config(metric_name: str) -> Dict[str, Any]:
     Raises:
         KeyError: If the metric configuration is not found
     """
-    try:
-        return METRICS[metric_name]
-    except KeyError:
-        raise KeyError(f'No configuration found for metric {metric_name}')
+    if not serverless:
+        try:
+            return METRICS[metric_name]
+        except KeyError:
+            raise KeyError(f'No configuration found for metric {metric_name}')
+    else:
+        try:
+            return SERVERLESS_METRICS[metric_name]
+        except KeyError:
+            raise KeyError(f'No configuration found for metric {metric_name}')

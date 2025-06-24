@@ -38,7 +38,7 @@ class TestListCustomerIamAccess:
         }[service]
 
         # Mock the response from describe_cluster
-        mock_kafka_client.describe_cluster.return_value = {
+        mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
                 'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
@@ -112,7 +112,7 @@ class TestListCustomerIamAccess:
         assert result['cluster_info']['iam_auth_enabled'] is True
 
         # Verify the calls
-        mock_kafka_client.describe_cluster.assert_called_once_with(ClusterArn=cluster_arn)
+        mock_kafka_client.describe_cluster_v2.assert_called_once_with(ClusterArn=cluster_arn)
         mock_kafka_client.get_cluster_policy.assert_called_once_with(ClusterArn=cluster_arn)
         mock_get_cluster_name.assert_called_once_with(cluster_arn)
 
@@ -128,7 +128,7 @@ class TestListCustomerIamAccess:
         }[service]
 
         # Mock the response from describe_cluster
-        mock_kafka_client.describe_cluster.return_value = {
+        mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
                 'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
@@ -161,7 +161,7 @@ class TestListCustomerIamAccess:
         assert result['matching_policies'] == {}
 
         # Verify the calls
-        mock_kafka_client.describe_cluster.assert_called_once_with(ClusterArn=cluster_arn)
+        mock_kafka_client.describe_cluster_v2.assert_called_once_with(ClusterArn=cluster_arn)
         mock_kafka_client.get_cluster_policy.assert_called_once_with(ClusterArn=cluster_arn)
 
     def test_list_customer_iam_access_missing_client_manager(self):
@@ -202,7 +202,7 @@ class TestListCustomerIamAccess:
         }[service]
 
         # Mock the response from describe_cluster
-        mock_kafka_client.describe_cluster.return_value = {
+        mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
                 'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
@@ -280,7 +280,7 @@ class TestListCustomerIamAccess:
         }[service]
 
         # Mock the response from describe_cluster
-        mock_kafka_client.describe_cluster.return_value = {
+        mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
                 'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
@@ -360,7 +360,7 @@ class TestListCustomerIamAccess:
         }[service]
 
         # Mock the response from describe_cluster
-        mock_kafka_client.describe_cluster.return_value = {
+        mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
                 'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
@@ -440,7 +440,7 @@ class TestListCustomerIamAccess:
         }[service]
 
         # Mock the response from describe_cluster
-        mock_kafka_client.describe_cluster.return_value = {
+        mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
                 'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
@@ -518,7 +518,7 @@ class TestListCustomerIamAccess:
         }[service]
 
         # Mock the response from describe_cluster
-        mock_kafka_client.describe_cluster.return_value = {
+        mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
                 'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
@@ -590,7 +590,7 @@ class TestListCustomerIamAccess:
         }[service]
 
         # Mock the response from describe_cluster
-        mock_kafka_client.describe_cluster.return_value = {
+        mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
                 'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
@@ -662,7 +662,7 @@ class TestListCustomerIamAccess:
         }[service]
 
         # Mock the response from describe_cluster
-        mock_kafka_client.describe_cluster.return_value = {
+        mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
                 'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',

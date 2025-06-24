@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Common functions that may be shared amongst tools
-
 """Tools for managing IAM access to MSK clusters."""
 
 import re
@@ -51,7 +49,7 @@ def list_customer_iam_access(cluster_arn: str, client_manager=None) -> Dict[str,
             raise ValueError('cluster_arn must be a valid MSK cluster ARN')
 
         # Get cluster details
-        cluster_info = kafka.describe_cluster(ClusterArn=cluster_arn)['ClusterInfo']
+        cluster_info = kafka.describe_cluster_v2(ClusterArn=cluster_arn)['ClusterInfo']
 
         # Extract cluster name from ARN
         cluster_name = common_functions.get_cluster_name(cluster_arn)

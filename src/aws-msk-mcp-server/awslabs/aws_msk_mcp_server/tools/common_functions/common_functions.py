@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#
 # Common functions that may be shared amongst tools
-
-
 def check_mcp_generated_tag(resource_arn: str, client) -> bool:
     """Check if a resource has the "MCP Generated" tag.
 
@@ -48,17 +46,16 @@ def get_cluster_name(cluster_identifier: str) -> str:
         cluster_identifier: Either:
             - ARN string in format "arn:aws:kafka:region:account:cluster/cluster-name/uuid"
             - Direct cluster name
-            - Other ARN format (treated as direct name)
 
     Returns:
         The cluster name
 
     Raises:
-        ValueError: If the ARN format is invalid when an MSK ARN is provided
+        ValueError: If the ARN format is invalid when an ARN is provided
     """
     if cluster_identifier.startswith('arn:aws:kafka:'):
         try:
-            # Handle MSK ARN format
+            # Handle ARN format
             parts = cluster_identifier.split('/')
             if len(parts) < 3:
                 raise ValueError('Invalid MSK cluster ARN format')
@@ -66,5 +63,5 @@ def get_cluster_name(cluster_identifier: str) -> str:
         except (IndexError, AttributeError) as e:
             raise ValueError(f'Invalid MSK cluster ARN format: {str(e)}')
     else:
-        # Handle direct cluster name or non-MSK ARN
+        # Handle direct cluster name
         return cluster_identifier

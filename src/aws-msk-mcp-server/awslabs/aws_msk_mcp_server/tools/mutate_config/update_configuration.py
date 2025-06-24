@@ -16,6 +16,8 @@
 Maps to AWS CLI command: aws kafka update-configuration.
 """
 
+from ..common_functions import check_mcp_generated_tag
+
 
 def update_configuration(arn, server_properties, client, description):
     """Updates an MSK configuration.
@@ -33,6 +35,12 @@ def update_configuration(arn, server_properties, client, description):
     if client is None:
         raise ValueError(
             'Client must be provided. This function should only be called from a tool function.'
+        )
+
+    if not check_mcp_generated_tag(arn, client):
+        raise ValueError(
+            f"Resource {arn} does not have the 'MCP Generated' tag. "
+            "This operation can only be performed on resources tagged with 'MCP Generated'."
         )
 
     # Build the request parameters

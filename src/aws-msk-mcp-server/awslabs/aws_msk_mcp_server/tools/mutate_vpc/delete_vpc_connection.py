@@ -16,6 +16,8 @@
 Maps to AWS CLI command: aws kafka delete-vpc-connection.
 """
 
+from ..common_functions import check_mcp_generated_tag
+
 
 def delete_vpc_connection(vpc_connection_arn, client):
     """Deletes a VPC connection for an MSK cluster.
@@ -30,6 +32,12 @@ def delete_vpc_connection(vpc_connection_arn, client):
     if client is None:
         raise ValueError(
             'Client must be provided. This function should only be called from a tool function.'
+        )
+
+    if not check_mcp_generated_tag(vpc_connection_arn, client):
+        raise ValueError(
+            f"Resource {vpc_connection_arn} does not have the 'MCP Generated' tag. "
+            "This operation can only be performed on resources tagged with 'MCP Generated'."
         )
 
     response = client.delete_vpc_connection(VpcConnectionArn=vpc_connection_arn)

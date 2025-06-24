@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Common functions that may be shared amongst tools
-
 """Tools for MSK cluster metrics operations."""
 
 import json
 from ..common_functions import get_cluster_name
-from .metric_config import METRICS, get_metric_config
+from .metric_config import METRICS, SERVERLESS_METRICS, get_metric_config
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
@@ -43,11 +41,12 @@ def get_monitoring_level_rank(level: str) -> int:
     return ranks.get(level, -1)
 
 
-def list_available_metrics(monitoring_level: str) -> Dict[str, Any]:
+def list_available_metrics(monitoring_level: str, serverless: bool = False) -> Dict[str, Any]:
     """List available metrics and their configurations.
 
     Args:
         monitoring_level: Monitoring level to filter by ('DEFAULT', 'PER_BROKER', etc.)
+        serverless: Whether to return metrics for serverless clusters (default: False)
 
     Returns:
         Dictionary containing available metrics and their configurations
@@ -55,14 +54,24 @@ def list_available_metrics(monitoring_level: str) -> Dict[str, Any]:
     Raises:
         ValueError: If no monitoring level is provided
     """
-    if monitoring_level is None:
-        raise ValueError('Monitoring level must be provided')
+    if serverless:
+        if monitoring_level is None:
+            raise ValueError('Monitoring level must be provided')
 
-    return {
-        name: config
-        for name, config in METRICS.items()
-        if config['monitoring_level'] == monitoring_level
-    }
+        return {
+            name: config
+            for name, config in SERVERLESS_METRICS.items()
+            if config['monitoring_level'] == monitoring_level
+        }
+    else:
+        if monitoring_level is None:
+            raise ValueError('Monitoring level must be provided')
+
+        return {
+            name: config
+            for name, config in METRICS.items()
+            if config['monitoring_level'] == monitoring_level
+        }
 
 
 def get_cluster_metrics(
@@ -80,7 +89,7 @@ def get_cluster_metrics(
     """Get metrics for an MSK cluster.
 
     Args:
-        region: AWS region where the MSK cluster is located
+        region: AWS region where the cluster is located
         cluster_arn: The ARN of the MSK cluster
         start_time: Start time for metric data retrieval
         end_time: End time for metric data retrieval
@@ -118,8 +127,9 @@ def get_cluster_metrics(
         cloudwatch_client = client_manager.get_client(region, 'cloudwatch')
 
         # Get cluster's monitoring level
-        cluster_info = kafka_client.describe_cluster(ClusterArn=cluster_arn)['ClusterInfo']
+        cluster_info = kafka_client.describe_cluster_v2(ClusterArn=cluster_arn)['ClusterInfo']
         cluster_monitoring = cluster_info.get('EnhancedMonitoring', 'DEFAULT')
+        cluster_type = cluster_info.get('ClusterType')
         cluster_monitoring_rank = get_monitoring_level_rank(cluster_monitoring)
         metric_queries = []
 
@@ -131,16 +141,26 @@ def get_cluster_metrics(
             logger.info(f'Processing metric {metric_name} with statistic {statistic}')
             try:
                 # Get metric configuration
-                metric_config = get_metric_config(metric_name)
+                metric_config = get_metric_config(metric_name, cluster_type == 'SERVERLESS')
 
-                # Check if metric's monitoring level is supported
-                metric_level_rank = get_monitoring_level_rank(metric_config['monitoring_level'])
-                if metric_level_rank > cluster_monitoring_rank:
+                if cluster_type == 'SERVERLESS' and (metric_name not in SERVERLESS_METRICS.keys()):
                     logger.warning(
                         f'Metric {metric_name} requires {metric_config["monitoring_level"]} monitoring '
                         f'but cluster is configured for {cluster_monitoring}. Skipping metric.'
                     )
                     continue
+
+                elif cluster_type == 'PROVISIONED':
+                    # Check if metric's monitoring level is supported
+                    metric_level_rank = get_monitoring_level_rank(
+                        metric_config['monitoring_level']
+                    )
+                    if metric_level_rank > cluster_monitoring_rank:
+                        logger.warning(
+                            f'Metric {metric_name} requires {metric_config["monitoring_level"]} monitoring '
+                            f'but cluster is configured for {cluster_monitoring}. Skipping metric.'
+                        )
+                        continue
 
                 # Get default statistic if none provided
                 if not statistic:
@@ -196,11 +216,6 @@ def get_cluster_metrics(
                         if dim_name == 'Cluster Name':
                             dimensions.append(
                                 {'Name': dim_name, 'Value': get_cluster_name(cluster_arn)}
-                            )
-                        elif dim_name == 'ClientAuthentication':
-                            # Skip client auth dimensions for now
-                            logger.warning(
-                                f'ClientAuthentication dimension not yet supported for metric {metric_name}'
                             )
                         else:
                             logger.warning(
