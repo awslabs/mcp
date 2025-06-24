@@ -171,13 +171,14 @@
 
       // Create HTML structure with aligned text
       return `
-        <div class="server-card" data-id="${server.id}">
-          <div class="server-card__header">
-            <div class="server-card__icon">
+        <a href="servers/${server.id}" class="server-card-link" style="text-decoration: none; color: inherit; display: block; width: 100%;">
+        <div class="server-card" data-id="${server.id}" style="cursor: pointer; width: 100%; height: 300px; box-shadow: none;">
+          <div class="server-card__header" style="align-items: center;">
+            <div class="server-card__icon" style="display: flex; align-items: center;">
               <i data-feather="${categoryIcon}" width="22" height="22"></i>
             </div>
-            <div class="server-card__title-section">
-              <h3 class="server-card__title name">${server.name || 'Unknown Server'}</h3>
+            <div class="server-card__title-section" style="display: flex; flex-direction: column; justify-content: center;">
+              <h3 class="server-card__title name" style="white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${server.name || 'Unknown Server'}</h3>
               <span class="server-card__category server-card__category--${categoryId} category" data-category="${server.category || ''}">
                 ${server.category || 'Uncategorized'}
               </span>
@@ -185,7 +186,7 @@
           </div>
 
           <div class="server-card__content">
-            <p class="server-card__description description">${server.description || 'No description available'}</p>
+            <p class="server-card__description description" style="word-wrap: break-word; overflow-wrap: break-word;">${server.description || 'No description available'}</p>
           </div>
 
           <div class="server-card__footer">
@@ -201,6 +202,7 @@
             <span class="subcategory" data-subcategory="${server.subcategory || ''}">${server.subcategory || ''}</span>
           </div>
         </div>
+        </a>
       `;
     } catch (error) {
       logDebug(`Error creating card HTML for server: ${server?.id || 'unknown'}`, error);
@@ -476,8 +478,8 @@
   }
 
   function handleWorkflowFilter(event) {
-    const workflow = event.target.value;
-    CardGridState.filters.workflow = workflow;
+    const workflowName = event.target.value;
+    CardGridState.filters.workflow = workflowName;
     applyFilters();
     debouncedUpdateURL(CardGridState);
   }
@@ -492,20 +494,47 @@
     // Convert NodeList to array for sorting
     const sortedCards = Array.from(CardGridState.allCards);
 
-    // Sort cards based on field and direction
-    sortedCards.sort((a, b) => {
-      const aValue = a.querySelector(`.${field}`)?.textContent.trim().toLowerCase() || '';
-      const bValue = b.querySelector(`.${field}`)?.textContent.trim().toLowerCase() || '';
+  // Sort cards based on field and direction
+  sortedCards.sort((a, b) => {
+    let aValue, bValue;
 
-      if (direction === 'asc') {
-        return aValue.localeCompare(bValue);
-      } else {
-        return bValue.localeCompare(aValue);
-      }
-    });
+    // Handle different field types correctly
+    if (field === 'name') {
+      aValue = a.querySelector('.server-card__title')?.textContent.trim().toLowerCase() || '';
+      bValue = b.querySelector('.server-card__title')?.textContent.trim().toLowerCase() || '';
+    } else if (field === 'category') {
+      aValue = a.querySelector('.server-card__category')?.textContent.trim().toLowerCase() || '';
+      bValue = b.querySelector('.server-card__category')?.textContent.trim().toLowerCase() || '';
+    } else {
+      // Fallback for other fields
+      aValue = a.querySelector(`.${field}`)?.textContent.trim().toLowerCase() || '';
+      bValue = b.querySelector(`.${field}`)?.textContent.trim().toLowerCase() || '';
+    }
 
-    // Re-append sorted cards to the grid
-    sortedCards.forEach(card => cardGrid.appendChild(card));
+    if (direction === 'asc') {
+      return aValue.localeCompare(bValue);
+    } else {
+      return bValue.localeCompare(aValue);
+    }
+  });
+
+  // Clear the grid first
+  while (cardGrid.firstChild) {
+    cardGrid.removeChild(cardGrid.firstChild);
+  }
+
+  // Re-append sorted cards to the grid
+  sortedCards.forEach(card => {
+    // Check if the card is a direct child or wrapped in an anchor
+    const parent = card.parentElement;
+    if (parent && parent.classList.contains('server-card-link')) {
+      // If wrapped in an anchor, append the anchor
+      cardGrid.appendChild(parent);
+    } else {
+      // Otherwise append the card directly
+      cardGrid.appendChild(card);
+    }
+  });
   }
 
   function handleSort(event) {
@@ -521,6 +550,12 @@
     if (!CardGridState.allCards) return;
 
     const lowercaseQuery = searchQuery.toLowerCase();
+    const cardGrid = document.querySelector('.card-grid');
+    if (!cardGrid) return;
+
+    // First, determine which cards match the filters
+    const visibleCards = [];
+    const hiddenCards = [];
 
     CardGridState.allCards.forEach(card => {
       // Check if card matches search query
@@ -539,14 +574,41 @@
 
       // Check if card matches workflow filter
       const workflows = card.querySelector('.workflows')?.textContent || '';
-      const workflowId = workflowFilter ? workflowFilter.toLowerCase().replace(/\s+/g, '-') : '';
+
+      // Find the workflow ID that corresponds to the selected workflow name
+      let workflowId = '';
+      if (workflowFilter && CardGridState.data && CardGridState.data.workflows) {
+        const workflow = CardGridState.data.workflows.find(w => w.name === workflowFilter);
+        if (workflow) {
+          workflowId = workflow.id;
+        }
+      }
+
       const matchesWorkflow = !workflowFilter || workflows.includes(workflowId);
 
-      // Show/hide card based on filter matches
+      // Add to appropriate array based on filter matches
       if (matchesSearch && matchesCategory && matchesWorkflow) {
-        card.style.display = '';
+        visibleCards.push(card);
       } else {
-        card.style.display = 'none';
+        hiddenCards.push(card);
+      }
+    });
+
+    // Clear the grid
+    while (cardGrid.firstChild) {
+      cardGrid.removeChild(cardGrid.firstChild);
+    }
+
+    // Add visible cards back to the grid
+    visibleCards.forEach(card => {
+      // Check if the card is a direct child or wrapped in an anchor
+      const parent = card.parentElement;
+      if (parent && parent.classList.contains('server-card-link')) {
+        // If wrapped in an anchor, append the anchor
+        cardGrid.appendChild(parent);
+      } else {
+        // Otherwise append the card directly
+        cardGrid.appendChild(card);
       }
     });
 
