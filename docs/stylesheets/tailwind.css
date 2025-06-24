@@ -1,0 +1,212 @@
+/* Tailwind CSS for MkDocs Material - Cursor Docs Style */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom components using Tailwind's @apply */
+@layer components {
+  /* Server Card Components */
+  .server-card {
+    @apply flex flex-col h-full bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-card p-4 transition-all duration-200 shadow-card max-h-[200px] w-full;
+  }
+
+  .server-card:hover {
+    @apply border-gray-300 dark:border-gray-700 shadow-z3 transform-gpu -translate-y-0.5;
+  }
+
+  .server-card__header {
+    @apply flex items-center gap-3 mb-2 min-h-[2rem] h-auto;
+  }
+
+  .server-card__icon {
+    @apply flex-shrink-0 flex items-center justify-center w-6 h-6 text-gray-700 dark:text-gray-300;
+  }
+
+  .server-card__title-section {
+    @apply flex-1 flex flex-col justify-center;
+  }
+
+  .server-card__title {
+    @apply text-base font-medium leading-tight text-gray-900 dark:text-gray-100 text-left;
+  }
+
+  .server-card__category {
+    @apply mt-1 inline-flex items-center py-0.5 px-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full w-fit;
+  }
+
+  /* Category Colors - More subtle styling like Cursor docs */
+  .server-card__category--documentation {
+    @apply bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300;
+  }
+  
+  .server-card__category--infrastructure-deployment {
+    @apply bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300;
+  }
+  
+  .server-card__category--ai-ml {
+    @apply bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300;
+  }
+  
+  .server-card__category--data-analytics {
+    @apply bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300;
+  }
+  
+  .server-card__category--developer-tools {
+    @apply bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300;
+  }
+  
+  .server-card__category--integration-messaging {
+    @apply bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300;
+  }
+  
+  .server-card__category--cost-operations {
+    @apply bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300;
+  }
+  
+  .server-card__category--core {
+    @apply bg-black/5 dark:bg-white/10 text-gray-900 dark:text-gray-100;
+  }
+
+  .server-card__content {
+    @apply flex-1 flex flex-col;
+  }
+
+  .server-card__description {
+    @apply text-sm leading-relaxed text-gray-600 dark:text-gray-400 mt-2 mb-3 flex-1 max-h-[4.5rem] overflow-hidden text-left line-clamp-3;
+  }
+
+  .server-card__footer {
+    @apply mt-auto pt-2 border-t border-gray-100 dark:border-gray-800 w-full;
+  }
+
+  .server-card__workflows {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .server-card__workflow {
+    @apply inline-flex items-center gap-1 py-0.5 px-2 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-full;
+  }
+
+  /* Card Grid Components */
+  .card-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-6 items-start;
+  }
+
+  @screen lg {
+    .card-grid {
+      @apply grid-cols-2 max-w-[1080px] mx-auto;
+    }
+  }
+
+  /* Add max-width to individual cards to prevent stretching */
+  .server-card-link {
+    @apply w-full;
+  }
+
+  /* Card Controls */
+  .card-controls {
+    @apply flex flex-wrap gap-4 mb-8 p-5 bg-gray-50 dark:bg-gray-900 rounded-card border border-gray-100 dark:border-gray-800 shadow-z1;
+  }
+
+  @screen sm {
+    .card-controls {
+      @apply flex-col items-stretch;
+    }
+  }
+
+  .card-controls__search {
+    @apply flex-1 min-w-[300px] sm:min-w-full;
+  }
+
+  .card-controls__search input {
+    @apply w-full py-2 px-3 border border-gray-200 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-colors duration-200 focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-600;
+  }
+
+  .card-controls__filters {
+    @apply flex flex-wrap gap-3 items-center;
+  }
+
+  .card-controls__filter-group {
+    @apply flex items-center gap-2;
+  }
+
+  .card-controls__filter-label {
+    @apply text-sm font-medium text-gray-600 dark:text-gray-400;
+  }
+
+  .card-controls__select {
+    @apply py-2 px-3 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm min-w-[150px] focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-600;
+  }
+
+  /* Stats */
+  .card-stats {
+    @apply mb-4 py-2 text-sm text-gray-600 dark:text-gray-400;
+  }
+
+  .card-stats__count {
+    @apply font-medium text-gray-900 dark:text-gray-200;
+  }
+
+  /* Loading and Empty States */
+  .card-grid--loading {
+    @apply opacity-60 pointer-events-none;
+  }
+
+  .card-grid__loading {
+    @apply col-span-full text-center py-12 text-gray-500 dark:text-gray-400;
+  }
+
+  .card-grid__empty {
+    @apply col-span-full text-center py-12 text-gray-500 dark:text-gray-400;
+  }
+
+  .card-grid__empty-title {
+    @apply text-lg font-medium mb-2 text-gray-700 dark:text-gray-300;
+  }
+
+  .card-grid__empty-message {
+    @apply text-sm;
+  }
+}
+
+/* Highlighted Cards */
+.highlighted-cards {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6 mb-8;
+}
+
+/* Add max-width to highlighted cards to prevent stretching */
+.highlighted-cards .server-card {
+  @apply w-full h-auto;
+}
+
+/* Card Grid Layout Improvements */
+.card-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch;
+}
+
+/* Ensure consistent card sizing */
+.server-card {
+  @apply h-auto min-h-[180px] max-h-[220px];
+}
+
+/* Improve text overflow handling */
+.server-card__title {
+  @apply truncate;
+}
+
+/* Add line clamping for descriptions */
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
