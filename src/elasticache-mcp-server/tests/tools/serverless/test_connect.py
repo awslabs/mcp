@@ -197,9 +197,9 @@ async def test_connect_jump_host_serverless_success():
         assert result['Status'] == 'Success'
         assert result['InstanceId'] == 'i-1234'
         assert result['ServerlessCacheName'] == 'cache-1'
+        assert result['SecurityGroupsConfigured'] is True
         assert result['CachePort'] == 6379
         assert result['VpcId'] == 'vpc-1234'
-        assert result['SecurityGroupsConfigured'] is True
 
 
 @pytest.mark.asyncio
@@ -364,9 +364,9 @@ async def test_create_jump_host_serverless_success():
     ):
         result = await create_jump_host_serverless(
             'cache-1',
+            'my-key',
             'subnet-1234',
             'sg-1234',
-            'my-key',
             't3.micro',
         )
 
@@ -401,9 +401,12 @@ async def test_create_jump_host_serverless_private_subnet():
         ]
     }
 
-    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-1234'}]}
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [{'VpcId': 'vpc-1234', 'DefaultForAz': False, 'MapPublicIpOnLaunch': False}]
+    }
     # No internet gateway route
     mock_ec2.describe_route_tables.return_value = {'RouteTables': [{'Routes': []}]}
+    mock_ec2.describe_vpcs.return_value = {'Vpcs': [{'IsDefault': False}]}
 
     with (
         patch(
@@ -417,9 +420,9 @@ async def test_create_jump_host_serverless_private_subnet():
     ):
         result = await create_jump_host_serverless(
             'cache-1',
+            'my-key',
             'subnet-1234',
             'sg-1234',
-            'my-key',
         )
 
         assert 'error' in result
@@ -637,10 +640,157 @@ async def test_create_jump_host_serverless_invalid_key():
     ):
         result = await create_jump_host_serverless(
             'cache-1',
+            'invalid-key',
             'subnet-1234',
             'sg-1234',
-            'invalid-key',
         )
 
         assert 'error' in result
         assert "Key pair 'invalid-key' not found" in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_serverless_default_vpc_default_subnet():
+    """Test jump host creation with default subnet in default VPC."""
+    # Mock clients
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock responses for default VPC scenario
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'my-key'}]}
+
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': ['subnet-1234'],
+                'Engine': 'redis',
+            }
+        ]
+    }
+
+    # Mock subnet response for default VPC scenario
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [
+            {
+                'VpcId': 'vpc-1234',
+                'DefaultForAz': True,  # This is a default subnet
+                'MapPublicIpOnLaunch': True,
+            }
+        ]
+    }
+    mock_ec2.describe_route_tables.return_value = {'RouteTables': [{'Routes': []}]}  # No IGW route
+    mock_ec2.describe_vpcs.return_value = {'Vpcs': [{'IsDefault': True}]}  # Default VPC
+    mock_ec2.describe_security_groups.return_value = {'SecurityGroups': [{'IpPermissions': []}]}
+    mock_ec2.describe_images.return_value = {
+        'Images': [{'ImageId': 'ami-123', 'CreationDate': '2023-01-01'}]
+    }
+    mock_ec2.run_instances.return_value = {'Instances': [{'InstanceId': 'i-new1234'}]}
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [{'Instances': [{'PublicIpAddress': '1.2.3.4'}]}]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.tools.serverless.connect._configure_security_groups',
+            return_value=(True, 'vpc-1234', 6379),
+        ),
+    ):
+        result = await create_jump_host_serverless(
+            'cache-1',
+            'my-key',
+            'subnet-1234',
+            'sg-1234',
+            't3.micro',
+        )
+
+        # Verify successful creation despite no IGW route (because it's default subnet in default VPC)
+        assert result['InstanceId'] == 'i-new1234'
+        assert result['PublicIpAddress'] == '1.2.3.4'
+        assert result['InstanceType'] == 't3.micro'
+        assert result['SubnetId'] == 'subnet-1234'
+        assert result['SecurityGroupId'] == 'sg-1234'
+        assert result['ServerlessCacheName'] == 'cache-1'
+        assert result['SecurityGroupsConfigured'] is True
+        assert result['CachePort'] == 6379
+        assert result['VpcId'] == 'vpc-1234'
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_serverless_default_vpc_map_public_ip():
+    """Test jump host creation with MapPublicIpOnLaunch=True in default VPC."""
+    # Mock clients
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock responses for default VPC scenario with MapPublicIpOnLaunch
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'my-key'}]}
+
+    mock_elasticache.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [
+            {
+                'SecurityGroupIds': ['sg-cache'],
+                'SubnetIds': ['subnet-1234'],
+                'Engine': 'redis',
+            }
+        ]
+    }
+
+    # Mock subnet response for default VPC scenario with MapPublicIpOnLaunch
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [
+            {
+                'VpcId': 'vpc-1234',
+                'DefaultForAz': False,  # Not a default subnet
+                'MapPublicIpOnLaunch': True,  # But has MapPublicIpOnLaunch=True
+            }
+        ]
+    }
+    mock_ec2.describe_route_tables.return_value = {'RouteTables': [{'Routes': []}]}  # No IGW route
+    mock_ec2.describe_vpcs.return_value = {'Vpcs': [{'IsDefault': True}]}  # Default VPC
+    mock_ec2.describe_security_groups.return_value = {'SecurityGroups': [{'IpPermissions': []}]}
+    mock_ec2.describe_images.return_value = {
+        'Images': [{'ImageId': 'ami-123', 'CreationDate': '2023-01-01'}]
+    }
+    mock_ec2.run_instances.return_value = {'Instances': [{'InstanceId': 'i-new1234'}]}
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [{'Instances': [{'PublicIpAddress': '1.2.3.4'}]}]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.tools.serverless.connect._configure_security_groups',
+            return_value=(True, 'vpc-1234', 6379),
+        ),
+    ):
+        result = await create_jump_host_serverless(
+            'cache-1',
+            'my-key',
+            'subnet-1234',
+            'sg-1234',
+            't3.micro',
+        )
+
+        # Verify successful creation despite no IGW route (because MapPublicIpOnLaunch=True in default VPC)
+        assert result['InstanceId'] == 'i-new1234'
+        assert result['PublicIpAddress'] == '1.2.3.4'
+        assert result['InstanceType'] == 't3.micro'
+        assert result['SubnetId'] == 'subnet-1234'
+        assert result['SecurityGroupId'] == 'sg-1234'
+        assert result['ServerlessCacheName'] == 'cache-1'

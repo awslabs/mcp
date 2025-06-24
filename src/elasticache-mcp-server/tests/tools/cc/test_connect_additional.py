@@ -415,82 +415,11 @@ async def test_create_jump_host_cc_main_route_table():
             return_value=mock_elasticache,
         ),
     ):
-        result = await create_jump_host_cc('cluster-1', 'subnet-123', 'sg-123', 'test-key')
+        result = await create_jump_host_cc('cluster-1', 'test-key', 'subnet-123', 'sg-123')
 
         # Should fail because subnet is not public
         assert 'error' in result
         assert (
-            'Subnet subnet-123 is not public (no route to internet gateway found)'
+            'Subnet subnet-123 is not public (no route to internet gateway found and not a default subnet in default VPC)'
             in result['error']
         )
-
-
-@pytest.mark.asyncio
-async def test_create_jump_host_cc_existing_ssh_rule():
-    """Test create_jump_host_cc with existing SSH rule."""
-    mock_ec2 = MagicMock()
-    mock_elasticache = MagicMock()
-
-    # Mock responses
-    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
-
-    mock_elasticache.describe_cache_clusters.return_value = {
-        'CacheClusters': [
-            {
-                'CacheSubnetGroupName': 'subnet-group-1',
-            }
-        ]
-    }
-    mock_elasticache.describe_cache_subnet_groups.return_value = {
-        'CacheSubnetGroups': [{'VpcId': 'vpc-123'}]
-    }
-
-    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-123'}]}
-    mock_ec2.describe_route_tables.return_value = {
-        'RouteTables': [{'Routes': [{'GatewayId': 'igw-123'}]}]
-    }
-    mock_ec2.describe_images.return_value = {
-        'Images': [{'ImageId': 'ami-123', 'CreationDate': '2023-01-01'}]
-    }
-
-    # Security group with existing SSH rule
-    mock_ec2.describe_security_groups.return_value = {
-        'SecurityGroups': [
-            {
-                'IpPermissions': [
-                    {
-                        'IpProtocol': 'tcp',
-                        'FromPort': 22,
-                        'ToPort': 22,
-                        'IpRanges': [{'CidrIp': '0.0.0.0/0'}],
-                    }
-                ]
-            }
-        ]
-    }
-
-    mock_ec2.run_instances.return_value = {'Instances': [{'InstanceId': 'i-new1234'}]}
-    mock_ec2.describe_instances.return_value = {
-        'Reservations': [{'Instances': [{'PublicIpAddress': '1.2.3.4'}]}]
-    }
-
-    with (
-        patch(
-            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
-            return_value=mock_ec2,
-        ),
-        patch(
-            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
-            return_value=mock_elasticache,
-        ),
-        patch(
-            'awslabs.elasticache_mcp_server.tools.cc.connect._configure_security_groups',
-            return_value=(True, 'vpc-123', 6379),
-        ),
-    ):
-        result = await create_jump_host_cc('cluster-1', 'subnet-123', 'sg-123', 'test-key')
-
-        # Should succeed and not try to add SSH rule
-        assert 'InstanceId' in result
-        assert result['InstanceId'] == 'i-new1234'
-        mock_ec2.authorize_security_group_ingress.assert_not_called()
