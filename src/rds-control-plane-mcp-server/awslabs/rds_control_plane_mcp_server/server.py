@@ -184,7 +184,6 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs MCP server for Amazon RDS control plane operations'
     )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
     parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
     parser.add_argument(
         '--region',
@@ -222,12 +221,11 @@ def main():
     if args.profile:
         logger.info(f"AWS Profile: {args.profile}")
 
-    # run server with appropriate transport
-    if args.sse:
+    if args.port:
         mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+        
+    # default streamable HTTP transport
+    mcp.run()
 
 
 if __name__ == '__main__':
