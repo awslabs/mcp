@@ -64,7 +64,7 @@ async def get_findings(
             findings.extend(page['Findings'])
 
     logger.info(f'Found {len(findings)} findings: {findings}')
-    return {'Findings': findings}
+    return findings
 
 
 def main():
