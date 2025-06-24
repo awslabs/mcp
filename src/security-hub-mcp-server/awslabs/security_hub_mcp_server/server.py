@@ -42,17 +42,17 @@ async def get_findings(
         # Get all HIGH severity findings in us-east-1
         get_findings(region="us-east-1", severity="HIGH")
 
-        # Get findings with custom workflow status filter
+        # Get findings with a custom resource type filter
         get_findings(
             region="us-east-1",
-            custom_filters='{"WorkflowStatus": [{"Value": "NEW", "Comparison": "EQUALS"}]}'
+            custom_filters='{"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}'
         )
 
         # Combine basic and custom filters
         get_findings(
             region="us-east-1",
             severity="HIGH",
-            custom_filters='{"ProductName": [{"Value": "GuardDuty", "Comparison": "EQUALS"}]}'
+            custom_filters='{"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}'
         )
 
     Args:
@@ -61,7 +61,7 @@ async def get_findings(
         severity (str): (optional) filter the findings to the specified finding severity (INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL)
         workflow_status (str): (optional) filter the findings to the specified workflow status (NEW, NOTIFIED, RESOLVED, SUPPRESSED)
         custom_filters (str): (optional) JSON string of additional Security Hub filters
-                             Example: '{"WorkflowStatus": [{"Value": "NEW", "Comparison": "EQUALS"}]}'
+                             Example: '{"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}'
                              See AWS Security Hub GetFindings API documentation for all available filters
         max_results (int): (optional) the maximum number of finding results to return; note the maximum
         number of results supported by the SecurityHub service is 100
