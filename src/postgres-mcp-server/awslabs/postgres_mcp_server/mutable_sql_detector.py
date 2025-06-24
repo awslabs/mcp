@@ -12,122 +12,83 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-SQL mutation detection for PostgreSQL MCP server.
-
-This module provides functions to detect SQL statements that would modify the database.
-"""
-
 import re
-from typing import List, Optional
 
-# List of SQL keywords that indicate a mutating operation
-MUTATING_KEYWORDS = [
-    r'^\s*INSERT\s+',
-    r'^\s*UPDATE\s+',
-    r'^\s*DELETE\s+',
-    r'^\s*DROP\s+',
-    r'^\s*ALTER\s+',
-    r'^\s*CREATE\s+',
-    r'^\s*TRUNCATE\s+',
-    r'^\s*GRANT\s+',
-    r'^\s*REVOKE\s+',
-    r'^\s*VACUUM\s+',
-    r'^\s*REINDEX\s+',
-    r'^\s*CLUSTER\s+',
-    r'^\s*RESET\s+',
-    r'^\s*LOAD\s+',
-    r'^\s*COPY\s+.*\s+TO\s+',
+
+MUTATING_KEYWORDS = {
+    # DML
+    'INSERT',
+    'UPDATE',
+    'DELETE',
+    'MERGE',
+    'TRUNCATE',
+    # DDL
+    'CREATE',
+    'DROP',
+    'ALTER',
+    'RENAME',
+    # Permissions
+    'GRANT',
+    'REVOKE',
+    # Metadata changes
+    'COMMENT ON',
+    'SECURITY LABEL',
+    # Extensions and functions
+    'CREATE EXTENSION',
+    'CREATE FUNCTION',
+    'INSTALL',
+    # Storage-level
+    'CLUSTER',
+    'REINDEX',
+    'VACUUM',
+    'ANALYZE',
+}
+
+# Compile regex pattern
+MUTATING_PATTERN = re.compile(
+    r'(?i)\b(' + '|'.join(re.escape(k) for k in MUTATING_KEYWORDS) + r')\b'
+)
+
+SUSPICIOUS_PATTERNS = [
+    r"(?i)'.*?--",  # comment injection
+    r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
+    r"(?i)\bor\b\s*'[^']+'\s*=\s*'[^']+'",  # string tautology e.g. OR '1'='1'
+    r'(?i)\bunion\b.*\bselect\b',  # UNION SELECT
+    r'(?i)\bdrop\b',  # DROP statement
+    r'(?i)\btruncate\b',  # TRUNCATE
+    r'(?i)\bgrant\b|\brevoke\b',  # GRANT or REVOKE
+    r';\s*(?!($|\s*--|\s*/\*))(?=\S)',  # stacked queries, excluding semicolons followed by comments or whitespace
+    r'(?i)\bsleep\s*\(',  # delay-based probes
+    r'(?i)\bpg_sleep\s*\(',
+    r'(?i)\bload_file\s*\(',
+    r'(?i)\binto\s+outfile\b',
 ]
 
-# SQL injection patterns to check for
-SQL_INJECTION_PATTERNS = [
-    r';\s*DROP\s+',
-    r';\s*DELETE\s+',
-    r';\s*INSERT\s+',
-    r';\s*UPDATE\s+',
-    r';\s*ALTER\s+',
-    r';\s*CREATE\s+',
-    r'--',
-    r'/\*.*\*/',
-    r'UNION\s+SELECT',
-    r'UNION\s+ALL\s+SELECT',
-    r'OR\s+1\s*=\s*1',
-    r'OR\s+\'1\'\s*=\s*\'1\'',
-    r'OR\s+\'a\'\s*=\s*\'a\'',
-    r'OR\s+[\'"].*[\'"]=[\'"].*[\'"]',
-]
 
-def detect_mutating_keywords(sql: str) -> List[str]:
-    """
-    Detect SQL keywords that would modify the database.
-    
-    Args:
-        sql: The SQL statement to check
-        
-    Returns:
-        List of detected mutating keywords
-    """
-    sql = sql.upper()
-    matches = []
-    
-    for pattern in MUTATING_KEYWORDS:
-        if re.search(pattern, sql, re.IGNORECASE):
-            # Extract the actual keyword that matched
-            keyword = re.search(pattern, sql, re.IGNORECASE).group(0).strip()
-            matches.append(keyword)
-    
-    return matches
+def detect_mutating_keywords(sql_text: str) -> list[str]:
+    """Return a list of mutating keywords found in the SQL (excluding comments)."""
+    matches = MUTATING_PATTERN.findall(sql_text)
+    return list({m.upper() for m in matches})  # Deduplicated and normalized to uppercase
 
-def check_sql_injection_risk(sql: str) -> List[dict]:
-    """
-    Check for potential SQL injection patterns in the query.
-    
+
+def check_sql_injection_risk(sql: str) -> list[dict]:
+    """Check for potential SQL injection risks in sql query.
+
     Args:
-        sql: The SQL statement to check
-        
+        sql: query string
+
     Returns:
-        List of detected issues with pattern and reason
+        dictionaries containing detected security issue
     """
     issues = []
-    
-    for pattern in SQL_INJECTION_PATTERNS:
-        matches = re.finditer(pattern, sql, re.IGNORECASE)
-        for match in matches:
-            issues.append({
-                'pattern': match.group(0),
-                'position': match.start(),
-                'reason': f"Potential SQL injection pattern detected: {match.group(0)}"
-            })
-    
+    for pattern in SUSPICIOUS_PATTERNS:
+        if re.search(pattern, sql):
+            issues.append(
+                {
+                    'type': 'sql',
+                    'message': f'Suspicious pattern in query: {sql}',
+                    'severity': 'high',
+                }
+            )
+            break
     return issues
-
-def validate_read_only_query(sql: str) -> tuple[bool, Optional[str]]:
-    """
-    Validate that a query is read-only.
-    
-    Args:
-        sql: The SQL statement to check
-        
-    Returns:
-        Tuple of (is_valid, error_message)
-    """
-    # Check for mutating keywords
-    mutating_matches = detect_mutating_keywords(sql)
-    if mutating_matches:
-        return False, f"Query contains mutating operations: {', '.join(mutating_matches)}"
-    
-    # Check for SQL injection risks
-    injection_risks = check_sql_injection_risk(sql)
-    if injection_risks:
-        risk_messages = [risk['reason'] for risk in injection_risks]
-        return False, f"Query contains potential SQL injection risks: {'; '.join(risk_messages)}"
-    
-    # Check if the query starts with allowed operations
-    allowed_prefixes = ['SELECT', 'EXPLAIN', 'SHOW', 'WITH']
-    sql_upper = sql.upper().strip()
-    
-    if not any(sql_upper.startswith(prefix) for prefix in allowed_prefixes):
-        return False, f"Query must start with one of: {', '.join(allowed_prefixes)}"
-    
-    return True, None

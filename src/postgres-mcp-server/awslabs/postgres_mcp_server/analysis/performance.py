@@ -15,14 +15,13 @@
 """Query performance analysis tools."""
 
 import time
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any
 from loguru import logger
-from ..connection.rds_connector import RDSDataAPIConnector
-from ..connection.postgres_connector import PostgreSQLConnector
+from ..connection.base_connection import DBConnector
 
 
 async def analyze_query_performance(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     query: str
 ) -> Dict[str, Any]:
     """
@@ -89,7 +88,7 @@ async def analyze_query_performance(
 
 
 async def _get_execution_plan(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     query: str
 ) -> List[Dict[str, Any]]:
     """Get the execution plan for a query."""
@@ -215,7 +214,7 @@ def _extract_text_plan_metrics(plan_text: str, analysis: Dict[str, Any]):
 
 
 async def _get_query_statistics(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     query: str
 ) -> Dict[str, Any]:
     """Get query statistics from pg_stat_statements if available."""

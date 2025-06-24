@@ -18,6 +18,10 @@ import os
 from typing import Optional, Tuple, Dict, Any
 from loguru import logger
 
+from .base_connection import DBConnector
+from .rds_connector import RDSDataAPIConnector
+from .postgres_driver import PostgresDriver
+
 
 class ConnectionFactory:
     """Factory class for determining connection types and creating appropriate connections."""
@@ -39,7 +43,7 @@ class ConnectionFactory:
             database: Database name
             
         Returns:
-            Connection type: 'rds_data_api' or 'direct_postgres'
+            Connection type: 'rds_data_api' or 'psycopg_driver'
             
         Raises:
             ValueError: If neither resource_arn nor hostname is provided
@@ -49,9 +53,75 @@ class ConnectionFactory:
             return "rds_data_api"
         elif hostname:
             logger.info("Using direct PostgreSQL connection (hostname provided)")
-            return "direct_postgres"
+            return "psycopg_driver"
         else:
             raise ValueError("Either resource_arn or hostname must be provided")
+    
+    @staticmethod
+    def create_connection(
+        resource_arn: Optional[str] = None,
+        hostname: Optional[str] = None,
+        port: int = 5432,
+        secret_arn: str = None,
+        database: str = None,
+        region: str = None,
+        readonly: bool = True
+    ) -> DBConnector:
+        """
+        Create and return the appropriate connection object.
+        
+        Args:
+            resource_arn: ARN of the RDS cluster or instance
+            hostname: Database hostname
+            port: Database port
+            secret_arn: ARN of the secret containing credentials
+            database: Database name
+            region: AWS region name
+            readonly: Whether connection is read-only
+            
+        Returns:
+            DBConnector: An instance of the appropriate connector class
+            
+        Raises:
+            ValueError: If neither resource_arn nor hostname is provided
+        """
+        connection_type = ConnectionFactory.determine_connection_type(
+            resource_arn=resource_arn,
+            hostname=hostname
+        )
+        
+        # Validate parameters
+        is_valid, error_msg = ConnectionFactory.validate_connection_params(
+            connection_type=connection_type,
+            secret_arn=secret_arn,
+            resource_arn=resource_arn,
+            database=database,
+            hostname=hostname,
+            region_name=region
+        )
+        
+        if not is_valid:
+            raise ValueError(error_msg)
+        
+        if connection_type == "rds_data_api":
+            return RDSDataAPIConnector(
+                resource_arn=resource_arn,
+                secret_arn=secret_arn,
+                database=database,
+                region_name=region,
+                readonly=readonly
+            )
+        elif connection_type == "psycopg_driver":
+            return PostgresDriver(
+                hostname=hostname,
+                port=port,
+                database=database,
+                secret_arn=secret_arn,
+                region_name=region,
+                readonly=readonly
+            )
+        else:
+            raise ValueError(f"Unknown connection type: {connection_type}")
     
     @staticmethod
     def create_pool_key(
@@ -66,7 +136,7 @@ class ConnectionFactory:
         Create a unique pool key for connection pooling.
         
         Args:
-            connection_type: Type of connection ('rds_data_api' or 'direct_postgres')
+            connection_type: Type of connection ('rds_data_api' or 'psycopg_driver')
             resource_arn: ARN of the RDS cluster or instance
             hostname: Database hostname
             port: Database port
@@ -79,7 +149,7 @@ class ConnectionFactory:
         if connection_type == "rds_data_api":
             secret_hash = hash(secret_arn) if secret_arn else 0
             return f"rds://{resource_arn}/{database}#{secret_hash}"
-        elif connection_type == "direct_postgres":
+        elif connection_type == "psycopg_driver":
             port = port or 5432
             secret_hash = hash(secret_arn) if secret_arn else 0
             return f"postgres://{hostname}:{port}/{database}#{secret_hash}"
@@ -140,7 +210,7 @@ class ConnectionFactory:
                     missing.append('region_name')
                 return False, f"Missing required parameters for RDS Data API: {', '.join(missing)}"
         
-        elif connection_type == "direct_postgres":
+        elif connection_type == "psycopg_driver":
             if not all([hostname, database, secret_arn, region_name]):
                 missing = []
                 if not hostname:

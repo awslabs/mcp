@@ -15,15 +15,14 @@
 """Database structure analysis tools."""
 
 import json
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any
 from loguru import logger
 from ..connection.pool_manager import connection_pool_manager
-from ..connection.rds_connector import RDSDataAPIConnector
-from ..connection.postgres_connector import PostgreSQLConnector
+from ..connection.base_connection import DBConnector
 
 
 async def analyze_database_structure(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector]
+    connection: DBConnector
 ) -> Dict[str, Any]:
     """
     Analyze the database structure and provide comprehensive insights.
@@ -98,7 +97,7 @@ async def analyze_database_structure(
         }
 
 
-async def _get_schemas(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> List[str]:
+async def _get_schemas(connection: DBConnector) -> List[str]:
     """Get all schemas in the database."""
     query = """
         SELECT schema_name 
@@ -111,7 +110,7 @@ async def _get_schemas(connection: Union[RDSDataAPIConnector, PostgreSQLConnecto
     return [row[0]['stringValue'] for row in result.get('records', [])]
 
 
-async def _get_tables_detailed(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> List[Dict[str, Any]]:
+async def _get_tables_detailed(connection: DBConnector) -> List[Dict[str, Any]]:
     """Get detailed information about all tables."""
     query = """
         SELECT 
@@ -149,7 +148,7 @@ async def _get_tables_detailed(connection: Union[RDSDataAPIConnector, PostgreSQL
     return tables
 
 
-async def _get_table_columns(connection: Union[RDSDataAPIConnector, PostgreSQLConnector], schema: str, table: str) -> List[Dict[str, Any]]:
+async def _get_table_columns(connection: DBConnector, schema: str, table: str) -> List[Dict[str, Any]]:
     """Get column information for a specific table."""
     query = """
         SELECT 
@@ -192,7 +191,7 @@ async def _get_table_columns(connection: Union[RDSDataAPIConnector, PostgreSQLCo
     return columns
 
 
-async def _get_relationships(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> List[Dict[str, Any]]:
+async def _get_relationships(connection: DBConnector) -> List[Dict[str, Any]]:
     """Get foreign key relationships between tables."""
     query = """
         SELECT
@@ -238,7 +237,7 @@ async def _get_relationships(connection: Union[RDSDataAPIConnector, PostgreSQLCo
     return relationships
 
 
-async def _get_indexes(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> List[Dict[str, Any]]:
+async def _get_indexes(connection: DBConnector) -> List[Dict[str, Any]]:
     """Get index information for all tables."""
     query = """
         SELECT
@@ -267,7 +266,7 @@ async def _get_indexes(connection: Union[RDSDataAPIConnector, PostgreSQLConnecto
     return indexes
 
 
-async def _get_views(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> List[Dict[str, Any]]:
+async def _get_views(connection: DBConnector) -> List[Dict[str, Any]]:
     """Get view information."""
     query = """
         SELECT
@@ -292,7 +291,7 @@ async def _get_views(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]
     return views
 
 
-async def _get_functions(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> List[Dict[str, Any]]:
+async def _get_functions(connection: DBConnector) -> List[Dict[str, Any]]:
     """Get function and procedure information."""
     query = """
         SELECT

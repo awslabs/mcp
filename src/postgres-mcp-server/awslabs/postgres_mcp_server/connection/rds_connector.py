@@ -20,8 +20,10 @@ from typing import Dict, List, Optional, Any
 from loguru import logger
 from botocore.exceptions import ClientError, BotoCoreError
 
+from .base_connection import DBConnector
 
-class RDSDataAPIConnector:
+
+class RDSDataAPIConnector(DBConnector):
     """Connector for RDS Data API connections."""
     
     def __init__(

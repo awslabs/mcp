@@ -15,14 +15,13 @@
 """Table fragmentation analysis tools."""
 
 import time
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any
 from loguru import logger
-from ..connection.rds_connector import RDSDataAPIConnector
-from ..connection.postgres_connector import PostgreSQLConnector
+from ..connection.base_connection import DBConnector
 
 
 async def analyze_table_fragmentation(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     threshold: float = 10.0
 ) -> Dict[str, Any]:
     """
@@ -101,7 +100,7 @@ async def analyze_table_fragmentation(
         }
 
 
-async def _get_table_bloat(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> List[Dict[str, Any]]:
+async def _get_table_bloat(connection: DBConnector) -> List[Dict[str, Any]]:
     """Get table bloat information using system statistics."""
     query = """
         SELECT 
@@ -170,7 +169,7 @@ async def _get_table_bloat(connection: Union[RDSDataAPIConnector, PostgreSQLConn
     return table_bloat
 
 
-async def _get_index_bloat(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> List[Dict[str, Any]]:
+async def _get_index_bloat(connection: DBConnector) -> List[Dict[str, Any]]:
     """Get index bloat information."""
     query = """
         SELECT 

@@ -15,14 +15,13 @@
 """PostgreSQL settings analysis tools."""
 
 import time
-from typing import Dict, List, Any, Union, Optional
+from typing import Dict, List, Any, Optional
 from loguru import logger
-from ..connection.rds_connector import RDSDataAPIConnector
-from ..connection.postgres_connector import PostgreSQLConnector
+from ..connection.base_connection import DBConnector
 
 
 async def show_postgresql_settings(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     pattern: Optional[str] = None
 ) -> Dict[str, Any]:
     """
@@ -91,7 +90,7 @@ async def show_postgresql_settings(
 
 
 async def _get_postgresql_settings(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     pattern: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Get PostgreSQL configuration settings."""

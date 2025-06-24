@@ -26,8 +26,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from botocore.exceptions import BotoCoreError
 
-from .unified_connection import UnifiedDBConnectionSingleton
-from .connection.connection_factory import ConnectionFactory
+from .connection import DBConnector, ConnectionFactory
 from .mutable_sql_detector import detect_mutating_keywords, check_sql_injection_risk
 from botocore.exceptions import ClientError
 
@@ -40,6 +39,9 @@ QUERY_INJECTION_RISK_KEY = 'Your query contains risky injection patterns'
 
 # Initialize MCP server
 mcp = FastMCP("PostgreSQL MCP Server")
+
+# Global database connection
+db_connection = None
 
 
 def extract_cell(cell: dict):
@@ -80,29 +82,36 @@ async def run_query(
     ] = None,
 ) -> list[dict]:
     """Run a SQL query using unified database connection (RDS Data API or Direct PostgreSQL)."""
+    global db_connection
+    
     try:
-        db_connection = UnifiedDBConnectionSingleton.get().db_connection
-    except Exception as e:
-        await ctx.error(f"No database connection available. Please configure the database first: {str(e)}")
-        return [{'error': 'No database connection available'}]
+        if db_connection is None:
+            await ctx.error("No database connection available. Please configure the database first.")
+            return [{'error': 'No database connection available'}]
 
-    if db_connection.readonly_query:
-        matches = detect_mutating_keywords(sql)
-        if matches:
-            logger.info(f'Query rejected - readonly mode, detected keywords: {matches}')
-            await ctx.error(WRITE_QUERY_PROHIBITED_KEY)
-            return [{'error': WRITE_QUERY_PROHIBITED_KEY}]
+        if db_connection.readonly_query:
+            matches = detect_mutating_keywords(sql)
+            if matches:
+                logger.info(f'Query rejected - readonly mode, detected keywords: {matches}')
+                await ctx.error(WRITE_QUERY_PROHIBITED_KEY)
+                return [{'error': WRITE_QUERY_PROHIBITED_KEY}]
 
-    issues = check_sql_injection_risk(sql)
-    if issues:
-        logger.info(f'Query rejected - injection risk: {issues}')
-        await ctx.error(str({'message': 'Query contains suspicious patterns', 'details': issues}))
-        return [{'error': QUERY_INJECTION_RISK_KEY}]
+        issues = check_sql_injection_risk(sql)
+        if issues:
+            logger.info(f'Query rejected - injection risk: {issues}')
+            await ctx.error(str({'message': 'Query contains suspicious patterns', 'details': issues}))
+            return [{'error': QUERY_INJECTION_RISK_KEY}]
 
-    try:
-        logger.info(f'run_query: connection_type:{db_connection.connection_type}, readonly:{db_connection.readonly_query}, SQL:{sql}')
+        # Ensure connection is established
+        if not db_connection.is_connected():
+            logger.info("Establishing database connection for query execution...")
+            connected = await db_connection.connect()
+            if not connected:
+                raise Exception("Failed to establish database connection")
 
-        # Use unified connection to execute query
+        logger.info(f'run_query: connection_type:{db_connection.connection_info["type"]}, readonly:{db_connection.readonly_query}, SQL:{sql}')
+
+        # Execute query
         response = await db_connection.execute_query(sql, query_parameters)
 
         logger.success('Query executed successfully')
@@ -537,15 +546,18 @@ async def analyze_query_performance(
 @mcp.tool(name='health_check', description='Check if the server is running and responsive')
 async def health_check(ctx: Context) -> Dict[str, Any]:
     """Check if the server is running and responsive."""
+    global db_connection
+    
     try:
         # Test database connectivity
         connection_test = False
         connection_type = "Unknown"
         try:
-            db_connection = UnifiedDBConnectionSingleton.get().db_connection
-            connection_type = db_connection.connection_type
-            test_result = await run_query("SELECT 1 as health_check", ctx)
-            connection_test = len(test_result) > 0 and 'error' not in test_result[0]
+            if db_connection:
+                connection_info = db_connection.connection_info
+                connection_type = connection_info.get('type', 'Unknown')
+                test_result = await run_query("SELECT 1 as health_check", ctx)
+                connection_test = len(test_result) > 0 and 'error' not in test_result[0]
         except Exception as e:
             logger.warning(f"Health check database test failed: {str(e)}")
         
@@ -820,6 +832,8 @@ async def recommend_indexes(
 
 def main():
     """Main entry point for the MCP server application."""
+    global db_connection
+    
     parser = argparse.ArgumentParser(
         description='PostgreSQL MCP Server'
     )
@@ -846,32 +860,28 @@ def main():
     if args.resource_arn and args.hostname:
         parser.error("Cannot specify both --resource_arn and --hostname. Choose one connection method.")
 
-    # Determine connection type using ConnectionFactory
-    connection_type = ConnectionFactory.determine_connection_type(
-        resource_arn=args.resource_arn,
-        hostname=args.hostname
-    )
-    
+    # Create database connection using ConnectionFactory
+    readonly = args.readonly == 'true'
     connection_target = args.resource_arn if args.resource_arn else f"{args.hostname}:{args.port}"
-    connection_display = connection_type.replace('_', ' ').title()
     
-    logger.info(f'PostgreSQL MCP Server starting with {connection_display} connection to {connection_target}, DATABASE:{args.database}, READONLY:{args.readonly}')
-
     try:
-        # Initialize unified connection
-        UnifiedDBConnectionSingleton.initialize(
-            connection_type=connection_type,
+        # Create the appropriate connection
+        db_connection = ConnectionFactory.create_connection(
             resource_arn=args.resource_arn,
             hostname=args.hostname,
             port=args.port,
             secret_arn=args.secret_arn,
             database=args.database,
             region=args.region,
-            readonly=args.readonly == 'true'
+            readonly=readonly
         )
+        
+        connection_type = db_connection.connection_info['type']
+        connection_display = connection_type.replace('_', ' ').title()
+        logger.info(f'PostgreSQL MCP Server starting with {connection_display} connection to {connection_target}, DATABASE:{args.database}, READONLY:{readonly}')
             
     except Exception as e:
-        logger.exception(f'Failed to initialize {connection_display} connection. Exiting.')
+        logger.exception(f'Failed to initialize {connection_display} database connection. Exiting.')
         sys.exit(1)
 
     # Test database connection with optimized approach
@@ -882,7 +892,8 @@ def main():
     ctx = DummyCtx()
     
     try:
-        db_connection = UnifiedDBConnectionSingleton.get().db_connection
+        connection_type = db_connection.connection_info['type']
+        connection_display = connection_type.replace('_', ' ').title()
         
         if connection_type == "rds_data_api":
             # For RDS Data API, test with actual query (fast)
@@ -892,7 +903,7 @@ def main():
                 sys.exit(1)
         else:
             # For Direct PostgreSQL, just validate parameters (fast)
-            connection_valid = asyncio.run(db_connection.test_connection())
+            connection_valid = asyncio.run(db_connection.test_connection_parameters() if hasattr(db_connection, 'test_connection_parameters') else db_connection.connect())
             if not connection_valid:
                 logger.warning(f'{connection_display} connection parameters validation failed.')
                 logger.warning('Connection will be established on first query.')
@@ -904,7 +915,7 @@ def main():
         logger.warning('Server will start anyway - connection will be attempted on first query.')
 
     logger.success(f'PostgreSQL MCP Server initialized with {connection_display}')
-    logger.info('Starting PostgreSQL MCP Server with stdio transport')
+    logger.info('Starting enhanced PostgreSQL MCP Server with stdio transport')
     mcp.run(transport="stdio")
 
 

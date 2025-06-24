@@ -15,14 +15,13 @@
 """Slow query identification and analysis tools."""
 
 import time
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any
 from loguru import logger
-from ..connection.rds_connector import RDSDataAPIConnector
-from ..connection.postgres_connector import PostgreSQLConnector
+from ..connection.base_connection import DBConnector
 
 
 async def identify_slow_queries(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     min_execution_time: float = 100.0,
     limit: int = 20
 ) -> Dict[str, Any]:
@@ -115,7 +114,7 @@ async def identify_slow_queries(
         }
 
 
-async def _check_pg_stat_statements(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> bool:
+async def _check_pg_stat_statements(connection: DBConnector) -> bool:
     """Check if pg_stat_statements extension is available and enabled."""
     try:
         query = "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements')"
@@ -131,7 +130,7 @@ async def _check_pg_stat_statements(connection: Union[RDSDataAPIConnector, Postg
 
 
 async def _get_slow_queries(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     min_execution_time: float,
     limit: int
 ) -> List[Dict[str, Any]]:
@@ -215,7 +214,7 @@ async def _get_slow_queries(
 
 
 async def _get_current_long_running_queries(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector]
+    connection: DBConnector
 ) -> List[Dict[str, Any]]:
     """Get currently running long queries."""
     query = """

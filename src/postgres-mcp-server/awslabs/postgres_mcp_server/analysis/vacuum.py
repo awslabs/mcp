@@ -15,14 +15,13 @@
 """Vacuum statistics analysis tools."""
 
 import time
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any
 from loguru import logger
-from ..connection.rds_connector import RDSDataAPIConnector
-from ..connection.postgres_connector import PostgreSQLConnector
+from ..connection.base_connection import DBConnector
 
 
 async def analyze_vacuum_stats(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector]
+    connection: DBConnector
 ) -> Dict[str, Any]:
     """
     Analyze vacuum statistics and provide recommendations for vacuum settings.
@@ -88,7 +87,7 @@ async def analyze_vacuum_stats(
         }
 
 
-async def _get_vacuum_statistics(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> List[Dict[str, Any]]:
+async def _get_vacuum_statistics(connection: DBConnector) -> List[Dict[str, Any]]:
     """Get vacuum statistics for all user tables."""
     query = """
         SELECT 
@@ -153,7 +152,7 @@ async def _get_vacuum_statistics(connection: Union[RDSDataAPIConnector, PostgreS
     return vacuum_stats
 
 
-async def _get_autovacuum_settings(connection: Union[RDSDataAPIConnector, PostgreSQLConnector]) -> Dict[str, Any]:
+async def _get_autovacuum_settings(connection: DBConnector) -> Dict[str, Any]:
     """Get autovacuum configuration settings."""
     query = """
         SELECT 

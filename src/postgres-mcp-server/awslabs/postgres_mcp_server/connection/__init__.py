@@ -12,10 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Connection management package for PostgreSQL MCP Server."""
+"""Connection module for PostgreSQL MCP Server."""
 
+from .base_connection import DBConnector
+from .rds_connector import RDSDataAPIConnector
+from .postgres_driver import PostgresDriver
 from .connection_factory import ConnectionFactory
-from .enhanced_singleton import DBConnectionSingleton
-from .pool_manager import ConnectionPoolManager
 
-__all__ = ['ConnectionFactory', 'DBConnectionSingleton', 'ConnectionPoolManager']
+__all__ = [
+    'DBConnector',
+    'RDSDataAPIConnector',
+    'PostgresDriver',
+    'ConnectionFactory',
+]

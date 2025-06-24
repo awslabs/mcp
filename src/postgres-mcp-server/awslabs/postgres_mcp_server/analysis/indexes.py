@@ -16,14 +16,13 @@
 
 import time
 import re
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any
 from loguru import logger
-from ..connection.rds_connector import RDSDataAPIConnector
-from ..connection.postgres_connector import PostgreSQLConnector
+from ..connection.base_connection import DBConnector
 
 
 async def recommend_indexes(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     query: str
 ) -> Dict[str, Any]:
     """
@@ -181,7 +180,7 @@ def _determine_query_type(query_lower: str) -> str:
 
 
 async def _get_current_indexes(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     tables: List[str]
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Get current indexes for the specified tables."""
@@ -231,7 +230,7 @@ async def _get_current_indexes(
 
 
 async def _analyze_query_plan_for_indexes(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     query: str
 ) -> Dict[str, Any]:
     """Analyze query execution plan to identify index opportunities."""
@@ -356,7 +355,7 @@ def _generate_index_recommendations(
 
 
 async def _estimate_index_impact(
-    connection: Union[RDSDataAPIConnector, PostgreSQLConnector],
+    connection: DBConnector,
     recommendations: List[Dict[str, Any]],
     query: str
 ) -> Dict[str, Any]:

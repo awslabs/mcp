@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Direct PostgreSQL connector implementation."""
+"""Direct PostgreSQL driver implementation using psycopg."""
 
 import asyncio
 import json
@@ -23,9 +23,11 @@ from typing import Dict, List, Optional, Any
 from loguru import logger
 from botocore.exceptions import ClientError
 
+from .base_connection import DBConnector
 
-class PostgreSQLConnector:
-    """Connector for direct PostgreSQL connections."""
+
+class PostgresDriver(DBConnector):
+    """Driver for direct PostgreSQL connections using psycopg."""
     
     def __init__(
         self,
@@ -37,7 +39,7 @@ class PostgreSQLConnector:
         readonly: bool = True
     ):
         """
-        Initialize PostgreSQL connector with lazy connection.
+        Initialize PostgreSQL driver with lazy connection.
         
         Args:
             hostname: Database hostname
@@ -58,7 +60,7 @@ class PostgreSQLConnector:
         self._credentials_cached = False
         self._connection_validated = False
         
-        logger.info(f"PostgreSQL connector initialized (lazy) for {hostname}:{port}/{database}")
+        logger.info(f"PostgreSQL driver initialized (lazy) for {hostname}:{port}/{database}")
         
     def is_connected(self) -> bool:
         """Check if the connection is active."""
@@ -320,7 +322,7 @@ class PostgreSQLConnector:
     def connection_info(self) -> Dict[str, Any]:
         """Get connection information."""
         return {
-            'type': 'direct_postgres',
+            'type': 'psycopg_driver',
             'hostname': self.hostname,
             'port': self.port,
             'database': self.database,

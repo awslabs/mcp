@@ -18,8 +18,9 @@ import asyncio
 import os
 from typing import Dict, Optional, Union, Any
 from loguru import logger
+from .base_connection import DBConnector
 from .rds_connector import RDSDataAPIConnector
-from .postgres_connector import PostgreSQLConnector
+from .postgres_driver import PostgresDriver
 from .connection_factory import ConnectionFactory
 
 
@@ -43,7 +44,7 @@ class ConnectionPoolManager:
         hostname: Optional[str] = None,
         port: Optional[int] = None,
         readonly: bool = True
-    ) -> Union[RDSDataAPIConnector, PostgreSQLConnector]:
+    ) -> DBConnector:
         """
         Get a connection from the pool or create a new one.
         
@@ -152,7 +153,7 @@ class ConnectionPoolManager:
     
     async def return_connection(
         self,
-        connection: Union[RDSDataAPIConnector, PostgreSQLConnector]
+        connection: DBConnector
     ):
         """
         Return a connection to the pool.
@@ -173,36 +174,27 @@ class ConnectionPoolManager:
         self,
         connection_type: str,
         params: Dict[str, Any]
-    ) -> Union[RDSDataAPIConnector, PostgreSQLConnector]:
+    ) -> DBConnector:
         """
         Create a new connection based on type and parameters.
         
         Args:
-            connection_type: Type of connection to create
+            connection_type: Type of connection to create ('rds_data_api' or 'psycopg_driver')
             params: Connection parameters
             
         Returns:
             New connection instance
         """
-        if connection_type == "rds_data_api":
-            return RDSDataAPIConnector(
-                resource_arn=params['resource_arn'],
-                secret_arn=params['secret_arn'],
-                database=params['database'],
-                region_name=params['region_name'],
-                readonly=params['readonly']
-            )
-        elif connection_type == "direct_postgres":
-            return PostgreSQLConnector(
-                hostname=params['hostname'],
-                database=params['database'],
-                secret_arn=params['secret_arn'],
-                region_name=params['region_name'],
-                port=params['port'],
-                readonly=params['readonly']
-            )
-        else:
-            raise ValueError(f"Unknown connection type: {connection_type}")
+        # Use the ConnectionFactory to create the appropriate connection
+        return ConnectionFactory.create_connection(
+            resource_arn=params.get('resource_arn'),
+            hostname=params.get('hostname'),
+            port=params.get('port', 5432),
+            secret_arn=params['secret_arn'],
+            database=params['database'],
+            region=params['region_name'],
+            readonly=params['readonly']
+        )
     
     async def close_all_connections(self):
         """Close all connections in all pools."""
