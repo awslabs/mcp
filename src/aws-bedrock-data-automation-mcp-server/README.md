@@ -32,7 +32,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-bedrock-data-automation-mcp-server": {
+    "bedrock-data-automation-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.aws-bedrock-data-automation-mcp-server@latest"],
       "env": {
@@ -54,7 +54,7 @@ or docker after a successful `docker build -t awslabs/aws-bedrock-data-automatio
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-bedrock-data-automation-mcp-server": {
+    "bedrock-data-automation-mcp-server": {
       "command": "docker",
       "args": [
         "run",
