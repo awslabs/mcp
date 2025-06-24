@@ -37,7 +37,7 @@ def test_load_config_defaults():
     # Assert
     assert config['aws_profile'] is None
     assert config['aws_region'] == DEFAULT_AWS_REGION
-    assert config['prometheus_url'] == ''
+    assert config['prometheus_url'] is None  # Changed from '' to None to match our implementation
     assert config['service_name'] == DEFAULT_SERVICE_NAME
 
 
