@@ -128,6 +128,53 @@ async def test_configure_workspace_for_request_connection_failure():
 
 
 @pytest.mark.asyncio
+async def test_configure_workspace_for_request_general_error():
+    """Test workspace configuration with general error."""
+    with (
+        patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
+        patch('awslabs.prometheus_mcp_server.server.test_prometheus_connection') as mock_test_conn,
+    ):
+        from awslabs.prometheus_mcp_server.server import configure_workspace_for_request
+
+        # Setup
+        mock_test_conn.side_effect = Exception('Test error')
+        mock_config.aws_region = 'us-east-1'
+        ctx = AsyncMock()
+        workspace_id = 'ws-12345678-abcd-1234-efgh-123456789012'
+
+        # Execute and Assert
+        with pytest.raises(Exception):
+            await configure_workspace_for_request(ctx, workspace_id, None)
+
+        ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_configure_workspace_for_request_unusual_id():
+    """Test workspace configuration with unusual workspace ID."""
+    with (
+        patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
+        patch('awslabs.prometheus_mcp_server.server.test_prometheus_connection') as mock_test_conn,
+        patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
+    ):
+        from awslabs.prometheus_mcp_server.server import configure_workspace_for_request
+
+        # Setup
+        mock_test_conn.return_value = True
+        mock_config.aws_region = 'us-east-1'
+        ctx = AsyncMock()
+        workspace_id = 'unusual-id'  # Doesn't start with ws-
+
+        # Execute
+        await configure_workspace_for_request(ctx, workspace_id, None)
+
+        # Assert
+        mock_logger.warning.assert_called_once_with(
+            'Workspace ID "unusual-id" does not start with "ws-", which is unusual'
+        )
+
+
+@pytest.mark.asyncio
 async def test_get_available_workspaces():
     """Test listing available workspaces."""
     with (
@@ -205,3 +252,106 @@ async def test_get_available_workspaces_custom_region():
             profile_name='test-profile', region_name=custom_region
         )
         assert result['region'] == custom_region
+
+
+@pytest.mark.asyncio
+async def test_get_available_workspaces_no_config():
+    """Test listing available workspaces with no global config."""
+    with (
+        patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
+        patch('awslabs.prometheus_mcp_server.server.config', None),
+        patch('awslabs.prometheus_mcp_server.server.DEFAULT_AWS_REGION', 'us-west-2'),
+    ):
+        from awslabs.prometheus_mcp_server.server import get_available_workspaces
+        from awslabs.prometheus_mcp_server.consts import DEFAULT_AWS_REGION
+
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        mock_client.list_workspaces.return_value = {'workspaces': []}
+
+        ctx = AsyncMock()
+
+        # Execute
+        result = await get_available_workspaces(ctx)
+
+        # Assert
+        mock_session.assert_called_once_with(region_name=DEFAULT_AWS_REGION)
+        assert result['region'] == DEFAULT_AWS_REGION
+
+
+@pytest.mark.asyncio
+async def test_get_available_workspaces_error():
+    """Test listing available workspaces with error."""
+    with (
+        patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
+        patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
+    ):
+        from awslabs.prometheus_mcp_server.server import get_available_workspaces
+
+        # Setup
+        mock_config.aws_region = 'us-east-1'
+        mock_config.aws_profile = 'test-profile'
+
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        mock_client.list_workspaces.side_effect = Exception('Test error')
+
+        ctx = AsyncMock()
+
+        # Execute and Assert
+        with pytest.raises(Exception):
+            await get_available_workspaces(ctx)
+
+        ctx.error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_available_workspaces_no_config():
+    """Test listing available workspaces with no global config."""
+    with (
+        patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
+        patch('awslabs.prometheus_mcp_server.server.config', None),
+        patch('awslabs.prometheus_mcp_server.server.DEFAULT_AWS_REGION', 'us-west-2'),
+    ):
+        from awslabs.prometheus_mcp_server.server import get_available_workspaces
+
+        # Setup
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        mock_client.list_workspaces.return_value = {'workspaces': []}
+
+        ctx = AsyncMock()
+
+        # Execute
+        result = await get_available_workspaces(ctx)
+
+        # Assert
+        mock_session.assert_called_once_with(region_name='us-west-2')
+        assert result['region'] == 'us-west-2'
+
+
+@pytest.mark.asyncio
+async def test_get_available_workspaces_error():
+    """Test listing available workspaces with error."""
+    with (
+        patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
+        patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
+    ):
+        from awslabs.prometheus_mcp_server.server import get_available_workspaces
+
+        # Setup
+        mock_config.aws_region = 'us-east-1'
+        mock_config.aws_profile = 'test-profile'
+
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+        mock_client.list_workspaces.side_effect = Exception('Test error')
+
+        ctx = AsyncMock()
+
+        # Execute and Assert
+        with pytest.raises(Exception):
+            await get_available_workspaces(ctx)
+
+        ctx.error.assert_called_once()
