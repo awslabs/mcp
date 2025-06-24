@@ -174,11 +174,21 @@ async def get_cluster_list_resource(rds_client: Any) -> str:
     """
     try:
         logger.info("Getting cluster list resource")
-        response = await asyncio.to_thread(rds_client.describe_db_clusters)
         
         clusters = []
+        response = await asyncio.to_thread(rds_client.describe_db_clusters)
+        
         for cluster in response.get('DBClusters', []):
             clusters.append(format_cluster_info(cluster))
+        
+        #  pagination if there's a marker for next page
+        while 'Marker' in response:
+            response = await asyncio.to_thread(
+                rds_client.describe_db_clusters,
+                Marker=response['Marker']
+            )
+            for cluster in response.get('DBClusters', []):
+                clusters.append(format_cluster_info(cluster))
         
         result = {
             'clusters': clusters,
@@ -233,11 +243,21 @@ async def get_instance_list_resource(rds_client: Any) -> str:
     """
     try:
         logger.info("Getting instance list resource")
-        response = await asyncio.to_thread(rds_client.describe_db_instances)
         
         instances = []
+        response = await asyncio.to_thread(rds_client.describe_db_instances)
+        
         for instance in response.get('DBInstances', []):
             instances.append(format_instance_info(instance))
+        
+        # handling pagination if there's a marker for next page
+        while 'Marker' in response:
+            response = await asyncio.to_thread(
+                rds_client.describe_db_instances,
+                Marker=response['Marker']
+            )
+            for instance in response.get('DBInstances', []):
+                instances.append(format_instance_info(instance))
         
         result = {
             'instances': instances,
