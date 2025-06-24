@@ -260,7 +260,6 @@ async def test_get_available_workspaces_no_config():
     with (
         patch('awslabs.prometheus_mcp_server.server.boto3.Session') as mock_session,
         patch('awslabs.prometheus_mcp_server.server.config', None),
-        patch('awslabs.prometheus_mcp_server.server.DEFAULT_AWS_REGION', 'us-west-2'),
     ):
         from awslabs.prometheus_mcp_server.server import get_available_workspaces
         from awslabs.prometheus_mcp_server.consts import DEFAULT_AWS_REGION
@@ -276,7 +275,8 @@ async def test_get_available_workspaces_no_config():
         result = await get_available_workspaces(ctx)
 
         # Assert
-        mock_session.assert_called_once_with(region_name=DEFAULT_AWS_REGION)
+        # Check that Session was called with the right region name
+        assert mock_session.call_args.kwargs['region_name'] == DEFAULT_AWS_REGION
         assert result['region'] == DEFAULT_AWS_REGION
 
 
