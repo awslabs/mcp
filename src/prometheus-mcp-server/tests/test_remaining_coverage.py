@@ -41,7 +41,7 @@ def test_load_config_file_json_error():
     # Assert
     mock_logger.error.assert_called_once()
     assert config['aws_profile'] is None
-    assert config['prometheus_url'] is None  # Changed from '' to None to match our implementation
+    assert config['prometheus_url'] is None
 
 
 def test_setup_environment_non_aws_url():
