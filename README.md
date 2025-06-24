@@ -291,6 +291,7 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 - **[Amazon CloudWatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Cost monitoring and spend analysis
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
+- **[AWS Well-Architected Security Assessment Tool MCP Server](src/aws-wa-sec-tool-mcp-server/)** - Secruity pillar assessment tools
 
 ## MCP AWS Lambda Handler Module
 

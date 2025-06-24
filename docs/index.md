@@ -484,6 +484,21 @@ A server for interacting with AWS Cost Explorer to analyze AWS costs and usage d
 
 [Learn more about the AWS Cost Explorer MCP Server](servers/cost-explorer-mcp-server.md)
 
+### AWS Well-Architected Security Assessment Tool MCP Server
+
+Model Context Protocol (MCP) server that provides tools for assessing AWS environments against the AWS Well-Architected Framework Security Pillar by collecting security findings and insights from AWS services, and analyzing security posture.
+
+**Features:**
+
+- **Security Service Status**: Check status of AWS services (GuardDuty, Security Hub, Inspector, IAM Access Analyzer, Macie, Trusted Advisor)
+- **Security Findings**: Retrieve and analyze findings from AWS security services
+- **Resource Discovery**: Explore AWS resources across multiple services and regions through Resource Explorer
+- **Data Protection**: Check storage configuration for encryption of data at rest
+- **Network Security**: Verify network configuration for encryption of data in transit
+- **Security Context**: Access stored security context data for comprehensive analysis
+
+[Learn more about the AWS Well-Architected Security Assessment Tool MCP Server](servers/aws-wa-sec-tool-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.
