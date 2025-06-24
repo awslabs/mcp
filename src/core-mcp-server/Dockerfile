@@ -35,7 +35,7 @@ COPY pyproject.toml uv.lock uv-requirement.txt ./
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements-0.7.14.txt && \
+    pip install --require-hashes --requirement uv-requirements.txt && \
     uv sync --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
