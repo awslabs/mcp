@@ -1,8 +1,11 @@
 """Additional tests to improve coverage for the server module of the lambda-tool-mcp-server."""
 
+import importlib
 import json
 import logging
+import os
 import pytest
+from botocore.exceptions import ProfileNotFound
 from unittest.mock import MagicMock, patch
 
 
@@ -164,3 +167,33 @@ class TestSanitizeToolNameCoverage:
 
         # Name starting with multiple numbers
         assert sanitize_tool_name('123func') == '_123func'
+
+class TestAwsProfileFallback:
+    """Test fallback logic when AWS_PROFILE is not found."""
+
+    @patch('boto3.Session')
+    @patch.dict(os.environ, {'AWS_PROFILE': 'nonexistent'}) # Simulate invalid AWS_PROFILE
+    def test_fallback_to_temporary_credentials(self, mock_boto_session, caplog):
+        
+        # Simulate boto3.Session raising ProfileNotFound once, then succeeding
+        def make_session_side_effect():
+            yield ProfileNotFound(profile='nonexistent')
+            yield MagicMock()
+            while True:
+                yield MagicMock()
+
+        mock_boto_session.side_effect = make_session_side_effect()
+
+        with caplog.at_level("WARNING"):
+            # Reload the sever module to trigger fallback logic
+            import awslabs.lambda_tool_mcp_server.server as server_module
+            importlib.reload(server_module)
+
+            # Should attempt to create a session twice
+            assert mock_boto_session.call_count == 2
+
+            # Should log a warning about the profile not found
+            assert (
+                "Profile nonexistent not found. Look for other credentials."
+                in caplog.text
+            )
