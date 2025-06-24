@@ -155,10 +155,7 @@ def register_tools(mcp: FastMCP):
             raise Exception(f'Error creating glossary term in domain {domain_identifier}: {e}')
 
     @mcp.tool()
-    async def get_glossary(
-        domain_identifier: str,
-        identifier: str
-    ) -> Any:
+    async def get_glossary(domain_identifier: str, identifier: str) -> Any:
         """Retrieves detailed information about a specific business glossary in Amazon DataZone.
 
         Args:
@@ -198,10 +195,7 @@ def register_tools(mcp: FastMCP):
             )
 
     @mcp.tool()
-    async def get_glossary_term(
-        domain_identifier: str,
-        identifier: str
-    ) -> Any:
+    async def get_glossary_term(domain_identifier: str, identifier: str) -> Any:
         """Retrieves detailed information about a specific business glossary term in Amazon DataZone.
 
         Args:

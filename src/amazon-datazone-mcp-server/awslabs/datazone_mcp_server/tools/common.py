@@ -17,6 +17,7 @@ import boto3
 import httpx  # noqa: F401
 import logging
 from botocore.exceptions import ClientError  # noqa: F401
+from botocore.config import Config
 
 
 # Constants
@@ -29,5 +30,5 @@ logger.setLevel(logging.INFO)
 # Initialize boto3 client
 datazone_client = boto3.client(
     'datazone',
-    config=boto3.session.Config(user_agent_extra="Datazone-MCP/1.0")
+    config=Config(user_agent_extra="Datazone-MCP/1.0")
 )

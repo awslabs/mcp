@@ -65,10 +65,7 @@ def register_tools(mcp: FastMCP):
             raise Exception(f'Error creating project in domain {domain_identifier}: {e}')
 
     @mcp.tool()
-    async def get_project(
-        domain_identifier: str,
-        project_identifier: str
-    ) -> Any:
+    async def get_project(domain_identifier: str, project_identifier: str) -> Any:
         """Retrieves detailed information, metadata and configuration, of a specific project in Amazon DataZone.
 
         Use this API when the user is asking about a **known project by name or context** and wants to:
@@ -142,10 +139,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_project_membership(
-        domainIdentifier: str,
-        projectIdentifier: str,
-        designation: str,
-        memberIdentifier: str
+        domainIdentifier: str, projectIdentifier: str, designation: str, memberIdentifier: str
     ) -> Any:
         """Make a request to the Amazon DataZone CreateProjectMembership API.
 
@@ -174,9 +168,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def list_project_profiles(
-        domain_identifier: str,
-        max_results: int = 50,
-        next_token: Optional[str] = None
+        domain_identifier: str, max_results: int = 50, next_token: Optional[str] = None
     ) -> Any:
         """Lists all project profiles available in an Amazon DataZone domain.
 
@@ -342,10 +334,7 @@ def register_tools(mcp: FastMCP):
             )
 
     @mcp.tool()
-    async def get_project_profile(
-        domain_identifier: str,
-        identifier: str
-    ) -> Any:
+    async def get_project_profile(domain_identifier: str, identifier: str) -> Any:
         r"""Get the details of the project profile in an Amazon DataZone domain.
 
         Args:

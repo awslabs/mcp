@@ -23,9 +23,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_asset(
-        domain_identifier: str,
-        asset_identifier: str,
-        revision: Optional[str] = None
+        domain_identifier: str, asset_identifier: str, revision: Optional[str] = None
     ) -> Any:
         """Retrieves detailed information about one specific asset (specified by user) in Amazon DataZone.
 
@@ -284,9 +282,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_listing(
-        domain_identifier: str,
-        identifier: str,
-        listing_revision: Optional[str] = None
+        domain_identifier: str, identifier: str, listing_revision: Optional[str] = None
     ) -> Any:
         """Gets a listing (a record of an asset at a given time) in Amazon DataZone.
 
@@ -477,10 +473,7 @@ def register_tools(mcp: FastMCP):
             raise Exception(f'Error creating data source in domain {domain_identifier}: {e}')
 
     @mcp.tool()
-    async def get_data_source(
-        domain_identifier: str,
-        identifier: str
-    ) -> Any:
+    async def get_data_source(domain_identifier: str, identifier: str) -> Any:
         """Retrieves detailed information about a **specific, known data source** in Amazon DataZone.
 
         Use this API when the user mentions a **specific data source by name, type, or context** (e.g., "Redshift data source in analytics domain") and wants details like:
@@ -513,9 +506,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def start_data_source_run(
-        domain_identifier: str,
-        data_source_identifier: str,
-        client_token: Optional[str] = None
+        domain_identifier: str, data_source_identifier: str, client_token: Optional[str] = None
     ) -> Any:
         """Starts a data source run in Amazon DataZone.
 
@@ -721,10 +712,7 @@ def register_tools(mcp: FastMCP):
             )
 
     @mcp.tool()
-    async def get_subscription(
-        domain_identifier: str,
-        identifier: str
-    ) -> Any:
+    async def get_subscription(domain_identifier: str, identifier: str) -> Any:
         """Gets a subscription in Amazon DataZone.
 
         Args:
@@ -756,9 +744,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_form_type(
-        domain_identifier: str,
-        form_type_identifier: str,
-        revision: Optional[str] = None
+        domain_identifier: str, form_type_identifier: str, revision: Optional[str] = None
     ) -> Any:
         """Retrieves detailed information about a specific metadata form type in Amazon DataZone.
 

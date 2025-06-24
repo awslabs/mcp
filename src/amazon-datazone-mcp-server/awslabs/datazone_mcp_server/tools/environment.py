@@ -202,9 +202,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_connection(
-        domain_identifier: str,
-        identifier: str,
-        with_secret: bool = False
+        domain_identifier: str, identifier: str, with_secret: bool = False
     ) -> Any:
         """Gets a connection in Amazon DataZone. A connection enables you to connect your resources
         
@@ -284,10 +282,7 @@ def register_tools(mcp: FastMCP):
                 )
 
     @mcp.tool()
-    async def get_environment(
-        domain_identifier: str,
-        identifier: str
-    ) -> Any:
+    async def get_environment(domain_identifier: str, identifier: str) -> Any:
         """Gets an Amazon DataZone environment.
 
         Args:
@@ -379,10 +374,7 @@ def register_tools(mcp: FastMCP):
                 )
 
     @mcp.tool()
-    async def get_environment_blueprint(
-        domain_identifier: str,
-        identifier: str
-    ) -> Any:
+    async def get_environment_blueprint(domain_identifier: str, identifier: str) -> Any:
         r"""Retrieves metadata and definition of an environment blueprint.
 
         related tools:
@@ -452,8 +444,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_environment_blueprint_configuration(
-        domain_identifier: str,
-        identifier: str
+        domain_identifier: str, identifier: str
     ) -> Any:
         r"""Gets an Amazon DataZone environment blueprint configuration.
 
@@ -704,9 +695,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def list_environment_blueprint_configurations(
-        domain_identifier: str,
-        max_results: int = 50,
-        next_token: Optional[str] = None
+        domain_identifier: str, max_results: int = 50, next_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """Lists environment blueprints in an Amazon DataZone domain.
 
