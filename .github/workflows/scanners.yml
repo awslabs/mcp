@@ -19,8 +19,7 @@ jobs:
       with:
         python-version: '3'
     - run: |
-        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
-        pip install --require-hashes --requirement ${{ env.GITHUB_WORKSPACE }}/.github/workflows/detect-secrets-requirements.txt
+        pip install --require-hashes --requirement ${{ github.workspace }}/.github/workflows/detect-secrets-requirements.txt
     - name: detect-secrets
       id: detect-secrets
       run: | # pragma: allowlist secret
