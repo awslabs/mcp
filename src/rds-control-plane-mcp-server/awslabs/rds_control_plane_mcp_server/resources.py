@@ -158,7 +158,8 @@ def format_instance_info(instance: Dict[str, Any]) -> Dict[str, Any]:
             for sg in instance.get('VpcSecurityGroups', [])
         ],
         'db_cluster': instance.get('DBClusterIdentifier'),
-        'tags': {tag['Key']: tag['Value'] for tag in instance.get('TagList', [])}
+        'tags': {tag['Key']: tag['Value'] for tag in instance.get('TagList', [])},
+        'dbi_resource_id': instance.get('DbiResourceId')
     }
 
 
