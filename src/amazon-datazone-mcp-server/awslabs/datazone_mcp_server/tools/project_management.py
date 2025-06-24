@@ -16,6 +16,7 @@
 from .common import USER_AGENT, ClientError, datazone_client, httpx, logger
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, List, Optional
+from pydantic import Field
 
 
 def register_tools(mcp: FastMCP):
@@ -23,13 +24,13 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_project(
-        domain_identifier: str,
-        name: str,
-        description: str = '',
-        domain_unit_id: Optional[str] = None,
-        glossary_terms: Optional[List[str]] = None,
-        project_profile_id: Optional[str] = None,
-        user_parameters: Optional[List[Dict[str, Any]]] = None,
+        domain_identifier: str = Field(..., description="The ID of the domain where the project will be created"),
+        name: str = Field(..., description="The name of the project"),
+        description: str = Field('', description="The description of the project"),
+        domain_unit_id: Optional[str] = Field(None, description="The ID of the domain unit where the project will be created"),
+        glossary_terms: Optional[List[str]] = Field(None, description="List of glossary terms that can be used in the project"),
+        project_profile_id: Optional[str] = Field(None, description="The ID of the project profile"),
+        user_parameters: Optional[List[Dict[str, Any]]] = Field(None, description="The user parameters of the project"),
     ) -> Any:
         """Creates a new project in an Amazon DataZone domain.
 
@@ -65,12 +66,15 @@ def register_tools(mcp: FastMCP):
             raise Exception(f'Error creating project in domain {domain_identifier}: {e}')
 
     @mcp.tool()
-    async def get_project(domain_identifier: str, project_identifier: str) -> Any:
-        """Retrieves detailed information about a specific project in Amazon DataZone.
+    async def get_project(
+        domain_identifier: str = Field(..., description="The ID of the domain containing the project"),
+        project_identifier: str = Field(..., description="The ID of the project to retrieve")
+    ) -> Any:
+        """Retrieves detailed information, metadata and configuration, of a specific project in Amazon DataZone.
 
-        Args:
-            domain_identifier (str): The ID of the domain containing the project
-            project_identifier (str): The ID of the project to retrieve
+        Use this API when the user is asking about a **known project by name or context** and wants to:
+        - View deployment status, user roles, or configurations
+        - Audit metadata for compliance or review
 
         Returns:
             Any: The API response containing project details including:
@@ -95,12 +99,12 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def list_projects(
-        domain_identifier: str,
-        max_results: int = 50,
-        next_token: Optional[str] = None,
-        name: Optional[str] = None,
-        user_identifier: Optional[str] = None,
-        group_identifier: Optional[str] = None,
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        max_results: int = Field(50, description="Maximum number of projects to return (1-50)"),
+        next_token: Optional[str] = Field(None, description="Token for pagination"),
+        name: Optional[str] = Field(None, description="Filter projects by name"),
+        user_identifier: Optional[str] = Field(None, description="Filter projects by user"),
+        group_identifier: Optional[str] = Field(None, description="Filter projects by group"),
     ) -> Any:
         """Lists projects in an Amazon DataZone domain with optional filtering and pagination.
 
@@ -139,7 +143,10 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_project_membership(
-        domainIdentifier: str, projectIdentifier: str, designation: str, memberIdentifier: str
+        domainIdentifier: str = Field(..., description="The identifier of the domain"),
+        projectIdentifier: str = Field(..., description="The identifier of the project"),
+        designation: str = Field(..., description="The designation of the member"),
+        memberIdentifier: str = Field(..., description="The identifier of the member")
     ) -> Any:
         """Make a request to the Amazon DataZone CreateProjectMembership API.
 
@@ -168,7 +175,9 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def list_project_profiles(
-        domain_identifier: str, max_results: int = 50, next_token: Optional[str] = None
+        domain_identifier: str = Field(..., description="The ID of the domain"),
+        max_results: int = Field(50, description="Maximum number of profiles to return (1-50)"),
+        next_token: Optional[str] = Field(None, description="Token for pagination")
     ) -> Any:
         """Lists all project profiles available in an Amazon DataZone domain.
 
@@ -198,12 +207,12 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_project_profile(
-        domain_identifier: str,
-        name: str,
-        description: Optional[str] = None,
-        domain_unit_identifier: Optional[str] = None,
-        environment_configurations: Optional[List[Dict[str, Any]]] = None,
-        status: str = 'ENABLED',
+        domain_identifier: str = Field(..., description="The ID of the domain where the project profile will be created"),
+        name: str = Field(..., description="The name of the project profile (1-64 characters)"),
+        description: Optional[str] = Field(None, description="Description of the project profile (0-2048 characters)"),
+        domain_unit_identifier: Optional[str] = Field(None, description="The ID of the domain unit where the project profile will be created"),
+        environment_configurations: Optional[List[Dict[str, Any]]] = Field(None, description="Environment configurations for the project profile"),
+        status: str = Field('ENABLED', description="The status of the project profile (ENABLED or DISABLED)"),
     ) -> Dict[str, Any]:
         r"""Creates a new project profile in Amazon DataZone.
 
@@ -334,7 +343,10 @@ def register_tools(mcp: FastMCP):
             )
 
     @mcp.tool()
-    async def get_project_profile(domain_identifier: str, identifier: str) -> Any:
+    async def get_project_profile(
+        domain_identifier: str = Field(..., description="The ID of the domain"),
+        identifier: str = Field(..., description="The ID of the project profile")
+    ) -> Any:
         r"""Get the details of the project profile in an Amazon DataZone domain.
 
         Args:

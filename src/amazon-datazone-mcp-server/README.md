@@ -47,6 +47,30 @@ cd datazone-mcp-server
 pip install -e .
 ```
 
+### Install with Cursor
+
+[![Install with Cursor](https://cursor.sh/install-button.svg)](https://cursor.sh/install?url=https://github.com/YOUR_ORG/YOUR_REPO)
+
+> This will open the repo directly in [Cursor](https://www.cursor.sh/) and guide you through installing it.
+
+---
+
+### Amazon Q CLI MCP Configuration
+
+To enable this MCP server with **Amazon Q CLI**, configure the MCP endpoint by creating the file:
+
+`~/.aws/amazonq/mcp.json`
+
+```json
+{
+    "mcpServers": {
+      "datazone": {
+        "command": "python3",
+        "args": ["/PATH_TO/mcp/src/amazon_datazone_mcp_server/awslabs/datazone_mcp_server/server.py"]
+      }
+    }
+}
+
 ## Quick Start
 
 ### 1. Configure AWS Credentials

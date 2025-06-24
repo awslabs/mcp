@@ -7,33 +7,6 @@ This directory contains comprehensive examples demonstrating how to use the AWS 
 ### [Basic Examples](./basic/)
 Simple, focused examples showing individual operations:
 - [Domain Operations](./basic/domain_operations.py) - Get, create, and manage domains
-- [Project Management](./basic/project_management.py) - Create and manage projects
-- [Asset Operations](./basic/asset_operations.py) - Work with data assets
-- [Glossary Management](./basic/glossary_management.py) - Create and manage glossaries
-- [Environment Setup](./basic/environment_setup.py) - Environment and connection management
-
-### [Workflow Examples](./workflows/)
-Multi-step processes showing complete workflows:
-- [Data Onboarding](./workflows/data_onboarding_workflow.py) - Complete data asset onboarding
-- [Project Setup](./workflows/project_setup_workflow.py) - End-to-end project creation
-- [Data Catalog](./workflows/data_catalog_workflow.py) - Publishing and discovering assets
-- [Data Subscription](./workflows/data_subscription_workflow.py) - Request and manage subscriptions
-- [Governance Setup](./workflows/governance_setup_workflow.py) - Set up data governance framework
-
-### [Advanced Examples](./advanced/)
-Complex scenarios demonstrating advanced patterns:
-- [Batch Operations](./advanced/batch_operations.py) - Process multiple items efficiently
-- [Error Handling](./advanced/error_handling_patterns.py) - Robust error handling strategies
-- [Custom Integrations](./advanced/custom_integrations.py) - Integrate with other systems
-- [Performance Optimization](./advanced/performance_optimization.py) - Optimize for scale
-- [Security Patterns](./advanced/security_patterns.py) - Implement security best practices
-
-### [Best Practices](./best_practices/)
-Recommended patterns and practices:
-- [Authentication Setup](./best_practices/authentication_setup.py) - Secure AWS credential management
-- [Configuration Management](./best_practices/configuration_management.py) - Environment and config management
-- [Logging and Monitoring](./best_practices/logging_monitoring.py) - Observability patterns
-- [Testing Strategies](./best_practices/testing_strategies.py) - How to test MCP integrations
 
 ## Quick Start
 

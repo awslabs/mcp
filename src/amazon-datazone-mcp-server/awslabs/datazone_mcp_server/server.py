@@ -62,15 +62,4 @@ def main():
 
 
 if __name__ == '__main__':  # pragma: no cover
-    # try:
-    #     mcp.run(transport='stdio')
-    # except Exception as e:
-    #     # Ensure we return a proper JSON response even in case of errors
-    #     error_response = {
-    #         "error": str(e),
-    #         "type": type(e).__name__,
-    #         "message": "MCP server encountered an error"
-    #     }
-    #     print(json.dumps(error_response))
-    #     sys.exit(1)
     main()
