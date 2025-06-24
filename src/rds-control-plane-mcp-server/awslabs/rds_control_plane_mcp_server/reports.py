@@ -14,7 +14,7 @@
 
 """This module provides functions to list and read performance reports for a given DB instance."""
 
-from .constants import MAX_ITEMS
+from .config import max_items
 from awslabs.rds_control_plane_mcp_server.models import PerformanceReportSummary
 from awslabs.rds_control_plane_mcp_server.utils import format_aws_response, handle_aws_error
 from mypy_boto3_pi import PIClient
@@ -40,9 +40,9 @@ async def list_performance_reports(
     reports: List[PerformanceReportSummary] = []
 
     try:
-        # Only get up to MAX_ITEMS reports
+        # Only get up to max_items reports
         response = pi_client.list_performance_analysis_reports(
-            ServiceType='RDS', Identifier=dbi_resource_identifier, MaxResults=MAX_ITEMS
+            ServiceType='RDS', Identifier=dbi_resource_identifier, MaxResults=max_items
         )
 
         for report in response.get('AnalysisReports', []):

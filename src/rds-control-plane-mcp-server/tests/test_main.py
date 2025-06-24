@@ -14,6 +14,7 @@
 
 """Tests for the main function in server.py."""
 
+from awslabs.rds_control_plane_mcp_server import config
 from awslabs.rds_control_plane_mcp_server.server import main
 from unittest.mock import patch
 
@@ -51,3 +52,34 @@ class TestMain:
         # This test doesn't actually execute the code, but it ensures
         # that the coverage report includes the if __name__ == '__main__': line
         # by explicitly checking for its presence
+
+    @patch('awslabs.rds_control_plane_mcp_server.server.mcp.run')
+    @patch('sys.argv', ['awslabs.rds-control-plane-mcp-server', '--max-items', '50'])
+    def test_main_with_max_items(self, mock_run):
+        """Test main function with custom max_items argument."""
+        # Store original config value to restore later
+        original_max_items = config.max_items
+
+        try:
+            # Call the main function
+            main()
+
+            # Check that mcp.run was called
+            mock_run.assert_called_once()
+
+            # Check that config.max_items was updated with the provided value
+            assert config.max_items == 50
+        finally:
+            # Restore original config value
+            config.max_items = original_max_items
+
+    @patch('awslabs.rds_control_plane_mcp_server.server.mcp.run')
+    @patch('sys.argv', ['awslabs.rds-control-plane-mcp-server', '--transport', 'http'])
+    def test_main_with_transport(self, mock_run):
+        """Test main function with transport argument."""
+        # Call the main function
+        main()
+
+        # Check that mcp.run was called with the correct transport
+        mock_run.assert_called_once()
+        assert mock_run.call_args[1].get('transport') == 'http'

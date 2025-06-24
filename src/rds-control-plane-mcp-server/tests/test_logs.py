@@ -15,7 +15,7 @@
 """Tests for the logs module which handles RDS database log file operations."""
 
 import pytest
-from awslabs.rds_control_plane_mcp_server.constants import PAGINATION_CONFIG
+from awslabs.rds_control_plane_mcp_server.config import get_pagination_config
 from awslabs.rds_control_plane_mcp_server.logs import list_db_log_files
 from awslabs.rds_control_plane_mcp_server.models import DBLogFileSummary
 from datetime import datetime
@@ -54,7 +54,7 @@ class TestListDBLogFiles:
         mock_paginator.paginate.assert_called_once_with(
             DBInstanceIdentifier=db_instance_identifier,
             FileSize=1,
-            PaginationConfig=PAGINATION_CONFIG,
+            PaginationConfig=get_pagination_config(),
         )
 
         assert isinstance(result, list)

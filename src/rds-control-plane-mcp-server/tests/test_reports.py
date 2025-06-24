@@ -15,7 +15,7 @@
 """Tests for the reports module which handles RDS performance reports."""
 
 import pytest
-from awslabs.rds_control_plane_mcp_server.constants import MAX_ITEMS
+from awslabs.rds_control_plane_mcp_server.config import max_items
 from awslabs.rds_control_plane_mcp_server.models import PerformanceReportSummary
 from awslabs.rds_control_plane_mcp_server.reports import (
     list_performance_reports,
@@ -56,7 +56,7 @@ class TestListPerformanceReports:
         result = await list_performance_reports(dbi_resource_identifier, mock_pi_client)
 
         mock_pi_client.list_performance_analysis_reports.assert_called_once_with(
-            ServiceType='RDS', Identifier=dbi_resource_identifier, MaxResults=MAX_ITEMS
+            ServiceType='RDS', Identifier=dbi_resource_identifier, MaxResults=max_items
         )
 
         assert isinstance(result, list)

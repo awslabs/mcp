@@ -14,8 +14,10 @@
 
 """awslabs rds-control-plane MCP Server implementation."""
 
+import argparse
 import os
 import sys
+from awslabs.rds_control_plane_mcp_server import config
 from awslabs.rds_control_plane_mcp_server.clients import (
     get_pi_client,
     get_rds_client,
@@ -131,6 +133,22 @@ async def list_db_log_files_resource(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server for RDS Control Plane Operations'
+    )
+    parser.add_argument(
+        '--max-items',
+        type=int,
+        default=config.DEFAULT_MAX_ITEMS,
+        help=f'The maximum number of items (logs, reports, etc.) to retrieve (default: {config.DEFAULT_MAX_ITEMS})',
+    )
+    parser.add_argument('--transport', help='Transport to use for the MCP server')
+    args = parser.parse_args()
+
+    # Update the configuration with user-provided values
+    config.max_items = args.max_items
+
+    logger.info(f'Starting RDS Control Plane MCP server with max_items={config.max_items}')
     mcp.run()
 
 

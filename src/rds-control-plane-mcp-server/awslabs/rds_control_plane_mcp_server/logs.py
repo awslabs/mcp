@@ -16,7 +16,7 @@
 
 from .models import DBLogFileSummary
 from .utils import handle_aws_error
-from awslabs.rds_control_plane_mcp_server.constants import PAGINATION_CONFIG
+from awslabs.rds_control_plane_mcp_server.config import get_pagination_config
 from datetime import datetime
 from mypy_boto3_rds import RDSClient
 from pydantic import Field
@@ -50,7 +50,7 @@ async def list_db_log_files(
         page_iterator = paginator.paginate(
             DBInstanceIdentifier=db_instance_identifier,
             FileSize=1,
-            PaginationConfig=PAGINATION_CONFIG,
+            PaginationConfig=get_pagination_config(),
         )
 
         log_files = []
