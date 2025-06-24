@@ -48,7 +48,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/eks-mcp-server                     @patrick-yu-amzn @srhsrhsrhsrh   @awslabs/mcp-admins
 /src/elasticache-mcp-server             @seaofawareness                  @awslabs/mcp-admins
 /src/finch-mcp-server                   @Shubhranshu153 @pendo324        @awslabs/mcp-admins
-/src/frontend-mcp-server                @awslabs/mcp-maintainers         @awslabs/mcp-admin
+/src/frontend-mcp-server                @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/git-repo-research-mcp-server       @jonslo                          @awslabs/mcp-admins
 /src/iam-mcp-server                     @oshardik                        @awslabs/mcp-admins
 /src/lambda-tool-mcp-server             @danilop @jsamuel1               @awslabs/mcp-admins
