@@ -16,160 +16,23 @@
 from .common import ClientError, datazone_client, logger
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, Optional
-from pydantic import Field
 
 
 def register_tools(mcp: FastMCP):
     """Register environment management tools with the MCP server."""
-    # @mcp.tool()
-    # async def create_environment(
-    #     domain_identifier: str,
-    #     environment_profile_identifier: str,
-    #     project_identifier: str,
-    #     name: str,
-    #     deployment_order: int = None,
-    #     description: str = None,
-    #     environment_account_identifier: str = None,
-    #     environment_account_region: str = None,
-    #     environment_blueprint_identifier: str = None,
-    #     environment_configuration_id: str = None,
-    #     glossary_terms: str = None,
-    #     user_parameters: List[Dict[str, str]] = None
-    # ) -> Any:
-    #     """
-    #     Creates a new environment in Amazon DataZone. Environments define infrastructure that projects can deploy into,
-    #     using a specified blueprint and optional configurations, glossary terms, and user parameters.
-
-    #     This is specifically for creating environments in the Amazon DataZone MCP server.
-
-    #     Args:
-    #         domain_identifier (str): The identifier of the Amazon DataZone domain in which the environment is created.
-    #             Pattern: ^dzd[-_][a-zA-Z0-9_-]{1,36}$
-    #             Required: Yes
-    #         deployment_order (int, optional): The deployment order of the environment.
-    #             Type: Integer
-    #             Required: No
-    #         description (str, optional): A description for the environment.
-    #             Type: String
-    #             Required: No
-    #         environment_account_identifier (str, optional): The AWS account ID where the environment is created.
-    #             Type: String
-    #             Required: No
-    #         environment_account_region (str, optional): The AWS region where the environment is created.
-    #             Type: String
-    #             Required: No
-    #         environment_blueprint_identifier (str, optional): The ID of the blueprint used to create the environment.
-    #             Pattern: ^[a-zA-Z0-9_-]{1,36}$
-    #             Required: No
-    #         environment_configuration_id (str, optional): The configuration ID of the environment.
-    #             Type: String
-    #             Required: No
-    #         environment_profile_identifier (str): The ID of the environment profile used to create this environment.
-    #             Pattern: ^[a-zA-Z0-9_-]{0,36}$
-    #             Required: Yes
-    #         glossary_terms (List[str], optional): Glossary terms associated with this environment.
-    #             Type: List of strings
-    #             Constraints: 1–20 items, each matching ^[a-zA-Z0-9_-]{1,36}$
-    #             Required: No
-    #         name (str): The name of the environment.
-    #             Type: String
-    #             Length: 1–64 characters
-    #             Pattern: ^[\w -]+$
-    #             Required: Yes
-    #         project_identifier (str): The identifier of the Amazon DataZone project for the environment.
-    #             Pattern: ^[a-zA-Z0-9_-]{1,36}$
-    #             Required: Yes
-    #         user_parameters (List[Dict[str, Any]], optional): A list of user-defined parameters used by the environment.
-    #             Each item is an EnvironmentParameter object.
-    #             Required: No
-
-    #     Returns:
-    #         dict: A dictionary with the created environment's details, including:
-    #             - awsAccountId (str): AWS account in which the environment is created.
-    #             - awsAccountRegion (str): AWS region of the environment.
-    #             - createdAt (str): Timestamp when the environment was created.
-    #             - createdBy (str): The creator of the environment.
-    #             - deploymentProperties (dict): Deployment timeout settings.
-    #             - description (str): The environment's description.
-    #             - domainId (str): The domain ID.
-    #             - environmentActions (list): Configurable actions of the environment.
-    #             - environmentBlueprintId (str): The blueprint ID used.
-    #             - environmentConfigurationId (str): Configuration ID.
-    #             - environmentProfileId (str): The environment profile ID used.
-    #             - glossaryTerms (list): Glossary terms associated.
-    #             - id (str): The environment ID.
-    #             - lastDeployment (dict): Info about the last deployment status and messages.
-    #             - name (str): The environment name.
-    #             - projectId (str): The associated project ID.
-    #             - provider (str): The provider of the environment.
-    #             - provisionedResources (list): Resources provisioned for the environment.
-    #             - provisioningProperties (dict): Union-type provisioning properties.
-    #             - status (str): Status of the environment.
-    #             - updatedAt (str): Last updated timestamp.
-    #             - userParameters (list): Custom parameter objects used in the environment.
-    #     """
-    #     try:
-    #         # Prepare the request parameters
-    #         params = {
-    #             "domainIdentifier": domain_identifier,
-    #             "name": name,
-    #             "environmentProfileIdentifier": environment_profile_identifier,
-    #             "projectIdentifier": project_identifier
-    #         }
-
-    #         # Add optional parameters if provided
-    #         if deployment_order:
-    #             params["deploymentOrder"] = deployment_order
-    #         if description:
-    #             params["description"] = description
-    #         if environment_account_identifier:
-    #             params["environmentAccountIdentifier"] = environment_account_identifier
-    #         if environment_account_region:
-    #             params["environmentAccountRegion"] = environment_account_region
-    #         if environment_blueprint_identifier:
-    #             params["environmentBlueprintIdentifier"] = environment_blueprint_identifier
-    #         if environment_configuration_id:
-    #             params["environmentConfigurationId"] = environment_configuration_id
-    #         if glossary_terms:
-    #             params["glossaryTerms"] = glossary_terms
-    #         if user_parameters:
-    #             params["userParameters"] = user_parameters
-
-    #         response = datazone_client.create_environment(**params)
-    #         return response
-    #     except ClientError as e:
-    #         error_code = e.response["Error"]["Code"]
-    #         error_message = e.response["Error"]["Message"]
-
-    #         if error_code == "AccessDeniedException":
-    #             raise Exception(f"Access denied while creating environment in domain {domain_identifier}: {error_message}")
-    #         elif error_code == "ConflictException":
-    #             raise Exception(f"Conflict while creating environment in domain {domain_identifier}: {error_message}")
-    #         elif error_code == "ResourceNotFoundException":
-    #             raise Exception(
-    #                 f"Resource not found while creating environment in domain {domain_identifier}: {error_message}")
-    #         elif error_code == "ServiceQuotaExceededException":
-    #             raise Exception(
-    #                 f"Service quota exceeded while creating environment in domain {domain_identifier}: {error_message}")
-    #         elif error_code == "ValidationException":
-    #             raise Exception(
-    #                 f"Invalid parameters while creating environment in domain {domain_identifier}: {error_message}")
-    #         else:
-    #             raise Exception(f"Unexpected error creating environment in domain {domain_identifier}: {error_message}")
-
     @mcp.tool()
     async def list_environments(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        project_identifier: str = Field(..., description="The identifier of the Amazon DataZone project"),
-        max_results: int = Field(50, description="Maximum number of environments to return"),
-        next_token: Optional[str] = Field(None, description="Token for pagination"),
-        aws_account_id: Optional[str] = Field(None, description="The identifier of the AWS account where you want to list environments"),
-        aws_account_region: Optional[str] = Field(None, description="The AWS region where you want to list environments"),
-        environment_blueprint_identifier: Optional[str] = Field(None, description="The identifier of the Amazon DataZone blueprint"),
-        environment_profile_identifier: Optional[str] = Field(None, description="The identifier of the environment profile"),
-        name: Optional[str] = Field(None, description="The name of the environment"),
-        provider: Optional[str] = Field(None, description="The provider of the environment"),
-        status: Optional[str] = Field(None, description="The status of the environments to list"),
+        domain_identifier: str,
+        project_identifier: str,
+        max_results: int = 50,
+        next_token: Optional[str] = None,
+        aws_account_id: Optional[str] = None,
+        aws_account_region: Optional[str] = None,
+        environment_blueprint_identifier: Optional[str] = None,
+        environment_profile_identifier: Optional[str] = None,
+        name: Optional[str] = None,
+        provider: Optional[str] = None,
+        status: Optional[str] = None,
     ) -> Any:
         """Lists environments in Amazon DataZone.
 
@@ -230,13 +93,13 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_connection(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        name: str = Field(..., description="The name of the connection"),
-        environment_identifier: Optional[str] = Field(None, description="The identifier of the environment"),
-        aws_location: Optional[Dict[str, str]] = Field(None, description="The AWS location for the connection"),
-        description: Optional[str] = Field(None, description="Description of the connection"),
-        client_token: Optional[str] = Field(None, description="A unique token for idempotency"),
-        props: Optional[Dict[str, Any]] = Field(None, description="Connection properties"),
+        domain_identifier: str,
+        name: str,
+        environment_identifier: Optional[str] = None,
+        aws_location: Optional[Dict[str, str]] = None,
+        description: Optional[str] = None,
+        client_token: Optional[str] = None,
+        props: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Creates a new connection in Amazon DataZone. A connection enables you to connect your resources.
 
@@ -337,58 +200,11 @@ def register_tools(mcp: FastMCP):
                     f'Unexpected error creating connection in domain {domain_identifier}: {error_message}'
                 )
 
-    # @mcp.tool()
-    # async def delete_connection(
-    #     domain_identifier: str,
-    #     identifier: str
-    # ) -> Any:
-    #     """
-    #     Deletes a connection in Amazon DataZone. This operation removes the specified connection from the given domain.
-
-    #     This is specifically used for connection deletion in the Amazon DataZone MCP server. The request does not contain a body.
-
-    #     Args:
-    #         domain_identifier (str): The ID of the Amazon DataZone domain where the connection is deleted.
-    #             Pattern: ^dzd[-_][a-zA-Z0-9_-]{1,36}$
-    #             Required: Yes
-
-    #         identifier (str): The ID of the connection to be deleted.
-    #             Length Constraints: Minimum length of 0. Maximum length of 128.
-    #             Required: Yes
-
-    #     Returns:
-    #         dict: A dictionary containing:
-    #             - status (str): The status of the deletion action.
-
-    #         The API returns HTTP 202 if the deletion request is accepted successfully.
-    #     """
-    #     try:
-    #         # Prepare the request parameters
-    #         params = {
-    #             "domainIdentifier": domain_identifier,
-    #             "identifier": identifier
-    #         }
-
-    #         response = datazone_client.delete_connection(**params)
-    #         return response
-    #     except ClientError as e:
-    #         error_code = e.response.get("Error", {}).get("Code", "")
-    #         error_message = e.response.get("Error", {}).get("Message", str(e))
-
-    #         if error_code == "AccessDeniedException":
-    #             raise Exception(f"Access denied while deleting connection {identifier} in domain {domain_identifier}: {error_message}")
-    #         elif error_code == "ResourceNotFoundException":
-    #             raise Exception(f"Connection {identifier} not found in domain {domain_identifier}: {error_message}")
-    #         elif error_code == "ValidationException":
-    #             raise Exception(f"Invalid parameters while deleting connection {identifier} in domain {domain_identifier}: {error_message}")
-    #         else:
-    #             raise Exception(f"Error deleting connection {identifier} in domain {domain_identifier}: {error_message}")
-
     @mcp.tool()
     async def get_connection(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        identifier: str = Field(..., description="The identifier of the connection"),
-        with_secret: bool = Field(False, description="Whether to include secret information")
+        domain_identifier: str,
+        identifier: str,
+        with_secret: bool = False
     ) -> Any:
         """Gets a connection in Amazon DataZone. A connection enables you to connect your resources
         
@@ -469,8 +285,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_environment(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        identifier: str = Field(..., description="The identifier of the environment")
+        domain_identifier: str,
+        identifier: str
     ) -> Any:
         """Gets an Amazon DataZone environment.
 
@@ -564,8 +380,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_environment_blueprint(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        identifier: str = Field(..., description="The identifier of the environment blueprint")
+        domain_identifier: str,
+        identifier: str
     ) -> Any:
         r"""Retrieves metadata and definition of an environment blueprint.
 
@@ -636,8 +452,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_environment_blueprint_configuration(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        identifier: str = Field(..., description="The identifier of the environment blueprint configuration")
+        domain_identifier: str,
+        identifier: str
     ) -> Any:
         r"""Gets an Amazon DataZone environment blueprint configuration.
 
@@ -703,66 +519,17 @@ def register_tools(mcp: FastMCP):
                     f'Error getting environment blueprint {identifier} configuration in domain {domain_identifier}: {error_message}'
                 )
 
-    # @mcp.tool()
-    # async def get_environment_credentials(
-    #     domain_identifier: str,
-    #     environment_identifier: str
-    # ) -> Any:
-    #     """
-    #     Retrieves temporary credentials for a specified environment within an Amazon DataZone domain.
-
-    #     This request uses URI parameters to specify the target domain and environment. No request body is required. The operation returns temporary AWS credentials associated with the environment, including access keys and a session token.
-
-    #     Args:
-    #         domain_identifier (str): The ID of the Amazon DataZone domain where the environment exists.
-    #             Pattern: ^dzd[-_][a-zA-Z0-9_-]{1,36}$
-    #             Required: Yes
-    #         environment_identifier (str): The ID of the environment for which credentials are being retrieved.
-    #             Pattern: ^[a-zA-Z0-9_-]{1,36}$
-    #             Required: Yes
-
-    #     Returns:
-    #         dict: A dictionary containing temporary credentials for the specified environment:
-    #             - accessKeyId (str): The access key ID
-    #             - secretAccessKey (str): The secret access key
-    #             - sessionToken (str): The session token
-    #             - expiration (str): The ISO 8601 timestamp when the credentials expire
-
-    #     Raises:
-    #         HTTPError: If the request is invalid or the server encounters an error.
-    #     """
-    #     try:
-    #         params = {
-    #             "domainIdentifier": domain_identifier,
-    #             "environmentIdentifier": environment_identifier
-    #         }
-
-    #         response = datazone_client.get_environment_credentials(**params)
-    #         return response
-    #     except ClientError as e:
-    #         error_code = e.response.get("Error", {}).get("Code", "")
-    #         error_message = e.response.get("Error", {}).get("Message", str(e))
-
-    #         if error_code == "AccessDeniedException":
-    #             raise Exception(f"Access denied while getting environment {environment_identifier} credentials in domain {domain_identifier}: {error_message}")
-    #         elif error_code == "ResourceNotFoundException":
-    #             raise Exception(f"Environment {environment_identifier} not found in domain {domain_identifier}: {error_message}")
-    #         elif error_code == "ValidationException":
-    #             raise Exception(f"Invalid parameters while getting environment {environment_identifier} credentials in domain {domain_identifier}: {error_message}")
-    #         else:
-    #             raise Exception(f"Error getting environment {environment_identifier} credentials in domain {domain_identifier}: {error_message}")
-
     @mcp.tool()
     async def list_connections(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        project_identifier: str = Field(..., description="The identifier of the project"),
-        max_results: int = Field(50, description="Maximum number of connections to return"),
-        next_token: Optional[str] = Field(None, description="Token for pagination"),
-        environment_identifier: Optional[str] = Field(None, description="The identifier of the environment"),
-        name: Optional[str] = Field(None, description="Filter by name of the connection"),
-        sort_by: Optional[str] = Field(None, description="The field to sort by"),
-        sort_order: Optional[str] = Field(None, description="The sort order (ASCENDING or DESCENDING)"),
-        type: Optional[str] = Field(None, description="Filter by type of the connection"),
+        domain_identifier: str,
+        project_identifier: str,
+        max_results: int = 50,
+        next_token: Optional[str] = None,
+        environment_identifier: Optional[str] = None,
+        name: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
+        type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Lists connections in Amazon DataZone.
 
@@ -827,11 +594,11 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def list_environment_blueprints(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        managed: Optional[bool] = Field(None, description="Whether to filter for managed blueprints"),
-        max_results: int = Field(50, description="Maximum number of blueprints to return"),
-        name: Optional[str] = Field(None, description="Filter by name of the blueprint"),
-        next_token: Optional[str] = Field(None, description="Token for pagination"),
+        domain_identifier: str,
+        managed: Optional[bool] = None,
+        max_results: int = 50,
+        name: Optional[str] = None,
+        next_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         r"""Lists environment blueprints in an Amazon DataZone domain.
 
@@ -937,9 +704,9 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def list_environment_blueprint_configurations(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        max_results: int = Field(50, description="Maximum number of configurations to return"),
-        next_token: Optional[str] = Field(None, description="Token for pagination")
+        domain_identifier: str,
+        max_results: int = 50,
+        next_token: Optional[str] = None
     ) -> Dict[str, Any]:
         """Lists environment blueprints in an Amazon DataZone domain.
 
@@ -1052,14 +819,14 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def list_environment_profiles(
-        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain"),
-        aws_account_id: Optional[str] = Field(None, description="The AWS account ID to filter results"),
-        aws_account_region: Optional[str] = Field(None, description="The AWS region to filter results"),
-        environment_blueprint_identifier: Optional[str] = Field(None, description="The identifier of the blueprint used to create the environment profiles"),
-        max_results: int = Field(50, description="Maximum number of results to return (1-50)"),
-        name: Optional[str] = Field(None, description="Filter environment profiles by name"),
-        next_token: Optional[str] = Field(None, description="A pagination token for retrieving the next set of results"),
-        project_identifier: Optional[str] = Field(None, description="The identifier of the Amazon DataZone project"),
+        domain_identifier: str,
+        aws_account_id: Optional[str] = None,
+        aws_account_region: Optional[str] = None,
+        environment_blueprint_identifier: Optional[str] = None,
+        max_results: int = 50,
+        name: Optional[str] = None,
+        next_token: Optional[str] = None,
+        project_identifier: Optional[str] = None,
     ) -> Dict[str, Any]:
         r"""Lists environment profiles within a specified Amazon DataZone domain, optionally filtered by AWS account, region, blueprint, and project.
 
@@ -1197,15 +964,12 @@ def register_tools(mcp: FastMCP):
 
     # Return the decorated functions for testing purposes
     return {
-        # "create_environment": create_environment,
         'list_environments': list_environments,
         'create_connection': create_connection,
-        # "delete_connection": delete_connection,
         'get_connection': get_connection,
         'get_environment': get_environment,
         'get_environment_blueprint': get_environment_blueprint,
         'get_environment_blueprint_configuration': get_environment_blueprint_configuration,
-        # "get_environment_credentials": get_environment_credentials,
         'list_connections': list_connections,
         'list_environment_blueprints': list_environment_blueprints,
         'list_environment_blueprint_configurations': list_environment_blueprint_configurations,

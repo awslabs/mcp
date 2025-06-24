@@ -16,7 +16,6 @@
 from .common import ClientError, datazone_client
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, List, Optional
-from pydantic import Field
 
 
 def register_tools(mcp: FastMCP):
@@ -24,12 +23,12 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_glossary(
-        domain_identifier: str = Field(..., description="The ID of the domain where the glossary will be created"),
-        name: str = Field(..., description="The name of the glossary (1-256 characters)"),
-        owning_project_identifier: str = Field(..., description="The ID of the project that will own the glossary"),
-        description: Optional[str] = Field(None, description="The description of the glossary (0-4096 characters)"),
-        status: str = Field('ENABLED', description="The status of the glossary (ENABLED or DISABLED)"),
-        client_token: Optional[str] = Field(None, description="A unique token to ensure idempotency (1-128 characters)"),
+        domain_identifier: str,
+        name: str,
+        owning_project_identifier: str,
+        description: Optional[str] = None,
+        status: str = 'ENABLED',
+        client_token: Optional[str] = None,
     ) -> Any:
         """Creates a new business glossary in Amazon DataZone.
 
@@ -82,14 +81,14 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_glossary_term(
-        domain_identifier: str = Field(..., description="The ID of the domain where the glossary term will be created"),
-        glossary_identifier: str = Field(..., description="The ID of the glossary where the term will be created"),
-        name: str = Field(..., description="The name of the glossary term (1-256 characters)"),
-        short_description: Optional[str] = Field(None, description="A short description of the term (0-1024 characters)"),
-        long_description: Optional[str] = Field(None, description="A detailed description of the term (0-4096 characters)"),
-        status: str = Field('ENABLED', description="The status of the term (ENABLED or DISABLED)"),
-        term_relations: Optional[Dict[str, List[str]]] = Field(None, description="The term relations"),
-        client_token: Optional[str] = Field(None, description="A unique token to ensure idempotency (1-128 characters)"),
+        domain_identifier: str,
+        glossary_identifier: str,
+        name: str,
+        short_description: Optional[str] = None,
+        long_description: Optional[str] = None,
+        status: str = 'ENABLED',
+        term_relations: Optional[Dict[str, List[str]]] = None,
+        client_token: Optional[str] = None,
     ) -> Any:
         r"""Creates a new business glossary term in Amazon DataZone.
 
@@ -157,8 +156,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_glossary(
-        domain_identifier: str = Field(..., description="The ID of the domain where the glossary exists"),
-        identifier: str = Field(..., description="The ID of the glossary to retrieve")
+        domain_identifier: str,
+        identifier: str
     ) -> Any:
         """Retrieves detailed information about a specific business glossary in Amazon DataZone.
 
@@ -200,8 +199,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_glossary_term(
-        domain_identifier: str = Field(..., description="The ID of the domain where the glossary term exists"),
-        identifier: str = Field(..., description="The ID of the glossary term to retrieve")
+        domain_identifier: str,
+        identifier: str
     ) -> Any:
         """Retrieves detailed information about a specific business glossary term in Amazon DataZone.
 
