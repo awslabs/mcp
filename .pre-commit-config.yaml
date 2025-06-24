@@ -63,12 +63,12 @@ repos:
         pass_filenames: true
         language: system
         entry: bash -c 'for x in "$@"; do (cd `dirname $x`; pwd; uv run --frozen --all-extras --dev pyright --stats;); done;' --
-        stages: [manual]
+        stages: [pre-push]
         files: (src|samples)\/.*\/pyproject.toml
     -   id: pytest
         name: pytest
         pass_filenames: true
         language: system
         entry: bash -c 'for x in "$@"; do (cd `dirname $x`; pwd; uv run --frozen pytest --cov --cov-branch --cov-report=term-missing;); done;' --
-        stages: [manual]
+        stages: [pre-push]
         files: src\/.*\/pyproject.toml
