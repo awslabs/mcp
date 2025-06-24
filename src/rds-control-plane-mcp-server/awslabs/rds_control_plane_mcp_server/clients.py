@@ -19,7 +19,7 @@ from typing import Optional
 
 
 def get_rds_client(
-    region_name: Optional[str] = 'us-east-1', profile_name: Optional[str] = None
+    region_name: Optional[str] = None, profile_name: Optional[str] = None
 ) -> RDSClient:
     """Get an Amazon RDS client.
 
@@ -34,16 +34,14 @@ def get_rds_client(
         An RDS client instance
     """
     if profile_name:
-        client = boto3.Session(profile_name=profile_name).client(
-            'rds', region_name=region_name or 'us-east-1'
-        )
+        client = boto3.Session(profile_name=profile_name).client('rds', region_name=region_name)
         return client  # type: ignore
-    client = boto3.client('rds', region_name=region_name or 'us-east-1')
+    client = boto3.client('rds', region_name=region_name)
     return client  # type: ignore
 
 
 def get_pi_client(
-    region_name: Optional[str] = 'us-east-1', profile_name: Optional[str] = None
+    region_name: Optional[str] = None, profile_name: Optional[str] = None
 ) -> PIClient:
     """Get a Performance Insights client.
 
@@ -57,9 +55,7 @@ def get_pi_client(
         A Performance Insights (PI) client instance
     """
     if profile_name:
-        client = boto3.Session(profile_name=profile_name).client(
-            'pi', region_name=region_name or 'us-east-1'
-        )
+        client = boto3.Session(profile_name=profile_name).client('pi', region_name=region_name)
         return client  # type: ignore
-    client = boto3.client('pi', region_name=region_name or 'us-east-1')
+    client = boto3.client('pi', region_name=region_name)
     return client  # type: ignore

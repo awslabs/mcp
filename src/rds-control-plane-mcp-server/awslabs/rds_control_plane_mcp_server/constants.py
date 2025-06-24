@@ -29,5 +29,5 @@ ERROR_UNEXPECTED = 'Unexpected error: {}'
 MAX_ITEMS = 100
 PAGINATION_CONFIG: PaginatorConfigTypeDef = {
     'MaxItems': MAX_ITEMS,
-    'PageSize': 10,
+    'PageSize': 20,
 }

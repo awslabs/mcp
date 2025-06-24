@@ -38,7 +38,7 @@ class TestGetRDSClient:
     def test_get_rds_client_default(self, mock_boto3):
         """Test getting an RDS client with default parameters."""
         client = get_rds_client()
-        mock_boto3['client'].assert_called_once_with('rds', region_name='us-east-1')
+        mock_boto3['client'].assert_called_once_with('rds', region_name=None)
         assert client == mock_boto3['rds']
 
     def test_get_rds_client_with_region(self, mock_boto3):
@@ -51,9 +51,7 @@ class TestGetRDSClient:
         """Test getting an RDS client with a specific profile."""
         client = get_rds_client(profile_name='test-profile')
         mock_boto3['Session'].assert_called_once_with(profile_name='test-profile')
-        mock_boto3['Session'].return_value.client.assert_called_once_with(
-            'rds', region_name='us-east-1'
-        )
+        mock_boto3['Session'].return_value.client.assert_called_once_with('rds', region_name=None)
         assert client == mock_boto3['rds']
 
     def test_get_rds_client_with_region_and_profile(self, mock_boto3):
@@ -68,7 +66,7 @@ class TestGetRDSClient:
     def test_get_rds_client_with_none_region(self, mock_boto3):
         """Test getting an RDS client with None region."""
         client = get_rds_client(region_name=None)
-        mock_boto3['client'].assert_called_once_with('rds', region_name='us-east-1')
+        mock_boto3['client'].assert_called_once_with('rds', region_name=None)
         assert client == mock_boto3['rds']
 
 
@@ -78,7 +76,7 @@ class TestGetPIClient:
     def test_get_pi_client_default(self, mock_boto3):
         """Test getting a PI client with default parameters."""
         client = get_pi_client()
-        mock_boto3['client'].assert_called_once_with('pi', region_name='us-east-1')
+        mock_boto3['client'].assert_called_once_with('pi', region_name=None)
         assert client == mock_boto3['pi']
 
     def test_get_pi_client_with_region(self, mock_boto3):
@@ -91,9 +89,7 @@ class TestGetPIClient:
         """Test getting a PI client with a specific profile."""
         client = get_pi_client(profile_name='test-profile')
         mock_boto3['Session'].assert_called_once_with(profile_name='test-profile')
-        mock_boto3['Session'].return_value.client.assert_called_once_with(
-            'pi', region_name='us-east-1'
-        )
+        mock_boto3['Session'].return_value.client.assert_called_once_with('pi', region_name=None)
         assert client == mock_boto3['pi']
 
     def test_get_pi_client_with_region_and_profile(self, mock_boto3):
@@ -108,5 +104,5 @@ class TestGetPIClient:
     def test_get_pi_client_with_none_region(self, mock_boto3):
         """Test getting a PI client with None region."""
         client = get_pi_client(region_name=None)
-        mock_boto3['client'].assert_called_once_with('pi', region_name='us-east-1')
+        mock_boto3['client'].assert_called_once_with('pi', region_name=None)
         assert client == mock_boto3['pi']
