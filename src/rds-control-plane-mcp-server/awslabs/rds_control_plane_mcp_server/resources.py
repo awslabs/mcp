@@ -250,7 +250,7 @@ async def get_instance_list_resource(rds_client: Any) -> str:
         for instance in response.get('DBInstances', []):
             instances.append(format_instance_info(instance))
         
-        # handling pagination if there's a marker for next page
+        # pagination if there's a marker for next page
         while 'Marker' in response:
             response = await asyncio.to_thread(
                 rds_client.describe_db_instances,
