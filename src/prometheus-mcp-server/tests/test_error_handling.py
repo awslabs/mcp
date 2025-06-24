@@ -24,16 +24,19 @@ async def test_execute_query_error_handling():
     with (
         patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
+        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import execute_query
 
         # Setup
         mock_request.side_effect = Exception('Test error')
+        mock_configure.return_value = None  # Mock successful configuration
         ctx = AsyncMock()
+        workspace_id = 'ws-12345678-abcd-1234-efgh-123456789012'
 
         # Execute and assert
         with pytest.raises(Exception, match='Test error'):
-            await execute_query(ctx, 'up')
+            await execute_query(ctx, workspace_id, 'up')
 
         # Verify error was logged and reported to context
         mock_logger.error.assert_called_once()
@@ -46,17 +49,21 @@ async def test_execute_range_query_error_handling():
     with (
         patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
+        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import execute_range_query
 
         # Setup
         mock_request.side_effect = Exception('Test error')
+        mock_configure.return_value = None  # Mock successful configuration
         ctx = AsyncMock()
+        workspace_id = 'ws-12345678-abcd-1234-efgh-123456789012'
 
         # Execute and assert
         with pytest.raises(Exception, match='Test error'):
             await execute_range_query(
                 ctx,
+                workspace_id,
                 'rate(node_cpu_seconds_total[5m])',
                 '2023-01-01T00:00:00Z',
                 '2023-01-01T01:00:00Z',
@@ -74,16 +81,19 @@ async def test_list_metrics_error_handling():
     with (
         patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
+        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import list_metrics
 
         # Setup
         mock_request.side_effect = Exception('Test error')
+        mock_configure.return_value = None  # Mock successful configuration
         ctx = AsyncMock()
+        workspace_id = 'ws-12345678-abcd-1234-efgh-123456789012'
 
         # Execute and assert
         with pytest.raises(Exception, match='Test error'):
-            await list_metrics(ctx)
+            await list_metrics(ctx, workspace_id)
 
         # Verify error was logged and reported to context
         mock_logger.error.assert_called_once()
@@ -96,15 +106,18 @@ async def test_get_server_info_error_handling():
     with (
         patch('awslabs.prometheus_mcp_server.server.logger'),
         patch('awslabs.prometheus_mcp_server.server.config', None),
+        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.models import ServerInfo
         from awslabs.prometheus_mcp_server.server import get_server_info
 
         # Setup
+        mock_configure.return_value = None  # Mock successful configuration
         ctx = AsyncMock()
+        workspace_id = 'ws-12345678-abcd-1234-efgh-123456789012'
 
         # Execute
-        result = await get_server_info(ctx)
+        result = await get_server_info(ctx, workspace_id)
 
         # Assert
         assert isinstance(result, ServerInfo)
@@ -120,19 +133,22 @@ async def test_get_server_info_with_exception():
     with (
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
+        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import get_server_info
 
         # Setup
         ctx = AsyncMock()
+        workspace_id = 'ws-12345678-abcd-1234-efgh-123456789012'
 
         # Configure the mock to raise an exception when prometheus_url is accessed
         mock_config.__bool__.return_value = True  # Make sure 'if not config' evaluates to False
         mock_config.prometheus_url = MagicMock(side_effect=Exception('Test error'))
+        mock_configure.return_value = None  # Mock successful configuration
 
         # Execute and assert
         with pytest.raises(Exception):
-            await get_server_info(ctx)
+            await get_server_info(ctx, workspace_id)
 
         # Verify error was logged and reported to context
         mock_logger.error.assert_called_once()
