@@ -2,6 +2,7 @@
 
 import argparse
 import boto3
+import json
 import logging
 import os
 from mcp.server.fastmcp import FastMCP
@@ -28,6 +29,7 @@ async def get_findings(
     region: str,
     aws_account_id: str = None,
     severity: str = None,
+    custom_filters: str = None,
     max_results: int = 100,
 ) -> Optional[List[Dict]]:
     """Get findings from the Security Hub service.
@@ -36,6 +38,9 @@ async def get_findings(
         region (str): the AWS region to in which to query the SecurityHub service
         aws_account_id (str): (optional) filter the findings to the specified AWS account id
         severity (str): (optional) filter the findings to the specified finding severity
+        custom_filters (str): (optional) JSON string of additional Security Hub filters
+                             Example: '{"WorkflowStatus": [{"Value": "NEW", "Comparison": "EQUALS"}]}'
+                             See AWS Security Hub GetFindings API documentation for all available filters
         max_results (int): (optional) the maximum number of finding results to return; note the maximum
         number of results supported by the SecurityHub service is 100
 
@@ -45,12 +50,24 @@ async def get_findings(
     security_hub = boto3.Session(profile_name=profile_name).client(
         'securityhub', region_name=region
     )
+
+    # Start with basic filters from individual parameters
     filters = {}
     if aws_account_id:
         filters['AwsAccountId'] = [{'Value': aws_account_id, 'Comparison': 'EQUALS'}]
 
     if severity:
         filters['SeverityLabel'] = [{'Value': severity, 'Comparison': 'EQUALS'}]
+
+    # Add custom filters from JSON string
+    if custom_filters:
+        try:
+            user_filters = json.loads(custom_filters)
+            if not isinstance(user_filters, dict):
+                return [{'error': 'custom_filters must be a JSON object'}]
+            filters.update(user_filters)
+        except json.JSONDecodeError as e:
+            return [{'error': f'Invalid JSON in custom_filters parameter: {str(e)}'}]
 
     findings = []
     paginator = security_hub.get_paginator('get_findings')
