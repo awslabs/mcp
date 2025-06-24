@@ -31,7 +31,7 @@ ENV UV_PYTHON_PREFERENCE=only-system
 ENV UV_FROZEN=true
 
 # Copy the required files first
-COPY pyproject.toml uv.lock uv-requirement.txt ./
+COPY pyproject.toml uv.lock uv-requirements.txt ./
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
