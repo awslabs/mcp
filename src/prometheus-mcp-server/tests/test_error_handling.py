@@ -24,7 +24,9 @@ async def test_execute_query_error_handling():
     with (
         patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
-        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
+        patch(
+            'awslabs.prometheus_mcp_server.server.configure_workspace_for_request'
+        ) as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import execute_query
 
@@ -49,7 +51,9 @@ async def test_execute_range_query_error_handling():
     with (
         patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
-        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
+        patch(
+            'awslabs.prometheus_mcp_server.server.configure_workspace_for_request'
+        ) as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import execute_range_query
 
@@ -81,7 +85,9 @@ async def test_list_metrics_error_handling():
     with (
         patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
-        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
+        patch(
+            'awslabs.prometheus_mcp_server.server.configure_workspace_for_request'
+        ) as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import list_metrics
 
@@ -106,7 +112,9 @@ async def test_get_server_info_error_handling():
     with (
         patch('awslabs.prometheus_mcp_server.server.logger'),
         patch('awslabs.prometheus_mcp_server.server.config', None),
-        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
+        patch(
+            'awslabs.prometheus_mcp_server.server.configure_workspace_for_request'
+        ) as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.models import ServerInfo
         from awslabs.prometheus_mcp_server.server import get_server_info
@@ -133,7 +141,9 @@ async def test_get_server_info_with_exception():
     with (
         patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
-        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
+        patch(
+            'awslabs.prometheus_mcp_server.server.configure_workspace_for_request'
+        ) as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import get_server_info
 

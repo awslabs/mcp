@@ -24,7 +24,9 @@ async def test_execute_query():
     with (
         patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
-        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
+        patch(
+            'awslabs.prometheus_mcp_server.server.configure_workspace_for_request'
+        ) as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import execute_query
 
@@ -54,7 +56,9 @@ async def test_execute_range_query():
     with (
         patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
-        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
+        patch(
+            'awslabs.prometheus_mcp_server.server.configure_workspace_for_request'
+        ) as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.server import execute_range_query
 
@@ -98,7 +102,9 @@ async def test_list_metrics():
     with (
         patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
-        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
+        patch(
+            'awslabs.prometheus_mcp_server.server.configure_workspace_for_request'
+        ) as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.models import MetricsList
         from awslabs.prometheus_mcp_server.server import list_metrics
@@ -127,7 +133,9 @@ async def test_get_server_info():
     """Test the get_server_info function."""
     with (
         patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
-        patch('awslabs.prometheus_mcp_server.server.configure_workspace_for_request') as mock_configure,
+        patch(
+            'awslabs.prometheus_mcp_server.server.configure_workspace_for_request'
+        ) as mock_configure,
     ):
         from awslabs.prometheus_mcp_server.models import ServerInfo
         from awslabs.prometheus_mcp_server.server import get_server_info
@@ -167,14 +175,14 @@ async def test_get_available_workspaces():
         # Setup
         mock_config.aws_region = 'us-east-1'
         mock_config.aws_profile = 'test-profile'
-        
+
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
-        
+
         # Use a MagicMock for createdAt to avoid the isoformat issue
         created_at = MagicMock()
         created_at.isoformat.return_value = '2023-01-01T00:00:00Z'
-        
+
         mock_client.list_workspaces.return_value = {
             'workspaces': [
                 {
@@ -185,7 +193,7 @@ async def test_get_available_workspaces():
                 }
             ]
         }
-        
+
         ctx = AsyncMock()
 
         # Execute
@@ -197,7 +205,7 @@ async def test_get_available_workspaces():
         assert mock_session.return_value.client.call_count == 1
         assert mock_session.return_value.client.call_args[0][0] == 'amp'
         mock_client.list_workspaces.assert_called_once()
-        
+
         assert result['count'] == 1
         # Don't check the exact region value since it might be a Field object
         assert 'region' in result
@@ -226,6 +234,9 @@ async def test_configure_workspace_for_request():
         await configure_workspace_for_request(ctx, workspace_id, region)
 
         # Assert
-        assert mock_config.prometheus_url == f'https://aps-workspaces.{region}.amazonaws.com/workspaces/{workspace_id}'
+        assert (
+            mock_config.prometheus_url
+            == f'https://aps-workspaces.{region}.amazonaws.com/workspaces/{workspace_id}'
+        )
         assert mock_config.aws_region == region
         mock_test_conn.assert_called_once()
