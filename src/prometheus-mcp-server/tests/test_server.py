@@ -171,13 +171,17 @@ async def test_get_available_workspaces():
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
         
+        # Use a MagicMock for createdAt to avoid the isoformat issue
+        created_at = MagicMock()
+        created_at.isoformat.return_value = '2023-01-01T00:00:00Z'
+        
         mock_client.list_workspaces.return_value = {
             'workspaces': [
                 {
                     'workspaceId': 'ws-12345',
                     'alias': 'Test Workspace',
                     'status': {'statusCode': 'ACTIVE'},
-                    'createdAt': '2023-01-01T00:00:00Z',
+                    'createdAt': created_at,
                 }
             ]
         }
