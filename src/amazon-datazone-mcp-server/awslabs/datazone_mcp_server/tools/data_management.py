@@ -891,7 +891,7 @@ def register_tools(mcp: FastMCP):
         status: Optional[str] = None,
         data_source_type: Optional[str] = None,
     ) -> Any:
-        """Retrieve a list of data sources in Datazone domain
+        """Retrieve a list of data sources in Datazone domain.
 
         Use this API when the user is **browsing, searching, or filtering** data sources — especially if they **don't know the exact ID** or want to find a list to choose from.
         This is **not** the correct API if the user asks for config details of a known data source — use `get_data_source` in that case.
@@ -900,18 +900,18 @@ def register_tools(mcp: FastMCP):
         get_data_source: Retrieves detailed information about a known data source. Use get_data_source when you want to fetch info about the connection details, authentication settings, or ingestion configuration of a particular data source.
 
         Args:
-            domainIdentifier (str): The identifier of the Amazon DataZone domain in which to list the data sources.
+            domain_identifier (str): The identifier of the Amazon DataZone domain in which to list the data sources.
                 Pattern: ^dzd[-_][a-zA-Z0-9_-]{1,36}$
                 Required: Yes
-            projectIdentifier (str): The identifier of the project in which to list data sources.
+            project_identifier (str): The identifier of the project in which to list data sources.
                 Required: Yes
-            connectionIdentifier (str, optional): The ID of the connection used to filter the data sources.
-            environmentIdentifier (str, optional): The identifier of the environment in which to list the data sources.
-            maxResults (int, optional): The maximum number of data sources to return in one response.
+            connection_identifier (str, optional): The ID of the connection used to filter the data sources.
+            environment_identifier (str, optional): The identifier of the environment in which to list the data sources.
+            max_results (int, optional): The maximum number of data sources to return in one response.
                 Valid Range: 1–50
             name (str, optional): Filter by name of the data source.
                 Length Constraints: 1–256 characters
-            nextToken (str, optional): A pagination token for fetching the next set of results.
+            next_token (str, optional): A pagination token for fetching the next set of results.
                 Length Constraints: 1–8192 characters
             status (str, optional): Filter data sources by their current status.
                 Valid values:
@@ -923,7 +923,7 @@ def register_tools(mcp: FastMCP):
                     - RUNNING
                     - DELETING
                     - FAILED_DELETION
-            type (str, optional): Filter by the type of data source (e.g., GLUE, REDSHIFT).
+            data_source_type (str, optional): Filter by the type of data source (e.g., GLUE, REDSHIFT).
                 Length Constraints: 1–256 characters
 
         Returns:

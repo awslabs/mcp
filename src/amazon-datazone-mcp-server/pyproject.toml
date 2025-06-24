@@ -108,3 +108,8 @@ markers = [
 
 [tool.setuptools.dynamic]
 version = {file = "VERSION"}
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.0",
+]

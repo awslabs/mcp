@@ -20,6 +20,7 @@ from typing import Any, Dict, Optional
 
 def register_tools(mcp: FastMCP):
     """Register environment management tools with the MCP server."""
+
     @mcp.tool()
     async def list_environments(
         domain_identifier: str,
@@ -204,8 +205,8 @@ def register_tools(mcp: FastMCP):
     async def get_connection(
         domain_identifier: str, identifier: str, with_secret: bool = False
     ) -> Any:
-        """Gets a connection in Amazon DataZone. A connection enables you to connect your resources
-        
+        """Gets a connection in Amazon DataZone. A connection enables you to connect your resources.
+
         (domains, projects, and environments) to external resources and services.
 
         Connections are credentials + config for accessing a system, while data source is a specific location where your data resides using a connection.
