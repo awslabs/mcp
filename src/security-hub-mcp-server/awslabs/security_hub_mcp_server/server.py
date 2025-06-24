@@ -113,6 +113,9 @@ async def get_findings(
         'Filters': filters,
         'MaxResults': min(max_results, 100),
     }
+
+    logger.info(f'Getting SecurityHub findings with params: {query_params}')
+
     response_iterator = paginator.paginate(**query_params)
     for page in response_iterator:
         if 'Findings' in page:
