@@ -115,28 +115,7 @@ def load_config(args):
     return config_data
 
 
-def find_active_workspace(aps_client):
-    """Find an active Prometheus workspace.
-    
-    Args:
-        aps_client: The AMP boto3 client
-        
-    Returns:
-        The first active workspace found, or None if no active workspaces exist
-    """
-    try:
-        workspaces = aps_client.list_workspaces()
-        active_workspaces = [ws for ws in workspaces['workspaces'] if ws['status']['statusCode'] == 'ACTIVE']
-        
-        if active_workspaces:
-            logger.info(f'Found {len(active_workspaces)} active Prometheus workspaces')
-            return active_workspaces[0]
-        else:
-            logger.warning('No active Prometheus workspaces found')
-            return None
-    except Exception as e:
-        logger.error(f'Error finding active workspaces: {e}')
-        return None
+# find_active_workspace function removed as per requirements
 
 
 def setup_environment(config_data):
@@ -373,72 +352,10 @@ async def make_prometheus_request(
     return None
 
 
-async def get_available_workspaces():
-    """Get list of available Prometheus workspaces using AWS SDK.
-    
-    Returns:
-        List of workspace dictionaries with id, alias, and status
-    """
-    global config
-    try:
-        # Create session with current config
-        if config and config.aws_profile:
-            session = boto3.Session(
-                profile_name=config.aws_profile, 
-                region_name=config.aws_region
-            )
-        else:
-            session = boto3.Session(region_name=config.aws_region if config else DEFAULT_AWS_REGION)
-        
-        aps_client = session.client('amp')
-        response = aps_client.list_workspaces()
-        
-        workspaces = []
-        for ws in response.get('workspaces', []):
-            workspaces.append({
-                'workspace_id': ws['workspaceId'],
-                'alias': ws.get('alias', 'No alias'),
-                'status': ws['status']['statusCode'],
-                'created_at': ws.get('createdAt', '').isoformat() if ws.get('createdAt') else 'Unknown'
-            })
-        
-        return workspaces
-    except Exception as e:
-        logger.error(f'Error getting available workspaces: {e}')
-        return []
+# get_available_workspaces function removed as it's now an MCP tool
 
 
-async def check_workspace_selection(ctx: Context) -> bool:
-    """Check if workspace is selected, prompt user if not.
-    
-    Returns:
-        bool: True if workspace is selected, False if user needs to select one
-    """
-    global workspace_selected, config
-    
-    if workspace_selected and config and config.prometheus_url:
-        return True
-    
-    # Get available workspaces
-    workspaces = await get_available_workspaces()
-    
-    if not workspaces:
-        await ctx.error('No Prometheus workspaces found in the current region. Please create a workspace first.')
-        return False
-    
-    # Format workspace list for user
-    workspace_list = "\n".join([
-        f"- {ws['workspace_id']} ({ws['alias']}) - Status: {ws['status']}"
-        for ws in workspaces
-    ])
-    
-    await ctx.error(
-        f"No Prometheus workspace selected. Please choose from available workspaces:\n\n"
-        f"{workspace_list}\n\n"
-        f"Use the SetPrometheusWorkspace tool to select a workspace, or use ListWorkspaces to see more details."
-    )
-    
-    return False
+# check_workspace_selection function removed as per requirements
 
 
 async def test_prometheus_connection():
@@ -501,7 +418,6 @@ mcp = FastMCP(
 
 # Global config object
 config = None  # Will be initialized in main()
-workspace_selected = False  # Track if user has selected a workspace
 
 
 @mcp.tool(name='ExecuteQuery')
@@ -546,10 +462,12 @@ def validate_query(query: str) -> bool:
 @mcp.tool(name='ExecuteQuery')
 async def execute_query(
     ctx: Context,
+    workspace_id: str = Field(..., description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012)'),
     query: str = Field(..., description='The PromQL query to execute'),
     time: Optional[str] = Field(
         None, description='Optional timestamp for query evaluation (RFC3339 or Unix timestamp)'
     ),
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
 ) -> Dict[str, Any]:
     """Execute an instant query and return the result.
 
@@ -557,6 +475,7 @@ async def execute_query(
     - Use this tool to execute a PromQL query at a specific instant in time
     - The query will return the current value of the specified metrics
     - For time series data over a range, use execute_range_query instead
+    - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
 
     ## Example queries
     - `up` - Shows which targets are up
@@ -565,9 +484,8 @@ async def execute_query(
     """
     global config
     try:
-        # Check if workspace is selected
-        if not await check_workspace_selection(ctx):
-            return {'error': 'No workspace selected'}
+        # Configure workspace for this request
+        await configure_workspace_for_request(ctx, workspace_id, region)
         
         logger.info(f'Executing instant query: {query}')
 
@@ -597,12 +515,14 @@ async def execute_query(
 @mcp.tool(name='ExecuteRangeQuery')
 async def execute_range_query(
     ctx: Context,
+    workspace_id: str = Field(..., description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012)'),
     query: str = Field(..., description='The PromQL query to execute'),
     start: str = Field(..., description='Start timestamp (RFC3339 or Unix timestamp)'),
     end: str = Field(..., description='End timestamp (RFC3339 or Unix timestamp)'),
     step: str = Field(
         ..., description="Query resolution step width (duration format, e.g. '15s', '1m', '1h')"
     ),
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
 ) -> Dict[str, Any]:
     """Execute a range query and return the result.
 
@@ -610,8 +530,10 @@ async def execute_range_query(
     - Use this tool to execute a PromQL query over a time range
     - The query will return a series of values for the specified time range
     - Useful for generating time series data for graphs or trend analysis
+    - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
 
     ## Example
+    - workspace_id: `ws-12345678-abcd-1234-efgh-123456789012`
     - Query: `rate(node_cpu_seconds_total{mode="system"}[5m])`
     - Start: `2023-04-01T00:00:00Z`
     - End: `2023-04-01T01:00:00Z`
@@ -621,9 +543,8 @@ async def execute_range_query(
     """
     global config
     try:
-        # Check if workspace is selected
-        if not await check_workspace_selection(ctx):
-            return {'error': 'No workspace selected'}
+        # Configure workspace for this request
+        await configure_workspace_for_request(ctx, workspace_id, region)
         
         logger.info(f'Executing range query: {query} from {start} to {end} with step {step}')
 
@@ -649,25 +570,29 @@ async def execute_range_query(
 
 
 @mcp.tool(name='ListMetrics')
-async def list_metrics(ctx: Context) -> MetricsList:
+async def list_metrics(
+    ctx: Context,
+    workspace_id: str = Field(..., description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012)'),
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
+) -> MetricsList:
     """Get a list of all metric names.
 
     ## Usage
     - Use this tool to discover available metrics in the Prometheus server
     - Returns a sorted list of all metric names
     - Useful for exploration before crafting specific queries
+    - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
 
     ## Example
     ```
-    metrics_response = await list_metrics()
+    metrics_response = await list_metrics(workspace_id='ws-12345678-abcd-1234-efgh-123456789012')
     print('Available metrics:', metrics_response.metrics[:10])  # Show first 10 metrics
     ```
     """
     global config
     try:
-        # Check if workspace is selected
-        if not await check_workspace_selection(ctx):
-            return MetricsList(metrics=[])
+        # Configure workspace for this request
+        await configure_workspace_for_request(ctx, workspace_id, region)
         
         logger.info('Listing all available metrics')
         max_retries = 3  # Default value
@@ -686,30 +611,29 @@ async def list_metrics(ctx: Context) -> MetricsList:
 
 
 @mcp.tool(name='GetServerInfo')
-async def get_server_info(ctx: Context) -> ServerInfo:
+async def get_server_info(
+    ctx: Context,
+    workspace_id: str = Field(..., description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012)'),
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
+) -> ServerInfo:
     """Get information about the Prometheus server configuration.
 
     ## Usage
     - Use this tool to retrieve the current server configuration
     - Returns details about the Prometheus URL, AWS region, profile, and service name
     - Useful for debugging connection issues
+    - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
 
     ## Example
     ```
-    info = await get_server_info()
+    info = await get_server_info(workspace_id='ws-12345678-abcd-1234-efgh-123456789012')
     print(f'Connected to Prometheus at {info.prometheus_url} in region {info.aws_region}')
     ```
     """
     global config
     try:
-        # Check if workspace is selected
-        if not await check_workspace_selection(ctx):
-            return ServerInfo(
-                prometheus_url='No workspace selected',
-                aws_region=config.aws_region if config else 'Not configured',
-                aws_profile=config.aws_profile if config else 'Not configured',
-                service_name=config.service_name if config else 'Not configured',
-            )
+        # Configure workspace for this request
+        await configure_workspace_for_request(ctx, workspace_id, region)
         
         logger.info('Retrieving server configuration information')
         if not config:
@@ -733,30 +657,61 @@ async def get_server_info(ctx: Context) -> ServerInfo:
         raise
 
 
-@mcp.tool(name='ListWorkspaces')
-async def list_workspaces(ctx: Context) -> Dict[str, Any]:
-    """List all available Prometheus workspaces in the current region.
+@mcp.tool(name='GetAvailableWorkspaces')
+async def get_available_workspaces(
+    ctx: Context,
+    region: Optional[str] = Field(None, description='AWS region (defaults to current region)')
+) -> Dict[str, Any]:
+    """List all available Prometheus workspaces in the specified region.
 
     ## Usage
     - Use this tool to see all available Prometheus workspaces
     - Shows workspace ID, alias, status, and creation date
-    - Useful for selecting which workspace to use
+    - Use this to find workspace IDs needed for other tools
+    - Always call this first to get a workspace ID before using other tools
 
     ## Example
     ```
-    workspaces = await list_workspaces()
+    workspaces = await get_available_workspaces()
     for ws in workspaces['workspaces']:
         print(f"ID: {ws['workspace_id']}, Alias: {ws['alias']}, Status: {ws['status']}")
     ```
     """
     try:
-        logger.info('Listing available Prometheus workspaces')
-        workspaces = await get_available_workspaces()
+        # Use provided region or current config region or default
+        aws_region = region
+        if not aws_region and config and config.aws_region:
+            aws_region = config.aws_region
+        if not aws_region:
+            aws_region = DEFAULT_AWS_REGION
+            
+        logger.info(f'Listing available Prometheus workspaces in region {aws_region}')
+        
+        # Create session with current config
+        if config and config.aws_profile:
+            session = boto3.Session(
+                profile_name=config.aws_profile, 
+                region_name=aws_region
+            )
+        else:
+            session = boto3.Session(region_name=aws_region)
+        
+        aps_client = session.client('amp')
+        response = aps_client.list_workspaces()
+        
+        workspaces = []
+        for ws in response.get('workspaces', []):
+            workspaces.append({
+                'workspace_id': ws['workspaceId'],
+                'alias': ws.get('alias', 'No alias'),
+                'status': ws['status']['statusCode'],
+                'created_at': ws.get('createdAt', '').isoformat() if ws.get('createdAt') else 'Unknown'
+            })
         
         return {
             'workspaces': workspaces,
             'count': len(workspaces),
-            'region': config.aws_region if config else DEFAULT_AWS_REGION
+            'region': aws_region
         }
     except Exception as e:
         error_msg = f'Error listing workspaces: {str(e)}'
@@ -765,29 +720,22 @@ async def list_workspaces(ctx: Context) -> Dict[str, Any]:
         raise
 
 
-@mcp.tool(name='SetPrometheusWorkspace')
-async def set_prometheus_workspace(
+async def configure_workspace_for_request(
     ctx: Context,
-    workspace_id: str = Field(..., description='The Prometheus workspace ID to use'),
-    region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
-) -> ServerInfo:
-    """Set the Prometheus workspace ID and build the URL.
-
-    ## Usage
-    - Use this tool to set the Prometheus workspace ID
-    - The URL will be built automatically using the workspace ID and region
-    - Returns updated server configuration
-
-    ## Example
-    ```
-    info = await set_prometheus_workspace(workspace_id='ws-12345678-abcd-1234-efgh-123456789012')
-    print(f'Connected to Prometheus workspace: {info.prometheus_url}')
-    ```
+    workspace_id: str,
+    region: Optional[str] = None,
+) -> None:
+    """Configure the workspace for the current request.
+    
+    Args:
+        ctx: The MCP context
+        workspace_id: The Prometheus workspace ID to use
+        region: Optional AWS region (defaults to current region)
     """
-    global config, workspace_selected
+    global config
     
     try:
-        logger.info(f'Setting Prometheus workspace ID to: {workspace_id}')
+        logger.info(f'Configuring workspace ID for request: {workspace_id}')
         
         # Validate workspace ID format
         if not workspace_id.startswith('ws-'):
@@ -819,17 +767,14 @@ async def set_prometheus_workspace(
 
         # Test connection with new URL
         if not await test_prometheus_connection():
-            error_msg = 'Failed to connect to Prometheus with new workspace ID'
+            error_msg = f'Failed to connect to Prometheus with workspace ID {workspace_id}'
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise RuntimeError(error_msg)
 
-        # Mark workspace as selected
-        workspace_selected = True
-        logger.info('Successfully updated Prometheus workspace')
-        return await get_server_info(ctx)
+        logger.info(f'Successfully configured workspace {workspace_id} for request')
     except Exception as e:
-        error_msg = f'Error setting Prometheus workspace: {str(e)}'
+        error_msg = f'Error configuring workspace: {str(e)}'
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise
@@ -840,17 +785,9 @@ async def set_prometheus_workspace(
 
 async def async_main():
     """Run the async initialization tasks."""
-    global workspace_selected
-    
-    # Only test connection if we have a URL configured
-    if config and config.prometheus_url:
-        if not await test_prometheus_connection():
-            logger.error('Prometheus connection test failed')
-            sys.exit(1)
-        workspace_selected = True
-        logger.info('Prometheus connection successful')
-    else:
-        logger.info('No Prometheus URL configured - workspace selection will be prompted on first tool use')
+    # Initialize with default configuration
+    # Each tool will configure workspace based on provided workspace_id parameter
+    logger.info('Initializing Prometheus MCP Server - workspace ID will be required for each tool invocation')
 
 
 def main():
@@ -868,16 +805,11 @@ def main():
         logger.error('Environment setup failed')
         sys.exit(1)
     
-    # If no URL is provided, we'll prompt for workspace selection later
-    if not config_data['prometheus_url']:
-        logger.info('No Prometheus URL provided - workspace selection will be prompted on first tool use')
-    else:
-        logger.info(f'Using provided Prometheus URL: {config_data["prometheus_url"]}')
-
-    # Create config object
+    # Create config object with default settings
+    # Each tool will configure workspace based on provided workspace_id parameter
     global config
     config = PrometheusConfig(
-        prometheus_url=config_data['prometheus_url'],
+        prometheus_url=None,  # Will be set per-request based on workspace_id
         aws_region=config_data['aws_region'],
         aws_profile=config_data['aws_profile'],
         service_name=config_data['service_name'],
@@ -887,7 +819,6 @@ def main():
 
     # Run async initialization in an event loop
     import asyncio
-
     asyncio.run(async_main())
 
     logger.info('Starting server...')
