@@ -18,7 +18,13 @@ import boto3
 import os
 import re
 import sys
-from datetime import datetime
+from awslabs.cost_explorer_mcp_server.constants import (
+    VALID_DIMENSIONS,
+    VALID_GROUP_BY_DIMENSIONS,
+    VALID_GROUP_BY_TYPES,
+    VALID_MATCH_OPTIONS,
+)
+from datetime import datetime, timezone
 from loguru import logger
 from typing import Any, Dict, Optional, Tuple
 
@@ -56,6 +62,80 @@ def get_cost_explorer_client():
             raise
 
     return _cost_explorer_client
+
+
+def validate_dimension_key(dimension_key: str) -> Dict[str, Any]:
+    """Validate that the dimension key is supported by AWS Cost Explorer.
+
+    Args:
+        dimension_key: The dimension key to validate
+
+    Returns:
+        Empty dictionary if valid, or an error dictionary
+    """
+    try:
+        dimension_upper = dimension_key.upper()
+        if dimension_upper not in VALID_DIMENSIONS:
+            return {
+                'error': f"Invalid dimension key '{dimension_key}'. Valid dimensions are: {', '.join(VALID_DIMENSIONS)}"
+            }
+        return {}
+    except Exception as e:
+        return {'error': f'Error validating dimension key: {str(e)}'}
+
+
+def get_available_dimension_values(
+    key: str, billing_period_start: str, billing_period_end: str
+) -> Dict[str, Any]:
+    """Get available values for a specific dimension."""
+    # Validate dimension key first
+    dimension_validation = validate_dimension_key(key)
+    if 'error' in dimension_validation:
+        return dimension_validation
+
+    # Validate date range (no granularity constraint for dimension values)
+    is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
+    if not is_valid:
+        return {'error': error_message}
+
+    try:
+        ce = get_cost_explorer_client()
+        response = ce.get_dimension_values(
+            TimePeriod={'Start': billing_period_start, 'End': billing_period_end},
+            Dimension=key.upper(),
+        )
+        dimension_values = response['DimensionValues']
+        values = [value['Value'] for value in dimension_values]
+        return {'dimension': key.upper(), 'values': values}
+    except Exception as e:
+        logger.error(
+            f'Error getting dimension values for {key.upper()} ({billing_period_start} to {billing_period_end}): {e}'
+        )
+        return {'error': str(e)}
+
+
+def get_available_tag_values(
+    tag_key: str, billing_period_start: str, billing_period_end: str
+) -> Dict[str, Any]:
+    """Get available values for a specific tag key."""
+    # Validate date range (no granularity constraint for tag values)
+    is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
+    if not is_valid:
+        return {'error': error_message}
+
+    try:
+        ce = get_cost_explorer_client()
+        response = ce.get_tags(
+            TimePeriod={'Start': billing_period_start, 'End': billing_period_end},
+            TagKey=tag_key,
+        )
+        tag_values = response['Tags']
+        return {'tag_key': tag_key, 'values': tag_values}
+    except Exception as e:
+        logger.error(
+            f'Error getting tag values for {tag_key} ({billing_period_start} to {billing_period_end}): {e}'
+        )
+        return {'error': str(e)}
 
 
 def validate_date_format(date_str: str) -> Tuple[bool, str]:
@@ -141,55 +221,6 @@ def validate_date_range(
     return True, ''
 
 
-def get_dimension_values(
-    key: str, billing_period_start: str, billing_period_end: str
-) -> Dict[str, Any]:
-    """Get available values for a specific dimension."""
-    # Validate date range (no granularity constraint for dimension values)
-    is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
-    if not is_valid:
-        return {'error': error_message}
-
-    try:
-        ce = get_cost_explorer_client()
-        response = ce.get_dimension_values(
-            TimePeriod={'Start': billing_period_start, 'End': billing_period_end},
-            Dimension=key.upper(),
-        )
-        dimension_values = response['DimensionValues']
-        values = [value['Value'] for value in dimension_values]
-        return {'dimension': key.upper(), 'values': values}
-    except Exception as e:
-        logger.error(
-            f'Error getting dimension values for {key.upper()} ({billing_period_start} to {billing_period_end}): {e}'
-        )
-        return {'error': str(e)}
-
-
-def get_tag_values(
-    tag_key: str, billing_period_start: str, billing_period_end: str
-) -> Dict[str, Any]:
-    """Get available values for a specific tag key."""
-    # Validate date range (no granularity constraint for tag values)
-    is_valid, error_message = validate_date_range(billing_period_start, billing_period_end)
-    if not is_valid:
-        return {'error': error_message}
-
-    try:
-        ce = get_cost_explorer_client()
-        response = ce.get_tags(
-            TimePeriod={'Start': billing_period_start, 'End': billing_period_end},
-            TagKey=tag_key,
-        )
-        tag_values = response['Tags']
-        return {'tag_key': tag_key, 'values': tag_values}
-    except Exception as e:
-        logger.error(
-            f'Error getting tag values for {tag_key} ({billing_period_start} to {billing_period_end}): {e}'
-        )
-        return {'error': str(e)}
-
-
 def validate_match_options(match_options: list, filter_type: str) -> Dict[str, Any]:
     """Validate MatchOptions based on filter type.
 
@@ -200,12 +231,10 @@ def validate_match_options(match_options: list, filter_type: str) -> Dict[str, A
     Returns:
         Empty dictionary if valid, or an error dictionary
     """
-    if filter_type == 'Dimensions':
-        valid_options = ['EQUALS', 'CASE_SENSITIVE']
-    elif filter_type in ['Tags', 'CostCategories']:
-        valid_options = ['EQUALS', 'ABSENT', 'CASE_SENSITIVE']
-    else:
+    if filter_type not in VALID_MATCH_OPTIONS:
         return {'error': f'Unknown filter type: {filter_type}'}
+
+    valid_options = VALID_MATCH_OPTIONS[filter_type]
 
     for option in match_options:
         if option not in valid_options:
@@ -253,7 +282,7 @@ def validate_expression(
 
             dimension_key = dimension['Key']
             dimension_values = dimension['Values']
-            valid_values_response = get_dimension_values(
+            valid_values_response = get_available_dimension_values(
                 dimension_key, billing_period_start, billing_period_end
             )
             if 'error' in valid_values_response:
@@ -277,7 +306,7 @@ def validate_expression(
 
             tag_key = tag['Key']
             tag_values = tag['Values']
-            valid_tag_values_response = get_tag_values(
+            valid_tag_values_response = get_available_tag_values(
                 tag_key, billing_period_start, billing_period_end
             )
             if 'error' in valid_tag_values_response:
@@ -379,11 +408,304 @@ def validate_group_by(group_by: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         ):
             return {'error': 'group_by must be a dictionary with "Type" and "Key" keys.'}
 
-        if group_by['Type'].upper() not in ['DIMENSION', 'TAG', 'COST_CATEGORY']:
+        group_type = group_by['Type'].upper()
+        group_key = group_by['Key']
+
+        if group_type not in VALID_GROUP_BY_TYPES:
             return {
-                'error': 'Invalid group Type. Valid types are DIMENSION, TAG, and COST_CATEGORY.'
+                'error': f'Invalid group Type: {group_type}. Valid types are {", ".join(VALID_GROUP_BY_TYPES)}.'
             }
+
+        # Validate dimension key if type is DIMENSION
+        if group_type == 'DIMENSION':
+            dimension_upper = group_key.upper()
+            if dimension_upper not in VALID_GROUP_BY_DIMENSIONS:
+                return {
+                    'error': f'Invalid dimension key for GROUP BY: {group_key}. Valid values for the DIMENSION type are {", ".join(VALID_GROUP_BY_DIMENSIONS)}.'
+                }
 
         return {}
     except Exception as e:
         return {'error': f'Error validating group_by: {str(e)}'}
+
+
+def validate_forecast_date_range(
+    start_date: str, end_date: str, granularity: str = 'MONTHLY'
+) -> Tuple[bool, str]:
+    """Validate that forecast dates meet AWS Cost Explorer requirements.
+
+    Args:
+        start_date: The forecast start date string in YYYY-MM-DD format
+        end_date: The forecast end date string in YYYY-MM-DD format
+        granularity: The granularity for the forecast (DAILY or MONTHLY)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    # First validate basic date format and range
+    is_valid, error = validate_date_range(start_date, end_date)
+    if not is_valid:
+        return False, error
+
+    today = datetime.now(timezone.utc).date()
+    start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+    end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+    # AWS requires start date to be equal to or no later than current date
+    if start_dt > today:
+        return (
+            False,
+            f"Forecast start date '{start_date}' must be equal to or no later than the current date ({today})",
+        )
+
+    # End date must be in the future
+    if end_dt <= today:
+        return False, f"Forecast end date '{end_date}' must be in the future (after {today})"
+
+    # AWS Cost Explorer forecast granularity-specific limits
+    date_diff = (end_dt - start_dt).days
+
+    if granularity.upper() == 'DAILY':
+        # DAILY forecasts support maximum 3 months (approximately 93 days)
+        if date_diff > 93:
+            return (
+                False,
+                f'DAILY granularity supports a maximum of 3 months (93 days). Current range is {date_diff} days ({start_date} to {end_date}). Please use a shorter date range or MONTHLY granularity.',
+            )
+    elif granularity.upper() == 'MONTHLY':
+        # MONTHLY forecasts support maximum 12 months
+        max_forecast_date = datetime.now(timezone.utc).date().replace(year=today.year + 1)
+        if end_dt > max_forecast_date:
+            return (
+                False,
+                f"MONTHLY granularity supports a maximum of 12 months in the future. Forecast end date '{end_date}' exceeds the limit (max: {max_forecast_date}).",
+            )
+
+    return True, ''
+
+
+def validate_comparison_date_range(start_date: str, end_date: str) -> Tuple[bool, str]:
+    """Validate that comparison dates meet AWS Cost Explorer comparison API requirements.
+
+    Args:
+        start_date: The start date string in YYYY-MM-DD format
+        end_date: The end date string in YYYY-MM-DD format
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    # First validate basic date format and range
+    is_valid, error = validate_date_range(start_date, end_date)
+    if not is_valid:
+        return False, error
+
+    today = datetime.now(timezone.utc).date()
+    start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+    end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+    # AWS requires start date to be equal to or no later than current date
+    if start_dt > today:
+        return (
+            False,
+            f"Comparison start date '{start_date}' must be equal to or no later than the current date ({today})",
+        )
+
+    # Must start on the first day of a month
+    if start_dt.day != 1:
+        return (
+            False,
+            f"Comparison start date '{start_date}' must be the first day of a month (e.g., 2025-01-01)",
+        )
+
+    # Must end on the first day of a month (exclusive end date)
+    if end_dt.day != 1:
+        return (
+            False,
+            f"Comparison end date '{end_date}' must be the first day of a month (e.g., 2025-02-01)",
+        )
+
+    # Comparison periods can only go up to the last complete month
+    # Calculate the first day of current month (last complete month boundary)
+    current_month_start = today.replace(day=1)
+    # The comparison period (start_date) cannot be in the current month or future
+    if start_dt >= current_month_start:
+        # Calculate last complete month for user guidance
+        if current_month_start.month == 1:
+            last_complete_month = current_month_start.replace(
+                year=current_month_start.year - 1, month=12
+            )
+        else:
+            last_complete_month = current_month_start.replace(month=current_month_start.month - 1)
+        return (
+            False,
+            f'Comparison periods can only include complete months. Current month ({current_month_start.strftime("%Y-%m")}) is not complete yet. Latest allowed start date: {last_complete_month.strftime("%Y-%m-%d")}',
+        )
+
+    # Must be exactly one month duration
+    # Calculate expected end date (first day of next month)
+    if start_dt.month == 12:
+        expected_end = start_dt.replace(year=start_dt.year + 1, month=1)
+    else:
+        expected_end = start_dt.replace(month=start_dt.month + 1)
+
+    if end_dt != expected_end:
+        return (
+            False,
+            f"Comparison period must be exactly one month. For start date '{start_date}', end date should be '{expected_end.strftime('%Y-%m-%d')}'",
+        )
+
+    # Check 13-month lookback limit (38 months if multi-year enabled, but we'll use 13 as conservative)
+    thirteen_months_ago = today.replace(day=1)
+    for _ in range(13):
+        if thirteen_months_ago.month == 1:
+            thirteen_months_ago = thirteen_months_ago.replace(
+                year=thirteen_months_ago.year - 1, month=12
+            )
+        else:
+            thirteen_months_ago = thirteen_months_ago.replace(month=thirteen_months_ago.month - 1)
+
+    if start_dt < thirteen_months_ago:
+        return (
+            False,
+            f"Comparison start date '{start_date}' cannot be more than 13 months ago (earliest: {thirteen_months_ago.strftime('%Y-%m-%d')})",
+        )
+
+    return True, ''
+
+
+def extract_group_key_from_complex_selector(
+    selector: Dict[str, Any], group_by: Dict[str, str]
+) -> str:
+    """Extract group key from complex CostSelector structures dynamically.
+
+    Args:
+        selector: The CostSelector dictionary from API response
+        group_by: The GroupBy dictionary with Type and Key
+
+    Returns:
+        String representing the group key
+    """
+    group_type = group_by.get('Type', '').upper()
+    group_key = group_by.get('Key', '')
+
+    def search_for_group_key(sel_part):
+        """Recursively search for the group key in any part of the selector."""
+        if isinstance(sel_part, dict):
+            # Check if this is the structure we're looking for
+            if group_type == 'DIMENSION' and 'Dimensions' in sel_part:
+                dim_info = sel_part['Dimensions']
+                if dim_info.get('Key') == group_key and 'Values' in dim_info:
+                    values = dim_info['Values']
+                    return values[0] if values and values[0] else f'No {group_key}'
+
+            elif group_type == 'TAG' and 'Tags' in sel_part:
+                tag_info = sel_part['Tags']
+                if tag_info.get('Key') == group_key and 'Values' in tag_info:
+                    values = tag_info['Values']
+                    return values[0] if values and values[0] else f'No {group_key}'
+
+            elif group_type == 'COST_CATEGORY' and 'CostCategories' in sel_part:
+                cc_info = sel_part['CostCategories']
+                if cc_info.get('Key') == group_key and 'Values' in cc_info:
+                    values = cc_info['Values']
+                    return values[0] if values and values[0] else f'No {group_key}'
+
+            # Recursively search in nested structures
+            for key, value in sel_part.items():
+                if key in ['And', 'Or'] and isinstance(value, list):
+                    for item in value:
+                        result = search_for_group_key(item)
+                        if result:
+                            return result
+                elif key == 'Not' and isinstance(value, dict):
+                    result = search_for_group_key(value)
+                    if result:
+                        return result
+
+        return None
+
+    result = search_for_group_key(selector)
+    return result if result else 'Unknown'
+
+
+def extract_usage_context_from_selector(selector: Dict[str, Any]) -> Dict[str, str]:
+    """Extract all available context from complex selectors dynamically.
+
+    Args:
+        selector: The CostSelector dictionary from API response
+
+    Returns:
+        Dictionary with all available context information
+    """
+    context = {}
+
+    def extract_from_structure(sel_part):
+        """Recursively extract context from any part of the selector."""
+        if isinstance(sel_part, dict):
+            # Extract from Dimensions
+            if 'Dimensions' in sel_part:
+                dim_info = sel_part['Dimensions']
+                key = dim_info.get('Key', '')
+                values = dim_info.get('Values', [])
+                if values and values[0]:  # Skip empty values
+                    context[key.lower()] = values[0]
+
+            # Extract from Tags
+            if 'Tags' in sel_part:
+                tag_info = sel_part['Tags']
+                tag_key = tag_info.get('Key', '')
+                values = tag_info.get('Values', [])
+                if values and values[0]:
+                    context[f'tag_{tag_key.lower()}'] = values[0]
+
+            # Extract from CostCategories
+            if 'CostCategories' in sel_part:
+                cc_info = sel_part['CostCategories']
+                cc_key = cc_info.get('Key', '')
+                values = cc_info.get('Values', [])
+                if values and values[0]:
+                    context[f'category_{cc_key.lower()}'] = values[0]
+
+            # Recursively process nested structures
+            for key, value in sel_part.items():
+                if key in ['And', 'Or'] and isinstance(value, list):
+                    for item in value:
+                        extract_from_structure(item)
+                elif key == 'Not' and isinstance(value, dict):
+                    extract_from_structure(value)
+
+    extract_from_structure(selector)
+    return context
+
+
+def create_detailed_group_key(
+    group_key: str, context: Dict[str, str], group_by: Dict[str, str]
+) -> str:
+    """Create a detailed group key that includes relevant context.
+
+    Since AWS always includes SERVICE and USAGE_TYPE, we can use them for context.
+
+    Args:
+        group_key: The primary group key extracted from the selector
+        context: Additional context from the selector
+        group_by: The GroupBy dictionary with Type and Key
+
+    Returns:
+        Enhanced group key with context
+    """
+    # Get the always-present context
+    service = context.get('service', '')
+    usage_type = context.get('usage_type', '')
+
+    # Create a meaningful key based on what's available
+    parts = [group_key]
+
+    # Add service context if it's not the group key itself
+    if service and group_by.get('Key') != 'SERVICE':
+        parts.append(service)
+
+    # Add usage type in parentheses for specificity
+    if usage_type:
+        return f'{" - ".join(parts)} ({usage_type})'
+
+    return ' - '.join(parts)
