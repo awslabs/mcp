@@ -19,6 +19,59 @@ from botocore.exceptions import ClientError
 """Tests for RDS Management MCP Server utilities."""
 
 
+class TestApplyDocstring:
+    """Tests for apply_docstring decorator."""
+
+    def test_apply_docstring(self):
+        """Test that docstring is applied correctly."""
+
+        def test_func(x, y):
+            """Original docstring."""
+            return x + y
+
+        new_docstring = 'This is a new docstring.'
+        decorated_func = utils.apply_docstring(new_docstring)(test_func)
+
+        assert decorated_func.__doc__ == new_docstring
+        assert decorated_func(1, 2) == 3
+
+    def test_apply_docstring_preserves_function_metadata(self):
+        """Test that function metadata is preserved."""
+
+        def test_func(x):
+            """Original docstring."""
+            return x * 2
+
+        decorated_func = utils.apply_docstring('New docstring')(test_func)
+
+        # Check that function metadata is preserved (thanks to @wraps)
+        assert decorated_func.__name__ == test_func.__name__
+        assert decorated_func.__module__ == test_func.__module__
+        assert decorated_func.__qualname__ == test_func.__qualname__
+
+    def test_apply_docstring_with_multiline_docstring(self):
+        """Test applying a multiline docstring."""
+
+        def test_func():
+            pass
+
+        multiline_doc = """
+        This is a multiline docstring.
+
+        It has multiple paragraphs and should be
+        preserved exactly as is.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+
+        decorated_func = utils.apply_docstring(multiline_doc)(test_func)
+        assert decorated_func.__doc__ == multiline_doc
+
+
 @pytest.mark.asyncio
 class TestHandleAwsError:
     """Tests for handle_aws_error function."""

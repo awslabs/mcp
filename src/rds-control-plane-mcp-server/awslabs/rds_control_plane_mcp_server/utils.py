@@ -16,9 +16,10 @@
 
 from .constants import ERROR_AWS_API, ERROR_UNEXPECTED
 from botocore.exceptions import ClientError
+from functools import wraps
 from loguru import logger
 from mcp.server.fastmcp import Context
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 
 def format_aws_response(response: Dict[str, Any]) -> Dict[str, Any]:
@@ -56,6 +57,31 @@ def convert_datetime_to_string(obj: Any) -> Any:
     elif isinstance(obj, list):
         return [convert_datetime_to_string(item) for item in obj]
     return obj
+
+
+def apply_docstring(docstring: str) -> Callable:
+    """Decorator to apply an external docstring to a function.
+
+    This decorator should be the innermost decorator applied to a function
+    (below the @mcp.resource decorator) to ensure the MCP framework sees the
+    updated docstring.
+
+    Args:
+        docstring: The docstring to apply to the function
+
+    Returns:
+        Decorator function that applies the docstring
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        wrapper.__doc__ = docstring
+        return wrapper
+
+    return decorator
 
 
 async def handle_aws_error(
