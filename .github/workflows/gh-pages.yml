@@ -29,5 +29,5 @@ jobs:
           restore-keys: |
             mkdocs-material-
       - run: |
-          pip install --require-hashes --requirement ${{ github.workspace }}/.github/workflows/mkdocs-requirements.txt
+          pip install --require-hashes --requirement .github/workflows/mkdocs-requirements.txt
       - run: mkdocs gh-deploy --force
