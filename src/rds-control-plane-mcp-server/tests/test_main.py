@@ -39,7 +39,7 @@ def mock_argparse():
         mock_args.region = 'us-east-1'
         mock_args.readonly = 'true'
         mock_args.profile = None
-        mock_args.sse = False
+        mock_args.port = 8888  # Default port
         mock_parser.parse_args.return_value = mock_args
         yield mock_argparse
 
@@ -55,16 +55,18 @@ def test_main_standard_run(mock_fastmcp, mock_argparse):
         mock_fastmcp.run.assert_called_once()
 
 
-def test_main_with_sse(mock_fastmcp, mock_argparse):
-    """Test that main runs with SSE transport."""
-    mock_argparse.return_value.parse_args.return_value.sse = True
+def test_main_with_port(mock_fastmcp, mock_argparse):
+    """Test that main runs with a custom port."""
+    # SSE option has been removed, just test port setting
     mock_argparse.return_value.parse_args.return_value.port = 8888
 
     with patch('awslabs.rds_control_plane_mcp_server.server.logger') as mock_logger:
         main()
 
+        # Verify the port is set correctly
         assert mock_fastmcp.settings.port == 8888
-        mock_fastmcp.run.assert_called_once_with(transport='sse')
+        # Verify that run is called with default transport (no arguments)
+        mock_fastmcp.run.assert_called_once()
 
 
 def test_main_with_aws_profile(mock_fastmcp, mock_argparse):
