@@ -28,4 +28,4 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Initialize boto3 client
-datazone_client = boto3.client('datazone', config=Config(user_agent_extra="Datazone-MCP/1.0"))
+datazone_client = boto3.client('datazone', config=Config(user_agent_extra='Datazone-MCP/1.0'))
