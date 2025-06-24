@@ -26,7 +26,8 @@ jobs:
           python-version: '3.x'
           cache: 'pip'
       - run: |
-          python -m pip install --require-hashes --requirement semgrep-requirements.txt
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          python -m pip install --require-hashes --requirement ${{ env.GITHUB_WORKSPACE }}/.github/workflows/semgrep-requirements.txt
       - run: semgrep scan --config auto --sarif-output semgrep.sarif.json --no-error --dryrun --verbose
       - name: Upload Semgrep scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@57eebf61a2246ab60a0c2f5a85766db783ad3553 # v3.28.15

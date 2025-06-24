@@ -42,7 +42,8 @@ jobs:
       with:
         python-version-file: ${{ matrix.precommit }}/.python-version
     - run: |
-        python -m pip install --require-hashes --requirement pre-commit-requirements.txt
+        echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+        python -m pip install --require-hashes --requirement ${{ env.GITHUB_WORKSPACE }}/.github/workflows/pre-commit-requirements.txt
         python -m pip freeze --local
     - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 #v4.2.3
       with:

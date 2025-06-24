@@ -69,7 +69,9 @@ jobs:
           fi
 
       - name: Install Bandit
-        run: pip install --require-hashes --requirement bandit-requirements.txt
+        run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          pip install --require-hashes --requirement ${{ env.GITHUB_WORKSPACE }}/.github/workflows/bandit-requirements.txt
 
       - name: Security check - Bandit
         id: bandit-check

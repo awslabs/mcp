@@ -28,5 +28,7 @@ jobs:
           path: .cache
           restore-keys: |
             mkdocs-material-
-      - run: pip install --require-hashes --requirement mkdocs-requirements.txt
+      - run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+          pip install --require-hashes --requirement ${{ env.GITHUB_WORKSPACE }}/.github/workflows/mkdocs-requirements.txt
       - run: mkdocs gh-deploy --force
