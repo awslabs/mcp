@@ -8,7 +8,8 @@
       "**/*venv/**",
       "**/site-packages/**",
       ".github/**",
-      "docs/**"
+      "docs/**",
+      "**/*requirements.txt"
     ],
     "include": [
       "**/*.py",
@@ -34,7 +35,8 @@
       "**/tests/**",
       ".venv/**",
       ".github/**",
-      "docs/**"
+      "docs/**",
+      "**/*requirements.txt"
     ]
   }
 ]
