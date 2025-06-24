@@ -113,8 +113,8 @@ def preview_csv_structure(s3_url: str) -> Dict:
             return {'status': 'error', 'error': error_msg}
 
         # At this point, bucket and key are guaranteed to be non-None strings
-        assert bucket is not None
-        assert key is not None
+        if bucket is None or key is None:
+            return {'status': 'error', 'error': 'Invalid S3 URL: bucket or key is None'}
 
         # Check if file has .csv extension
         if not key.lower().endswith('.csv'):
@@ -371,8 +371,8 @@ async def import_csv_to_table(
         return {'status': 'error', 'error': error_msg}
 
     # At this point, bucket and key are guaranteed to be non-None strings
-    assert bucket is not None
-    assert key is not None
+    if bucket is None or key is None:
+        return {'status': 'error', 'error': 'Invalid S3 URL: bucket or key is None'}
 
     # Check if file has .csv extension
     if not key.lower().endswith('.csv'):
