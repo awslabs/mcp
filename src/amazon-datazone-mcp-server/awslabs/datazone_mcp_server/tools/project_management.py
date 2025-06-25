@@ -13,7 +13,7 @@
 # limitations under the License.
 """Project management tools for Amazon DataZone."""
 
-from .common import USER_AGENT, ClientError, datazone_client, httpx, logger
+from .common import USER_AGENT, ClientError, datazone_client, httpx, logger, _get_param_value
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, List, Optional
 from pydantic import Field
@@ -49,10 +49,10 @@ def register_tools(mcp: FastMCP):
         try:
             # Handle optional parameters
             description_value = '' if description is None else description
-            domain_unit_id_value = None if domain_unit_id is None else domain_unit_id
-            glossary_terms_value = None if glossary_terms is None else glossary_terms
-            project_profile_id_value = None if project_profile_id is None else project_profile_id
-            user_parameters_value = None if user_parameters is None else user_parameters
+            domain_unit_id_value = _get_param_value(domain_unit_id)
+            glossary_terms_value = _get_param_value(glossary_terms)
+            project_profile_id_value = _get_param_value(project_profile_id)
+            user_parameters_value = _get_param_value(user_parameters)
 
             # Prepare the request parameters
             params: Dict[str, Any] = {'name': name, 'description': description_value}
@@ -128,11 +128,11 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
-            name_value = None if name is None else name
-            user_identifier_value = None if user_identifier is None else user_identifier
-            group_identifier_value = None if group_identifier is None else group_identifier
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
+            name_value = _get_param_value(name)
+            user_identifier_value = _get_param_value(user_identifier)
+            group_identifier_value = _get_param_value(group_identifier)
 
             # Prepare the request parameters
             params = {
@@ -205,8 +205,8 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
 
             # Prepare the request parameters
             params = {
@@ -270,9 +270,9 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            description_value = None if description is None else description
-            domain_unit_identifier_value = None if domain_unit_identifier is None else domain_unit_identifier
-            environment_configurations_value = None if environment_configurations is None else environment_configurations
+            description_value = _get_param_value(description)
+            domain_unit_identifier_value = _get_param_value(domain_unit_identifier)
+            environment_configurations_value = _get_param_value(environment_configurations)
             status_value = 'ENABLED' if status is None else status
 
             logger.info(f"Creating project profile '{name}' in domain {domain_identifier}")
@@ -514,10 +514,10 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
-            sort_by_value = None if sort_by is None else sort_by
-            sort_order_value = None if sort_order is None else sort_order
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
+            sort_by_value = _get_param_value(sort_by)
+            sort_order_value = _get_param_value(sort_order)
 
             # Prepare the request parameters
             params = {

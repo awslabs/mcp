@@ -13,7 +13,7 @@
 # limitations under the License.
 """Environment management tools for Amazon DataZone."""
 
-from .common import ClientError, datazone_client, logger
+from .common import ClientError, datazone_client, logger, _get_param_value
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, Optional
 from pydantic import Field
@@ -65,15 +65,15 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
-            aws_account_id_value = None if aws_account_id is None else aws_account_id
-            aws_account_region_value = None if aws_account_region is None else aws_account_region
-            environment_blueprint_identifier_value = None if environment_blueprint_identifier is None else environment_blueprint_identifier
-            environment_profile_identifier_value = None if environment_profile_identifier is None else environment_profile_identifier
-            name_value = None if name is None else name
-            provider_value = None if provider is None else provider
-            status_value = None if status is None else status
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
+            aws_account_id_value = _get_param_value(aws_account_id)
+            aws_account_region_value = _get_param_value(aws_account_region)
+            environment_blueprint_identifier_value = _get_param_value(environment_blueprint_identifier)
+            environment_profile_identifier_value = _get_param_value(environment_profile_identifier)
+            name_value = _get_param_value(name)
+            provider_value = _get_param_value(provider)
+            status_value = _get_param_value(status)
 
             params = {
                 'domainIdentifier': domain_identifier,
@@ -168,11 +168,11 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            environment_identifier_value = None if environment_identifier is None else environment_identifier
-            aws_location_value = None if aws_location is None else aws_location
-            description_value = None if description is None else description
-            client_token_value = None if client_token is None else client_token
-            props_value = None if props is None else props
+            environment_identifier_value = _get_param_value(environment_identifier)
+            aws_location_value = _get_param_value(aws_location)
+            description_value = _get_param_value(description)
+            client_token_value = _get_param_value(client_token)
+            props_value = _get_param_value(props)
 
             # Prepare the request parameters
             params: Dict[str, Any] = {'domainIdentifier': domain_identifier, 'name': name}
@@ -573,13 +573,13 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
-            environment_identifier_value = None if environment_identifier is None else environment_identifier
-            name_value = None if name is None else name
-            sort_by_value = None if sort_by is None else sort_by
-            sort_order_value = None if sort_order is None else sort_order
-            type_value = None if type is None else type
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
+            environment_identifier_value = _get_param_value(environment_identifier)
+            name_value = _get_param_value(name)
+            sort_by_value = _get_param_value(sort_by)
+            sort_order_value = _get_param_value(sort_order)
+            type_value = _get_param_value(type)
 
             # Prepare the request parameters
             params = {
@@ -654,10 +654,10 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            managed_value = None if managed is None else managed
-            max_results_value = 50 if max_results is None else max_results
-            name_value = None if name is None else name
-            next_token_value = None if next_token is None else next_token
+            managed_value = _get_param_value(managed)
+            max_results_value = int(max_results) if max_results is not None else 50
+            name_value = _get_param_value(name)
+            next_token_value = _get_param_value(next_token)
 
             logger.info(f'Listing environment blueprints in domain {domain_identifier}')
 
@@ -773,8 +773,8 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
 
             logger.info(
                 f'Listing environment blueprint configurations in domain {domain_identifier}'
@@ -914,13 +914,13 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            aws_account_id_value = None if aws_account_id is None else aws_account_id
-            aws_account_region_value = None if aws_account_region is None else aws_account_region
-            environment_blueprint_identifier_value = None if environment_blueprint_identifier is None else environment_blueprint_identifier
-            max_results_value = 50 if max_results is None else max_results
-            name_value = None if name is None else name
-            next_token_value = None if next_token is None else next_token
-            project_identifier_value = None if project_identifier is None else project_identifier
+            aws_account_id_value = _get_param_value(aws_account_id)
+            aws_account_region_value = _get_param_value(aws_account_region)
+            environment_blueprint_identifier_value = _get_param_value(environment_blueprint_identifier)
+            max_results_value = int(max_results) if max_results is not None else 50
+            name_value = _get_param_value(name)
+            next_token_value = _get_param_value(next_token)
+            project_identifier_value = _get_param_value(project_identifier)
 
             logger.info(f'Listing environment profiles in domain {domain_identifier}')
 

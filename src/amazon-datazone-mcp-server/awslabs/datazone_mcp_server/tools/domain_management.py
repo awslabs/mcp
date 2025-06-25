@@ -13,7 +13,7 @@
 # limitations under the License.
 """Domain management tools for Amazon DataZone."""
 
-from .common import ClientError, datazone_client, logger
+from .common import ClientError, datazone_client, logger, _get_param_value
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, List, Optional
 from pydantic import Field
@@ -74,10 +74,10 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            description_value = None if description is None else description
-            kms_key_identifier_value = None if kms_key_identifier is None else kms_key_identifier
-            tags_value = None if tags is None else tags
-            single_sign_on_value = None if single_sign_on is None else single_sign_on
+            description_value = _get_param_value(description)
+            kms_key_identifier_value = _get_param_value(kms_key_identifier)
+            tags_value = _get_param_value(tags)
+            single_sign_on_value = _get_param_value(single_sign_on)
 
             logger.info(f'Creating {domain_version} domain: {name}')
 
@@ -179,9 +179,9 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 25 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
-            status_value = None if status is None else status
+            max_results_value = int(max_results) if max_results is not None else 25
+            next_token_value = _get_param_value(next_token)
+            status_value = _get_param_value(status)
 
             logger.info('Listing domains')
             params: Dict[str, Any] = {
@@ -289,8 +289,8 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            description_value = None if description is None else description
-            client_token_value = None if client_token is None else client_token
+            description_value = _get_param_value(description)
+            client_token_value = _get_param_value(client_token)
 
             logger.info(f"Creating domain unit '{name}' in domain {domain_identifier}")
 
@@ -475,7 +475,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            client_token_value = None if client_token is None else client_token
+            client_token_value = _get_param_value(client_token)
 
             logger.info(
                 f'Adding owner {owner_identifier} to {entity_type.lower()} {entity_identifier} in domain {domain_identifier}'
@@ -543,8 +543,8 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            client_token_value = None if client_token is None else client_token
-            detail_value = None if detail is None else detail
+            client_token_value = _get_param_value(client_token)
+            detail_value = _get_param_value(detail)
 
             logger.info(
                 f'Adding policy {policy_type.lower()} to {principal_type.lower()} {principal_identifier} for {entity_type.lower()} {entity_identifier} in domain {domain_identifier}'
@@ -643,14 +643,14 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            additional_attributes_value = None if additional_attributes is None else additional_attributes
-            filters_value = None if filters is None else filters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
-            owning_project_identifier_value = None if owning_project_identifier is None else owning_project_identifier
-            search_in_value = None if search_in is None else search_in
-            search_text_value = None if search_text is None else search_text
-            sort_value = None if sort is None else sort
+            additional_attributes_value = _get_param_value(additional_attributes)
+            filters_value = _get_param_value(filters)
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
+            owning_project_identifier_value = _get_param_value(owning_project_identifier)
+            search_in_value = _get_param_value(search_in)
+            search_text_value = _get_param_value(search_text)
+            sort_value = _get_param_value(sort)
 
             logger.info(f'Searching {search_scope.lower()} in domain {domain_identifier}')
             # Validate search_scope
@@ -756,12 +756,12 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            filters_value = None if filters is None else filters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
-            search_in_value = None if search_in is None else search_in
-            search_text_value = None if search_text is None else search_text
-            sort_value = None if sort is None else sort
+            filters_value = _get_param_value(filters)
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
+            search_in_value = _get_param_value(search_in)
+            search_text_value = _get_param_value(search_text)
+            sort_value = _get_param_value(sort)
 
             logger.info(f'Searching types {search_scope.lower()} in domain {domain_identifier}')
             # Validate search_scope
@@ -854,7 +854,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            user_type_value = None if user_type is None else user_type
+            user_type_value = _get_param_value(user_type)
 
             params = {'domainIdentifier': domain_identifier, 'userIdentifier': user_identifier}
 
@@ -923,9 +923,9 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
-            search_text_value = None if search_text is None else search_text
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
+            search_text_value = _get_param_value(search_text)
 
             logger.info(f'Searching {user_type} user profiles in domain {domain_identifier}')
             # Validate user_type
@@ -1032,9 +1032,9 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 50 if max_results is None else max_results
-            next_token_value = None if next_token is None else next_token
-            search_text_value = None if search_text is None else search_text
+            max_results_value = int(max_results) if max_results is not None else 50
+            next_token_value = _get_param_value(next_token)
+            search_text_value = _get_param_value(search_text)
 
             logger.info(f'Searching {group_type} group profiles in domain {domain_identifier}')
             # Validate user_type

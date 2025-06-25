@@ -13,7 +13,7 @@
 # limitations under the License.
 """Glossary management tools for Amazon DataZone."""
 
-from .common import ClientError, datazone_client
+from .common import ClientError, datazone_client, _get_param_value
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, List, Optional
 from pydantic import Field
@@ -57,9 +57,9 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            description_value = None if description is None else description
+            description_value = _get_param_value(description)
             status_value = 'ENABLED' if status is None else status
-            client_token_value = None if client_token is None else client_token
+            client_token_value = _get_param_value(client_token)
 
             # Validate status
             if status_value not in ['ENABLED', 'DISABLED']:
@@ -133,11 +133,11 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            short_description_value = None if short_description is None else short_description
-            long_description_value = None if long_description is None else long_description
+            short_description_value = _get_param_value(short_description)
+            long_description_value = _get_param_value(long_description)
             status_value = 'ENABLED' if status is None else status
-            term_relations_value = None if term_relations is None else term_relations
-            client_token_value = None if client_token is None else client_token
+            term_relations_value = _get_param_value(term_relations)
+            client_token_value = _get_param_value(client_token)
 
             # Validate status
             if status_value not in ['ENABLED', 'DISABLED']:

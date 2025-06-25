@@ -13,9 +13,9 @@
 # limitations under the License.
 """Data management tools for Amazon DataZone."""
 
-from .common import ClientError, datazone_client, logger
+from .common import ClientError, datazone_client, logger, _get_param_value
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
+from pydantic import Field, FieldInfo
 from typing import Any, Dict, List, Optional
 
 
@@ -62,7 +62,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            revision_value = None if revision is None else revision
+            revision_value = _get_param_value(revision)
 
             # Prepare the request parameters
             params = {'domainIdentifier': domain_identifier, 'identifier': asset_identifier}
@@ -175,13 +175,13 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            description_value = None if description is None else description
-            external_identifier_value = None if external_identifier is None else external_identifier
-            forms_input_value = None if forms_input is None else forms_input
-            glossary_terms_value = None if glossary_terms is None else glossary_terms
-            prediction_configuration_value = None if prediction_configuration is None else prediction_configuration
-            type_revision_value = None if type_revision is None else type_revision
-            client_token_value = None if client_token is None else client_token
+            description_value = _get_param_value(description)
+            external_identifier_value = _get_param_value(external_identifier)
+            forms_input_value = _get_param_value(forms_input)
+            glossary_terms_value = _get_param_value(glossary_terms)
+            prediction_configuration_value = _get_param_value(prediction_configuration)
+            type_revision_value = _get_param_value(type_revision)
+            client_token_value = _get_param_value(client_token)
 
             # Prepare the request parameters
             params: Dict[str, Any] = {
@@ -280,8 +280,8 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            revision_value = None if revision is None else revision
-            client_token_value = None if client_token is None else client_token
+            revision_value = _get_param_value(revision)
+            client_token_value = _get_param_value(client_token)
 
             # Prepare the request parameters
             params = {'domainIdentifier': domain_identifier, 'identifier': asset_identifier}
@@ -329,7 +329,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            listing_revision_value = None if listing_revision is None else listing_revision
+            listing_revision_value = _get_param_value(listing_revision)
 
             # Prepare the request parameters
             params = {'domainIdentifier': domain_identifier, 'identifier': identifier}
@@ -379,12 +379,12 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = 50 if max_results is None else max_results
-            search_text_value = None if search_text is None else search_text
-            next_token_value = None if next_token is None else next_token
-            additional_attributes_value = None if additional_attributes is None else additional_attributes
-            search_in_value = None if search_in is None else search_in
-            sort_value = None if sort is None else sort
+            max_results_value = int(max_results) if max_results is not None else 50
+            search_text_value = _get_param_value(search_text)
+            next_token_value = _get_param_value(next_token)
+            additional_attributes_value = _get_param_value(additional_attributes)
+            search_in_value = _get_param_value(search_in)
+            sort_value = _get_param_value(sort)
 
             # Prepare the request parameters
             params = {
@@ -472,16 +472,16 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            description_value = None if description is None else description
+            description_value = _get_param_value(description)
             enable_setting_value = 'ENABLED' if enable_setting is None else enable_setting
-            environment_identifier_value = None if environment_identifier is None else environment_identifier
-            connection_identifier_value = None if connection_identifier is None else connection_identifier
-            configuration_value = None if configuration is None else configuration
-            asset_forms_input_value = None if asset_forms_input is None else asset_forms_input
+            environment_identifier_value = _get_param_value(environment_identifier)
+            connection_identifier_value = _get_param_value(connection_identifier)
+            configuration_value = _get_param_value(configuration)
+            asset_forms_input_value = _get_param_value(asset_forms_input)
             publish_on_import_value = False if publish_on_import is None else publish_on_import
-            recommendation_value = None if recommendation is None else recommendation
-            schedule_value = None if schedule is None else schedule
-            client_token_value = None if client_token is None else client_token
+            recommendation_value = _get_param_value(recommendation)
+            schedule_value = _get_param_value(schedule)
+            client_token_value = _get_param_value(client_token)
 
             # Prepare the request parameters
             params = {
@@ -599,7 +599,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            client_token_value = None if client_token is None else client_token
+            client_token_value = _get_param_value(client_token)
 
             # Prepare the request parameters
             params = {
@@ -696,8 +696,8 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            metadata_forms_value = None if metadata_forms is None else metadata_forms
-            client_token_value = None if client_token is None else client_token
+            metadata_forms_value = _get_param_value(metadata_forms)
+            client_token_value = _get_param_value(client_token)
 
             # Prepare the request parameters
             params = {
@@ -749,8 +749,8 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            asset_scopes_value = None if asset_scopes is None else asset_scopes
-            decision_comment_value = None if decision_comment is None else decision_comment
+            asset_scopes_value = _get_param_value(asset_scopes)
+            decision_comment_value = _get_param_value(decision_comment)
             
             # Prepare the request parameters
             params: Dict[str, Any] = {
@@ -850,7 +850,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            revision_value = None if revision is None else revision
+            revision_value = _get_param_value(revision)
 
             # Prepare the request parameters
             params = {
@@ -925,7 +925,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            description_value = None if description is None else description
+            description_value = _get_param_value(description)
             status_value = 'ENABLED' if status is None else status
 
             # Validate status
@@ -1022,13 +1022,13 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            connection_identifier_value = None if connection_identifier is None else connection_identifier
-            environment_identifier_value = None if environment_identifier is None else environment_identifier
-            max_results_value = 50 if max_results is None else max_results
-            name_value = None if name is None else name
-            next_token_value = None if next_token is None else next_token
-            status_value = None if status is None else status
-            data_source_type_value = None if data_source_type is None else data_source_type
+            connection_identifier_value = _get_param_value(connection_identifier)
+            environment_identifier_value = _get_param_value(environment_identifier)
+            max_results_value = int(max_results) if max_results is not None else 50
+            name_value = _get_param_value(name)
+            next_token_value = _get_param_value(next_token)
+            status_value = _get_param_value(status)
+            data_source_type_value = _get_param_value(data_source_type)
 
             # Prepare the request parameters
             params = {
