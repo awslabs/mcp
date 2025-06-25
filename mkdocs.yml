@@ -30,7 +30,6 @@ extra_css:
   - stylesheets/tailwind.min.css
 extra_javascript:
   - assets/javascripts/card-grid.js
-  - assets/javascripts/highlighted-cards.js
 plugins:
   - privacy
   - search
