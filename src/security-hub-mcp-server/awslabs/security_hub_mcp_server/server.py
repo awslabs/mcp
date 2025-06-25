@@ -19,6 +19,7 @@ import boto3
 import json
 import logging
 import os
+from enum import Enum
 from mcp.server.fastmcp import FastMCP
 from typing import Dict, List, Optional
 
@@ -40,7 +41,25 @@ logger.info(f'Using AWS profile {profile_name}')
 VALID_SEVERITIES = ['INFORMATIONAL', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 VALID_WORKFLOW_STATUSES = ['NEW', 'NOTIFIED', 'RESOLVED', 'SUPPRESSED']
 
-# introduce a Severity enum and update get_findings to resolve the string severity parameter to a Severity, then use that to specify filter values AI!
+
+class Severity(str, Enum):
+    """Security Hub Severity levels as defined in the Security Hub API.
+
+    See: https://docs.aws.amazon.com/securityhub/1.0/APIReference/API_Severity.html
+
+    Attributes:
+        INFORMATIONAL: Informational severity level
+        LOW: Low severity level
+        MEDIUM: Medium severity level
+        HIGH: High severity level
+        CRITICAL: Critical severity level
+    """
+
+    INFORMATIONAL = 'INFORMATIONAL'
+    LOW = 'LOW'
+    MEDIUM = 'MEDIUM'
+    HIGH = 'HIGH'
+    CRITICAL = 'CRITICAL'
 
 
 @mcp.tool(name='get_findings')
@@ -84,12 +103,17 @@ async def get_findings(
     Returns:
         List containing the Security Hub findings for the query; each finding is a dictionary.
     """
-    if severity and severity.upper() not in VALID_SEVERITIES:
-        return [
-            {
-                'error': f'Invalid severity ({severity}). Must be one of: {", ".join(VALID_SEVERITIES)}'
-            }
-        ]
+    # Resolve string severity to Severity enum
+    severity_enum = None
+    if severity:
+        try:
+            severity_enum = Severity(severity.upper())
+        except ValueError:
+            return [
+                {
+                    'error': f'Invalid severity ({severity}). Must be one of: {", ".join(VALID_SEVERITIES)}'
+                }
+            ]
 
     if workflow_status and workflow_status.upper() not in VALID_WORKFLOW_STATUSES:
         return [
@@ -107,8 +131,8 @@ async def get_findings(
     if aws_account_id:
         filters['AwsAccountId'] = [{'Value': aws_account_id, 'Comparison': 'EQUALS'}]
 
-    if severity:
-        filters['SeverityLabel'] = [{'Value': severity.upper(), 'Comparison': 'EQUALS'}]
+    if severity_enum:
+        filters['SeverityLabel'] = [{'Value': severity_enum.value, 'Comparison': 'EQUALS'}]
 
     if workflow_status:
         filters['WorkflowStatus'] = [{'Value': workflow_status.upper(), 'Comparison': 'EQUALS'}]
