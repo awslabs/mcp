@@ -70,6 +70,16 @@ class IamPolicy(BaseModel):
     update_date: str = Field(..., description='The date and time when the policy was last updated')
 
 
+class IamGroup(BaseModel):
+    """IAM Group model."""
+
+    group_name: str = Field(..., description='The name of the IAM group')
+    group_id: str = Field(..., description='The unique identifier for the group')
+    arn: str = Field(..., description='The Amazon Resource Name (ARN) of the group')
+    path: str = Field(..., description='The path to the group')
+    create_date: str = Field(..., description='The date and time when the group was created')
+
+
 class AccessKey(BaseModel):
     """IAM Access Key model."""
 
@@ -195,3 +205,48 @@ class PolicySimulationResponse(BaseModel):
     is_truncated: bool = Field(False, description='Whether the response is truncated')
     marker: Optional[str] = Field(None, description='Marker for pagination')
     policy_source_arn: str = Field(..., description='ARN of the principal that was simulated')
+
+
+class GroupDetailsResponse(BaseModel):
+    """Response model for detailed group information."""
+
+    group: IamGroup = Field(..., description='Group details')
+    users: List[str] = Field(default_factory=list, description='List of user names in the group')
+    attached_policies: List[AttachedPolicy] = Field(
+        default_factory=list, description='List of attached managed policies'
+    )
+    inline_policies: List[str] = Field(
+        default_factory=list, description='List of inline policy names'
+    )
+
+
+class GroupsListResponse(BaseModel):
+    """Response model for listing groups."""
+
+    groups: List[IamGroup] = Field(..., description='List of IAM groups')
+    is_truncated: bool = Field(False, description='Whether the response is truncated')
+    marker: Optional[str] = Field(None, description='Marker for pagination')
+    count: int = Field(..., description='Number of groups returned')
+
+
+class CreateGroupResponse(BaseModel):
+    """Response model for creating a group."""
+
+    group: IamGroup = Field(..., description='Created group details')
+    message: str = Field(..., description='Success message')
+
+
+class GroupMembershipResponse(BaseModel):
+    """Response model for group membership operations."""
+
+    message: str = Field(..., description='Operation result message')
+    group_name: str = Field(..., description='The name of the group')
+    user_name: str = Field(..., description='The name of the user')
+
+
+class GroupPolicyAttachmentResponse(BaseModel):
+    """Response model for group policy attachment operations."""
+
+    message: str = Field(..., description='Operation result message')
+    group_name: str = Field(..., description='The name of the group')
+    policy_arn: str = Field(..., description='The ARN of the policy')
