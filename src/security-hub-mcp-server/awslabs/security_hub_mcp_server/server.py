@@ -38,8 +38,6 @@ mcp = FastMCP(
 profile_name = os.getenv('AWS_PROFILE', 'default')
 logger.info(f'Using AWS profile {profile_name}')
 
-VALID_WORKFLOW_STATUSES = ['NEW', 'NOTIFIED', 'RESOLVED', 'SUPPRESSED']
-
 
 class Severity(str, Enum):
     """Security Hub Severity levels as defined in the Security Hub API.
@@ -59,6 +57,24 @@ class Severity(str, Enum):
     MEDIUM = 'MEDIUM'
     HIGH = 'HIGH'
     CRITICAL = 'CRITICAL'
+
+
+class WorkflowStatus(str, Enum):
+    """Security Hub Workflow Status options as defined in the Security Hub API.
+
+    See: https://docs.aws.amazon.com/securityhub/1.0/APIReference/API_Workflow.html
+
+    Attributes:
+        NEW: The initial state of a finding, before it is reviewed.
+        NOTIFIED: Indicates that the resource owner has been notified about the security issue.
+        RESOLVED: The finding was reviewed and remediated and is now considered resolved.
+        SUPPRESSED: The finding will not be reviewed again and will not be acted upon.
+    """
+
+    NEW = 'NEW'
+    NOTIFIED = 'NOTIFIED'
+    RESOLVED = 'RESOLVED'
+    SUPPRESSED = 'SUPPRESSED'
 
 
 @mcp.tool(name='get_findings')
@@ -114,12 +130,17 @@ async def get_findings(
                 }
             ]
 
-    if workflow_status and workflow_status.upper() not in VALID_WORKFLOW_STATUSES:
-        return [
-            {
-                'error': f'Invalid workflow status ({workflow_status}). Must be one of: {", ".join(VALID_WORKFLOW_STATUSES)}'
-            }
-        ]
+    # Resolve string workflow_status to WorkflowStatus enum
+    workflow_status_enum = None
+    if workflow_status:
+        try:
+            workflow_status_enum = WorkflowStatus(workflow_status.upper())
+        except ValueError:
+            return [
+                {
+                    'error': f'Invalid workflow status ({workflow_status}). Must be one of: {", ".join([w.value for w in WorkflowStatus])}'
+                }
+            ]
 
     security_hub = boto3.Session(profile_name=profile_name).client(
         'securityhub', region_name=region
@@ -133,10 +154,10 @@ async def get_findings(
     if severity_enum:
         filters['SeverityLabel'] = [{'Value': severity_enum.value, 'Comparison': 'EQUALS'}]
 
-    if workflow_status:
-        filters['WorkflowStatus'] = [{'Value': workflow_status.upper(), 'Comparison': 'EQUALS'}]
+    if workflow_status_enum:
+        filters['WorkflowStatus'] = [{'Value': workflow_status_enum.value, 'Comparison': 'EQUALS'}]
 
-    # Add custom filters from JSON string
+    # Add custom filters on top of standard filters
     if custom_filters:
         try:
             if not isinstance(custom_filters, dict):
