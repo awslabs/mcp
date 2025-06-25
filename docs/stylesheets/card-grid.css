@@ -153,7 +153,7 @@
   background-color: var(--md-default-bg-color);
   border: 1px solid var(--md-border-color);
   border-radius: 6px;
-  padding: 0.5rem 0.4rem 0.3rem 0.4rem !important;
+  padding: 0.5rem 0.4rem 0.3rem 0.8rem !important;
   transition: all 0.2s ease;
   box-shadow: var(--md-shadow-z1);
   max-height: 185px !important;

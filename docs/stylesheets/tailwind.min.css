@@ -1,4 +1,4 @@
-/* Tailwind-inspired CSS for MkDocs Material - Cursor Docs Style */
+/* Tailwind-inspired CSS for MkDocs Material */
 
 /* Base Variables */
 :root {
@@ -435,36 +435,19 @@
   color: #94a3b8;
 }
 
-/* Highlighted Cards */
-.highlighted-cards {
-  display: grid;
-  grid-template-columns: repeat(1, 1fr);
-  gap: 2rem;
-  margin-bottom: 2.5rem;
-}
-
-@media (min-width: 768px) {
-  .highlighted-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* Fix for highlighted cards - now applied to all cards */
-.highlighted-cards .server-card,
+/* Fix for cards - applied to all cards */
 .card-grid .server-card {
   height: 220px; /* Increased height for all cards */
   width: 100%;
 }
 
 /* Fix for category badges in all cards */
-.highlighted-cards .server-card__category,
 .card-grid .server-card__category {
   max-width: fit-content;
   width: auto;
   display: inline-flex;
 }
 
-.highlighted-cards .server-card__title,
 .card-grid .server-card__title {
   font-size: 0.85rem;
   font-weight: 600;
@@ -477,7 +460,6 @@
   max-height: 2.4rem;
 }
 
-.highlighted-cards .server-card__description,
 .card-grid .server-card__description {
   font-size: 0.875rem;
   line-height: 1.5;

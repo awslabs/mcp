@@ -1,4 +1,4 @@
-/* Tailwind CSS for MkDocs Material - Cursor Docs Style */
+/* Tailwind CSS for MkDocs Material */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -167,16 +167,6 @@
   .card-grid__empty-message {
     @apply text-sm;
   }
-}
-
-/* Highlighted Cards */
-.highlighted-cards {
-  @apply grid grid-cols-1 md:grid-cols-2 gap-6 mb-8;
-}
-
-/* Add max-width to highlighted cards to prevent stretching */
-.highlighted-cards .server-card {
-  @apply w-full h-auto;
 }
 
 /* Card Grid Layout Improvements */
