@@ -15,7 +15,7 @@
 
 from .common import ClientError, datazone_client, logger, _get_param_value
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field, FieldInfo
+from pydantic import Field
 from typing import Any, Dict, List, Optional
 
 
