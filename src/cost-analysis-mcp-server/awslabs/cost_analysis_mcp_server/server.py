@@ -17,10 +17,11 @@
 This server provides tools for analyzing AWS service costs across different user tiers.
 """
 
-import boto3
 import os
 import sys
+from awslabs.cost_analysis_mcp_server import consts
 from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
+from awslabs.cost_analysis_mcp_server.pricing_client import create_pricing_client
 from awslabs.cost_analysis_mcp_server.static.patterns import BEDROCK
 from awslabs.cost_analysis_mcp_server.terraform_analyzer import analyze_terraform_project
 from bs4 import BeautifulSoup
@@ -33,7 +34,7 @@ from typing import Any, Dict, List, Optional
 
 # Set up logging
 logger.remove()
-logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
+logger.add(sys.stderr, level=consts.LOG_LEVEL)
 
 
 class PricingFilter(BaseModel):
@@ -273,9 +274,7 @@ async def get_pricing_from_api(
         Dictionary containing pricing information from AWS Pricing API
     """
     try:
-        pricing_client = boto3.Session(profile_name=profile_name).client(
-            'pricing', region_name='us-east-1'
-        )
+        pricing_client = create_pricing_client()
 
         # Start with the region filter
         region_filter = {'Field': 'regionCode', 'Type': 'TERM_MATCH', 'Value': region}
