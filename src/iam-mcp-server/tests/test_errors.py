@@ -18,6 +18,7 @@ from awslabs.iam_mcp_server.errors import (
     IamClientError,
     IamMcpError,
     IamPermissionError,
+    IamResourceNotFoundError,
     IamValidationError,
     handle_iam_error,
 )
@@ -265,3 +266,85 @@ def test_handle_iam_error_token_refresh_required():
     result = handle_iam_error(boto_error)
     assert isinstance(result, IamClientError)
     assert 'Token refresh required' in str(result)
+
+
+# Group Management Error Tests
+
+
+def test_handle_iam_error_group_already_exists():
+    """Test handling of EntityAlreadyExists error for groups."""
+    boto_error = BotoClientError(
+        error_response={
+            'Error': {'Code': 'EntityAlreadyExists', 'Message': 'Group TestGroup already exists'}
+        },
+        operation_name='CreateGroup',
+    )
+
+    result = handle_iam_error(boto_error)
+    assert isinstance(result, IamClientError)
+    assert 'Group TestGroup already exists' in str(result)
+
+
+def test_handle_iam_error_group_not_found():
+    """Test handling of NoSuchEntity error for groups."""
+    boto_error = BotoClientError(
+        error_response={
+            'Error': {'Code': 'NoSuchEntity', 'Message': 'Group TestGroup does not exist'}
+        },
+        operation_name='GetGroup',
+    )
+
+    result = handle_iam_error(boto_error)
+    assert isinstance(result, IamResourceNotFoundError)
+    assert 'Group TestGroup does not exist' in str(result)
+
+
+def test_handle_iam_error_group_delete_conflict():
+    """Test handling of DeleteConflict error for groups."""
+    boto_error = BotoClientError(
+        error_response={
+            'Error': {
+                'Code': 'DeleteConflict',
+                'Message': 'Cannot delete group TestGroup because it has attached policies',
+            }
+        },
+        operation_name='DeleteGroup',
+    )
+
+    result = handle_iam_error(boto_error)
+    assert isinstance(result, IamMcpError)
+    assert 'Cannot delete group TestGroup' in str(result)
+
+
+def test_handle_iam_error_group_policy_attachment():
+    """Test handling of InvalidInput error for group policy attachment."""
+    boto_error = BotoClientError(
+        error_response={
+            'Error': {
+                'Code': 'InvalidInput',
+                'Message': 'Policy arn:aws:iam::123456789012:policy/TestPolicy is not attachable',
+            }
+        },
+        operation_name='AttachGroupPolicy',
+    )
+
+    result = handle_iam_error(boto_error)
+    assert isinstance(result, IamValidationError)
+    assert 'Policy arn:aws:iam::123456789012:policy/TestPolicy is not attachable' in str(result)
+
+
+def test_handle_iam_error_user_not_in_group():
+    """Test handling of NoSuchEntity error when removing user from group."""
+    boto_error = BotoClientError(
+        error_response={
+            'Error': {
+                'Code': 'NoSuchEntity',
+                'Message': 'User TestUser is not in group TestGroup',
+            }
+        },
+        operation_name='RemoveUserFromGroup',
+    )
+
+    result = handle_iam_error(boto_error)
+    assert isinstance(result, IamResourceNotFoundError)
+    assert 'User TestUser is not in group TestGroup' in str(result)

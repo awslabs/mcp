@@ -7,8 +7,9 @@ A Model Context Protocol (MCP) server for comprehensive AWS Identity and Access 
 ### Core IAM Management
 - **User Management**: Create, list, retrieve, and delete IAM users
 - **Role Management**: Create, list, and manage IAM roles with trust policies
+- **Group Management**: Create, list, retrieve, and delete IAM groups with member management
 - **Policy Management**: List and manage IAM policies (managed and inline)
-- **Permission Management**: Attach/detach policies to users and roles
+- **Permission Management**: Attach/detach policies to users, roles, and groups
 - **Access Key Management**: Create and delete access keys for users
 - **Security Simulation**: Test policy permissions before applying them
 
@@ -74,6 +75,16 @@ The AWS credentials used by this server need the following IAM permissions:
                 "iam:GetRole",
                 "iam:CreateRole",
                 "iam:DeleteRole",
+                "iam:ListGroups",
+                "iam:GetGroup",
+                "iam:CreateGroup",
+                "iam:DeleteGroup",
+                "iam:AddUserToGroup",
+                "iam:RemoveUserFromGroup",
+                "iam:AttachGroupPolicy",
+                "iam:DetachGroupPolicy",
+                "iam:ListAttachedGroupPolicies",
+                "iam:ListGroupPolicies",
                 "iam:ListPolicies",
                 "iam:GetPolicy",
                 "iam:CreatePolicy",
@@ -274,6 +285,63 @@ Create a new IAM role with a trust policy.
 - `max_session_duration` (optional): Maximum session duration in seconds (default: 3600)
 - `permissions_boundary` (optional): ARN of the permissions boundary policy
 
+### Group Management
+
+#### `list_groups`
+List IAM groups in the account with optional filtering.
+
+**Parameters:**
+- `path_prefix` (optional): Path prefix to filter groups (e.g., "/division_abc/")
+- `max_items` (optional): Maximum number of groups to return (default: 100)
+
+#### `get_group`
+Get detailed information about a specific IAM group including members, attached policies, and inline policies.
+
+**Parameters:**
+- `group_name`: The name of the IAM group to retrieve
+
+#### `create_group`
+Create a new IAM group.
+
+**Parameters:**
+- `group_name`: The name of the new IAM group
+- `path` (optional): The path for the group (default: "/")
+
+#### `delete_group`
+Delete an IAM group with optional force cleanup.
+
+**Parameters:**
+- `group_name`: The name of the IAM group to delete
+- `force` (optional): Force delete by removing all members and policies first (default: false)
+
+#### `add_user_to_group`
+Add a user to an IAM group.
+
+**Parameters:**
+- `group_name`: The name of the IAM group
+- `user_name`: The name of the IAM user
+
+#### `remove_user_from_group`
+Remove a user from an IAM group.
+
+**Parameters:**
+- `group_name`: The name of the IAM group
+- `user_name`: The name of the IAM user
+
+#### `attach_group_policy`
+Attach a managed policy to an IAM group.
+
+**Parameters:**
+- `group_name`: The name of the IAM group
+- `policy_arn`: The ARN of the policy to attach
+
+#### `detach_group_policy`
+Detach a managed policy from an IAM group.
+
+**Parameters:**
+- `group_name`: The name of the IAM group
+- `policy_arn`: The ARN of the policy to detach
+
 ### Policy Management
 
 #### `list_policies`
@@ -366,6 +434,30 @@ role = await create_role(
     assume_role_policy_document=json.dumps(trust_policy),
     description="Role for EC2 instances to access S3"
 )
+```
+
+### Group Management
+```python
+# Create a new group
+group = await create_group(
+    group_name="Developers",
+    path="/teams/"
+)
+
+# Add users to the group
+await add_user_to_group(
+    group_name="Developers",
+    user_name="john.doe"
+)
+
+# Attach a policy to the group
+await attach_group_policy(
+    group_name="Developers",
+    policy_arn="arn:aws:iam::123456789012:policy/DeveloperPolicy"
+)
+
+# Get group details including members
+group_details = await get_group(group_name="Developers")
 ```
 
 ### Policy Management
