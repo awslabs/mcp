@@ -34,7 +34,7 @@ async def get_findings(
     severity: str = None,
     workflow_status: str = None,
     custom_filters: dict = None,
-    max_results: int = 100,
+    max_results: Optional[int] = None,
 ) -> Optional[List[Dict]]:
     """Get findings from the Security Hub service.
 
@@ -63,8 +63,7 @@ async def get_findings(
         custom_filters (str): (optional) JSON string of additional Security Hub filters
                              Example: '{"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}'
                              See AWS Security Hub GetFindings API documentation for all available filters
-        max_results (int): (optional) the maximum number of finding results to return; note the maximum
-        number of results supported by the SecurityHub service is 100
+        max_results (int): (optional) the maximum number of finding results to return
 
     Returns:
         List containing the Security Hub findings for the query; each finding is a dictionary.
@@ -110,8 +109,9 @@ async def get_findings(
     paginator = security_hub.get_paginator('get_findings')
     query_params = {
         'Filters': filters,
-        'MaxResults': min(max_results, 100),
     }
+    if max_results is not None and max_results > 0:
+        query_params['MaxResults'] = max_results
 
     logger.info(f'Getting SecurityHub findings with params: {query_params}')
 
@@ -120,14 +120,17 @@ async def get_findings(
         if 'Findings' in page:
             findings.extend(page['Findings'])
 
-    # Log warning if maximum results reached
-    if len(findings) == max_results:
-        logger.warning(f'Maximum results ({max_results}) reached. Some findings may be truncated.')
+    # Apply max_results rules to findings if specified
+    if max_results is not None and max_results > 0:
+        if len(findings) == max_results:
+            logger.warning(
+                f'Maximum results ({max_results}) reached. Some findings may be truncated.'
+            )
 
-    logger.info(f'Found {len(findings)} findings')
-    if len(findings) > max_results:
-        # security hub can return more findings than requested; trim to max_results
-        findings = findings[:max_results]
+        logger.info(f'Found {len(findings)} findings')
+        if len(findings) > max_results:
+            # security hub can return more findings than requested; trim to max_results
+            findings = findings[:max_results]
 
     return findings
 
