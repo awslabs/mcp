@@ -33,7 +33,7 @@ async def get_findings(
     aws_account_id: str = None,
     severity: str = None,
     workflow_status: str = None,
-    custom_filters: str = None,
+    custom_filters: dict = None,
     max_results: int = 100,
 ) -> Optional[List[Dict]]:
     """Get findings from the Security Hub service.
@@ -45,7 +45,7 @@ async def get_findings(
         # Get findings with a custom resource type filter
         get_findings(
             region="us-east-1",
-            custom_filters='{"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}'
+            custom_filters={'ResourceType': [{'Comparison': 'EQUALS', 'Value': 'AwsAccount'}]}
         )
 
         # Combine basic and custom filters
@@ -98,11 +98,10 @@ async def get_findings(
     # Add custom filters from JSON string
     if custom_filters:
         try:
-            user_filters = json.loads(custom_filters)
-            if not isinstance(user_filters, dict):
+            if not isinstance(custom_filters, dict):
                 return [{'error': 'custom_filters must be a JSON object'}]
-            logger.info(f'Applied custom filters: {user_filters}')
-            filters.update(user_filters)
+            logger.debug(f'Applying custom filters: {custom_filters}')
+            filters.update(custom_filters)
         except json.JSONDecodeError as e:
             logger.warning(f'Invalid custom filters JSON: {e}')
             return [{'error': f'Invalid JSON in custom_filters parameter: {str(e)}'}]
@@ -126,6 +125,10 @@ async def get_findings(
         logger.warning(f'Maximum results ({max_results}) reached. Some findings may be truncated.')
 
     logger.info(f'Found {len(findings)} findings')
+    if len(findings) > max_results:
+        # security hub can return more findings than requested; trim to max_results
+        findings = findings[:max_results]
+
     return findings
 
 
