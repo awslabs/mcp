@@ -16,9 +16,9 @@
 import boto3
 import httpx  # noqa: F401
 import logging
-from typing import Any
 from botocore.config import Config
 from botocore.exceptions import ClientError  # noqa: F401
+from typing import Any
 
 
 # Constants

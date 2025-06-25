@@ -13,7 +13,7 @@
 # limitations under the License.
 """Domain management tools for Amazon DataZone."""
 
-from .common import ClientError, datazone_client, logger, _get_param_value
+from .common import ClientError, _get_param_value, datazone_client, logger
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, List, Optional
 from pydantic import Field
