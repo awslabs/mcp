@@ -14,6 +14,7 @@
 
 """Utility functions for the RDS Control Plane MCP Server."""
 
+import inspect
 from .constants import ERROR_AWS_API, ERROR_UNEXPECTED
 from botocore.exceptions import ClientError
 from functools import wraps
@@ -74,12 +75,23 @@ def apply_docstring(docstring: str) -> Callable:
     """
 
     def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
+        # make sure async funcs are awaited
+        if inspect.iscoroutinefunction(func):
 
-        wrapper.__doc__ = docstring
-        return wrapper
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                return await func(*args, **kwargs)
+
+            async_wrapper.__doc__ = docstring
+            return async_wrapper
+        else:
+
+            @wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            sync_wrapper.__doc__ = docstring
+            return sync_wrapper
 
     return decorator
 

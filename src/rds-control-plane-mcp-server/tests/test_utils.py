@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import pytest
 from awslabs.rds_control_plane_mcp_server.common import utils
 from botocore.exceptions import ClientError
@@ -71,6 +72,22 @@ class TestApplyDocstring:
         decorated_func = utils.apply_docstring(multiline_doc)(test_func)
         assert decorated_func.__doc__ == multiline_doc
 
+    @pytest.mark.asyncio
+    async def test_apply_docstring_with_async_function(self):
+        """Test applying a docstring to an async function."""
+
+        async def test_func():
+            """Original docstring."""
+            await asyncio.sleep(0.01)
+            return 'yay it worked'
+
+        new_docstring = 'This is a new docstring.'
+        decorated_func = utils.apply_docstring(new_docstring)(test_func)
+
+        result = await decorated_func()
+        assert result == 'yay it worked'
+        assert decorated_func.__doc__ == new_docstring
+
 
 @pytest.mark.asyncio
 class TestHandleAwsError:
@@ -101,3 +118,10 @@ class TestHandleAwsError:
         assert 'error' in result
         assert 'Invalid value' in str(result)
         assert 'error_type' in result
+
+
+class TestConvertDateTimeToString:
+    """Tests for convert_datetime_to_string function."""
+
+    def test_convert_datetime_to_string_scalar(self):
+        """Test converting a simple datetime object to string."""
