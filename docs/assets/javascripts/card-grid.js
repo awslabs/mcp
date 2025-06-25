@@ -172,7 +172,7 @@
       // Create HTML structure with aligned text and reduced padding
       return `
         <a href="servers/${server.id}" class="server-card-link" style="text-decoration: none; color: inherit; display: block; width: 100%;">
-        <div class="server-card" data-id="${server.id}" style="cursor: pointer; width: 100%; height: 200px; box-shadow: none; padding: 0.5rem 0.4rem 0.3rem 0.4rem;">
+        <div class="server-card" data-id="${server.id}" style="cursor: pointer; width: 100%; height: 200px; box-shadow: none; padding: 0.8rem 0.4rem 0.3rem 0.5rem;">
           <div class="server-card__header" style="align-items: center; gap: 0.3rem; margin-bottom: 0.2rem; min-height: 2rem; padding: 0.1rem 0;">
             <div class="server-card__icon" style="display: flex; align-items: center;">
               <i data-feather="${categoryIcon}" width="22" height="22"></i>
@@ -186,7 +186,7 @@
           </div>
 
           <div class="server-card__content">
-            <p class="server-card__description description" style="word-wrap: break-word; overflow-wrap: break-word; margin-top: 0.2rem; margin-bottom: 0.3rem;">${server.description || 'No description available'}</p>
+            <p class="server-card__description description" style="word-wrap: break-word; overflow-wrap: break-word; margin-top: 0.2rem; margin-bottom: 0.3rem; padding: 0.5rem 0.4rem 0.3rem 0.5rem;">${server.description || 'No description available'}</p>
           </div>
 
           <div class="server-card__footer" style="padding-top: 0.15rem;">
