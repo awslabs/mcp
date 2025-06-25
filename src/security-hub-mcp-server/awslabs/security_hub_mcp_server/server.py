@@ -40,6 +40,8 @@ logger.info(f'Using AWS profile {profile_name}')
 VALID_SEVERITIES = ['INFORMATIONAL', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 VALID_WORKFLOW_STATUSES = ['NEW', 'NOTIFIED', 'RESOLVED', 'SUPPRESSED']
 
+# introduce a Severity enum and update get_findings to resolve the string severity parameter to a Severity, then use that to specify filter values AI!
+
 
 @mcp.tool(name='get_findings')
 async def get_findings(
