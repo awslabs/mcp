@@ -27,4 +27,8 @@ if _version_file.exists():
 else:
     __version__ = 'unknown'
 
-__all__ = ['__version__']
+# Import and expose server and tools modules for testing
+from . import server
+from . import tools
+
+__all__ = ['__version__', 'server', 'tools']

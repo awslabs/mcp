@@ -57,7 +57,7 @@ pip install -e .
 **Prerequisites:**
 - Python 3.10+ installed
 - [uv](https://github.com/astral-sh/uv) installed - Get it from [Astral](https://astral.sh/uv) or see the [GitHub README](https://github.com/astral-sh/uv#installation)
-- AWS credentials configured  
+- AWS credentials configured
 - Install the package: `uvx awslabs.datazone-mcp-server@latest`
 
 ---

@@ -12,4 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Amazon DataZone MCP Server tools package.""" 
+"""Amazon DataZone MCP Server tools package."""
+
+# Import all tool modules
+from . import common
+from . import data_management  
+from . import domain_management
+from . import environment
+from . import glossary
+from . import project_management
+
+__all__ = [
+    'common',
+    'data_management', 
+    'domain_management',
+    'environment',
+    'glossary',
+    'project_management'
+]

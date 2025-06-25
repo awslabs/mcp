@@ -19,17 +19,17 @@ class TestDatazoneMCPServer:
     def test_version_without_file(self):
         """Test version handling when VERSION file doesn't exist."""
         import sys
-        
+
         # Clear module from cache
         module_name = 'awslabs.amazon_datazone_mcp_server'
         if module_name in sys.modules:
             del sys.modules[module_name]
-        
+
         # Mock Path.exists to return False
         with patch.object(Path, 'exists', return_value=False):
             # Import the module fresh to trigger the version reading logic
             from awslabs.amazon_datazone_mcp_server import __version__
-            
+
             # Should default to 'unknown' when file doesn't exist
             assert __version__ == 'unknown'
 
