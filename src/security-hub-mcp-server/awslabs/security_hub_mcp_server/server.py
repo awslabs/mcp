@@ -38,7 +38,6 @@ mcp = FastMCP(
 profile_name = os.getenv('AWS_PROFILE', 'default')
 logger.info(f'Using AWS profile {profile_name}')
 
-VALID_SEVERITIES = ['INFORMATIONAL', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 VALID_WORKFLOW_STATUSES = ['NEW', 'NOTIFIED', 'RESOLVED', 'SUPPRESSED']
 
 
@@ -111,7 +110,7 @@ async def get_findings(
         except ValueError:
             return [
                 {
-                    'error': f'Invalid severity ({severity}). Must be one of: {", ".join(VALID_SEVERITIES)}'
+                    'error': f'Invalid severity ({severity}). Must be one of: {", ".join([s.value for s in Severity])}'
                 }
             ]
 
