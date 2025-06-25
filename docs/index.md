@@ -392,6 +392,22 @@ A Model Context Protocol (MCP) server for Amazon EKS that enables generative AI 
 
 [Learn more about the Amazon EKS MCP Server](servers/eks-mcp-server.md)
 
+### Red Hat OpenShift Service on AWS (ROSA) MCP Server
+
+A Model Context Protocol (MCP) server for Red Hat OpenShift Service on AWS (ROSA) that enables generative AI models to create and manage OpenShift clusters on AWS through MCP tools.
+
+**Features:**
+
+- ROSA Cluster Management: Create, delete, and manage ROSA clusters with multi-AZ support and STS integration
+- Authentication & Security: Set up IAM roles, OIDC providers, and configure identity providers (GitHub, LDAP, OpenID)
+- Machine Pool Management: Create and scale node pools with custom configurations, taints, and labels
+- Networking Configuration: Manage ingress controllers, configure load balancers, and set up private clusters
+- Kubernetes/OpenShift Operations: Deploy applications, manage resources, and access pod logs with OpenShift-specific APIs
+- CloudWatch Integration: Monitor cluster metrics and logs for comprehensive observability
+- Enterprise Features: Support for Red Hat subscription management and OpenShift-specific workloads
+
+[Learn more about the ROSA MCP Server](servers/rosa-mcp-server.md)
+
 ### Synthetic Data MCP Server
 
 A server for generating, validating, and managing synthetic data.
