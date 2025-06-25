@@ -20,11 +20,11 @@ from awslabs.rds_control_plane_mcp_server.common.models import (
     DBLogFileSummary,
     PerformanceReportSummary,
 )
-from awslabs.rds_control_plane_mcp_server.resources.cluster.discovery import (
+from awslabs.rds_control_plane_mcp_server.resources.clusters.discovery import (
     get_cluster_detail_resource,
     get_cluster_list_resource,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instance.discovery import (
+from awslabs.rds_control_plane_mcp_server.resources.instances.discovery import (
     get_instance_detail_resource,
     get_instance_list_resource,
 )
@@ -48,7 +48,7 @@ class TestClusterResources:
     async def test_get_cluster_list_resource(self, mock_rds_client):
         """Test retrieving cluster list resource."""
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.cluster.discovery.asyncio.to_thread'
+            'awslabs.rds_control_plane_mcp_server.resources.clusters.discovery.asyncio.to_thread'
         ) as mock_to_thread:
             mock_to_thread.return_value = {
                 'DBClusters': [
@@ -100,7 +100,7 @@ class TestClusterResources:
     async def test_get_cluster_detail_resource(self, mock_rds_client):
         """Test retrieving cluster detail resource."""
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.cluster.discovery.asyncio.to_thread'
+            'awslabs.rds_control_plane_mcp_server.resources.clusters.discovery.asyncio.to_thread'
         ) as mock_to_thread:
             mock_to_thread.return_value = {
                 'DBClusters': [
@@ -217,7 +217,7 @@ class TestClusterResources:
         mock_rds_client.describe_db_clusters = MagicMock(side_effect=Exception('Test error'))
 
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.cluster.discovery.asyncio.to_thread',
+            'awslabs.rds_control_plane_mcp_server.resources.clusters.discovery.asyncio.to_thread',
             side_effect=Exception('Test error'),
         ):
             result = await get_cluster_list_resource(mock_rds_client)
@@ -234,7 +234,7 @@ class TestInstanceResources:
     async def test_get_instance_list_resource(self, mock_rds_client):
         """Test retrieving instance list resource."""
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.instance.discovery.asyncio.to_thread'
+            'awslabs.rds_control_plane_mcp_server.resources.instances.discovery.asyncio.to_thread'
         ) as mock_to_thread:
             mock_to_thread.return_value = {
                 'DBInstances': [
@@ -323,7 +323,7 @@ class TestInstanceResources:
     async def test_get_instance_detail_resource(self, mock_rds_client):
         """Test retrieving instance detail resource."""
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.instance.discovery.asyncio.to_thread'
+            'awslabs.rds_control_plane_mcp_server.resources.instances.discovery.asyncio.to_thread'
         ) as mock_to_thread:
             mock_to_thread.return_value = {
                 'DBInstances': [
@@ -447,7 +447,7 @@ class TestInstanceResources:
     async def test_error_handling_in_get_instance_detail_resource(self):
         """Test error handling in get_instance_detail_resource function for non-existent instance."""
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.instance.discovery.asyncio.to_thread'
+            'awslabs.rds_control_plane_mcp_server.resources.instances.discovery.asyncio.to_thread'
         ) as mock_to_thread:
             mock_to_thread.return_value = {'DBInstances': []}
 

@@ -24,7 +24,7 @@ from awslabs.rds_control_plane_mcp_server.common.clients import (
 )
 from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
 from awslabs.rds_control_plane_mcp_server.common.utils import apply_docstring
-from awslabs.rds_control_plane_mcp_server.resources.cluster.discovery import (
+from awslabs.rds_control_plane_mcp_server.resources.clusters.discovery import (
     get_cluster_detail_resource,
     get_cluster_list_resource,
 )
@@ -37,12 +37,12 @@ from awslabs.rds_control_plane_mcp_server.resources.docstrings import (
     LIST_PERFORMANCE_REPORTS_DOCSTRING,
     READ_PERFORMANCE_REPORT_DOCSTRING,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instance.discovery import (
+from awslabs.rds_control_plane_mcp_server.resources.instances.discovery import (
     get_instance_detail_resource,
     get_instance_list_resource,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instance.logs import list_db_log_files
-from awslabs.rds_control_plane_mcp_server.resources.instance.reports import (
+from awslabs.rds_control_plane_mcp_server.resources.instances.logs import list_db_log_files
+from awslabs.rds_control_plane_mcp_server.resources.instances.reports import (
     list_performance_reports,
     read_performance_report,
 )

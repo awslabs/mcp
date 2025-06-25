@@ -18,7 +18,7 @@ import json
 import pytest
 from awslabs.rds_control_plane_mcp_server.common.config import get_pagination_config
 from awslabs.rds_control_plane_mcp_server.common.constants import RESOURCE_PREFIX_DB_LOG_FILES
-from awslabs.rds_control_plane_mcp_server.resources.instance.logs import list_db_log_files
+from awslabs.rds_control_plane_mcp_server.resources.instances.logs import list_db_log_files
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -165,7 +165,7 @@ class TestListDBLogFiles:
         mock_rds_client.get_paginator.side_effect = mock_exception
 
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.instance.logs.handle_aws_error',
+            'awslabs.rds_control_plane_mcp_server.resources.instances.logs.handle_aws_error',
             new_callable=AsyncMock,
             return_value=mock_error_response,
         ) as mock_handle_error:

@@ -17,7 +17,7 @@
 import json
 import pytest
 from awslabs.rds_control_plane_mcp_server.common.config import max_items
-from awslabs.rds_control_plane_mcp_server.resources.instance.reports import (
+from awslabs.rds_control_plane_mcp_server.resources.instances.reports import (
     list_performance_reports,
     read_performance_report,
 )
@@ -110,7 +110,7 @@ class TestListPerformanceReports:
         mock_error_json = json.dumps(mock_error_response, indent=2)
 
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.instance.reports.handle_aws_error',
+            'awslabs.rds_control_plane_mcp_server.resources.instances.reports.handle_aws_error',
             new_callable=AsyncMock,
             return_value=mock_error_json,
         ) as mock_handle_error:
@@ -160,7 +160,7 @@ class TestReadPerformanceReport:
         mock_pi_client.get_performance_analysis_report.return_value = mock_report
 
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.instance.reports.format_aws_response',
+            'awslabs.rds_control_plane_mcp_server.resources.instances.reports.format_aws_response',
             return_value={'AnalysisReport': expected_result},
         ):
             result_json = await read_performance_report(
@@ -192,7 +192,7 @@ class TestReadPerformanceReport:
         mock_pi_client.get_performance_analysis_report.side_effect = mock_exception
 
         with patch(
-            'awslabs.rds_control_plane_mcp_server.resources.instance.reports.handle_aws_error',
+            'awslabs.rds_control_plane_mcp_server.resources.instances.reports.handle_aws_error',
             new_callable=AsyncMock,
             return_value=mock_error_json,
         ) as mock_handle_error:
