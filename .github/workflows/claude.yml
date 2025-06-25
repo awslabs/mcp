@@ -111,7 +111,7 @@ jobs:
       - name: Debug OIDC Claims
         id: debug-oidc-claims
         if: ${{ env.ACTIONS_RUNNER_DEBUG == 'true' && env.ACTIONS_STEP_DEBUG == 'true' }}
-        uses: github/actions-oidc-debugger@0ac6a1f7fefa4229fabe4ce05f17d9ad03a5b328 #main
+        uses: github/actions-oidc-debugger@0705a46041e35206455b781a260e4af1c6e60b6d #main
         with:
           audience: '${{ github.server_url }}/${{ github.repository_owner }}'
       - name: Setup AWS Credentials

@@ -22,6 +22,7 @@ from awslabs.rds_control_plane_mcp_server.clients import (
     get_pi_client,
     get_rds_client,
 )
+from awslabs.rds_control_plane_mcp_server.constants import MCP_SERVER_VERSION
 from awslabs.rds_control_plane_mcp_server.logs import list_db_log_files
 from awslabs.rds_control_plane_mcp_server.models import DBLogFileSummary, PerformanceReportSummary
 from awslabs.rds_control_plane_mcp_server.reports import (
@@ -29,9 +30,19 @@ from awslabs.rds_control_plane_mcp_server.reports import (
     read_performance_report,
 )
 from awslabs.rds_control_plane_mcp_server.resource_docstrings import (
+    GET_CLUSTER_DOCSTRING,
+    GET_INSTANCE_DOCSTRING,
+    LIST_CLUSTERS_DOCSTRING,
     LIST_DB_LOG_FILES_DOCSTRING,
+    LIST_INSTANCES_DOCSTRING,
     LIST_PERFORMANCE_REPORTS_DOCSTRING,
     READ_PERFORMANCE_REPORT_DOCSTRING,
+)
+from awslabs.rds_control_plane_mcp_server.resources import (
+    get_cluster_detail_resource,
+    get_cluster_list_resource,
+    get_instance_detail_resource,
+    get_instance_list_resource,
 )
 from awslabs.rds_control_plane_mcp_server.utils import apply_docstring
 from loguru import logger
@@ -40,13 +51,33 @@ from pydantic import Field
 from typing import Any, List, Union
 
 
-# TODO: Update instructions after PR to add discovery tools has been merged
+# global variables
+# _rds_client = None
+
+
+# def get_rds_client():
+#     """Get or create RDS client."""
+#     global _rds_client, _region
+#     if _rds_client is None:
+#         config = Config(
+#             region_name=_region,
+#             retries={'max_attempts': 3, 'mode': 'adaptive'},
+#         )
+#         _rds_client = boto3.client('rds', config=config)
+#     return _rds_client
+
 mcp = FastMCP(
     'awslabs.rds-control-plane-mcp-server',
-    instructions='Instructions for using this rds-control-plane MCP server. This can be used by clients to improve the LLM'
-    's understanding of available tools, resources, etc. It can be thought of like a '
-    'hint'
-    ' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.',
+    version=MCP_SERVER_VERSION,
+    instructions="""This server provides access to Amazon RDS database instances and clusters.
+
+Key capabilities:
+- View detailed information about RDS DB instances
+- View detailed information about RDS DB clusters
+- Access connection endpoints, configuration, and status information
+- List performance reports and log files for DB instances
+
+The server operates in read-only mode by default, providing safe access to RDS resources.""",
     dependencies=[
         'pydantic',
         'loguru',
@@ -58,22 +89,62 @@ mcp = FastMCP(
 logger.remove()
 logger.add(sys.stderr, level='INFO')
 
-global pi_client
-global rds_client
-global cloudwatch_client
+global _pi_client
+global _rds_client
+global _cloudwatch_client
+global _readonly
+_readonly = True
 
 try:
-    pi_client = get_pi_client(
+    _pi_client = get_pi_client(
         region_name=os.getenv('AWS_REGION'),
         profile_name=os.getenv('AWS_PROFILE'),
     )
-    rds_client = get_rds_client(
-        region_name=os.getenv('AWS_REGION'),
-        profile_name=os.getenv('AWS_PROFILE'),
+    _rds_client = get_rds_client(
+        region_name=os.getenv('AWS_REGION'), profile_name=os.getenv('AWS_PROFILE')
     )
 except Exception as e:
     logger.error(f'Error getting RDS or PI clients: {e}')
     raise e
+
+# ===== RESOURCES =====
+# read-only access to RDS data
+
+
+@mcp.resource(uri='aws-rds://db-cluster', name='DB Clusters', mime_type='application/json')
+@apply_docstring(LIST_CLUSTERS_DOCSTRING)
+async def list_clusters_resource() -> str:
+    """List all available Amazon RDS clusters in your account."""
+    return await get_cluster_list_resource(rds_client=_rds_client)
+
+
+@mcp.resource(
+    uri='aws-rds://db-cluster/{cluster_id}',
+    name='DB Cluster Details',
+    mime_type='application/json',
+)
+@apply_docstring(GET_CLUSTER_DOCSTRING)
+async def get_cluster_resource(cluster_id: str) -> str:
+    """Get detailed information about a specific Amazon RDS cluster."""
+    return await get_cluster_detail_resource(cluster_id=cluster_id, rds_client=_rds_client)
+
+
+@mcp.resource(uri='aws-rds://db-instance', name='DB Instances', mime_type='application/json')
+@apply_docstring(LIST_INSTANCES_DOCSTRING)
+async def list_instances_resource() -> str:
+    """List all available Amazon RDS instances in your account."""
+    return await get_instance_list_resource(rds_client=_rds_client)
+
+
+@mcp.resource(
+    uri='aws-rds://db-instance/{instance_id}',
+    name='DB Instance Details',
+    mime_type='application/json',
+)
+@apply_docstring(GET_INSTANCE_DOCSTRING)
+async def get_instance_resource(instance_id: str) -> str:
+    """Get detailed information about a specific Amazon RDS instance."""
+    return await get_instance_detail_resource(instance_id, _rds_client)
 
 
 @mcp.resource(
@@ -90,7 +161,7 @@ async def list_performance_reports_resource(
     """List all available performance reports for a specific Amazon RDS instance."""
     return await list_performance_reports(
         dbi_resource_identifier,
-        pi_client,
+        _pi_client,
     )
 
 
@@ -112,7 +183,7 @@ async def read_performance_report_resource(
     return await read_performance_report(
         dbi_resource_identifier=dbi_resource_identifier,
         report_id=report_identifier,
-        pi_client=pi_client,
+        pi_client=_pi_client,
     )
 
 
@@ -127,28 +198,50 @@ async def list_db_log_files_resource(
 ) -> Union[List[DBLogFileSummary], dict[str, Any]]:
     """List all available log files for a specific Amazon RDS instance."""
     return await list_db_log_files(
-        db_instance_identifier=db_instance_identifier, rds_client=rds_client
+        db_instance_identifier=db_instance_identifier, rds_client=_rds_client
     )
 
 
 def main():
     """Run the MCP server with CLI argument support."""
+    global _readonly
+
     parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for RDS Control Plane Operations'
+        description='An AWS Labs MCP server for Amazon RDS control plane operations'
     )
+    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
     parser.add_argument(
         '--max-items',
         type=int,
         default=config.DEFAULT_MAX_ITEMS,
         help=f'The maximum number of items (logs, reports, etc.) to retrieve (default: {config.DEFAULT_MAX_ITEMS})',
     )
-    parser.add_argument('--transport', help='Transport to use for the MCP server')
+    parser.add_argument(
+        '--readonly',
+        type=str,
+        default='true',
+        choices=['true', 'false'],
+        help='Whether to run in read-only mode (default: true)',
+    )
+
     args = parser.parse_args()
 
-    # Update the configuration with user-provided values
+    # global configuration
+    _readonly = args.readonly.lower() == 'true'
+
+    # Max items to fetch
     config.max_items = args.max_items
 
-    logger.info(f'Starting RDS Control Plane MCP server with max_items={config.max_items}')
+    # MCP server port
+    if args.port:
+        mcp.settings.port = args.port
+
+    # log configuration
+    logger.info(f'Starting RDS Control Plane MCP Server v{MCP_SERVER_VERSION}')
+    logger.info(f'Read-only mode: {_readonly}')
+    logger.info(f'Max items to fetch: {config.max_items}')
+
+    # default streamable HTTP transport
     mcp.run()
 
 

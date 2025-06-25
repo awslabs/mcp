@@ -14,6 +14,90 @@
 
 """Resource docstrings for the RDS Control Plane MCP Server."""
 
+LIST_CLUSTERS_DOCSTRING = """List all available Amazon RDS clusters in your account.
+
+<use_case>
+Use this resource to discover all available RDS database clusters in your AWS account.
+</use_case>
+
+<important_notes>
+1. The response provides essential information about each cluster
+2. Cluster identifiers returned can be used with the db-cluster/{cluster_id} resource
+3. Clusters are filtered to the AWS region specified in your environment configuration
+</important_notes>
+
+## Response structure
+Returns a JSON document containing:
+- `clusters`: Array of DB cluster objects
+- `count`: Number of clusters found
+- `resource_uri`: Base URI for accessing clusters
+"""
+
+GET_CLUSTER_DOCSTRING = """Get detailed information about a specific Amazon RDS cluster.
+
+<use_case>
+Use this resource to retrieve comprehensive details about a specific RDS database cluster
+identified by its cluster ID.
+</use_case>
+
+<important_notes>
+1. The cluster ID must exist in your AWS account and region
+2. The response contains full configuration details about the specified cluster
+3. Error responses will be returned if the cluster doesn't exist
+</important_notes>
+
+## Response structure
+Returns a JSON document containing detailed cluster information including:
+- Status, engine type, and version
+- Endpoints for connection
+- Backup configuration
+- Member instances
+- Security groups
+"""
+
+LIST_INSTANCES_DOCSTRING = """List all available Amazon RDS instances in your account.
+
+<use_case>
+Use this resource to discover all available RDS database instances in your AWS account.
+</use_case>
+
+<important_notes>
+1. The response provides essential information about each instance
+2. Instance identifiers returned can be used with the db-instance/{instance_id} resource
+3. Instances are filtered to the AWS region specified in your environment configuration
+</important_notes>
+
+## Response structure
+Returns a JSON document containing:
+- `instances`: Array of DB instance objects
+- `count`: Number of instances found
+- `resource_uri`: Base URI for accessing instances
+"""
+
+GET_INSTANCE_DOCSTRING = """Get detailed information about a specific Amazon RDS instance.
+
+<use_case>
+Use this resource to retrieve comprehensive details about a specific RDS database instance
+identified by its instance ID.
+</use_case>
+
+<important_notes>
+1. The instance ID must exist in your AWS account and region
+2. The response contains full configuration details about the specified instance
+3. Error responses will be returned if the instance doesn't exist
+</important_notes>
+
+## Response structure
+Returns a JSON document containing detailed instance information including:
+- Status, engine type, and version
+- Instance class and storage configuration
+- Endpoint for connection
+- Availability zone and Multi-AZ setting
+- Security groups
+- Parameter groups
+- Option groups
+"""
+
 LIST_PERFORMANCE_REPORTS_DOCSTRING = """List all available performance reports for a specific Amazon RDS instance.
 
 <use_case>

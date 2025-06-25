@@ -15,7 +15,16 @@
 """Test fixtures for the rds-monitoring-mcp-server tests."""
 
 import pytest
+import pytest_asyncio
 from unittest.mock import MagicMock, patch
+
+
+@pytest_asyncio.fixture
+async def aws_credentials():
+    """Mocked AWS Credentials for boto3."""
+    import os
+
+    os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
 
 
 @pytest.fixture
@@ -26,11 +35,95 @@ def mock_pi_client():
     return client
 
 
-@pytest.fixture
-def mock_rds_client():
-    """Create a mock RDS client."""
+@pytest_asyncio.fixture
+async def mock_rds_client(aws_credentials):
+    """Create a mock RDS client with detailed mock configuration."""
     client = MagicMock()
     client.meta.region_name = 'us-east-1'
+
+    # Add mock implementations for RDS API calls
+    client.describe_db_clusters = MagicMock(
+        return_value={
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Engine': 'aurora-mysql',
+                    'Status': 'available',
+                    'Endpoint': 'test-cluster.cluster-abc123.us-east-1.rds.amazonaws.com',
+                    'ReaderEndpoint': 'test-cluster.cluster-ro-abc123.us-east-1.rds.amazonaws.com',
+                    'MultiAZ': True,
+                    'BackupRetentionPeriod': 7,
+                    'PreferredBackupWindow': '07:00-09:00',
+                    'PreferredMaintenanceWindow': 'sun:05:00-sun:06:00',
+                    'DBClusterMembers': [
+                        {
+                            'DBInstanceIdentifier': 'test-instance-1',
+                            'IsClusterWriter': True,
+                            'DBClusterParameterGroupStatus': 'in-sync',
+                        }
+                    ],
+                    'VpcSecurityGroups': [
+                        {
+                            'VpcSecurityGroupId': 'sg-12345',
+                            'Status': 'active',
+                        }
+                    ],
+                    'TagList': [
+                        {
+                            'Key': 'Environment',
+                            'Value': 'Test',
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    client.describe_db_instances = MagicMock(
+        return_value={
+            'DBInstances': [
+                {
+                    'DBInstanceIdentifier': 'test-instance-1',
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Engine': 'aurora-mysql',
+                    'EngineVersion': '5.7.12',
+                    'DBInstanceClass': 'db.r5.large',
+                    'DBInstanceStatus': 'available',
+                    'AvailabilityZone': 'us-east-1a',
+                    'MultiAZ': False,
+                    'PubliclyAccessible': False,
+                    'StorageType': 'aurora',
+                    'StorageEncrypted': True,
+                    'Endpoint': {
+                        'Address': 'test-instance-1.abc123.us-east-1.rds.amazonaws.com',
+                        'Port': 3306,
+                        'HostedZoneId': 'Z2R2ITUGPM61AM',
+                    },
+                    'TagList': [],
+                },
+                {
+                    'DBInstanceIdentifier': 'test-instance-2',
+                    'Engine': 'mysql',
+                    'EngineVersion': '8.0.23',
+                    'DBInstanceClass': 'db.t3.medium',
+                    'DBInstanceStatus': 'available',
+                    'AvailabilityZone': 'us-east-1b',
+                    'MultiAZ': False,
+                    'PubliclyAccessible': False,
+                    'StorageType': 'gp2',
+                    'AllocatedStorage': 20,
+                    'StorageEncrypted': False,
+                    'Endpoint': {
+                        'Address': 'test-instance-2.def456.us-east-1.rds.amazonaws.com',
+                        'Port': 3306,
+                        'HostedZoneId': 'Z2R2ITUGPM61AM',
+                    },
+                    'TagList': [],
+                },
+            ]
+        }
+    )
+
     return client
 
 
