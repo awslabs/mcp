@@ -236,7 +236,7 @@ class TestComprehensiveCoverage:
     def test_main_execution_path(self, mock_main):
         """Test the if __name__ == '__main__' execution path to cover line 76."""
         # Import the server module
-        import awslabs.datazone_mcp_server.server as server_module
+        import awslabs.amazon_datazone_mcp_server.server as server_module
 
         # Simulate the if __name__ == '__main__' execution
         # This would normally be triggered when the module is run directly
@@ -248,7 +248,7 @@ class TestComprehensiveCoverage:
     def test_main_function_direct_call(self):
         """Test calling main function directly."""
         # This test is more direct but may not cover the exact line 76
-        from awslabs.datazone_mcp_server.server import main
+        from awslabs.amazon_datazone_mcp_server.server import main
 
         # We can't actually run main() because it would start the server
         # So we just verify the function exists and is callable

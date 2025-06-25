@@ -11,19 +11,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""AWS DataZone MCP Server."""
-
-import os
-from pathlib import Path
-
-# Read version from VERSION file
-_version_file = Path(__file__).parent.parent / 'VERSION'
-if _version_file.exists():
-    try:
-        __version__ = _version_file.read_text().strip()
-    except FileNotFoundError:  # pragma: no cover
-        __version__ = 'unknown'
-else:
-    __version__ = 'unknown'
-
-__all__ = ['__version__']
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.

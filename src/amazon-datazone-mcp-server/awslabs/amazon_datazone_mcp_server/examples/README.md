@@ -40,9 +40,6 @@ Each example is self-contained and can be run independently:
 # Run a basic example
 python examples/basic/domain_operations.py
 
-# Run a workflow example
-python examples/workflows/data_onboarding_workflow.py
-
 # Run with custom domain ID
 DATAZONE_DOMAIN_ID=dzd_abc123 python examples/basic/domain_operations.py
 ```

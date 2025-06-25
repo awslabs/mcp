@@ -10,31 +10,31 @@ class TestDatazoneMCPServer:
     def test_version_with_existing_file(self):
         """Test version reading when VERSION file exists."""
         # Import the module to test version reading
-        import awslabs
+        import awslabs.amazon_datazone_mcp_server
 
         # The version should be read from the VERSION file
         assert hasattr(awslabs, '__version__')
-        assert isinstance(awslabs.__version__, str)
+        assert isinstance(awslabs.amazon_datazone_mcp_server.__version__, str)
 
     def test_version_without_file(self):
         """Test version handling when VERSION file doesn't exist."""
         # Mock Path.exists to return False
         with patch.object(Path, 'exists', return_value=False):
             # Reload the module to trigger the version reading logic
-            import awslabs
+            import awslabs.amazon_datazone_mcp_server
             import importlib
 
             importlib.reload(awslabs)
 
             # Should default to 'unknown' when file doesn't exist
-            assert awslabs.__version__ == 'unknown'
+            assert awslabs.amazon_datazone_mcp_server.__version__ == 'unknown'
 
     def test_main_function_execution(self):
         """Test the main function execution path."""
-        from awslabs.datazone_mcp_server.server import main
+        from awslabs.amazon_datazone_mcp_server.server import main
 
         # Mock the mcp.run method to avoid actual execution
-        with patch('awslabs.datazone_mcp_server.server.mcp') as mock_mcp:
+        with patch('awslabs.amazon_datazone_mcp_server.server.mcp') as mock_mcp:
             mock_mcp.run = Mock()
 
             # Test normal execution
@@ -45,7 +45,7 @@ class TestDatazoneMCPServer:
 
     def test_main_function_with_keyboard_interrupt(self):
         """Test main function handling KeyboardInterrupt."""
-        from awslabs.datazone_mcp_server.server import main
+        from awslabs.amazon_datazone_mcp_server.server import main
 
         with patch('awslabs.datazone_mcp_server.server.mcp') as mock_mcp:
             # Mock mcp.run to raise KeyboardInterrupt
@@ -59,7 +59,7 @@ class TestDatazoneMCPServer:
 
     def test_main_function_with_exception(self):
         """Test main function handling general exceptions."""
-        from awslabs.datazone_mcp_server.server import main
+        from awslabs.amazon_datazone_mcp_server.server import main
 
         with patch('awslabs.datazone_mcp_server.server.mcp') as mock_mcp:
             # Mock mcp.run to raise a general exception
@@ -77,4 +77,4 @@ class TestDatazoneMCPServer:
 
 def test_datazone_mcp_server_importable():
     """Test datazone_mcp_server is importable."""
-    import awslabs.datazone_mcp_server  # noqa: F401
+    import awslabs.amazon_datazone_mcp_server  # noqa: F401

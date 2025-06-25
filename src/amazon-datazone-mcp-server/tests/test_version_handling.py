@@ -21,9 +21,9 @@ class TestVersionHandling:
             del sys.modules[module_name]
 
         # Import should read version from file
-        import awslabs
+        import awslabs.amazon_datazone_mcp_server
 
-        assert awslabs.__version__ == '1.0.0'
+        assert awslabs.amazon_datazone_mcp_server.__version__ == '1.0.0'
         mock_exists.assert_called_once()
         mock_read_text.assert_called_once()
 
@@ -39,10 +39,10 @@ class TestVersionHandling:
             del sys.modules[name]
 
         # Import should fallback to 'unknown'
-        import awslabs
+        import awslabs.amazon_datazone_mcp_server
 
         # This should trigger line 22: __version__ = 'unknown'
-        assert awslabs.__version__ == 'unknown'
+        assert awslabs.amazon_datazone_mcp_server.__version__ == 'unknown'
         mock_exists.assert_called_once()
 
     @patch('pathlib.Path.exists')
@@ -59,6 +59,6 @@ class TestVersionHandling:
             del sys.modules[name]
 
         # Import should fallback to 'unknown' due to read error
-        import awslabs
+        import awslabs.amazon_datazone_mcp_server
 
-        assert awslabs.__version__ == 'unknown'
+        assert awslabs.amazon_datazone_mcp_server.__version__ == 'unknown'

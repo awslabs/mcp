@@ -30,6 +30,7 @@ A high-performance Model Context Protocol (MCP) server that provides seamless in
 ### Prerequisites
 
 - Python 3.10 or higher
+- Install uv from [Astral](https://astral.sh/uv) or see the [GitHub README](https://github.com/astral-sh/uv#installation)
 - AWS credentials configured
 - An active Amazon DataZone domain
 
@@ -49,9 +50,15 @@ pip install -e .
 
 ### Install with Cursor
 
-[![Install with Cursor](https://cursor.sh/install-button.svg)](https://cursor.sh/install?url=https://github.com/YOUR_ORG/YOUR_REPO)
+[![Add to Cursor](https://img.shields.io/badge/Add%20to-Cursor-blue?style=for-the-badge&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=amazon-datazone&config=eyJjb21tYW5kIjogInB5dGhvbjMiLCAiYXJncyI6IFsiLW0iLCAiYXdzbGFicy5kYXRhem9uZV9tY3Bfc2VydmVyLnNlcnZlciJdfQ==)
 
-> This will open the repo directly in [Cursor](https://www.cursor.sh/) and guide you through installing it.
+> Click the button above to instantly add the Amazon DataZone MCP server to your Cursor IDE. This will automatically configure the MCP server for use with Cursor's AI features.
+
+**Prerequisites:**
+- Python 3.10+ installed
+- [uv](https://github.com/astral-sh/uv) installed - Get it from [Astral](https://astral.sh/uv) or see the [GitHub README](https://github.com/astral-sh/uv#installation)
+- AWS credentials configured  
+- Install the package: `uvx awslabs.datazone-mcp-server@latest`
 
 ---
 
@@ -65,10 +72,13 @@ To enable this MCP server with **Amazon Q CLI**, configure the MCP endpoint by c
 {
     "mcpServers": {
       "datazone": {
-        "command": "python3",
-        "args": ["/PATH_TO/mcp/src/amazon_datazone_mcp_server/awslabs/datazone_mcp_server/server.py"]
+        "command": "uvx",
+        "args": ["awslabs.datazone-mcp-server@latest"]
+        "env": {
+            "FASTMCP_LOG_LEVEL": "INFO"
+        }
       }
-    }
+   }
 }
 
 ## Quick Start
@@ -327,8 +337,6 @@ For official Amazon DataZone documentation and support, visit [Amazon DataZone D
 ## Support
 
 - [Documentation](docs/)
-- [Issue Tracker](https://github.com/wangtianren/datazone-mcp-server/issues)
-- [Discussions](https://github.com/wangtianren/datazone-mcp-server/discussions)
 
 ## Acknowledgments
 

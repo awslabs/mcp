@@ -35,6 +35,7 @@ def _get_param_value(param: Any) -> Any:  # noqa: F401
         return param.default
     return param
 
-
+from awslabs.amazon_datazone_mcp_server import __version__
+user_agent_extra=f'awslabs/mcp/amazon-datazone-mcp-server/{__version__}'
 # Initialize boto3 client
 datazone_client = boto3.client('datazone', config=Config(user_agent_extra='Datazone-MCP/1.0'))
