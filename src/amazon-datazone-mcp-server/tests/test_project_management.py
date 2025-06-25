@@ -204,7 +204,7 @@ class TestProjectManagement:
         mock_client.__aexit__.return_value = None
 
         with patch(
-            'awslabs.datazone_mcp_server.tools.common.httpx.AsyncClient', return_value=mock_client
+            'awslabs.amazon_datazone_mcp_server.tools.common.httpx.AsyncClient', return_value=mock_client
         ):
             # Act
             result = await create_project_membership(domain_id, project_id, designation, member_id)

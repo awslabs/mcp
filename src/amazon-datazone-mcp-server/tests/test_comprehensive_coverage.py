@@ -232,7 +232,7 @@ class TestComprehensiveCoverage:
         assert 'status' in call_args
         assert 'type' in call_args
 
-    @patch('awslabs.datazone_mcp_server.server.main')
+    @patch('awslabs.amazon_datazone_mcp_server.server.main')
     def test_main_execution_path(self, mock_main):
         """Test the if __name__ == '__main__' execution path to cover line 76."""
         # Import the server module

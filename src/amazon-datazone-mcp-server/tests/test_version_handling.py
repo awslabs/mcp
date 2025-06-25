@@ -16,14 +16,14 @@ class TestVersionHandling:
         mock_read_text.return_value = '1.0.0\n'
 
         # Clear module cache
-        module_name = 'awslabs'
+        module_name = 'awslabs.amazon_datazone_mcp_server'
         if module_name in sys.modules:
             del sys.modules[module_name]
 
         # Import should read version from file
-        import awslabs.amazon_datazone_mcp_server
+        from awslabs.amazon_datazone_mcp_server import __version__
 
-        assert awslabs.amazon_datazone_mcp_server.__version__ == '1.0.0'
+        assert __version__ == '1.0.0'
         mock_exists.assert_called_once()
         mock_read_text.assert_called_once()
 
@@ -34,15 +34,15 @@ class TestVersionHandling:
         mock_exists.return_value = False
 
         # Clear module cache to force re-import
-        module_names_to_clear = [name for name in sys.modules.keys() if name.startswith('awslabs')]
-        for name in module_names_to_clear:
-            del sys.modules[name]
+        module_name = 'awslabs.amazon_datazone_mcp_server'
+        if module_name in sys.modules:
+            del sys.modules[module_name]
 
         # Import should fallback to 'unknown'
-        import awslabs.amazon_datazone_mcp_server
+        from awslabs.amazon_datazone_mcp_server import __version__
 
         # This should trigger line 22: __version__ = 'unknown'
-        assert awslabs.amazon_datazone_mcp_server.__version__ == 'unknown'
+        assert __version__ == 'unknown'
         mock_exists.assert_called_once()
 
     @patch('pathlib.Path.exists')
@@ -54,11 +54,11 @@ class TestVersionHandling:
         mock_read_text.side_effect = FileNotFoundError()
 
         # Clear module cache
-        module_names_to_clear = [name for name in sys.modules.keys() if name.startswith('awslabs')]
-        for name in module_names_to_clear:
-            del sys.modules[name]
+        module_name = 'awslabs.amazon_datazone_mcp_server'
+        if module_name in sys.modules:
+            del sys.modules[module_name]
 
         # Import should fallback to 'unknown' due to read error
-        import awslabs.amazon_datazone_mcp_server
+        from awslabs.amazon_datazone_mcp_server import __version__
 
-        assert awslabs.amazon_datazone_mcp_server.__version__ == 'unknown'
+        assert __version__ == 'unknown'

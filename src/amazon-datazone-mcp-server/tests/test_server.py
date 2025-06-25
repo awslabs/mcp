@@ -266,7 +266,7 @@ class TestCommandLineInterface:
         import importlib.util
 
         # Test that we can import the module
-        spec = importlib.util.find_spec('awslabs.datazone_mcp_server.server')
+        spec = importlib.util.find_spec('awslabs.amazon_datazone_mcp_server.server')
         assert spec is not None
 
         # Test that main function exists
