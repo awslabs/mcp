@@ -35,7 +35,7 @@ COPY . /app
 
 # Install uv and sync dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install uv==0.7.11 && \
+    pip install --require-hashes --requirement uv-requirements.txt && \
     uv sync --frozen --no-dev --no-editable
 
 # Make the directory just in case it doesn't exist
