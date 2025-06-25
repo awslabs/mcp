@@ -35,16 +35,16 @@ from awslabs.s3_tables_mcp_server.server import (
     delete_namespace,
     delete_table,
     delete_table_bucket,
-    get_table_maintenance_configuration,
-    get_table_maintenance_job_status,
+    get_maintenance_job_status,
+    get_table_maintenance_config,
     get_table_metadata_location,
     import_csv_to_table,
     list_namespaces,
     list_table_buckets,
     list_tables,
     modify_database,
-    put_table_bucket_maintenance_configuration,
-    put_table_maintenance_configuration,
+    put_bucket_maintenance_config,
+    put_table_maintenance_config,
     rename_table,
     update_table_metadata_location,
 )
@@ -304,8 +304,8 @@ async def test_delete_table(mock_tables):
 
 
 @pytest.mark.asyncio
-async def test_put_table_bucket_maintenance_configuration(mock_table_buckets):
-    """Test put_table_bucket_maintenance_configuration tool."""
+async def test_put_bucket_maintenance_config(mock_table_buckets):
+    """Test put_bucket_maintenance_config tool."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
@@ -316,7 +316,7 @@ async def test_put_table_bucket_maintenance_configuration(mock_table_buckets):
     expected_response = {'status': 'success'}
 
     # Act
-    result = await put_table_bucket_maintenance_configuration(
+    result = await put_bucket_maintenance_config(
         table_bucket_arn=table_bucket_arn,
         maintenance_type=maintenance_type,
         value=value,
@@ -334,8 +334,8 @@ async def test_put_table_bucket_maintenance_configuration(mock_table_buckets):
 
 
 @pytest.mark.asyncio
-async def test_get_table_maintenance_configuration(mock_tables):
-    """Test get_table_maintenance_configuration tool."""
+async def test_get_table_maintenance_config(mock_tables):
+    """Test get_table_maintenance_config tool."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     namespace = 'test-namespace'
@@ -344,7 +344,7 @@ async def test_get_table_maintenance_configuration(mock_tables):
     expected_response = {'status': 'success'}
 
     # Act
-    result = await get_table_maintenance_configuration(
+    result = await get_table_maintenance_config(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
     )
 
@@ -356,8 +356,8 @@ async def test_get_table_maintenance_configuration(mock_tables):
 
 
 @pytest.mark.asyncio
-async def test_get_table_maintenance_job_status(mock_tables):
-    """Test get_table_maintenance_job_status tool."""
+async def test_get_maintenance_job_status(mock_tables):
+    """Test get_maintenance_job_status tool."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     namespace = 'test-namespace'
@@ -366,7 +366,7 @@ async def test_get_table_maintenance_job_status(mock_tables):
     expected_response = {'status': 'success'}
 
     # Act
-    result = await get_table_maintenance_job_status(
+    result = await get_maintenance_job_status(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
     )
 
@@ -400,8 +400,8 @@ async def test_get_table_metadata_location(mock_tables):
 
 
 @pytest.mark.asyncio
-async def test_put_table_maintenance_configuration(mock_tables):
-    """Test put_table_maintenance_configuration tool."""
+async def test_put_table_maintenance_config(mock_tables):
+    """Test put_table_maintenance_config tool."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     namespace = 'test-namespace'
@@ -412,7 +412,7 @@ async def test_put_table_maintenance_configuration(mock_tables):
     expected_response = {'status': 'success'}
 
     # Act
-    result = await put_table_maintenance_configuration(
+    result = await put_table_maintenance_config(
         table_bucket_arn=table_bucket_arn,
         namespace=namespace,
         name=name,
@@ -625,10 +625,8 @@ async def test_delete_table_readonly_mode(setup_app_readonly, mock_tables):
 
 
 @pytest.mark.asyncio
-async def test_put_table_bucket_maintenance_configuration_readonly_mode(
-    setup_app_readonly, mock_table_buckets
-):
-    """Test put_table_bucket_maintenance_configuration tool when allow_write is disabled."""
+async def test_put_bucket_maintenance_config_readonly_mode(setup_app_readonly, mock_table_buckets):
+    """Test put_bucket_maintenance_config tool when allow_write is disabled."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
@@ -641,7 +639,7 @@ async def test_put_table_bucket_maintenance_configuration_readonly_mode(
     with pytest.raises(
         ValueError, match='Operation not permitted: Server is configured in read-only mode'
     ):
-        await put_table_bucket_maintenance_configuration(
+        await put_bucket_maintenance_config(
             table_bucket_arn=table_bucket_arn,
             maintenance_type=maintenance_type,
             value=value,
@@ -650,8 +648,8 @@ async def test_put_table_bucket_maintenance_configuration_readonly_mode(
 
 
 @pytest.mark.asyncio
-async def test_get_table_maintenance_configuration_readonly_mode(setup_app_readonly, mock_tables):
-    """Test get_table_maintenance_configuration tool when allow_write is disabled."""
+async def test_get_table_maintenance_config_readonly_mode(setup_app_readonly, mock_tables):
+    """Test get_table_maintenance_config tool when allow_write is disabled."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     namespace = 'test-namespace'
@@ -662,14 +660,14 @@ async def test_get_table_maintenance_configuration_readonly_mode(setup_app_reado
     with pytest.raises(
         ValueError, match='Operation not permitted: Server is configured in read-only mode'
     ):
-        await get_table_maintenance_configuration(
+        await get_table_maintenance_config(
             table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
         )
 
 
 @pytest.mark.asyncio
-async def test_get_table_maintenance_job_status_readonly_mode(setup_app_readonly, mock_tables):
-    """Test get_table_maintenance_job_status tool when allow_write is disabled."""
+async def test_get_maintenance_job_status_readonly_mode(setup_app_readonly, mock_tables):
+    """Test get_maintenance_job_status tool when allow_write is disabled."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     namespace = 'test-namespace'
@@ -680,7 +678,7 @@ async def test_get_table_maintenance_job_status_readonly_mode(setup_app_readonly
     with pytest.raises(
         ValueError, match='Operation not permitted: Server is configured in read-only mode'
     ):
-        await get_table_maintenance_job_status(
+        await get_maintenance_job_status(
             table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
         )
 
@@ -704,8 +702,8 @@ async def test_get_table_metadata_location_readonly_mode(setup_app_readonly, moc
 
 
 @pytest.mark.asyncio
-async def test_put_table_maintenance_configuration_readonly_mode(setup_app_readonly, mock_tables):
-    """Test put_table_maintenance_configuration tool when allow_write is disabled."""
+async def test_put_table_maintenance_config_readonly_mode(setup_app_readonly, mock_tables):
+    """Test put_table_maintenance_config tool when allow_write is disabled."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     namespace = 'test-namespace'
@@ -718,7 +716,7 @@ async def test_put_table_maintenance_configuration_readonly_mode(setup_app_reado
     with pytest.raises(
         ValueError, match='Operation not permitted: Server is configured in read-only mode'
     ):
-        await put_table_maintenance_configuration(
+        await put_table_maintenance_config(
             table_bucket_arn=table_bucket_arn,
             namespace=namespace,
             name=name,

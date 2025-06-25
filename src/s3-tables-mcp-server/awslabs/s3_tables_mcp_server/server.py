@@ -322,7 +322,7 @@ async def delete_table(
 
 @app.tool()
 @write_operation
-async def put_table_bucket_maintenance_configuration(
+async def put_bucket_maintenance_config(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     maintenance_type: Annotated[
         TableBucketMaintenanceType,
@@ -355,7 +355,7 @@ async def put_table_bucket_maintenance_configuration(
 
 @app.tool()
 @write_operation
-async def get_table_maintenance_configuration(
+async def get_table_maintenance_config(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     name: Annotated[str, TABLE_NAME_FIELD],
@@ -375,7 +375,7 @@ async def get_table_maintenance_configuration(
 
 @app.tool()
 @write_operation
-async def get_table_maintenance_job_status(
+async def get_maintenance_job_status(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     name: Annotated[str, TABLE_NAME_FIELD],
@@ -416,7 +416,7 @@ async def get_table_metadata_location(
 
 @app.tool()
 @write_operation
-async def put_table_maintenance_configuration(
+async def put_table_maintenance_config(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     name: Annotated[str, TABLE_NAME_FIELD],
@@ -641,7 +641,51 @@ async def preview_csv_file(
 
 
 @app.tool()
-async def get_bucket_metadata_table_configuration(
+@write_operation
+async def import_csv_to_table(
+    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
+    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
+    name: Annotated[str, TABLE_NAME_FIELD],
+    s3_url: Annotated[str, S3_URL_FIELD],
+    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
+) -> dict:
+    """Import data from a CSV file into an S3 table.
+
+    This tool reads data from a CSV file stored in S3 and imports it into an existing S3 table.
+    The CSV file must have headers that match the table's schema. The tool will validate the CSV structure
+    before attempting to import the data.
+
+    To create a table, first use the preview_csv_file tool to get the schema and data format.
+    Then use the create_table tool to create the table.
+
+    Returns error dictionary with status and error message if:
+        - URL is not a valid S3 URL
+        - File is not a CSV file
+        - File cannot be accessed
+        - Table does not exist
+        - CSV headers don't match table schema
+        - Any other error occurs
+
+    Permissions:
+    You must have:
+    - s3:GetObject permission for the CSV file
+    - glue:GetCatalog permission to access the Glue catalog
+    - glue:GetDatabase and glue:GetDatabases permissions to access database information
+    - glue:GetTable and glue:GetTables permissions to access table information
+    - glue:CreateTable and glue:UpdateTable permissions to modify table metadata
+    """
+    return await file_processor.import_csv_to_table(
+        table_bucket_arn=table_bucket_arn,
+        namespace=namespace,
+        name=name,
+        s3_url=s3_url,
+        region_name=region_name,
+    )
+
+
+@app.tool()
+@write_operation
+async def get_bucket_metadata_config(
     bucket: Annotated[
         str,
         Field(
@@ -697,49 +741,6 @@ async def get_bucket_metadata_table_configuration(
     """
     return await s3_operations.get_bucket_metadata_table_configuration(
         bucket=bucket, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
-async def import_csv_to_table(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    name: Annotated[str, TABLE_NAME_FIELD],
-    s3_url: Annotated[str, S3_URL_FIELD],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-) -> dict:
-    """Import data from a CSV file into an S3 table.
-
-    This tool reads data from a CSV file stored in S3 and imports it into an existing S3 table.
-    The CSV file must have headers that match the table's schema. The tool will validate the CSV structure
-    before attempting to import the data.
-
-    To create a table, first use the preview_csv_file tool to get the schema and data format.
-    Then use the create_table tool to create the table.
-
-    Returns error dictionary with status and error message if:
-        - URL is not a valid S3 URL
-        - File is not a CSV file
-        - File cannot be accessed
-        - Table does not exist
-        - CSV headers don't match table schema
-        - Any other error occurs
-
-    Permissions:
-    You must have:
-    - s3:GetObject permission for the CSV file
-    - glue:GetCatalog permission to access the Glue catalog
-    - glue:GetDatabase and glue:GetDatabases permissions to access database information
-    - glue:GetTable and glue:GetTables permissions to access table information
-    - glue:CreateTable and glue:UpdateTable permissions to modify table metadata
-    """
-    return await file_processor.import_csv_to_table(
-        table_bucket_arn=table_bucket_arn,
-        namespace=namespace,
-        name=name,
-        s3_url=s3_url,
-        region_name=region_name,
     )
 
 
