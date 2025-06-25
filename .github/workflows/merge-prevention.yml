@@ -64,7 +64,7 @@ jobs:
           exit 1
       - name: When PR does not have the "${{ env.DO_NOT_MERGE_LABEL }}" label
         id: pr-missing-label
-        if: ! contains(github.event.pull_request.labels.*.name, env.DO_NOT_MERGE_LABEL)
+        if: ! github.event.pull_request.labels || ! contains(github.event.pull_request.labels.*.name, env.DO_NOT_MERGE_LABEL)
         run: |
           echo "The label \"${{ env.DO_NOT_MERGE_LABEL }}\" is absent, should succeed."
           cat << EOF > results.sarif
