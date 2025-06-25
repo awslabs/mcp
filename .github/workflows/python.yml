@@ -69,7 +69,8 @@ jobs:
           fi
 
       - name: Install Bandit
-        run: pip install bandit[toml]
+        run: |
+          pip install --require-hashes --requirement .github/workflows/bandit-requirements.txt
 
       - name: Install pyright
         run: npm install -g pyright
