@@ -23,7 +23,7 @@ def register_tools(mcp: FastMCP):
     """Register domain management tools with the MCP server."""
 
     @mcp.tool()
-    async def get_domain(identifier: str = Field(description="The domain identifier")) -> Any:
+    async def get_domain(identifier: str = Field(..., description="The domain identifier")) -> Any:
         """Calls the Amazon DataZone GetDomain API for a given domain identifier.
 
         Args:
@@ -40,9 +40,9 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_domain(
-        name: str = Field(description="The name of the domain"),
-        domain_execution_role: str = Field(description="The ARN of the domain execution role"),
-        service_role: str = Field(description="The ARN of the service role"),
+        name: str = Field(..., description="The name of the domain"),
+        domain_execution_role: str = Field(..., description="The ARN of the domain execution role"),
+        service_role: str = Field(..., description="The ARN of the service role"),
         domain_version: str = Field(default='V2', description="The version of the domain (V1 or V2)"),
         description: Optional[str] = Field(default=None, description="Description of the domain"),
         kms_key_identifier: Optional[str] = Field(default=None, description="ARN of the KMS key for encryption"),
@@ -132,8 +132,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def list_domain_units(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        parent_domain_unit_identifier: str = Field(description="The identifier of the parent domain unit")
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        parent_domain_unit_identifier: str = Field(..., description="The identifier of the parent domain unit")
     ) -> Any:
         """Lists child domain units for the specified parent domain unit in an Amazon DataZone domain.
 
@@ -245,9 +245,9 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_domain_unit(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        name: str = Field(description="The name of the domain unit"),
-        parent_domain_unit_identifier: str = Field(description="The identifier of the parent domain unit"),
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        name: str = Field(..., description="The name of the domain unit"),
+        parent_domain_unit_identifier: str = Field(..., description="The identifier of the parent domain unit"),
         description: Optional[str] = Field(default=None, description="Description of the domain unit"),
         client_token: Optional[str] = Field(default=None, description="Token for idempotency"),
     ) -> Dict[str, Any]:
@@ -356,8 +356,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_domain_unit(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        identifier: str = Field(description="The identifier of the domain unit")
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        identifier: str = Field(..., description="The identifier of the domain unit")
     ) -> Dict[str, Any]:
         """Retrieves detailed information about a specific domain unit in Amazon DataZone.
 
@@ -438,9 +438,9 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def add_entity_owner(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        entity_identifier: str = Field(description="The identifier of the entity"),
-        owner_identifier: str = Field(description="The identifier of the owner"),
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        entity_identifier: str = Field(..., description="The identifier of the entity"),
+        owner_identifier: str = Field(..., description="The identifier of the owner"),
         entity_type: str = Field(default='DOMAIN_UNIT', description="The type of the entity"),
         owner_type: str = Field(default='USER', description="The type of the owner"),
         client_token: Optional[str] = Field(default=None, description="Token for idempotency"),
@@ -499,11 +499,11 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def add_policy_grant(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        entity_identifier: str = Field(description="The identifier of the entity"),
-        entity_type: str = Field(description="The type of the entity"),
-        policy_type: str = Field(description="The type of the policy"),
-        principal_identifier: str = Field(description="The identifier of the principal"),
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        entity_identifier: str = Field(..., description="The identifier of the entity"),
+        entity_type: str = Field(..., description="The type of the entity"),
+        policy_type: str = Field(..., description="The type of the policy"),
+        principal_identifier: str = Field(..., description="The identifier of the principal"),
         principal_type: str = Field(default='USER', description="The type of the principal"),
         client_token: Optional[str] = Field(default=None, description="Token for idempotency"),
         detail: Optional[dict] = Field(default=None, description="Additional policy details"),
@@ -556,8 +556,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def search(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        search_scope: str = Field(description="The scope of the search"),
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        search_scope: str = Field(..., description="The scope of the search"),
         additional_attributes: Optional[List[str]] = Field(default=None, description="Additional attributes to include"),
         filters: Optional[Dict[str, Any]] = Field(default=None, description="Filters to apply to the search"),
         max_results: int = Field(default=50, description="Maximum number of results to return"),
@@ -675,9 +675,9 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def search_types(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        managed: bool = Field(description="Whether to search managed types"),
-        search_scope: str = Field(description="The scope of the search"),
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        managed: bool = Field(..., description="Whether to search managed types"),
+        search_scope: str = Field(..., description="The scope of the search"),
         filters: Optional[Dict[str, Any]] = Field(default=None, description="Filters to apply to the search"),
         max_results: int = Field(default=50, description="Maximum number of results to return"),
         next_token: Optional[str] = Field(default=None, description="Token for pagination"),
@@ -783,8 +783,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_user_profile(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        user_identifier: str = Field(description="The identifier of the user"),
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        user_identifier: str = Field(..., description="The identifier of the user"),
         user_type: Optional[str] = Field(default=None, description="The type of the user")
     ) -> Any:
         r"""Retrieves the user profile in a specified Amazon DataZone domain for one given user.
@@ -830,8 +830,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def search_user_profiles(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        user_type: str = Field(description="The type of the user"),
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        user_type: str = Field(..., description="The type of the user"),
         max_results: int = Field(default=50, description="Maximum number of results to return"),
         next_token: Optional[str] = Field(default=None, description="Token for pagination"),
         search_text: Optional[str] = Field(default=None, description="Text to search for"),
@@ -936,8 +936,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def search_group_profiles(
-        domain_identifier: str = Field(description="The identifier of the domain"),
-        group_type: str = Field(description="The type of the group"),
+        domain_identifier: str = Field(..., description="The identifier of the domain"),
+        group_type: str = Field(..., description="The type of the group"),
         max_results: int = Field(default=50, description="Maximum number of results to return"),
         next_token: Optional[str] = Field(default=None, description="Token for pagination"),
         search_text: Optional[str] = Field(default=None, description="Text to search for"),

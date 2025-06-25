@@ -24,8 +24,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_asset(
-        domain_identifier: str = Field(description="The ID of the domain containing the asset"),
-        asset_identifier: str = Field(description="The ID of the asset to retrieve"),
+        domain_identifier: str = Field(..., description="The ID of the domain containing the asset"),
+        asset_identifier: str = Field(..., description="The ID of the asset to retrieve"),
         revision: Optional[str] = Field(default=None, description="The specific revision of the asset to retrieve")
     ) -> Any:
         """Retrieves detailed information about one specific asset (specified by user) in Amazon DataZone.
@@ -125,10 +125,10 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_asset(
-        domain_identifier: str = Field(description="The ID of the domain where the asset is created"),
-        name: str = Field(description="The name of the asset (1-256 characters)"),
-        type_identifier: str = Field(description="The ID of the asset type (1-513 characters)"),
-        owning_project_identifier: str = Field(description="The ID of the project that owns this asset"),
+        domain_identifier: str = Field(..., description="The ID of the domain where the asset is created"),
+        name: str = Field(..., description="The name of the asset (1-256 characters)"),
+        type_identifier: str = Field(..., description="The ID of the asset type (1-513 characters)"),
+        owning_project_identifier: str = Field(..., description="The ID of the project that owns this asset"),
         description: Optional[str] = Field(default=None, description="Description of the asset (0-2048 characters)"),
         external_identifier: Optional[str] = Field(default=None, description="External ID of the asset (1-600 characters)"),
         forms_input: Optional[List[Dict[str, str]]] = Field(default=None, description="Metadata forms for the asset"),
@@ -243,8 +243,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def publish_asset(
-        domain_identifier: str = Field(description="The ID of the domain containing the asset"),
-        asset_identifier: str = Field(description="The ID of the asset to publish"),
+        domain_identifier: str = Field(..., description="The ID of the domain containing the asset"),
+        asset_identifier: str = Field(..., description="The ID of the asset to publish"),
         revision: Optional[str] = Field(default=None, description="The specific revision of the asset to publish"),
         client_token: Optional[str] = Field(default=None, description="Token for idempotency"),
     ) -> Any:
@@ -285,8 +285,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_listing(
-        domain_identifier: str = Field(description="The ID of the Amazon DataZone domain"),
-        identifier: str = Field(description="The ID of the listing"),
+        domain_identifier: str = Field(..., description="The ID of the Amazon DataZone domain"),
+        identifier: str = Field(..., description="The ID of the listing"),
         listing_revision: Optional[str] = Field(default=None, description="The revision of the listing")
     ) -> Any:
         """Gets a listing (a record of an asset at a given time) in Amazon DataZone.
@@ -328,7 +328,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def search_listings(
-        domain_identifier: str = Field(description="The ID of the domain to search in"),
+        domain_identifier: str = Field(..., description="The ID of the domain to search in"),
         search_text: Optional[str] = Field(default=None, description="Text to search for"),
         max_results: int = Field(default=50, description="Maximum number of results to return (1-50)"),
         next_token: Optional[str] = Field(default=None, description="Token for pagination"),
@@ -384,10 +384,10 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_data_source(
-        domain_identifier: str = Field(description="The ID of the domain where the data source is created"),
-        project_identifier: str = Field(description="The ID of the project to associate the data source with"),
-        name: str = Field(description="The name of the data source (1-256 characters)"),
-        data_src_type: str = Field(description="The type of data source (e.g., 'S3', 'GLUE', 'REDSHIFT')"),
+        domain_identifier: str = Field(..., description="The ID of the domain where the data source is created"),
+        project_identifier: str = Field(..., description="The ID of the project to associate the data source with"),
+        name: str = Field(..., description="The name of the data source (1-256 characters)"),
+        data_src_type: str = Field(..., description="The type of data source (e.g., 'S3', 'GLUE', 'REDSHIFT')"),
         description: Optional[str] = Field(default=None, description="Description of the data source (0-2048 characters)"),
         enable_setting: str = Field(default='ENABLED', description="Whether the data source is enabled (ENABLED/DISABLED)"),
         environment_identifier: Optional[str] = Field(default=None, description="ID of the environment to publish assets to"),
@@ -479,8 +479,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_data_source(
-        domain_identifier: str = Field(description="The ID of the domain where the data source exists"),
-        identifier: str = Field(description="The ID of the data source to retrieve")
+        domain_identifier: str = Field(..., description="The ID of the domain where the data source exists"),
+        identifier: str = Field(..., description="The ID of the data source to retrieve")
     ) -> Any:
         """Retrieves detailed information about a **specific, known data source** in Amazon DataZone.
 
@@ -514,8 +514,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def start_data_source_run(
-        domain_identifier: str = Field(description="The identifier of the Amazon DataZone domain in which to start a data source run"),
-        data_source_identifier: str = Field(description="The identifier of the data source"),
+        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain in which to start a data source run"),
+        data_source_identifier: str = Field(..., description="The identifier of the data source"),
         client_token: Optional[str] = Field(default=None, description="A unique, case-sensitive identifier that is provided to ensure the idempotency of the request")
     ) -> Any:
         """Starts a data source run in Amazon DataZone.
@@ -616,10 +616,10 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_subscription_request(
-        domain_identifier: str = Field(description="The ID of the domain where the subscription request is created"),
-        request_reason: str = Field(description="The reason for the subscription request (1-4096 characters)"),
-        subscribed_listings: List[Dict[str, str]] = Field(description="The published assets to subscribe to"),
-        subscribed_principals: List[Dict[str, Any]] = Field(description="The principals to subscribe using tagged union format"),
+        domain_identifier: str = Field(..., description="The ID of the domain where the subscription request is created"),
+        request_reason: str = Field(..., description="The reason for the subscription request (1-4096 characters)"),
+        subscribed_listings: List[Dict[str, str]] = Field(..., description="The published assets to subscribe to"),
+        subscribed_principals: List[Dict[str, Any]] = Field(..., description="The principals to subscribe using tagged union format"),
         metadata_forms: Optional[List[Dict[str, str]]] = Field(default=None, description="Additional metadata forms"),
         client_token: Optional[str] = Field(default=None, description="A unique token to ensure idempotency"),
     ) -> Any:
@@ -676,8 +676,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def accept_subscription_request(
-        domain_identifier: str = Field(description="The ID of the domain where the subscription request exists"),
-        identifier: str = Field(description="The unique identifier of the subscription request to accept"),
+        domain_identifier: str = Field(..., description="The ID of the domain where the subscription request exists"),
+        identifier: str = Field(..., description="The unique identifier of the subscription request to accept"),
         asset_scopes: Optional[List[Dict[str, Any]]] = Field(default=None, description="The asset scopes of the accept subscription request"),
         decision_comment: Optional[str] = Field(default=None, description="A description that specifies the reason for accepting the request"),
     ) -> Any:
@@ -723,8 +723,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_subscription(
-        domain_identifier: str = Field(description="The ID of the Amazon DataZone domain in which the subscription exists"),
-        identifier: str = Field(description="The ID of the subscription")
+        domain_identifier: str = Field(..., description="The ID of the Amazon DataZone domain in which the subscription exists"),
+        identifier: str = Field(..., description="The ID of the subscription")
     ) -> Any:
         """Gets a subscription in Amazon DataZone.
 
@@ -757,8 +757,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_form_type(
-        domain_identifier: str = Field(description="The ID of the domain where the form type exists"),
-        form_type_identifier: str = Field(description="The ID of the form type to retrieve"),
+        domain_identifier: str = Field(..., description="The ID of the domain where the form type exists"),
+        form_type_identifier: str = Field(..., description="The ID of the form type to retrieve"),
         revision: Optional[str] = Field(default=None, description="The revision of the form type to retrieve")
     ) -> Any:
         """Retrieves detailed information about a specific metadata form type in Amazon DataZone.
@@ -818,10 +818,10 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def create_form_type(
-        domain_identifier: str = Field(description="The ID of the domain where the form type will be created"),
-        name: str = Field(description="The name of the form type (1-128 characters)"),
-        model: Dict[str, Any] = Field(description="The model of the form type"),
-        owning_project_identifier: str = Field(description="The ID of the project that owns the form type"),
+        domain_identifier: str = Field(..., description="The ID of the domain where the form type will be created"),
+        name: str = Field(..., description="The name of the form type (1-128 characters)"),
+        model: Dict[str, Any] = Field(..., description="The model of the form type"),
+        owning_project_identifier: str = Field(..., description="The ID of the project that owns the form type"),
         description: Optional[str] = Field(default=None, description="The description of the form type (0-2048 characters)"),
         status: str = Field(default='ENABLED', description="The status of the form type (ENABLED or DISABLED)"),
     ) -> Any:
@@ -896,8 +896,8 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def list_data_sources(
-        domain_identifier: str = Field(description="The identifier of the Amazon DataZone domain in which to list the data sources"),
-        project_identifier: str = Field(description="The identifier of the project in which to list data sources"),
+        domain_identifier: str = Field(..., description="The identifier of the Amazon DataZone domain in which to list the data sources"),
+        project_identifier: str = Field(..., description="The identifier of the project in which to list data sources"),
         connection_identifier: Optional[str] = Field(default=None, description="The ID of the connection used to filter the data sources"),
         environment_identifier: Optional[str] = Field(default=None, description="The identifier of the environment in which to list the data sources"),
         max_results: int = Field(default=50, description="The maximum number of data sources to return in one response"),
