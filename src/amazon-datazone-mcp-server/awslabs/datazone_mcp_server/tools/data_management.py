@@ -379,7 +379,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             search_text_value = _get_param_value(search_text)
             next_token_value = _get_param_value(next_token)
             additional_attributes_value = _get_param_value(additional_attributes)
@@ -1024,7 +1024,7 @@ def register_tools(mcp: FastMCP):
             # Handle optional parameters
             connection_identifier_value = _get_param_value(connection_identifier)
             environment_identifier_value = _get_param_value(environment_identifier)
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             name_value = _get_param_value(name)
             next_token_value = _get_param_value(next_token)
             status_value = _get_param_value(status)

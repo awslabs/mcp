@@ -128,7 +128,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
             name_value = _get_param_value(name)
             user_identifier_value = _get_param_value(user_identifier)
@@ -205,7 +205,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
 
             # Prepare the request parameters
@@ -514,7 +514,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
             sort_by_value = _get_param_value(sort_by)
             sort_order_value = _get_param_value(sort_order)

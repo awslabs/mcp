@@ -179,7 +179,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 25
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
             status_value = _get_param_value(status)
 
@@ -645,7 +645,7 @@ def register_tools(mcp: FastMCP):
             # Handle optional parameters
             additional_attributes_value = _get_param_value(additional_attributes)
             filters_value = _get_param_value(filters)
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
             owning_project_identifier_value = _get_param_value(owning_project_identifier)
             search_in_value = _get_param_value(search_in)
@@ -757,7 +757,7 @@ def register_tools(mcp: FastMCP):
         try:
             # Handle optional parameters
             filters_value = _get_param_value(filters)
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
             search_in_value = _get_param_value(search_in)
             search_text_value = _get_param_value(search_text)
@@ -923,7 +923,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
             search_text_value = _get_param_value(search_text)
 
@@ -1032,7 +1032,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
             search_text_value = _get_param_value(search_text)
 

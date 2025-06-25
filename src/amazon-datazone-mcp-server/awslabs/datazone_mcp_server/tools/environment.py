@@ -65,7 +65,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
             aws_account_id_value = _get_param_value(aws_account_id)
             aws_account_region_value = _get_param_value(aws_account_region)
@@ -573,7 +573,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
             environment_identifier_value = _get_param_value(environment_identifier)
             name_value = _get_param_value(name)
@@ -655,7 +655,7 @@ def register_tools(mcp: FastMCP):
         try:
             # Handle optional parameters
             managed_value = _get_param_value(managed)
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             name_value = _get_param_value(name)
             next_token_value = _get_param_value(next_token)
 
@@ -773,7 +773,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             next_token_value = _get_param_value(next_token)
 
             logger.info(
@@ -917,7 +917,7 @@ def register_tools(mcp: FastMCP):
             aws_account_id_value = _get_param_value(aws_account_id)
             aws_account_region_value = _get_param_value(aws_account_region)
             environment_blueprint_identifier_value = _get_param_value(environment_blueprint_identifier)
-            max_results_value = int(max_results) if max_results is not None else 50
+            max_results_value = _get_param_value(max_results)
             name_value = _get_param_value(name)
             next_token_value = _get_param_value(next_token)
             project_identifier_value = _get_param_value(project_identifier)
