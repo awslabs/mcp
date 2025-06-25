@@ -30,10 +30,13 @@ def register_tools(mcp: FastMCP):
         project_identifier: str = Field(
             ..., description='The identifier of the Amazon DataZone project'
         ),
-        max_results: int = Field(default=50, description='Maximum number of environments to return'),
+        max_results: int = Field(
+            default=50, description='Maximum number of environments to return'
+        ),
         next_token: Optional[str] = Field(default=None, description='Token for pagination'),
         aws_account_id: Optional[str] = Field(
-            default=None, description='The identifier of the AWS account where you want to list environments'
+            default=None,
+            description='The identifier of the AWS account where you want to list environments',
         ),
         aws_account_region: Optional[str] = Field(
             default=None, description='The AWS region where you want to list environments'
@@ -45,8 +48,12 @@ def register_tools(mcp: FastMCP):
             default=None, description='The identifier of the environment profile'
         ),
         name: Optional[str] = Field(default=None, description='The name of the environment'),
-        provider: Optional[str] = Field(default=None, description='The provider of the environment'),
-        status: Optional[str] = Field(default=None, description='The status of the environments to list'),
+        provider: Optional[str] = Field(
+            default=None, description='The provider of the environment'
+        ),
+        status: Optional[str] = Field(
+            default=None, description='The status of the environments to list'
+        ),
     ) -> Any:
         """Lists environments in Amazon DataZone.
 
@@ -81,7 +88,9 @@ def register_tools(mcp: FastMCP):
             next_token_value = _get_param_value(next_token)
             aws_account_id_value = _get_param_value(aws_account_id)
             aws_account_region_value = _get_param_value(aws_account_region)
-            environment_blueprint_identifier_value = _get_param_value(environment_blueprint_identifier)
+            environment_blueprint_identifier_value = _get_param_value(
+                environment_blueprint_identifier
+            )
             environment_profile_identifier_value = _get_param_value(environment_profile_identifier)
             name_value = _get_param_value(name)
             provider_value = _get_param_value(provider)
@@ -134,7 +143,9 @@ def register_tools(mcp: FastMCP):
         client_token: Optional[str] = Field(
             default=None, description='A unique, case-sensitive identifier to ensure idempotency'
         ),
-        props: Optional[Dict[str, Any]] = Field(default=None, description='The connection properties'),
+        props: Optional[Dict[str, Any]] = Field(
+            default=None, description='The connection properties'
+        ),
     ) -> Any:
         """Creates a new connection in Amazon DataZone. A connection enables you to connect your resources.
 
@@ -250,7 +261,7 @@ def register_tools(mcp: FastMCP):
         identifier: str = Field(..., description='The ID of the connection to retrieve'),
         with_secret: bool = Field(
             default=False, description='Whether to include secret information in the response'
-        )
+        ),
     ) -> Any:
         """Gets a connection in Amazon DataZone. A connection enables you to connect your resources.
 
@@ -334,7 +345,7 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str = Field(
             ..., description='The ID of the domain containing the environment'
         ),
-        identifier: str = Field(..., description='The ID of the environment to retrieve')
+        identifier: str = Field(..., description='The ID of the environment to retrieve'),
     ) -> Any:
         """Gets an Amazon DataZone environment.
 
@@ -431,7 +442,7 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str = Field(
             ..., description='The ID of the domain containing the environment blueprint'
         ),
-        identifier: str = Field(..., description='The ID of the environment blueprint to retrieve')
+        identifier: str = Field(..., description='The ID of the environment blueprint to retrieve'),
     ) -> Any:
         r"""Retrieves metadata and definition of an environment blueprint.
 
@@ -503,11 +514,12 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def get_environment_blueprint_configuration(
         domain_identifier: str = Field(
-            ..., description='The ID of the domain containing the environment blueprint configuration'
+            ...,
+            description='The ID of the domain containing the environment blueprint configuration',
         ),
         identifier: str = Field(
             ..., description='The ID of the environment blueprint configuration to retrieve'
-        )
+        ),
     ) -> Any:
         r"""Gets an Amazon DataZone environment blueprint configuration.
 
@@ -581,7 +593,9 @@ def register_tools(mcp: FastMCP):
         project_identifier: str = Field(
             ..., description='The ID of the project containing the connections'
         ),
-        max_results: int = Field(default=50, description='Maximum number of connections to return'),
+        max_results: int = Field(
+            default=50, description='Maximum number of connections to return'
+        ),
         next_token: Optional[str] = Field(default=None, description='Token for pagination'),
         environment_identifier: Optional[str] = Field(
             default=None, description='The ID of the environment to filter connections by'
@@ -633,7 +647,9 @@ def register_tools(mcp: FastMCP):
             params = {
                 'domainIdentifier': domain_identifier,
                 'projectIdentifier': project_identifier,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters if provided
@@ -720,7 +736,9 @@ def register_tools(mcp: FastMCP):
             # Prepare request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters
@@ -796,12 +814,14 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def list_environment_blueprint_configurations(
         domain_identifier: str = Field(
-            ..., description='The ID of the domain containing the environment blueprint configurations'
+            ...,
+            description='The ID of the domain containing the environment blueprint configurations',
         ),
         max_results: int = Field(
-            default=50, description='Maximum number of environment blueprint configurations to return'
+            default=50,
+            description='Maximum number of environment blueprint configurations to return',
         ),
-        next_token: Optional[str] = Field(default=None, description='Token for pagination')
+        next_token: Optional[str] = Field(default=None, description='Token for pagination'),
     ) -> Dict[str, Any]:
         """Lists environment blueprints in an Amazon DataZone domain.
 
@@ -843,7 +863,9 @@ def register_tools(mcp: FastMCP):
             # Prepare request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
             }
 
             if next_token_value:  # pragma: no cover
@@ -928,7 +950,8 @@ def register_tools(mcp: FastMCP):
             default=None, description='The AWS region to filter environment profiles by'
         ),
         environment_blueprint_identifier: Optional[str] = Field(
-            default=None, description='The environment blueprint ID to filter environment profiles by'
+            default=None,
+            description='The environment blueprint ID to filter environment profiles by',
         ),
         max_results: int = Field(
             default=50, description='Maximum number of environment profiles to return'
@@ -990,7 +1013,9 @@ def register_tools(mcp: FastMCP):
             # Handle optional parameters
             aws_account_id_value = _get_param_value(aws_account_id)
             aws_account_region_value = _get_param_value(aws_account_region)
-            environment_blueprint_identifier_value = _get_param_value(environment_blueprint_identifier)
+            environment_blueprint_identifier_value = _get_param_value(
+                environment_blueprint_identifier
+            )
             max_results_value = _get_param_value(max_results)
             name_value = _get_param_value(name)
             next_token_value = _get_param_value(next_token)
@@ -1001,7 +1026,9 @@ def register_tools(mcp: FastMCP):
             # Prepare request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters

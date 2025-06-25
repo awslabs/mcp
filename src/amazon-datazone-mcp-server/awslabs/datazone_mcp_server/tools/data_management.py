@@ -423,7 +423,9 @@ def register_tools(mcp: FastMCP):
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters if provided
@@ -453,7 +455,7 @@ def register_tools(mcp: FastMCP):
         ),
         name: str = Field(..., description='The name of the data source (1-256 characters)'),
         data_src_type: str = Field(
-            ..., description='The type of data source (e.g., \'S3\', \'GLUE\', \'REDSHIFT\')'
+            ..., description="The type of data source (e.g., 'S3', 'GLUE', 'REDSHIFT')"
         ),
         description: Optional[str] = Field(
             default=None, description='Description of the data source (0-2048 characters)'
@@ -465,7 +467,8 @@ def register_tools(mcp: FastMCP):
             default=None, description='ID of the environment to publish assets to'
         ),
         connection_identifier: Optional[str] = Field(
-            default=None, description='ID of the connection to use'),
+            default=None, description='ID of the connection to use'
+        ),
         configuration: Optional[Dict[str, Any]] = Field(
             default=None, description='Data source configuration'
         ),
@@ -578,7 +581,8 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str = Field(
             ..., description='The ID of the domain where the data source exists'
         ),
-        identifier: str = Field(..., description='The ID of the data source to retrieve')
+        identifier: str = Field(..., description='The ID of the data source to retrieve'
+        )
     ) -> Any:
         """Retrieves detailed information about a **specific, known data source** in Amazon DataZone.
 
@@ -614,13 +618,13 @@ def register_tools(mcp: FastMCP):
     async def start_data_source_run(
         domain_identifier: str = Field(
             ...,
-            description='The identifier of the Amazon DataZone domain in which to start a data source run'
+            description='The identifier of the Amazon DataZone domain in which to start a data source run',
         ),
         data_source_identifier: str = Field(..., description='The identifier of the data source'),
         client_token: Optional[str] = Field(
             default=None,
-            description='A unique, case-sensitive identifier that is provided to ensure the idempotency of the request'
-        )
+            description='A unique, case-sensitive identifier that is provided to ensure the idempotency of the request',
+        ),
     ) -> Any:
         """Starts a data source run in Amazon DataZone.
 
@@ -809,7 +813,8 @@ def register_tools(mcp: FastMCP):
             default=None, description='The asset scopes of the accept subscription request'
         ),
         decision_comment: Optional[str] = Field(
-            default=None, description='A description that specifies the reason for accepting the request'
+            default=None,
+            description='A description that specifies the reason for accepting the request',
         ),
     ) -> Any:
         """Accepts a subscription request to a specific asset in Amazon DataZone.
@@ -859,9 +864,10 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def get_subscription(
         domain_identifier: str = Field(
-            ..., description='The ID of the Amazon DataZone domain in which the subscription exists'
+            ...,
+            description='The ID of the Amazon DataZone domain in which the subscription exists',
         ),
-        identifier: str = Field(..., description='The ID of the subscription')
+        identifier: str = Field(..., description='The ID of the subscription'),
     ) -> Any:
         """Gets a subscription in Amazon DataZone.
 
@@ -894,9 +900,13 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool()
     async def get_form_type(
-        domain_identifier: str = Field(..., description='The ID of the domain where the form type exists'),
+        domain_identifier: str = Field(
+            ..., description='The ID of the domain where the form type exists'
+        ),
         form_type_identifier: str = Field(..., description='The ID of the form type to retrieve'),
-        revision: Optional[str] = Field(default=None, description='The revision of the form type to retrieve')
+        revision: Optional[str] = Field(
+            default=None, description='The revision of the form type to retrieve'
+        ),
     ) -> Any:
         """Retrieves detailed information about a specific metadata form type in Amazon DataZone.
 
@@ -1049,7 +1059,8 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def list_data_sources(
         domain_identifier: str = Field(
-            ..., description='The identifier of the Amazon DataZone domain in which to list the data sources'
+            ...,
+            description='The identifier of the Amazon DataZone domain in which to list the data sources',
         ),
         project_identifier: str = Field(
             ..., description='The identifier of the project in which to list data sources'
@@ -1058,7 +1069,8 @@ def register_tools(mcp: FastMCP):
             default=None, description='The ID of the connection used to filter the data sources'
         ),
         environment_identifier: Optional[str] = Field(
-            default=None, description='The identifier of the environment in which to list the data sources'
+            default=None,
+            description='The identifier of the environment in which to list the data sources',
         ),
         max_results: int = Field(
             default=50, description='The maximum number of data sources to return in one response'
@@ -1144,7 +1156,9 @@ def register_tools(mcp: FastMCP):
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
                 'projectIdentifier': project_identifier,
             }
 

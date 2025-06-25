@@ -87,7 +87,7 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str = Field(
             ..., description='The ID of the domain where the project exists'
         ),
-        project_identifier: str = Field(..., description='The ID of the project to retrieve')
+        project_identifier: str = Field(..., description='The ID of the project to retrieve'),
     ) -> Any:
         """Retrieves detailed information, metadata and configuration, of a specific project in Amazon DataZone.
 
@@ -155,7 +155,9 @@ def register_tools(mcp: FastMCP):
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters if provided
@@ -178,7 +180,7 @@ def register_tools(mcp: FastMCP):
         domainIdentifier: str = Field(..., description='The identifier of the domain'),
         projectIdentifier: str = Field(..., description='The identifier of the project'),
         designation: str = Field(..., description='The designation of the member'),
-        memberIdentifier: str = Field(..., description='The identifier of the member')
+        memberIdentifier: str = Field(..., description='The identifier of the member'),
     ) -> Any:
         """Make a request to the Amazon DataZone CreateProjectMembership API.
 
@@ -211,7 +213,7 @@ def register_tools(mcp: FastMCP):
         max_results: int = Field(
             default=50, description='Maximum number of profiles to return (1-50)'
         ),
-        next_token: Optional[str] = Field(default=None, description='Token for pagination')
+        next_token: Optional[str] = Field(default=None, description='Token for pagination'),
     ) -> Any:
         """Lists all project profiles available in an Amazon DataZone domain.
 
@@ -231,7 +233,9 @@ def register_tools(mcp: FastMCP):
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
             }
 
             # Add optional next token if provided
@@ -253,13 +257,15 @@ def register_tools(mcp: FastMCP):
             default=None, description='Description of the project profile (0-2048 characters)'
         ),
         domain_unit_identifier: Optional[str] = Field(
-            default=None, description='The ID of the domain unit where the project profile will be created'
+            default=None,
+            description='The ID of the domain unit where the project profile will be created',
         ),
         environment_configurations: Optional[List[Dict[str, Any]]] = Field(
             default=None, description='Environment configurations for the project profile'
         ),
         status: str = Field(
-            default='ENABLED', description='The status of the project profile (ENABLED or DISABLED)'
+            default='ENABLED',
+            description='The status of the project profile (ENABLED or DISABLED)',
         ),
     ) -> Dict[str, Any]:
         r"""Creates a new project profile in Amazon DataZone.
@@ -399,7 +405,7 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def get_project_profile(
         domain_identifier: str = Field(..., description='The ID of the domain'),
-        identifier: str = Field(..., description='The ID of the project profile')
+        identifier: str = Field(..., description='The ID of the project profile'),
     ) -> Any:
         r"""Get the details of the project profile in an Amazon DataZone domain.
 
@@ -511,7 +517,8 @@ def register_tools(mcp: FastMCP):
             ..., description='The identifier of the project whose memberships you want to list'
         ),
         max_results: int = Field(
-            default=50, description='The maximum number of memberships to return in a single call (1-50)'
+            default=50,
+            description='The maximum number of memberships to return in a single call (1-50)',
         ),
         next_token: Optional[str] = Field(default=None, description='A token for pagination'),
         sort_by: Optional[str] = Field(
@@ -563,7 +570,9 @@ def register_tools(mcp: FastMCP):
             params = {
                 'domainIdentifier': domain_identifier,
                 'projectIdentifier': project_identifier,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
             }
 
             # Add optional next token if provided

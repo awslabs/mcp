@@ -196,7 +196,7 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str = Field(
             ..., description='The ID of the domain where the glossary exists'
         ),
-        identifier: str = Field(..., description='The ID of the glossary to retrieve')
+        identifier: str = Field(..., description='The ID of the glossary to retrieve'),
     ) -> Any:
         """Retrieves detailed information about a specific business glossary in Amazon DataZone.
 
@@ -241,7 +241,7 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str = Field(
             ..., description='The ID of the domain where the glossary term exists'
         ),
-        identifier: str = Field(..., description='The ID of the glossary term to retrieve')
+        identifier: str = Field(..., description='The ID of the glossary term to retrieve'),
     ) -> Any:
         """Retrieves detailed information about a specific business glossary term in Amazon DataZone.
 

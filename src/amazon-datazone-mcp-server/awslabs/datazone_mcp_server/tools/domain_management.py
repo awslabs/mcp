@@ -151,7 +151,7 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str = Field(..., description='The identifier of the domain'),
         parent_domain_unit_identifier: str = Field(
             ..., description='The identifier of the parent domain unit'
-        )
+        ),
     ) -> Any:
         """Lists child domain units for the specified parent domain unit in an Amazon DataZone domain.
 
@@ -179,7 +179,7 @@ def register_tools(mcp: FastMCP):
         next_token: Optional[str] = Field(
             default=None, description='Token for pagination to get next page of results'
         ),
-        status: Optional[str] = Field(default=None, description='Filter domains by status')
+        status: Optional[str] = Field(default=None, description='Filter domains by status'),
     ) -> Any:
         """Lists Amazon DataZone domains.
 
@@ -392,7 +392,7 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def get_domain_unit(
         domain_identifier: str = Field(..., description='The identifier of the domain'),
-        identifier: str = Field(..., description='The identifier of the domain unit')
+        identifier: str = Field(..., description='The identifier of the domain unit'),
     ) -> Dict[str, Any]:
         """Retrieves detailed information about a specific domain unit in Amazon DataZone.
 
@@ -684,7 +684,9 @@ def register_tools(mcp: FastMCP):
             params = {
                 'domainIdentifier': domain_identifier,
                 'searchScope': search_scope,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters if provided
@@ -799,7 +801,9 @@ def register_tools(mcp: FastMCP):
             params = {
                 'domainIdentifier': domain_identifier,
                 'searchScope': search_scope,
-                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(
+                    max_results_value, 50
+                ),  # Ensure maxResults is within valid range
                 'managed': managed,
             }
 
@@ -851,7 +855,7 @@ def register_tools(mcp: FastMCP):
     async def get_user_profile(
         domain_identifier: str = Field(..., description='The identifier of the domain'),
         user_identifier: str = Field(..., description='The identifier of the user'),
-        user_type: Optional[str] = Field(default=None, description='The type of the user')
+        user_type: Optional[str] = Field(default=None, description='The type of the user'),
     ) -> Any:
         r"""Retrieves the user profile in a specified Amazon DataZone domain for one given user.
 
