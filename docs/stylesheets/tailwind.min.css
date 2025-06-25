@@ -138,8 +138,8 @@
 }
 
 /* Category Colors - More subtle, muted styling */
-.server-card__category--documentation { 
-  background-color: #f1f5f9; 
+.server-card__category--documentation {
+  background-color: #f1f5f9;
   color: #475569;
   max-width: fit-content;
   width: auto;
@@ -147,39 +147,39 @@
 
 /* Sample category styling */
 .server-card__category--sample,
-.server-card__category[data-category="sample"] { 
-  background-color: #f1f5f9; 
+.server-card__category[data-category="sample"] {
+  background-color: #f1f5f9;
   color: #475569;
   max-width: fit-content;
   width: auto;
 }
-.server-card__category--infrastructure-deployment { 
-  background-color: #f1f5f9; 
-  color: #475569; 
+.server-card__category--infrastructure-deployment {
+  background-color: #f1f5f9;
+  color: #475569;
 }
-.server-card__category--ai-ml { 
-  background-color: #f1f5f9; 
-  color: #475569; 
+.server-card__category--ai-ml {
+  background-color: #f1f5f9;
+  color: #475569;
 }
-.server-card__category--data-analytics { 
-  background-color: #f1f5f9; 
-  color: #475569; 
+.server-card__category--data-analytics {
+  background-color: #f1f5f9;
+  color: #475569;
 }
-.server-card__category--developer-tools { 
-  background-color: #f1f5f9; 
-  color: #475569; 
+.server-card__category--developer-tools {
+  background-color: #f1f5f9;
+  color: #475569;
 }
-.server-card__category--integration-messaging { 
-  background-color: #f1f5f9; 
-  color: #475569; 
+.server-card__category--integration-messaging {
+  background-color: #f1f5f9;
+  color: #475569;
 }
-.server-card__category--cost-operations { 
-  background-color: #f1f5f9; 
-  color: #475569; 
+.server-card__category--cost-operations {
+  background-color: #f1f5f9;
+  color: #475569;
 }
-.server-card__category--core { 
-  background-color: #f1f5f9; 
-  color: #475569; 
+.server-card__category--core {
+  background-color: #f1f5f9;
+  color: #475569;
 }
 
 /* Card Content */
@@ -492,7 +492,7 @@
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .card-controls__search {
     min-width: 100%;
   }

@@ -29,17 +29,15 @@ body {
 }
 
 .md-typeset h1 {
-  font-size: 2.25rem;
   line-height: 1.2;
+  color: black
 }
 
 .md-typeset h2 {
-  font-size: 1.875rem;
   line-height: 1.25;
 }
 
 .md-typeset h3 {
-  font-size: 1.5rem;
   line-height: 1.3;
 }
 

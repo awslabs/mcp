@@ -169,27 +169,27 @@
         logDebug('Error creating tags', e);
       }
 
-      // Create HTML structure with aligned text
+      // Create HTML structure with aligned text and reduced padding
       return `
         <a href="servers/${server.id}" class="server-card-link" style="text-decoration: none; color: inherit; display: block; width: 100%;">
-        <div class="server-card" data-id="${server.id}" style="cursor: pointer; width: 100%; height: 300px; box-shadow: none;">
-          <div class="server-card__header" style="align-items: center;">
+        <div class="server-card" data-id="${server.id}" style="cursor: pointer; width: 100%; height: 200px; box-shadow: none; padding: 0.5rem 0.4rem 0.3rem 0.4rem;">
+          <div class="server-card__header" style="align-items: center; gap: 0.3rem; margin-bottom: 0.2rem; min-height: 2rem; padding: 0.1rem 0;">
             <div class="server-card__icon" style="display: flex; align-items: center;">
               <i data-feather="${categoryIcon}" width="22" height="22"></i>
             </div>
             <div class="server-card__title-section" style="display: flex; flex-direction: column; justify-content: center;">
-              <h3 class="server-card__title name" style="white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${server.name || 'Unknown Server'}</h3>
-              <span class="server-card__category server-card__category--${categoryId} category" data-category="${server.category || ''}">
+              <h3 class="server-card__title name" style="white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; margin: 0.05rem 0; padding: 0.05rem 0;">${server.name || 'Unknown Server'}</h3>
+              <span class="server-card__category server-card__category--${categoryId} category" data-category="${server.category || ''}" style="margin-top: 0.1rem; padding: 0.15rem 0.2rem;">
                 ${server.category || 'Uncategorized'}
               </span>
             </div>
           </div>
 
           <div class="server-card__content">
-            <p class="server-card__description description" style="word-wrap: break-word; overflow-wrap: break-word;">${server.description || 'No description available'}</p>
+            <p class="server-card__description description" style="word-wrap: break-word; overflow-wrap: break-word; margin-top: 0.2rem; margin-bottom: 0.3rem;">${server.description || 'No description available'}</p>
           </div>
 
-          <div class="server-card__footer">
+          <div class="server-card__footer" style="padding-top: 0.15rem;">
             <div class="server-card__workflows">
               ${workflowTags}
             </div>
@@ -299,28 +299,25 @@
                  aria-label="Search servers">
         </div>
 
-        <div class="card-controls__filters">
-          <div class="card-controls__filter-group">
-            <label class="card-controls__filter-label" for="category-filter">Category:</label>
+        <div class="card-controls__filters" style="display: flex; flex-direction: row; justify-content: space-between; margin-top: 1rem;">
+          <div class="card-controls__filter-group" style="width: 30%;">
             <select id="category-filter" class="card-controls__select category-filter">
               ${categoryOptions}
             </select>
           </div>
 
-          <div class="card-controls__filter-group">
-            <label class="card-controls__filter-label" for="workflow-filter">Workflow:</label>
+          <div class="card-controls__filter-group" style="width: 30%;">
             <select id="workflow-filter" class="card-controls__select workflow-filter">
               ${workflowOptions}
             </select>
           </div>
 
-          <div class="card-controls__filter-group">
-            <label class="card-controls__filter-label" for="sort-select">Sort:</label>
+          <div class="card-controls__filter-group" style="width: 30%;">
             <select id="sort-select" class="card-controls__select sort-select">
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-              <option value="category-asc">Category (A-Z)</option>
-              <option value="category-desc">Category (Z-A)</option>
+              <option value="name-asc">Sort by Name (A-Z)</option>
+              <option value="name-desc">Sort by Name (Z-A)</option>
+              <option value="category-asc">Sort by Category (A-Z)</option>
+              <option value="category-desc">Sort by Category (Z-A)</option>
             </select>
           </div>
         </div>
