@@ -38,31 +38,31 @@
   .server-card__category--documentation {
     @apply bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300;
   }
-  
+
   .server-card__category--infrastructure-deployment {
     @apply bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300;
   }
-  
+
   .server-card__category--ai-ml {
     @apply bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300;
   }
-  
+
   .server-card__category--data-analytics {
     @apply bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300;
   }
-  
+
   .server-card__category--developer-tools {
     @apply bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300;
   }
-  
+
   .server-card__category--integration-messaging {
     @apply bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300;
   }
-  
+
   .server-card__category--cost-operations {
     @apply bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300;
   }
-  
+
   .server-card__category--core {
     @apply bg-black/5 dark:bg-white/10 text-gray-900 dark:text-gray-100;
   }
@@ -135,7 +135,7 @@
   }
 
   .card-controls__select {
-    @apply py-2 px-3 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm min-w-[150px] focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-600;
+    @apply py-2 px-3 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm w-[200px] focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-600;
   }
 
   /* Stats */
@@ -202,7 +202,7 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  
+
   .line-clamp-3 {
     display: -webkit-box;
     -webkit-line-clamp: 3;
