@@ -15,8 +15,8 @@
 
 from .common import USER_AGENT, ClientError, _get_param_value, datazone_client, httpx, logger
 from mcp.server.fastmcp import FastMCP
-from typing import Any, Dict, List, Optional
 from pydantic import Field
+from typing import Any, Dict, List, Optional
 
 
 def register_tools(mcp: FastMCP):

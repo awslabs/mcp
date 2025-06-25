@@ -13,10 +13,10 @@
 # limitations under the License.
 """Glossary management tools for Amazon DataZone."""
 
-from .common import ClientError, _get_param_value, datazone_client, logger
+from .common import ClientError, _get_param_value, datazone_client
 from mcp.server.fastmcp import FastMCP
-from typing import Any, Dict, List, Optional
 from pydantic import Field
+from typing import Any, Dict, List, Optional
 
 
 def register_tools(mcp: FastMCP):
