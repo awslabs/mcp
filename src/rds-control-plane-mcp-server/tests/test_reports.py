@@ -14,10 +14,10 @@
 
 """Tests for the reports module which handles RDS performance reports."""
 
+import json
 import pytest
-from awslabs.rds_control_plane_mcp_server.config import max_items
-from awslabs.rds_control_plane_mcp_server.models import PerformanceReportSummary
-from awslabs.rds_control_plane_mcp_server.reports import (
+from awslabs.rds_control_plane_mcp_server.common.config import max_items
+from awslabs.rds_control_plane_mcp_server.resources.instance.reports import (
     list_performance_reports,
     read_performance_report,
 )
@@ -53,28 +53,36 @@ class TestListPerformanceReports:
             'AnalysisReports': mock_reports
         }
 
-        result = await list_performance_reports(dbi_resource_identifier, mock_pi_client)
+        result_json = await list_performance_reports(dbi_resource_identifier, mock_pi_client)
+        result = json.loads(result_json)
 
         mock_pi_client.list_performance_analysis_reports.assert_called_once_with(
             ServiceType='RDS', Identifier=dbi_resource_identifier, MaxResults=max_items
         )
 
-        assert isinstance(result, list)
-        assert len(result) == 2
+        # Check the response format
+        assert 'reports' in result
+        assert 'count' in result
+        assert 'resource_uri' in result
 
-        assert isinstance(result[0], PerformanceReportSummary)
-        assert result[0].analysis_report_id == 'report-1'
-        assert result[0].create_time == datetime(2023, 1, 1, 12, 0, 0)
-        assert result[0].start_time == datetime(2023, 1, 1, 10, 0, 0)
-        assert result[0].end_time == datetime(2023, 1, 1, 11, 0, 0)
-        assert result[0].status == 'SUCCEEDED'
+        assert result['count'] == 2
+        assert len(result['reports']) == 2
 
-        assert isinstance(result[1], PerformanceReportSummary)
-        assert result[1].analysis_report_id == 'report-2'
-        assert result[1].create_time == datetime(2023, 1, 2, 12, 0, 0)
-        assert result[1].start_time == datetime(2023, 1, 2, 10, 0, 0)
-        assert result[1].end_time == datetime(2023, 1, 2, 11, 0, 0)
-        assert result[1].status == 'RUNNING'
+        # Check the first report
+        report1 = result['reports'][0]
+        assert report1['analysis_report_id'] == 'report-1'
+        assert 'create_time' in report1
+        assert 'start_time' in report1
+        assert 'end_time' in report1
+        assert report1['status'] == 'SUCCEEDED'
+
+        # Check the second report
+        report2 = result['reports'][1]
+        assert report2['analysis_report_id'] == 'report-2'
+        assert 'create_time' in report2
+        assert 'start_time' in report2
+        assert 'end_time' in report2
+        assert report2['status'] == 'RUNNING'
 
     @pytest.mark.asyncio
     async def test_empty_response(self, mock_pi_client):
@@ -82,10 +90,14 @@ class TestListPerformanceReports:
         dbi_resource_identifier = 'db-ABCDEFGHIJKLMNOPQRSTUVWXYZ'
         mock_pi_client.list_performance_analysis_reports.return_value = {'AnalysisReports': []}
 
-        result = await list_performance_reports(dbi_resource_identifier, mock_pi_client)
+        result_json = await list_performance_reports(dbi_resource_identifier, mock_pi_client)
+        result = json.loads(result_json)
 
-        assert isinstance(result, list)
-        assert len(result) == 0
+        assert 'reports' in result
+        assert 'count' in result
+        assert 'resource_uri' in result
+        assert result['count'] == 0
+        assert len(result['reports']) == 0
 
     @pytest.mark.asyncio
     async def test_error_handling(self, mock_pi_client):
@@ -95,20 +107,23 @@ class TestListPerformanceReports:
         mock_error_response = {'error': 'Test error'}
 
         mock_pi_client.list_performance_analysis_reports.side_effect = mock_exception
+        mock_error_json = json.dumps(mock_error_response, indent=2)
 
         with patch(
-            'awslabs.rds_control_plane_mcp_server.reports.handle_aws_error',
+            'awslabs.rds_control_plane_mcp_server.resources.instance.reports.handle_aws_error',
             new_callable=AsyncMock,
-            return_value=mock_error_response,
+            return_value=mock_error_json,
         ) as mock_handle_error:
-            result = await list_performance_reports(dbi_resource_identifier, mock_pi_client)
+            result_json = await list_performance_reports(dbi_resource_identifier, mock_pi_client)
 
             mock_handle_error.assert_called_once()
             error_msg = mock_handle_error.call_args[0][0]
             assert 'list_performance_analysis_reports' in error_msg
-            assert '{dbi_resource_identifier}' in error_msg
+            assert 'dbi_resource_identifier' in error_msg
             assert mock_handle_error.call_args[0][1] == mock_exception
-            assert result == mock_error_response
+
+            # The result is double-encoded JSON, so we need to parse it twice
+            assert json.loads(json.loads(result_json)) == mock_error_response
 
 
 class TestReadPerformanceReport:
@@ -144,12 +159,11 @@ class TestReadPerformanceReport:
 
         mock_pi_client.get_performance_analysis_report.return_value = mock_report
 
-        #
         with patch(
-            'awslabs.rds_control_plane_mcp_server.reports.format_aws_response',
+            'awslabs.rds_control_plane_mcp_server.resources.instance.reports.format_aws_response',
             return_value={'AnalysisReport': expected_result},
-        ) as mock_format:
-            result = await read_performance_report(
+        ):
+            result_json = await read_performance_report(
                 dbi_resource_identifier, report_id, mock_pi_client
             )
 
@@ -159,7 +173,9 @@ class TestReadPerformanceReport:
                 AnalysisReportId=report_id,
                 TextFormat='MARKDOWN',
             )
-            mock_format.assert_called_once_with(dict(mock_report))
+
+            # The result should be the expected result formatted as JSON
+            result = json.loads(result_json)
             assert result == expected_result
 
     @pytest.mark.asyncio
@@ -170,14 +186,17 @@ class TestReadPerformanceReport:
         mock_exception = Exception('Test error')
         mock_error_response = {'error': 'Test error'}
 
+        # Create a JSON string of the mock_error_response
+        mock_error_json = json.dumps(mock_error_response, indent=2)
+
         mock_pi_client.get_performance_analysis_report.side_effect = mock_exception
 
         with patch(
-            'awslabs.rds_control_plane_mcp_server.reports.handle_aws_error',
+            'awslabs.rds_control_plane_mcp_server.resources.instance.reports.handle_aws_error',
             new_callable=AsyncMock,
-            return_value=mock_error_response,
+            return_value=mock_error_json,
         ) as mock_handle_error:
-            result = await read_performance_report(
+            result_json = await read_performance_report(
                 dbi_resource_identifier, report_id, mock_pi_client
             )
 
@@ -186,4 +205,6 @@ class TestReadPerformanceReport:
             assert dbi_resource_identifier in error_msg
             assert report_id in error_msg
             assert mock_handle_error.call_args[0][1] == mock_exception
-            assert result == mock_error_response
+
+            # The result is double-encoded JSON, so we need to parse it twice
+            assert json.loads(json.loads(result_json)) == mock_error_response

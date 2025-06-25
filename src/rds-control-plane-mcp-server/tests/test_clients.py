@@ -14,7 +14,7 @@
 
 """Tests for the clients module of the rds-monitoring-mcp-server."""
 
-from awslabs.rds_control_plane_mcp_server.clients import (
+from awslabs.rds_control_plane_mcp_server.common.clients import (
     get_pi_client,
     get_rds_client,
 )
@@ -25,7 +25,7 @@ class TestTypeDefinitions:
 
     def test_type_definitions(self):
         """Test that the type definitions are properly defined."""
-        from awslabs.rds_control_plane_mcp_server import clients
+        from awslabs.rds_control_plane_mcp_server.common import clients
 
         # Verify that the type aliases are imported
         assert hasattr(clients, 'PIClient')

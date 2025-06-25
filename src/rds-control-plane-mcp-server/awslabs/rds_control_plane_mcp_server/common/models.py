@@ -172,6 +172,18 @@ class DBLogFileSummary(BaseModel):
     size: int = Field(description='Size of the log file in bytes', ge=0)
 
 
+class DBLogFileListModel(BaseModel):
+    """DB cluster list model."""
+
+    log_files: List[DBLogFileSummary] = Field(
+        default_factory=list, description='List of DB log files'
+    )
+    count: int = Field(
+        description='Total number of non-empty log files for the DB instance in Amazon RDS'
+    )
+    resource_uri: str = Field(description='The resource URI for the DB log files')
+
+
 class PerformanceReportSummary(BaseModel):
     """Performance analysis report information.
 
@@ -190,7 +202,17 @@ class PerformanceReportSummary(BaseModel):
     analysis_report_id: str | None = Field(
         None, description='Unique identifier for the performance report'
     )
-    create_time: datetime | None = Field(None, description='Time when the report was created')
-    start_time: datetime | None = Field(None, description='Start time of the analysis period')
-    end_time: datetime | None = Field(None, description='End time of the analysis period')
+    create_time: str | None = Field(None, description='Time when the report was created')
+    start_time: str | None = Field(None, description='Start time of the analysis period')
+    end_time: str | None = Field(None, description='End time of the analysis period')
     status: Literal['RUNNING', 'SUCCEEDED', 'FAILED'] | None = None
+
+
+class PerformanceReportListModel(BaseModel):
+    """DB cluster list model."""
+
+    reports: List[PerformanceReportSummary] = Field(
+        default_factory=list, description='List of performance reports for a RDS instance'
+    )
+    count: int = Field(description='Total number of performance reports')
+    resource_uri: str = Field(description='The resource URI for the performance reports')

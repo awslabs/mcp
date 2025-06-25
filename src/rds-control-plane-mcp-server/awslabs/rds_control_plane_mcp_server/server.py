@@ -17,19 +17,18 @@
 import argparse
 import os
 import sys
-from awslabs.rds_control_plane_mcp_server import config
-from awslabs.rds_control_plane_mcp_server.clients import (
+from awslabs.rds_control_plane_mcp_server.common import config
+from awslabs.rds_control_plane_mcp_server.common.clients import (
     get_pi_client,
     get_rds_client,
 )
-from awslabs.rds_control_plane_mcp_server.constants import MCP_SERVER_VERSION
-from awslabs.rds_control_plane_mcp_server.logs import list_db_log_files
-from awslabs.rds_control_plane_mcp_server.models import DBLogFileSummary, PerformanceReportSummary
-from awslabs.rds_control_plane_mcp_server.reports import (
-    list_performance_reports,
-    read_performance_report,
+from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
+from awslabs.rds_control_plane_mcp_server.common.utils import apply_docstring
+from awslabs.rds_control_plane_mcp_server.resources.cluster.discovery import (
+    get_cluster_detail_resource,
+    get_cluster_list_resource,
 )
-from awslabs.rds_control_plane_mcp_server.resource_docstrings import (
+from awslabs.rds_control_plane_mcp_server.resources.docstrings import (
     GET_CLUSTER_DOCSTRING,
     GET_INSTANCE_DOCSTRING,
     LIST_CLUSTERS_DOCSTRING,
@@ -38,17 +37,18 @@ from awslabs.rds_control_plane_mcp_server.resource_docstrings import (
     LIST_PERFORMANCE_REPORTS_DOCSTRING,
     READ_PERFORMANCE_REPORT_DOCSTRING,
 )
-from awslabs.rds_control_plane_mcp_server.resources import (
-    get_cluster_detail_resource,
-    get_cluster_list_resource,
+from awslabs.rds_control_plane_mcp_server.resources.instance.discovery import (
     get_instance_detail_resource,
     get_instance_list_resource,
 )
-from awslabs.rds_control_plane_mcp_server.utils import apply_docstring
+from awslabs.rds_control_plane_mcp_server.resources.instance.logs import list_db_log_files
+from awslabs.rds_control_plane_mcp_server.resources.instance.reports import (
+    list_performance_reports,
+    read_performance_report,
+)
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
-from typing import Any, List, Union
 
 
 mcp = FastMCP(
@@ -142,7 +142,7 @@ async def list_performance_reports_resource(
     dbi_resource_identifier: str = Field(
         ..., description='The resource identifier for the DB instance'
     ),
-) -> Union[List[PerformanceReportSummary], dict[str, Any]]:
+) -> str:
     """List all available performance reports for a specific Amazon RDS instance."""
     return await list_performance_reports(
         dbi_resource_identifier,
@@ -163,7 +163,7 @@ async def read_performance_report_resource(
     report_identifier: str = Field(
         ..., description='The identifier for the report you want to read'
     ),
-) -> dict[str, Any]:
+) -> str:
     """Read the contents of a specific performance report for a specific Amazon RDS instance."""
     return await read_performance_report(
         dbi_resource_identifier=dbi_resource_identifier,
@@ -180,7 +180,7 @@ async def read_performance_report_resource(
 @apply_docstring(LIST_DB_LOG_FILES_DOCSTRING)
 async def list_db_log_files_resource(
     db_instance_identifier: str = Field(..., description='The identifier for the DB instance'),
-) -> Union[List[DBLogFileSummary], dict[str, Any]]:
+) -> str:
     """List all available log files for a specific Amazon RDS instance."""
     return await list_db_log_files(
         db_instance_identifier=db_instance_identifier, rds_client=_rds_client

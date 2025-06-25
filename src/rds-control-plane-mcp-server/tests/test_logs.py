@@ -14,11 +14,11 @@
 
 """Tests for the logs module which handles RDS database log file operations."""
 
+import json
 import pytest
-from awslabs.rds_control_plane_mcp_server.config import get_pagination_config
-from awslabs.rds_control_plane_mcp_server.logs import list_db_log_files
-from awslabs.rds_control_plane_mcp_server.models import DBLogFileSummary
-from datetime import datetime
+from awslabs.rds_control_plane_mcp_server.common.config import get_pagination_config
+from awslabs.rds_control_plane_mcp_server.common.constants import RESOURCE_PREFIX_DB_LOG_FILES
+from awslabs.rds_control_plane_mcp_server.resources.instance.logs import list_db_log_files
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -57,18 +57,34 @@ class TestListDBLogFiles:
             PaginationConfig=get_pagination_config(),
         )
 
-        assert isinstance(result, list)
-        assert len(result) == 2
+        # Parse the JSON result
+        result_dict = json.loads(result)
 
-        assert isinstance(result[0], DBLogFileSummary)
-        assert result[0].log_file_name == 'log1.log'
-        assert result[0].size == 1024
-        assert result[0].last_written == datetime.fromtimestamp(1624500000000 / 1000)
+        # Check the structure of the result
+        assert 'log_files' in result_dict
+        assert 'count' in result_dict
+        assert 'resource_uri' in result_dict
 
-        assert isinstance(result[1], DBLogFileSummary)
-        assert result[1].log_file_name == 'log2.log'
-        assert result[1].size == 2048
-        assert result[1].last_written == datetime.fromtimestamp(1624600000000 / 1000)
+        # Verify count and resource_uri
+        assert result_dict['count'] == 2
+        assert result_dict['resource_uri'] == RESOURCE_PREFIX_DB_LOG_FILES.format(
+            db_instance_identifier
+        )
+
+        # Check log files data
+        log_files = result_dict['log_files']
+        assert len(log_files) == 2
+
+        # Check first log file
+        assert log_files[0]['log_file_name'] == 'log1.log'
+        assert log_files[0]['size'] == 1024
+        # Check the datetime was properly formatted as a string
+        assert isinstance(log_files[0]['last_written'], str)
+
+        # Check second log file
+        assert log_files[1]['log_file_name'] == 'log2.log'
+        assert log_files[1]['size'] == 2048
+        assert isinstance(log_files[1]['last_written'], str)
 
     @pytest.mark.asyncio
     async def test_empty_response(self, mock_rds_client):
@@ -83,8 +99,20 @@ class TestListDBLogFiles:
 
         result = await list_db_log_files(db_instance_identifier, mock_rds_client)
 
-        assert isinstance(result, list)
-        assert len(result) == 0
+        # Parse the JSON result
+        result_dict = json.loads(result)
+
+        # Check structure
+        assert 'log_files' in result_dict
+        assert 'count' in result_dict
+        assert 'resource_uri' in result_dict
+
+        # Verify empty log files list and count
+        assert result_dict['log_files'] == []
+        assert result_dict['count'] == 0
+        assert result_dict['resource_uri'] == RESOURCE_PREFIX_DB_LOG_FILES.format(
+            db_instance_identifier
+        )
 
     @pytest.mark.asyncio
     async def test_multiple_pages(self, mock_rds_client):
@@ -116,10 +144,16 @@ class TestListDBLogFiles:
 
         result = await list_db_log_files(db_instance_identifier, mock_rds_client)
 
-        assert isinstance(result, list)
-        assert len(result) == 2
-        assert result[0].log_file_name == 'log1.log'
-        assert result[1].log_file_name == 'log2.log'
+        # Parse the JSON result
+        result_dict = json.loads(result)
+
+        # Check structure and count
+        assert len(result_dict['log_files']) == 2
+        assert result_dict['count'] == 2
+
+        # Verify log files from both pages
+        assert result_dict['log_files'][0]['log_file_name'] == 'log1.log'
+        assert result_dict['log_files'][1]['log_file_name'] == 'log2.log'
 
     @pytest.mark.asyncio
     async def test_error_handling(self, mock_rds_client):
@@ -131,7 +165,7 @@ class TestListDBLogFiles:
         mock_rds_client.get_paginator.side_effect = mock_exception
 
         with patch(
-            'awslabs.rds_control_plane_mcp_server.logs.handle_aws_error',
+            'awslabs.rds_control_plane_mcp_server.resources.instance.logs.handle_aws_error',
             new_callable=AsyncMock,
             return_value=mock_error_response,
         ) as mock_handle_error:
@@ -141,4 +175,6 @@ class TestListDBLogFiles:
             error_msg = mock_handle_error.call_args[0][0]
             assert db_instance_identifier in error_msg
             assert mock_handle_error.call_args[0][1] == mock_exception
-            assert result == mock_error_response
+
+            # The result should be the JSON string representation of the error response
+            assert result == json.dumps(mock_error_response, indent=2)

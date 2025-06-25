@@ -36,7 +36,8 @@ SUCCESS_DELETED = 'Successfully deleted {}'
 # Resource URI Prefixes
 RESOURCE_PREFIX_DB_CLUSTER = 'aws-rds://db-cluster'
 RESOURCE_PREFIX_DB_INSTANCE = 'aws-rds://db-instance'
-
+RESOURCE_PREFIX_DB_LOG_FILES = 'aws-rds://db-instance/{}/log'
+RESOURCE_PREFIX_DB_PERFORMANCE_REPORT = 'aws-rds://db-instance/{}/performance_report/'
 # AWS RDS Engine Types
 ENGINE_AURORA = 'aurora'
 ENGINE_AURORA_MYSQL = 'aurora-mysql'

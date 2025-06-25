@@ -16,8 +16,8 @@
 
 import os
 import pytest
-from awslabs.rds_control_plane_mcp_server import config
-from awslabs.rds_control_plane_mcp_server.constants import MCP_SERVER_VERSION
+from awslabs.rds_control_plane_mcp_server.common import config
+from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
 from awslabs.rds_control_plane_mcp_server.server import main
 from unittest.mock import MagicMock, patch
 

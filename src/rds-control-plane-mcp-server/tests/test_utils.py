@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pytest
-from awslabs.rds_control_plane_mcp_server import utils
+from awslabs.rds_control_plane_mcp_server.common import utils
 from botocore.exceptions import ClientError
 
 
