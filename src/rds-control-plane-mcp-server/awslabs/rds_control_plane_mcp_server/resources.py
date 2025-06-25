@@ -16,13 +16,11 @@
 
 import asyncio
 import json
-from .constants import (
-    ERROR_AWS_API,
-    ERROR_UNEXPECTED,
+from awslabs.rds_control_plane_mcp_server.constants import (
     RESOURCE_PREFIX_DB_CLUSTER,
     RESOURCE_PREFIX_DB_INSTANCE,
 )
-from .models import (
+from awslabs.rds_control_plane_mcp_server.models import (
     ClusterListModel,
     ClusterMember,
     ClusterModel,
@@ -32,61 +30,9 @@ from .models import (
     InstanceStorage,
     VpcSecurityGroup,
 )
+from awslabs.rds_control_plane_mcp_server.utils import convert_datetime_to_string, handle_aws_error
 from loguru import logger
 from typing import Any, Dict
-
-
-async def handle_aws_error(operation: str, error: Exception) -> Dict[str, Any]:
-    """Handle AWS API errors consistently.
-
-    Args:
-        operation: The operation that failed
-        error: The exception that was raised
-
-    Returns:
-        Error response dictionary
-    """
-    from botocore.exceptions import ClientError
-
-    if isinstance(error, ClientError):
-        error_code = error.response['Error']['Code']
-        error_message = error.response['Error']['Message']
-        logger.error(f'{operation} failed with AWS error {error_code}: {error_message}')
-
-        return {
-            'error': ERROR_AWS_API.format(error_code),
-            'error_code': error_code,
-            'error_message': error_message,
-            'operation': operation,
-        }
-    else:
-        logger.exception(f'{operation} failed with unexpected error')
-        return {
-            'error': ERROR_UNEXPECTED.format(str(error)),
-            'error_type': type(error).__name__,
-            'error_message': str(error),
-            'operation': operation,
-        }
-
-
-def convert_datetime_to_string(obj: Any) -> Any:
-    """Recursively convert datetime objects to ISO format strings.
-
-    Args:
-        obj: Object to convert
-
-    Returns:
-        Object with datetime objects converted to strings
-    """
-    import datetime
-
-    if isinstance(obj, datetime.datetime):
-        return obj.isoformat()
-    elif isinstance(obj, dict):
-        return {k: convert_datetime_to_string(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_datetime_to_string(item) for item in obj]
-    return obj
 
 
 def format_cluster_info(cluster: Dict[str, Any]) -> ClusterModel:
@@ -135,6 +81,7 @@ def format_cluster_info(cluster: Dict[str, Any]) -> ClusterModel:
         members=members,
         vpc_security_groups=vpc_security_groups,
         tags=tags,
+        resource_uri=None,
     )
 
 
@@ -188,6 +135,7 @@ def format_instance_info(instance: Dict[str, Any]) -> InstanceModel:
         db_cluster=instance.get('DBClusterIdentifier'),
         tags=tags,
         dbi_resource_id=instance.get('DbiResourceId'),
+        resource_uri=None,
     )
 
 
@@ -217,11 +165,14 @@ async def get_cluster_list_resource(rds_client: Any) -> str:
             for cluster in response.get('DBClusters', []):
                 clusters.append(format_cluster_info(cluster))
 
+        # Create the model
         result = ClusterListModel(
             clusters=clusters, count=len(clusters), resource_uri=RESOURCE_PREFIX_DB_CLUSTER
         )
 
-        return json.dumps(result.model_dump(), indent=2)
+        model_dict = result.model_dump()
+
+        return json.dumps(model_dict, indent=2)
     except Exception as e:
         error_result = await handle_aws_error('get_cluster_list_resource', e)
         return json.dumps(error_result, indent=2)
@@ -250,7 +201,9 @@ async def get_cluster_detail_resource(cluster_id: str, rds_client: Any) -> str:
         cluster = format_cluster_info(clusters[0])
         cluster.resource_uri = f'{RESOURCE_PREFIX_DB_CLUSTER}/{cluster_id}'
 
-        return json.dumps(cluster.model_dump(), indent=2)
+        model_dict = cluster.model_dump()
+
+        return json.dumps(model_dict, indent=2)
     except Exception as e:
         error_result = await handle_aws_error(f'get_cluster_detail_resource({cluster_id})', e)
         return json.dumps(error_result, indent=2)

@@ -51,21 +51,6 @@ from pydantic import Field
 from typing import Any, List, Union
 
 
-# global variables
-# _rds_client = None
-
-
-# def get_rds_client():
-#     """Get or create RDS client."""
-#     global _rds_client, _region
-#     if _rds_client is None:
-#         config = Config(
-#             region_name=_region,
-#             retries={'max_attempts': 3, 'mode': 'adaptive'},
-#         )
-#         _rds_client = boto3.client('rds', config=config)
-#     return _rds_client
-
 mcp = FastMCP(
     'awslabs.rds-control-plane-mcp-server',
     version=MCP_SERVER_VERSION,
