@@ -28,11 +28,13 @@ USER_AGENT = 'datazone-app/1.0'
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
 def _get_param_value(param: Any) -> Any:  # noqa: F401
     """Helper function to extract actual parameter value, handling FieldInfo objects."""
     if hasattr(param, '__class__') and param.__class__.__name__ == 'FieldInfo':
         return param.default
     return param
+
 
 # Initialize boto3 client
 datazone_client = boto3.client('datazone', config=Config(user_agent_extra='Datazone-MCP/1.0'))

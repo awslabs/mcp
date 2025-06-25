@@ -581,8 +581,7 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str = Field(
             ..., description='The ID of the domain where the data source exists'
         ),
-        identifier: str = Field(..., description='The ID of the data source to retrieve'
-        )
+        identifier: str = Field(..., description='The ID of the data source to retrieve'),
     ) -> Any:
         """Retrieves detailed information about a **specific, known data source** in Amazon DataZone.
 

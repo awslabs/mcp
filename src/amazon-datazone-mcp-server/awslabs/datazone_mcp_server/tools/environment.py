@@ -442,7 +442,9 @@ def register_tools(mcp: FastMCP):
         domain_identifier: str = Field(
             ..., description='The ID of the domain containing the environment blueprint'
         ),
-        identifier: str = Field(..., description='The ID of the environment blueprint to retrieve'),
+        identifier: str = Field(
+            ..., description='The ID of the environment blueprint to retrieve'
+        ),
     ) -> Any:
         r"""Retrieves metadata and definition of an environment blueprint.
 
