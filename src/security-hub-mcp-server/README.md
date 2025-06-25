@@ -1,6 +1,7 @@
 # Security Hub MCP Server
 
-A Model Context Protocol (MCP) server for analyzing security findings in AWS Security Hub.
+A Model Context Protocol (MCP) server for analyzing security findings in AWS Security Hub. This server provides AI
+assistants with the ability to query Security Hub for findings.
 
 You can analyze your issues with prompts like:
 
@@ -18,6 +19,12 @@ Or several criteria, including custom filters:
 > * workflow status: NEW
 > * custom_filters: {'ResourceType': [{'Comparison': 'EQUALS', 'Value': 'AwsAccount'}]}
 
+## Features
+
+### Query
+
+- **Get Findings**: Query Security Hub for findings
+
 The `get_findings` tool supports the following parameters:
 
 * `region` (required)
@@ -31,14 +38,74 @@ The `get_findings` tool supports the following parameters:
 in `custom_filters` overrides a filter specified as a named parameter. So if you specify `severity` directly and in
 `custom_filters`, the value in `custom_filters` will be used.
 
-<div>
-    <a href="https://www.loom.com/share/dd521aa1ec934137af8c4981a61b0410">
-      <p>Here's a little demo of the POC 🚀 - Watch Video</p>
-    </a>
-    <a href="https://www.loom.com/share/dd521aa1ec934137af8c4981a61b0410">
-      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/dd521aa1ec934137af8c4981a61b0410-fb7d326efbf8252a-full-play.gif">
-    </a>
-  </div>
+## Installation
+
+```bash
+# Install using uv (recommended)
+uv tool install awslabs.security-hub-mcp-server
+
+# Or install using pip
+pip install awslabs.security-hub-mcp-server
+```
+
+## Configuration
+
+### AWS Credentials
+The server requires AWS credentials to be configured. You can use any of the following methods:
+
+1. **AWS Profile** (recommended):
+   ```bash
+   export AWS_PROFILE=your-profile-name
+   ```
+
+2. **Environment Variables**:
+   ```bash
+   export AWS_ACCESS_KEY_ID=your-access-key
+   export AWS_SECRET_ACCESS_KEY=your-secret-key
+   export AWS_REGION=us-east-1
+   ```
+
+3. **IAM Roles** (for EC2/Lambda):
+   The server will automatically use IAM roles when running on AWS services.
+
+### Required IAM Permissions
+
+The AWS credentials used by this server need the following IAM permissions:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "securityhub:GetFindings"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### MCP Client Configuration
+
+```json
+{
+  "mcpServers": {
+    "awslabs.security-hub": {
+      "command": "uvx",
+      "args": [
+        "awslabs.security-hub-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-profile-name"
+      },
+      "disabled": false
+    }
+  }
+}
+```
 
 ## Possible Next Steps
 
@@ -53,3 +120,22 @@ For utility, this includes:
 For reliability, this may include:
 
 * creating [prompts](https://modelcontextprotocol.io/docs/concepts/prompts#dynamic-prompts) and tools to help select the intended issues
+
+## Contributing
+
+Contributions are welcome! Please see the main repository's [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For issues and questions:
+1. Check the [AWS Security Hub documentation](https://docs.aws.amazon.com/securityhub/)
+2. Review the [MCP specification](https://modelcontextprotocol.io/)
+3. Open an issue in the [GitHub repository](https://github.com/awslabs/mcp)
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
