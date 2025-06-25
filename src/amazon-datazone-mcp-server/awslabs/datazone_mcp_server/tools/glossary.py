@@ -58,7 +58,7 @@ def register_tools(mcp: FastMCP):
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)
-            status_value = 'ENABLED' if status is None else status
+            status_value = _get_param_value(status)
             client_token_value = _get_param_value(client_token)
 
             # Validate status
@@ -135,7 +135,7 @@ def register_tools(mcp: FastMCP):
             # Handle optional parameters
             short_description_value = _get_param_value(short_description)
             long_description_value = _get_param_value(long_description)
-            status_value = 'ENABLED' if status is None else status
+            status_value = _get_param_value(status)
             term_relations_value = _get_param_value(term_relations)
             client_token_value = _get_param_value(client_token)
 

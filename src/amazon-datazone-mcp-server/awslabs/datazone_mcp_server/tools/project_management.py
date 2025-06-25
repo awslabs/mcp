@@ -48,7 +48,7 @@ def register_tools(mcp: FastMCP):
         """
         try:
             # Handle optional parameters
-            description_value = '' if description is None else description
+            description_value = _get_param_value(description)
             domain_unit_id_value = _get_param_value(domain_unit_id)
             glossary_terms_value = _get_param_value(glossary_terms)
             project_profile_id_value = _get_param_value(project_profile_id)

@@ -546,9 +546,6 @@ def register_tools(mcp: FastMCP):
             client_token_value = _get_param_value(client_token)
             detail_value = _get_param_value(detail)
 
-            logger.info(
-                f'Adding policy {policy_type.lower()} to {principal_type.lower()} {principal_identifier} for {entity_type.lower()} {entity_identifier} in domain {domain_identifier}'
-            )
             # Prepare the request parameters
             params = {
                 'policyType': policy_type,
@@ -566,9 +563,6 @@ def register_tools(mcp: FastMCP):
                 entityIdentifier=entity_identifier,
                 entityType=entity_type,
                 **params,
-            )
-            logger.info(
-                f'Successfully added policy {policy_type.lower()} to {principal_type.lower()} {principal_identifier} for {entity_type.lower()} {entity_identifier} in domain {domain_identifier}'
             )
             return response
         except ClientError as e:  # pragma: no cover

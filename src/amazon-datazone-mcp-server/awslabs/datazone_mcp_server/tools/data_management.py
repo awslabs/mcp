@@ -473,7 +473,7 @@ def register_tools(mcp: FastMCP):
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)
-            enable_setting_value = 'ENABLED' if enable_setting is None else enable_setting
+            enable_setting_value = _get_param_value(enable_setting)
             environment_identifier_value = _get_param_value(environment_identifier)
             connection_identifier_value = _get_param_value(connection_identifier)
             configuration_value = _get_param_value(configuration)

@@ -275,10 +275,10 @@ def register_tools(mcp: FastMCP):
                 'domainIdentifier': domain_identifier,
                 'identifier': identifier,
             }
-
+            with_secret_value = _get_param_value(with_secret)
             # Add with_secret parameter if True
-            if with_secret:  # pragma: no cover
-                params['withSecret'] = with_secret
+            if with_secret_value:  # pragma: no cover
+                params['withSecret'] = with_secret_value
 
             response = datazone_client.get_connection(**params)
             return response
