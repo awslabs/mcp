@@ -16,6 +16,7 @@
 import boto3
 import httpx  # noqa: F401
 import logging
+from awslabs.amazon_datazone_mcp_server import __version__
 from botocore.config import Config
 from botocore.exceptions import ClientError  # noqa: F401
 from typing import Any
@@ -34,9 +35,6 @@ def _get_param_value(param: Any) -> Any:  # noqa: F401
     if hasattr(param, '__class__') and param.__class__.__name__ == 'FieldInfo':
         return param.default
     return param
-
-
-from awslabs.amazon_datazone_mcp_server import __version__
 
 
 user_agent_extra = f'awslabs/mcp/amazon-datazone-mcp-server/{__version__}'

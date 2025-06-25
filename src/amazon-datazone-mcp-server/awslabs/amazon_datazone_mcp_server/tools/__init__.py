@@ -16,7 +16,7 @@
 
 # Import all tool modules
 from . import common
-from . import data_management  
+from . import data_management
 from . import domain_management
 from . import environment
 from . import glossary
@@ -24,9 +24,9 @@ from . import project_management
 
 __all__ = [
     'common',
-    'data_management', 
+    'data_management',
     'domain_management',
     'environment',
     'glossary',
-    'project_management'
+    'project_management',
 ]
