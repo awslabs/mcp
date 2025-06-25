@@ -172,7 +172,7 @@ Work with databases, caching systems, and data processing workflows.
 
 Accelerate development with code analysis, documentation, and testing utilities.
 
-- **[AWS IAM MCP Server](src/iam-mcp-server/)** - Comprehensive IAM user, role, and policy management with security best practices
+- **[AWS IAM MCP Server](src/iam-mcp-server/)** - Comprehensive IAM user, role, group, and policy management with security best practices
 - **[Git Repo Research MCP Server](src/git-repo-research-mcp-server/)** - Semantic code search and repository analysis
 - **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Automated documentation from code analysis
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams and technical illustrations
