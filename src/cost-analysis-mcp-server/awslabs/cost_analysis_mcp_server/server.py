@@ -18,21 +18,22 @@ This server provides tools for analyzing AWS service costs across different user
 """
 
 import boto3
-import logging
 import os
+import sys
 from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
 from awslabs.cost_analysis_mcp_server.static.patterns import BEDROCK
 from awslabs.cost_analysis_mcp_server.terraform_analyzer import analyze_terraform_project
 from bs4 import BeautifulSoup
 from httpx import AsyncClient
+from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger.remove()
+logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 
 class PricingFilter(BaseModel):
@@ -101,7 +102,7 @@ mcp = FastMCP(
     IMPORTANT: Steps MUST be executed in this exact order. Each step must be attempted
     before moving to the next fallback mechanism. The report is particularly focused on
     serverless services and pay-as-you-go pricing models.""",
-    dependencies=['pydantic', 'boto3', 'beautifulsoup4', 'websearch'],
+    dependencies=['pydantic', 'loguru', 'boto3', 'beautifulsoup4', 'websearch'],
 )
 
 profile_name = os.getenv('AWS_PROFILE', 'default')
