@@ -99,12 +99,7 @@ def write_operation(func: Callable) -> Callable:
     return wrapper
 
 
-@app.resource(
-    uri='resource://table-buckets',
-    name='ListTableBuckets',
-    mime_type='application/json',
-    description='Lists all S3 table buckets for your AWS account.',
-)
+@app.tool()
 async def list_table_buckets() -> str:
     """List all S3 table buckets for your AWS account.
 
@@ -114,12 +109,7 @@ async def list_table_buckets() -> str:
     return await resources.list_table_buckets_resource()
 
 
-@app.resource(
-    uri='resource://namespaces',
-    name='ListNamespaces',
-    mime_type='application/json',
-    description='Lists all namespaces within all S3 table buckets.',
-)
+@app.tool()
 async def list_namespaces() -> str:
     """List all namespaces across all S3 table buckets.
 
@@ -129,12 +119,7 @@ async def list_namespaces() -> str:
     return await resources.list_namespaces_resource()
 
 
-@app.resource(
-    uri='resource://tables',
-    name='ListTables',
-    mime_type='application/json',
-    description='List S3 tables across all table buckets and namespaces.',
-)
+@app.tool()
 async def list_tables() -> str:
     """List all S3 tables across all table buckets and namespaces.
 
@@ -782,4 +767,5 @@ def main():
 
 # FastMCP application runner
 if __name__ == '__main__':
+    print('Starting S3 Tables MCP server...')
     main()
