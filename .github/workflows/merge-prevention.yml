@@ -91,5 +91,6 @@ jobs:
           path: results.sarif
           if-no-files-found: error
       - uses: github/codeql-action/upload-sarif@57eebf61a2246ab60a0c2f5a85766db783ad3553 # v3.28.15
+        if: success() || failure()
         with:
           sarif_file: results.sarif
