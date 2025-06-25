@@ -52,7 +52,7 @@
   "servers": [
     {
       "category": "Documentation",
-      "description": "Get latest AWS docs and API references",
+      "description": "Get latest AWS docs and APIs",
       "icon": "\ud83d\udcda",
       "id": "aws-documentation-mcp-server",
       "name": "AWS Documentation MCP Server",
@@ -73,7 +73,7 @@
     },
     {
       "category": "Infrastructure & Deployment",
-      "description": "AWS CDK development with security compliance and best practices",
+      "description": "AWS CDK development with security compliance",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "cdk-mcp-server",
       "name": "AWS CDK MCP Server",
@@ -901,7 +901,7 @@
     },
     {
       "category": "Core",
-      "description": "Start here: intelligent planning and MCP server orchestration",
+      "description": "Intelligent planning and AWS MCP server orchestration",
       "icon": "\u26a1",
       "id": "core-mcp-server",
       "name": "Core MCP Server",
