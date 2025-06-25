@@ -108,6 +108,9 @@ async def get_findings(
     if severity:
         filters['SeverityLabel'] = [{'Value': severity.upper(), 'Comparison': 'EQUALS'}]
 
+    if workflow_status:
+        filters['WorkflowStatus'] = [{'Value': workflow_status.upper(), 'Comparison': 'EQUALS'}]
+
     # Add custom filters from JSON string
     if custom_filters:
         try:
