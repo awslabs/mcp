@@ -1,0 +1,11 @@
+# This file is used by the CI/CD pipeline to install dependencies
+# Generated from pyproject.toml dependencies
+mcp[cli]>=1.6.0
+fastmcp>=2.0.0
+pydantic>=2.0.0
+boto3>=1.34.0
+botocore>=1.34.0
+typing-extensions>=4.0.0
+structlog>=23.0.0
+click>=8.0.0
+rich>=13.0.0

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "bedrock-advisor": {
+      "command": "bedrock-advisor",
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
