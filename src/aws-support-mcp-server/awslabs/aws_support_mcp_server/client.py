@@ -88,7 +88,7 @@ class SupportClient:
                 retries={"max_attempts": 3, "mode": "standard"},
                 connect_timeout=API_TIMEOUT,
                 read_timeout=10,
-                user_agent_extra=f'awslabs/mcp/aws_support_mcp_server/{__version__}'
+                user_agent_extra=f"awslabs/mcp/aws_support_mcp_server/{__version__}",
             )
             logger.debug("Creating support client with retry configuration")
             self.client = session.client("support", config=retry_config)
