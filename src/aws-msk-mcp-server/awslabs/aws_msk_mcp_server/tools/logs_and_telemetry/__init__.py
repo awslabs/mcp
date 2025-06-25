@@ -35,7 +35,7 @@ def register_module(mcp: FastMCP) -> None:
             ..., description='The operation to perform (metrics, available_metrics)'
         ),
         cluster_arn: str = Field(
-            None, description='The ARN of the cluster (required for cluster operations)'
+            ..., description='The ARN of the cluster (required for cluster operations)'
         ),
         kwargs: dict = Field({}, description='Additional arguments based on the action type'),
     ):
