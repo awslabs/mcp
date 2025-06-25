@@ -73,6 +73,12 @@ def register_tools(mcp: FastMCP):
                 - root_domain_unit_id: Root domain unit ID
         """
         try:
+            # Handle optional parameters
+            description_value = None if description is None else description
+            kms_key_identifier_value = None if kms_key_identifier is None else kms_key_identifier
+            tags_value = None if tags is None else tags
+            single_sign_on_value = None if single_sign_on is None else single_sign_on
+
             logger.info(f'Creating {domain_version} domain: {name}')
 
             # Prepare request parameters
@@ -83,14 +89,14 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters
-            if description:  # pragma: no cover
-                params['description'] = description
-            if kms_key_identifier:  # pragma: no cover
-                params['kmsKeyIdentifier'] = kms_key_identifier
-            if tags:  # pragma: no cover
-                params['tags'] = tags
-            if single_sign_on:  # pragma: no cover
-                params['singleSignOn'] = single_sign_on
+            if description_value:  # pragma: no cover
+                params['description'] = description_value
+            if kms_key_identifier_value:  # pragma: no cover
+                params['kmsKeyIdentifier'] = kms_key_identifier_value
+            if tags_value:  # pragma: no cover
+                params['tags'] = tags_value
+            if single_sign_on_value:  # pragma: no cover
+                params['singleSignOn'] = single_sign_on_value
             if service_role:  # pragma: no cover
                 params['serviceRole'] = service_role
 
@@ -172,16 +178,21 @@ def register_tools(mcp: FastMCP):
                 - next_token: Token for next page of results (if available)
         """
         try:
+            # Handle optional parameters
+            max_results_value = 25 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+            status_value = None if status is None else status
+
             logger.info('Listing domains')
             params: Dict[str, Any] = {
-                'maxResults': min(max_results, 25)
+                'maxResults': min(max_results_value, 25)
             }  # Ensure maxResults is within valid range
-            if next_token:  # pragma: no cover
+            if next_token_value:  # pragma: no cover
                 params['nextToken'] = (
-                    next_token  # Fixed: Amazon API expects 'nextToken', not 'next_token'
+                    next_token_value  # Fixed: Amazon API expects 'nextToken', not 'next_token'
                 )
-            if status:  # pragma: no cover
-                params['status'] = status
+            if status_value:  # pragma: no cover
+                params['status'] = status_value
 
             response = datazone_client.list_domains(**params)
             result = {'items': [], 'next_token': response.get('nextToken')}
@@ -277,6 +288,10 @@ def register_tools(mcp: FastMCP):
                 - owners: List of domain unit owners
         """
         try:
+            # Handle optional parameters
+            description_value = None if description is None else description
+            client_token_value = None if client_token is None else client_token
+
             logger.info(f"Creating domain unit '{name}' in domain {domain_identifier}")
 
             # Prepare request parameters
@@ -287,10 +302,10 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters
-            if description:  # pragma: no cover
-                params['description'] = description
-            if client_token:  # pragma: no cover
-                params['clientToken'] = client_token
+            if description_value:  # pragma: no cover
+                params['description'] = description_value
+            if client_token_value:  # pragma: no cover
+                params['clientToken'] = client_token_value
 
             # Create the domain unit
             response = datazone_client.create_domain_unit(**params)
@@ -459,6 +474,9 @@ def register_tools(mcp: FastMCP):
             Any: The API response
         """
         try:
+            # Handle optional parameters
+            client_token_value = None if client_token is None else client_token
+
             logger.info(
                 f'Adding owner {owner_identifier} to {entity_type.lower()} {entity_identifier} in domain {domain_identifier}'
             )
@@ -482,8 +500,8 @@ def register_tools(mcp: FastMCP):
             params = {'entityType': entity_type, 'owner': owner}
 
             # Add optional client token if provided
-            if client_token:  # pragma: no cover
-                params['clientToken'] = client_token
+            if client_token_value:  # pragma: no cover
+                params['clientToken'] = client_token_value
 
             response = datazone_client.add_entity_owner(
                 domainIdentifier=domain_identifier, entityIdentifier=entity_identifier, **params
@@ -524,6 +542,10 @@ def register_tools(mcp: FastMCP):
             Any: The API response
         """
         try:
+            # Handle optional parameters
+            client_token_value = None if client_token is None else client_token
+            detail_value = None if detail is None else detail
+
             logger.info(
                 f'Adding policy {policy_type.lower()} to {principal_type.lower()} {principal_identifier} for {entity_type.lower()} {entity_identifier} in domain {domain_identifier}'
             )
@@ -534,10 +556,10 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if client_token:  # pragma: no cover
-                params['clientToken'] = client_token
-            if detail:  # pragma: no cover
-                params['detail'] = detail
+            if client_token_value:  # pragma: no cover
+                params['clientToken'] = client_token_value
+            if detail_value:  # pragma: no cover
+                params['detail'] = detail_value
 
             response = datazone_client.add_policy_grant(
                 domainIdentifier=domain_identifier,
@@ -620,6 +642,16 @@ def register_tools(mcp: FastMCP):
             ```
         """
         try:
+            # Handle optional parameters
+            additional_attributes_value = None if additional_attributes is None else additional_attributes
+            filters_value = None if filters is None else filters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+            owning_project_identifier_value = None if owning_project_identifier is None else owning_project_identifier
+            search_in_value = None if search_in is None else search_in
+            search_text_value = None if search_text is None else search_text
+            sort_value = None if sort is None else sort
+
             logger.info(f'Searching {search_scope.lower()} in domain {domain_identifier}')
             # Validate search_scope
             valid_scopes = ['ASSET', 'GLOSSARY', 'GLOSSARY_TERM', 'DATA_PRODUCT']
@@ -630,24 +662,24 @@ def register_tools(mcp: FastMCP):
             params = {
                 'domainIdentifier': domain_identifier,
                 'searchScope': search_scope,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters if provided
-            if additional_attributes:  # pragma: no cover
-                params['additionalAttributes'] = additional_attributes
-            if filters:  # pragma: no cover
-                params['filters'] = filters
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
-            if owning_project_identifier:  # pragma: no cover
-                params['owningProjectIdentifier'] = owning_project_identifier
-            if search_in:  # pragma: no cover
-                params['searchIn'] = search_in
-            if search_text:  # pragma: no cover
-                params['searchText'] = search_text
-            if sort:  # pragma: no cover
-                params['sort'] = sort
+            if additional_attributes_value:  # pragma: no cover
+                params['additionalAttributes'] = additional_attributes_value
+            if filters_value:  # pragma: no cover
+                params['filters'] = filters_value
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
+            if owning_project_identifier_value:  # pragma: no cover
+                params['owningProjectIdentifier'] = owning_project_identifier_value
+            if search_in_value:  # pragma: no cover
+                params['searchIn'] = search_in_value
+            if search_text_value:  # pragma: no cover
+                params['searchText'] = search_text_value
+            if sort_value:  # pragma: no cover
+                params['sort'] = sort_value
 
             response = datazone_client.search(**params)
             logger.info(
@@ -723,6 +755,14 @@ def register_tools(mcp: FastMCP):
                 - totalMatchCount (int): Total number of matching items.
         """
         try:
+            # Handle optional parameters
+            filters_value = None if filters is None else filters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+            search_in_value = None if search_in is None else search_in
+            search_text_value = None if search_text is None else search_text
+            sort_value = None if sort is None else sort
+
             logger.info(f'Searching types {search_scope.lower()} in domain {domain_identifier}')
             # Validate search_scope
             valid_scopes = ['ASSET_TYPE', 'FORM_TYPE', 'LINEAGE_NODE_TYPE']
@@ -733,21 +773,21 @@ def register_tools(mcp: FastMCP):
             params = {
                 'domainIdentifier': domain_identifier,
                 'searchScope': search_scope,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
                 'managed': managed,
             }
 
             # Add optional parameters if provided
-            if filters:  # pragma: no cover
-                params['filters'] = filters
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
-            if search_in:  # pragma: no cover
-                params['searchIn'] = search_in
-            if search_text:  # pragma: no cover
-                params['searchText'] = search_text
-            if sort:  # pragma: no cover
-                params['sort'] = sort
+            if filters_value:  # pragma: no cover
+                params['filters'] = filters_value
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
+            if search_in_value:  # pragma: no cover
+                params['searchIn'] = search_in_value
+            if search_text_value:  # pragma: no cover
+                params['searchText'] = search_text_value
+            if sort_value:  # pragma: no cover
+                params['sort'] = sort_value
 
             response = datazone_client.search_types(**params)
             logger.info(
@@ -813,14 +853,17 @@ def register_tools(mcp: FastMCP):
                 - type (str): The type of the user profile. Valid values: "IAM", "SSO".
         """
         try:
+            # Handle optional parameters
+            user_type_value = None if user_type is None else user_type
+
             params = {'domainIdentifier': domain_identifier, 'userIdentifier': user_identifier}
 
             # Add optional parameters if provided
-            if user_type:  # pragma: no cover
+            if user_type_value:  # pragma: no cover
                 valid_types = ['IAM', 'SSO']
-                if user_type not in valid_types:  # pragma: no cover
+                if user_type_value not in valid_types:  # pragma: no cover
                     raise ValueError(f'user_type must be one of {valid_types}')
-                params['type'] = user_type
+                params['type'] = user_type_value
             response = datazone_client.get_user_profile(**params)
             return response
         except ClientError as e:  # pragma: no cover
@@ -879,6 +922,11 @@ def register_tools(mcp: FastMCP):
                     Min length: 1, Max length: 8192
         """
         try:
+            # Handle optional parameters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+            search_text_value = None if search_text is None else search_text
+
             logger.info(f'Searching {user_type} user profiles in domain {domain_identifier}')
             # Validate user_type
             valid_types = ['SSO_USER', 'DATAZONE_USER', 'DATAZONE_SSO_USER', 'DATAZONE_IAM_USER']
@@ -889,14 +937,14 @@ def register_tools(mcp: FastMCP):
             params = {
                 'domainIdentifier': domain_identifier,
                 'userType': user_type,
-                'maxResults': min(max_results, 50),
+                'maxResults': min(max_results_value, 50),
             }
 
             # Add optional parameters if provided
-            if search_text:  # pragma: no cover
-                params['searchText'] = search_text
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
+            if search_text_value:  # pragma: no cover
+                params['searchText'] = search_text_value
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
 
             response = datazone_client.search_user_profiles(**params)
             logger.info(
@@ -983,6 +1031,11 @@ def register_tools(mcp: FastMCP):
             HTTPError: If the API request fails or returns an error.
         """
         try:
+            # Handle optional parameters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+            search_text_value = None if search_text is None else search_text
+
             logger.info(f'Searching {group_type} group profiles in domain {domain_identifier}')
             # Validate user_type
             valid_types = ['SSO_GROUP', 'DATAZONE_SSO_GROUP']
@@ -993,14 +1046,14 @@ def register_tools(mcp: FastMCP):
             params = {
                 'domainIdentifier': domain_identifier,
                 'groupType': group_type,
-                'maxResults': min(max_results, 50),
+                'maxResults': min(max_results_value, 50),
             }
 
             # Add optional parameters if provided
-            if search_text:  # pragma: no cover
-                params['searchText'] = search_text
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
+            if search_text_value:  # pragma: no cover
+                params['searchText'] = search_text_value
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
 
             response = datazone_client.search_group_profiles(**params)
             logger.info(

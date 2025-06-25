@@ -61,12 +61,15 @@ def register_tools(mcp: FastMCP):
                 - Time series data points
         """
         try:
+            # Handle optional parameters
+            revision_value = None if revision is None else revision
+
             # Prepare the request parameters
             params = {'domainIdentifier': domain_identifier, 'identifier': asset_identifier}
 
             # Add optional revision if provided
-            if revision:
-                params['revision'] = revision
+            if revision_value:
+                params['revision'] = revision_value
 
             response = datazone_client.get_asset(**params)
             return response
@@ -171,6 +174,15 @@ def register_tools(mcp: FastMCP):
                 - Time series data points
         """
         try:
+            # Handle optional parameters
+            description_value = None if description is None else description
+            external_identifier_value = None if external_identifier is None else external_identifier
+            forms_input_value = None if forms_input is None else forms_input
+            glossary_terms_value = None if glossary_terms is None else glossary_terms
+            prediction_configuration_value = None if prediction_configuration is None else prediction_configuration
+            type_revision_value = None if type_revision is None else type_revision
+            client_token_value = None if client_token is None else client_token
+
             # Prepare the request parameters
             params: Dict[str, Any] = {
                 'domainIdentifier': domain_identifier,
@@ -180,20 +192,20 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if description:
-                params['description'] = description
-            if external_identifier:
-                params['externalIdentifier'] = external_identifier
-            if forms_input:
-                params['formsInput'] = forms_input
-            if glossary_terms:
-                params['glossaryTerms'] = glossary_terms
-            if prediction_configuration:
-                params['predictionConfiguration'] = prediction_configuration
-            if type_revision:
-                params['typeRevision'] = type_revision
-            if client_token:
-                params['clientToken'] = client_token
+            if description_value:
+                params['description'] = description_value
+            if external_identifier_value:
+                params['externalIdentifier'] = external_identifier_value
+            if forms_input_value:
+                params['formsInput'] = forms_input_value
+            if glossary_terms_value:
+                params['glossaryTerms'] = glossary_terms_value
+            if prediction_configuration_value:
+                params['predictionConfiguration'] = prediction_configuration_value
+            if type_revision_value:
+                params['typeRevision'] = type_revision_value
+            if client_token_value:
+                params['clientToken'] = client_token_value
 
             response = datazone_client.create_asset(**params)
             return response
@@ -267,14 +279,18 @@ def register_tools(mcp: FastMCP):
                 - Glossary terms
         """
         try:
+            # Handle optional parameters
+            revision_value = None if revision is None else revision
+            client_token_value = None if client_token is None else client_token
+
             # Prepare the request parameters
             params = {'domainIdentifier': domain_identifier, 'identifier': asset_identifier}
 
             # Add optional parameters if provided
-            if revision:
-                params['revision'] = revision
-            if client_token:
-                params['clientToken'] = client_token
+            if revision_value:
+                params['revision'] = revision_value
+            if client_token_value:
+                params['clientToken'] = client_token_value
 
             response = datazone_client.publish_asset(**params)
             return response
@@ -312,12 +328,15 @@ def register_tools(mcp: FastMCP):
                 - Creator and updater information
         """
         try:
+            # Handle optional parameters
+            listing_revision_value = None if listing_revision is None else listing_revision
+
             # Prepare the request parameters
             params = {'domainIdentifier': domain_identifier, 'identifier': identifier}
 
             # Add optional parameters if provided
-            if listing_revision:
-                params['listingRevision'] = listing_revision
+            if listing_revision_value:
+                params['listingRevision'] = listing_revision_value
 
             response = datazone_client.get_listing(**params)
             return response
@@ -359,23 +378,31 @@ def register_tools(mcp: FastMCP):
             Any: The API response containing search results
         """
         try:
+            # Handle optional parameters
+            max_results_value = 50 if max_results is None else max_results
+            search_text_value = None if search_text is None else search_text
+            next_token_value = None if next_token is None else next_token
+            additional_attributes_value = None if additional_attributes is None else additional_attributes
+            search_in_value = None if search_in is None else search_in
+            sort_value = None if sort is None else sort
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters if provided
-            if search_text:
-                params['searchText'] = search_text
-            if next_token:
-                params['nextToken'] = next_token
-            if additional_attributes:
-                params['additionalAttributes'] = additional_attributes
-            if search_in:
-                params['searchIn'] = search_in
-            if sort:
-                params['sort'] = sort
+            if search_text_value:
+                params['searchText'] = search_text_value
+            if next_token_value:
+                params['nextToken'] = next_token_value
+            if additional_attributes_value:
+                params['additionalAttributes'] = additional_attributes_value
+            if search_in_value:
+                params['searchIn'] = search_in_value
+            if sort_value:
+                params['sort'] = sort_value
 
             response = datazone_client.search_listings(**params)
             return response
@@ -444,33 +471,45 @@ def register_tools(mcp: FastMCP):
                 - Error messages (if any)
         """
         try:
+            # Handle optional parameters
+            description_value = None if description is None else description
+            enable_setting_value = 'ENABLED' if enable_setting is None else enable_setting
+            environment_identifier_value = None if environment_identifier is None else environment_identifier
+            connection_identifier_value = None if connection_identifier is None else connection_identifier
+            configuration_value = None if configuration is None else configuration
+            asset_forms_input_value = None if asset_forms_input is None else asset_forms_input
+            publish_on_import_value = False if publish_on_import is None else publish_on_import
+            recommendation_value = None if recommendation is None else recommendation
+            schedule_value = None if schedule is None else schedule
+            client_token_value = None if client_token is None else client_token
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
                 'projectIdentifier': project_identifier,
                 'name': name,
                 'type': data_src_type,
-                'enableSetting': enable_setting,
-                'publishOnImport': publish_on_import,
+                'enableSetting': enable_setting_value,
+                'publishOnImport': publish_on_import_value,
             }
 
             # Add optional parameters if provided
-            if description:
-                params['description'] = description
-            if environment_identifier:
-                params['environmentIdentifier'] = environment_identifier
-            if connection_identifier:
-                params['connectionIdentifier'] = connection_identifier
-            if configuration:
-                params['configuration'] = configuration
-            if asset_forms_input:
-                params['assetFormsInput'] = asset_forms_input
-            if recommendation:
-                params['recommendation'] = recommendation
-            if schedule:
-                params['schedule'] = schedule
-            if client_token:
-                params['clientToken'] = client_token
+            if description_value:
+                params['description'] = description_value
+            if environment_identifier_value:
+                params['environmentIdentifier'] = environment_identifier_value
+            if connection_identifier_value:
+                params['connectionIdentifier'] = connection_identifier_value
+            if configuration_value:
+                params['configuration'] = configuration_value
+            if asset_forms_input_value:
+                params['assetFormsInput'] = asset_forms_input_value
+            if recommendation_value:
+                params['recommendation'] = recommendation_value
+            if schedule_value:
+                params['schedule'] = schedule_value
+            if client_token_value:
+                params['clientToken'] = client_token_value
 
             response = datazone_client.create_data_source(**params)
             return response
@@ -559,6 +598,9 @@ def register_tools(mcp: FastMCP):
             ```
         """
         try:
+            # Handle optional parameters
+            client_token_value = None if client_token is None else client_token
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
@@ -566,8 +608,8 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional client_token if provided
-            if client_token:
-                params['clientToken'] = client_token
+            if client_token_value:
+                params['clientToken'] = client_token_value
 
             response = datazone_client.start_data_source_run(**params)
             return response
@@ -653,6 +695,10 @@ def register_tools(mcp: FastMCP):
                 - Reviewer information
         """
         try:
+            # Handle optional parameters
+            metadata_forms_value = None if metadata_forms is None else metadata_forms
+            client_token_value = None if client_token is None else client_token
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
@@ -662,10 +708,10 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if metadata_forms:  # pragma: no cover
-                params['metadataForms'] = metadata_forms
-            if client_token:  # pragma: no cover
-                params['clientToken'] = client_token
+            if metadata_forms_value:  # pragma: no cover
+                params['metadataForms'] = metadata_forms_value
+            if client_token_value:  # pragma: no cover
+                params['clientToken'] = client_token_value
 
             response = datazone_client.create_subscription_request(**params)
             return response
@@ -702,6 +748,10 @@ def register_tools(mcp: FastMCP):
                 - Reviewer information
         """
         try:
+            # Handle optional parameters
+            asset_scopes_value = None if asset_scopes is None else asset_scopes
+            decision_comment_value = None if decision_comment is None else decision_comment
+            
             # Prepare the request parameters
             params: Dict[str, Any] = {
                 'domainIdentifier': domain_identifier,
@@ -709,10 +759,10 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if asset_scopes:  # pragma: no cover
-                params['assetScopes'] = asset_scopes
-            if decision_comment:  # pragma: no cover
-                params['decisionComment'] = decision_comment
+            if asset_scopes_value:  # pragma: no cover
+                params['assetScopes'] = asset_scopes_value
+            if decision_comment_value:  # pragma: no cover
+                params['decisionComment'] = decision_comment_value
 
             response = datazone_client.accept_subscription_request(**params)
             return response
@@ -799,6 +849,9 @@ def register_tools(mcp: FastMCP):
             ```
         """
         try:
+            # Handle optional parameters
+            revision_value = None if revision is None else revision
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
@@ -806,8 +859,8 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional revision if provided
-            if revision:  # pragma: no cover
-                params['revision'] = revision
+            if revision_value:  # pragma: no cover
+                params['revision'] = revision_value
 
             response = datazone_client.get_form_type(**params)
             return response
@@ -871,8 +924,12 @@ def register_tools(mcp: FastMCP):
             ```
         """
         try:
+            # Handle optional parameters
+            description_value = None if description is None else description
+            status_value = 'ENABLED' if status is None else status
+
             # Validate status
-            if status not in ['ENABLED', 'DISABLED']:
+            if status_value not in ['ENABLED', 'DISABLED']:
                 raise ValueError("status must be either 'ENABLED' or 'DISABLED'")
 
             # Prepare the request parameters
@@ -880,12 +937,12 @@ def register_tools(mcp: FastMCP):
                 'name': name,
                 'model': model,
                 'owningProjectIdentifier': owning_project_identifier,
-                'status': status,
+                'status': status_value,
             }
 
             # Add optional parameters if provided
-            if description:  # pragma: no cover
-                params['description'] = description
+            if description_value:  # pragma: no cover
+                params['description'] = description_value
 
             response = datazone_client.create_form_type(
                 domainIdentifier=domain_identifier, **params
@@ -964,26 +1021,35 @@ def register_tools(mcp: FastMCP):
                 - nextToken (str): Token to retrieve the next page of results, if any.
         """
         try:
+            # Handle optional parameters
+            connection_identifier_value = None if connection_identifier is None else connection_identifier
+            environment_identifier_value = None if environment_identifier is None else environment_identifier
+            max_results_value = 50 if max_results is None else max_results
+            name_value = None if name is None else name
+            next_token_value = None if next_token is None else next_token
+            status_value = None if status is None else status
+            data_source_type_value = None if data_source_type is None else data_source_type
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
                 'projectIdentifier': project_identifier,
             }
 
             # Add optional parameters if provided
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
-            if status:  # pragma: no cover
-                params['status'] = status
-            if connection_identifier:  # pragma: no cover
-                params['connectionIdentifier'] = connection_identifier
-            if environment_identifier:  # pragma: no cover
-                params['environmentIdentifier'] = environment_identifier
-            if name:  # pragma: no cover
-                params['name'] = name
-            if data_source_type:  # pragma: no cover
-                params['type'] = data_source_type
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
+            if status_value:  # pragma: no cover
+                params['status'] = status_value
+            if connection_identifier_value:  # pragma: no cover
+                params['connectionIdentifier'] = connection_identifier_value
+            if environment_identifier_value:  # pragma: no cover
+                params['environmentIdentifier'] = environment_identifier_value
+            if name_value:  # pragma: no cover
+                params['name'] = name_value
+            if data_source_type_value:  # pragma: no cover
+                params['type'] = data_source_type_value
 
             response = datazone_client.list_data_sources(**params)
             return response

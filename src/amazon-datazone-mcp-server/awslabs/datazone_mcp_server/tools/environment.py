@@ -64,29 +64,40 @@ def register_tools(mcp: FastMCP):
             ... )
         """
         try:
+            # Handle optional parameters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+            aws_account_id_value = None if aws_account_id is None else aws_account_id
+            aws_account_region_value = None if aws_account_region is None else aws_account_region
+            environment_blueprint_identifier_value = None if environment_blueprint_identifier is None else environment_blueprint_identifier
+            environment_profile_identifier_value = None if environment_profile_identifier is None else environment_profile_identifier
+            name_value = None if name is None else name
+            provider_value = None if provider is None else provider
+            status_value = None if status is None else status
+
             params = {
                 'domainIdentifier': domain_identifier,
                 'projectIdentifier': project_identifier,
-                'maxResults': max_results,
+                'maxResults': max_results_value,
             }
 
             # Add optional parameters if provided
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
-            if aws_account_id:  # pragma: no cover
-                params['awsAccountId'] = aws_account_id
-            if aws_account_region:  # pragma: no cover
-                params['awsAccountRegion'] = aws_account_region
-            if environment_blueprint_identifier:  # pragma: no cover
-                params['environmentBlueprintIdentifier'] = environment_blueprint_identifier
-            if environment_profile_identifier:  # pragma: no cover
-                params['environmentProfileIdentifier'] = environment_profile_identifier
-            if name:  # pragma: no cover
-                params['name'] = name
-            if provider:  # pragma: no cover
-                params['provider'] = provider
-            if status:  # pragma: no cover
-                params['status'] = status
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
+            if aws_account_id_value:  # pragma: no cover
+                params['awsAccountId'] = aws_account_id_value
+            if aws_account_region_value:  # pragma: no cover
+                params['awsAccountRegion'] = aws_account_region_value
+            if environment_blueprint_identifier_value:  # pragma: no cover
+                params['environmentBlueprintIdentifier'] = environment_blueprint_identifier_value
+            if environment_profile_identifier_value:  # pragma: no cover
+                params['environmentProfileIdentifier'] = environment_profile_identifier_value
+            if name_value:  # pragma: no cover
+                params['name'] = name_value
+            if provider_value:  # pragma: no cover
+                params['provider'] = provider_value
+            if status_value:  # pragma: no cover
+                params['status'] = status_value
 
             response = datazone_client.list_environments(**params)
             return response
@@ -156,20 +167,27 @@ def register_tools(mcp: FastMCP):
             ... )
         """
         try:
+            # Handle optional parameters
+            environment_identifier_value = None if environment_identifier is None else environment_identifier
+            aws_location_value = None if aws_location is None else aws_location
+            description_value = None if description is None else description
+            client_token_value = None if client_token is None else client_token
+            props_value = None if props is None else props
+
             # Prepare the request parameters
             params: Dict[str, Any] = {'domainIdentifier': domain_identifier, 'name': name}
 
             # Add optional parameters if provided
-            if environment_identifier:  # pragma: no cover
-                params['environmentIdentifier'] = environment_identifier
-            if aws_location:  # pragma: no cover
-                params['awsLocation'] = aws_location
-            if description:  # pragma: no cover
-                params['description'] = description
-            if client_token:  # pragma: no cover
-                params['clientToken'] = client_token
-            if props:  # pragma: no cover
-                params['props'] = props
+            if environment_identifier_value:  # pragma: no cover
+                params['environmentIdentifier'] = environment_identifier_value
+            if aws_location_value:  # pragma: no cover
+                params['awsLocation'] = aws_location_value
+            if description_value:  # pragma: no cover
+                params['description'] = description_value
+            if client_token_value:  # pragma: no cover
+                params['clientToken'] = client_token_value
+            if props_value:  # pragma: no cover
+                params['props'] = props_value
 
             response = datazone_client.create_connection(**params)
             return response
@@ -554,26 +572,35 @@ def register_tools(mcp: FastMCP):
                 - nextToken: Token for pagination if more results are available
         """
         try:
+            # Handle optional parameters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+            environment_identifier_value = None if environment_identifier is None else environment_identifier
+            name_value = None if name is None else name
+            sort_by_value = None if sort_by is None else sort_by
+            sort_order_value = None if sort_order is None else sort_order
+            type_value = None if type is None else type
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
                 'projectIdentifier': project_identifier,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters if provided
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
-            if environment_identifier:  # pragma: no cover
-                params['environmentIdentifier'] = environment_identifier
-            if name:  # pragma: no cover
-                params['name'] = name
-            if sort_by:  # pragma: no cover
-                params['sortBy'] = sort_by
-            if sort_order:  # pragma: no cover
-                params['sortOrder'] = sort_order
-            if type:  # pragma: no cover
-                params['type'] = type
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
+            if environment_identifier_value:  # pragma: no cover
+                params['environmentIdentifier'] = environment_identifier_value
+            if name_value:  # pragma: no cover
+                params['name'] = name_value
+            if sort_by_value:  # pragma: no cover
+                params['sortBy'] = sort_by_value
+            if sort_order_value:  # pragma: no cover
+                params['sortOrder'] = sort_order_value
+            if type_value:  # pragma: no cover
+                params['type'] = type_value
 
             response = datazone_client.list_connections(**params)
             return response
@@ -626,21 +653,27 @@ def register_tools(mcp: FastMCP):
                 - next_token: Token for pagination if more results are available
         """
         try:
+            # Handle optional parameters
+            managed_value = None if managed is None else managed
+            max_results_value = 50 if max_results is None else max_results
+            name_value = None if name is None else name
+            next_token_value = None if next_token is None else next_token
+
             logger.info(f'Listing environment blueprints in domain {domain_identifier}')
 
             # Prepare request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters
-            if managed is not None:  # pragma: no cover
-                params['managed'] = managed
-            if name:  # pragma: no cover
-                params['name'] = name
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
+            if managed_value is not None:  # pragma: no cover
+                params['managed'] = managed_value
+            if name_value:  # pragma: no cover
+                params['name'] = name_value
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
 
             # List the environment blueprints
             response = datazone_client.list_environment_blueprints(**params)
@@ -739,6 +772,10 @@ def register_tools(mcp: FastMCP):
                 nextToken (str): Token for paginated results. Use in subsequent requests to retrieve the next set of environment blueprints.
         """
         try:
+            # Handle optional parameters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+
             logger.info(
                 f'Listing environment blueprint configurations in domain {domain_identifier}'
             )
@@ -746,11 +783,11 @@ def register_tools(mcp: FastMCP):
             # Prepare request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
             }
 
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
 
             # List the environment blueprint configurations
             response = datazone_client.list_environment_blueprint_configurations(**params)
@@ -876,27 +913,36 @@ def register_tools(mcp: FastMCP):
                 - nextToken (str): Token for retrieving the next page of results, if any.
         """
         try:
+            # Handle optional parameters
+            aws_account_id_value = None if aws_account_id is None else aws_account_id
+            aws_account_region_value = None if aws_account_region is None else aws_account_region
+            environment_blueprint_identifier_value = None if environment_blueprint_identifier is None else environment_blueprint_identifier
+            max_results_value = 50 if max_results is None else max_results
+            name_value = None if name is None else name
+            next_token_value = None if next_token is None else next_token
+            project_identifier_value = None if project_identifier is None else project_identifier
+
             logger.info(f'Listing environment profiles in domain {domain_identifier}')
 
             # Prepare request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters
-            if aws_account_id:  # pragma: no cover
-                params['awsAccountId'] = aws_account_id
-            if aws_account_region:  # pragma: no cover
-                params['awsAccountRegion'] = aws_account_region
-            if environment_blueprint_identifier:  # pragma: no cover
-                params['environmentBlueprintIdentifier'] = environment_blueprint_identifier
-            if name:  # pragma: no cover
-                params['name'] = name
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
-            if project_identifier:  # pragma: no cover
-                params['projectIdentifier'] = project_identifier
+            if aws_account_id_value:  # pragma: no cover
+                params['awsAccountId'] = aws_account_id_value
+            if aws_account_region_value:  # pragma: no cover
+                params['awsAccountRegion'] = aws_account_region_value
+            if environment_blueprint_identifier_value:  # pragma: no cover
+                params['environmentBlueprintIdentifier'] = environment_blueprint_identifier_value
+            if name_value:  # pragma: no cover
+                params['name'] = name_value
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
+            if project_identifier_value:  # pragma: no cover
+                params['projectIdentifier'] = project_identifier_value
 
             # List the environment profiles
             response = datazone_client.list_environment_profiles(**params)

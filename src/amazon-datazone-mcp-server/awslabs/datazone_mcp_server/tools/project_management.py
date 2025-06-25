@@ -47,18 +47,25 @@ def register_tools(mcp: FastMCP):
             Any: The API response containing the created project details
         """
         try:
+            # Handle optional parameters
+            description_value = '' if description is None else description
+            domain_unit_id_value = None if domain_unit_id is None else domain_unit_id
+            glossary_terms_value = None if glossary_terms is None else glossary_terms
+            project_profile_id_value = None if project_profile_id is None else project_profile_id
+            user_parameters_value = None if user_parameters is None else user_parameters
+
             # Prepare the request parameters
-            params: Dict[str, Any] = {'name': name, 'description': description}
+            params: Dict[str, Any] = {'name': name, 'description': description_value}
 
             # Add optional parameters if provided
-            if domain_unit_id:  # pragma: no cover
-                params['domainUnitId'] = domain_unit_id
-            if glossary_terms:  # pragma: no cover
-                params['glossaryTerms'] = glossary_terms
-            if project_profile_id:  # pragma: no cover
-                params['projectProfileId'] = project_profile_id
-            if user_parameters:  # pragma: no cover
-                params['userParameters'] = user_parameters
+            if domain_unit_id_value:  # pragma: no cover
+                params['domainUnitId'] = domain_unit_id_value
+            if glossary_terms_value:  # pragma: no cover
+                params['glossaryTerms'] = glossary_terms_value
+            if project_profile_id_value:  # pragma: no cover
+                params['projectProfileId'] = project_profile_id_value
+            if user_parameters_value:  # pragma: no cover
+                params['userParameters'] = user_parameters_value
 
             response = datazone_client.create_project(domainIdentifier=domain_identifier, **params)
             return response
@@ -120,21 +127,28 @@ def register_tools(mcp: FastMCP):
             Any: The API response containing the list of projects
         """
         try:
+            # Handle optional parameters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+            name_value = None if name is None else name
+            user_identifier_value = None if user_identifier is None else user_identifier
+            group_identifier_value = None if group_identifier is None else group_identifier
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
             }
 
             # Add optional parameters if provided
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
-            if name:  # pragma: no cover
-                params['name'] = name
-            if user_identifier:  # pragma: no cover
-                params['userIdentifier'] = user_identifier
-            if group_identifier:  # pragma: no cover
-                params['groupIdentifier'] = group_identifier
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
+            if name_value:  # pragma: no cover
+                params['name'] = name_value
+            if user_identifier_value:  # pragma: no cover
+                params['userIdentifier'] = user_identifier_value
+            if group_identifier_value:  # pragma: no cover
+                params['groupIdentifier'] = group_identifier_value
 
             response = datazone_client.list_projects(**params)
             return response
@@ -190,15 +204,19 @@ def register_tools(mcp: FastMCP):
             Any: The API response containing the list of project profiles
         """
         try:
+            # Handle optional parameters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
             }
 
             # Add optional next token if provided
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
 
             response = datazone_client.list_project_profiles(**params)
             return response
@@ -251,22 +269,28 @@ def register_tools(mcp: FastMCP):
                 - last_updated_at: Last update timestamp
         """
         try:
+            # Handle optional parameters
+            description_value = None if description is None else description
+            domain_unit_identifier_value = None if domain_unit_identifier is None else domain_unit_identifier
+            environment_configurations_value = None if environment_configurations is None else environment_configurations
+            status_value = 'ENABLED' if status is None else status
+
             logger.info(f"Creating project profile '{name}' in domain {domain_identifier}")
 
             # Prepare request parameters
             params: Dict[str, Any] = {
                 'domainIdentifier': domain_identifier,
                 'name': name,
-                'status': status,
+                'status': status_value,
             }
 
             # Add optional parameters
-            if description:  # pragma: no cover
-                params['description'] = description
-            if domain_unit_identifier:  # pragma: no cover
-                params['domainUnitIdentifier'] = domain_unit_identifier
-            if environment_configurations:  # pragma: no cover
-                params['environmentConfigurations'] = environment_configurations
+            if description_value:  # pragma: no cover
+                params['description'] = description_value
+            if domain_unit_identifier_value:  # pragma: no cover
+                params['domainUnitIdentifier'] = domain_unit_identifier_value
+            if environment_configurations_value:  # pragma: no cover
+                params['environmentConfigurations'] = environment_configurations_value
 
             # Create the project profile
             response = datazone_client.create_project_profile(**params)
@@ -489,20 +513,26 @@ def register_tools(mcp: FastMCP):
                     Length: 1–8192 characters
         """
         try:
+            # Handle optional parameters
+            max_results_value = 50 if max_results is None else max_results
+            next_token_value = None if next_token is None else next_token
+            sort_by_value = None if sort_by is None else sort_by
+            sort_order_value = None if sort_order is None else sort_order
+
             # Prepare the request parameters
             params = {
                 'domainIdentifier': domain_identifier,
                 'projectIdentifier': project_identifier,
-                'maxResults': min(max_results, 50),  # Ensure maxResults is within valid range
+                'maxResults': min(max_results_value, 50),  # Ensure maxResults is within valid range
             }
 
             # Add optional next token if provided
-            if next_token:  # pragma: no cover
-                params['nextToken'] = next_token
-            if sort_by:  # pragma: no cover
-                params['sortBy'] = sort_by
-            if sort_order:  # pragma: no cover
-                params['sortOrder'] = sort_order
+            if next_token_value:  # pragma: no cover
+                params['nextToken'] = next_token_value
+            if sort_by_value:  # pragma: no cover
+                params['sortBy'] = sort_by_value
+            if sort_order_value:  # pragma: no cover
+                params['sortOrder'] = sort_order_value
 
             response = datazone_client.list_project_memberships(**params)
             return response

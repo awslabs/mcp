@@ -56,22 +56,27 @@ def register_tools(mcp: FastMCP):
             ```
         """
         try:
+            # Handle optional parameters
+            description_value = None if description is None else description
+            status_value = 'ENABLED' if status is None else status
+            client_token_value = None if client_token is None else client_token
+
             # Validate status
-            if status not in ['ENABLED', 'DISABLED']:
+            if status_value not in ['ENABLED', 'DISABLED']:
                 raise ValueError("status must be either 'ENABLED' or 'DISABLED'")
 
             # Prepare the request parameters
             params = {
                 'name': name,
                 'owningProjectIdentifier': owning_project_identifier,
-                'status': status,
+                'status': status_value,
             }
 
             # Add optional parameters if provided
-            if description:
-                params['description'] = description
-            if client_token:
-                params['clientToken'] = client_token
+            if description_value:
+                params['description'] = description_value
+            if client_token_value:
+                params['clientToken'] = client_token_value
 
             response = datazone_client.create_glossary(
                 domainIdentifier=domain_identifier, **params
@@ -127,26 +132,33 @@ def register_tools(mcp: FastMCP):
             ```
         """
         try:
+            # Handle optional parameters
+            short_description_value = None if short_description is None else short_description
+            long_description_value = None if long_description is None else long_description
+            status_value = 'ENABLED' if status is None else status
+            term_relations_value = None if term_relations is None else term_relations
+            client_token_value = None if client_token is None else client_token
+
             # Validate status
-            if status not in ['ENABLED', 'DISABLED']:
+            if status_value not in ['ENABLED', 'DISABLED']:
                 raise ValueError("status must be either 'ENABLED' or 'DISABLED'")
 
             # Prepare the request parameters
             params: Dict[str, Any] = {
                 'glossaryIdentifier': glossary_identifier,
                 'name': name,
-                'status': status,
+                'status': status_value,
             }
 
             # Add optional parameters if provided
-            if short_description:
-                params['shortDescription'] = short_description
-            if long_description:
-                params['longDescription'] = long_description
-            if term_relations:
-                params['termRelations'] = term_relations
-            if client_token:
-                params['clientToken'] = client_token
+            if short_description_value:
+                params['shortDescription'] = short_description_value
+            if long_description_value:
+                params['longDescription'] = long_description_value
+            if term_relations_value:
+                params['termRelations'] = term_relations_value
+            if client_token_value:
+                params['clientToken'] = client_token_value
 
             response = datazone_client.create_glossary_term(
                 domainIdentifier=domain_identifier, **params
