@@ -66,7 +66,7 @@ jobs:
         id: pr-missing-label
         if: ! ${{ contains(github.event.pull_request.labels.*.name, env.DO_NOT_MERGE_LABEL) }}
         run: |
-          echo "The label \"${{ env.DO_NOT_MERGE_LABEL }}\" is used to prevent merging. When removed, this step will be skipped."
+          echo "The label \"${{ env.DO_NOT_MERGE_LABEL }}\" is absent, should succeed."
           cat << EOF > results.sarif
           {
             "version": "2.1.0",
@@ -85,6 +85,7 @@ jobs:
           EOF
           exit 0
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: success() || failure()
         with:
           name: results.sarif
           path: results.sarif
