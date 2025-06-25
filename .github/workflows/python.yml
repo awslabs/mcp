@@ -69,7 +69,8 @@ jobs:
           fi
 
       - name: Install Bandit
-        run: pip install bandit[toml]
+        run: |
+          pip install --require-hashes --requirement .github/workflows/bandit-requirements.txt
 
       - name: Security check - Bandit
         id: bandit-check
