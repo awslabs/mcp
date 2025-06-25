@@ -20,6 +20,7 @@ as well as a separate tool for IAM access information.
 """
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from ..common_functions.client_manager import AWSClientManager
 from .cluster_metrics_tools import get_cluster_metrics, list_available_metrics
@@ -28,7 +29,16 @@ from .list_customer_iam_access import list_customer_iam_access
 
 def register_module(mcp: FastMCP) -> None:
     @mcp.tool(name='get_cluster_telemetry')
-    def get_cluster_telemetry(region, action, cluster_arn=None, kwargs={}):
+    def get_cluster_telemetry(
+        region: str = Field(..., description='AWS region'),
+        action: str = Field(
+            ..., description='The operation to perform (metrics, available_metrics)'
+        ),
+        cluster_arn: str = Field(
+            None, description='The ARN of the cluster (required for cluster operations)'
+        ),
+        kwargs: dict = Field({}, description='Additional arguments based on the action type'),
+    ):
         """
         Unified API to retrieve telemetry data for MSK clusters. Current implementation of metrics uses a static table of available metrics.
         Would be better to have a resource to pull this data from and force read it first.
@@ -173,7 +183,10 @@ def register_module(mcp: FastMCP) -> None:
             raise ValueError(f'Unsupported action or missing required arguments for {action}')
 
     @mcp.tool(name='list_customer_iam_access')
-    def list_customer_iam_access_tool(region, cluster_arn):
+    def list_customer_iam_access_tool(
+        region: str = Field(..., description='AWS region'),
+        cluster_arn: str = Field(..., description='The ARN of the MSK cluster'),
+    ):
         """
         List IAM access information for an MSK cluster.
 
