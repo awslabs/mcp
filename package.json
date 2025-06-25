@@ -1,11 +1,11 @@
 {
-  "scripts": {
-    "build:tailwind": "npx tailwindcss -i docs/stylesheets/tailwind.css -o docs/stylesheets/tailwind.min.css",
-    "watch:tailwind": "npx tailwindcss -i docs/stylesheets/tailwind.css -o docs/stylesheets/tailwind.min.css --watch",
-    "serve": "mkdocs serve",
-    "dev": "npm run build:tailwind && npm run serve"
-  },
   "dependencies": {
     "tailwindcss": "^4.1.10"
+  },
+  "scripts": {
+    "build:tailwind": "npx tailwindcss -i docs/stylesheets/tailwind.css -o docs/stylesheets/tailwind.min.css",
+    "dev": "npm run build:tailwind && npm run serve",
+    "serve": "mkdocs serve",
+    "watch:tailwind": "npx tailwindcss -i docs/stylesheets/tailwind.css -o docs/stylesheets/tailwind.min.css --watch"
   }
 }

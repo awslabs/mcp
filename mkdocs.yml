@@ -12,6 +12,7 @@ theme:
     - search.suggest
     - search.highlight
     - navigation.instant
+    - navigation.sections
   custom_dir: overrides
   palette:
     # Palette toggle for light mode
@@ -35,11 +36,14 @@ plugins:
   - search
   - include-markdown
 nav:
-  - Get Started: index.md
+  - Get Started:
+    - Welcome to AWS MCP Servers: index.md
+    - Installation: installation.md
+    - Vibe Coding Tips & Tricks: vibe_coding.md
   - Available AWS MCP Servers:
-    - 📚 Documentation:
+    - Documentation:
       - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
-    - 🏗️ Infrastructure & Deployment:
+    - Infrastructure & Deployment:
       - AWS CDK MCP Server: servers/cdk-mcp-server.md
       - CloudFormation MCP Server: servers/cfn-mcp-server.md
       - AWS Terraform MCP Server: servers/terraform-mcp-server.md
@@ -50,28 +54,28 @@ nav:
       - AWS Step Functions Tool MCP Server: servers/stepfunctions-tool-mcp-server.md
       - AWS Serverless MCP Server: servers/aws-serverless-mcp-server.md
       - AWS Support MCP Server: servers/aws-support-mcp-server.md
-    - 🤖 AI & Machine Learning:
+    - AI & Machine Learning:
       - Amazon Bedrock Knowledge Base Retrieval MCP Server: servers/bedrock-kb-retrieval-mcp-server.md
       - Amazon Rekognition MCP Server: servers/amazon-rekognition-mcp-server.md
       - Amazon Q index MCP Server: servers/amazon-qindex-mcp-server.md
       - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
-    - 📊 Data & Analytics:
+    - Data & Analytics:
       - Amazon DocumentDB MCP Server: servers/documentdb-mcp-server.md
       - Amazon DynamoDB MCP Server: servers/dynamodb-mcp-server.md
       - Amazon ElastiCache MCP Server: servers/elasticache-mcp-server.md
       - Amazon ElastiCache/MemoryDB for Valkey MCP Server: servers/valkey-mcp-server.md
       - Amazon ElastiCache for Memcached MCP Server: servers/memcached-mcp-server.md
       - Amazon Timestream for InfluxDB MCP Server: servers/timestream-for-influxdb-mcp-server.md
-    - 🛠️ Developer Tools & Support:
+    - Developer Tools & Support:
       - Core MCP Server: servers/core-mcp-server.md
       - Git Repo Research MCP Server: servers/git-repo-research-mcp-server.md
       - OpenAPI MCP Server: servers/openapi-mcp-server.md
       - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
       - AWS Managed Prometheus MCP Server: servers/prometheus-mcp-server.md
-    - 📡 Integration & Messaging:
+    - Integration & Messaging:
       - Amazon MQ MCP Server: servers/amazon-mq-mcp-server.md
       - AWS SNS SQS MCP Server: servers/amazon-sns-sqs-mcp-server.md
-    - 💰 Cost & Operations:
+    - Cost & Operations:
       - Cost Analysis MCP Server: servers/cost-analysis-mcp-server.md
       - Cost Explorer MCP Server: servers/cost-explorer-mcp-server.md
   - Samples:
