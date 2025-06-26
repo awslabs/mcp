@@ -488,6 +488,26 @@ Tool guidelines:
 4. Return structured responses using Pydantic models when possible
 5. Document the tool's purpose, inputs, and outputs comprehensively
 
+### 🔤 Tool Naming Conventions
+
+To maintain consistency and compatibility, tool names must follow these rules:
+
+- ✅ **Maximum of 64 characters** in total length
+- ✅ Must start with a letter
+- ✅ Use only lowercase letters and hyphens (`-`)
+- ❌ Avoid special characters (e.g., `@`, `$`, `!`)
+- ❌ Do not start with a number
+
+#### ✅ Valid Examples:
+- `data-cleaner`
+- `csv-uploader`
+- `pdf-generator`
+
+#### ❌ Invalid Examples:
+- `123tool`
+- `tool!@#$`
+- `name-that-is-way-too-long-and-goes-beyond-the-sixty-four-character-limit-of-the-rule`
+
 ## Asynchronous Programming
 
 MCP servers use asynchronous programming patterns:
