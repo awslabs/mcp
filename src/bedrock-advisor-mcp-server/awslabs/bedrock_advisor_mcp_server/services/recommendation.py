@@ -107,12 +107,12 @@ class RecommendationEngine:
                         "model_id": model.model_id,
                         "model_name": model.model_name,
                         "provider_name": model.provider_name,
-                        "capabilities": model.capabilities.dict(),
-                        "performance": model.performance.dict()
+                        "capabilities": model.capabilities.model_dump(),
+                        "performance": model.performance.model_dump()
                         if model.performance
                         else None,
-                        "pricing": model.pricing.dict() if model.pricing else None,
-                        "availability": model.availability.dict()
+                        "pricing": model.pricing.model_dump() if model.pricing else None,
+                        "availability": model.availability.model_dump()
                         if model.availability
                         else None,
                     },

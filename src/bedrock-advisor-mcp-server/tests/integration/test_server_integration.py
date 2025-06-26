@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from bedrock_advisor.models.bedrock import (
+from awslabs.bedrock_advisor_mcp_server.models.bedrock import (
     BedrockModel,
     ModelAvailability,
     ModelCapabilities,
@@ -18,7 +18,7 @@ from bedrock_advisor.models.bedrock import (
     ModelPricing,
     ModelStatus,
 )
-from bedrock_advisor.server import BedrockAdvisorServer
+from awslabs.bedrock_advisor_mcp_server.server import BedrockAdvisorServer
 
 
 @pytest.fixture

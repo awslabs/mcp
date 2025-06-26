@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from bedrock_advisor.services.availability_checker import AvailabilityChecker
-from bedrock_advisor.utils.errors import RegionNotSupportedError
+from awslabs.bedrock_advisor_mcp_server.services.availability_checker import AvailabilityChecker
+from awslabs.bedrock_advisor_mcp_server.utils.errors import RegionNotSupportedError
 
 
 class TestAvailabilityChecker(unittest.TestCase):

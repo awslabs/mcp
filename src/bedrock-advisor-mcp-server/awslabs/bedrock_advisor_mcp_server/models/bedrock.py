@@ -22,7 +22,7 @@ capabilities, performance metrics, and recommendations.
 from enum import Enum
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class UseCaseType(str, Enum):
@@ -144,7 +144,8 @@ class BedrockModel(BaseModel):
         description="Regional availability information"
     )
 
-    @validator("model_id")
+    @field_validator("model_id")
+    @classmethod
     def validate_model_id(cls, v: str) -> str:
         """Validate model ID format."""
         if not v or len(v.strip()) == 0:

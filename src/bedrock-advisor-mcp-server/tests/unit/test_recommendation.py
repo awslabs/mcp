@@ -9,7 +9,7 @@ from datetime import datetime
 
 import pytest
 
-from bedrock_advisor.models.bedrock import (
+from awslabs.bedrock_advisor_mcp_server.models.bedrock import (
     BedrockModel,
     ModelAvailability,
     ModelCapabilities,
@@ -18,7 +18,7 @@ from bedrock_advisor.models.bedrock import (
     ModelStatus,
     UseCaseType,
 )
-from bedrock_advisor.services.recommendation import RecommendationEngine
+from awslabs.bedrock_advisor_mcp_server.services.recommendation import RecommendationEngine
 
 
 @pytest.fixture

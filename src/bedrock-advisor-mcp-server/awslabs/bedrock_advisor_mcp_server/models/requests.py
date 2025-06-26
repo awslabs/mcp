@@ -21,7 +21,7 @@ requests to the various MCP tools provided by the Bedrock Model Selector.
 import re
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, validator
 
 from .bedrock import UseCaseType
 
@@ -96,11 +96,13 @@ class TechnicalRequirements(BaseModel):
         None, description="Whether multimodal capabilities are required"
     )
 
-    @validator("max_context_length")
-    def validate_context_length_range(cls, v, values):
+    @field_validator("max_context_length")
+    @classmethod
+    def validate_context_length_range(cls, v, info):
         """Ensure max_context_length >= min_context_length."""
-        if v is not None and "min_context_length" in values:
-            min_length = values["min_context_length"]
+        if (v is not None and hasattr(info, 'data') and info.data 
+            and "min_context_length" in info.data):
+            min_length = info.data["min_context_length"]
             if min_length is not None and v < min_length:
                 raise ValueError("max_context_length must be >= min_context_length")
         return v
@@ -123,7 +125,8 @@ class ModelRecommendationCriteria(BaseModel):
         None, description="Preferred AWS regions", max_items=20
     )
 
-    @validator("region_preference", each_item=True)
+    @field_validator("region_preference")
+    @classmethod
     def validate_region_format(cls, v):
         """Validate AWS region format."""
         if not re.match(r"^[a-z]{2}-[a-z]+-\d+$", v):

@@ -4,8 +4,8 @@ Unit tests for ModelDataService.
 
 import pytest
 
-from bedrock_advisor.services.model_data import ModelDataService
-from bedrock_advisor.utils.errors import ModelNotFoundError
+from awslabs.bedrock_advisor_mcp_server.services.model_data import ModelDataService
+from awslabs.bedrock_advisor_mcp_server.utils.errors import ModelNotFoundError
 
 
 class TestModelDataService:

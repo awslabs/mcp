@@ -18,7 +18,11 @@ This server provides tools for getting intelligent recommendations for Amazon Be
 foundation models based on specific use case requirements.
 """
 
-# Import models and services
+from typing import Any, Dict, List, Optional
+
+from mcp.server.fastmcp import FastMCP
+from pydantic import Field
+
 from awslabs.bedrock_advisor_mcp_server.models.requests import (
     CompareModelsRequest,
     EstimateCostRequest,
@@ -44,9 +48,6 @@ from awslabs.bedrock_advisor_mcp_server.utils.logging import get_logger
 
 # Initialize logger
 logger = get_logger(__name__)
-from mcp.server.fastmcp import FastMCP
-from pydantic import Field
-from typing import Any, Dict, List, Optional
 
 
 # Create the MCP server
@@ -184,7 +185,7 @@ async def mcp_recommend_model(
         # Get recommendations
         recommendations = recommendation_engine.recommend_models(
             models=models,
-            criteria=request.dict(exclude_none=True),
+            criteria=request.model_dump(exclude_none=True),
             max_recommendations=request.max_recommendations,
         )
 
@@ -269,19 +270,19 @@ async def mcp_get_model_info(
         }
 
         # Add capabilities
-        response['capabilities'] = model.capabilities.dict()
+        response['capabilities'] = model.capabilities.model_dump()
 
         # Add performance if requested
         if request.include_performance and model.performance:
-            response['performance'] = model.performance.dict()
+            response['performance'] = model.performance.model_dump()
 
         # Add pricing if requested
         if request.include_pricing and model.pricing:
-            response['pricing'] = model.pricing.dict()
+            response['pricing'] = model.pricing.model_dump()
 
         # Add availability if requested
         if request.include_availability:
-            response['availability'] = model.availability.dict()
+            response['availability'] = model.availability.model_dump()
 
         # Add data status
         response['data_status'] = {
@@ -338,7 +339,7 @@ async def mcp_list_models(
                 'provider_name': model.provider_name,
                 'input_modalities': model.input_modalities,
                 'output_modalities': model.output_modalities,
-                'capabilities': model.capabilities.dict(),
+                'capabilities': model.capabilities.model_dump(),
                 'regions': model.availability.regions if model.availability else [],
                 'status': model.availability.status if model.availability else 'UNKNOWN',
             }
@@ -472,7 +473,7 @@ async def mcp_search_models(
                 'model_id': model.model_id,
                 'model_name': model.model_name,
                 'provider_name': model.provider_name,
-                'capabilities': model.capabilities.dict(),
+                'capabilities': model.capabilities.model_dump(),
                 'regions': model.availability.regions if model.availability else [],
                 'pricing_summary': {
                     'input_price': model.pricing.input_token_price if model.pricing else None,
@@ -760,7 +761,7 @@ async def mcp_get_models_by_provider(
             model_info = {
                 'model_id': model.model_id,
                 'model_name': model.model_name,
-                'capabilities': model.capabilities.dict(),
+                'capabilities': model.capabilities.model_dump(),
                 'regions': model.availability.regions if model.availability else [],
                 'pricing': {
                     'input_price': model.pricing.input_token_price if model.pricing else None,
@@ -805,7 +806,7 @@ async def mcp_get_models_by_capabilities(
                 'model_id': model.model_id,
                 'model_name': model.model_name,
                 'provider_name': model.provider_name,
-                'capabilities': model.capabilities.dict(),
+                'capabilities': model.capabilities.model_dump(),
                 'regions': model.availability.regions if model.availability else [],
                 'pricing_summary': {
                     'input_price': model.pricing.input_token_price if model.pricing else None,
