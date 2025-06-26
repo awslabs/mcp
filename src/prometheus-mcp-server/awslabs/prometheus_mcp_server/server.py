@@ -256,7 +256,8 @@ def validate_params(params: Dict) -> bool:
 
 
 async def make_prometheus_request(
-    endpoint: str, params: Optional[Dict] = None, max_retries: int = 3
+    endpoint: str, params: Optional[Dict] = None, max_retries: int = 3, 
+    retry_delay: int = DEFAULT_RETRY_DELAY, service_name: str = DEFAULT_SERVICE_NAME
 ) -> Any:
     """Make a request to the Prometheus HTTP API with AWS SigV4 authentication.
 
@@ -264,6 +265,8 @@ async def make_prometheus_request(
         endpoint: The Prometheus API endpoint to call
         params: Query parameters to include in the request
         max_retries: Maximum number of retry attempts
+        retry_delay: Delay between retry attempts in seconds
+        service_name: AWS service name for SigV4 authentication
 
     Returns:
         The data portion of the Prometheus API response
@@ -299,7 +302,7 @@ async def make_prometheus_request(
     # Send request with retry logic
     retry_count = 0
     last_exception = None
-    retry_delay_seconds = 1  # Default retry delay if config.retry_delay is None
+    retry_delay_seconds = retry_delay
 
     while retry_count < max_retries:
         try:
@@ -312,7 +315,7 @@ async def make_prometheus_request(
             
             # Create and sign the request
             aws_request = AWSRequest(method='GET', url=url, params=params or {})
-            SigV4Auth(credentials, config.service_name, config.aws_region).add_auth(aws_request)
+            SigV4Auth(credentials, service_name, config.aws_region).add_auth(aws_request)
             
             # Convert to requests format
             prepared_request = requests.Request(
@@ -339,14 +342,7 @@ async def make_prometheus_request(
             last_exception = e
             retry_count += 1
             if retry_count < max_retries:
-                if config and hasattr(config, 'retry_delay') and config.retry_delay is not None:
-                    retry_delay_seconds = config.retry_delay * (
-                        2 ** (retry_count - 1)
-                    )  # Exponential backoff
-                else:
-                    retry_delay_seconds = 1 * (
-                        2 ** (retry_count - 1)
-                    )  # Default exponential backoff
+                retry_delay_seconds = retry_delay * (2 ** (retry_count - 1))  # Exponential backoff
                 logger.warning(f'Request failed: {e}. Retrying in {retry_delay_seconds}s...')
                 time.sleep(retry_delay_seconds)
             else:
@@ -368,7 +364,14 @@ async def test_prometheus_connection():
     logger.info('Testing Prometheus connection...')
     try:
         # Use the make_prometheus_request function which now creates a fresh client
-        await make_prometheus_request('label/__name__/values', params={})
+        # Use default values for retry parameters
+        await make_prometheus_request(
+            'label/__name__/values', 
+            params={},
+            max_retries=DEFAULT_MAX_RETRIES,
+            retry_delay=DEFAULT_RETRY_DELAY,
+            service_name=DEFAULT_SERVICE_NAME
+        )
         logger.info('Successfully connected to Prometheus!')
         return True
     except ClientError as e:
@@ -547,11 +550,18 @@ async def execute_query(
         if time:
             params['time'] = time
 
-        max_retries = 3  # Default value
-        if config and hasattr(config, 'max_retries') and config.max_retries is not None:
-            max_retries = config.max_retries
+        # Use config values if available, otherwise use defaults
+        max_retries = config.max_retries if config and hasattr(config, 'max_retries') and config.max_retries is not None else DEFAULT_MAX_RETRIES
+        retry_delay = config.retry_delay if config and hasattr(config, 'retry_delay') and config.retry_delay is not None else DEFAULT_RETRY_DELAY
+        service_name = config.service_name if config and hasattr(config, 'service_name') else DEFAULT_SERVICE_NAME
 
-        return await make_prometheus_request('query', params, max_retries)
+        return await make_prometheus_request(
+            'query', 
+            params, 
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+            service_name=service_name
+        )
     except Exception as e:
         error_msg = f'Error executing query: {str(e)}'
         logger.error(error_msg)
@@ -617,11 +627,18 @@ async def execute_range_query(
 
         params = {'query': query, 'start': start, 'end': end, 'step': step}
 
-        max_retries = 3  # Default value
-        if config and hasattr(config, 'max_retries') and config.max_retries is not None:
-            max_retries = config.max_retries
+        # Use config values if available, otherwise use defaults
+        max_retries = config.max_retries if config and hasattr(config, 'max_retries') and config.max_retries is not None else DEFAULT_MAX_RETRIES
+        retry_delay = config.retry_delay if config and hasattr(config, 'retry_delay') and config.retry_delay is not None else DEFAULT_RETRY_DELAY
+        service_name = config.service_name if config and hasattr(config, 'service_name') else DEFAULT_SERVICE_NAME
 
-        return await make_prometheus_request('query_range', params, max_retries)
+        return await make_prometheus_request(
+            'query_range', 
+            params, 
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+            service_name=service_name
+        )
     except Exception as e:
         error_msg = f'Error executing range query: {str(e)}'
         logger.error(error_msg)
@@ -667,12 +684,18 @@ async def list_metrics(
         await configure_workspace_for_request(ctx, workspace_id, region)
 
         logger.info('Listing all available metrics')
-        max_retries = 3  # Default value
-        if config and hasattr(config, 'max_retries') and config.max_retries is not None:
-            max_retries = config.max_retries
+        
+        # Use config values if available, otherwise use defaults
+        max_retries = config.max_retries if config and hasattr(config, 'max_retries') and config.max_retries is not None else DEFAULT_MAX_RETRIES
+        retry_delay = config.retry_delay if config and hasattr(config, 'retry_delay') and config.retry_delay is not None else DEFAULT_RETRY_DELAY
+        service_name = config.service_name if config and hasattr(config, 'service_name') else DEFAULT_SERVICE_NAME
 
         data = await make_prometheus_request(
-            'label/__name__/values', params={}, max_retries=max_retries
+            'label/__name__/values', 
+            params={}, 
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+            service_name=service_name
         )
         return MetricsList(metrics=sorted(data))
     except Exception as e:
