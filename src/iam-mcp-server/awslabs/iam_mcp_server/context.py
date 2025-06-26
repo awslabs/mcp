@@ -48,3 +48,8 @@ class Context:
     def set_region(cls, region: str):
         """Set the AWS region."""
         cls._region = region
+
+    @classmethod
+    def set_readonly(cls, readonly: bool):
+        """Set the read-only mode."""
+        cls._readonly = readonly
