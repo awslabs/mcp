@@ -66,6 +66,8 @@ This MCP server can be used by AI assistants to help users manage their Amazon M
 
 ### Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-msk-mcp-server&config=eyJjb21tYW5kIjoidXYgYXdzbGFicy5hd3MtbXNrLW1jcC1zZXJ2ZXIiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
+
 To use this MCP server with your MCP client, add the following configuration to your MCP client settings:
 
 ```json
@@ -94,8 +96,6 @@ npx @modelcontextprotocol/inspector \
   server.py
 ```
 
-CLikursor deeplink install button:
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-msk-mcp-server&config=eyJjb21tYW5kIjoidXYgYXdzbGFicy5hd3MtbXNrLW1jcC1zZXJ2ZXIiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
 ### AWS Credentials
 
 The server requires AWS credentials to access MSK resources. These can be provided through:
