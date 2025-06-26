@@ -16,20 +16,21 @@
 
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTools
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
+from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools import CloudWatchAlarmsTools
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
 
 mcp = FastMCP(
     'awslabs.cloudwatch-mcp-server',
-    instructions='Use this MCP server to run read-only commands and analyze CloudWatchLogs. Supports discovering logs groups as well as running CloudWatch Log Insight Queries. With CloudWatch Logs Insights, you can interactively search and analyze your log data in Amazon CloudWatch Logs and perform queries to help you more efficiently and effectively respond to operational issues.',
+    instructions='Use this MCP server to run read-only commands and analyze CloudWatch Logs, Metrics, and Alarms. Supports discovering log groups, running CloudWatch Log Insight Queries, retrieving CloudWatch Metrics information, and getting active alarms with region information. With CloudWatch Logs Insights, you can interactively search and analyze your log data. With CloudWatch Metrics, you can get information about system and application metrics. With CloudWatch Alarms, you can retrieve all currently active alarms for operational awareness, with clear indication of which AWS region was checked.',
     dependencies=[
         'pydantic',
         'loguru',
     ],
 )
 
-# Initialize and register CloudWatch Logs tools
+# Initialize and register CloudWatch tools
 try:
     cloudwatch_logs_tools = CloudWatchLogsTools()
     cloudwatch_logs_tools.register(mcp)
@@ -37,10 +38,12 @@ try:
     cloudwatch_metrics_tools = CloudWatchMetricsTools()
     cloudwatch_metrics_tools.register(mcp)
     logger.info('CloudWatch Metrics tools registered successfully')
+    cloudwatch_alarms_tools = CloudWatchAlarmsTools()
+    cloudwatch_alarms_tools.register(mcp)
+    logger.info('CloudWatch Alarms tools registered successfully')
 except Exception as e:
     logger.error(f'Error initializing CloudWatch tools: {str(e)}')
     raise
-
 
 def main():
     """Run the MCP server."""

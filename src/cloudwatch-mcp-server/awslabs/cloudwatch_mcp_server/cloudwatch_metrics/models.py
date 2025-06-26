@@ -25,7 +25,6 @@ class SortOrder(str, Enum):
     ASCENDING = "ASC"
     DESCENDING = "DESC"
 
-
 class Dimension(BaseModel):
     """Represents a CloudWatch metric dimension for input parameters."""
 
