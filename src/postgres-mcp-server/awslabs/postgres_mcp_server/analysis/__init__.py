@@ -21,6 +21,7 @@ from .fragmentation import analyze_table_fragmentation
 from .vacuum import analyze_vacuum_stats
 from .slow_queries import identify_slow_queries
 from .settings import show_postgresql_settings
+from .schema import get_table_schema
 
 __all__ = [
     'analyze_database_structure',
@@ -29,5 +30,6 @@ __all__ = [
     'analyze_table_fragmentation',
     'analyze_vacuum_stats',
     'identify_slow_queries',
-    'show_postgresql_settings'
+    'show_postgresql_settings',
+    'get_table_schema'
 ]

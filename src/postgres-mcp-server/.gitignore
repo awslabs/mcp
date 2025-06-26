@@ -57,3 +57,25 @@ target/
 
 # PyPI
 .pypirc
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+server.log
+
+# Backup files
+*_old.*
+*_backup.*
+*.bak
+
+# Temporary files
+*.tmp
+*.temp
