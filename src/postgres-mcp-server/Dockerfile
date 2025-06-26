@@ -89,4 +89,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
 
 # Use the main module directly instead of the entry point for better control
-CMD ["python3", "-m", "awslabs.postgresql_mcp_server.main"]
+CMD ["python3", "-m", "awslabs.postgresql_mcp_server.server"]
