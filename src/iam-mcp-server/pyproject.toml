@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.iam-mcp-server"
-version = "1.0.0"
+version = "1.0.1"
 description = "An AWS Labs Model Context Protocol (MCP) server for managing AWS IAM resources including users, roles, policies, and permissions"
 readme = "README.md"
 requires-python = ">=3.10"
