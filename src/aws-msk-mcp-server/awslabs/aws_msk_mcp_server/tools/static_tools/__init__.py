@@ -18,6 +18,7 @@ Static Tools API Module
 This module provides static tools that do not require AWS API calls.
 """
 
+from awslabs.aws_msk_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 

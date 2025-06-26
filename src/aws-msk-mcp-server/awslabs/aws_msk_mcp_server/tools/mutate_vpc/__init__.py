@@ -20,6 +20,8 @@ This module provides functions to manage VPC connections for MSK clusters.
 
 import boto3
 from typing import Optional, List, Dict
+from botocore.config import Config
+from awslabs.aws_msk_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -83,7 +85,11 @@ def register_module(mcp: FastMCP) -> None:
             tag_resource_tool(resource_arn=response["VpcConnectionArn"], tags={"MCP Generated": "true"})
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return create_vpc_connection(
             cluster_arn=cluster_arn,
             vpc_id=vpc_id,
@@ -116,7 +122,11 @@ def register_module(mcp: FastMCP) -> None:
                 - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return delete_vpc_connection(vpc_connection_arn=vpc_connection_arn, client=client)
 
     @mcp.tool(name='reject_client_vpc_connection')
@@ -142,7 +152,11 @@ def register_module(mcp: FastMCP) -> None:
                 - ClusterArn (str): The Amazon Resource Name (ARN) of the cluster
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return reject_client_vpc_connection(
             cluster_arn=cluster_arn, vpc_connection_arn=vpc_connection_arn, client=client
         )

@@ -19,6 +19,8 @@ This module provides functions to retrieve global information about MSK resource
 """
 
 import boto3
+from botocore.config import Config
+from awslabs.aws_msk_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -66,7 +68,11 @@ def register_module(mcp: FastMCP) -> None:
                     - KafkaVersions (list): List of Kafka version strings
         """
         # Create a single boto3 client to be shared across all function calls
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         if info_type == 'all':
             # Retrieve all types of information

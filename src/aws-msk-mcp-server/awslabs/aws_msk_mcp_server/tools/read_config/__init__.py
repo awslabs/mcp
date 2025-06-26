@@ -19,6 +19,8 @@ This module provides functions to retrieve information about MSK configurations 
 """
 
 import boto3
+from botocore.config import Config
+from awslabs.aws_msk_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -89,7 +91,11 @@ def register_module(mcp: FastMCP) -> None:
             get_configuration_info(action="revision_details", arn="arn:aws:kafka:us-east-1:123456789012:configuration/example-config", revision=3)
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         if action == 'describe':
             return describe_configuration(arn, client)
@@ -131,5 +137,9 @@ def register_module(mcp: FastMCP) -> None:
                 }
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return list_tags_for_resource(arn, client)

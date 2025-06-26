@@ -20,6 +20,8 @@ This module provides functions to create and update MSK configurations and manag
 
 import boto3
 from typing import Optional, List, Dict
+from botocore.config import Config
+from awslabs.aws_msk_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -72,7 +74,11 @@ def register_module(mcp: FastMCP) -> None:
             tag_resource_tool(resource_arn=response["Arn"], tags={"MCP Generated": "true"})
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return create_configuration(name, server_properties, client, description, kafka_versions)
 
     @mcp.tool(name='update_configuration')
@@ -110,7 +116,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(arn, client):
@@ -142,7 +152,11 @@ def register_module(mcp: FastMCP) -> None:
             dict: Empty response if successful
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return tag_resource(resource_arn, tags, client)
 
     @mcp.tool(name='untag_resource')
@@ -168,5 +182,9 @@ def register_module(mcp: FastMCP) -> None:
             dict: Empty response if successful
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return untag_resource(resource_arn, tag_keys, client)

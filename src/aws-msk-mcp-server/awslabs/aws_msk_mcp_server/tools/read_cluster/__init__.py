@@ -18,6 +18,8 @@ This module provides functions to retrieve information about MSK clusters.
 """
 
 import boto3
+from botocore.config import Config
+from awslabs.aws_msk_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -62,7 +64,11 @@ def register_module(mcp: FastMCP) -> None:
                     - EndTime (datetime, optional): The time when the operation completed
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return describe_cluster_operation(cluster_operation_arn, client)
 
     @mcp.tool(name='get_cluster_info')
@@ -111,7 +117,11 @@ def register_module(mcp: FastMCP) -> None:
         """
 
         # Create a single boto3 client to be shared across all function calls
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         if info_type == 'all':
             # Retrieve all types of information for the cluster

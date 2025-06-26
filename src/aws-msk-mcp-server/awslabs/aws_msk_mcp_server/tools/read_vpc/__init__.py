@@ -19,6 +19,8 @@ This module provides functions to retrieve information about MSK VPC connections
 """
 
 import boto3
+from botocore.config import Config
+from awslabs.aws_msk_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -54,5 +56,9 @@ def register_module(mcp: FastMCP) -> None:
                 - VpcId: The ID of the VPC
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return describe_vpc_connection(vpc_connection_arn, client)

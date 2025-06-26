@@ -13,6 +13,8 @@
 # limitations under the License.
 import boto3
 import os
+from awslabs.aws_msk_mcp_server import __version__
+from botocore.config import Config
 from typing import Any, Dict
 
 
@@ -38,5 +40,8 @@ class AWSClientManager:
             aws_profile = os.environ.get('AWS_PROFILE', 'default')
             self.clients[client_key] = boto3.Session(
                 profile_name=aws_profile, region_name=region
-            ).client(service_name)
+            ).client(
+                service_name,
+                config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+            )
         return self.clients[client_key]

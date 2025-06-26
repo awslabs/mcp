@@ -22,6 +22,8 @@ import json
 from typing import Optional
 
 import boto3
+from botocore.config import Config
+from awslabs.aws_msk_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -145,7 +147,11 @@ def register_module(mcp: FastMCP) -> None:
             tag_resource_tool(resource_arn=response["ClusterArn"], tags={"MCP Generated": "true"})
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Handle kwargs whether it's a string or a dictionary
         if kwargs:
@@ -203,7 +209,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -247,7 +257,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -292,7 +306,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -357,7 +375,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -424,7 +446,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -479,7 +505,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -521,7 +551,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -556,7 +590,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -589,7 +627,11 @@ def register_module(mcp: FastMCP) -> None:
             Ensure the resource has this tag before attempting to update it.
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
 
         # Check if the resource has the "MCP Generated" tag
         if not check_mcp_generated_tag(cluster_arn, client):
@@ -618,5 +660,9 @@ def register_module(mcp: FastMCP) -> None:
             dict: Result of the operation
         """
         # Create a boto3 client
-        client = boto3.client('kafka', region_name=region)
+        client = boto3.client(
+            'kafka',
+            region_name=region,
+            config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
+        )
         return reboot_broker(cluster_arn, broker_ids, client)
