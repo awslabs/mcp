@@ -31,7 +31,7 @@ from awslabs.redshift_mcp_server.consts import (
 )
 from botocore.config import Config
 from loguru import logger
-from typing import Any, Optional
+from typing import Any
 
 
 class RedshiftClientManager:
@@ -41,9 +41,9 @@ class RedshiftClientManager:
         """Initialize the client manager."""
         self.aws_region = os.environ.get('AWS_REGION', DEFAULT_AWS_REGION)
         self.aws_profile = os.environ.get('AWS_PROFILE')
-        self._redshift_client: Optional[boto3.client] = None
-        self._redshift_serverless_client: Optional[boto3.client] = None
-        self._redshift_data_client: Optional[boto3.client] = None
+        self._redshift_client = None
+        self._redshift_serverless_client = None
+        self._redshift_data_client = None
 
         # Configure boto3 with timeouts
         self._config = Config(
@@ -53,7 +53,7 @@ class RedshiftClientManager:
             retries={'max_attempts': 3, 'mode': 'adaptive'},
         )
 
-    def redshift_client(self) -> boto3.client:
+    def redshift_client(self):
         """Get or create the Redshift client for provisioned clusters."""
         if self._redshift_client is None:
             try:
@@ -72,7 +72,7 @@ class RedshiftClientManager:
 
         return self._redshift_client
 
-    def redshift_serverless_client(self) -> boto3.client:
+    def redshift_serverless_client(self):
         """Get or create the Redshift Serverless client."""
         if self._redshift_serverless_client is None:
             try:
@@ -95,7 +95,7 @@ class RedshiftClientManager:
 
         return self._redshift_serverless_client
 
-    def redshift_data_client(self) -> boto3.client:
+    def redshift_data_client(self):
         """Get or create the Redshift Data API client."""
         if self._redshift_data_client is None:
             try:
@@ -209,6 +209,7 @@ async def execute_statement(
 
     # Wait for query completion
     wait_time = 0
+    status_response = {}
     while wait_time < QUERY_TIMEOUT:
         status_response = data_client.describe_statement(Id=query_id)
         status = status_response['Status']
