@@ -256,14 +256,23 @@ def validate_params(params: Dict) -> bool:
 
 
 async def make_prometheus_request(
-    endpoint: str, params: Optional[Dict] = None, max_retries: int = 3, 
-    retry_delay: int = DEFAULT_RETRY_DELAY, service_name: str = DEFAULT_SERVICE_NAME
+    prometheus_url: str,
+    endpoint: str, 
+    params: Optional[Dict] = None, 
+    region: str = DEFAULT_AWS_REGION,
+    profile: Optional[str] = None,
+    max_retries: int = DEFAULT_MAX_RETRIES, 
+    retry_delay: int = DEFAULT_RETRY_DELAY, 
+    service_name: str = DEFAULT_SERVICE_NAME
 ) -> Any:
     """Make a request to the Prometheus HTTP API with AWS SigV4 authentication.
 
     Args:
+        prometheus_url: The base URL for the Prometheus API
         endpoint: The Prometheus API endpoint to call
         params: Query parameters to include in the request
+        region: AWS region to use
+        profile: AWS profile to use
         max_retries: Maximum number of retry attempts
         retry_delay: Delay between retry attempts in seconds
         service_name: AWS service name for SigV4 authentication
@@ -277,8 +286,7 @@ async def make_prometheus_request(
         requests.RequestException: If there's a network or HTTP error
         json.JSONDecodeError: If the response is not valid JSON
     """
-    global config
-    if not config or not config.prometheus_url:
+    if not prometheus_url:
         raise ValueError('Prometheus URL not configured')
 
     # Validate endpoint
@@ -293,7 +301,7 @@ async def make_prometheus_request(
         raise ValueError('Invalid parameters: potentially dangerous values detected')
 
     # Ensure the URL ends with /api/v1
-    base_url = config.prometheus_url
+    base_url = prometheus_url
     if not base_url.endswith(API_VERSION_PATH):
         base_url = f'{base_url.rstrip("/")}{API_VERSION_PATH}'
 
@@ -308,14 +316,14 @@ async def make_prometheus_request(
         try:
             # Create a fresh session and client for each attempt
             # This ensures credentials are always fresh
-            session = boto3.Session(profile_name=config.aws_profile, region_name=config.aws_region)
+            session = boto3.Session(profile_name=profile, region_name=region)
             credentials = session.get_credentials()
             if not credentials:
                 raise ValueError('AWS credentials not found')
             
             # Create and sign the request
             aws_request = AWSRequest(method='GET', url=url, params=params or {})
-            SigV4Auth(credentials, service_name, config.aws_region).add_auth(aws_request)
+            SigV4Auth(credentials, service_name, region).add_auth(aws_request)
             
             # Convert to requests format
             prepared_request = requests.Request(
@@ -354,20 +362,26 @@ async def make_prometheus_request(
     return None
 
 
-async def test_prometheus_connection():
+async def test_prometheus_connection(prometheus_url: str, region: str = DEFAULT_AWS_REGION, profile: Optional[str] = None):
     """Test the connection to Prometheus.
 
+    Args:
+        prometheus_url: The Prometheus URL to test
+        region: AWS region to use
+        profile: AWS profile to use
+        
     Returns:
         bool: True if connection is successful, False otherwise
     """
-    global config
     logger.info('Testing Prometheus connection...')
     try:
         # Use the make_prometheus_request function which now creates a fresh client
-        # Use default values for retry parameters
         await make_prometheus_request(
-            'label/__name__/values', 
+            prometheus_url=prometheus_url,
+            endpoint='label/__name__/values', 
             params={},
+            region=region,
+            profile=profile,
             max_retries=DEFAULT_MAX_RETRIES,
             retry_delay=DEFAULT_RETRY_DELAY,
             service_name=DEFAULT_SERVICE_NAME
@@ -384,12 +398,7 @@ async def test_prometheus_connection():
             logger.error('  - aps:GetMetricMetadata')
         elif error_code == 'ResourceNotFoundException':
             logger.error('ERROR: Prometheus workspace not found')
-            prometheus_url = 'Not configured'
-            if config and hasattr(config, 'prometheus_url') and config.prometheus_url:
-                prometheus_url = config.prometheus_url
-            logger.error(
-                f'Please verify the workspace ID in your Prometheus URL: {prometheus_url}'
-            )
+            logger.error(f'Please verify the workspace ID in your Prometheus URL: {prometheus_url}')
         else:
             logger.error(f'ERROR: AWS API error when connecting to Prometheus: {error_code}')
             logger.error(f'Details: {str(e)}')
@@ -420,8 +429,7 @@ mcp = FastMCP(
     ],
 )
 
-# Global config object
-config = None  # Will be initialized in main()
+# No global config needed anymore
 
 
 def get_prometheus_client(region_name: Optional[str] = None, profile_name: Optional[str] = None):
@@ -445,6 +453,19 @@ def get_prometheus_client(region_name: Optional[str] = None, profile_name: Optio
     
     # Return AMP client
     return session.client('amp', config=config)
+
+
+def build_prometheus_url(workspace_id: str, region: str = DEFAULT_AWS_REGION) -> str:
+    """Build the Prometheus URL for a workspace.
+    
+    Args:
+        workspace_id: The Prometheus workspace ID
+        region: AWS region where the workspace is located
+        
+    Returns:
+        The Prometheus URL for the workspace
+    """
+    return f'https://aps-workspaces.{region}.amazonaws.com/workspaces/{workspace_id}'
 
 
 def validate_query(query: str) -> bool:
@@ -497,6 +518,7 @@ async def execute_query(
         None, description='Optional timestamp for query evaluation (RFC3339 or Unix timestamp)'
     ),
     region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
 ) -> Dict[str, Any]:
     """Execute an instant query and return the result.
 
@@ -532,10 +554,9 @@ async def execute_query(
     - `rate(node_cpu_seconds_total{mode="system"}[1m])` - CPU usage rate
     - `sum by(instance) (rate(node_network_receive_bytes_total[5m]))` - Network receive rate by instance
     """
-    global config
     try:
         # Configure workspace for this request
-        await configure_workspace_for_request(ctx, workspace_id, region)
+        workspace_config = await configure_workspace_for_request(ctx, workspace_id, region, profile)
 
         logger.info(f'Executing instant query: {query}')
 
@@ -550,17 +571,15 @@ async def execute_query(
         if time:
             params['time'] = time
 
-        # Use config values if available, otherwise use defaults
-        max_retries = config.max_retries if config and hasattr(config, 'max_retries') and config.max_retries is not None else DEFAULT_MAX_RETRIES
-        retry_delay = config.retry_delay if config and hasattr(config, 'retry_delay') and config.retry_delay is not None else DEFAULT_RETRY_DELAY
-        service_name = config.service_name if config and hasattr(config, 'service_name') else DEFAULT_SERVICE_NAME
-
         return await make_prometheus_request(
-            'query', 
-            params, 
-            max_retries=max_retries,
-            retry_delay=retry_delay,
-            service_name=service_name
+            prometheus_url=workspace_config['prometheus_url'],
+            endpoint='query', 
+            params=params, 
+            region=workspace_config['region'],
+            profile=workspace_config['profile'],
+            max_retries=DEFAULT_MAX_RETRIES,
+            retry_delay=DEFAULT_RETRY_DELAY,
+            service_name=DEFAULT_SERVICE_NAME
         )
     except Exception as e:
         error_msg = f'Error executing query: {str(e)}'
@@ -583,6 +602,7 @@ async def execute_range_query(
         ..., description="Query resolution step width (duration format, e.g. '15s', '1m', '1h')"
     ),
     region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
 ) -> Dict[str, Any]:
     """Execute a range query and return the result.
 
@@ -611,10 +631,9 @@ async def execute_range_query(
         ]
       }
     """
-    global config
     try:
         # Configure workspace for this request
-        await configure_workspace_for_request(ctx, workspace_id, region)
+        workspace_config = await configure_workspace_for_request(ctx, workspace_id, region, profile)
 
         logger.info(f'Executing range query: {query} from {start} to {end} with step {step}')
 
@@ -627,17 +646,15 @@ async def execute_range_query(
 
         params = {'query': query, 'start': start, 'end': end, 'step': step}
 
-        # Use config values if available, otherwise use defaults
-        max_retries = config.max_retries if config and hasattr(config, 'max_retries') and config.max_retries is not None else DEFAULT_MAX_RETRIES
-        retry_delay = config.retry_delay if config and hasattr(config, 'retry_delay') and config.retry_delay is not None else DEFAULT_RETRY_DELAY
-        service_name = config.service_name if config and hasattr(config, 'service_name') else DEFAULT_SERVICE_NAME
-
         return await make_prometheus_request(
-            'query_range', 
-            params, 
-            max_retries=max_retries,
-            retry_delay=retry_delay,
-            service_name=service_name
+            prometheus_url=workspace_config['prometheus_url'],
+            endpoint='query_range', 
+            params=params, 
+            region=workspace_config['region'],
+            profile=workspace_config['profile'],
+            max_retries=DEFAULT_MAX_RETRIES,
+            retry_delay=DEFAULT_RETRY_DELAY,
+            service_name=DEFAULT_SERVICE_NAME
         )
     except Exception as e:
         error_msg = f'Error executing range query: {str(e)}'
@@ -654,6 +671,7 @@ async def list_metrics(
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012)',
     ),
     region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
 ) -> MetricsList:
     """Get a list of all metric names.
 
@@ -678,24 +696,21 @@ async def list_metrics(
         ]
       }
     """
-    global config
     try:
         # Configure workspace for this request
-        await configure_workspace_for_request(ctx, workspace_id, region)
+        workspace_config = await configure_workspace_for_request(ctx, workspace_id, region, profile)
 
         logger.info('Listing all available metrics')
-        
-        # Use config values if available, otherwise use defaults
-        max_retries = config.max_retries if config and hasattr(config, 'max_retries') and config.max_retries is not None else DEFAULT_MAX_RETRIES
-        retry_delay = config.retry_delay if config and hasattr(config, 'retry_delay') and config.retry_delay is not None else DEFAULT_RETRY_DELAY
-        service_name = config.service_name if config and hasattr(config, 'service_name') else DEFAULT_SERVICE_NAME
 
         data = await make_prometheus_request(
-            'label/__name__/values', 
+            prometheus_url=workspace_config['prometheus_url'],
+            endpoint='label/__name__/values', 
             params={}, 
-            max_retries=max_retries,
-            retry_delay=retry_delay,
-            service_name=service_name
+            region=workspace_config['region'],
+            profile=workspace_config['profile'],
+            max_retries=DEFAULT_MAX_RETRIES,
+            retry_delay=DEFAULT_RETRY_DELAY,
+            service_name=DEFAULT_SERVICE_NAME
         )
         return MetricsList(metrics=sorted(data))
     except Exception as e:
@@ -713,6 +728,7 @@ async def get_server_info(
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012)',
     ),
     region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
 ) -> ServerInfo:
     """Get information about the Prometheus server configuration.
 
@@ -735,25 +751,17 @@ async def get_server_info(
         "service_name": "aps"
       }
     """
-    global config
     try:
         # Configure workspace for this request
-        await configure_workspace_for_request(ctx, workspace_id, region)
+        workspace_config = await configure_workspace_for_request(ctx, workspace_id, region, profile)
 
         logger.info('Retrieving server configuration information')
-        if not config:
-            return ServerInfo(
-                prometheus_url='Not configured',
-                aws_region='Not configured',
-                aws_profile='Not configured',
-                service_name='Not configured',
-            )
 
         return ServerInfo(
-            prometheus_url=config.prometheus_url or 'Not configured',
-            aws_region=config.aws_region or 'Not configured',
-            aws_profile=config.aws_profile or 'default',
-            service_name=config.service_name or DEFAULT_SERVICE_NAME,
+            prometheus_url=workspace_config['prometheus_url'],
+            aws_region=workspace_config['region'],
+            aws_profile=workspace_config['profile'] or 'default',
+            service_name=DEFAULT_SERVICE_NAME,
         )
     except Exception as e:
         error_msg = f'Error retrieving server info: {str(e)}'
@@ -766,6 +774,7 @@ async def get_server_info(
 async def get_available_workspaces(
     ctx: Context,
     region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
+    profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
 ) -> Dict[str, Any]:
     """List all available Prometheus workspaces in the specified region.
 
@@ -800,18 +809,13 @@ async def get_available_workspaces(
       }
     """
     try:
-        # Use provided region or current config region or default
-        aws_region = region
-        if not aws_region and config and config.aws_region:
-            aws_region = config.aws_region
-        if not aws_region:
-            aws_region = DEFAULT_AWS_REGION
+        # Use provided region or default
+        aws_region = region or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
 
         logger.info(f'Listing available Prometheus workspaces in region {aws_region}')
 
         # Get a fresh client for this request
-        profile_name = config.aws_profile if config else None
-        aps_client = get_prometheus_client(region_name=aws_region, profile_name=profile_name)
+        aps_client = get_prometheus_client(region_name=aws_region, profile_name=profile)
         response = aps_client.list_workspaces()
 
         workspaces = []
@@ -839,16 +843,19 @@ async def configure_workspace_for_request(
     ctx: Context,
     workspace_id: str,
     region: Optional[str] = None,
-) -> None:
+    profile: Optional[str] = None,
+) -> Dict[str, Any]:
     """Configure the workspace for the current request.
 
     Args:
         ctx: The MCP context
         workspace_id: The Prometheus workspace ID to use
         region: Optional AWS region (defaults to current region)
+        profile: Optional AWS profile to use
+        
+    Returns:
+        Dictionary with workspace configuration
     """
-    global config
-
     try:
         logger.info(f'Configuring workspace ID for request: {workspace_id}')
 
@@ -858,38 +865,29 @@ async def configure_workspace_for_request(
                 f'Workspace ID "{workspace_id}" does not start with "ws-", which is unusual'
             )
 
-        # Use provided region or current config region or default
-        aws_region = region
-        if not aws_region and config and config.aws_region:
-            aws_region = config.aws_region
-        if not aws_region:
-            aws_region = DEFAULT_AWS_REGION
+        # Use provided region or default
+        aws_region = region or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
 
         # Build the URL
-        url = f'https://aps-workspaces.{aws_region}.amazonaws.com/workspaces/{workspace_id}'
-        logger.info(f'Built Prometheus URL: {url}')
-
-        # Update global config
-        if not config:
-            config = PrometheusConfig(
-                prometheus_url=url,
-                aws_region=aws_region,
-                aws_profile=None,
-                service_name=DEFAULT_SERVICE_NAME,
-            )
-        else:
-            config.prometheus_url = url
-            if region:  # Only update region if explicitly provided
-                config.aws_region = aws_region
+        prometheus_url = build_prometheus_url(workspace_id, aws_region)
+        logger.info(f'Built Prometheus URL: {prometheus_url}')
 
         # Test connection with new URL
-        if not await test_prometheus_connection():
+        if not await test_prometheus_connection(prometheus_url, aws_region, profile):
             error_msg = f'Failed to connect to Prometheus with workspace ID {workspace_id}'
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise RuntimeError(error_msg)
 
         logger.info(f'Successfully configured workspace {workspace_id} for request')
+        
+        # Return workspace configuration
+        return {
+            'prometheus_url': prometheus_url,
+            'region': aws_region,
+            'profile': profile,
+            'workspace_id': workspace_id
+        }
     except Exception as e:
         error_msg = f'Error configuring workspace: {str(e)}'
         logger.error(error_msg)
@@ -920,18 +918,6 @@ def main():
     if not setup_environment(config_data):
         logger.error('Environment setup failed')
         sys.exit(1)
-
-    # Create config object with default settings
-    # Each tool will configure workspace based on provided workspace_id parameter
-    global config
-    config = PrometheusConfig(
-        prometheus_url=None,  # Will be set per-request based on workspace_id
-        aws_region=config_data['aws_region'],
-        aws_profile=config_data['aws_profile'],
-        service_name=config_data['service_name'],
-        retry_delay=config_data['retry_delay'],
-        max_retries=config_data['max_retries'],
-    )
 
     # Run async initialization in an event loop
     import asyncio
