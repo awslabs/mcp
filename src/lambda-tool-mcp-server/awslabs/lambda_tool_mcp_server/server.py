@@ -15,11 +15,12 @@
 """awslabs lambda MCP Server implementation."""
 
 import boto3
-import botocore.exceptions
 import json
 import logging
 import os
 import re
+from botocore.config import Config
+from botocore.exceptions import ProfileNotFound
 from mcp.server.fastmcp import Context, FastMCP
 from typing import Optional
 
@@ -53,15 +54,18 @@ logger.info(f'FUNCTION_TAG_VALUE: {FUNCTION_TAG_VALUE}')
 FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY = os.environ.get('FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY')
 logger.info(f'FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY: {FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY}')
 
+# Create config with user agent
+config = Config(user_agent_extra='awslabs/mcp/aws-lambda-tool-mcp-server')
+
 # Initialize AWS clients
 try:
     session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
-except botocore.exceptions.ProfileNotFound:
+except ProfileNotFound:
     logger.warning(f'Profile {AWS_PROFILE} not found. Look for other credentials.')
     session = boto3.Session(region_name=AWS_REGION)
 
-lambda_client = session.client('lambda')
-schemas_client = session.client('schemas')
+lambda_client = session.client('lambda', config=config)
+schemas_client = session.client('schemas', config=config)
 
 mcp = FastMCP(
     'awslabs.lambda-tool-mcp-server',
