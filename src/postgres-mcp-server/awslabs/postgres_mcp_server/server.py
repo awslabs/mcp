@@ -557,7 +557,7 @@ async def main() -> None:
         
         if connection_type == "rds_data_api":
             # For RDS Data API, test with actual query (fast)
-            response = asyncio.run(run_query('SELECT 1', ctx))
+            response = await run_query('SELECT 1', ctx)
             if (isinstance(response, list) and len(response) == 1 and 
                 isinstance(response[0], dict) and 'error' in response[0]):
                 logger.error(

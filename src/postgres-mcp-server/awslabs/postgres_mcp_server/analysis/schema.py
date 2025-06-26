@@ -47,7 +47,7 @@ async def get_table_schema(
             pg_attribute a
         LEFT JOIN pg_attrdef d ON a.attrelid = d.adrelid AND a.attnum = d.adnum
         WHERE
-            a.attrelid = to_regclass($1)
+            a.attrelid = to_regclass(:table_name)
             AND a.attnum > 0
             AND NOT a.attisdropped
         ORDER BY a.attnum
