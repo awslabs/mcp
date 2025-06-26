@@ -15,7 +15,7 @@
 """Tests for workspace configuration functionality."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 
 @pytest.mark.asyncio
@@ -212,7 +212,7 @@ async def test_get_available_workspaces():
         # Check that Session was called with the right profile name
         assert mock_session.call_args.kwargs['profile_name'] == 'test-profile'
         # Check that the client was created correctly
-        mock_session.return_value.client.assert_called_once_with('amp')
+        mock_session.return_value.client.assert_called_once_with('amp', config=ANY)
         mock_client.list_workspaces.assert_called_once()
 
         assert result['count'] == 1

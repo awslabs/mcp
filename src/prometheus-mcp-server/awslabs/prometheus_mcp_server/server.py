@@ -128,8 +128,7 @@ def setup_environment(config_data):
         if config_data['aws_profile']:
             logger.info(f'  Using AWS Profile: {config_data["aws_profile"]}')
             session = boto3.Session(
-                profile_name=config_data['aws_profile'], 
-                region_name=config_data['aws_region']
+                profile_name=config_data['aws_profile'], region_name=config_data['aws_region']
             )
         else:
             logger.info('  Using default AWS credentials')
@@ -182,7 +181,9 @@ def setup_environment(config_data):
 
             # Test if credentials have necessary permissions
             try:
-                sts = session.client('sts', config=Config(user_agent_extra='prometheus-mcp-server'))
+                sts = session.client(
+                    'sts', config=Config(user_agent_extra='prometheus-mcp-server')
+                )
                 identity = sts.get_caller_identity()
                 logger.info(f'  AWS Identity: {identity["Arn"]}')
             except ClientError as e:
@@ -299,10 +300,7 @@ async def make_prometheus_request(
     aws_request = AWSRequest(method='GET', url=url, params=params or {})
 
     # Sign request with SigV4
-    session = boto3.Session(
-        profile_name=config.aws_profile, 
-        region_name=config.aws_region
-    )
+    session = boto3.Session(profile_name=config.aws_profile, region_name=config.aws_region)
     credentials = session.get_credentials()
     if not credentials:
         raise ValueError('AWS credentials not found')
@@ -708,10 +706,7 @@ async def get_available_workspaces(
 
         # Create session with current config
         if config and config.aws_profile:
-            session = boto3.Session(
-                profile_name=config.aws_profile, 
-                region_name=aws_region
-            )
+            session = boto3.Session(profile_name=config.aws_profile, region_name=aws_region)
         else:
             session = boto3.Session(region_name=aws_region)
 

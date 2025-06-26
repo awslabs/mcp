@@ -15,7 +15,7 @@
 """Tests for configuration loading and validation."""
 
 from argparse import Namespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 
 def test_load_config_defaults():
@@ -215,7 +215,7 @@ def test_setup_environment_success():
     # Assert
     assert result is True
     mock_session.assert_called_once_with(profile_name='test-profile', region_name='us-east-1')
-    mock_session_instance.client.assert_called_once_with('sts')
+    mock_session_instance.client.assert_called_once_with('sts', config=ANY)
     mock_sts.get_caller_identity.assert_called_once()
 
 
