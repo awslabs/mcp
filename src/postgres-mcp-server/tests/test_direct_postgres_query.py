@@ -6,7 +6,8 @@ import os
 import sys
 sys.path.insert(0, '/Users/reachrk/Downloads/awslabs/aws-mcp-servers/src/postgres-mcp-server')
 
-from awslabs.postgres_mcp_server.unified_connection import UnifiedDBConnectionSingleton
+# from awslabs.postgres_mcp_server.unified_connection import UnifiedDBConnectionSingleton  # Module doesn't exist
+from awslabs.postgres_mcp_server.connection.connection_factory import ConnectionFactory
 
 
 async def test_direct_postgres_query():
@@ -15,9 +16,9 @@ async def test_direct_postgres_query():
     print("=" * 50)
     
     try:
-        # Initialize connection
-        UnifiedDBConnectionSingleton.initialize(
-            connection_type="direct_postgres",
+        # Create connection using ConnectionFactory
+        db_connection = ConnectionFactory.create_connection(
+            connection_type="psycopg_driver",
             hostname="pg-clone-db-cluster.cluster-cjvgkx7iusm0.us-west-2.rds.amazonaws.com",
             port=5432,
             secret_arn="arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL",
@@ -26,11 +27,8 @@ async def test_direct_postgres_query():
             readonly=True
         )
         
-        print("✅ Connection initialized")
-        
-        # Get connection
-        db_connection = UnifiedDBConnectionSingleton.get().db_connection
-        print(f"✅ Connection type: {db_connection.connection_type}")
+        print("✅ Connection created")
+        print(f"✅ Connection type: {type(db_connection).__name__}")
         
         # Test simple query
         print("\n🔍 Testing simple query: SELECT 1")

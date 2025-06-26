@@ -17,11 +17,17 @@
 import asyncio
 import json
 import boto3
-import psycopg2
-import psycopg2.extras
 from typing import Dict, List, Optional, Any
 from loguru import logger
 from botocore.exceptions import ClientError
+
+try:
+    import psycopg2
+    import psycopg2.extras
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    psycopg2 = None
+    PSYCOPG2_AVAILABLE = False
 
 from .base_connection import DBConnector
 
@@ -49,6 +55,12 @@ class PostgresDriver(DBConnector):
             port: Database port
             readonly: Whether connection is read-only
         """
+        if not PSYCOPG2_AVAILABLE:
+            raise ImportError(
+                "psycopg2-binary is required for direct PostgreSQL connections. "
+                "Install with: pip install psycopg2-binary or pip install .[postgres]"
+            )
+            
         self.hostname = hostname
         self.database = database
         self.secret_arn = secret_arn
