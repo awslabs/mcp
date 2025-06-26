@@ -485,7 +485,28 @@ async def execute_query(
     - For time series data over a range, use execute_range_query instead
     - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
 
-    ## Example queries
+    ## Example
+    Input:
+      workspace_id: "ws-12345678-abcd-1234-efgh-123456789012"
+      query: "up"
+      region: "us-east-1"
+      
+    Output:
+      {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {"__name__": "up", "instance": "localhost:9090", "job": "prometheus"},
+            "value": [1680307200, "1"]
+          },
+          {
+            "metric": {"__name__": "up", "instance": "localhost:9100", "job": "node"},
+            "value": [1680307200, "1"]
+          }
+        ]
+      }
+      
+    Example queries:
     - `up` - Shows which targets are up
     - `rate(node_cpu_seconds_total{mode="system"}[1m])` - CPU usage rate
     - `sum by(instance) (rate(node_network_receive_bytes_total[5m]))` - Network receive rate by instance
@@ -544,13 +565,23 @@ async def execute_range_query(
     - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
 
     ## Example
-    - workspace_id: `ws-12345678-abcd-1234-efgh-123456789012`
-    - Query: `rate(node_cpu_seconds_total{mode="system"}[5m])`
-    - Start: `2023-04-01T00:00:00Z`
-    - End: `2023-04-01T01:00:00Z`
-    - Step: `5m`
-
-    This will return CPU usage rate sampled every 5 minutes over a 1-hour period.
+    Input:
+      workspace_id: "ws-12345678-abcd-1234-efgh-123456789012"
+      query: "rate(node_cpu_seconds_total{mode=\"system\"}[5m])"
+      start: "2023-04-01T00:00:00Z"
+      end: "2023-04-01T01:00:00Z"
+      step: "5m"
+      
+    Output:
+      {
+        "resultType": "matrix",
+        "result": [
+          {
+            "metric": {"__name__": "rate", "mode": "system", "instance": "localhost:9100"},
+            "values": [[1680307200, "0.01"], [1680307500, "0.012"], ...]
+          }
+        ]
+      }
     """
     global config
     try:
@@ -598,10 +629,19 @@ async def list_metrics(
     - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
 
     ## Example
-    ```
-    metrics_response = await list_metrics(workspace_id='ws-12345678-abcd-1234-efgh-123456789012')
-    print('Available metrics:', metrics_response.metrics[:10])  # Show first 10 metrics
-    ```
+    Input:
+      workspace_id: "ws-12345678-abcd-1234-efgh-123456789012"
+      region: "us-east-1"
+
+    Output:
+      {
+        "metrics": [
+          "go_gc_duration_seconds",
+          "go_goroutines",
+          "http_requests_total",
+          ...
+        ]
+      }
     """
     global config
     try:
@@ -642,10 +682,17 @@ async def get_server_info(
     - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
 
     ## Example
-    ```
-    info = await get_server_info(workspace_id='ws-12345678-abcd-1234-efgh-123456789012')
-    print(f'Connected to Prometheus at {info.prometheus_url} in region {info.aws_region}')
-    ```
+    Input:
+      workspace_id: "ws-12345678-abcd-1234-efgh-123456789012"
+      region: "us-east-1"
+
+    Output:
+      {
+        "prometheus_url": "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-12345678-abcd-1234-efgh-123456789012",
+        "aws_region": "us-east-1",
+        "aws_profile": "default",
+        "service_name": "aps"
+      }
     """
     global config
     try:
@@ -688,11 +735,28 @@ async def get_available_workspaces(
     - Always call this first to get a workspace ID before using other tools
 
     ## Example
-    ```
-    workspaces = await get_available_workspaces()
-    for ws in workspaces['workspaces']:
-        print(f'ID: {ws["workspace_id"]}, Alias: {ws["alias"]}, Status: {ws["status"]}')
-    ```
+    Input:
+      region: "us-east-1"
+
+    Output:
+      {
+        "workspaces": [
+          {
+            "workspace_id": "ws-12345678-abcd-1234-efgh-123456789012",
+            "alias": "production",
+            "status": "ACTIVE",
+            "created_at": "2023-01-15T10:30:00Z"
+          },
+          {
+            "workspace_id": "ws-87654321-dcba-4321-hgfe-210987654321",
+            "alias": "development",
+            "status": "ACTIVE",
+            "created_at": "2023-02-20T14:15:00Z"
+          }
+        ],
+        "count": 2,
+        "region": "us-east-1"
+      }
     """
     try:
         # Use provided region or current config region or default
