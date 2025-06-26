@@ -35,7 +35,7 @@ from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List, Union, Literal
 
 
 class CloudWatchMetricsTools:
@@ -146,112 +146,162 @@ class CloudWatchMetricsTools:
     async def get_metric_data(
         self,
         ctx: Context,
-        namespace: str = Field(
-            ...,
-            description="The namespace of the metric (e.g., 'AWS/EC2', 'AWS/Lambda')"
-        ),
-        metric_name: str = Field(
-            ...,
-            description="The name of the metric (e.g., 'CPUUtilization', 'Duration')"
-        ),
-        dimensions: List[Dimension] = Field(
-            default_factory=list,
-            description="List of dimensions that identify the metric, each with name and value"
-        ),
-        start_time: Union[str, datetime] = Field(
-            ...,
-            description="The start time for the metric data query in ISO format (e.g., '2023-01-01T00:00:00Z') or as a datetime object"
-        ),
-        end_time: Optional[Union[str, datetime]] = Field(
-            None,
-            description="The end time for the metric data query in ISO format (e.g., '2023-01-01T00:00:00Z') or as a datetime object. Defaults to current time if not provided."
-        ),
-        statistic: str = Field(
-            "Average",
-            description="The statistic to use for the metric (e.g., 'Average', 'Sum', 'Maximum', 'Minimum', 'SampleCount', 'p99')"
-        ),
-        target_datapoints: int = Field(
-            60,
-            description="Target number of data points to return (default: 60). Controls the granularity of the returned data."
-        ),
+        namespace: str,
+        metric_name: str,
+        start_time: Union[str, datetime],
+        dimensions: List[Dimension] = [],
+        end_time: Optional[Union[str, datetime]] = None,
+        statistic: Literal["AVG", "COUNT", "MAX", "MIN", "SUM", "Average", "Sum", "Maximum", "Minimum", "SampleCount"] = "AVG",
+        target_datapoints: int = 60,
+        group_by_dimension: Optional[str] = None,
+        schema_dimension_keys: List[str] = [],
+        limit: Optional[int] = None,
+        sort_order: Optional[Literal["ASC", "DESC"]] = None,
+        order_by_statistic: Optional[Literal["AVG", "COUNT", "MAX", "MIN", "SUM"]] = None,
     ) -> GetMetricDataResponse:
         """Retrieves CloudWatch metric data for a specific metric.
 
         This tool retrieves metric data from CloudWatch for a specific metric identified by its
-        namespace, metric name, and dimensions, within a specified time range.
+        namespace, metric name, and dimensions, within a specified time range. It can use either
+        standard GetMetricData API or CloudWatch Metrics Insights for more advanced querying.
+        
+        The function automatically determines whether to use standard GetMetricData or Metrics Insights
+        based on the parameters provided. If any Metrics Insights specific parameters are provided
+        (group_by_dimension, schema_dimension_keys, limit, sort_order, or order_by_statistic), it will use Metrics Insights.
+
+        When using group_by_dimension, you must include that dimension in schema_dimension_keys.
 
         Usage: Use this tool to get actual metric data from CloudWatch for analysis or visualization.
 
         Args:
             namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
-            dimensions: List of dimensions with name and value pairs
             start_time: The start time for the metric data query (ISO format or datetime)
+            dimensions: List of dimensions with name and value pairs. Used as filters in standard mode or WHERE clause in Metrics Insights mode.
             end_time: The end time for the metric data query (ISO format or datetime), defaults to current time
-            statistic: The statistic to use for the metric (e.g., 'Average', 'Sum')
+            statistic: The statistic to use for the metric. For Metrics Insights: 'AVG', 'COUNT', 'MAX', 'MIN', 'SUM'. For standard GetMetricData: 'Average', 'Sum', 'Maximum', 'Minimum', 'SampleCount'.
             target_datapoints: Target number of data points to return (default: 60). Controls the granularity of the returned data.
+            group_by_dimension: Dimension name to group by in Metrics Insights mode. Must be included in schema_dimension_keys.
+            schema_dimension_keys: List of dimension keys to include in the SCHEMA definition for Metrics Insights query.
+            limit: Maximum number of results to return in Metrics Insights mode (used with LIMIT clause).
+            sort_order: Sort order for results when using ORDER BY in Metrics Insights. Can be 'ASC', 'DESC', or None. If specified, order_by_statistic must also be specified.
+            order_by_statistic: Statistic to use in the ORDER BY clause. Can be 'AVG', 'COUNT', 'MAX', 'MIN', 'SUM'. If specified, an ORDER BY clause will be added to the query. Required if sort_order is specified.
 
         Returns:
             GetMetricDataResponse: An object containing the metric data results
 
-        Example:
+        Example 1 (Standard GetMetricData):
             result = await get_metric_data(
                 ctx,
                 namespace="AWS/EC2",
                 metric_name="CPUUtilization",
+                start_time="2023-01-01T00:00:00Z",
                 dimensions=[
                     Dimension(name="InstanceId", value="i-1234567890abcdef0")
                 ],
-                start_time="2023-01-01T00:00:00Z",
-                # period will be auto-calculated based on time window
                 statistic="Average"
+                # Period will be auto-calculated based on time window and target_datapoints
             )
+            
+        Example 2 (Metrics Insights with group by):
+            result = await get_metric_data(
+                ctx,
+                namespace="AWS/EC2",
+                metric_name="CPUUtilization",
+                start_time="2023-01-01T00:00:00Z",
+                end_time="2023-01-02T00:00:00Z",
+                statistic="AVG",
+                schema_dimension_keys=["InstanceType"],
+                group_by_dimension="InstanceType"
+                # This will generate a query like: SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceType") GROUP BY "InstanceType"
+            )
+            
+        Example 3 (Metrics Insights with schema dimension keys):
+            result = await get_metric_data(
+                ctx,
+                namespace="AWS/EC2",
+                metric_name="CPUUtilization",
+                start_time="2023-01-01T00:00:00Z",
+                end_time="2023-01-02T00:00:00Z",
+                statistic="AVG",
+                schema_dimension_keys=["InstanceId", "InstanceType"],
+                group_by_dimension="InstanceId"
+                # This will generate a query like: SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId", "InstanceType") GROUP BY "InstanceId"
+            )
+            
+        Example 4 (Metrics Insights with ORDER BY and LIMIT to find the top 5 EC2 instances with the highest CPU utilization):
+            result = await get_metric_data(
+                ctx,
+                namespace="AWS/EC2",
+                metric_name="CPUUtilization",
+                start_time="2023-01-01T00:00:00Z",
+                end_time="2023-01-02T00:00:00Z",
+                statistic="AVG",
+                schema_dimension_keys=["InstanceId"],
+                group_by_dimension="InstanceId",
+                sort_order="DESC",
+                limit=5,
+                order_by_statistic="MAX"
+                # This will generate a query like: SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId") GROUP BY "InstanceId" ORDER BY MAX() DESC LIMIT 5
+            )
+            
+        Example 5 (Metrics Insights with ORDER BY without sort direction to find the EC2 instances with the highest CPU utilization ordered by default ASC):
+            result = await get_metric_data(
+                ctx,
+                namespace="AWS/EC2",
+                metric_name="CPUUtilization",
+                start_time="2023-01-01T00:00:00Z",
+                end_time="2023-01-02T00:00:00Z",
+                statistic="AVG",
+                schema_dimension_keys=["InstanceId"],
+                group_by_dimension="InstanceId",
+                order_by_statistic="MAX"
+                # This will generate a query like: SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId") GROUP BY "InstanceId" ORDER BY MAX()
+            )
+            
+        Example 6 (Metrics Insights without ORDER BY clause to find the EC2 instances with the highest CPU utilization in no specific order):
+            result = await get_metric_data(
+                ctx,
+                namespace="AWS/EC2",
+                metric_name="CPUUtilization",
+                start_time="2023-01-01T00:00:00Z",
+                end_time="2023-01-02T00:00:00Z",
+                statistic="AVG",
+                schema_dimension_keys=["InstanceId"],
+                group_by_dimension="InstanceId"
+                # This will generate a query like: SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId") GROUP BY "InstanceId"
+                # No ORDER BY clause is added since neither order_by_statistic nor sort_order is specified
+            )
+            
+        For each result:
             for metric_result in result.metricDataResults:
                 print(f"Metric: {metric_result.label}")
                 for datapoint in metric_result.datapoints:
                     print(f"  {datapoint.timestamp}: {datapoint.value}")
         """
         try:
-            # Process start_time and end_time
-            if isinstance(start_time, str):
-                start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            # Process time parameters and calculate period
+            start_time, end_time, period = self._prepare_time_parameters(start_time, end_time, target_datapoints)
             
-            if end_time is None:
-                end_time = datetime.utcnow()
-            elif isinstance(end_time, str):
-                end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            # Determine which query method to use and build the appropriate query
+            use_metrics_insights = any([
+                group_by_dimension is not None,
+                schema_dimension_keys,
+                limit is not None,
+                sort_order is not None,
+                order_by_statistic is not None
+            ])
             
-            # Calculate period based on time window and target datapoints
-            time_window_seconds = int((end_time - start_time).total_seconds())
-            
-            # Calculate period based on time window and target datapoints
-            # Ensure period is at least 60 seconds and a multiple of 60
-            calculated_period = max(60, int(time_window_seconds / target_datapoints))
-            # Round up to the nearest multiple of 60
-            period = calculated_period + (60 - calculated_period % 60) if calculated_period % 60 != 0 else calculated_period
-            
-            logger.info(f'Calculated period: {period} seconds for time window of {time_window_seconds} seconds with target of {target_datapoints} datapoints')
-            
-            logger.info(f'Getting metric data for {namespace}/{metric_name} from {start_time} to {end_time} with period {period}s (target: {target_datapoints} datapoints)')
-            logger.info(f'Dimensions: {[f"{d.name}={d.value}" for d in dimensions]}')
-            
-            # Convert dimensions to CloudWatch format
-            cw_dimensions = [{'Name': d.name, 'Value': d.value} for d in dimensions]
-            
-            # Create the metric data query
-            metric_query = {
-                'Id': 'm1',  # Using a simple ID for the single metric query
-                'MetricStat': {
-                    'Metric': {
-                        'Namespace': namespace,
-                        'MetricName': metric_name,
-                        'Dimensions': cw_dimensions
-                    },
-                    'Period': period,
-                    'Stat': statistic
-                },
-                'ReturnData': True
-            }
+            if use_metrics_insights:
+                metric_query = self._build_metrics_insights_query(
+                    namespace, metric_name, dimensions, statistic, period,
+                    group_by_dimension, schema_dimension_keys, 
+                    order_by_statistic, sort_order, limit
+                )
+            else:
+                metric_query = self._build_standard_metric_query(
+                    namespace, metric_name, dimensions, statistic, period
+                )
             
             # Call the GetMetricData API
             response = self.cloudwatch_client.get_metric_data(
@@ -261,42 +311,208 @@ class CloudWatchMetricsTools:
             )
             
             # Process the response
-            metric_data_results = []
-            for result in response.get('MetricDataResults', []):
-                # Process timestamps and values into data points
-                datapoints = []
-                timestamps = result.get('Timestamps', [])
-                values = result.get('Values', [])
-                
-                for ts, val in zip(timestamps, values):
-                    datapoints.append(MetricDataPoint(
-                        timestamp=ts,
-                        value=val
-                    ))
-                
-                # Sort datapoints by timestamp
-                datapoints.sort(key=lambda x: x.timestamp)
-                
-                # Create the metric data result
-                metric_result = MetricDataResult(
-                    id=result.get('Id', ''),
-                    label=result.get('Label', ''),
-                    statusCode=result.get('StatusCode', 'Complete'),
-                    datapoints=datapoints,
-                    messages=result.get('Messages', [])
-                )
-                metric_data_results.append(metric_result)
-            
-            # Create and return the response
-            return GetMetricDataResponse(
-                metricDataResults=metric_data_results,
-                messages=response.get('Messages', [])
-            )
+            return self._process_metric_data_response(response)
             
         except Exception as e:
             logger.error(f'Error in get_metric_data: {str(e)}')
             await ctx.error(f'Error getting metric data: {str(e)}')
             raise
+
+    def _prepare_time_parameters(self, start_time, end_time, target_datapoints):
+        """Process time parameters and calculate the period."""
+        # Convert string times to datetime objects
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        
+        if end_time is None:
+            end_time = datetime.utcnow()
+        elif isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        
+        # Calculate period based on time window and target datapoints
+        time_window_seconds = int((end_time - start_time).total_seconds())
+        calculated_period = max(60, int(time_window_seconds / target_datapoints))
+        
+        # Round up to the nearest multiple of 60
+        period = calculated_period + (60 - calculated_period % 60) if calculated_period % 60 != 0 else calculated_period
+        
+        logger.info(f'Calculated period: {period} seconds for time window of {time_window_seconds} seconds with target of {target_datapoints} datapoints')
+        
+        return start_time, end_time, period
+
+    def _build_metrics_insights_query(
+        self, namespace, metric_name, dimensions, statistic, period,
+        group_by_dimension, schema_dimension_keys, order_by_statistic, sort_order, limit
+    ):
+        """Build a Metrics Insights query."""
+        logger.info(f'Building Metrics Insights query for {namespace}/{metric_name}')
+        
+        # Validate that group_by_dimension is included in schema_dimension_keys
+        if group_by_dimension is not None and group_by_dimension not in schema_dimension_keys:
+            raise ValueError(f"group_by_dimension '{group_by_dimension}' must be included in schema_dimension_keys: {schema_dimension_keys}")
+        
+        # Check if sort_order is specified but order_by_statistic is not
+        if sort_order is not None and order_by_statistic is None:
+            raise ValueError("If sort_order is specified, order_by_statistic must also be specified")
+        
+        # Map and validate statistics
+        metrics_insights_statistic = self._map_to_metrics_insights_statistic(statistic)
+        
+        # Build the query components
+        query_parts = []
+        
+        # SELECT clause
+        query_parts.append(f'SELECT {metrics_insights_statistic}("{metric_name}")')
+        
+        # FROM clause with SCHEMA
+        schema_str = self._build_schema_string(namespace, schema_dimension_keys)
+        query_parts.append(f'FROM SCHEMA({schema_str})')
+        
+        # WHERE clause for dimensions
+        if dimensions:
+            where_clause = self._build_where_clause(dimensions)
+            if where_clause:
+                query_parts.append(where_clause)
+        
+        # GROUP BY clause
+        if group_by_dimension:
+            query_parts.append(f'GROUP BY "{group_by_dimension}"')
+        
+        # ORDER BY clause
+        if order_by_statistic is not None:
+            order_by_stat = order_by_statistic.upper()
+            self._validate_metrics_insights_statistic(order_by_stat)
+            
+            order_clause = f'ORDER BY {order_by_stat}()'
+            if sort_order is not None:
+                order_clause += f' {sort_order}'
+            
+            query_parts.append(order_clause)
+        
+        # LIMIT clause
+        if limit is not None and limit > 0:
+            query_parts.append(f'LIMIT {limit}')
+        
+        # Join all parts to form the complete query
+        query = ' '.join(query_parts)
+        logger.info(f'Built Metrics Insights query: {query}')
+        
+        return {
+            'Id': 'm1',
+            'Expression': query,
+            'Period': period,
+            'ReturnData': True
+        }
+
+    def _build_standard_metric_query(self, namespace, metric_name, dimensions, statistic, period):
+        """Build a standard CloudWatch metric query."""
+        logger.info(f'Using standard GetMetricData for {namespace}/{metric_name}')
+        logger.info(f'Dimensions: {[f"{d.name}={d.value}" for d in dimensions]}')
+        
+        # Map statistic to standard CloudWatch format
+        cloudwatch_statistic = self._map_to_cloudwatch_statistic(statistic)
+        
+        # Convert dimensions to CloudWatch format
+        cw_dimensions = [{'Name': d.name, 'Value': d.value} for d in dimensions]
+        
+        return {
+            'Id': 'm1',
+            'MetricStat': {
+                'Metric': {
+                    'Namespace': namespace,
+                    'MetricName': metric_name,
+                    'Dimensions': cw_dimensions
+                },
+                'Period': period,
+                'Stat': cloudwatch_statistic
+            },
+            'ReturnData': True
+        }
+
+    def _process_metric_data_response(self, response):
+        """Process the GetMetricData API response."""
+        metric_data_results = []
+        
+        for result in response.get('MetricDataResults', []):
+            # Process timestamps and values into data points
+            datapoints = []
+            timestamps = result.get('Timestamps', [])
+            values = result.get('Values', [])
+            
+            for ts, val in zip(timestamps, values):
+                datapoints.append(MetricDataPoint(
+                    timestamp=ts,
+                    value=val
+                ))
+            
+            # Sort datapoints by timestamp
+            datapoints.sort(key=lambda x: x.timestamp)
+            
+            # Create the metric data result
+            metric_result = MetricDataResult(
+                id=result.get('Id', ''),
+                label=result.get('Label', ''),
+                statusCode=result.get('StatusCode', 'Complete'),
+                datapoints=datapoints,
+                messages=result.get('Messages', [])
+            )
+            metric_data_results.append(metric_result)
+        
+        # Create and return the response
+        return GetMetricDataResponse(
+            metricDataResults=metric_data_results,
+            messages=response.get('Messages', [])
+        )
+
+    def _map_to_metrics_insights_statistic(self, statistic):
+        """Map and validate a statistic for Metrics Insights."""
+        statistic_mapping = {
+            'Average': 'AVG',
+            'Sum': 'SUM',
+            'Maximum': 'MAX',
+            'Minimum': 'MIN',
+            'SampleCount': 'COUNT'
+        }
+        
+        metrics_insights_statistic = statistic_mapping.get(statistic, statistic.upper())
+        self._validate_metrics_insights_statistic(metrics_insights_statistic)
+        return metrics_insights_statistic
+
+    def _validate_metrics_insights_statistic(self, statistic):
+        """Validate that a statistic is valid for Metrics Insights."""
+        valid_statistics = ['AVG', 'COUNT', 'MAX', 'MIN', 'SUM']
+        if statistic not in valid_statistics:
+            raise ValueError(f"Invalid statistic for Metrics Insights: {statistic}. Must be one of {', '.join(valid_statistics)}")
+
+    def _map_to_cloudwatch_statistic(self, statistic):
+        """Map a statistic to the standard CloudWatch format."""
+        statistic_mapping = {
+            'AVG': 'Average',
+            'SUM': 'Sum',
+            'MAX': 'Maximum',
+            'MIN': 'Minimum',
+            'COUNT': 'SampleCount'
+        }
+        
+        return statistic_mapping.get(statistic, statistic)
+
+    def _build_schema_string(self, namespace, schema_dimension_keys):
+        """Build the SCHEMA part of a Metrics Insights query."""
+        schema_parts = [f'"{namespace}"']
+        
+        if schema_dimension_keys:
+            dimension_parts = [f'"{key}"' for key in schema_dimension_keys]
+            schema_parts.extend(dimension_parts)
+        
+        return ', '.join(schema_parts)
+
+    def _build_where_clause(self, dimensions):
+        """Build the WHERE clause for a Metrics Insights query."""
+        if not dimensions:
+            return None
+        
+        dimension_filters = [f'"{dim.name}"=\'{dim.value}\'' for dim in dimensions]
+        return f'WHERE {" AND ".join(dimension_filters)}'
 
     async def get_metric_metadata(
         self,
