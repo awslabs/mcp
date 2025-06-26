@@ -360,6 +360,42 @@ async def test_list_policies():
 
 
 @pytest.mark.asyncio
+async def test_get_managed_policy_document():
+    """Test get_managed_policy_document function."""
+    from awslabs.iam_mcp_server.server import get_managed_policy_document
+
+    mock_policy_document = {
+        'Version': '2012-10-17',
+        'Statement': [{'Effect': 'Allow', 'Action': 's3:*', 'Resource': '*'}],
+    }
+
+    mock_response = {
+        'PolicyVersion': {
+            'Document': mock_policy_document,
+            'VersionId': 'v1',
+            'IsDefaultVersion': True,
+            'CreateDate': datetime(2023, 1, 1),
+        }
+    }
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.get_policy_version.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        result = await get_managed_policy_document(
+            policy_arn='arn:aws:iam::123456789012:policy/test-policy'
+        )
+
+        assert result.policy_arn == 'arn:aws:iam::123456789012:policy/test-policy'
+        assert result.policy_name == 'test-policy'
+        assert result.version_id == 'v1'
+        assert result.is_default_version is True
+        assert '"Action": "s3:*"' in result.policy_document
+        assert '"Resource": "*"' in result.policy_document
+
+
+@pytest.mark.asyncio
 async def test_create_role():
     """Test create_role function."""
     from awslabs.iam_mcp_server.server import create_role
@@ -478,7 +514,7 @@ async def test_get_user():
         mock_client.get_user.return_value = mock_user_response
         mock_client.list_attached_user_policies.return_value = mock_policies_response
         mock_client.list_user_policies.return_value = {'PolicyNames': ['InlinePolicy1']}
-        mock_client.get_groups_for_user.return_value = mock_groups_response
+        mock_client.list_groups_for_user.return_value = mock_groups_response
         mock_client.list_access_keys.return_value = mock_keys_response
         mock_get_client.return_value = mock_client
 
@@ -747,7 +783,7 @@ async def test_delete_user_success():
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
-        mock_client.get_groups_for_user.return_value = {'Groups': []}
+        mock_client.list_groups_for_user.return_value = {'Groups': []}
         mock_client.list_attached_user_policies.return_value = {'AttachedPolicies': []}
         mock_client.list_user_policies.return_value = {'PolicyNames': []}
         mock_client.list_access_keys.return_value = {'AccessKeyMetadata': []}
@@ -795,7 +831,7 @@ async def test_delete_user_force():
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_client.list_attached_user_policies.return_value = mock_policies_response
-        mock_client.get_groups_for_user.return_value = mock_groups_response
+        mock_client.list_groups_for_user.return_value = mock_groups_response
         mock_client.list_access_keys.return_value = mock_keys_response
         mock_client.list_user_policies.return_value = {'PolicyNames': []}
         mock_client.delete_user.return_value = {}
@@ -1118,6 +1154,9 @@ async def test_create_group():
     """Test creating a new IAM group."""
     from awslabs.iam_mcp_server.server import create_group
 
+    # Disable readonly mode
+    Context.initialize(readonly=False)
+
     mock_response = {
         'Group': {
             'GroupName': 'NewGroup',
@@ -1156,6 +1195,9 @@ async def test_delete_group():
     """Test deleting an IAM group."""
     from awslabs.iam_mcp_server.server import delete_group
 
+    # Disable readonly mode
+    Context.initialize(readonly=False)
+
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -1170,6 +1212,9 @@ async def test_delete_group():
 async def test_delete_group_force():
     """Test force deleting an IAM group with cleanup."""
     from awslabs.iam_mcp_server.server import delete_group
+
+    # Disable readonly mode
+    Context.initialize(readonly=False)
 
     mock_group_response = {
         'Users': [
@@ -1217,6 +1262,9 @@ async def test_add_user_to_group():
     """Test adding a user to a group."""
     from awslabs.iam_mcp_server.server import add_user_to_group
 
+    # Disable readonly mode
+    Context.initialize(readonly=False)
+
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_get_client.return_value = mock_client
@@ -1246,6 +1294,9 @@ async def test_add_user_to_group_readonly():
 async def test_remove_user_from_group():
     """Test removing a user from a group."""
     from awslabs.iam_mcp_server.server import remove_user_from_group
+
+    # Disable readonly mode
+    Context.initialize(readonly=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -1277,6 +1328,9 @@ async def test_attach_group_policy():
     """Test attaching a policy to a group."""
     from awslabs.iam_mcp_server.server import attach_group_policy
 
+    # Disable readonly mode
+    Context.initialize(readonly=False)
+
     policy_arn = 'arn:aws:iam::123456789012:policy/TestPolicy'
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
@@ -1290,7 +1344,10 @@ async def test_attach_group_policy():
         )
         assert result.group_name == 'TestGroup'
         assert result.policy_arn == policy_arn
-        assert 'Successfully attached policy to group TestGroup' in result.message
+        assert (
+            'Successfully attached policy arn:aws:iam::123456789012:policy/TestPolicy to group TestGroup'
+            in result.message
+        )
 
 
 @pytest.mark.asyncio
@@ -1311,6 +1368,9 @@ async def test_detach_group_policy():
     """Test detaching a policy from a group."""
     from awslabs.iam_mcp_server.server import detach_group_policy
 
+    # Disable readonly mode
+    Context.initialize(readonly=False)
+
     policy_arn = 'arn:aws:iam::123456789012:policy/TestPolicy'
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
@@ -1324,7 +1384,10 @@ async def test_detach_group_policy():
         )
         assert result.group_name == 'TestGroup'
         assert result.policy_arn == policy_arn
-        assert 'Successfully detached policy from group TestGroup' in result.message
+        assert (
+            'Successfully detached policy arn:aws:iam::123456789012:policy/TestPolicy from group TestGroup'
+            in result.message
+        )
 
 
 @pytest.mark.asyncio
@@ -1382,6 +1445,9 @@ async def test_create_group_with_exception():
     """Test create_group with exception handling."""
     from awslabs.iam_mcp_server.server import create_group
 
+    # Disable readonly mode
+    Context.initialize(readonly=False)
+
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_client.create_group.side_effect = BotoClientError(
@@ -1417,6 +1483,9 @@ async def test_delete_group_with_exception():
 async def test_add_user_to_group_with_exception():
     """Test add_user_to_group with exception handling."""
     from awslabs.iam_mcp_server.server import add_user_to_group
+
+    # Disable readonly mode
+    Context.initialize(readonly=False)
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
