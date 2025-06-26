@@ -469,7 +469,7 @@ async def execute_query(
     - Use this tool to execute a PromQL query at a specific instant in time
     - The query will return the current value of the specified metrics
     - For time series data over a range, use execute_range_query instead
-    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and choose from them
+    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and ASK THE USER to choose one
     - Uses DescribeWorkspace API to get the exact workspace URL
     - No manual URL construction is performed
 
@@ -555,7 +555,7 @@ async def execute_range_query(
     - Use this tool to execute a PromQL query over a time range
     - The query will return a series of values for the specified time range
     - Useful for generating time series data for graphs or trend analysis
-    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and choose from them
+    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and ASK THE USER to choose one
     - Uses DescribeWorkspace API to get the exact workspace URL
     - No manual URL construction is performed
 
@@ -626,7 +626,7 @@ async def list_metrics(
     - Use this tool to discover available metrics in the Prometheus server
     - Returns a sorted list of all metric names
     - Useful for exploration before crafting specific queries
-    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and choose from them and choose from them
+    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and ASK THE USER to choose one
 
     ## Example
     Input:
@@ -683,7 +683,7 @@ async def get_server_info(
     - Use this tool to retrieve the current server configuration
     - Returns details about the Prometheus URL, AWS region, profile, and service name
     - Useful for debugging connection issues
-    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and choose from them and choose from them
+    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and ASK THE USER to choose one
     - Uses DescribeWorkspace API to get the exact workspace URL
     - No manual URL construction is performed
 
@@ -730,6 +730,8 @@ async def get_available_workspaces(
     ## Usage
     - Use this tool to see all available Prometheus workspaces
     - Shows workspace ID, alias, status, and URL for active workspaces
+    - IMPORTANT: When multiple workspaces are available, present them to the user and ask them to choose one
+    - DO NOT automatically select a workspace; always ask the user to choose when multiple options exist
     - Uses DescribeWorkspace API to get the exact URL for each workspace
     - No manual URL construction is performed
 
@@ -754,7 +756,8 @@ async def get_available_workspaces(
           }
         ],
         "count": 2,
-        "region": "us-east-1"
+        "region": "us-east-1",
+        "requires_user_selection": true
       }
     """
     try:
@@ -791,7 +794,14 @@ async def get_available_workspaces(
                 })
 
         logger.info(f'Found {len(workspaces)} workspaces in region {aws_region}')
-        return {'workspaces': workspaces, 'count': len(workspaces), 'region': aws_region}
+        # Add a flag to indicate if user selection is required (when multiple workspaces exist)
+        requires_selection = len(workspaces) > 1
+        return {
+            'workspaces': workspaces, 
+            'count': len(workspaces), 
+            'region': aws_region,
+            'requires_user_selection': requires_selection
+        }
     except Exception as e:
         error_msg = f'Error listing workspaces: {str(e)}'
         logger.error(error_msg)
