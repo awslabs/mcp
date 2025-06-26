@@ -44,8 +44,11 @@ class TestReadGlobalInit:
     @patch('awslabs.aws_msk_mcp_server.tools.read_global.list_configurations')
     @patch('awslabs.aws_msk_mcp_server.tools.read_global.list_vpc_connections')
     @patch('awslabs.aws_msk_mcp_server.tools.read_global.list_kafka_versions')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.__version__', '1.0.0')
     def test_get_global_info_all(
         self,
+        mock_config,
         mock_list_kafka_versions,
         mock_list_vpc_connections,
         mock_list_configurations,
@@ -77,6 +80,10 @@ class TestReadGlobalInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the list_* functions
         mock_list_clusters.return_value = {'ClusterInfoList': []}
         mock_list_configurations.return_value = {'ConfigurationInfoList': []}
@@ -94,7 +101,12 @@ class TestReadGlobalInit:
         result = wrapper_func(region='us-east-1', info_type='all')
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_clusters.assert_called_once_with(
             mock_client,
             cluster_name_filter=None,
@@ -119,7 +131,9 @@ class TestReadGlobalInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_global.list_clusters')
-    def test_get_global_info_clusters(self, mock_list_clusters, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.__version__', '1.0.0')
+    def test_get_global_info_clusters(self, mock_config, mock_list_clusters, mock_boto3_client):
         """Test the get_global_info function with 'clusters' info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -145,6 +159,10 @@ class TestReadGlobalInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the list_clusters function
         mock_list_clusters.return_value = {'ClusterInfoList': []}
 
@@ -166,7 +184,12 @@ class TestReadGlobalInit:
         result = wrapper_func(region='us-east-1', info_type='clusters', kwargs=kwargs_dict)
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_clusters.assert_called_once_with(
             mock_client,
             cluster_name_filter='test-cluster',
@@ -179,7 +202,11 @@ class TestReadGlobalInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_global.list_configurations')
-    def test_get_global_info_configurations(self, mock_list_configurations, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.__version__', '1.0.0')
+    def test_get_global_info_configurations(
+        self, mock_config, mock_list_configurations, mock_boto3_client
+    ):
         """Test the get_global_info function with 'configurations' info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -205,6 +232,10 @@ class TestReadGlobalInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the list_configurations function
         mock_list_configurations.return_value = {'ConfigurationInfoList': []}
 
@@ -221,7 +252,12 @@ class TestReadGlobalInit:
         result = wrapper_func(region='us-east-1', info_type='configurations', kwargs=kwargs_dict)
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_configurations.assert_called_once_with(
             mock_client, max_results=15, next_token='token'
         )
@@ -230,7 +266,11 @@ class TestReadGlobalInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_global.list_vpc_connections')
-    def test_get_global_info_vpc_connections(self, mock_list_vpc_connections, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.__version__', '1.0.0')
+    def test_get_global_info_vpc_connections(
+        self, mock_config, mock_list_vpc_connections, mock_boto3_client
+    ):
         """Test the get_global_info function with 'vpc_connections' info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -256,6 +296,10 @@ class TestReadGlobalInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the list_vpc_connections function
         mock_list_vpc_connections.return_value = {'VpcConnectionInfoList': []}
 
@@ -272,7 +316,12 @@ class TestReadGlobalInit:
         result = wrapper_func(region='us-east-1', info_type='vpc_connections', kwargs=kwargs_dict)
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_vpc_connections.assert_called_once_with(
             mock_client, max_results=25, next_token='token'
         )
@@ -281,7 +330,11 @@ class TestReadGlobalInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_global.list_kafka_versions')
-    def test_get_global_info_kafka_versions(self, mock_list_kafka_versions, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.__version__', '1.0.0')
+    def test_get_global_info_kafka_versions(
+        self, mock_config, mock_list_kafka_versions, mock_boto3_client
+    ):
         """Test the get_global_info function with 'kafka_versions' info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -307,6 +360,10 @@ class TestReadGlobalInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the list_kafka_versions function
         mock_list_kafka_versions.return_value = {'KafkaVersions': ['2.8.1', '3.3.1']}
 
@@ -321,13 +378,20 @@ class TestReadGlobalInit:
         result = wrapper_func(region='us-east-1', info_type='kafka_versions')
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_kafka_versions.assert_called_once_with(mock_client)
 
         assert result == {'KafkaVersions': ['2.8.1', '3.3.1']}
 
     @patch('boto3.client')
-    def test_get_global_info_invalid_type(self, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_global.__version__', '1.0.0')
+    def test_get_global_info_invalid_type(self, mock_config, mock_boto3_client):
         """Test the get_global_info function with an invalid info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -353,6 +417,10 @@ class TestReadGlobalInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Act & Assert
         # We need to modify the function to handle the kwargs parameter correctly
         # Create a wrapper function that converts the kwargs parameter to a dictionary
@@ -365,4 +433,9 @@ class TestReadGlobalInit:
             wrapper_func(region='us-east-1', info_type='invalid_type')
 
         assert 'Unsupported info_type: invalid_type' in str(excinfo.value)
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )

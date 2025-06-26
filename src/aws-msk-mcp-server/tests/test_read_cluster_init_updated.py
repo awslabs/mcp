@@ -42,8 +42,10 @@ class TestReadClusterInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.describe_cluster_operation')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
     def test_describe_cluster_operation_tool(
-        self, mock_describe_cluster_operation, mock_boto3_client
+        self, mock_config, mock_describe_cluster_operation, mock_boto3_client
     ):
         """Test the describe_cluster_operation_tool function."""
         # Arrange
@@ -72,6 +74,10 @@ class TestReadClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the describe_cluster_operation function
         expected_response = {
             'ClusterOperationInfo': {
@@ -94,13 +100,22 @@ class TestReadClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_describe_cluster_operation.assert_called_once_with(cluster_operation_arn, mock_client)
         assert result == expected_response
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.describe_cluster')
-    def test_get_cluster_info_metadata(self, mock_describe_cluster, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
+    def test_get_cluster_info_metadata(
+        self, mock_config, mock_describe_cluster, mock_boto3_client
+    ):
         """Test the get_cluster_info function with metadata info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -125,6 +140,10 @@ class TestReadClusterInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the describe_cluster function
         expected_response = {
@@ -152,13 +171,22 @@ class TestReadClusterInit:
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='metadata')
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_describe_cluster.assert_called_once_with(cluster_arn, mock_client)
         assert result == expected_response
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_bootstrap_brokers')
-    def test_get_cluster_info_brokers(self, mock_get_bootstrap_brokers, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
+    def test_get_cluster_info_brokers(
+        self, mock_config, mock_get_bootstrap_brokers, mock_boto3_client
+    ):
         """Test the get_cluster_info function with brokers info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -184,6 +212,10 @@ class TestReadClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the get_bootstrap_brokers function
         expected_response = {
             'BootstrapBrokerString': 'broker1:9092,broker2:9092,broker3:9092',
@@ -206,13 +238,20 @@ class TestReadClusterInit:
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='brokers')
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_get_bootstrap_brokers.assert_called_once_with(cluster_arn, mock_client)
         assert result == expected_response
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_nodes')
-    def test_get_cluster_info_nodes(self, mock_list_nodes, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
+    def test_get_cluster_info_nodes(self, mock_config, mock_list_nodes, mock_boto3_client):
         """Test the get_cluster_info function with nodes info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -237,6 +276,10 @@ class TestReadClusterInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the list_nodes function
         expected_response = {
@@ -267,14 +310,21 @@ class TestReadClusterInit:
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='nodes')
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_nodes.assert_called_once_with(cluster_arn, mock_client)
         assert result == expected_response
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_compatible_kafka_versions')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
     def test_get_cluster_info_compatible_versions(
-        self, mock_get_compatible_kafka_versions, mock_boto3_client
+        self, mock_config, mock_get_compatible_kafka_versions, mock_boto3_client
     ):
         """Test the get_cluster_info function with compatible_versions info_type."""
         # Arrange
@@ -301,6 +351,10 @@ class TestReadClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the get_compatible_kafka_versions function
         expected_response = {
             'CompatibleKafkaVersions': [
@@ -325,13 +379,22 @@ class TestReadClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_get_compatible_kafka_versions.assert_called_once_with(cluster_arn, mock_client)
         assert result == expected_response
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_cluster_policy')
-    def test_get_cluster_info_policy(self, mock_get_cluster_policy, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
+    def test_get_cluster_info_policy(
+        self, mock_config, mock_get_cluster_policy, mock_boto3_client
+    ):
         """Test the get_cluster_info function with policy info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -357,6 +420,10 @@ class TestReadClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the get_cluster_policy function
         expected_response = {
             'Policy': '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::123456789012:role/ExampleRole"},"Action":["kafka:GetBootstrapBrokers","kafka:DescribeCluster"],"Resource":"*"}]}'
@@ -377,14 +444,21 @@ class TestReadClusterInit:
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='policy')
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_get_cluster_policy.assert_called_once_with(cluster_arn, mock_client)
         assert result == expected_response
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_cluster_operations')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
     def test_get_cluster_info_operations_with_kwargs(
-        self, mock_list_cluster_operations, mock_boto3_client
+        self, mock_config, mock_list_cluster_operations, mock_boto3_client
     ):
         """Test the get_cluster_info function with operations info_type and kwargs."""
         # Arrange
@@ -410,6 +484,10 @@ class TestReadClusterInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the list_cluster_operations function
         expected_response = {
@@ -444,14 +522,21 @@ class TestReadClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_cluster_operations.assert_called_once_with(cluster_arn, mock_client, 20, 'token')
         assert result == expected_response
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_client_vpc_connections')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
     def test_get_cluster_info_client_vpc_connections_with_kwargs(
-        self, mock_list_client_vpc_connections, mock_boto3_client
+        self, mock_config, mock_list_client_vpc_connections, mock_boto3_client
     ):
         """Test the get_cluster_info function with client_vpc_connections info_type and kwargs."""
         # Arrange
@@ -477,6 +562,10 @@ class TestReadClusterInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the list_client_vpc_connections function
         expected_response = {
@@ -514,7 +603,12 @@ class TestReadClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_client_vpc_connections.assert_called_once_with(
             cluster_arn, mock_client, 15, 'token'
         )
@@ -522,8 +616,10 @@ class TestReadClusterInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_scram_secrets')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
     def test_get_cluster_info_scram_secrets_with_kwargs(
-        self, mock_list_scram_secrets, mock_boto3_client
+        self, mock_config, mock_list_scram_secrets, mock_boto3_client
     ):
         """Test the get_cluster_info function with scram_secrets info_type and kwargs."""
         # Arrange
@@ -549,6 +645,10 @@ class TestReadClusterInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the list_scram_secrets function
         expected_response = {
@@ -577,12 +677,19 @@ class TestReadClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_scram_secrets.assert_called_once_with(cluster_arn, mock_client, 5, 'token')
         assert result == expected_response
 
     @patch('boto3.client')
-    def test_get_cluster_info_invalid_info_type(self, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
+    def test_get_cluster_info_invalid_info_type(self, mock_config, mock_boto3_client):
         """Test the get_cluster_info function with an invalid info_type."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -608,6 +715,10 @@ class TestReadClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Act & Assert
         # We need to modify the function to handle the kwargs parameter correctly
         # Create a wrapper function that converts the kwargs parameter to a dictionary
@@ -623,7 +734,12 @@ class TestReadClusterInit:
             wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='invalid_type')
 
         assert 'Unsupported info_type: invalid_type' in str(excinfo.value)
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.describe_cluster')
@@ -633,8 +749,11 @@ class TestReadClusterInit:
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_cluster_policy')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_cluster_operations')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_client_vpc_connections')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
     def test_get_cluster_info_all(
         self,
+        mock_config,
         mock_list_client_vpc_connections,
         mock_list_cluster_operations,
         mock_get_cluster_policy,
@@ -669,6 +788,10 @@ class TestReadClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the function responses
         mock_describe_cluster.return_value = {'metadata': 'data'}
         mock_get_bootstrap_brokers.return_value = {'brokers': 'data'}
@@ -692,7 +815,12 @@ class TestReadClusterInit:
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='all')
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_describe_cluster.assert_called_once_with(cluster_arn, mock_client)
         mock_get_bootstrap_brokers.assert_called_once_with(cluster_arn, mock_client)
         mock_list_nodes.assert_called_once_with(cluster_arn, mock_client)
@@ -713,8 +841,10 @@ class TestReadClusterInit:
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.describe_cluster')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_bootstrap_brokers')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
     def test_get_cluster_info_all_with_error(
-        self, mock_get_bootstrap_brokers, mock_describe_cluster, mock_boto3_client
+        self, mock_config, mock_get_bootstrap_brokers, mock_describe_cluster, mock_boto3_client
     ):
         """Test the get_cluster_info function with 'all' info_type when one function raises an error."""
         # Arrange
@@ -741,6 +871,10 @@ class TestReadClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Make describe_cluster raise an exception
         mock_describe_cluster.side_effect = Exception('Test error')
 
@@ -761,7 +895,12 @@ class TestReadClusterInit:
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='all')
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_describe_cluster.assert_called_once_with(cluster_arn, mock_client)
         mock_get_bootstrap_brokers.assert_called_once_with(cluster_arn, mock_client)
         assert result['metadata'] == {'error': 'Test error'}

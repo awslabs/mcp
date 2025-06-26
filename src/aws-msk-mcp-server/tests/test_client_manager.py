@@ -31,12 +31,16 @@ class TestAWSClientManager:
         assert client_manager.clients == {}
 
     @patch('boto3.Session')
-    def test_get_client(self, mock_session):
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.__version__', '1.0.0')
+    def test_get_client(self, mock_config, mock_session):
         """Test getting a client for a specific service and region."""
         # Arrange
         client_manager = AWSClientManager()
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
         region = 'us-east-1'
         service_name = 'kafka'
 
@@ -46,16 +50,25 @@ class TestAWSClientManager:
         # Assert
         assert client == mock_client
         mock_session.assert_called_once_with(profile_name='default', region_name=region)
-        mock_session.return_value.client.assert_called_once_with(service_name)
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_session.return_value.client.assert_called_once_with(
+            service_name, config=mock_config_instance
+        )
         assert client_manager.clients[f'{service_name}_{region}'] == mock_client
 
     @patch('boto3.Session')
-    def test_get_client_reuse(self, mock_session):
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.__version__', '1.0.0')
+    def test_get_client_reuse(self, mock_config, mock_session):
         """Test reusing an existing client for the same service and region."""
         # Arrange
         client_manager = AWSClientManager()
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
         region = 'us-east-1'
         service_name = 'kafka'
 
@@ -68,16 +81,25 @@ class TestAWSClientManager:
         # Assert
         assert client1 == client2
         mock_session.assert_called_once_with(profile_name='default', region_name=region)
-        mock_session.return_value.client.assert_called_once_with(service_name)
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_session.return_value.client.assert_called_once_with(
+            service_name, config=mock_config_instance
+        )
 
     @patch('boto3.Session')
-    def test_get_client_different_services(self, mock_session):
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.__version__', '1.0.0')
+    def test_get_client_different_services(self, mock_config, mock_session):
         """Test getting clients for different services."""
         # Arrange
         client_manager = AWSClientManager()
         mock_kafka_client = MagicMock()
         mock_cloudwatch_client = MagicMock()
         mock_session.return_value.client.side_effect = [mock_kafka_client, mock_cloudwatch_client]
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
         region = 'us-east-1'
         kafka_service = 'kafka'
         cloudwatch_service = 'cloudwatch'
@@ -91,17 +113,26 @@ class TestAWSClientManager:
         assert cloudwatch_client == mock_cloudwatch_client
         assert mock_session.call_count == 2
         assert mock_session.return_value.client.call_count == 2
-        mock_session.return_value.client.assert_any_call(kafka_service)
-        mock_session.return_value.client.assert_any_call(cloudwatch_service)
+        mock_config.assert_called_with(user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0')
+        mock_session.return_value.client.assert_any_call(
+            kafka_service, config=mock_config_instance
+        )
+        mock_session.return_value.client.assert_any_call(
+            cloudwatch_service, config=mock_config_instance
+        )
 
     @patch('boto3.Session')
-    def test_get_client_different_regions(self, mock_session):
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.__version__', '1.0.0')
+    def test_get_client_different_regions(self, mock_config, mock_session):
         """Test getting clients for different regions."""
         # Arrange
         client_manager = AWSClientManager()
         mock_us_east_client = MagicMock()
         mock_us_west_client = MagicMock()
         mock_session.return_value.client.side_effect = [mock_us_east_client, mock_us_west_client]
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
         us_east_region = 'us-east-1'
         us_west_region = 'us-west-2'
         service_name = 'kafka'
@@ -115,17 +146,23 @@ class TestAWSClientManager:
         assert us_west_client == mock_us_west_client
         assert mock_session.call_count == 2
         assert mock_session.return_value.client.call_count == 2
+        mock_config.assert_called_with(user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0')
         mock_session.assert_any_call(profile_name='default', region_name=us_east_region)
         mock_session.assert_any_call(profile_name='default', region_name=us_west_region)
+        mock_session.return_value.client.assert_any_call(service_name, config=mock_config_instance)
 
     @patch.dict(os.environ, {'AWS_PROFILE': 'test-profile'})
     @patch('boto3.Session')
-    def test_get_client_custom_profile(self, mock_session):
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.common_functions.client_manager.__version__', '1.0.0')
+    def test_get_client_custom_profile(self, mock_config, mock_session):
         """Test getting a client with a custom AWS profile."""
         # Arrange
         client_manager = AWSClientManager()
         mock_client = MagicMock()
         mock_session.return_value.client.return_value = mock_client
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
         region = 'us-east-1'
         service_name = 'kafka'
 
@@ -135,4 +172,9 @@ class TestAWSClientManager:
         # Assert
         assert client == mock_client
         mock_session.assert_called_once_with(profile_name='test-profile', region_name=region)
-        mock_session.return_value.client.assert_called_once_with(service_name)
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_session.return_value.client.assert_called_once_with(
+            service_name, config=mock_config_instance
+        )

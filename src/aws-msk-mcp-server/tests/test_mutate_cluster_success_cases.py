@@ -27,8 +27,14 @@ class TestMutateClusterSuccessCases:
         'awslabs.aws_msk_mcp_server.tools.common_functions.common_functions.check_mcp_generated_tag'
     )
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_storage')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_broker_storage_tool_success(
-        self, mock_update_broker_storage, mock_check_mcp_generated_tag, mock_boto3_client
+        self,
+        mock_config,
+        mock_update_broker_storage,
+        mock_check_mcp_generated_tag,
+        mock_boto3_client,
     ):
         """Test the update_broker_storage_tool function with successful tag check."""
         # Arrange
@@ -71,6 +77,10 @@ class TestMutateClusterSuccessCases:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -104,7 +114,12 @@ class TestMutateClusterSuccessCases:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on update_broker_storage being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
@@ -112,8 +127,10 @@ class TestMutateClusterSuccessCases:
         'awslabs.aws_msk_mcp_server.tools.common_functions.common_functions.check_mcp_generated_tag'
     )
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_type')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_broker_type_tool_success(
-        self, mock_update_broker_type, mock_check_mcp_generated_tag, mock_boto3_client
+        self, mock_config, mock_update_broker_type, mock_check_mcp_generated_tag, mock_boto3_client
     ):
         """Test the update_broker_type_tool function with successful tag check."""
         # Arrange
@@ -156,6 +173,10 @@ class TestMutateClusterSuccessCases:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -179,7 +200,12 @@ class TestMutateClusterSuccessCases:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on update_broker_type being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
@@ -187,8 +213,14 @@ class TestMutateClusterSuccessCases:
         'awslabs.aws_msk_mcp_server.tools.common_functions.common_functions.check_mcp_generated_tag'
     )
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_cluster_configuration')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_cluster_configuration_tool_success(
-        self, mock_update_cluster_configuration, mock_check_mcp_generated_tag, mock_boto3_client
+        self,
+        mock_config,
+        mock_update_cluster_configuration,
+        mock_check_mcp_generated_tag,
+        mock_boto3_client,
     ):
         """Test the update_cluster_configuration_tool function with successful tag check."""
         # Arrange
@@ -231,6 +263,10 @@ class TestMutateClusterSuccessCases:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -255,7 +291,12 @@ class TestMutateClusterSuccessCases:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on update_cluster_configuration being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
@@ -263,8 +304,10 @@ class TestMutateClusterSuccessCases:
         'awslabs.aws_msk_mcp_server.tools.common_functions.common_functions.check_mcp_generated_tag'
     )
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_monitoring')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_monitoring_tool_success(
-        self, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
+        self, mock_config, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
     ):
         """Test the update_monitoring_tool function with successful tag check."""
         # Arrange
@@ -307,6 +350,10 @@ class TestMutateClusterSuccessCases:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -343,7 +390,12 @@ class TestMutateClusterSuccessCases:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on update_monitoring being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
@@ -351,8 +403,10 @@ class TestMutateClusterSuccessCases:
         'awslabs.aws_msk_mcp_server.tools.common_functions.common_functions.check_mcp_generated_tag'
     )
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_security')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_security_tool_success(
-        self, mock_update_security, mock_check_mcp_generated_tag, mock_boto3_client
+        self, mock_config, mock_update_security, mock_check_mcp_generated_tag, mock_boto3_client
     ):
         """Test the update_security_tool function with successful tag check."""
         # Arrange
@@ -395,6 +449,10 @@ class TestMutateClusterSuccessCases:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -422,7 +480,12 @@ class TestMutateClusterSuccessCases:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on update_security being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
@@ -430,8 +493,10 @@ class TestMutateClusterSuccessCases:
         'awslabs.aws_msk_mcp_server.tools.common_functions.common_functions.check_mcp_generated_tag'
     )
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.put_cluster_policy')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_put_cluster_policy_tool_success(
-        self, mock_put_cluster_policy, mock_check_mcp_generated_tag, mock_boto3_client
+        self, mock_config, mock_put_cluster_policy, mock_check_mcp_generated_tag, mock_boto3_client
     ):
         """Test the put_cluster_policy_tool function with successful tag check."""
         # Arrange
@@ -474,6 +539,10 @@ class TestMutateClusterSuccessCases:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -505,7 +574,12 @@ class TestMutateClusterSuccessCases:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on put_cluster_policy being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
@@ -513,8 +587,14 @@ class TestMutateClusterSuccessCases:
         'awslabs.aws_msk_mcp_server.tools.common_functions.common_functions.check_mcp_generated_tag'
     )
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_count')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_broker_count_tool_success(
-        self, mock_update_broker_count, mock_check_mcp_generated_tag, mock_boto3_client
+        self,
+        mock_config,
+        mock_update_broker_count,
+        mock_check_mcp_generated_tag,
+        mock_boto3_client,
     ):
         """Test the update_broker_count_tool function with successful tag check."""
         # Arrange
@@ -557,6 +637,10 @@ class TestMutateClusterSuccessCases:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -580,7 +664,12 @@ class TestMutateClusterSuccessCases:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on update_broker_count being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
@@ -588,8 +677,14 @@ class TestMutateClusterSuccessCases:
         'awslabs.aws_msk_mcp_server.tools.common_functions.common_functions.check_mcp_generated_tag'
     )
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.batch_associate_scram_secret')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_associate_scram_secret_tool_success(
-        self, mock_batch_associate_scram_secret, mock_check_mcp_generated_tag, mock_boto3_client
+        self,
+        mock_config,
+        mock_batch_associate_scram_secret,
+        mock_check_mcp_generated_tag,
+        mock_boto3_client,
     ):
         """Test the associate_scram_secret_tool function with successful tag check."""
         # Arrange
@@ -632,6 +727,10 @@ class TestMutateClusterSuccessCases:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -656,7 +755,12 @@ class TestMutateClusterSuccessCases:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on batch_associate_scram_secret being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
@@ -664,8 +768,14 @@ class TestMutateClusterSuccessCases:
         'awslabs.aws_msk_mcp_server.tools.common_functions.common_functions.check_mcp_generated_tag'
     )
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.batch_disassociate_scram_secret')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_disassociate_scram_secret_tool_success(
-        self, mock_batch_disassociate_scram_secret, mock_check_mcp_generated_tag, mock_boto3_client
+        self,
+        mock_config,
+        mock_batch_disassociate_scram_secret,
+        mock_check_mcp_generated_tag,
+        mock_boto3_client,
     ):
         """Test the disassociate_scram_secret_tool function with successful tag check."""
         # Arrange
@@ -708,6 +818,10 @@ class TestMutateClusterSuccessCases:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -732,5 +846,10 @@ class TestMutateClusterSuccessCases:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on batch_disassociate_scram_secret being called since we're bypassing it when the ValueError is raised

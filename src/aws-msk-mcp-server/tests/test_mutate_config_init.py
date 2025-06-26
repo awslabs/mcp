@@ -44,7 +44,11 @@ class TestMutateConfigInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.create_configuration')
-    def test_create_configuration_tool(self, mock_create_configuration, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.__version__', '1.0.0')
+    def test_create_configuration_tool(
+        self, mock_config, mock_create_configuration, mock_boto3_client
+    ):
         """Test the create_configuration_tool function."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -71,6 +75,10 @@ class TestMutateConfigInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the create_configuration function
         expected_response = {
@@ -100,7 +108,12 @@ class TestMutateConfigInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_create_configuration.assert_called_once_with(
             name, server_properties, mock_client, description, kafka_versions
         )
@@ -109,8 +122,14 @@ class TestMutateConfigInit:
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.update_configuration')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.__version__', '1.0.0')
     def test_update_configuration_tool_not_mcp_generated(
-        self, mock_update_configuration, mock_check_mcp_generated_tag, mock_boto3_client
+        self,
+        mock_config,
+        mock_update_configuration,
+        mock_check_mcp_generated_tag,
+        mock_boto3_client,
     ):
         """Test the update_configuration_tool function with a resource that is not MCP generated."""
         # Arrange
@@ -139,6 +158,10 @@ class TestMutateConfigInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to return False
         mock_check_mcp_generated_tag.return_value = False
 
@@ -165,12 +188,19 @@ class TestMutateConfigInit:
         )
 
         # Verify that the boto3 client and check_mcp_generated_tag were called, but update_configuration was not
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_update_configuration.assert_not_called()
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.tag_resource')
-    def test_tag_resource_tool(self, mock_tag_resource, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.__version__', '1.0.0')
+    def test_tag_resource_tool(self, mock_config, mock_tag_resource, mock_boto3_client):
         """Test the tag_resource_tool function."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -196,6 +226,10 @@ class TestMutateConfigInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the tag_resource function
         expected_response = {}
         mock_tag_resource.return_value = expected_response
@@ -207,13 +241,20 @@ class TestMutateConfigInit:
         result = tag_resource_func(region='us-east-1', resource_arn=resource_arn, tags=tags)
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_tag_resource.assert_called_once_with(resource_arn, tags, mock_client)
         assert result == expected_response
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.untag_resource')
-    def test_untag_resource_tool(self, mock_untag_resource, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_config.__version__', '1.0.0')
+    def test_untag_resource_tool(self, mock_config, mock_untag_resource, mock_boto3_client):
         """Test the untag_resource_tool function."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -239,6 +280,10 @@ class TestMutateConfigInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the untag_resource function
         expected_response = {}
         mock_untag_resource.return_value = expected_response
@@ -252,6 +297,11 @@ class TestMutateConfigInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_untag_resource.assert_called_once_with(resource_arn, tag_keys, mock_client)
         assert result == expected_response

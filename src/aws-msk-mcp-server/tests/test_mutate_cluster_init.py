@@ -60,7 +60,9 @@ class TestMutateClusterInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.create_cluster_v2')
-    def test_create_cluster_tool(self, mock_create_cluster_v2, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
+    def test_create_cluster_tool(self, mock_config, mock_create_cluster_v2, mock_boto3_client):
         """Test the create_cluster_tool function."""
         # Arrange
         mock_mcp = MagicMock()
@@ -86,6 +88,10 @@ class TestMutateClusterInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the create_cluster_v2 function
         expected_response = {
@@ -120,14 +126,21 @@ class TestMutateClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_create_cluster_v2.assert_called_once()
         assert result == expected_response
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.create_cluster_v2')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_create_cluster_tool_json_decode_error(
-        self, mock_create_cluster_v2, mock_boto3_client
+        self, mock_config, mock_create_cluster_v2, mock_boto3_client
     ):
         """Test the create_cluster_tool function with invalid JSON in kwargs."""
         # Arrange
@@ -155,6 +168,10 @@ class TestMutateClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the create_cluster_v2 function
         expected_response = {
             'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
@@ -177,7 +194,12 @@ class TestMutateClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # Should call create_cluster_v2 with empty kwargs_dict when JSON is invalid
         mock_create_cluster_v2.assert_called_once_with(
             'test-cluster', 'PROVISIONED', client=mock_client
@@ -187,8 +209,14 @@ class TestMutateClusterInit:
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_storage')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_broker_storage_tool(
-        self, mock_update_broker_storage, mock_check_mcp_generated_tag, mock_boto3_client
+        self,
+        mock_config,
+        mock_update_broker_storage,
+        mock_check_mcp_generated_tag,
+        mock_boto3_client,
     ):
         """Test the update_broker_storage_tool function."""
         # Arrange
@@ -215,6 +243,10 @@ class TestMutateClusterInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
@@ -244,7 +276,12 @@ class TestMutateClusterInit:
             )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_update_broker_storage.assert_not_called()
 
     def test_update_broker_storage_tool_success(self):
@@ -291,10 +328,16 @@ class TestMutateClusterInit:
             patch(
                 'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_storage'
             ) as mock_update_broker_storage,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config') as mock_config,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0'),
         ):
             # Mock the boto3 client
             mock_client = MagicMock()
             mock_boto3_client.return_value = mock_client
+
+            # Mock the Config class
+            mock_config_instance = MagicMock()
+            mock_config.return_value = mock_config_instance
 
             # Mock the update_broker_storage function
             expected_response = {
@@ -323,13 +366,18 @@ class TestMutateClusterInit:
             )
 
             # Assert
-            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_config.assert_called_with(user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0')
+            mock_boto3_client.assert_called_once_with(
+                'kafka', region_name='us-east-1', config=mock_config_instance
+            )
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_type')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_broker_type_tool(
-        self, mock_update_broker_type, mock_check_mcp_generated_tag, mock_boto3_client
+        self, mock_config, mock_update_broker_type, mock_check_mcp_generated_tag, mock_boto3_client
     ):
         """Test the update_broker_type_tool function."""
         # Arrange
@@ -357,6 +405,10 @@ class TestMutateClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'."
@@ -375,7 +427,12 @@ class TestMutateClusterInit:
             )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_update_broker_type.assert_not_called()
 
     def test_update_broker_type_tool_success(self):
@@ -422,10 +479,16 @@ class TestMutateClusterInit:
             patch(
                 'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_type'
             ) as mock_update_broker_type,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config') as mock_config,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0'),
         ):
             # Mock the boto3 client
             mock_client = MagicMock()
             mock_boto3_client.return_value = mock_client
+
+            # Mock the Config class
+            mock_config_instance = MagicMock()
+            mock_config.return_value = mock_config_instance
 
             # Mock the update_broker_type function
             expected_response = {
@@ -444,13 +507,18 @@ class TestMutateClusterInit:
             )
 
             # Assert
-            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_config.assert_called_with(user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0')
+            mock_boto3_client.assert_called_once_with(
+                'kafka', region_name='us-east-1', config=mock_config_instance
+            )
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_monitoring')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_monitoring_tool(
-        self, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
+        self, mock_config, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
     ):
         """Test the update_monitoring_tool function."""
         # Arrange
@@ -477,6 +545,10 @@ class TestMutateClusterInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
@@ -509,14 +581,21 @@ class TestMutateClusterInit:
             )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_update_monitoring.assert_not_called()
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_monitoring')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_monitoring_tool_with_open_monitoring(
-        self, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
+        self, mock_config, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
     ):
         """Test the update_monitoring_tool function with open_monitoring parameter."""
         # Arrange
@@ -559,6 +638,10 @@ class TestMutateClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -590,14 +673,21 @@ class TestMutateClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on update_monitoring being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_monitoring')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_monitoring_tool_with_logging_info(
-        self, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
+        self, mock_config, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
     ):
         """Test the update_monitoring_tool function with logging_info parameter."""
         # Arrange
@@ -640,6 +730,10 @@ class TestMutateClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -668,14 +762,21 @@ class TestMutateClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on update_monitoring being called since we're bypassing it when the ValueError is raised
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag')
     @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_monitoring')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0')
     def test_update_monitoring_tool_with_all_params(
-        self, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
+        self, mock_config, mock_update_monitoring, mock_check_mcp_generated_tag, mock_boto3_client
     ):
         """Test the update_monitoring_tool function with all parameters."""
         # Arrange
@@ -718,6 +819,10 @@ class TestMutateClusterInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
             "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
@@ -754,7 +859,12 @@ class TestMutateClusterInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         # We don't assert on update_monitoring being called since we're bypassing it when the ValueError is raised
 
     def test_update_security_tool_success_case(self):
@@ -790,10 +900,16 @@ class TestMutateClusterInit:
             patch(
                 'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_security'
             ) as mock_update_security,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config') as mock_config,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0'),
         ):
             # Mock the boto3 client
             mock_client = MagicMock()
             mock_boto3_client.return_value = mock_client
+
+            # Mock the Config class
+            mock_config_instance = MagicMock()
+            mock_config.return_value = mock_config_instance
 
             # Mock the check_mcp_generated_tag function to return True
             mock_check_mcp_generated_tag.return_value = True
@@ -821,7 +937,12 @@ class TestMutateClusterInit:
             )
 
             # Assert
-            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_config.assert_called_once_with(
+                user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+            )
+            mock_boto3_client.assert_called_once_with(
+                'kafka', region_name='us-east-1', config=mock_config_instance
+            )
             mock_check_mcp_generated_tag.assert_called_once_with(
                 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
             )
@@ -867,10 +988,16 @@ class TestMutateClusterInit:
             patch(
                 'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_cluster_configuration'
             ) as mock_update_cluster_configuration,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config') as mock_config,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0'),
         ):
             # Mock the boto3 client
             mock_client = MagicMock()
             mock_boto3_client.return_value = mock_client
+
+            # Mock the Config class
+            mock_config_instance = MagicMock()
+            mock_config.return_value = mock_config_instance
 
             # Mock the check_mcp_generated_tag function to return True
             mock_check_mcp_generated_tag.return_value = True
@@ -892,7 +1019,12 @@ class TestMutateClusterInit:
             )
 
             # Assert
-            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_config.assert_called_once_with(
+                user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+            )
+            mock_boto3_client.assert_called_once_with(
+                'kafka', region_name='us-east-1', config=mock_config_instance
+            )
             mock_check_mcp_generated_tag.assert_called_once_with(
                 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
             )
@@ -938,10 +1070,16 @@ class TestMutateClusterInit:
             patch(
                 'awslabs.aws_msk_mcp_server.tools.mutate_cluster.put_cluster_policy'
             ) as mock_put_cluster_policy,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config') as mock_config,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0'),
         ):
             # Mock the boto3 client
             mock_client = MagicMock()
             mock_boto3_client.return_value = mock_client
+
+            # Mock the Config class
+            mock_config_instance = MagicMock()
+            mock_config.return_value = mock_config_instance
 
             # Mock the check_mcp_generated_tag function to return True
             mock_check_mcp_generated_tag.return_value = True
@@ -970,7 +1108,12 @@ class TestMutateClusterInit:
             )
 
             # Assert
-            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_config.assert_called_once_with(
+                user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+            )
+            mock_boto3_client.assert_called_once_with(
+                'kafka', region_name='us-east-1', config=mock_config_instance
+            )
             mock_check_mcp_generated_tag.assert_called_once_with(
                 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
             )
@@ -1014,10 +1157,16 @@ class TestMutateClusterInit:
             patch(
                 'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_broker_count'
             ) as mock_update_broker_count,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config') as mock_config,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0'),
         ):
             # Mock the boto3 client
             mock_client = MagicMock()
             mock_boto3_client.return_value = mock_client
+
+            # Mock the Config class
+            mock_config_instance = MagicMock()
+            mock_config.return_value = mock_config_instance
 
             # Mock the check_mcp_generated_tag function to return True
             mock_check_mcp_generated_tag.return_value = True
@@ -1038,7 +1187,12 @@ class TestMutateClusterInit:
             )
 
             # Assert
-            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_config.assert_called_once_with(
+                user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+            )
+            mock_boto3_client.assert_called_once_with(
+                'kafka', region_name='us-east-1', config=mock_config_instance
+            )
             mock_check_mcp_generated_tag.assert_called_once_with(
                 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
             )
@@ -1083,10 +1237,16 @@ class TestMutateClusterInit:
             patch(
                 'awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_monitoring'
             ) as mock_update_monitoring,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.Config') as mock_config,
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_cluster.__version__', '1.0.0'),
         ):
             # Mock the boto3 client
             mock_client = MagicMock()
             mock_boto3_client.return_value = mock_client
+
+            # Mock the Config class
+            mock_config_instance = MagicMock()
+            mock_config.return_value = mock_config_instance
 
             # Mock the check_mcp_generated_tag function to return True
             mock_check_mcp_generated_tag.return_value = True
@@ -1120,7 +1280,12 @@ class TestMutateClusterInit:
             )
 
             # Assert
-            mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+            mock_config.assert_called_once_with(
+                user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+            )
+            mock_boto3_client.assert_called_once_with(
+                'kafka', region_name='us-east-1', config=mock_config_instance
+            )
             mock_check_mcp_generated_tag.assert_called_once_with(
                 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
             )

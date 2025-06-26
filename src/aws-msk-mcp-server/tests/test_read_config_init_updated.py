@@ -42,7 +42,11 @@ class TestReadConfigInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_config.describe_configuration')
-    def test_get_configuration_info_describe(self, mock_describe_configuration, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.__version__', '1.0.0')
+    def test_get_configuration_info_describe(
+        self, mock_config, mock_describe_configuration, mock_boto3_client
+    ):
         """Test the get_configuration_info function with describe action."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -69,6 +73,10 @@ class TestReadConfigInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the describe_configuration function
         expected_response = {
@@ -103,7 +111,12 @@ class TestReadConfigInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_describe_configuration.assert_called_once_with(
             'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef', mock_client
         )
@@ -111,8 +124,10 @@ class TestReadConfigInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_config.list_configuration_revisions')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.__version__', '1.0.0')
     def test_get_configuration_info_revisions(
-        self, mock_list_configuration_revisions, mock_boto3_client
+        self, mock_config, mock_list_configuration_revisions, mock_boto3_client
     ):
         """Test the get_configuration_info function with revisions action."""
         # Arrange
@@ -140,6 +155,10 @@ class TestReadConfigInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the list_configuration_revisions function
         expected_response = {
@@ -178,7 +197,12 @@ class TestReadConfigInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_configuration_revisions.assert_called_once_with(
             'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
             mock_client,
@@ -189,8 +213,10 @@ class TestReadConfigInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_config.describe_configuration_revision')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.__version__', '1.0.0')
     def test_get_configuration_info_revision_details(
-        self, mock_describe_configuration_revision, mock_boto3_client
+        self, mock_config, mock_describe_configuration_revision, mock_boto3_client
     ):
         """Test the get_configuration_info function with revision_details action."""
         # Arrange
@@ -218,6 +244,10 @@ class TestReadConfigInit:
         # Mock the boto3 client
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
 
         # Mock the describe_configuration_revision function
         expected_response = {
@@ -249,14 +279,21 @@ class TestReadConfigInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_describe_configuration_revision.assert_called_once_with(
             'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef', 1, mock_client
         )
         assert result == expected_response
 
     @patch('boto3.client')
-    def test_get_configuration_info_invalid_action(self, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.__version__', '1.0.0')
+    def test_get_configuration_info_invalid_action(self, mock_config, mock_boto3_client):
         """Test the get_configuration_info function with an invalid action."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -284,6 +321,10 @@ class TestReadConfigInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Act & Assert
         # We need to modify the function to handle the kwargs parameter correctly
         # Create a wrapper function that converts the kwargs parameter to a dictionary
@@ -302,10 +343,17 @@ class TestReadConfigInit:
             )
 
         assert 'Unsupported action: invalid_action' in str(excinfo.value)
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
 
     @patch('boto3.client')
-    def test_get_configuration_info_missing_revision(self, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.__version__', '1.0.0')
+    def test_get_configuration_info_missing_revision(self, mock_config, mock_boto3_client):
         """Test the get_configuration_info function with missing revision."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -333,6 +381,10 @@ class TestReadConfigInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Act & Assert
         # We need to modify the function to handle the kwargs parameter correctly
         # Create a wrapper function that converts the kwargs parameter to a dictionary
@@ -351,11 +403,20 @@ class TestReadConfigInit:
             )
 
         assert 'Revision number is required for revision_details action' in str(excinfo.value)
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_config.list_tags_for_resource')
-    def test_list_tags_for_resource_tool(self, mock_list_tags_for_resource, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_config.__version__', '1.0.0')
+    def test_list_tags_for_resource_tool(
+        self, mock_config, mock_list_tags_for_resource, mock_boto3_client
+    ):
         """Test the list_tags_for_resource_tool function."""
         # Arrange
         # Create a spy that will capture the decorated functions
@@ -383,6 +444,10 @@ class TestReadConfigInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the list_tags_for_resource function
         expected_response = {'Tags': {'Environment': 'Production', 'Owner': 'DataTeam'}}
         mock_list_tags_for_resource.return_value = expected_response
@@ -394,7 +459,12 @@ class TestReadConfigInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_list_tags_for_resource.assert_called_once_with(
             'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef', mock_client
         )

@@ -48,7 +48,11 @@ class TestReadVpcInit:
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_vpc.describe_vpc_connection')
-    def test_describe_vpc_connection_tool(self, mock_describe_vpc_connection, mock_boto3_client):
+    @patch('awslabs.aws_msk_mcp_server.tools.read_vpc.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_vpc.__version__', '1.0.0')
+    def test_describe_vpc_connection_tool(
+        self, mock_config, mock_describe_vpc_connection, mock_boto3_client
+    ):
         """Test the describe_vpc_connection_tool function."""
         # Arrange
         mock_mcp = MagicMock()
@@ -75,6 +79,10 @@ class TestReadVpcInit:
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
         # Mock the describe_vpc_connection function
         expected_response = {
             'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
@@ -100,6 +108,11 @@ class TestReadVpcInit:
         )
 
         # Assert
-        mock_boto3_client.assert_called_once_with('kafka', region_name='us-east-1')
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
         mock_describe_vpc_connection.assert_called_once_with(vpc_connection_arn, mock_client)
         assert result == expected_response
