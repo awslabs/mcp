@@ -296,25 +296,6 @@ async def make_prometheus_request(
 
     url = f'{base_url}/{endpoint.lstrip("/")}'
 
-    # Create AWS request
-    aws_request = AWSRequest(method='GET', url=url, params=params or {})
-
-    # Sign request with SigV4
-    session = boto3.Session(profile_name=config.aws_profile, region_name=config.aws_region)
-    credentials = session.get_credentials()
-    if not credentials:
-        raise ValueError('AWS credentials not found')
-
-    SigV4Auth(credentials, config.service_name, config.aws_region).add_auth(aws_request)
-
-    # Convert to requests format
-    prepared_request = requests.Request(
-        method=aws_request.method,
-        url=aws_request.url,
-        headers=dict(aws_request.headers),
-        params=params or {},
-    ).prepare()
-
     # Send request with retry logic
     retry_count = 0
     last_exception = None
@@ -322,9 +303,29 @@ async def make_prometheus_request(
 
     while retry_count < max_retries:
         try:
-            with requests.Session() as session:
+            # Create a fresh session and client for each attempt
+            # This ensures credentials are always fresh
+            session = boto3.Session(profile_name=config.aws_profile, region_name=config.aws_region)
+            credentials = session.get_credentials()
+            if not credentials:
+                raise ValueError('AWS credentials not found')
+            
+            # Create and sign the request
+            aws_request = AWSRequest(method='GET', url=url, params=params or {})
+            SigV4Auth(credentials, config.service_name, config.aws_region).add_auth(aws_request)
+            
+            # Convert to requests format
+            prepared_request = requests.Request(
+                method=aws_request.method,
+                url=aws_request.url,
+                headers=dict(aws_request.headers),
+                params=params or {},
+            ).prepare()
+            
+            # Send the request
+            with requests.Session() as req_session:
                 logger.debug(f'Making request to {url} (attempt {retry_count + 1}/{max_retries})')
-                response = session.send(prepared_request)
+                response = req_session.send(prepared_request)
                 response.raise_for_status()
                 data = response.json()
 
@@ -357,12 +358,6 @@ async def make_prometheus_request(
     return None
 
 
-# get_available_workspaces function removed as it's now an MCP tool
-
-
-# check_workspace_selection function removed as per requirements
-
-
 async def test_prometheus_connection():
     """Test the connection to Prometheus.
 
@@ -372,6 +367,7 @@ async def test_prometheus_connection():
     global config
     logger.info('Testing Prometheus connection...')
     try:
+        # Use the make_prometheus_request function which now creates a fresh client
         await make_prometheus_request('label/__name__/values', params={})
         logger.info('Successfully connected to Prometheus!')
         return True
@@ -423,6 +419,29 @@ mcp = FastMCP(
 
 # Global config object
 config = None  # Will be initialized in main()
+
+
+def get_prometheus_client(region_name: Optional[str] = None, profile_name: Optional[str] = None):
+    """Create a boto3 AMP client using credentials from environment variables.
+    
+    Args:
+        region_name: AWS region to use (defaults to environment variable or us-east-1)
+        profile_name: AWS profile to use (defaults to None)
+        
+    Returns:
+        boto3 AMP client with fresh credentials
+    """
+    # Use provided region, or get from env, or fall back to default
+    region = region_name or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
+    
+    # Configure custom user agent
+    config = Config(user_agent_extra='prometheus-mcp-server')
+    
+    # Create a new session to force credentials to reload
+    session = boto3.Session(profile_name=profile_name, region_name=region)
+    
+    # Return AMP client
+    return session.client('amp', config=config)
 
 
 def validate_query(query: str) -> bool:
@@ -767,13 +786,9 @@ async def get_available_workspaces(
 
         logger.info(f'Listing available Prometheus workspaces in region {aws_region}')
 
-        # Create session with current config
-        if config and config.aws_profile:
-            session = boto3.Session(profile_name=config.aws_profile, region_name=aws_region)
-        else:
-            session = boto3.Session(region_name=aws_region)
-
-        aps_client = session.client('amp', config=Config(user_agent_extra='prometheus-mcp-server'))
+        # Get a fresh client for this request
+        profile_name = config.aws_profile if config else None
+        aps_client = get_prometheus_client(region_name=aws_region, profile_name=profile_name)
         response = aps_client.list_workspaces()
 
         workspaces = []
