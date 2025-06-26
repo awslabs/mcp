@@ -21,6 +21,7 @@ import os
 import sys
 from awslabs.cost_analysis_mcp_server import consts
 from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
+from awslabs.cost_analysis_mcp_server.models import ErrorResponse, PricingFilters
 from awslabs.cost_analysis_mcp_server.pricing_client import create_pricing_client
 from awslabs.cost_analysis_mcp_server.static.patterns import BEDROCK
 from awslabs.cost_analysis_mcp_server.terraform_analyzer import analyze_terraform_project
@@ -28,7 +29,6 @@ from bs4 import BeautifulSoup
 from httpx import AsyncClient
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
 
@@ -37,23 +37,23 @@ logger.remove()
 logger.add(sys.stderr, level=consts.LOG_LEVEL)
 
 
-class PricingFilter(BaseModel):
-    """Filter model for AWS Price List API queries."""
+async def create_error_response(
+    ctx: Context,
+    error_type: str,
+    message: str,
+    **kwargs,  # Accept any additional fields dynamically
+) -> Dict[str, Any]:
+    """Create a standardized error response, log it, and notify context."""
+    logger.error(message)
+    await ctx.error(message)
 
-    field: str = Field(
-        ..., alias='Field', description="The field to filter on (e.g., 'instanceType', 'location')"
+    error_response = ErrorResponse(
+        error_type=error_type,
+        message=message,
+        **kwargs,
     )
-    type: str = Field(default='TERM_MATCH', alias='Type', description='The type of filter match')
-    value: str = Field(..., alias='Value', description='The value to match against')
-    model_config = ConfigDict(validate_by_alias=True)
 
-
-class PricingFilters(BaseModel):
-    """Container for multiple pricing filters."""
-
-    filters: List[PricingFilter] = Field(
-        default_factory=list, description='List of filters to apply to the pricing query'
-    )
+    return error_response.model_dump()
 
 
 mcp = FastMCP(
