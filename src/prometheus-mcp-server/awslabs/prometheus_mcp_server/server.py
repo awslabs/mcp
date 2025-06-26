@@ -29,9 +29,7 @@ from awslabs.prometheus_mcp_server.consts import (
     DEFAULT_SERVICE_NAME,
     ENV_AWS_PROFILE,
     ENV_AWS_REGION,
-    ENV_AWS_SERVICE_NAME,
     ENV_LOG_LEVEL,
-    ENV_PROMETHEUS_URL,
     SERVER_INSTRUCTIONS,
 )
 from awslabs.prometheus_mcp_server.models import (
@@ -48,7 +46,7 @@ from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Optional
-from urllib.parse import urlparse
+# No need for urlparse anymore
 
 
 # Configure loguru
@@ -56,364 +54,319 @@ logger.remove()
 logger.add(sys.stderr, level=os.getenv(ENV_LOG_LEVEL, 'INFO'))
 
 
-def parse_arguments():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Prometheus MCP Server')
-    parser.add_argument('--profile', type=str, help='AWS profile name to use')
-    parser.add_argument('--region', type=str, help='AWS region to use')
-    parser.add_argument('--url', type=str, help='Prometheus URL')
-    parser.add_argument('--config', type=str, help='Path to configuration file')
-    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
-    return parser.parse_args()
+class ConfigManager:
+    """Configuration management for the application."""
+    
+    @staticmethod
+    def parse_arguments():
+        """Parse command line arguments."""
+        parser = argparse.ArgumentParser(description='Prometheus MCP Server')
+        parser.add_argument('--profile', type=str, help='AWS profile name to use')
+        parser.add_argument('--region', type=str, help='AWS region to use')
+        parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+        return parser.parse_args()
+    
+    @staticmethod
+    def setup_basic_config(args):
+        """Setup basic configuration from command line arguments and environment variables."""
+        # Load .env file if it exists
+        load_dotenv()
+        
+        # Set debug logging if requested
+        if args.debug:
+            logger.level('DEBUG')
+            logger.debug('Debug logging enabled')
+        
+        # Get region and profile from args or environment
+        region = args.region or os.getenv(ENV_AWS_REGION) or DEFAULT_AWS_REGION
+        profile = args.profile or os.getenv(ENV_AWS_PROFILE)
+        
+        return {'region': region, 'profile': profile}
 
 
-def load_config(args):
-    """Load configuration from file, environment variables, and command line arguments."""
-    # Load .env file if it exists
-    load_dotenv()
-
-    # Initialize config with default values
-    config_data = {
-        'aws_profile': None,
-        'aws_region': DEFAULT_AWS_REGION,
-        'prometheus_url': None,
-        'service_name': DEFAULT_SERVICE_NAME,
-        'max_retries': DEFAULT_MAX_RETRIES,
-        'retry_delay': DEFAULT_RETRY_DELAY,
-    }
-
-    # Load from config file if specified
-    if args.config and os.path.exists(args.config):
+class AWSCredentials:
+    """AWS credentials management."""
+    
+    @staticmethod
+    def validate(region: str, profile: Optional[str] = None) -> bool:
+        """Validate AWS credentials.
+        
+        Args:
+            region: AWS region to use
+            profile: AWS profile to use (optional)
+            
+        Returns:
+            bool: True if credentials are valid, False otherwise
+        """
+        logger.info('Validating AWS credentials...')
+        
         try:
-            with open(args.config, 'r') as f:
-                file_config = json.load(f)
-                config_data.update(file_config)
-            logger.info(f'Loaded configuration from {args.config}')
-        except Exception as e:
-            logger.error(f'Error loading config file: {e}')
-
-    # Override with environment variables
-    if os.getenv(ENV_AWS_PROFILE):
-        config_data['aws_profile'] = os.getenv(ENV_AWS_PROFILE)
-    if os.getenv(ENV_AWS_REGION):
-        config_data['aws_region'] = os.getenv(ENV_AWS_REGION)
-    if os.getenv(ENV_PROMETHEUS_URL):
-        config_data['prometheus_url'] = os.getenv(ENV_PROMETHEUS_URL)
-    if os.getenv(ENV_AWS_SERVICE_NAME):
-        config_data['service_name'] = os.getenv(ENV_AWS_SERVICE_NAME)
-
-    # Override with command line arguments
-    if args.profile:
-        config_data['aws_profile'] = args.profile
-    if args.region:
-        config_data['aws_region'] = args.region
-    if args.url:
-        config_data['prometheus_url'] = args.url
-    if args.debug:
-        logger.level('DEBUG')
-        logger.debug('Debug logging enabled')
-
-    return config_data
-
-
-# find_active_workspace function removed as per requirements
-
-
-def setup_environment(config_data):
-    """Setup and validate environment variables."""
-    logger.info('Setting up environment...')
-
-    try:
-        # Create session with profile if specified
-        if config_data['aws_profile']:
-            logger.info(f'  Using AWS Profile: {config_data["aws_profile"]}')
-            session = boto3.Session(
-                profile_name=config_data['aws_profile'], region_name=config_data['aws_region']
-            )
-        else:
-            logger.info('  Using default AWS credentials')
-            session = boto3.Session(region_name=config_data['aws_region'])
-
-        # Validate Prometheus URL if provided
-        if config_data['prometheus_url']:
-            parsed_url = urlparse(config_data['prometheus_url'])
-            if not all([parsed_url.scheme, parsed_url.netloc]):
-                logger.error(
-                    f'ERROR: Invalid Prometheus URL format: {config_data["prometheus_url"]}'
-                )
-                logger.error('URL must include scheme (https://) and hostname')
-                return False
-
-            # Verify URL points to AWS Prometheus
-            if not (
-                parsed_url.netloc.endswith('.amazonaws.com')
-                and 'aps-workspaces' in parsed_url.netloc
-            ):
-                logger.warning(
-                    f"WARNING: URL doesn't appear to be an AWS Managed Prometheus endpoint: {config_data['prometheus_url']}"
-                )
-                logger.warning(
-                    'Expected format: https://aps-workspaces.[region].amazonaws.com/workspaces/ws-[id]'
-                )
-
-            logger.info('Prometheus configuration:')
-            logger.info(f'  Server URL: {config_data["prometheus_url"]}')
-        else:
-            logger.info('Prometheus configuration:')
-            logger.info('  Server URL: Will be set when workspace is selected')
-
-        logger.info(f'  AWS Region: {config_data["aws_region"]}')
-
-        # Test AWS credentials
-        if not config_data['aws_region']:
-            logger.error(
-                'ERROR: AWS region not configured. Please set using --region parameter or AWS_REGION environment variable.'
-            )
-            return False
-
-        credentials = session.get_credentials()
-        if credentials:
-            logger.info('  AWS Credentials: Available')
-            if credentials.token:
-                logger.info('  Credential Type: Temporary (includes session token)')
+            # Create session with profile if specified
+            if profile:
+                logger.info(f'Using AWS Profile: {profile}')
+                session = boto3.Session(profile_name=profile, region_name=region)
             else:
-                logger.info('  Credential Type: Long-term')
+                logger.info('Using default AWS credentials')
+                session = boto3.Session(region_name=region)
 
-            # Test if credentials have necessary permissions
-            try:
-                sts = session.client(
-                    'sts', config=Config(user_agent_extra='prometheus-mcp-server')
-                )
-                identity = sts.get_caller_identity()
-                logger.info(f'  AWS Identity: {identity["Arn"]}')
-            except ClientError as e:
-                logger.warning(f'WARNING: Could not verify AWS identity: {e}')
-                logger.warning(
-                    'This may indicate insufficient permissions for STS:GetCallerIdentity'
-                )
-        else:
-            logger.error('ERROR: AWS Credentials not found')
-            logger.error('Please configure AWS credentials using:')
-            logger.error('  - AWS CLI: aws configure')
-            logger.error('  - Environment variables: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY')
-            logger.error('  - Or specify a profile with --profile')
-            return False
-    except NoCredentialsError:
-        logger.error('ERROR: AWS credentials not found')
-        logger.error('Please configure AWS credentials using:')
-        logger.error('  - AWS CLI: aws configure')
-        logger.error('  - Environment variables: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY')
-        logger.error('  - Or specify a profile with --profile')
-        return False
-    except Exception as e:
-        logger.error(f'ERROR: Error setting up AWS session: {e}')
-        return False
-
-    return True
-
-
-def validate_params(params: Dict) -> bool:
-    """Validate request parameters for potential security issues.
-
-    Args:
-        params: The parameters to validate
-
-    Returns:
-        bool: True if the parameters are safe, False otherwise
-    """
-    if not params:
-        return True
-
-    # List of dangerous patterns to check for
-    dangerous_patterns = [
-        # Command injection attempts
-        ';',
-        '&&',
-        '||',
-        '`',
-        '$(',
-        '${',
-        # File access attempts
-        'file://',
-        '/etc/',
-        '/var/log',
-        # Network access attempts
-        'http://',
-        'https://',
-    ]
-
-    # Check each parameter value
-    for key, value in params.items():
-        if not isinstance(value, str):
-            continue
-
-        for pattern in dangerous_patterns:
-            if pattern in value:
-                logger.warning(f'Potentially dangerous parameter detected: {key}={value}')
-                return False
-
-    return True
-
-
-async def make_prometheus_request(
-    prometheus_url: str,
-    endpoint: str, 
-    params: Optional[Dict] = None, 
-    region: str = DEFAULT_AWS_REGION,
-    profile: Optional[str] = None,
-    max_retries: int = DEFAULT_MAX_RETRIES, 
-    retry_delay: int = DEFAULT_RETRY_DELAY, 
-    service_name: str = DEFAULT_SERVICE_NAME
-) -> Any:
-    """Make a request to the Prometheus HTTP API with AWS SigV4 authentication.
-
-    Args:
-        prometheus_url: The base URL for the Prometheus API
-        endpoint: The Prometheus API endpoint to call
-        params: Query parameters to include in the request
-        region: AWS region to use
-        profile: AWS profile to use
-        max_retries: Maximum number of retry attempts
-        retry_delay: Delay between retry attempts in seconds
-        service_name: AWS service name for SigV4 authentication
-
-    Returns:
-        The data portion of the Prometheus API response
-
-    Raises:
-        ValueError: If Prometheus URL or AWS credentials are not configured
-        RuntimeError: If the Prometheus API returns an error status
-        requests.RequestException: If there's a network or HTTP error
-        json.JSONDecodeError: If the response is not valid JSON
-    """
-    if not prometheus_url:
-        raise ValueError('Prometheus URL not configured')
-
-    # Validate endpoint
-    if not isinstance(endpoint, str):
-        raise ValueError('Endpoint must be a string')
-
-    if ';' in endpoint or '&&' in endpoint or '||' in endpoint:
-        raise ValueError('Invalid endpoint: potentially dangerous characters detected')
-
-    # Validate parameters
-    if params and not validate_params(params):
-        raise ValueError('Invalid parameters: potentially dangerous values detected')
-
-    # Ensure the URL ends with /api/v1
-    base_url = prometheus_url
-    if not base_url.endswith(API_VERSION_PATH):
-        base_url = f'{base_url.rstrip("/")}{API_VERSION_PATH}'
-
-    url = f'{base_url}/{endpoint.lstrip("/")}'
-
-    # Send request with retry logic
-    retry_count = 0
-    last_exception = None
-    retry_delay_seconds = retry_delay
-
-    while retry_count < max_retries:
-        try:
-            # Create a fresh session and client for each attempt
-            # This ensures credentials are always fresh
-            session = boto3.Session(profile_name=profile, region_name=region)
+            # Test AWS credentials
             credentials = session.get_credentials()
             if not credentials:
-                raise ValueError('AWS credentials not found')
+                logger.error('ERROR: AWS credentials not found')
+                logger.error('Please configure AWS credentials using:')
+                logger.error('  - AWS CLI: aws configure')
+                logger.error('  - Environment variables: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY')
+                logger.error('  - Or specify a profile with --profile')
+                return False
+                
+            # Test if credentials have necessary permissions
+            sts = session.client('sts', config=Config(user_agent_extra='prometheus-mcp-server'))
+            identity = sts.get_caller_identity()
+            logger.info(f'AWS Identity: {identity["Arn"]}')
+            logger.info(f'AWS Region: {region}')
+            logger.info('AWS credentials validated successfully')
+            return True
             
-            # Create and sign the request
-            aws_request = AWSRequest(method='GET', url=url, params=params or {})
-            SigV4Auth(credentials, service_name, region).add_auth(aws_request)
-            
-            # Convert to requests format
-            prepared_request = requests.Request(
-                method=aws_request.method,
-                url=aws_request.url,
-                headers=dict(aws_request.headers),
-                params=params or {},
-            ).prepare()
-            
-            # Send the request
-            with requests.Session() as req_session:
-                logger.debug(f'Making request to {url} (attempt {retry_count + 1}/{max_retries})')
-                response = req_session.send(prepared_request)
-                response.raise_for_status()
-                data = response.json()
-
-                if data['status'] != 'success':
-                    error_msg = data.get('error', 'Unknown error')
-                    logger.error(f'Prometheus API request failed: {error_msg}')
-                    raise RuntimeError(f'Prometheus API request failed: {error_msg}')
-
-                return data['data']
-        except (requests.RequestException, json.JSONDecodeError) as e:
-            last_exception = e
-            retry_count += 1
-            if retry_count < max_retries:
-                retry_delay_seconds = retry_delay * (2 ** (retry_count - 1))  # Exponential backoff
-                logger.warning(f'Request failed: {e}. Retrying in {retry_delay_seconds}s...')
-                time.sleep(retry_delay_seconds)
-            else:
-                logger.error(f'Request failed after {max_retries} attempts: {e}')
-                raise
-
-    if last_exception:
-        raise last_exception
-    return None
+        except (NoCredentialsError, ClientError) as e:
+            logger.error(f'ERROR: AWS credentials validation failed: {e}')
+            return False
 
 
-async def test_prometheus_connection(prometheus_url: str, region: str = DEFAULT_AWS_REGION, profile: Optional[str] = None):
-    """Test the connection to Prometheus.
+# Define dangerous patterns as a constant
+DANGEROUS_PATTERNS = [
+    # Command injection attempts
+    ';', '&&', '||', '`', '$(', '${',
+    # File access attempts
+    'file://', '/etc/', '/var/log',
+    # Network access attempts
+    'http://', 'https://',
+]
 
-    Args:
-        prometheus_url: The Prometheus URL to test
-        region: AWS region to use
-        profile: AWS profile to use
-        
-    Returns:
-        bool: True if connection is successful, False otherwise
-    """
-    logger.info('Testing Prometheus connection...')
-    try:
-        # Use the make_prometheus_request function which now creates a fresh client
-        await make_prometheus_request(
-            prometheus_url=prometheus_url,
-            endpoint='label/__name__/values', 
-            params={},
-            region=region,
-            profile=profile,
-            max_retries=DEFAULT_MAX_RETRIES,
-            retry_delay=DEFAULT_RETRY_DELAY,
-            service_name=DEFAULT_SERVICE_NAME
-        )
-        logger.info('Successfully connected to Prometheus!')
+
+class SecurityValidator:
+    """Security validation utilities."""
+    
+    @staticmethod
+    def validate_string(value: str, context: str = 'value') -> bool:
+        """Validate a string for potential security issues.
+
+        Args:
+            value: The string to validate
+            context: Context description for logging (e.g., 'parameter', 'query')
+
+        Returns:
+            bool: True if the string is safe, False otherwise
+        """
+        # Check for dangerous patterns
+        for pattern in DANGEROUS_PATTERNS:
+            if pattern in value:
+                logger.warning(f'Potentially dangerous {context} detected: {pattern}')
+                return False
+
         return True
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        if error_code == 'AccessDeniedException':
-            logger.error('ERROR: Access denied when connecting to Prometheus')
-            logger.error('Please check that your AWS credentials have the following permissions:')
-            logger.error('  - aps:QueryMetrics')
-            logger.error('  - aps:GetLabels')
-            logger.error('  - aps:GetMetricMetadata')
-        elif error_code == 'ResourceNotFoundException':
-            logger.error('ERROR: Prometheus workspace not found')
-            logger.error(f'Please verify the workspace ID in your Prometheus URL: {prometheus_url}')
-        else:
-            logger.error(f'ERROR: AWS API error when connecting to Prometheus: {error_code}')
-            logger.error(f'Details: {str(e)}')
-        return False
-    except requests.RequestException as e:
-        logger.error(f'ERROR: Network error when connecting to Prometheus: {str(e)}')
-        logger.error('Please check your network connection and Prometheus URL')
-        return False
-    except Exception as e:
-        logger.error(f'ERROR: Error connecting to Prometheus: {str(e)}')
-        logger.error('Common issues:')
-        logger.error('1. Incorrect Prometheus URL')
-        logger.error('2. Missing or incorrect AWS region')
-        logger.error('3. Invalid AWS credentials or insufficient permissions')
-        return False
+    
+    @staticmethod
+    def validate_params(params: Dict) -> bool:
+        """Validate request parameters for potential security issues.
+
+        Args:
+            params: The parameters to validate
+
+        Returns:
+            bool: True if the parameters are safe, False otherwise
+        """
+        if not params:
+            return True
+
+        # Check each parameter value
+        for key, value in params.items():
+            if not isinstance(value, str):
+                continue
+
+            if not SecurityValidator.validate_string(value, f'parameter {key}'):
+                return False
+
+        return True
+    
+    @staticmethod
+    def validate_query(query: str) -> bool:
+        """Validate a PromQL query for potential security issues.
+
+        Args:
+            query: The PromQL query to validate
+
+        Returns:
+            bool: True if the query is safe, False otherwise
+        """
+        return SecurityValidator.validate_string(query, 'query pattern')
+
+
+class PrometheusClient:
+    """Client for interacting with Prometheus API."""
+    
+    @staticmethod
+    async def make_request(
+        prometheus_url: str,
+        endpoint: str, 
+        params: Optional[Dict] = None, 
+        region: str = DEFAULT_AWS_REGION,
+        profile: Optional[str] = None,
+        max_retries: int = DEFAULT_MAX_RETRIES, 
+        retry_delay: int = DEFAULT_RETRY_DELAY, 
+        service_name: str = DEFAULT_SERVICE_NAME
+    ) -> Any:
+        """Make a request to the Prometheus HTTP API with AWS SigV4 authentication.
+
+        Args:
+            prometheus_url: The base URL for the Prometheus API
+            endpoint: The Prometheus API endpoint to call
+            params: Query parameters to include in the request
+            region: AWS region to use
+            profile: AWS profile to use
+            max_retries: Maximum number of retry attempts
+            retry_delay: Delay between retry attempts in seconds
+            service_name: AWS service name for SigV4 authentication
+
+        Returns:
+            The data portion of the Prometheus API response
+
+        Raises:
+            ValueError: If Prometheus URL or AWS credentials are not configured
+            RuntimeError: If the Prometheus API returns an error status
+            requests.RequestException: If there's a network or HTTP error
+            json.JSONDecodeError: If the response is not valid JSON
+        """
+        if not prometheus_url:
+            raise ValueError('Prometheus URL not configured')
+
+        # Validate endpoint
+        if not isinstance(endpoint, str):
+            raise ValueError('Endpoint must be a string')
+
+        if ';' in endpoint or '&&' in endpoint or '||' in endpoint:
+            raise ValueError('Invalid endpoint: potentially dangerous characters detected')
+
+        # Validate parameters
+        if params and not SecurityValidator.validate_params(params):
+            raise ValueError('Invalid parameters: potentially dangerous values detected')
+
+        # Ensure the URL ends with /api/v1
+        base_url = prometheus_url
+        if not base_url.endswith(API_VERSION_PATH):
+            base_url = f'{base_url.rstrip("/")}{API_VERSION_PATH}'
+
+        url = f'{base_url}/{endpoint.lstrip("/")}'
+
+        # Send request with retry logic
+        retry_count = 0
+        last_exception = None
+        retry_delay_seconds = retry_delay
+
+        while retry_count < max_retries:
+            try:
+                # Create a fresh session and client for each attempt
+                session = boto3.Session(profile_name=profile, region_name=region)
+                credentials = session.get_credentials()
+                if not credentials:
+                    raise ValueError('AWS credentials not found')
+                
+                # Create and sign the request
+                aws_request = AWSRequest(method='GET', url=url, params=params or {})
+                SigV4Auth(credentials, service_name, region).add_auth(aws_request)
+                
+                # Convert to requests format
+                prepared_request = requests.Request(
+                    method=aws_request.method,
+                    url=aws_request.url,
+                    headers=dict(aws_request.headers),
+                    params=params or {},
+                ).prepare()
+                
+                # Send the request
+                with requests.Session() as req_session:
+                    logger.debug(f'Making request to {url} (attempt {retry_count + 1}/{max_retries})')
+                    response = req_session.send(prepared_request)
+                    response.raise_for_status()
+                    data = response.json()
+
+                    if data['status'] != 'success':
+                        error_msg = data.get('error', 'Unknown error')
+                        logger.error(f'Prometheus API request failed: {error_msg}')
+                        raise RuntimeError(f'Prometheus API request failed: {error_msg}')
+
+                    return data['data']
+            except (requests.RequestException, json.JSONDecodeError) as e:
+                last_exception = e
+                retry_count += 1
+                if retry_count < max_retries:
+                    retry_delay_seconds = retry_delay * (2 ** (retry_count - 1))  # Exponential backoff
+                    logger.warning(f'Request failed: {e}. Retrying in {retry_delay_seconds}s...')
+                    time.sleep(retry_delay_seconds)
+                else:
+                    logger.error(f'Request failed after {max_retries} attempts: {e}')
+                    raise
+
+        if last_exception:
+            raise last_exception
+        return None
+
+
+class PrometheusConnection:
+    """Handles Prometheus connection testing."""
+    
+    @staticmethod
+    async def test_connection(prometheus_url: str, region: str = DEFAULT_AWS_REGION, profile: Optional[str] = None) -> bool:
+        """Test the connection to Prometheus.
+
+        Args:
+            prometheus_url: The Prometheus URL to test
+            region: AWS region to use
+            profile: AWS profile to use
+            
+        Returns:
+            bool: True if connection is successful, False otherwise
+        """
+        logger.info('Testing Prometheus connection...')
+        try:
+            # Use the PrometheusClient.make_request method
+            await PrometheusClient.make_request(
+                prometheus_url=prometheus_url,
+                endpoint='label/__name__/values', 
+                params={},
+                region=region,
+                profile=profile,
+                max_retries=DEFAULT_MAX_RETRIES,
+                retry_delay=DEFAULT_RETRY_DELAY,
+                service_name=DEFAULT_SERVICE_NAME
+            )
+            logger.info('Successfully connected to Prometheus!')
+            return True
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            if error_code == 'AccessDeniedException':
+                logger.error('ERROR: Access denied when connecting to Prometheus')
+                logger.error('Please check that your AWS credentials have the following permissions:')
+                logger.error('  - aps:QueryMetrics')
+                logger.error('  - aps:GetLabels')
+                logger.error('  - aps:GetMetricMetadata')
+            elif error_code == 'ResourceNotFoundException':
+                logger.error('ERROR: Prometheus workspace not found')
+                logger.error(f'Please verify the workspace ID in your Prometheus URL: {prometheus_url}')
+            else:
+                logger.error(f'ERROR: AWS API error when connecting to Prometheus: {error_code}')
+                logger.error(f'Details: {str(e)}')
+            return False
+        except requests.RequestException as e:
+            logger.error(f'ERROR: Network error when connecting to Prometheus: {str(e)}')
+            logger.error('Please check your network connection and Prometheus URL')
+            return False
+        except Exception as e:
+            logger.error(f'ERROR: Error connecting to Prometheus: {str(e)}')
+            logger.error('Common issues:')
+            logger.error('1. Incorrect Prometheus URL')
+            logger.error('2. Missing or incorrect AWS region')
+            logger.error('3. Invalid AWS credentials or insufficient permissions')
+            return False
 
 
 # Initialize MCP
@@ -455,55 +408,45 @@ def get_prometheus_client(region_name: Optional[str] = None, profile_name: Optio
     return session.client('amp', config=config)
 
 
-def build_prometheus_url(workspace_id: str, region: str = DEFAULT_AWS_REGION) -> str:
-    """Build the Prometheus URL for a workspace.
+async def get_workspace_details(workspace_id: str, region: str = DEFAULT_AWS_REGION, profile: Optional[str] = None) -> Dict[str, Any]:
+    """Get details for a specific Prometheus workspace using DescribeWorkspace API.
     
     Args:
         workspace_id: The Prometheus workspace ID
         region: AWS region where the workspace is located
+        profile: AWS profile to use (defaults to None)
         
     Returns:
-        The Prometheus URL for the workspace
+        Dictionary containing workspace details including URL from API
     """
-    return f'https://aps-workspaces.{region}.amazonaws.com/workspaces/{workspace_id}'
+    # Get a fresh client for this request
+    aps_client = get_prometheus_client(region_name=region, profile_name=profile)
+    
+    try:
+        # Get workspace details directly from DescribeWorkspace API
+        response = aps_client.describe_workspace(workspaceId=workspace_id)
+        workspace = response.get('workspace', {})
+        
+        # Get the URL from the API response
+        prometheus_url = workspace.get('prometheusEndpoint')
+        if not prometheus_url:
+            raise ValueError(f"No prometheusEndpoint found in workspace response for {workspace_id}")
+            
+        logger.info(f"Retrieved workspace URL from DescribeWorkspace API: {prometheus_url}")
+        
+        return {
+            'workspace_id': workspace_id,
+            'alias': workspace.get('alias', 'No alias'),
+            'status': workspace.get('status', {}).get('statusCode', 'UNKNOWN'),
+            'prometheus_url': prometheus_url,
+            'region': region
+        }
+    except Exception as e:
+        logger.error(f"Error in DescribeWorkspace API: {str(e)}")
+        raise
 
 
-def validate_query(query: str) -> bool:
-    """Validate a PromQL query for potential security issues.
-
-    Args:
-        query: The PromQL query to validate
-
-    Returns:
-        bool: True if the query is safe, False otherwise
-
-    This function checks for potentially dangerous patterns in PromQL queries.
-    """
-    # List of dangerous patterns to check for
-    dangerous_patterns = [
-        # Command injection attempts
-        ';',
-        '&&',
-        '||',
-        '`',
-        '$(',
-        '${',
-        # File access attempts
-        'file://',
-        '/etc/',
-        '/var/log',
-        # Network access attempts
-        'http://',
-        'https://',
-    ]
-
-    # Check for dangerous patterns
-    for pattern in dangerous_patterns:
-        if pattern in query:
-            logger.warning(f'Potentially dangerous query pattern detected: {pattern}')
-            return False
-
-    return True
+# validate_query function removed - now part of SecurityValidator class
 
 
 @mcp.tool(name='ExecuteQuery')
@@ -520,13 +463,15 @@ async def execute_query(
     region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
     profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
 ) -> Dict[str, Any]:
-    """Execute an instant query and return the result.
+    """Execute a PromQL query against Amazon Managed Prometheus.
 
     ## Usage
     - Use this tool to execute a PromQL query at a specific instant in time
     - The query will return the current value of the specified metrics
     - For time series data over a range, use execute_range_query instead
-    - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
+    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and choose from them
+    - Uses DescribeWorkspace API to get the exact workspace URL
+    - No manual URL construction is performed
 
     ## Example
     Input:
@@ -555,13 +500,13 @@ async def execute_query(
     - `sum by(instance) (rate(node_network_receive_bytes_total[5m]))` - Network receive rate by instance
     """
     try:
-        # Configure workspace for this request
+        # Configure workspace using the provided workspace_id
         workspace_config = await configure_workspace_for_request(ctx, workspace_id, region, profile)
 
         logger.info(f'Executing instant query: {query}')
 
         # Validate query for security
-        if not validate_query(query):
+        if not SecurityValidator.validate_query(query):
             error_msg = 'Query validation failed: potentially dangerous query pattern detected'
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -571,7 +516,7 @@ async def execute_query(
         if time:
             params['time'] = time
 
-        return await make_prometheus_request(
+        return await PrometheusClient.make_request(
             prometheus_url=workspace_config['prometheus_url'],
             endpoint='query', 
             params=params, 
@@ -610,7 +555,9 @@ async def execute_range_query(
     - Use this tool to execute a PromQL query over a time range
     - The query will return a series of values for the specified time range
     - Useful for generating time series data for graphs or trend analysis
-    - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
+    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and choose from them
+    - Uses DescribeWorkspace API to get the exact workspace URL
+    - No manual URL construction is performed
 
     ## Example
     Input:
@@ -632,13 +579,13 @@ async def execute_range_query(
       }
     """
     try:
-        # Configure workspace for this request
+        # Configure workspace using the provided workspace_id
         workspace_config = await configure_workspace_for_request(ctx, workspace_id, region, profile)
 
         logger.info(f'Executing range query: {query} from {start} to {end} with step {step}')
 
         # Validate query for security
-        if not validate_query(query):
+        if not SecurityValidator.validate_query(query):
             error_msg = 'Query validation failed: potentially dangerous query pattern detected'
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -646,7 +593,7 @@ async def execute_range_query(
 
         params = {'query': query, 'start': start, 'end': end, 'step': step}
 
-        return await make_prometheus_request(
+        return await PrometheusClient.make_request(
             prometheus_url=workspace_config['prometheus_url'],
             endpoint='query_range', 
             params=params, 
@@ -679,7 +626,7 @@ async def list_metrics(
     - Use this tool to discover available metrics in the Prometheus server
     - Returns a sorted list of all metric names
     - Useful for exploration before crafting specific queries
-    - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
+    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and choose from them and choose from them
 
     ## Example
     Input:
@@ -697,12 +644,12 @@ async def list_metrics(
       }
     """
     try:
-        # Configure workspace for this request
+        # Configure workspace using the provided workspace_id
         workspace_config = await configure_workspace_for_request(ctx, workspace_id, region, profile)
 
         logger.info('Listing all available metrics')
 
-        data = await make_prometheus_request(
+        data = await PrometheusClient.make_request(
             prometheus_url=workspace_config['prometheus_url'],
             endpoint='label/__name__/values', 
             params={}, 
@@ -736,7 +683,9 @@ async def get_server_info(
     - Use this tool to retrieve the current server configuration
     - Returns details about the Prometheus URL, AWS region, profile, and service name
     - Useful for debugging connection issues
-    - You must provide a workspace_id - use GetAvailableWorkspaces to see available workspaces
+    - If workspace_id is not known, use GetAvailableWorkspaces tool first to find available workspaces and choose from them and choose from them
+    - Uses DescribeWorkspace API to get the exact workspace URL
+    - No manual URL construction is performed
 
     ## Example
     Input:
@@ -752,7 +701,7 @@ async def get_server_info(
       }
     """
     try:
-        # Configure workspace for this request
+        # Configure workspace using the provided workspace_id
         workspace_config = await configure_workspace_for_request(ctx, workspace_id, region, profile)
 
         logger.info('Retrieving server configuration information')
@@ -780,9 +729,9 @@ async def get_available_workspaces(
 
     ## Usage
     - Use this tool to see all available Prometheus workspaces
-    - Shows workspace ID, alias, status, and creation date
-    - Use this to find workspace IDs needed for other tools
-    - Always call this first to get a workspace ID before using other tools
+    - Shows workspace ID, alias, status, and URL for active workspaces
+    - Uses DescribeWorkspace API to get the exact URL for each workspace
+    - No manual URL construction is performed
 
     ## Example
     Input:
@@ -795,13 +744,13 @@ async def get_available_workspaces(
             "workspace_id": "ws-12345678-abcd-1234-efgh-123456789012",
             "alias": "production",
             "status": "ACTIVE",
-            "created_at": "2023-01-15T10:30:00Z"
+            "prometheus_url": "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-12345678-abcd-1234-efgh-123456789012"
           },
           {
             "workspace_id": "ws-87654321-dcba-4321-hgfe-210987654321",
             "alias": "development",
             "status": "ACTIVE",
-            "created_at": "2023-02-20T14:15:00Z"
+            "prometheus_url": "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-87654321-dcba-4321-hgfe-210987654321"
           }
         ],
         "count": 2,
@@ -820,17 +769,28 @@ async def get_available_workspaces(
 
         workspaces = []
         for ws in response.get('workspaces', []):
-            workspaces.append(
-                {
-                    'workspace_id': ws['workspaceId'],
+            workspace_id = ws['workspaceId']
+            
+            # Only get details for active workspaces
+            if ws['status']['statusCode'] == 'ACTIVE':
+                try:
+                    # Get full details including URL from DescribeWorkspace API
+                    details = await get_workspace_details(workspace_id, aws_region, profile)
+                    workspaces.append(details)
+                except Exception as e:
+                    logger.warning(f"Could not get details for workspace {workspace_id}: {str(e)}")
+                    # Skip this workspace if we can't get its details
+                    continue
+            else:
+                # For non-active workspaces, just include basic info without URL
+                workspaces.append({
+                    'workspace_id': workspace_id,
                     'alias': ws.get('alias', 'No alias'),
                     'status': ws['status']['statusCode'],
-                    'created_at': ws.get('createdAt', '').isoformat()
-                    if ws.get('createdAt')
-                    else 'Unknown',
-                }
-            )
+                    'region': aws_region
+                })
 
+        logger.info(f'Found {len(workspaces)} workspaces in region {aws_region}')
         return {'workspaces': workspaces, 'count': len(workspaces), 'region': aws_region}
     except Exception as e:
         error_msg = f'Error listing workspaces: {str(e)}'
@@ -839,13 +799,16 @@ async def get_available_workspaces(
         raise
 
 
+
+
+
 async def configure_workspace_for_request(
     ctx: Context,
     workspace_id: str,
     region: Optional[str] = None,
     profile: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Configure the workspace for the current request.
+    """Configure the workspace for the current request using DescribeWorkspace API.
 
     Args:
         ctx: The MCP context
@@ -854,26 +817,25 @@ async def configure_workspace_for_request(
         profile: Optional AWS profile to use
         
     Returns:
-        Dictionary with workspace configuration
+        Dictionary with workspace configuration including the URL from DescribeWorkspace API
     """
     try:
         logger.info(f'Configuring workspace ID for request: {workspace_id}')
 
         # Validate workspace ID format
         if not workspace_id.startswith('ws-'):
-            logger.warning(
-                f'Workspace ID "{workspace_id}" does not start with "ws-", which is unusual'
-            )
+            logger.warning(f'Workspace ID "{workspace_id}" does not start with "ws-", which is unusual')
 
         # Use provided region or default
         aws_region = region or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
 
-        # Build the URL
-        prometheus_url = build_prometheus_url(workspace_id, aws_region)
-        logger.info(f'Built Prometheus URL: {prometheus_url}')
+        # Get workspace details from DescribeWorkspace API
+        workspace_details = await get_workspace_details(workspace_id, aws_region, profile)
+        prometheus_url = workspace_details['prometheus_url']
+        logger.info(f'Using Prometheus URL from DescribeWorkspace API: {prometheus_url}')
 
-        # Test connection with new URL
-        if not await test_prometheus_connection(prometheus_url, aws_region, profile):
+        # Test connection with the URL
+        if not await PrometheusConnection.test_connection(prometheus_url, aws_region, profile):
             error_msg = f'Failed to connect to Prometheus with workspace ID {workspace_id}'
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -909,19 +871,18 @@ def main():
     logger.info('Starting Prometheus MCP Server...')
 
     # Parse arguments
-    args = parse_arguments()
+    args = ConfigManager.parse_arguments()
 
-    # Load configuration
-    config_data = load_config(args)
+    # Setup basic configuration
+    config = ConfigManager.setup_basic_config(args)
 
-    # Setup environment (validate AWS credentials)
-    if not setup_environment(config_data):
-        logger.error('Environment setup failed')
+    # Validate AWS credentials
+    if not AWSCredentials.validate(config['region'], config['profile']):
+        logger.error('AWS credentials validation failed')
         sys.exit(1)
 
     # Run async initialization in an event loop
     import asyncio
-
     asyncio.run(async_main())
 
     logger.info('Starting server...')
