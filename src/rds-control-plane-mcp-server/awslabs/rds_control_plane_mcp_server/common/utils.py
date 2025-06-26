@@ -14,13 +14,20 @@
 
 """Utility functions for the RDS Control Plane MCP Server."""
 
-import inspect
 from .constants import ERROR_AWS_API, ERROR_UNEXPECTED
+from .models import (
+    ClusterMember,
+    ClusterModel,
+    InstanceEndpoint,
+    InstanceModel,
+    InstanceStorage,
+    VpcSecurityGroup,
+)
 from botocore.exceptions import ClientError
-from functools import wraps
 from loguru import logger
 from mcp.server.fastmcp import Context
-from typing import Any, Callable, Dict, Optional
+from mypy_boto3_rds.type_defs import DBClusterTypeDef, DBInstanceTypeDef
+from typing import Any, Dict, Optional
 
 
 def format_aws_response(response: Dict[str, Any]) -> Dict[str, Any]:
@@ -58,42 +65,6 @@ def convert_datetime_to_string(obj: Any) -> Any:
     elif isinstance(obj, list):
         return [convert_datetime_to_string(item) for item in obj]
     return obj
-
-
-def apply_docstring(docstring: str) -> Callable:
-    """Decorator to apply an external docstring to a function.
-
-    This decorator should be the innermost decorator applied to a function
-    (below the @mcp.resource decorator) to ensure the MCP framework sees the
-    updated docstring.
-
-    Args:
-        docstring: The docstring to apply to the function
-
-    Returns:
-        Decorator function that applies the docstring
-    """
-
-    def decorator(func: Callable) -> Callable:
-        # make sure async funcs are awaited
-        if inspect.iscoroutinefunction(func):
-
-            @wraps(func)
-            async def async_wrapper(*args, **kwargs):
-                return await func(*args, **kwargs)
-
-            async_wrapper.__doc__ = docstring
-            return async_wrapper
-        else:
-
-            @wraps(func)
-            def sync_wrapper(*args, **kwargs):
-                return func(*args, **kwargs)
-
-            sync_wrapper.__doc__ = docstring
-            return sync_wrapper
-
-    return decorator
 
 
 async def handle_aws_error(
@@ -137,3 +108,111 @@ async def handle_aws_error(
             await ctx.error(str(error))
 
     return error_response
+
+
+def format_cluster_info(cluster: DBClusterTypeDef) -> ClusterModel:
+    """Format cluster information from AWS API response into a structured model.
+
+    This method transforms the raw AWS API response data into a standardized
+    ClusterModel object, extracting and organizing key cluster attributes
+    including members, security groups, and tags.
+
+    Args:
+        cluster: Raw cluster data from AWS API response
+
+    Returns:
+        Formatted cluster information as a ClusterModel object
+    """
+    members = []
+    for member in cluster.get('DBClusterMembers', []):
+        members.append(
+            ClusterMember(
+                instance_id=member.get('DBInstanceIdentifier', ''),
+                is_writer=member.get('IsClusterWriter', False),
+                status=member.get('DBClusterParameterGroupStatus'),
+            )
+        )
+
+    vpc_security_groups = []
+    for sg in cluster.get('VpcSecurityGroups', []):
+        vpc_security_groups.append(
+            VpcSecurityGroup(id=sg.get('VpcSecurityGroupId', ''), status=sg.get('Status', ''))
+        )
+
+    tags = {}
+    if cluster.get('TagList'):
+        for tag in cluster.get('TagList', []):
+            if 'Key' in tag and 'Value' in tag:
+                tags[tag['Key']] = tag['Value']
+
+    return ClusterModel(
+        cluster_id=cluster.get('DBClusterIdentifier', ''),
+        status=cluster.get('Status', ''),
+        engine=cluster.get('Engine', ''),
+        engine_version=cluster.get('EngineVersion'),
+        endpoint=cluster.get('Endpoint'),
+        reader_endpoint=cluster.get('ReaderEndpoint'),
+        multi_az=cluster.get('MultiAZ', False),
+        backup_retention=cluster.get('BackupRetentionPeriod', 0),
+        preferred_backup_window=cluster.get('PreferredBackupWindow'),
+        preferred_maintenance_window=cluster.get('PreferredMaintenanceWindow'),
+        created_time=convert_datetime_to_string(cluster.get('ClusterCreateTime')),
+        members=members,
+        vpc_security_groups=vpc_security_groups,
+        tags=tags,
+        resource_uri=None,
+    )
+
+
+def format_instance_info(instance: DBInstanceTypeDef) -> InstanceModel:
+    """Format instance information for better readability.
+
+    Args:
+        instance: Raw instance data from AWS
+
+    Returns:
+        Formatted instance information as an InstanceModel
+    """
+    endpoint = InstanceEndpoint(
+        address=instance.get('Endpoint', {}).get('Address'),
+        port=instance.get('Endpoint', {}).get('Port'),
+        hosted_zone_id=instance.get('Endpoint', {}).get('HostedZoneId'),
+    )
+
+    storage = InstanceStorage(
+        type=instance.get('StorageType'),
+        allocated=instance.get('AllocatedStorage'),
+        encrypted=instance.get('StorageEncrypted'),
+    )
+
+    vpc_security_groups = []
+    for sg in instance.get('VpcSecurityGroups', []):
+        vpc_security_groups.append(
+            VpcSecurityGroup(id=sg.get('VpcSecurityGroupId', ''), status=sg.get('Status', ''))
+        )
+
+    tags = {}
+    if instance.get('TagList'):
+        for tag in instance.get('TagList', []):
+            if 'Key' in tag and 'Value' in tag:
+                tags[tag['Key']] = tag['Value']
+
+    return InstanceModel(
+        instance_id=instance.get('DBInstanceIdentifier', ''),
+        status=instance.get('DBInstanceStatus', ''),
+        engine=instance.get('Engine', ''),
+        engine_version=instance.get('EngineVersion', ''),
+        instance_class=instance.get('DBInstanceClass', ''),
+        endpoint=endpoint,
+        availability_zone=instance.get('AvailabilityZone'),
+        multi_az=instance.get('MultiAZ', False),
+        storage=storage,
+        preferred_backup_window=instance.get('PreferredBackupWindow'),
+        preferred_maintenance_window=instance.get('PreferredMaintenanceWindow'),
+        publicly_accessible=instance.get('PubliclyAccessible', False),
+        vpc_security_groups=vpc_security_groups,
+        db_cluster=instance.get('DBClusterIdentifier'),
+        tags=tags,
+        dbi_resource_id=instance.get('DbiResourceId'),
+        resource_uri=None,
+    )

@@ -23,38 +23,31 @@ from awslabs.rds_control_plane_mcp_server.common.clients import (
     get_rds_client,
 )
 from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
-from awslabs.rds_control_plane_mcp_server.common.utils import apply_docstring
-from awslabs.rds_control_plane_mcp_server.resources.clusters.discovery import (
-    get_cluster_detail_resource,
-    get_cluster_list_resource,
+from awslabs.rds_control_plane_mcp_server.resources.clusters.get_cluster_detail import (
+    GetClusterDetailHandler,
 )
-from awslabs.rds_control_plane_mcp_server.resources.docstrings import (
-    GET_CLUSTER_DOCSTRING,
-    GET_INSTANCE_DOCSTRING,
-    LIST_CLUSTERS_DOCSTRING,
-    LIST_DB_LOG_FILES_DOCSTRING,
-    LIST_INSTANCES_DOCSTRING,
-    LIST_PERFORMANCE_REPORTS_DOCSTRING,
-    READ_PERFORMANCE_REPORT_DOCSTRING,
+from awslabs.rds_control_plane_mcp_server.resources.clusters.list_clusters import (
+    ListClustersHandler,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instances.discovery import (
-    get_instance_detail_resource,
-    get_instance_list_resource,
+from awslabs.rds_control_plane_mcp_server.resources.instances.get_instance_detail import (
+    GetInstanceDetailHandler,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instances.logs import list_db_log_files
-from awslabs.rds_control_plane_mcp_server.resources.instances.reports import (
-    list_performance_reports,
-    read_performance_report,
+from awslabs.rds_control_plane_mcp_server.resources.instances.list_db_logs import ListDBLogsHandler
+from awslabs.rds_control_plane_mcp_server.resources.instances.list_instances import (
+    ListInstancesHandler,
+)
+from awslabs.rds_control_plane_mcp_server.resources.instances.list_performance_reports import (
+    ListPerformanceReportHandler,
+)
+from awslabs.rds_control_plane_mcp_server.resources.instances.read_performance_report import (
+    ReadPerformanceReportHandler,
 )
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
 
 
-mcp = FastMCP(
-    'awslabs.rds-control-plane-mcp-server',
-    version=MCP_SERVER_VERSION,
-    instructions="""This server provides access to Amazon RDS database instances and clusters.
+SERVER_INSTRUCTIONS = """
+This server provides access to Amazon RDS database instances and clusters.
 
 Key capabilities:
 - View detailed information about RDS DB instances
@@ -62,23 +55,28 @@ Key capabilities:
 - Access connection endpoints, configuration, and status information
 - List performance reports and log files for DB instances
 
-The server operates in read-only mode by default, providing safe access to RDS resources.""",
-    dependencies=[
-        'pydantic',
-        'loguru',
-        'boto3',
-    ],
-)
+The server operates in read-only mode by default, providing safe access to RDS resources.
+"""
 
-# Remove all default handlers then add our own
-logger.remove()
-logger.add(sys.stderr, level='INFO')
+SERVER_DEPENDENCIES = ['pydantic', 'loguru', 'boto3']
+
+# Global reference to the MCP server instance for testing purposes
+_mcp = None
+
+
+def create_mcp_server():
+    """Create and configure the MCP server instance."""
+    return FastMCP(
+        'awslabs.rds-control-plane-mcp-server',
+        version=MCP_SERVER_VERSION,
+        instructions=SERVER_INSTRUCTIONS,
+        dependencies=SERVER_DEPENDENCIES,
+    )
+
 
 global _pi_client
 global _rds_client
 global _cloudwatch_client
-global _readonly
-_readonly = True
 
 try:
     _pi_client = get_pi_client(
@@ -92,104 +90,14 @@ except Exception as e:
     logger.error(f'Error getting RDS or PI clients: {e}')
     raise e
 
-# ===== RESOURCES =====
-# read-only access to RDS data
-
-
-@mcp.resource(uri='aws-rds://db-cluster', name='DB Clusters', mime_type='application/json')
-@apply_docstring(LIST_CLUSTERS_DOCSTRING)
-async def list_clusters_resource() -> str:
-    """List all available Amazon RDS clusters in your account."""
-    return await get_cluster_list_resource(rds_client=_rds_client)
-
-
-@mcp.resource(
-    uri='aws-rds://db-cluster/{cluster_id}',
-    name='DB Cluster Details',
-    mime_type='application/json',
-)
-@apply_docstring(GET_CLUSTER_DOCSTRING)
-async def get_cluster_resource(cluster_id: str) -> str:
-    """Get detailed information about a specific Amazon RDS cluster."""
-    return await get_cluster_detail_resource(cluster_id=cluster_id, rds_client=_rds_client)
-
-
-@mcp.resource(uri='aws-rds://db-instance', name='DB Instances', mime_type='application/json')
-@apply_docstring(LIST_INSTANCES_DOCSTRING)
-async def list_instances_resource() -> str:
-    """List all available Amazon RDS instances in your account."""
-    return await get_instance_list_resource(rds_client=_rds_client)
-
-
-@mcp.resource(
-    uri='aws-rds://db-instance/{instance_id}',
-    name='DB Instance Details',
-    mime_type='application/json',
-)
-@apply_docstring(GET_INSTANCE_DOCSTRING)
-async def get_instance_resource(instance_id: str) -> str:
-    """Get detailed information about a specific Amazon RDS instance."""
-    return await get_instance_detail_resource(instance_id, _rds_client)
-
-
-@mcp.resource(
-    uri='aws-rds://db-instance/{dbi_resource_identifier}/performance_report',
-    name='ListPerformanceReports',
-    mime_type='application/json',
-)
-@apply_docstring(LIST_PERFORMANCE_REPORTS_DOCSTRING)
-async def list_performance_reports_resource(
-    dbi_resource_identifier: str = Field(
-        ..., description='The resource identifier for the DB instance'
-    ),
-) -> str:
-    """List all available performance reports for a specific Amazon RDS instance."""
-    return await list_performance_reports(
-        dbi_resource_identifier,
-        _pi_client,
-    )
-
-
-@mcp.resource(
-    uri='aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_identifier}',
-    name='ReadPerformanceReport',
-    mime_type='text/plain',
-)
-@apply_docstring(READ_PERFORMANCE_REPORT_DOCSTRING)
-async def read_performance_report_resource(
-    dbi_resource_identifier: str = Field(
-        ..., description='The resource identifier for the DB instance'
-    ),
-    report_identifier: str = Field(
-        ..., description='The identifier for the report you want to read'
-    ),
-) -> str:
-    """Read the contents of a specific performance report for a specific Amazon RDS instance."""
-    return await read_performance_report(
-        dbi_resource_identifier=dbi_resource_identifier,
-        report_id=report_identifier,
-        pi_client=_pi_client,
-    )
-
-
-@mcp.resource(
-    uri='aws-rds://db-instance/{db_instance_identifier}/log',
-    name='ListDBLogFiles',
-    mime_type='application/json',
-)
-@apply_docstring(LIST_DB_LOG_FILES_DOCSTRING)
-async def list_db_log_files_resource(
-    db_instance_identifier: str = Field(..., description='The identifier for the DB instance'),
-) -> str:
-    """List all available log files for a specific Amazon RDS instance."""
-    return await list_db_log_files(
-        db_instance_identifier=db_instance_identifier, rds_client=_rds_client
-    )
+logger.remove()
+logger.add(sys.stderr, level='INFO')
 
 
 def main():
     """Run the MCP server with CLI argument support."""
     global _readonly
+    global _mcp
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs MCP server for Amazon RDS control plane operations'
@@ -209,25 +117,36 @@ def main():
         help='Whether to run in read-only mode (default: true)',
     )
 
+    _mcp = create_mcp_server()
+    _mcp.resource
+
     args = parser.parse_args()
 
-    # global configuration
     _readonly = args.readonly.lower() == 'true'
-
-    # Max items to fetch
     config.max_items = args.max_items
 
     # MCP server port
     if args.port:
-        mcp.settings.port = args.port
+        _mcp.settings.port = args.port
 
     # log configuration
     logger.info(f'Starting RDS Control Plane MCP Server v{MCP_SERVER_VERSION}')
     logger.info(f'Read-only mode: {_readonly}')
     logger.info(f'Max items to fetch: {config.max_items}')
 
+    # Initialize resource handlers - these are all READ-ONLY operations
+    ListClustersHandler(_mcp, _rds_client)
+    GetClusterDetailHandler(_mcp, _rds_client)
+    ListInstancesHandler(_mcp, _rds_client)
+    GetInstanceDetailHandler(_mcp, _rds_client)
+    ListDBLogsHandler(_mcp, _rds_client)
+    ListPerformanceReportHandler(_mcp, _pi_client)
+    ReadPerformanceReportHandler(_mcp, _pi_client)
+
     # default streamable HTTP transport
-    mcp.run()
+    _mcp.run()
+
+    return _mcp
 
 
 if __name__ == '__main__':
