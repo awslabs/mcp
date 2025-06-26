@@ -31,7 +31,7 @@ class TestAnalyzeCdkProject:
     @pytest.mark.asyncio
     async def test_analyze_valid_project(self, mock_context, sample_cdk_project):
         """Test analyzing a valid CDK project."""
-        result = await analyze_cdk_project_wrapper(sample_cdk_project, mock_context)
+        result = await analyze_cdk_project_wrapper(mock_context, sample_cdk_project)
 
         assert result is not None
         assert result['status'] == 'success'
@@ -47,7 +47,7 @@ class TestAnalyzeCdkProject:
     @pytest.mark.asyncio
     async def test_analyze_invalid_project(self, mock_context, temp_output_dir):
         """Test analyzing an invalid/empty project directory."""
-        result = await analyze_cdk_project_wrapper(temp_output_dir, mock_context)
+        result = await analyze_cdk_project_wrapper(mock_context, temp_output_dir)
 
         assert result is not None
         assert result['status'] == 'success'
@@ -59,7 +59,7 @@ class TestAnalyzeCdkProject:
     @pytest.mark.asyncio
     async def test_analyze_nonexistent_project(self, mock_context):
         """Test analyzing a nonexistent project directory."""
-        result = await analyze_cdk_project_wrapper('/nonexistent/path', mock_context)
+        result = await analyze_cdk_project_wrapper(mock_context, '/nonexistent/path')
 
         assert result is not None
         assert 'services' in result
@@ -86,7 +86,7 @@ class TestGetPricingFromWeb:
         mock_response.raise_for_status = MagicMock()
         mock_get.return_value = mock_response
 
-        result = await get_pricing_from_web('lambda', mock_context)
+        result = await get_pricing_from_web(mock_context, 'lambda')
 
         assert result is not None
         assert result['status'] == 'success'
@@ -100,7 +100,7 @@ class TestGetPricingFromWeb:
         """Test handling of connection errors."""
         mock_get.side_effect = Exception('Connection failed')
 
-        result = await get_pricing_from_web('lambda', mock_context)
+        result = await get_pricing_from_web(mock_context, 'lambda')
 
         assert result is None
         mock_context.error.assert_called_once()
@@ -113,7 +113,7 @@ class TestGetPricingFromWeb:
         mock_response.raise_for_status.side_effect = Exception('404 Not Found')
         mock_get.return_value = mock_response
 
-        result = await get_pricing_from_web('invalid-service', mock_context)
+        result = await get_pricing_from_web(mock_context, 'invalid-service')
 
         assert result is None
         mock_context.error.assert_called_once()
@@ -126,7 +126,7 @@ class TestGetPricingFromApi:
     async def test_get_valid_pricing(self, mock_boto3, mock_context):
         """Test getting pricing for a valid service."""
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_from_api('AWSLambda', 'us-west-2', mock_context)
+            result = await get_pricing_from_api(mock_context, 'AWSLambda', 'us-west-2')
 
         assert result is not None
         assert result['status'] == 'success'
@@ -141,7 +141,7 @@ class TestGetPricingFromApi:
         pricing_client.get_products.return_value = {'PriceList': []}
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_from_api('InvalidService', 'us-west-2', mock_context)
+            result = await get_pricing_from_api(mock_context, 'InvalidService', 'us-west-2')
 
         assert result is not None
         assert result['status'] == 'error'
@@ -155,7 +155,7 @@ class TestGetPricingFromApi:
         pricing_client.get_products.side_effect = Exception('API Error')
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_from_api('AWSLambda', 'us-west-2', mock_context)
+            result = await get_pricing_from_api(mock_context, 'AWSLambda', 'us-west-2')
 
         assert result is not None
         assert result['status'] == 'error'
@@ -184,6 +184,7 @@ class TestGenerateCostReport:
     async def test_generate_markdown_report(self, mock_context, sample_pricing_data_web):
         """Test generating a markdown cost report."""
         result = await generate_cost_report_wrapper(
+            mock_context,
             pricing_data=sample_pricing_data_web,
             service_name='AWS Lambda',
             related_services=['DynamoDB'],
@@ -191,7 +192,6 @@ class TestGenerateCostReport:
             assumptions=['Standard configuration'],
             exclusions=['Custom configurations'],
             format='markdown',
-            ctx=mock_context,
         )
 
         assert result is not None
@@ -201,10 +201,17 @@ class TestGenerateCostReport:
     async def test_generate_csv_report(self, mock_context, sample_pricing_data_web):
         """Test generating a CSV cost report."""
         result = await generate_cost_report_wrapper(
+            mock_context,
             pricing_data=sample_pricing_data_web,
             service_name='AWS Lambda',
             format='csv',
-            ctx=mock_context,
+            pricing_model='ON DEMAND',
+            related_services=None,
+            assumptions=None,
+            exclusions=None,
+            output_file=None,
+            detailed_cost_data=None,
+            recommendations=None,
         )
 
         assert result is not None
@@ -234,11 +241,16 @@ class TestGenerateCostReport:
         }
 
         result = await generate_cost_report_wrapper(
+            mock_context,
             pricing_data=sample_pricing_data_web,
             service_name='AWS Lambda',
             detailed_cost_data=detailed_cost_data,
             output_file=f'{temp_output_dir}/report.md',
-            ctx=mock_context,
+            pricing_model='ON DEMAND',
+            related_services=None,
+            assumptions=None,
+            exclusions=None,
+            recommendations=None,
         )
 
         assert result is not None
@@ -251,7 +263,16 @@ class TestGenerateCostReport:
     async def test_generate_report_error_handling(self, mock_context):
         """Test error handling in report generation."""
         result = await generate_cost_report_wrapper(
-            pricing_data={'status': 'error'}, service_name='Invalid Service', ctx=mock_context
+            mock_context,
+            pricing_data={'status': 'error'},
+            service_name='Invalid Service',
+            pricing_model='ON DEMAND',
+            related_services=None,
+            assumptions=None,
+            exclusions=None,
+            output_file=None,
+            detailed_cost_data=None,
+            recommendations=None,
         )
 
         assert '# Invalid Service Cost Analysis' in result
@@ -264,19 +285,28 @@ class TestServerIntegration:
     async def test_pricing_workflow(self, mock_context, mock_boto3):
         """Test the complete pricing analysis workflow."""
         # 1. Get pricing from web
-        web_pricing = await get_pricing_from_web('lambda', mock_context)
+        web_pricing = await get_pricing_from_web(mock_context, 'lambda')
         assert web_pricing is not None
         assert web_pricing['status'] == 'success'
 
         # 2. Get pricing from API as fallback
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            api_pricing = await get_pricing_from_api('AWSLambda', 'us-west-2', mock_context)
+            api_pricing = await get_pricing_from_api(mock_context, 'AWSLambda', 'us-west-2')
         assert api_pricing is not None
         assert api_pricing['status'] == 'success'
 
         # 3. Generate cost report
         report = await generate_cost_report_wrapper(
-            pricing_data=web_pricing, service_name='AWS Lambda', ctx=mock_context
+            mock_context,
+            pricing_data=web_pricing,
+            service_name='AWS Lambda',
+            pricing_model='ON DEMAND',
+            related_services=None,
+            assumptions=None,
+            exclusions=None,
+            output_file=None,
+            detailed_cost_data=None,
+            recommendations=None,
         )
         assert report is not None
         assert isinstance(report, str)

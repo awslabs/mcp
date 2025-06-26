@@ -29,6 +29,8 @@ from bs4 import BeautifulSoup
 from httpx import AsyncClient
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from pydantic import Field
+from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional
 
 
@@ -114,7 +116,10 @@ logger.info(f'Using AWS profile {profile_name}')
     name='analyze_cdk_project',
     description='Analyze a CDK project to identify AWS services used. This tool dynamically extracts service information from CDK constructs without relying on hardcoded service mappings.',
 )
-async def analyze_cdk_project_wrapper(project_path: str, ctx: Context) -> Optional[Dict]:
+async def analyze_cdk_project_wrapper(
+    ctx: Context,
+    project_path: str = Field(..., description='Path to the project directory'),
+) -> Optional[Dict]:
     """Analyze a CDK project to identify AWS services.
 
     Args:
@@ -146,7 +151,10 @@ async def analyze_cdk_project_wrapper(project_path: str, ctx: Context) -> Option
     name='analyze_terraform_project',
     description='Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
 )
-async def analyze_terraform_project_wrapper(project_path: str, ctx: Context) -> Optional[Dict]:
+async def analyze_terraform_project_wrapper(
+    ctx: Context,
+    project_path: str = Field(..., description='Path to the project directory'),
+) -> Optional[Dict]:
     """Analyze a Terraform project to identify AWS services.
 
     Args:
@@ -178,7 +186,13 @@ async def analyze_terraform_project_wrapper(project_path: str, ctx: Context) -> 
     name='get_pricing_from_web',
     description='Get pricing information from AWS pricing webpage. Service codes typically use lowercase with hyphens format (e.g., "opensearch-service" for both OpenSearch and OpenSearch Serverless, "api-gateway", "lambda"). Note that some services like OpenSearch Serverless are part of broader service codes (use "opensearch-service" not "opensearch-serverless"). Important: Web service codes differ from API service codes (e.g., use "opensearch-service" for web but "AmazonES" for API). When retrieving foundation model pricing, always use the latest models for comparison rather than specific named ones that may become outdated.',
 )
-async def get_pricing_from_web(service_code: str, ctx: Context) -> Optional[Dict]:
+async def get_pricing_from_web(
+    ctx: Context,
+    service_code: str = Field(
+        ...,
+        description='AWS service code for web pricing (lowercase with hyphens, e.g., "opensearch-service", "lambda")',
+    ),
+) -> Optional[Dict]:
     """Get pricing information from AWS pricing webpage.
 
     Args:
@@ -260,7 +274,16 @@ async def get_pricing_from_web(service_code: str, ctx: Context) -> Optional[Dict
     """,
 )
 async def get_pricing_from_api(
-    service_code: str, region: str, ctx: Context, filters: Optional[PricingFilters] = None
+    ctx: Context,
+    service_code: str = Field(
+        ..., description='AWS service code (e.g., "AmazonEC2", "AmazonS3", "AmazonES")'
+    ),
+    region: str = Field(
+        ..., description='AWS region (e.g., "us-east-1", "us-west-2", "eu-west-1")'
+    ),
+    filters: Optional[PricingFilters] = Field(
+        None, description='Optional filters for pricing queries'
+    ),
 ) -> Optional[Dict]:
     """Get pricing information from AWS Price List API. If the API request fails in the initial attempt, retry by modifying the service_code.
 
@@ -273,6 +296,10 @@ async def get_pricing_from_api(
     Returns:
         Dictionary containing pricing information from AWS Pricing API
     """
+    # Handle Pydantic Field objects when called directly (not through MCP framework)
+    if isinstance(filters, FieldInfo):
+        filters = filters.default
+
     try:
         pricing_client = create_pricing_client()
 
@@ -468,21 +495,33 @@ Example usage:
 """,
 )
 async def generate_cost_report_wrapper(
-    pricing_data: Dict[str, Any],  # Required: Raw pricing data from AWS
-    service_name: str,  # Required: Primary service name
+    ctx: Context,
+    pricing_data: Dict[str, Any] = Field(
+        ..., description='Raw pricing data from AWS pricing tools'
+    ),
+    service_name: str = Field(..., description='Name of the AWS service'),
     # Core parameters (simple, commonly used)
-    related_services: Optional[List[str]] = None,
-    pricing_model: str = 'ON DEMAND',
-    assumptions: Optional[List[str]] = None,
-    exclusions: Optional[List[str]] = None,
-    output_file: Optional[str] = None,
-    format: str = 'markdown',  # Output format ('markdown' or 'csv')
+    related_services: Optional[List[str]] = Field(
+        None, description='List of related AWS services'
+    ),
+    pricing_model: str = Field(
+        'ON DEMAND', description='Pricing model (e.g., "ON DEMAND", "Reserved")'
+    ),
+    assumptions: Optional[List[str]] = Field(
+        None, description='List of assumptions for cost analysis'
+    ),
+    exclusions: Optional[List[str]] = Field(
+        None, description='List of items excluded from cost analysis'
+    ),
+    output_file: Optional[str] = Field(None, description='Path to save the report file'),
+    format: str = Field('markdown', description='Output format ("markdown" or "csv")'),
     # Advanced parameters (grouped in a dictionary for complex use cases)
-    detailed_cost_data: Optional[Dict[str, Any]] = None,
-    recommendations: Optional[
-        Dict[str, Any]
-    ] = None,  # Direct recommendations or guidance for generation
-    ctx: Optional[Context] = None,
+    detailed_cost_data: Optional[Dict[str, Any]] = Field(
+        None, description='Detailed cost information for complex scenarios'
+    ),
+    recommendations: Optional[Dict[str, Any]] = Field(
+        None, description='Direct recommendations or guidance for generation'
+    ),
 ) -> str:
     """Generate a cost analysis report for AWS services.
 
