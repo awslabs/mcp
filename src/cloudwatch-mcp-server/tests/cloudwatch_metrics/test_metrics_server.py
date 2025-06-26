@@ -101,10 +101,10 @@ class TestGetMetricData:
             ctx,
             namespace='AWS/EC2',
             metric_name='CPUUtilization',
-            dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
             start_time=start_time,
+            dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
             end_time=end_time,
-            statistic='Average',
+            statistic='AVG',
             target_datapoints=60,
         )
 
@@ -113,6 +113,7 @@ class TestGetMetricData:
         call_args = cloudwatch_metrics_tools.cloudwatch_client.get_metric_data.call_args[1]
         
         assert len(call_args['MetricDataQueries']) == 1
+        assert 'MetricStat' in call_args['MetricDataQueries'][0]
         assert call_args['MetricDataQueries'][0]['MetricStat']['Metric']['Namespace'] == 'AWS/EC2'
         assert call_args['MetricDataQueries'][0]['MetricStat']['Metric']['MetricName'] == 'CPUUtilization'
         assert call_args['MetricDataQueries'][0]['MetricStat']['Stat'] == 'Average'
@@ -151,10 +152,10 @@ class TestGetMetricData:
             ctx,
             namespace='AWS/EC2',
             metric_name='CPUUtilization',
-            dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
             start_time='2023-01-01T00:00:00Z',
+            dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
             end_time='2023-01-01T01:00:00Z',
-            statistic='Average',
+            statistic='AVG',
             target_datapoints=60,
         )
 
@@ -181,10 +182,10 @@ class TestGetMetricData:
             ctx,
             namespace='AWS/EC2',
             metric_name='CPUUtilization',
-            dimensions=[],
             start_time=start_time,
+            dimensions=[],
             end_time=end_time,
-            statistic='Average',
+            statistic='AVG',
             target_datapoints=30,  # 7200 / 30 = 240 seconds
         )
 
@@ -194,6 +195,304 @@ class TestGetMetricData:
         
         # Period should be 240 seconds (rounded to nearest multiple of 60)
         assert calculated_period == 240
+
+    async def test_get_metric_data_with_metrics_insights_group_by(self, ctx, cloudwatch_metrics_tools):
+        """Test metric data retrieval using Metrics Insights with group by."""
+        # Mock the CloudWatch client's get_metric_data method
+        cloudwatch_metrics_tools.cloudwatch_client.get_metric_data = MagicMock(
+            return_value={
+                'MetricDataResults': [
+                    {
+                        'Id': 'm1',
+                        'Label': 'Average(CPUUtilization)',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [
+                            datetime(2023, 1, 1, 0, 0, 0),
+                            datetime(2023, 1, 1, 0, 5, 0),
+                        ],
+                        'Values': [10.5, 15.2],
+                    }
+                ],
+            }
+        )
+
+        # Call the tool with group_by_dimension to trigger Metrics Insights mode
+        start_time = datetime(2023, 1, 1, 0, 0, 0)
+        end_time = datetime(2023, 1, 1, 1, 0, 0)
+        
+        result = await cloudwatch_metrics_tools.get_metric_data(
+            ctx,
+            namespace='AWS/EC2',
+            metric_name='CPUUtilization',
+            start_time=start_time,
+            end_time=end_time,
+            statistic='AVG',
+            target_datapoints=60,
+            schema_dimension_keys=['InstanceType'],
+            group_by_dimension='InstanceType'
+        )
+
+        # Verify the CloudWatch client was called with correct parameters
+        cloudwatch_metrics_tools.cloudwatch_client.get_metric_data.assert_called_once()
+        call_args = cloudwatch_metrics_tools.cloudwatch_client.get_metric_data.call_args[1]
+        
+        assert len(call_args['MetricDataQueries']) == 1
+        assert 'Expression' in call_args['MetricDataQueries'][0]
+        assert 'SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceType") GROUP BY "InstanceType"' in call_args['MetricDataQueries'][0]['Expression']
+        assert call_args['StartTime'] == start_time
+        assert call_args['EndTime'] == end_time
+
+        # Verify the result structure
+        assert isinstance(result, GetMetricDataResponse)
+        assert len(result.metricDataResults) == 1
+        assert result.metricDataResults[0].label == 'Average(CPUUtilization)'
+        assert len(result.metricDataResults[0].datapoints) == 2
+
+    async def test_get_metric_data_with_metrics_insights_dimension_keys(self, ctx, cloudwatch_metrics_tools):
+        """Test metric data retrieval using Metrics Insights with dimension keys."""
+        # Mock the CloudWatch client's get_metric_data method
+        cloudwatch_metrics_tools.cloudwatch_client.get_metric_data = MagicMock(
+            return_value={
+                'MetricDataResults': [
+                    {
+                        'Id': 'm1',
+                        'Label': 'Average(CPUUtilization)',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [datetime(2023, 1, 1, 0, 0, 0)],
+                        'Values': [10.5],
+                    }
+                ],
+            }
+        )
+
+        # Call the tool with dimension_keys to trigger Metrics Insights mode
+        result = await cloudwatch_metrics_tools.get_metric_data(
+            ctx,
+            namespace='AWS/EC2',
+            metric_name='CPUUtilization',
+            start_time='2023-01-01T00:00:00Z',
+            end_time='2023-01-01T01:00:00Z',
+            statistic='AVG',
+            schema_dimension_keys=['InstanceId', 'InstanceType'],
+            group_by_dimension='InstanceId'
+        )
+
+        # Verify the CloudWatch client was called with correct parameters
+        call_args = cloudwatch_metrics_tools.cloudwatch_client.get_metric_data.call_args[1]
+        
+        assert 'Expression' in call_args['MetricDataQueries'][0]
+        assert 'SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId", "InstanceType") GROUP BY "InstanceId"' in call_args['MetricDataQueries'][0]['Expression']
+
+    async def test_get_metric_data_with_metrics_insights_limit_and_order(self, ctx, cloudwatch_metrics_tools):
+        """Test metric data retrieval using Metrics Insights with ORDER BY and LIMIT."""
+        # Mock the CloudWatch client's get_metric_data method
+        cloudwatch_metrics_tools.cloudwatch_client.get_metric_data = MagicMock(
+            return_value={
+                'MetricDataResults': [
+                    {
+                        'Id': 'm1',
+                        'Label': 'Average(CPUUtilization)',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [datetime(2023, 1, 1, 0, 0, 0)],
+                        'Values': [10.5],
+                    }
+                ],
+            }
+        )
+
+        # Call the tool with limit to trigger Metrics Insights mode with sorting
+        result = await cloudwatch_metrics_tools.get_metric_data(
+            ctx,
+            namespace='AWS/EC2',
+            metric_name='CPUUtilization',
+            start_time='2023-01-01T00:00:00Z',
+            end_time='2023-01-01T01:00:00Z',
+            statistic='AVG',
+            limit=5,
+            sort_order='DESC',
+            order_by_statistic='AVG',  # Added order_by_statistic
+            group_by_dimension='InstanceId',
+            schema_dimension_keys=['InstanceId']
+        )
+
+        # Verify the CloudWatch client was called with correct parameters
+        call_args = cloudwatch_metrics_tools.cloudwatch_client.get_metric_data.call_args[1]
+        
+        assert 'Expression' in call_args['MetricDataQueries'][0]
+        expected_query = 'SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId") GROUP BY "InstanceId" ORDER BY AVG() DESC LIMIT 5'
+        assert expected_query in call_args['MetricDataQueries'][0]['Expression']
+
+    async def test_get_metric_data_with_different_order_by_statistic(self, ctx, cloudwatch_metrics_tools):
+        """Test metric data retrieval using Metrics Insights with a different ORDER BY statistic."""
+        # Mock the CloudWatch client's get_metric_data method
+        cloudwatch_metrics_tools.cloudwatch_client.get_metric_data = MagicMock(
+            return_value={
+                'MetricDataResults': [
+                    {
+                        'Id': 'm1',
+                        'Label': 'Average(CPUUtilization)',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [datetime(2023, 1, 1, 0, 0, 0)],
+                        'Values': [10.5],
+                    }
+                ],
+            }
+        )
+
+        # Call the tool with a different order_by_statistic
+        result = await cloudwatch_metrics_tools.get_metric_data(
+            ctx,
+            namespace='AWS/EC2',
+            metric_name='CPUUtilization',
+            start_time='2023-01-01T00:00:00Z',
+            end_time='2023-01-01T01:00:00Z',
+            statistic='AVG',
+            limit=5,
+            sort_order='DESC',
+            group_by_dimension='InstanceId',
+            order_by_statistic='MAX',
+            schema_dimension_keys=['InstanceId']
+        )
+
+        # Verify the CloudWatch client was called with correct parameters
+        call_args = cloudwatch_metrics_tools.cloudwatch_client.get_metric_data.call_args[1]
+        
+        assert 'Expression' in call_args['MetricDataQueries'][0]
+        expected_query = 'SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId") GROUP BY "InstanceId" ORDER BY MAX() DESC LIMIT 5'
+        assert expected_query in call_args['MetricDataQueries'][0]['Expression']
+
+    async def test_get_metric_data_with_metrics_insights_and_dimensions(self, ctx, cloudwatch_metrics_tools):
+        """Test metric data retrieval using Metrics Insights with dimensions as filters."""
+        # Mock the CloudWatch client's get_metric_data method
+        cloudwatch_metrics_tools.cloudwatch_client.get_metric_data = MagicMock(
+            return_value={
+                'MetricDataResults': [
+                    {
+                        'Id': 'm1',
+                        'Label': 'Average(CPUUtilization)',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [datetime(2023, 1, 1, 0, 0, 0)],
+                        'Values': [10.5],
+                    }
+                ],
+            }
+        )
+
+        # Call the tool with dimensions and group_by_dimension
+        result = await cloudwatch_metrics_tools.get_metric_data(
+            ctx,
+            namespace='AWS/EC2',
+            metric_name='CPUUtilization',
+            start_time='2023-01-01T00:00:00Z',
+            dimensions=[Dimension(name='InstanceType', value='t2.micro')],
+            end_time='2023-01-01T01:00:00Z',
+            statistic='AVG',
+            group_by_dimension='InstanceId',
+            schema_dimension_keys=['InstanceId']
+        )
+
+        # Verify the CloudWatch client was called with correct parameters
+        call_args = cloudwatch_metrics_tools.cloudwatch_client.get_metric_data.call_args[1]
+        
+        assert 'Expression' in call_args['MetricDataQueries'][0]
+        expected_query = 'SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId") WHERE "InstanceType"=\'t2.micro\' GROUP BY "InstanceId"'
+        assert expected_query in call_args['MetricDataQueries'][0]['Expression']
+
+
+
+    async def test_order_by_statistic_without_sort_order(self, ctx, cloudwatch_metrics_tools):
+        """Test that ORDER BY clause is added when order_by_statistic is specified but sort_order is not."""
+        # Mock the CloudWatch client's get_metric_data method
+        cloudwatch_metrics_tools.cloudwatch_client.get_metric_data = MagicMock(
+            return_value={
+                'MetricDataResults': [
+                    {
+                        'Id': 'm1',
+                        'Label': 'Average(CPUUtilization)',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [datetime(2023, 1, 1, 0, 0, 0)],
+                        'Values': [10.5],
+                    }
+                ],
+            }
+        )
+
+        # Call the tool with order_by_statistic but without sort_order
+        result = await cloudwatch_metrics_tools.get_metric_data(
+            ctx,
+            namespace='AWS/EC2',
+            metric_name='CPUUtilization',
+            start_time='2023-01-01T00:00:00Z',
+            end_time='2023-01-01T01:00:00Z',
+            statistic='AVG',
+            group_by_dimension='InstanceId',
+            schema_dimension_keys=['InstanceId'],
+            order_by_statistic='MAX'  # Specify order_by_statistic but not sort_order
+        )
+
+        # Verify the CloudWatch client was called with correct parameters
+        call_args = cloudwatch_metrics_tools.cloudwatch_client.get_metric_data.call_args[1]
+        
+        assert 'Expression' in call_args['MetricDataQueries'][0]
+        expected_query = 'SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId") GROUP BY "InstanceId" ORDER BY MAX()'
+        assert expected_query in call_args['MetricDataQueries'][0]['Expression']
+        
+    async def test_no_order_by_when_neither_specified(self, ctx, cloudwatch_metrics_tools):
+        """Test that ORDER BY clause is not added when neither order_by_statistic nor sort_order is specified."""
+        # Mock the CloudWatch client's get_metric_data method
+        cloudwatch_metrics_tools.cloudwatch_client.get_metric_data = MagicMock(
+            return_value={
+                'MetricDataResults': [
+                    {
+                        'Id': 'm1',
+                        'Label': 'Average(CPUUtilization)',
+                        'StatusCode': 'Complete',
+                        'Timestamps': [datetime(2023, 1, 1, 0, 0, 0)],
+                        'Values': [10.5],
+                    }
+                ],
+            }
+        )
+
+        # Call the tool without order_by_statistic or sort_order
+        result = await cloudwatch_metrics_tools.get_metric_data(
+            ctx,
+            namespace='AWS/EC2',
+            metric_name='CPUUtilization',
+            start_time='2023-01-01T00:00:00Z',
+            end_time='2023-01-01T01:00:00Z',
+            statistic='AVG',
+            group_by_dimension='InstanceId',
+            schema_dimension_keys=['InstanceId']
+            # No order_by_statistic or sort_order
+        )
+
+        # Verify the CloudWatch client was called with correct parameters
+        call_args = cloudwatch_metrics_tools.cloudwatch_client.get_metric_data.call_args[1]
+        
+        assert 'Expression' in call_args['MetricDataQueries'][0]
+        expected_query = 'SELECT AVG("CPUUtilization") FROM SCHEMA("AWS/EC2", "InstanceId") GROUP BY "InstanceId"'
+        assert expected_query in call_args['MetricDataQueries'][0]['Expression']
+        assert 'ORDER BY' not in call_args['MetricDataQueries'][0]['Expression']
+        
+    async def test_error_when_sort_order_without_order_by_statistic(self, ctx, cloudwatch_metrics_tools):
+        """Test that an error is raised when sort_order is specified but order_by_statistic is not."""
+        # Call the tool with sort_order but without order_by_statistic
+        with pytest.raises(ValueError) as excinfo:
+            await cloudwatch_metrics_tools.get_metric_data(
+                ctx,
+                namespace='AWS/EC2',
+                metric_name='CPUUtilization',
+                start_time='2023-01-01T00:00:00Z',
+                end_time='2023-01-01T01:00:00Z',
+                statistic='AVG',
+                group_by_dimension='InstanceId',
+                schema_dimension_keys=['InstanceId'],
+                sort_order='DESC'  # Specify sort_order but not order_by_statistic
+            )
+        
+        # Verify the error message
+        assert "If sort_order is specified, order_by_statistic must also be specified" in str(excinfo.value)
 
     async def test_get_metric_data_error_handling(self, ctx, cloudwatch_metrics_tools):
         """Test error handling in get_metric_data."""
@@ -211,10 +510,10 @@ class TestGetMetricData:
                 ctx,
                 namespace='AWS/EC2',
                 metric_name='CPUUtilization',
-                dimensions=[],
                 start_time='2023-01-01T00:00:00Z',
+                dimensions=[],
                 end_time='2023-01-01T01:00:00Z',
-                statistic='Average',
+                statistic='AVG',
                 target_datapoints=60,
             )
 

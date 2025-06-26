@@ -15,8 +15,15 @@
 """Data models for CloudWatch Metrics MCP tools."""
 
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Literal
 from datetime import datetime
+from enum import Enum
+
+
+class SortOrder(str, Enum):
+    """Sort order for Metrics Insights queries."""
+    ASCENDING = "ASC"
+    DESCENDING = "DESC"
 
 
 class Dimension(BaseModel):
