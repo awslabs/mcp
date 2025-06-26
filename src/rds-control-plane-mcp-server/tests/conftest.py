@@ -15,11 +15,16 @@
 """Test fixtures for the rds-monitoring-mcp-server tests."""
 
 import pytest
-import pytest_asyncio
 from unittest.mock import MagicMock, patch
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
+def mock_mcp():
+    """Create a mock MCP server."""
+    return MagicMock()
+
+
+@pytest.fixture
 async def aws_credentials():
     """Mocked AWS Credentials for boto3."""
     import os
@@ -35,8 +40,8 @@ def mock_pi_client():
     return client
 
 
-@pytest_asyncio.fixture
-async def mock_rds_client(aws_credentials):
+@pytest.fixture
+def mock_rds_client(aws_credentials):
     """Create a mock RDS client with detailed mock configuration."""
     client = MagicMock()
     client.meta.region_name = 'us-east-1'
