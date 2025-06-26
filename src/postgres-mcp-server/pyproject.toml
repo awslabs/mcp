@@ -12,9 +12,6 @@ dependencies = [
     "botocore>=1.38.5",
 ]
 license = {text = "Apache-2.0"}
-
-[project.optional-dependencies]
-postgres = ["psycopg2-binary>=2.9.9"]
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
@@ -31,6 +28,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
+
+[project.optional-dependencies]
+postgres = ["psycopg2-binary>=2.9.9"]
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
