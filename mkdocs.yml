@@ -34,6 +34,7 @@ nav:
     - AWS SNS SQS MCP Server: servers/amazon-sns-sqs-mcp-server.md
     - Core MCP Server: servers/core-mcp-server.md
     - Amazon Bedrock Knowledge Base Retrieval MCP Server: servers/bedrock-kb-retrieval-mcp-server.md
+    - AWS Bedrock Data Automation MCP Server: servers/aws-bedrock-data-automation-mcp-server.md
     - AWS CDK MCP Server: servers/cdk-mcp-server.md
     - Cost Analysis MCP Server: servers/cost-analysis-mcp-server.md
     - Cost Explorer MCP Server: servers/cost-explorer-mcp-server.md
@@ -41,6 +42,7 @@ nav:
     - Amazon Q index MCP Server: servers/amazon-qindex-mcp-server.md
     - Amazon Rekognition MCP Server: servers/amazon-rekognition-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
+    - AWS IAM MCP Server: servers/iam-mcp-server.md
     - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
     - AWS Diagram MCP Server: servers/aws-diagram-mcp-server.md
     - AWS Step Functions Tool MCP Server: servers/stepfunctions-tool-mcp-server.md
