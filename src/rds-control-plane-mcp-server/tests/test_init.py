@@ -55,7 +55,7 @@ def test_server_has_mcp_instance():
     # Import the server module
     from awslabs.rds_control_plane_mcp_server import server
 
-    assert hasattr(server, 'mcp')
+    assert hasattr(server, '_mcp')
 
 
 def test_constants_has_version():
