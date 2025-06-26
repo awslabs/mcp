@@ -425,7 +425,6 @@ mcp = FastMCP(
 config = None  # Will be initialized in main()
 
 
-@mcp.tool(name='ExecuteQuery')
 def validate_query(query: str) -> bool:
     """Validate a PromQL query for potential security issues.
 
