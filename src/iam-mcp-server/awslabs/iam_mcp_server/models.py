@@ -250,3 +250,41 @@ class GroupPolicyAttachmentResponse(BaseModel):
     message: str = Field(..., description='Operation result message')
     group_name: str = Field(..., description='The name of the group')
     policy_arn: str = Field(..., description='The ARN of the policy')
+
+
+class InlinePolicy(BaseModel):
+    """Inline Policy model."""
+
+    policy_name: str = Field(..., description='The name of the inline policy')
+    policy_document: str = Field(..., description='The policy document in JSON format')
+
+
+class InlinePolicyResponse(BaseModel):
+    """Response model for inline policy operations."""
+
+    policy_name: str = Field(..., description='The name of the policy')
+    policy_document: str = Field(..., description='The policy document in JSON format')
+    user_name: Optional[str] = Field(None, description='The name of the user (for user policies)')
+    role_name: Optional[str] = Field(None, description='The name of the role (for role policies)')
+    message: str = Field(..., description='Operation result message')
+
+
+class InlinePolicyListResponse(BaseModel):
+    """Response model for listing inline policies."""
+
+    policy_names: List[str] = Field(..., description='List of inline policy names')
+    user_name: Optional[str] = Field(None, description='The name of the user (for user policies)')
+    role_name: Optional[str] = Field(None, description='The name of the role (for role policies)')
+    count: int = Field(..., description='Number of policies returned')
+
+
+class ManagedPolicyResponse(BaseModel):
+    """Response model for managed policy document operations."""
+
+    policy_arn: str = Field(..., description='The ARN of the managed policy')
+    policy_name: str = Field(..., description='The name of the policy')
+    version_id: str = Field(..., description='The version ID of the policy')
+    policy_document: str = Field(..., description='The policy document in JSON format')
+    is_default_version: bool = Field(..., description='Whether this is the default version')
+    create_date: str = Field(..., description='The date and time when this version was created')
+    message: str = Field(..., description='Operation result message')

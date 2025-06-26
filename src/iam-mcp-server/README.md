@@ -9,7 +9,8 @@ A Model Context Protocol (MCP) server for comprehensive AWS Identity and Access 
 - **Role Management**: Create, list, and manage IAM roles with trust policies
 - **Group Management**: Create, list, retrieve, and delete IAM groups with member management
 - **Policy Management**: List and manage IAM policies (managed and inline)
-- **Permission Management**: Attach/detach policies to users, roles, and groups
+- **Inline Policy Management**: Full CRUD operations for user and role inline policies
+- **Permission Management**: Attach/detach policies to users and roles
 - **Access Key Management**: Create and delete access keys for users
 - **Security Simulation**: Test policy permissions before applying them
 
@@ -97,13 +98,18 @@ The AWS credentials used by this server need the following IAM permissions:
                 "iam:ListAttachedRolePolicies",
                 "iam:ListUserPolicies",
                 "iam:ListRolePolicies",
+                "iam:GetUserPolicy",
+                "iam:GetRolePolicy",
+                "iam:PutUserPolicy",
+                "iam:PutRolePolicy",
                 "iam:GetGroupsForUser",
                 "iam:ListAccessKeys",
                 "iam:CreateAccessKey",
                 "iam:DeleteAccessKey",
                 "iam:SimulatePrincipalPolicy",
                 "iam:RemoveUserFromGroup",
-                "iam:DeleteUserPolicy"
+                "iam:DeleteUserPolicy",
+                "iam:DeleteRolePolicy"
             ],
             "Resource": "*"
         }
@@ -395,6 +401,64 @@ Simulate IAM policy evaluation for a principal to test permissions.
 - `resource_arns` (optional): List of resource ARNs to test against
 - `context_entries` (optional): Context entries for the simulation
 
+### Inline Policy Management
+
+#### `put_user_policy`
+Create or update an inline policy for an IAM user.
+
+**Parameters:**
+- `user_name`: The name of the IAM user
+- `policy_name`: The name of the inline policy
+- `policy_document`: The policy document in JSON format (string or dict)
+
+#### `get_user_policy`
+Retrieve an inline policy for an IAM user.
+
+**Parameters:**
+- `user_name`: The name of the IAM user
+- `policy_name`: The name of the inline policy
+
+#### `delete_user_policy`
+Delete an inline policy from an IAM user.
+
+**Parameters:**
+- `user_name`: The name of the IAM user
+- `policy_name`: The name of the inline policy to delete
+
+#### `list_user_policies`
+List all inline policies for an IAM user.
+
+**Parameters:**
+- `user_name`: The name of the IAM user
+
+#### `put_role_policy`
+Create or update an inline policy for an IAM role.
+
+**Parameters:**
+- `role_name`: The name of the IAM role
+- `policy_name`: The name of the inline policy
+- `policy_document`: The policy document in JSON format (string or dict)
+
+#### `get_role_policy`
+Retrieve an inline policy for an IAM role.
+
+**Parameters:**
+- `role_name`: The name of the IAM role
+- `policy_name`: The name of the inline policy
+
+#### `delete_role_policy`
+Delete an inline policy from an IAM role.
+
+**Parameters:**
+- `role_name`: The name of the IAM role
+- `policy_name`: The name of the inline policy to delete
+
+#### `list_role_policies`
+List all inline policies for an IAM role.
+
+**Parameters:**
+- `role_name`: The name of the IAM role
+
 ## Usage Examples
 
 ### Basic User Management
@@ -482,6 +546,58 @@ simulation = await simulate_principal_policy(
 )
 ```
 
+### Inline Policy Management
+```python
+# Create an inline policy for a user
+policy_document = {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": ["s3:GetObject", "s3:PutObject"],
+            "Resource": "arn:aws:s3:::my-bucket/*"
+        }
+    ]
+}
+
+await put_user_policy(
+    user_name="developer",
+    policy_name="S3AccessPolicy",
+    policy_document=policy_document
+)
+
+# Retrieve an inline policy
+policy = await get_user_policy(
+    user_name="developer",
+    policy_name="S3AccessPolicy"
+)
+
+# List all inline policies for a user
+policies = await list_user_policies(user_name="developer")
+
+# Create an inline policy for a role
+await put_role_policy(
+    role_name="EC2-S3-Access-Role",
+    policy_name="S3ReadOnlyPolicy",
+    policy_document={
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "s3:GetObject",
+                "Resource": "*"
+            }
+        ]
+    }
+)
+
+# Delete an inline policy
+await delete_user_policy(
+    user_name="developer",
+    policy_name="S3AccessPolicy"
+)
+```
+
 ## Security Best Practices
 
 1. **Principle of Least Privilege**: Always grant the minimum permissions necessary
@@ -491,6 +607,8 @@ simulation = await simulate_principal_policy(
 5. **Enable MFA**: Use multi-factor authentication where possible
 6. **Permissions Boundaries**: Use permissions boundaries to set maximum permissions
 7. **Policy Simulation**: Test policies before applying them to production
+8. **Prefer Managed Policies**: Use managed policies over inline policies for reusable permissions
+9. **Inline Policy Guidelines**: Use inline policies only for permissions unique to a single identity
 
 ## Error Handling
 
