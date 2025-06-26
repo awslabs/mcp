@@ -39,4 +39,4 @@ def _get_param_value(param: Any) -> Any:  # noqa: F401
 
 user_agent_extra = f'awslabs/mcp/amazon-datazone-mcp-server/{__version__}'
 # Initialize boto3 client
-datazone_client = boto3.client('datazone', config=Config(user_agent_extra='Datazone-MCP/1.0'))
+datazone_client = boto3.client('datazone', config=Config(user_agent_extra=user_agent_extra))
