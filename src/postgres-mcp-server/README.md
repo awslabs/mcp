@@ -35,7 +35,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone and setup
 git clone <repository>
-cd postgres-mcp-server
+cd src/postgres-mcp-server
 
 # Basic installation (RDS Data API only)
 uv sync
