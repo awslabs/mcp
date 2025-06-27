@@ -36,7 +36,7 @@ from loguru import logger
 class RedshiftClientManager:
     """Manages AWS clients for Redshift operations."""
 
-    def __init__(self, config: Config, aws_region: str, aws_profile: str = None):
+    def __init__(self, config: Config, aws_region: str, aws_profile: str | None = None):
         """Initialize the client manager."""
         self.aws_region = aws_region
         self.aws_profile = aws_profile
@@ -111,7 +111,7 @@ class RedshiftClientManager:
         return self._redshift_data_client
 
 
-def quote_literal_string(value: str) -> str:
+def quote_literal_string(value: str | None) -> str:
     """Quote a string value as a SQL literal.
 
     Args:

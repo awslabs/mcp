@@ -119,12 +119,12 @@ ORDER BY ordinal_position;
 re_slc = r'--.*?$'
 
 
-def re_mlc(g: str) -> str:
+def re_mlc(g: int) -> str:
     """Multi-line comments, considering balanced recursion."""
     return rf'(?P<mlc{g}>(?:\/\*)(?:[^\/\*]|\/[^\*]|\*[^\/]|(?P>mlc{g}))*(?:\*\/))'
 
 
-def re_sp(g: str) -> str:
+def re_sp(g: int) -> str:
     """Whitespaces, comments, semicolons which can occur between words."""
     return rf'({re_slc}|{re_mlc(g)}|\s|;)'
 
