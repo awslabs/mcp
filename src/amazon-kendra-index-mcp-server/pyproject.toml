@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.amazon-kendra-index-mcp-server"
-version = "1.0.1"
+version = "1.0.2"
 description = "An AWS Labs Model Context Protocol (MCP) server for amazon-kendra-index-mcp-server"
 readme = "README.md"
 requires-python = ">=3.10"
