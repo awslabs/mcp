@@ -4,6 +4,7 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
+import ServerCards from '@site/src/components/ServerCards';
 import Heading from '@theme/Heading';
 
 import styles from './index.module.css';
@@ -38,6 +39,10 @@ export default function Home(): ReactNode {
       <HomepageHeader />
       <main>
         <HomepageFeatures />
+        <div className="container margin-top--lg">
+          <h2 className="text--center margin-bottom--lg">Available MCP Servers</h2>
+          <ServerCards />
+        </div>
       </main>
     </Layout>
   );

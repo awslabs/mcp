@@ -661,4 +661,3 @@ For general EKS issues, consult the [Amazon EKS documentation](https://docs.aws.
 ## Version
 
 Current MCP server version: 0.1.0
-

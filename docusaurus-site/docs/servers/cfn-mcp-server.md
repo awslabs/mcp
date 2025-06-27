@@ -203,4 +203,3 @@ Ensure your AWS credentials have the following minimum permissions:
 - Rate limiting may affect operations when managing many resources simultaneously
 - Some resource types might not support all operations (create, read, update, delete)
 - Generated templates are primarily intended for importing existing resources into a CloudFormation stack and may not always work for creating new resources (in another account or region)
-

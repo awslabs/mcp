@@ -247,4 +247,3 @@ This server uses the Amazon Location Service geo-places and route calculation AP
 - Use temporary credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN) from AWS STS for enhanced security
 - Implement AWS IAM roles with temporary credentials for applications and services
 - Regularly rotate credentials and use the shortest practical expiration time for temporary credentials
-

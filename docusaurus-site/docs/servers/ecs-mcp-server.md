@@ -275,4 +275,3 @@ This tool provides read-only access to Amazon ECS resources to help you monitor 
 ## License
 
 This project is licensed under the Apache-2.0 License.
-

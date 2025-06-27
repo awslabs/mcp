@@ -122,4 +122,3 @@ When using this MCP server, you should consider:
 - Preferring the AWSCC provider for its consistent API behavior and better security defaults
 
 Before applying Terraform changes to production environments, you should conduct your own independent assessment to ensure that your infrastructure would comply with your own specific security and quality control practices and standards, as well as the local laws, rules, and regulations that govern you and your content.
-

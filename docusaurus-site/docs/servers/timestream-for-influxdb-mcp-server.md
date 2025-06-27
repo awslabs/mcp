@@ -90,4 +90,3 @@ The Timestream for InfluxDB MCP server provides the following tools:
 
 ##### Query API
 - `InfluxDBQuery`: Query data from InfluxDB using Flux query language
-
