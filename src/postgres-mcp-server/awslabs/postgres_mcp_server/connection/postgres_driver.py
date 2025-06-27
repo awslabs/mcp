@@ -22,11 +22,11 @@ from loguru import logger
 from botocore.exceptions import ClientError
 
 try:
-    import psycopg2
-    import psycopg2.extras
+    import psycopg2  # type: ignore[import-untyped]
+    import psycopg2.extras  # type: ignore[import-untyped]
     PSYCOPG2_AVAILABLE = True
 except ImportError:
-    psycopg2 = None
+    psycopg2 = None  # type: ignore[assignment]
     PSYCOPG2_AVAILABLE = False
 
 from .base_connection import DBConnector
@@ -83,7 +83,7 @@ class PostgresDriver(DBConnector):
             with self._connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
             return True
-        except (psycopg2.Error, psycopg2.OperationalError):
+        except (psycopg2.Error, psycopg2.OperationalError) if psycopg2 else Exception:  # type: ignore[misc]
             return False
     
     async def _get_credentials(self) -> Dict[str, str]:
@@ -101,7 +101,7 @@ class PostgresDriver(DBConnector):
             except ClientError as e:
                 logger.error(f"Failed to retrieve credentials: {str(e)}")
                 raise
-        return self._credentials
+        return self._credentials or {}
     
     async def connect(self) -> bool:
         """
@@ -127,8 +127,11 @@ class PostgresDriver(DBConnector):
                 'application_name': 'postgres-mcp-server'
             }
             
+            if not PSYCOPG2_AVAILABLE or not psycopg2:
+                raise ImportError("psycopg2 is required for direct PostgreSQL connections")
+            
             self._connection = await asyncio.to_thread(
-                psycopg2.connect, **connection_params
+                psycopg2.connect, **connection_params  # type: ignore[misc]
             )
             
             # Set autocommit for read-only operations
@@ -201,7 +204,10 @@ class PostgresDriver(DBConnector):
                 raise Exception("Failed to establish database connection")
         
         try:
-            with self._connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+            if not PSYCOPG2_AVAILABLE or not psycopg2:
+                raise ImportError("psycopg2 is required for direct PostgreSQL connections")
+                
+            with self._connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:  # type: ignore[misc]
                 # Convert RDS Data API parameters to psycopg2 format
                 pg_params = self._convert_parameters(parameters) if parameters else None
                 
@@ -219,24 +225,27 @@ class PostgresDriver(DBConnector):
                         'columnMetadata': []
                     }
                     
-        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-            # Connection might be lost, try to reconnect once
-            logger.warning(f"Connection error, attempting to reconnect: {str(e)}")
-            self._connection = None
-            self._connection_validated = False
-            
-            # Retry once
-            connected = await self.connect()
-            if connected:
-                return await self.execute_query(query, parameters)
-            else:
-                raise Exception(f"Failed to reconnect to database: {str(e)}")
-                
-        except psycopg2.Error as e:
-            logger.error(f"PostgreSQL query error: {str(e)}")
-            raise
         except Exception as e:
-            logger.error(f"Unexpected error during query execution: {str(e)}")
+            # Handle both psycopg2 errors and general exceptions
+            if PSYCOPG2_AVAILABLE and psycopg2 and hasattr(psycopg2, 'OperationalError') and isinstance(e, (psycopg2.OperationalError, psycopg2.InterfaceError)):  # type: ignore[misc]
+                # Connection might be lost, try to reconnect once
+                logger.warning(f"Connection error, attempting to reconnect: {str(e)}")
+                self._connection = None
+                self._connection_validated = False
+                
+                # Retry once
+                connected = await self.connect()
+                if connected:
+                    return await self.execute_query(query, parameters)
+                else:
+                    raise Exception(f"Failed to reconnect to database: {str(e)}")
+            elif PSYCOPG2_AVAILABLE and psycopg2 and hasattr(psycopg2, 'Error') and isinstance(e, psycopg2.Error):  # type: ignore[misc]
+                logger.error(f"PostgreSQL query error: {str(e)}")
+                raise
+            else:
+                # General exception handling
+                logger.error(f"Unexpected error during query execution: {str(e)}")
+                raise
             raise
     
     def _convert_parameters(self, rds_params: List[Dict[str, Any]]) -> Dict[str, Any]:
