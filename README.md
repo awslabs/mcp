@@ -13,7 +13,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Table of Contents](#table-of-contents)
   - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
   - [Server Sent Events Support Removal](#server-sent-events-support-removal)
-  - [Why AWS MCP Servers?](#why-aws-mcp-servers)
+    - [Why AWS MCP Servers?](#why-aws-mcp-servers)
   - [Available MCP Servers](#available-mcp-servers)
     - [Browse by What You're Building](#browse-by-what-youre-building)
       - [📚 Real-time access to official AWS documentation](#-real-time-access-to-official-aws-documentation)
@@ -25,6 +25,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [🤖 AI \& Machine Learning](#-ai--machine-learning)
       - [📊 Data \& Analytics](#-data--analytics)
         - [SQL \& NoSQL Databases](#sql--nosql-databases)
+        - [Search \& Analytics](#search--analytics)
         - [Caching \& Performance](#caching--performance)
       - [🛠️ Developer Tools \& Support](#️-developer-tools--support)
       - [📡 Integration \& Messaging](#-integration--messaging)
@@ -156,6 +157,7 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries with openCypher and Gremlin
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
+- **[Amazon Redshift MCP Server](src/redshift-mcp-server/)** - Provides tools to discover, explore, and query Amazon Redshift clusters and serverless workgroups
 
 ##### Search & Analytics
 
