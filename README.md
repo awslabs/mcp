@@ -13,7 +13,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Table of Contents](#table-of-contents)
   - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
   - [Server Sent Events Support Removal](#server-sent-events-support-removal)
-    - [Why AWS MCP Servers?](#why-aws-mcp-servers)
+  - [Why AWS MCP Servers?](#why-aws-mcp-servers)
   - [Available MCP Servers](#available-mcp-servers)
     - [Browse by What You're Building](#browse-by-what-youre-building)
       - [📚 Real-time access to official AWS documentation](#-real-time-access-to-official-aws-documentation)
