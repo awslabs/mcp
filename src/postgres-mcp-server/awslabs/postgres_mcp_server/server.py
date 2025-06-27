@@ -273,10 +273,9 @@ async def identify_slow_queries(
         result = await find_slow_queries(
             db_connection, 
             min_execution_time, 
-            limit, 
-            debug
+            limit
         )
-        return result
+        return str(result)
         
     except Exception as e:
         logger.exception("Error identifying slow queries")
@@ -310,8 +309,8 @@ async def analyze_table_fragmentation(
             return str({'error': error_msg})
 
         # Use analysis module for secure analysis
-        result = await analyze_fragmentation(db_connection, threshold, debug)
-        return result
+        result = await analyze_fragmentation(db_connection, threshold)
+        return str(result)
         
     except Exception as e:
         logger.exception("Error analyzing table fragmentation")
@@ -342,8 +341,8 @@ async def analyze_query_performance(
             return str({'error': error_msg})
 
         # Use analysis module for secure analysis
-        result = await analyze_performance(db_connection, query, debug)
-        return result
+        result = await analyze_performance(db_connection, query)
+        return str(result)
         
     except Exception as e:
         logger.exception("Error analyzing query performance")
@@ -417,8 +416,8 @@ async def analyze_vacuum_stats(
             return str({'error': error_msg})
 
         # Use analysis module for secure analysis
-        result = await analyze_vacuum(db_connection, debug)
-        return result
+        result = await analyze_vacuum(db_connection)
+        return str(result)
         
     except Exception as e:
         logger.exception("Error analyzing vacuum stats")
@@ -452,8 +451,8 @@ async def recommend_indexes(
             return str({'error': error_msg})
 
         # Use analysis module for secure analysis
-        result = await suggest_indexes(db_connection, query, debug)
-        return result
+        result = await suggest_indexes(db_connection, query)
+        return str(result)
         
     except Exception as e:
         logger.exception("Error recommending indexes")
