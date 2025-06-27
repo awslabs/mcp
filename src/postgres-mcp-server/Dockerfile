@@ -12,59 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM public.ecr.aws/sam/build-python3.10@sha256:d821662474d65f3cf2fc97dba2fa807a3adb580d02895fc4545527812550ea65 AS uv
+FROM public.ecr.aws/sam/build-python3.10@sha256:d821662474d65f3cf2fc97dba2fa807a3adb580d02895fc4545527812550ea65
 
 # Install the project into `/app`
 WORKDIR /app
 
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
-
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
-
-# Prefer the system python
-ENV UV_PYTHON_PREFERENCE=only-system
-
-# Run without updating the uv.lock file like running with `--frozen`
-ENV UV_FROZEN=true
-
-# Copy the required files first
-COPY pyproject.toml uv.lock uv-requirements.txt ./
-
-# Install the project's dependencies using the lockfile and settings
-RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt && \
-    uv sync --frozen --no-install-project --no-dev --no-editable
-
-# Then, add the rest of the project source code and install it
-# Installing separately from its dependencies allows optimal layer caching
+# Copy all project files
 COPY . /app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
 
-# Make the directory just in case it doesn't exist
-RUN mkdir -p /root/.local
-
-FROM public.ecr.aws/sam/build-python3.10@sha256:d821662474d65f3cf2fc97dba2fa807a3adb580d02895fc4545527812550ea65
-
-# Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+# Install dependencies with pip (avoiding uv version conflicts)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip && \
+    pip install -e .
 
 # Install lsof for the healthcheck
-# Install other tools as needed for the MCP server
-# Add non-root user and ability to change directory into /root
 RUN yum update -y && \
     yum install -y lsof && \
     yum clean all -y && \
-    rm -rf /var/cache/yum && \
-    groupadd --force --system app && \
-    useradd app -g app -d /app && \
-    chmod o+x /root
-
-# Get the project from the uv layer
-COPY --from=uv --chown=app:app /root/.local /root/.local
-COPY --from=uv --chown=app:app /app/.venv /app/.venv
+    rm -rf /var/cache/yum
 
 # Get healthcheck script
 COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
@@ -73,9 +38,6 @@ RUN chmod +x /usr/local/bin/docker-healthcheck.sh
 # Set default connection pool configuration
 ENV POSTGRES_POOL_MIN_SIZE="5"
 ENV POSTGRES_POOL_MAX_SIZE="30"
-
-# Run as non-root
-USER app
 
 # Expose the port
 EXPOSE 8000

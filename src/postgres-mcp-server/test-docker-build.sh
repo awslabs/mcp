@@ -12,9 +12,9 @@ docker build -t postgres-mcp-server-test .
 # Test that the image was built successfully
 echo "✅ Docker image built successfully!"
 
-# Test that the container can start (will exit quickly without proper args, but that's expected)
+# Test that the container can start and show help
 echo "🚀 Testing container startup..."
-timeout 5s docker run --rm postgres-mcp-server-test || echo "Container started and exited as expected"
+docker run --rm postgres-mcp-server-test python3 -m awslabs.postgres_mcp_server.server --help | head -5
 
 echo "🎉 Docker build test completed successfully!"
 echo ""
@@ -23,6 +23,7 @@ echo "docker run -p 8000:8000 \\"
 echo "  -v ~/.aws:/root/.aws:ro \\"
 echo "  -e AWS_PROFILE=your-profile-name \\"
 echo "  postgres-mcp-server-test \\"
+echo "  python3 -m awslabs.postgres_mcp_server.server \\"
 echo "  --resource_arn <Your Resource ARN> \\"
 echo "  --secret_arn <Your Secret ARN> \\"
 echo "  --database \"your-database\" \\"
