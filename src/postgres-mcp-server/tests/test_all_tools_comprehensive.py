@@ -41,14 +41,7 @@ def parse_execute_response(response: dict) -> list[dict]:
     return records
 
 
-@pytest.fixture
-def client():
-    """Create a boto3 RDS Data API client for testing."""
-    import boto3
-    return boto3.client('rds-data', region_name='us-west-2')
-
-
-async def test_sql_query(client, tool_name, query_name, sql, description="", validate_logic=None):
+async def execute_sql_query_test(client, tool_name, query_name, sql, description="", validate_logic=None):
     """Test a single SQL query with optional logic validation."""
     print(f"\n Testing {tool_name} - {query_name}")
     print(f" {description}")
@@ -113,20 +106,20 @@ async def main():
     print(f"\n{'='*20} CORE TOOLS TESTS {'='*20}")
     
     # Tool 1: run_query
-    test_results['run_query_basic'] = await test_sql_query(
+    test_results['run_query_basic'] = await execute_sql_query_test(
         client, "run_query", "Basic Query", 
         "SELECT version() as postgresql_version",
         "Basic connectivity and version check"
     )
     
-    test_results['run_query_complex'] = await test_sql_query(
+    test_results['run_query_complex'] = await execute_sql_query_test(
         client, "run_query", "Complex Query",
         "SELECT schemaname, tablename, attname, n_distinct FROM pg_stats WHERE schemaname NOT IN ('information_schema', 'pg_catalog') LIMIT 3",
         "Complex query with joins and filtering"
     )
     
     # Tool 2: get_table_schema
-    test_results['get_table_schema'] = await test_sql_query(
+    test_results['get_table_schema'] = await execute_sql_query_test(
         client, "get_table_schema", "Table Schema Query",
         """SELECT
             a.attname AS column_name,
@@ -146,7 +139,7 @@ async def main():
     )
     
     # Tool 3: health_check
-    test_results['health_check'] = await test_sql_query(
+    test_results['health_check'] = await execute_sql_query_test(
         client, "health_check", "Health Check Query",
         "SELECT 1 as health_check",
         "Server connectivity validation",
@@ -160,7 +153,7 @@ async def main():
     print(f"\n{'='*20} ANALYSIS TOOLS TESTS {'='*20}")
     
     # Tool 4: analyze_database_structure
-    test_results['analyze_db_schemas'] = await test_sql_query(
+    test_results['analyze_db_schemas'] = await execute_sql_query_test(
         client, "analyze_database_structure", "Schemas Query",
         """SELECT schema_name 
            FROM information_schema.schemata 
@@ -169,7 +162,7 @@ async def main():
         "Get all user schemas"
     )
     
-    test_results['analyze_db_tables'] = await test_sql_query(
+    test_results['analyze_db_tables'] = await execute_sql_query_test(
         client, "analyze_database_structure", "Tables with Size Query",
         """SELECT 
             t.table_schema,
@@ -187,7 +180,7 @@ async def main():
         "Get tables with size information and row estimates"
     )
     
-    test_results['analyze_db_indexes'] = await test_sql_query(
+    test_results['analyze_db_indexes'] = await execute_sql_query_test(
         client, "analyze_database_structure", "Indexes Query",
         """SELECT schemaname, tablename, indexname, indexdef
            FROM pg_indexes
@@ -198,7 +191,7 @@ async def main():
     )
     
     # Tool 5: show_postgresql_settings
-    test_results['show_settings_filtered'] = await test_sql_query(
+    test_results['show_settings_filtered'] = await execute_sql_query_test(
         client, "show_postgresql_settings", "Settings Query (Filtered)",
         """SELECT name, setting, unit, category, short_desc, context, vartype, source
            FROM pg_settings
@@ -207,7 +200,7 @@ async def main():
         "Get PostgreSQL configuration settings with filtering"
     )
     
-    test_results['show_settings_all'] = await test_sql_query(
+    test_results['show_settings_all'] = await execute_sql_query_test(
         client, "show_postgresql_settings", "Settings Query (All)",
         """SELECT name, setting, unit, category, short_desc, context, vartype, source
            FROM pg_settings
@@ -217,7 +210,7 @@ async def main():
     )
     
     # Tool 6: identify_slow_queries
-    test_results['slow_queries_extension'] = await test_sql_query(
+    test_results['slow_queries_extension'] = await execute_sql_query_test(
         client, "identify_slow_queries", "Extension Check",
         """SELECT EXISTS (
                SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'
@@ -227,7 +220,7 @@ async def main():
     
     # Only test slow queries if extension exists
     if test_results['slow_queries_extension']:
-        test_results['slow_queries_data'] = await test_sql_query(
+        test_results['slow_queries_data'] = await execute_sql_query_test(
             client, "identify_slow_queries", "Slow Queries Query",
             """SELECT 
                 query,
@@ -267,7 +260,7 @@ async def main():
         print(f"    💡 Type conversion test: {len(data)} tables analyzed, {len(problematic_tables)} above {threshold}% threshold")
         return True  # Type conversion logic working
     
-    test_results['table_fragmentation'] = await test_sql_query(
+    test_results['table_fragmentation'] = await execute_sql_query_test(
         client, "analyze_table_fragmentation", "Table Bloat Query",
         """SELECT 
             schemaname,
@@ -297,7 +290,7 @@ async def main():
     )
     
     # Tool 8: analyze_query_performance
-    test_results['query_performance'] = await test_sql_query(
+    test_results['query_performance'] = await execute_sql_query_test(
         client, "analyze_query_performance", "EXPLAIN Query",
         """EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) 
            SELECT COUNT(*) FROM information_schema.tables""",
@@ -305,7 +298,7 @@ async def main():
     )
     
     # Tool 9: analyze_vacuum_stats
-    test_results['vacuum_stats'] = await test_sql_query(
+    test_results['vacuum_stats'] = await execute_sql_query_test(
         client, "analyze_vacuum_stats", "Vacuum Statistics Query",
         """SELECT 
             schemaname,
@@ -336,7 +329,7 @@ async def main():
         "Get vacuum statistics for maintenance recommendations"
     )
     
-    test_results['vacuum_settings'] = await test_sql_query(
+    test_results['vacuum_settings'] = await execute_sql_query_test(
         client, "analyze_vacuum_stats", "Vacuum Settings Query",
         """SELECT name, setting, unit, short_desc
            FROM pg_settings 
@@ -347,7 +340,7 @@ async def main():
     )
     
     # Tool 10: recommend_indexes
-    test_results['recommend_indexes_current'] = await test_sql_query(
+    test_results['recommend_indexes_current'] = await execute_sql_query_test(
         client, "recommend_indexes", "Current Indexes Query",
         """SELECT 
             schemaname,
@@ -388,7 +381,7 @@ async def main():
         print(f"    💡 Index recommendation logic: {len(data)} columns analyzed, {len(high_cardinality_cols)} high-cardinality")
         return True
     
-    test_results['recommend_indexes_stats'] = await test_sql_query(
+    test_results['recommend_indexes_stats'] = await execute_sql_query_test(
         client, "recommend_indexes", "Table Statistics Query",
         """SELECT 
             schemaname,
