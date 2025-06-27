@@ -49,8 +49,8 @@ uv sync --extra postgres
 #### Method 1: RDS Data API (Aurora PostgreSQL)
 ```bash
 uv run python -m awslabs.postgres_mcp_server.server \
-  --resource_arn ""your-rds-cluster-arn"" \
-  --secret_arn ""your-secrets-manager-arn"" \
+  --resource_arn "<Your Resource ARN>" \
+  --secret_arn "<Your Secret ARN>" \
   --database "your-database-name" \
   --region "us-west-2" \
   --readonly "true"
@@ -61,7 +61,7 @@ uv run python -m awslabs.postgres_mcp_server.server \
 uv run python -m awslabs.postgres_mcp_server.server \
   --hostname "your-db-host.amazonaws.com" \
   --port 5432 \
-  --secret_arn ""your-secrets-manager-arn"" \
+  --secret_arn "<Your Secret ARN>" \
   --database "your-database-name" \
   --region "us-west-2" \
   --readonly "true"
@@ -74,8 +74,8 @@ docker run -p 8000:8000 \
   -v ~/.aws:/root/.aws:ro \
   -e AWS_PROFILE=your-profile-name \
   postgres-mcp-server \
-  --resource_arn "your-rds-arn" \
-  --secret_arn "your-secret-arn" \
+  --resource_arn <Your Resource ARN> \
+  --secret_arn <Your Secret ARN> \
   --database "your-database" \
   --region "us-west-2" \
   --readonly "true"
@@ -97,8 +97,8 @@ uv run pytest tests/test_connection_pool.py -v
 **Test Environment Variables:**
 For integration tests, set these environment variables:
 ```bash
-export TEST_RESOURCE_ARN="your-rds-cluster-arn"
-export TEST_SECRET_ARN="your-secrets-manager-arn"
+export TEST_RESOURCE_ARN=<Your Resource ARN>
+export TEST_SECRET_ARN=<Your Secret ARN>
 ```
 
 ## Amazon Q Developer CLI Integration
@@ -112,8 +112,8 @@ Add to your MCP configuration file (`~/.aws/amazonq/mcp.json`):
       "command": "uv",
       "args": [
         "run", "python", "-m", "awslabs.postgres_mcp_server.server",
-        "--resource_arn", "your-rds-arn",
-        "--secret_arn", "your-secret-arn",
+        "--resource_arn", "<Your Resource ARN>",
+        "--secret_arn", "<Your Secret ARN>",
         "--database", "your-database",
         "--region", "us-west-2",
         "--readonly", "true"
