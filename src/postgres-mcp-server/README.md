@@ -94,6 +94,13 @@ uv run pytest
 uv run pytest tests/test_connection_pool.py -v
 ```
 
+**Test Environment Variables:**
+For integration tests, set these environment variables:
+```bash
+export TEST_RESOURCE_ARN="your-rds-cluster-arn"
+export TEST_SECRET_ARN="your-secrets-manager-arn"
+```
+
 ## Amazon Q Developer CLI Integration
 
 Add to your MCP configuration file (`~/.aws/amazonq/mcp.json`):
