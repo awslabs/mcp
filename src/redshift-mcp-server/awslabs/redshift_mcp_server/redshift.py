@@ -31,27 +31,19 @@ from awslabs.redshift_mcp_server.consts import (
 )
 from botocore.config import Config
 from loguru import logger
-from typing import Any
 
 
 class RedshiftClientManager:
     """Manages AWS clients for Redshift operations."""
 
-    def __init__(self):
+    def __init__(self, config: Config, aws_region: str, aws_profile: str = None):
         """Initialize the client manager."""
-        self.aws_region = os.environ.get('AWS_REGION', DEFAULT_AWS_REGION)
-        self.aws_profile = os.environ.get('AWS_PROFILE')
+        self.aws_region = aws_region
+        self.aws_profile = aws_profile
         self._redshift_client = None
         self._redshift_serverless_client = None
         self._redshift_data_client = None
-
-        # Configure boto3 with timeouts
-        self._config = Config(
-            # region_name=self.aws_region,
-            connect_timeout=CLIENT_TIMEOUT,
-            read_timeout=CLIENT_TIMEOUT,
-            retries={'max_attempts': 3, 'mode': 'adaptive'},
-        )
+        self._config = config
 
     def redshift_client(self):
         """Get or create the Redshift client for provisioned clusters."""
@@ -119,11 +111,11 @@ class RedshiftClientManager:
         return self._redshift_data_client
 
 
-def quote_literal_string(value: Any) -> str:
-    """Quote a value as a SQL literal.
+def quote_literal_string(value: str) -> str:
+    """Quote a string value as a SQL literal.
 
     Args:
-        value: The value to quote.
+        value: The string value to quote.
     """
     if value is None:
         return 'NULL'
@@ -133,21 +125,42 @@ def quote_literal_string(value: Any) -> str:
     return "'" + repr('"' + value)[2:]
 
 
+def protect_sql(sql: str, allow_read_write: bool) -> list[str]:
+    """Protect SQL depending on if the read-write mode allowed.
+
+    The SQL is wrapped in a transaction block with READ ONLY or READ WRITE mode
+    based on allow_read_write flag. Transaction breaker protection is implemented
+    to prevent unauthorized modifications.
+
+    The SQL takes the form:
+    BEGIN [READ ONLY|READ WRITE];
+    <sql>
+    END;
+
+    Args:
+        sql: The SQL statement to protect.
+        allow_read_write: Indicates if read-write mode should be activated.
+
+    Returns:
+        List of strings to execute by batch_execute_statement.
+    """
+    if allow_read_write:
+        return ['BEGIN READ WRITE;', sql, 'END;']
+    else:
+        # Check if SQL contains suspicious patterns trying to break the transaction context
+        if regex.compile(SUSPICIOUS_QUERY_REGEXP).search(sql):
+            logger.error(f'SQL contains suspicious pattern, execution rejected: {sql}')
+            raise Exception(f'SQL contains suspicious pattern, execution rejected: {sql}')
+
+        return ['BEGIN READ ONLY;', sql, 'END;']
+
+
 async def execute_statement(
     cluster_identifier: str, database_name: str, sql: str, allow_read_write: bool = False
 ) -> tuple[dict, str]:
     """Execute a SQL statement against a Redshift cluster using the Data API.
 
     This is a common function used by other functions in this module.
-
-    The SQL is wrapped in a transaction block with READ ONLY or READ WRITE mode
-    based on allow_read_write flag. Transaction breaker protection is implemented
-    to prevent unauthorized modifications.
-
-    The executed SQL takes the form:
-    BEGIN [READ ONLY|READ WRITE];
-    <sql>
-    END;
 
     Args:
         cluster_identifier: The cluster identifier to query.
@@ -179,16 +192,8 @@ async def execute_statement(
         )
 
     # Guard from executing read-write statements if not allowed
-    if allow_read_write:
-        protected_sqls = ['BEGIN READ WRITE;', sql, 'END;']
-    else:
-        # Check if SQL contains suspicious patterns trying to break the transaction context
-        if regex.compile(SUSPICIOUS_QUERY_REGEXP).search(sql):
-            logger.error(f'SQL contains suspicious pattern, execution rejected: {sql}')
-            raise Exception(f'SQL contains suspicious pattern, execution rejected: {sql}')
-
-        protected_sqls = ['BEGIN READ ONLY;', sql, 'END;']
-        logger.debug(f'Protected SQL: {" ".join(protected_sqls)}')
+    protected_sqls = protect_sql(sql, allow_read_write)
+    logger.debug(f'Protected SQL: {" ".join(protected_sqls)}')
 
     # Execute the query using Data API
     if cluster_info['type'] == 'provisioned':
@@ -612,4 +617,12 @@ async def execute_query(cluster_identifier: str, database_name: str, sql: str) -
 
 
 # Global client manager instance
-client_manager = RedshiftClientManager()
+client_manager = RedshiftClientManager(
+    config=Config(
+        connect_timeout=CLIENT_TIMEOUT,
+        read_timeout=CLIENT_TIMEOUT,
+        retries={'max_attempts': 3, 'mode': 'adaptive'},
+    ),
+    aws_region=os.environ.get('AWS_REGION', DEFAULT_AWS_REGION),
+    aws_profile=os.environ.get('AWS_PROFILE'),
+)

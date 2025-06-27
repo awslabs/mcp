@@ -116,14 +116,21 @@ ORDER BY ordinal_position;
 # SQL guardrails
 
 # Single-lines comments.
-SINGLELINE_COMMENT_REGEXP = r'--.*?$'
+re_slc = r'--.*?$'
 
-# Multi-line comments, considering balanced recursion.
-MULTILINE_COMMENT_REGEXP = r'(\/\*)(?:[^\/\*]|\/(?!\*)|\*(?!\/)|(?R))*(\*\/)'
 
-# Whitespaces, comments, semicolons which can occur between words.
-SPACE_REGEX = rf'({SINGLELINE_COMMENT_REGEXP}|{MULTILINE_COMMENT_REGEXP}|\s|;)'
+def re_mlc(g: str) -> str:
+    """Multi-line comments, considering balanced recursion."""
+    return rf'(?P<mlc{g}>(?:\/\*)(?:[^\/\*]|\/[^\*]|\*[^\/]|(?P>mlc{g}))*(?:\*\/))'
+
+
+def re_sp(g: str) -> str:
+    """Whitespaces, comments, semicolons which can occur between words."""
+    return rf'({re_slc}|{re_mlc(g)}|\s|;)'
+
 
 # We consider `(END|COMMIT|ROLLBACK|ABORT) [WORK|TRANSACTION]` as a breaker for the `BEGIN READ ONLY; {sql}; END;`
 # guarding wrapper, having there might be variations of whitespaces and comments in the construct.
-SUSPICIOUS_QUERY_REGEXP = rf'(?i)^{SPACE_REGEX}*(END|COMMIT|ROLLBACK|ABORT)({SPACE_REGEX}+(WORK|TRANSACTION))?{SPACE_REGEX}*;'
+SUSPICIOUS_QUERY_REGEXP = (
+    rf'(?im)^{re_sp(1)}*(END|COMMIT|ROLLBACK|ABORT)({re_sp(2)}+(WORK|TRANSACTION))?{re_sp(3)}*;'
+)
