@@ -95,12 +95,21 @@ SUPPORTED_ECS_OPERATIONS = [
 def camel_to_snake(name):
     """
     Convert CamelCase to snake_case.
-
+    
+    This function is used to convert AWS API operation names from their CamelCase format
+    (as documented in AWS API references and used in our SUPPORTED_ECS_OPERATIONS list)
+    to the snake_case format required by boto3 client methods.
+    
+    Examples:
+        "CreateCluster" -> "create_cluster"
+        "DescribeServices" -> "describe_services"
+        "UpdateTaskProtection" -> "update_task_protection"
+    
     Args:
-        name: CamelCase string
+        name: CamelCase string (e.g., "CreateCluster")
 
     Returns:
-        snake_case string
+        snake_case string (e.g., "create_cluster")
     """
     name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()
