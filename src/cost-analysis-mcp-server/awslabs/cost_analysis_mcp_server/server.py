@@ -251,6 +251,14 @@ async def get_pricing_from_web(
     description="""
     Get detailed pricing information from AWS Price List API with optional filters.
 
+    Service codes for API often differ from web URLs.
+    (e.g., use "AmazonES" for OpenSearch, not "AmazonOpenSearchService").
+    List of service codes can be found with `curl 'https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/index.json' | jq -r '.offers| .[] | .offerCode'`
+    IMPORTANT GUIDELINES:
+    - When retrieving foundation model pricing, always use the latest models for comparison
+    - For database compatibility with services, only include confirmed supported databases
+    - Providing less information is better than giving incorrect information
+
     **TOOL PURPOSE:**
     Retrieve AWS pricing data for various analysis needs: cost optimization, regional comparisons, compliance reporting, budget planning, or general pricing research.
 
