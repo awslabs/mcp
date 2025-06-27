@@ -46,9 +46,13 @@ async def execute_sql_query_test(client, tool_name, query_name, sql, description
     print("-" * 60)
 
     try:
+        # Get test credentials from environment variables
+        resource_arn = os.environ.get('TEST_RESOURCE_ARN', 'arn:aws:rds:us-west-2:288947426911:cluster:pg-clone-db-cluster')
+        secret_arn = os.environ.get('TEST_SECRET_ARN', 'arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL')
+
         result = client.execute_statement(
-            resourceArn='arn:aws:rds:us-west-2:288947426911:cluster:pg-clone-db-cluster',
-            secretArn='arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL',
+            resourceArn=resource_arn,
+            secretArn=secret_arn,
             database='devdb',
             sql=sql,
             includeResultMetadata=True

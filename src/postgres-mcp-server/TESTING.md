@@ -10,7 +10,7 @@ All test files are organized in the `tests/` directory following Python project 
 tests/
 ├── test_all_tools_comprehensive.py  # Comprehensive validation of all 10 tools
 ├── test_type_conversions.py         # Type conversion validation
-├── test_server.py                   # Legacy unit tests
+├── test_server.py                   # Unit tests for server functions
 ├── test_connection_pool.py          # Connection pool unit tests
 └── __init__.py                      # Python package initialization
 ```
@@ -18,6 +18,79 @@ tests/
 ## Test Files
 
 ### Primary Test Suite
+
+#### `test_all_tools_comprehensive.py`
+- **Purpose**: Comprehensive validation of all 10 PostgreSQL MCP Server tools
+- **Type**: Integration test (standalone executable)
+- **Coverage**: Tests all tools with real database queries and validates responses
+- **Usage**: `python tests/test_all_tools_comprehensive.py`
+
+#### `test_type_conversions.py`
+- **Purpose**: Validates type conversion fixes in analysis tools
+- **Type**: Integration test with pytest functions
+- **Coverage**: Tests fragmentation analysis and slow query tools specifically
+- **Usage**: `pytest tests/test_type_conversions.py`
+
+### Unit Test Suite
+
+#### `test_server.py`
+- **Purpose**: Unit tests for server utility functions
+- **Type**: Pytest unit tests (15 test functions)
+- **Coverage**: Tests `extract_cell`, `parse_execute_response`, and other utilities
+- **Usage**: `pytest tests/test_server.py`
+
+#### `test_connection_pool.py`
+- **Purpose**: Unit tests for connection pool functionality
+- **Type**: Pytest unit tests (18 test functions)
+- **Coverage**: Tests connection pooling, factory patterns, and error handling
+- **Usage**: `pytest tests/test_connection_pool.py`
+
+## Environment Variables
+
+For security, test files use environment variables for credentials:
+
+```bash
+export TEST_RESOURCE_ARN="arn:aws:rds:region:account:cluster:cluster-name"
+export TEST_SECRET_ARN="arn:aws:secretsmanager:region:account:secret:secret-name"
+```
+
+If not set, tests will fall back to default test values.
+
+## Running Tests
+
+### Run All Tests
+```bash
+pytest tests/
+```
+
+### Run Specific Test Categories
+```bash
+# Unit tests only
+pytest tests/test_server.py tests/test_connection_pool.py
+
+# Integration tests
+python tests/test_all_tools_comprehensive.py
+pytest tests/test_type_conversions.py
+```
+
+### Test Collection
+```bash
+# See all available tests
+pytest --collect-only tests/
+```
+
+## Test Results
+
+The test suite includes both passing and intentionally skipped tests:
+- **Unit tests**: Most pass with proper mocking
+- **Integration tests**: Require real AWS credentials and database access
+- **Skipped tests**: Tests for deprecated functionality or missing dependencies
+
+## Security Notes
+
+- Tests use environment variables for credentials (not hardcoded)
+- AWS profile-based authentication is recommended
+- Test databases should be isolated from production
 
 #### `tests/test_all_tools_comprehensive.py` ⭐ **MAIN TEST**
 **Purpose**: Comprehensive validation of all 10 PostgreSQL MCP Server tools

@@ -54,10 +54,14 @@ async def test_table_fragmentation_types():
         raise
 
     try:
+        # Get test credentials from environment variables
+        resource_arn = os.environ.get('TEST_RESOURCE_ARN', 'arn:aws:rds:us-west-2:288947426911:cluster:pg-clone-db-cluster')
+        secret_arn = os.environ.get('TEST_SECRET_ARN', 'arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL')
+
         # Execute the same query as the tool
         result = client.execute_statement(
-            resourceArn='arn:aws:rds:us-west-2:288947426911:cluster:pg-clone-db-cluster',
-            secretArn='arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL',
+            resourceArn=resource_arn,
+            secretArn=secret_arn,
             database='devdb',
             sql="""
                 SELECT
@@ -177,10 +181,14 @@ async def test_slow_queries_types():
         raise
 
     try:
+        # Get test credentials from environment variables
+        resource_arn = os.environ.get('TEST_RESOURCE_ARN', 'arn:aws:rds:us-west-2:288947426911:cluster:pg-clone-db-cluster')
+        secret_arn = os.environ.get('TEST_SECRET_ARN', 'arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL')
+
         # First check if extension exists
         extension_result = client.execute_statement(
-            resourceArn='arn:aws:rds:us-west-2:288947426911:cluster:pg-clone-db-cluster',
-            secretArn='arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL',
+            resourceArn=resource_arn,
+            secretArn=secret_arn,
             database='devdb',
             sql="SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') as extension_exists",
             includeResultMetadata=True
@@ -197,8 +205,8 @@ async def test_slow_queries_types():
             limit = 5
 
             slow_queries_result = client.execute_statement(
-                resourceArn='arn:aws:rds:us-west-2:288947426911:cluster:pg-clone-db-cluster',
-                secretArn='arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL',
+                resourceArn=resource_arn,
+                secretArn=secret_arn,
                 database='devdb',
                 sql=f"""
                     SELECT
