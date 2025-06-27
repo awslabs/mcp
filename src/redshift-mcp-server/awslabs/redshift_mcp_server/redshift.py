@@ -18,6 +18,7 @@ import asyncio
 import boto3
 import os
 import regex
+from awslabs.redshift_mcp_server import __version__
 from awslabs.redshift_mcp_server.consts import (
     CLIENT_TIMEOUT,
     DEFAULT_AWS_REGION,
@@ -622,6 +623,7 @@ client_manager = RedshiftClientManager(
         connect_timeout=CLIENT_TIMEOUT,
         read_timeout=CLIENT_TIMEOUT,
         retries={'max_attempts': 3, 'mode': 'adaptive'},
+        user_agent_extra=f'awslabs/mcp/redshift-mcp-server/{__version__}',
     ),
     aws_region=os.environ.get('AWS_REGION', DEFAULT_AWS_REGION),
     aws_profile=os.environ.get('AWS_PROFILE'),
