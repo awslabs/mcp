@@ -40,6 +40,13 @@ def parse_execute_response(response: dict) -> list[dict]:
     return records
 
 
+@pytest.fixture
+def client():
+    """Create a boto3 RDS Data API client for testing."""
+    import boto3
+    return boto3.client('rds-data', region_name='us-west-2')
+
+
 async def test_sql_query(client, tool_name, query_name, sql, description="", validate_logic=None):
     """Test a single SQL query with optional logic validation."""
     print(f"\n Testing {tool_name} - {query_name}")

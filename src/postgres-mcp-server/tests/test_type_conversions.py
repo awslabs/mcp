@@ -45,7 +45,12 @@ async def test_table_fragmentation_types():
     print(" Testing Table Fragmentation Analysis Type Conversions")
     print("=" * 60)
     
-    client = boto3.client('rds-data', region_name='us-west-2')
+    try:
+        client = boto3.client('rds-data', region_name='us-west-2')
+    except Exception as e:
+        if "ProfileNotFound" in str(e) or "mcp_profile" in str(e):
+            pytest.skip(f"AWS profile not available in CI: {e}")
+        raise
     
     try:
         # Execute the same query as the tool
@@ -163,7 +168,12 @@ async def test_slow_queries_types():
     print("\\n Testing Slow Queries Analysis")
     print("=" * 60)
     
-    client = boto3.client('rds-data', region_name='us-west-2')
+    try:
+        client = boto3.client('rds-data', region_name='us-west-2')
+    except Exception as e:
+        if "ProfileNotFound" in str(e) or "mcp_profile" in str(e):
+            pytest.skip(f"AWS profile not available in CI: {e}")
+        raise
     
     try:
         # First check if extension exists
