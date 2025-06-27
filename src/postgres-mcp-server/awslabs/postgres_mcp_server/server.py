@@ -598,7 +598,7 @@ async def main() -> None:
         sys.exit(1)
 
     # Run the MCP server
-    await mcp.run()
+    await mcp.run_stdio_async()
 
 
 if __name__ == "__main__":
