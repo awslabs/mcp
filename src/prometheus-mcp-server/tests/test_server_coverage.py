@@ -99,8 +99,8 @@ class TestServerCoverage:
         
         mock_session = MagicMock()
         mock_credentials = MagicMock()
-        mock_credentials.access_key = "test-access-key"
-        mock_credentials.secret_key = "test-secret-key"
+        mock_credentials.access_key = "MOCK_ACCESS_KEY"
+        mock_credentials.secret_key = "MOCK_SECRET_KEY"
         mock_session.get_credentials.return_value = mock_credentials
         
         mock_req_session = MagicMock()
