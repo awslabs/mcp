@@ -160,14 +160,3 @@ exclude_also = [
 
 [tool.coverage.run]
 source = ["awslabs"]
-
-[tool.pyright]
-# Temporarily disable strict type checking for CI
-reportOptionalMemberAccess = false
-reportArgumentType = false
-reportCallIssue = false
-reportReturnType = false
-reportGeneralTypeIssues = false
-reportUndefinedVariable = false
-reportRedeclaration = false
-reportMissingModuleSource = false
