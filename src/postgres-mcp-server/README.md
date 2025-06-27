@@ -49,8 +49,8 @@ uv sync --extra postgres
 #### Method 1: RDS Data API (Aurora PostgreSQL)
 ```bash
 uv run python -m awslabs.postgres_mcp_server.server \
-  --resource_arn "arn:aws:rds:region:account:cluster:cluster-name" \
-  --secret_arn "arn:aws:secretsmanager:region:account:secret:name" \
+  --resource_arn ""your-rds-cluster-arn"" \
+  --secret_arn ""your-secrets-manager-arn"" \
   --database "your-database-name" \
   --region "us-west-2" \
   --readonly "true"
@@ -61,7 +61,7 @@ uv run python -m awslabs.postgres_mcp_server.server \
 uv run python -m awslabs.postgres_mcp_server.server \
   --hostname "your-db-host.amazonaws.com" \
   --port 5432 \
-  --secret_arn "arn:aws:secretsmanager:region:account:secret:name" \
+  --secret_arn ""your-secrets-manager-arn"" \
   --database "your-database-name" \
   --region "us-west-2" \
   --readonly "true"
