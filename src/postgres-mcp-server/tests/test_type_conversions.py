@@ -55,8 +55,8 @@ async def test_table_fragmentation_types():
 
     try:
         # Get test credentials from environment variables
-        resource_arn = os.environ.get('TEST_RESOURCE_ARN', 'arn:aws:rds:us-west-2:288947426911:cluster:pg-clone-db-cluster')
-        secret_arn = os.environ.get('TEST_SECRET_ARN', 'arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL')
+        resource_arn = os.environ.get('TEST_RESOURCE_ARN', 'arn:aws:rds:us-west-2:123456789012:cluster:test-cluster')
+        secret_arn = os.environ.get('TEST_SECRET_ARN', 'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret-AbCdEf')
 
         # Execute the same query as the tool
         result = client.execute_statement(
@@ -182,8 +182,8 @@ async def test_slow_queries_types():
 
     try:
         # Get test credentials from environment variables
-        resource_arn = os.environ.get('TEST_RESOURCE_ARN', 'arn:aws:rds:us-west-2:288947426911:cluster:pg-clone-db-cluster')
-        secret_arn = os.environ.get('TEST_SECRET_ARN', 'arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL')
+        resource_arn = os.environ.get('TEST_RESOURCE_ARN', 'arn:aws:rds:us-west-2:123456789012:cluster:test-cluster')
+        secret_arn = os.environ.get('TEST_SECRET_ARN', 'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret-AbCdEf')
 
         # First check if extension exists
         extension_result = client.execute_statement(

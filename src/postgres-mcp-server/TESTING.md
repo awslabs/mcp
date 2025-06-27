@@ -50,8 +50,8 @@ tests/
 For security, test files use environment variables for credentials:
 
 ```bash
-export TEST_RESOURCE_ARN="arn:aws:rds:region:account:cluster:cluster-name"
-export TEST_SECRET_ARN="arn:aws:secretsmanager:region:account:secret:secret-name"
+export TEST_RESOURCE_ARN="arn:aws:rds:<region>:<account-id>:cluster:<cluster-name>"
+export TEST_SECRET_ARN="arn:aws:secretsmanager:<region>:<account-id>:secret:<secret-name>"
 ```
 
 If not set, tests will fall back to default test values.
