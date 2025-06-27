@@ -17,9 +17,9 @@
 import pytest
 from awslabs.postgres_mcp_server.server import (
     extract_cell,
+    get_table_schema,
     parse_execute_response,
     run_query,
-    get_table_schema,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -98,7 +98,7 @@ class TestParseExecuteResponse:
 
 class TestDBConnection:
     """Tests for the DBConnection class - DEPRECATED."""
-    
+
     @pytest.mark.skip(reason="DBConnection class no longer exists - functionality moved to ConnectionFactory")
     def test_init(self):
         """Test initializing a DBConnection."""
@@ -207,7 +207,7 @@ class TestDBConnection:
 
 class TestGetTableSchema:
     """Tests for the get_table_schema function."""
-    
+
     @pytest.mark.skip(reason="get_table_schema function signature changed")
     @pytest.mark.skip(reason="run_query function signature changed")
     @pytest.mark.asyncio

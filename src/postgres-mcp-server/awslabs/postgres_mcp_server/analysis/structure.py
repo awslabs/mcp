@@ -14,11 +14,9 @@
 
 """Database structure analysis tools."""
 
-import json
-from typing import Dict, List, Any
-from loguru import logger
-from ..connection.pool_manager import connection_pool_manager
 from ..connection.base_connection import DBConnector
+from loguru import logger
+from typing import Any, Dict, List
 
 
 async def analyze_database_structure(
@@ -26,37 +24,37 @@ async def analyze_database_structure(
 ) -> Dict[str, Any]:
     """
     Analyze the database structure and provide comprehensive insights.
-    
+
     Args:
         connection: Database connection instance
-        
+
     Returns:
         Dictionary containing structured analysis results
     """
     logger.info("Starting comprehensive database structure analysis")
-    
+
     try:
         # Get schemas
         schemas = await _get_schemas(connection)
-        
+
         # Get tables with detailed information
         tables = await _get_tables_detailed(connection)
-        
+
         # Get relationships
         relationships = await _get_relationships(connection)
-        
+
         # Get indexes
         indexes = await _get_indexes(connection)
-        
+
         # Get views
         views = await _get_views(connection)
-        
+
         # Get functions and procedures
         functions = await _get_functions(connection)
-        
+
         # Generate recommendations
         recommendations = _generate_structure_recommendations(tables, indexes, relationships)
-        
+
         result = {
             "status": "success",
             "data": {
@@ -76,10 +74,10 @@ async def analyze_database_structure(
             },
             "recommendations": recommendations
         }
-        
-        logger.success(f"Database structure analysis completed successfully")
+
+        logger.success("Database structure analysis completed successfully")
         return result
-        
+
     except Exception as e:
         logger.error(f"Database structure analysis failed: {str(e)}")
         return {
@@ -100,12 +98,12 @@ async def analyze_database_structure(
 async def _get_schemas(connection: DBConnector) -> List[str]:
     """Get all schemas in the database."""
     query = """
-        SELECT schema_name 
-        FROM information_schema.schemata 
+        SELECT schema_name
+        FROM information_schema.schemata
         WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
         ORDER BY schema_name
     """
-    
+
     result = await connection.execute_query(query)
     return [row[0]['stringValue'] for row in result.get('records', [])]
 
@@ -113,7 +111,7 @@ async def _get_schemas(connection: DBConnector) -> List[str]:
 async def _get_tables_detailed(connection: DBConnector) -> List[Dict[str, Any]]:
     """Get detailed information about all tables."""
     query = """
-        SELECT 
+        SELECT
             t.table_schema,
             t.table_name,
             pg_size_pretty(pg_total_relation_size(c.oid)) as size,
@@ -127,10 +125,10 @@ async def _get_tables_detailed(connection: DBConnector) -> List[Dict[str, Any]]:
         AND t.table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
         ORDER BY t.table_schema, t.table_name
     """
-    
+
     result = await connection.execute_query(query)
     tables = []
-    
+
     for row in result.get('records', []):
         table_info = {
             "schema": row[0]['stringValue'],
@@ -140,18 +138,18 @@ async def _get_tables_detailed(connection: DBConnector) -> List[Dict[str, Any]]:
             "estimated_rows": row[4]['longValue'] if not row[4].get('isNull') else 0,
             "comment": row[5]['stringValue'] if not row[5].get('isNull') else None
         }
-        
+
         # Get column information for this table
         table_info["columns"] = await _get_table_columns(connection, table_info["schema"], table_info["name"])
         tables.append(table_info)
-    
+
     return tables
 
 
 async def _get_table_columns(connection: DBConnector, schema: str, table: str) -> List[Dict[str, Any]]:
     """Get column information for a specific table."""
     query = """
-        SELECT 
+        SELECT
             column_name,
             data_type,
             is_nullable,
@@ -167,15 +165,15 @@ async def _get_table_columns(connection: DBConnector, schema: str, table: str) -
         WHERE c.table_schema = :schema AND c.table_name = :table
         ORDER BY c.ordinal_position
     """
-    
+
     params = [
         {'name': 'schema', 'value': {'stringValue': schema}},
         {'name': 'table', 'value': {'stringValue': table}}
     ]
-    
+
     result = await connection.execute_query(query, params)
     columns = []
-    
+
     for row in result.get('records', []):
         columns.append({
             "name": row[0]['stringValue'],
@@ -187,7 +185,7 @@ async def _get_table_columns(connection: DBConnector, schema: str, table: str) -
             "scale": row[6]['longValue'] if not row[6].get('isNull') else None,
             "comment": row[7]['stringValue'] if not row[7].get('isNull') else None
         })
-    
+
     return columns
 
 
@@ -205,22 +203,22 @@ async def _get_relationships(connection: DBConnector) -> List[Dict[str, Any]]:
             rc.update_rule,
             rc.delete_rule
         FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu 
+        JOIN information_schema.key_column_usage kcu
             ON tc.constraint_name = kcu.constraint_name
             AND tc.table_schema = kcu.table_schema
-        JOIN information_schema.constraint_column_usage ccu 
+        JOIN information_schema.constraint_column_usage ccu
             ON ccu.constraint_name = tc.constraint_name
             AND ccu.table_schema = tc.table_schema
-        JOIN information_schema.referential_constraints rc 
+        JOIN information_schema.referential_constraints rc
             ON tc.constraint_name = rc.constraint_name
             AND tc.table_schema = rc.constraint_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
         ORDER BY tc.table_schema, tc.table_name, tc.constraint_name
     """
-    
+
     result = await connection.execute_query(query)
     relationships = []
-    
+
     for row in result.get('records', []):
         relationships.append({
             "constraint_name": row[0]['stringValue'],
@@ -233,7 +231,7 @@ async def _get_relationships(connection: DBConnector) -> List[Dict[str, Any]]:
             "update_rule": row[7]['stringValue'],
             "delete_rule": row[8]['stringValue']
         })
-    
+
     return relationships
 
 
@@ -250,10 +248,10 @@ async def _get_indexes(connection: DBConnector) -> List[Dict[str, Any]]:
         WHERE schemaname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
         ORDER BY schemaname, tablename, indexname
     """
-    
+
     result = await connection.execute_query(query)
     indexes = []
-    
+
     for row in result.get('records', []):
         indexes.append({
             "schema": row[0]['stringValue'],
@@ -262,7 +260,7 @@ async def _get_indexes(connection: DBConnector) -> List[Dict[str, Any]]:
             "definition": row[3]['stringValue'],
             "size": row[4]['stringValue'] if not row[4].get('isNull') else '0 bytes'
         })
-    
+
     return indexes
 
 
@@ -277,17 +275,17 @@ async def _get_views(connection: DBConnector) -> List[Dict[str, Any]]:
         WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
         ORDER BY table_schema, table_name
     """
-    
+
     result = await connection.execute_query(query)
     views = []
-    
+
     for row in result.get('records', []):
         views.append({
             "schema": row[0]['stringValue'],
             "name": row[1]['stringValue'],
             "definition": row[2]['stringValue']
         })
-    
+
     return views
 
 
@@ -311,10 +309,10 @@ async def _get_functions(connection: DBConnector) -> List[Dict[str, Any]]:
         WHERE n.nspname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
         ORDER BY n.nspname, p.proname
     """
-    
+
     result = await connection.execute_query(query)
     functions = []
-    
+
     for row in result.get('records', []):
         functions.append({
             "schema": row[0]['stringValue'],
@@ -323,20 +321,20 @@ async def _get_functions(connection: DBConnector) -> List[Dict[str, Any]]:
             "arguments": row[3]['stringValue'] if not row[3].get('isNull') else None,
             "type": row[4]['stringValue']
         })
-    
+
     return functions
 
 
 def _generate_structure_recommendations(tables: List[Dict[str, Any]], indexes: List[Dict[str, Any]], relationships: List[Dict[str, Any]]) -> List[str]:
     """Generate recommendations based on database structure analysis."""
     recommendations = []
-    
+
     # Check for tables without primary keys
     for table in tables:
         has_pk = any(col.get('constraint_type') == 'PRIMARY KEY' for col in table.get('columns', []))
         if not has_pk:
             recommendations.append(f"Table '{table['schema']}.{table['name']}' appears to lack a primary key")
-    
+
     # Check for large tables without indexes
     table_index_map = {}
     for index in indexes:
@@ -344,23 +342,23 @@ def _generate_structure_recommendations(tables: List[Dict[str, Any]], indexes: L
         if key not in table_index_map:
             table_index_map[key] = []
         table_index_map[key].append(index)
-    
+
     for table in tables:
         table_key = f"{table['schema']}.{table['name']}"
         table_indexes = table_index_map.get(table_key, [])
-        
+
         if table['estimated_rows'] > 10000 and len(table_indexes) <= 1:  # Only primary key
             recommendations.append(f"Large table '{table_key}' ({table['estimated_rows']} rows) has few indexes - consider adding indexes for frequently queried columns")
-    
+
     # Check for orphaned tables (no relationships)
     tables_with_fk = set()
     for rel in relationships:
         tables_with_fk.add(f"{rel['parent_schema']}.{rel['parent_table']}")
         tables_with_fk.add(f"{rel['child_schema']}.{rel['child_table']}")
-    
+
     for table in tables:
         table_key = f"{table['schema']}.{table['name']}"
         if table_key not in tables_with_fk and table['estimated_rows'] > 0:
             recommendations.append(f"Table '{table_key}' has no foreign key relationships - verify if this is intentional")
-    
+
     return recommendations

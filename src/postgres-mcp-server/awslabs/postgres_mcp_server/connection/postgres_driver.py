@@ -15,11 +15,12 @@
 """Direct PostgreSQL driver implementation using psycopg."""
 
 import asyncio
-import json
 import boto3
-from typing import Dict, List, Optional, Any
-from loguru import logger
+import json
 from botocore.exceptions import ClientError
+from loguru import logger
+from typing import Any, Dict, List, Optional
+
 
 try:
     import psycopg2  # type: ignore[import-untyped]
@@ -34,7 +35,7 @@ from .base_connection import DBConnector
 
 class PostgresDriver(DBConnector):
     """Driver for direct PostgreSQL connections using psycopg."""
-    
+
     def __init__(
         self,
         hostname: str,
@@ -46,7 +47,7 @@ class PostgresDriver(DBConnector):
     ):
         """
         Initialize PostgreSQL driver with lazy connection.
-        
+
         Args:
             hostname: Database hostname
             database: Database name
@@ -60,7 +61,7 @@ class PostgresDriver(DBConnector):
                 "psycopg2-binary is required for direct PostgreSQL connections. "
                 "Install with: pip install psycopg2-binary or pip install .[postgres]"
             )
-            
+
         self.hostname = hostname
         self.database = database
         self.secret_arn = secret_arn
@@ -71,9 +72,9 @@ class PostgresDriver(DBConnector):
         self._credentials = None
         self._credentials_cached = False
         self._connection_validated = False
-        
+
         logger.info(f"PostgreSQL driver initialized (lazy) for {hostname}:{port}/{database}")
-        
+
     def is_connected(self) -> bool:
         """Check if the connection is active."""
         if self._connection is None:
@@ -85,7 +86,7 @@ class PostgresDriver(DBConnector):
             return True
         except (psycopg2.Error, psycopg2.OperationalError) if psycopg2 else Exception:  # type: ignore[misc]
             return False
-    
+
     async def _get_credentials(self) -> Dict[str, str]:
         """Get database credentials from AWS Secrets Manager with caching."""
         if not self._credentials_cached:
@@ -102,21 +103,21 @@ class PostgresDriver(DBConnector):
                 logger.error(f"Failed to retrieve credentials: {str(e)}")
                 raise
         return self._credentials or {}
-    
+
     async def connect(self) -> bool:
         """
         Establish connection to PostgreSQL database with optimized retry logic.
-        
+
         Returns:
             True if connection successful, False otherwise
         """
         if self.is_connected():
             return True
-            
+
         try:
             logger.info(f"Establishing connection to PostgreSQL: {self.hostname}:{self.port}/{self.database}")
             credentials = await self._get_credentials()
-            
+
             connection_params = {
                 'host': self.hostname,
                 'port': self.port,
@@ -126,34 +127,34 @@ class PostgresDriver(DBConnector):
                 'connect_timeout': 10,  # Reduced from 30 to 10 seconds
                 'application_name': 'postgres-mcp-server'
             }
-            
+
             if not PSYCOPG2_AVAILABLE or not psycopg2:
                 raise ImportError("psycopg2 is required for direct PostgreSQL connections")
-            
+
             self._connection = await asyncio.to_thread(
                 psycopg2.connect, **connection_params  # type: ignore[misc]
             )
-            
+
             # Set autocommit for read-only operations
             if self.readonly:
                 self._connection.autocommit = True
-            
+
             self._connection_validated = True
             logger.success(f"Successfully connected to PostgreSQL: {self.hostname}:{self.port}/{self.database}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to connect to PostgreSQL: {str(e)}")
             self._connection = None
             self._connection_validated = False
             return False
-    
+
     async def test_connection_parameters(self) -> bool:
         """
         Test if connection parameters are valid without establishing full connection.
-        
+
         This is used for startup validation.
-        
+
         Returns:
             True if parameters seem valid, False otherwise
         """
@@ -165,7 +166,7 @@ class PostgresDriver(DBConnector):
         except Exception as e:
             logger.error(f"Connection parameter validation failed: {str(e)}")
             return False
-    
+
     async def disconnect(self):
         """Disconnect from PostgreSQL database."""
         if self._connection:
@@ -176,7 +177,7 @@ class PostgresDriver(DBConnector):
                 logger.warning(f"Error during disconnect: {str(e)}")
             finally:
                 self._connection = None
-    
+
     async def execute_query(
         self,
         query: str,
@@ -184,14 +185,14 @@ class PostgresDriver(DBConnector):
     ) -> Dict[str, Any]:
         """
         Execute a query using direct PostgreSQL connection with connection retry.
-        
+
         Args:
             query: SQL query to execute
             parameters: Query parameters (converted from RDS Data API format)
-            
+
         Returns:
             Query result dictionary in RDS Data API format for compatibility
-            
+
         Raises:
             psycopg2.Error: If database operation fails
             Exception: For other errors
@@ -202,17 +203,17 @@ class PostgresDriver(DBConnector):
             connected = await self.connect()
             if not connected:
                 raise Exception("Failed to establish database connection")
-        
+
         try:
             if not PSYCOPG2_AVAILABLE or not psycopg2:
                 raise ImportError("psycopg2 is required for direct PostgreSQL connections")
-                
+
             with self._connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:  # type: ignore[misc]
                 # Convert RDS Data API parameters to psycopg2 format
                 pg_params = self._convert_parameters(parameters) if parameters else None
-                
+
                 await asyncio.to_thread(cursor.execute, query, pg_params)
-                
+
                 # Fetch results if it's a SELECT query
                 if cursor.description:
                     rows = await asyncio.to_thread(cursor.fetchall)
@@ -224,7 +225,7 @@ class PostgresDriver(DBConnector):
                         'records': [],
                         'columnMetadata': []
                     }
-                    
+
         except Exception as e:
             # Handle both psycopg2 errors and general exceptions
             if PSYCOPG2_AVAILABLE and psycopg2 and hasattr(psycopg2, 'OperationalError') and isinstance(e, (psycopg2.OperationalError, psycopg2.InterfaceError)):  # type: ignore[misc]
@@ -232,7 +233,7 @@ class PostgresDriver(DBConnector):
                 logger.warning(f"Connection error, attempting to reconnect: {str(e)}")
                 self._connection = None
                 self._connection_validated = False
-                
+
                 # Retry once
                 connected = await self.connect()
                 if connected:
@@ -247,14 +248,14 @@ class PostgresDriver(DBConnector):
                 logger.error(f"Unexpected error during query execution: {str(e)}")
                 raise
             raise
-    
+
     def _convert_parameters(self, rds_params: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Convert RDS Data API parameters to psycopg2 format."""
         pg_params = {}
         for param in rds_params:
             name = param.get('name')
             value_dict = param.get('value', {})
-            
+
             # Extract value based on type
             if 'stringValue' in value_dict:
                 pg_params[name] = value_dict['stringValue']
@@ -268,9 +269,9 @@ class PostgresDriver(DBConnector):
                 pg_params[name] = None
             else:
                 pg_params[name] = str(value_dict)
-        
+
         return pg_params
-    
+
     def _format_response(self, rows: List[Dict], description) -> Dict[str, Any]:
         """Format PostgreSQL response to match RDS Data API format."""
         # Create column metadata
@@ -281,7 +282,7 @@ class PostgresDriver(DBConnector):
                 'type': desc.type_code,
                 'typeName': self._get_type_name(desc.type_code)
             })
-        
+
         # Convert rows to RDS Data API format
         records = []
         for row in rows:
@@ -290,13 +291,13 @@ class PostgresDriver(DBConnector):
                 value = row[col_name]
                 record.append(self._format_cell_value(value))
             records.append(record)
-        
+
         return {
             'records': records,
             'columnMetadata': column_metadata,
             'numberOfRecordsUpdated': 0
         }
-    
+
     def _format_cell_value(self, value: Any) -> Dict[str, Any]:
         """Format a cell value to RDS Data API format."""
         if value is None:
@@ -311,7 +312,7 @@ class PostgresDriver(DBConnector):
             return {'booleanValue': value}
         else:
             return {'stringValue': str(value)}
-    
+
     def _get_type_name(self, type_code: int) -> str:
         """Get PostgreSQL type name from type code."""
         # Basic type mapping - can be extended
@@ -324,11 +325,11 @@ class PostgresDriver(DBConnector):
             1114: 'TIMESTAMP'
         }
         return type_mapping.get(type_code, 'UNKNOWN')
-    
+
     async def health_check(self) -> bool:
         """
         Perform health check on the connection.
-        
+
         Returns:
             True if connection is healthy, False otherwise
         """
@@ -338,7 +339,7 @@ class PostgresDriver(DBConnector):
         except Exception as e:
             logger.warning(f"Health check failed for PostgreSQL: {str(e)}")
             return False
-    
+
     @property
     def connection_info(self) -> Dict[str, Any]:
         """Get connection information."""

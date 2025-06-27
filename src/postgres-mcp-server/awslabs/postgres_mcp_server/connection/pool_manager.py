@@ -16,17 +16,15 @@
 
 import asyncio
 import os
-from typing import Dict, Optional, Union, Any
-from loguru import logger
 from .base_connection import DBConnector
-from .rds_connector import RDSDataAPIConnector
-from .postgres_driver import PostgresDriver
 from .connection_factory import ConnectionFactory
+from loguru import logger
+from typing import Any, Dict, Optional
 
 
 class ConnectionPoolManager:
     """Manages connection pools for different connection types."""
-    
+
     def __init__(self):
         """Initialize the connection pool manager."""
         self._pools: Dict[str, Dict[str, Any]] = {}
@@ -34,7 +32,7 @@ class ConnectionPoolManager:
         self.min_size = int(os.getenv('POSTGRES_POOL_MIN_SIZE', '5'))
         self.max_size = int(os.getenv('POSTGRES_POOL_MAX_SIZE', '30'))
         self.timeout = int(os.getenv('POSTGRES_POOL_TIMEOUT', '30'))
-        
+
     async def get_connection(
         self,
         secret_arn: str,
@@ -47,7 +45,7 @@ class ConnectionPoolManager:
     ) -> DBConnector:
         """
         Get a connection from the pool or create a new one.
-        
+
         Args:
             secret_arn: ARN of the secret containing credentials
             region_name: AWS region name
@@ -56,10 +54,10 @@ class ConnectionPoolManager:
             hostname: Database hostname
             port: Database port
             readonly: Whether connection is read-only
-            
+
         Returns:
             Database connection instance
-            
+
         Raises:
             ValueError: If connection parameters are invalid
             Exception: If connection creation fails
@@ -71,7 +69,7 @@ class ConnectionPoolManager:
             secret_arn=secret_arn,
             database=database
         )
-        
+
         # Validate parameters
         is_valid, error_msg = ConnectionFactory.validate_connection_params(
             connection_type=connection_type,
@@ -81,10 +79,10 @@ class ConnectionPoolManager:
             hostname=hostname,
             region_name=region_name
         )
-        
+
         if not is_valid:
             raise ValueError(error_msg)
-        
+
         # Create pool key
         pool_key = ConnectionFactory.create_pool_key(
             connection_type=connection_type,
@@ -94,7 +92,7 @@ class ConnectionPoolManager:
             database=database,
             secret_arn=secret_arn
         )
-        
+
         async with self._pool_lock:
             # Get or create pool
             if pool_key not in self._pools:
@@ -113,15 +111,15 @@ class ConnectionPoolManager:
                     }
                 }
                 logger.info(f"Created new connection pool: {pool_key}")
-            
+
             pool = self._pools[pool_key]
-            
+
             # Try to get an available connection
             available_connections = [
-                conn for conn in pool['connections'] 
+                conn for conn in pool['connections']
                 if conn not in pool['in_use']
             ]
-            
+
             for connection in available_connections:
                 # Health check the connection
                 if await connection.health_check():
@@ -133,13 +131,13 @@ class ConnectionPoolManager:
                     pool['connections'].remove(connection)
                     await connection.disconnect()
                     logger.warning(f"Removed unhealthy connection from pool: {pool_key}")
-            
+
             # Create new connection if pool is not at max capacity
             if len(pool['connections']) < self.max_size:
                 connection = await self._create_connection(
                     connection_type, pool['params']
                 )
-                
+
                 if connection and await connection.connect():
                     pool['connections'].append(connection)
                     pool['in_use'].add(connection)
@@ -147,17 +145,17 @@ class ConnectionPoolManager:
                     return connection
                 else:
                     raise Exception(f"Failed to create connection for pool: {pool_key}")
-            
+
             # If we reach here, pool is at capacity and no connections available
             raise Exception(f"Connection pool at capacity and no available connections: {pool_key}")
-    
+
     async def return_connection(
         self,
         connection: DBConnector
     ):
         """
         Return a connection to the pool.
-        
+
         Args:
             connection: Database connection to return
         """
@@ -167,9 +165,9 @@ class ConnectionPoolManager:
                     pool['in_use'].remove(connection)
                     logger.debug(f"Returned connection to pool: {pool_key}")
                     return
-            
+
             logger.warning("Attempted to return connection not found in any pool")
-    
+
     async def _create_connection(
         self,
         connection_type: str,
@@ -177,11 +175,11 @@ class ConnectionPoolManager:
     ) -> DBConnector:
         """
         Create a new connection based on type and parameters.
-        
+
         Args:
             connection_type: Type of connection to create ('rds_data_api' or 'psycopg_driver')
             params: Connection parameters
-            
+
         Returns:
             New connection instance
         """
@@ -195,7 +193,7 @@ class ConnectionPoolManager:
             region=params['region_name'],
             readonly=params['readonly']
         )
-    
+
     async def close_all_connections(self):
         """Close all connections in all pools."""
         async with self._pool_lock:
@@ -206,17 +204,17 @@ class ConnectionPoolManager:
                         await connection.disconnect()
                     except Exception as e:
                         logger.warning(f"Error closing connection: {str(e)}")
-                
+
                 pool['connections'].clear()
                 pool['in_use'].clear()
-            
+
             self._pools.clear()
             logger.info("All connection pools closed")
-    
+
     def get_pool_stats(self) -> Dict[str, Dict[str, Any]]:
         """
         Get statistics for all connection pools.
-        
+
         Returns:
             Dictionary containing pool statistics
         """

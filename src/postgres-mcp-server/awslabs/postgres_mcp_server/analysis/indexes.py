@@ -14,11 +14,11 @@
 
 """Index recommendation analysis tools."""
 
-import time
 import re
-from typing import Dict, List, Any
-from loguru import logger
+import time
 from ..connection.base_connection import DBConnector
+from loguru import logger
+from typing import Any, Dict, List
 
 
 async def recommend_indexes(
@@ -27,37 +27,37 @@ async def recommend_indexes(
 ) -> Dict[str, Any]:
     """
     Recommend indexes for a given SQL query.
-    
+
     Args:
         connection: Database connection instance
         query: SQL query to analyze for index recommendations
-        
+
     Returns:
         Dictionary containing index recommendations
     """
     analysis_start = time.time()
     logger.info(f"Starting index recommendation analysis for query: {query[:100]}...")
-    
+
     try:
         # Parse the query to identify tables and columns
         query_analysis = _parse_query_for_indexes(query)
-        
+
         # Get current indexes for the tables involved
         current_indexes = await _get_current_indexes(connection, query_analysis["tables"])
-        
+
         # Analyze query execution plan
         execution_plan = await _analyze_query_plan_for_indexes(connection, query)
-        
+
         # Generate index recommendations
         recommendations = _generate_index_recommendations(
             query_analysis, current_indexes, execution_plan
         )
-        
+
         # Estimate impact of recommended indexes
         impact_analysis = await _estimate_index_impact(connection, recommendations, query)
-        
+
         analysis_time = time.time() - analysis_start
-        
+
         result = {
             "status": "success",
             "data": {
@@ -75,10 +75,10 @@ async def recommend_indexes(
             },
             "recommendations": _format_index_recommendations(recommendations)
         }
-        
+
         logger.success("Index recommendation analysis completed successfully")
         return result
-        
+
     except Exception as e:
         logger.error(f"Index recommendation analysis failed: {str(e)}")
         return {
@@ -99,20 +99,20 @@ async def recommend_indexes(
 def _parse_query_for_indexes(query: str) -> Dict[str, Any]:
     """Parse SQL query to identify tables, columns, and conditions for index analysis."""
     query_lower = query.lower()
-    
+
     # Extract tables from FROM and JOIN clauses
     tables = set()
-    
+
     # Find FROM clause
     from_match = re.search(r'\bfrom\s+([^\s,]+)', query_lower)
     if from_match:
         tables.add(from_match.group(1).strip())
-    
+
     # Find JOIN clauses
     join_matches = re.findall(r'\bjoin\s+([^\s,]+)', query_lower)
     for match in join_matches:
         tables.add(match.strip())
-    
+
     # Extract WHERE conditions
     where_conditions = []
     where_match = re.search(r'\bwhere\s+(.+?)(?:\bgroup\s+by|\border\s+by|\blimit|\bhaving|$)', query_lower, re.DOTALL)
@@ -130,7 +130,7 @@ def _parse_query_for_indexes(query: str) -> Dict[str, Any]:
                     "condition": condition.strip(),
                     "operator": operator_match.group() if operator_match else "="
                 })
-    
+
     # Extract ORDER BY columns
     order_by_columns = []
     order_match = re.search(r'\border\s+by\s+([^;]+)', query_lower)
@@ -145,7 +145,7 @@ def _parse_query_for_indexes(query: str) -> Dict[str, Any]:
                     "column": col_match.group(1),
                     "direction": direction
                 })
-    
+
     # Extract GROUP BY columns
     group_by_columns = []
     group_match = re.search(r'\bgroup\s+by\s+([^;]+?)(?:\border\s+by|\blimit|\bhaving|$)', query_lower)
@@ -156,7 +156,7 @@ def _parse_query_for_indexes(query: str) -> Dict[str, Any]:
             col_match = re.search(r'([a-zA-Z_][a-zA-Z0-9_]*)', part)
             if col_match:
                 group_by_columns.append(col_match.group(1))
-    
+
     return {
         "tables": list(tables),
         "where_conditions": where_conditions,
@@ -186,7 +186,7 @@ async def _get_current_indexes(
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Get current indexes for the specified tables."""
     current_indexes = {}
-    
+
     for table in tables:
         try:
             # Get indexes for this table
@@ -206,10 +206,10 @@ async def _get_current_indexes(
                 WHERE t.relname = :table_name
                 ORDER BY i.relname, a.attnum
             """
-            
+
             params = [{'name': 'table_name', 'value': {'stringValue': table}}]
             result = await connection.execute_query(index_query, params)
-            
+
             table_indexes = []
             for row in result.get('records', []):
                 table_indexes.append({
@@ -220,13 +220,13 @@ async def _get_current_indexes(
                     "type": row[4]['stringValue'],
                     "size": row[5]['stringValue'] if not row[5].get('isNull') else '0 bytes'
                 })
-            
+
             current_indexes[table] = table_indexes
-            
+
         except Exception as e:
             logger.warning(f"Failed to get indexes for table {table}: {str(e)}")
             current_indexes[table] = []
-    
+
     return current_indexes
 
 
@@ -238,39 +238,39 @@ async def _analyze_query_plan_for_indexes(
     try:
         explain_query = f"EXPLAIN (ANALYZE, BUFFERS) {query}"
         result = await connection.execute_query(explain_query)
-        
+
         plan_analysis = {
             "sequential_scans": [],
             "expensive_sorts": [],
             "hash_joins": [],
             "nested_loops": []
         }
-        
+
         for row in result.get('records', []):
             plan_line = row[0]['stringValue']
-            
+
             # Look for sequential scans
             if "Seq Scan" in plan_line:
                 table_match = re.search(r'on\s+([a-zA-Z_][a-zA-Z0-9_]*)', plan_line)
                 if table_match:
                     plan_analysis["sequential_scans"].append(table_match.group(1))
-            
+
             # Look for expensive sorts
             if "Sort" in plan_line and "cost=" in plan_line:
                 cost_match = re.search(r'cost=[\d.]+\.\.(\d+\.?\d*)', plan_line)
                 if cost_match and float(cost_match.group(1)) > 1000:
                     plan_analysis["expensive_sorts"].append(plan_line)
-            
+
             # Look for hash joins
             if "Hash Join" in plan_line:
                 plan_analysis["hash_joins"].append(plan_line)
-            
+
             # Look for nested loops
             if "Nested Loop" in plan_line:
                 plan_analysis["nested_loops"].append(plan_line)
-        
+
         return plan_analysis
-        
+
     except Exception as e:
         logger.warning(f"Failed to analyze query plan: {str(e)}")
         return {"error": str(e)}
@@ -283,11 +283,11 @@ def _generate_index_recommendations(
 ) -> List[Dict[str, Any]]:
     """Generate index recommendations based on query analysis."""
     recommendations = []
-    
+
     # Recommend indexes for WHERE clause conditions
     for condition in query_analysis.get("where_conditions", []):
         column = condition["column"]
-        
+
         # Check if index already exists for this column
         has_index = False
         for table in query_analysis["tables"]:
@@ -295,7 +295,7 @@ def _generate_index_recommendations(
             if any(idx["column"] == column for idx in table_indexes):
                 has_index = True
                 break
-        
+
         if not has_index:
             recommendations.append({
                 "type": "single_column",
@@ -304,11 +304,11 @@ def _generate_index_recommendations(
                 "priority": "high" if condition["operator"] == "=" else "medium",
                 "sql": f"CREATE INDEX idx_{column} ON table_name ({column});"
             })
-    
+
     # Recommend indexes for ORDER BY columns
     if query_analysis.get("order_by_columns"):
         order_columns = [col["column"] for col in query_analysis["order_by_columns"]]
-        
+
         # Check if composite index exists
         has_composite = False
         for table in query_analysis["tables"]:
@@ -317,7 +317,7 @@ def _generate_index_recommendations(
             if len([idx for idx in table_indexes if idx["column"] in order_columns]) >= len(order_columns):
                 has_composite = True
                 break
-        
+
         if not has_composite and len(order_columns) > 1:
             recommendations.append({
                 "type": "composite",
@@ -326,7 +326,7 @@ def _generate_index_recommendations(
                 "priority": "medium",
                 "sql": f"CREATE INDEX idx_composite ON table_name ({', '.join(order_columns)});"
             })
-    
+
     # Recommend indexes based on execution plan
     if "sequential_scans" in execution_plan:
         for table in execution_plan["sequential_scans"]:
@@ -342,7 +342,7 @@ def _generate_index_recommendations(
                         "priority": "high",
                         "sql": f"CREATE INDEX idx_{table}_{column} ON {table} ({column});"
                     })
-    
+
     # Remove duplicates
     unique_recommendations = []
     seen = set()
@@ -351,7 +351,7 @@ def _generate_index_recommendations(
         if key not in seen:
             seen.add(key)
             unique_recommendations.append(rec)
-    
+
     return unique_recommendations
 
 
@@ -366,19 +366,19 @@ async def _estimate_index_impact(
         "storage_overhead": "Unknown",
         "maintenance_overhead": "Low to Medium"
     }
-    
+
     try:
         # Get current query cost
         explain_query = f"EXPLAIN {query}"
         result = await connection.execute_query(explain_query)
-        
+
         current_cost = 0
         for row in result.get('records', []):
             plan_line = row[0]['stringValue']
             cost_match = re.search(r'cost=[\d.]+\.\.(\d+\.?\d*)', plan_line)
             if cost_match:
                 current_cost = max(current_cost, float(cost_match.group(1)))
-        
+
         # Estimate improvements
         for rec in recommendations:
             if rec["priority"] == "high":
@@ -387,25 +387,25 @@ async def _estimate_index_impact(
                 estimated_improvement = "10-30% query performance improvement"
             else:
                 estimated_improvement = "5-15% query performance improvement"
-            
+
             impact_analysis["estimated_improvements"].append({
                 "recommendation": rec["reason"],
                 "improvement": estimated_improvement
             })
-        
+
         impact_analysis["current_query_cost"] = current_cost
-        
+
     except Exception as e:
         logger.warning(f"Failed to estimate index impact: {str(e)}")
         impact_analysis["error"] = str(e)
-    
+
     return impact_analysis
 
 
 def _format_index_recommendations(recommendations: List[Dict[str, Any]]) -> List[str]:
     """Format index recommendations as human-readable strings."""
     formatted = []
-    
+
     for rec in recommendations:
         if rec["type"] == "single_column":
             formatted.append(f"Create index on column '{rec['column']}' - {rec['reason']}")
@@ -416,8 +416,8 @@ def _format_index_recommendations(recommendations: List[Dict[str, Any]]) -> List
             formatted.append(f"Create index on table '{rec['table']}' column '{rec['column']}' - {rec['reason']}")
         else:
             formatted.append(f"Index recommendation: {rec['reason']}")
-    
+
     if not formatted:
         formatted.append("No specific index recommendations - query appears to be using indexes effectively")
-    
+
     return formatted

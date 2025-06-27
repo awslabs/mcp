@@ -16,16 +16,14 @@
 
 import asyncio
 import boto3
-from typing import Dict, List, Optional, Any
-from loguru import logger
-from botocore.exceptions import ClientError, BotoCoreError
-
 from .base_connection import DBConnector
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class RDSDataAPIConnector(DBConnector):
     """Connector for RDS Data API connections."""
-    
+
     def __init__(
         self,
         resource_arn: str,
@@ -36,7 +34,7 @@ class RDSDataAPIConnector(DBConnector):
     ):
         """
         Initialize RDS Data API connector.
-        
+
         Args:
             resource_arn: ARN of the RDS cluster or instance
             secret_arn: ARN of the secret containing credentials
@@ -51,22 +49,22 @@ class RDSDataAPIConnector(DBConnector):
         self.readonly = readonly
         self._client = None
         self._connected = False
-        
+
     @property
     def client(self):
         """Get or create the RDS Data API client."""
         if self._client is None:
             self._client = boto3.client('rds-data', region_name=self.region_name)
         return self._client
-    
+
     def is_connected(self) -> bool:
         """Check if the connection is active."""
         return self._connected
-    
+
     async def connect(self) -> bool:
         """
         Establish connection to RDS Data API.
-        
+
         Returns:
             True if connection successful, False otherwise
         """
@@ -74,7 +72,7 @@ class RDSDataAPIConnector(DBConnector):
             # For RDS Data API, we just need to test that we can create a client
             # and that our credentials work. We'll do a simple test without recursion.
             client = self.client  # This creates the boto3 client
-            
+
             # Test with a direct API call instead of using execute_query to avoid recursion
             test_params = {
                 'resourceArn': self.resource_arn,
@@ -83,10 +81,10 @@ class RDSDataAPIConnector(DBConnector):
                 'sql': 'SELECT 1',
                 'includeResultMetadata': True,
             }
-            
+
             # Direct call to test connection
             await asyncio.to_thread(client.execute_statement, **test_params)
-            
+
             self._connected = True
             logger.info(f"Successfully connected to RDS Data API: {self.resource_arn}")
             return True
@@ -94,13 +92,13 @@ class RDSDataAPIConnector(DBConnector):
             logger.error(f"Failed to connect to RDS Data API: {str(e)}")
             self._connected = False
             return False
-    
+
     async def disconnect(self):
         """Disconnect from RDS Data API."""
         # RDS Data API is stateless, so no explicit disconnect needed
         self._connected = False
         logger.info("Disconnected from RDS Data API")
-    
+
     async def execute_query(
         self,
         query: str,
@@ -108,14 +106,14 @@ class RDSDataAPIConnector(DBConnector):
     ) -> Dict[str, Any]:
         """
         Execute a query using RDS Data API.
-        
+
         Args:
             query: SQL query to execute
             parameters: Query parameters
-            
+
         Returns:
             Query result dictionary
-            
+
         Raises:
             ClientError: If AWS API call fails
             Exception: For other errors
@@ -128,17 +126,17 @@ class RDSDataAPIConnector(DBConnector):
             'sql': query,
             'includeResultMetadata': True,
         }
-        
+
         if parameters:
             execute_params['parameters'] = parameters
-        
+
         if self.readonly:
             return await self._execute_readonly_query(execute_params)
         else:
             return await asyncio.to_thread(
                 self.client.execute_statement, **execute_params
             )
-    
+
     async def _execute_readonly_query(self, execute_params: Dict[str, Any]) -> Dict[str, Any]:
         """Execute query in read-only transaction."""
         tx_id = None
@@ -151,7 +149,7 @@ class RDSDataAPIConnector(DBConnector):
                 database=self.database
             )
             tx_id = tx_response['transactionId']
-            
+
             # Set transaction to read-only
             await asyncio.to_thread(
                 self.client.execute_statement,
@@ -161,13 +159,13 @@ class RDSDataAPIConnector(DBConnector):
                 sql='SET TRANSACTION READ ONLY',
                 transactionId=tx_id
             )
-            
+
             # Execute the actual query
             execute_params['transactionId'] = tx_id
             result = await asyncio.to_thread(
                 self.client.execute_statement, **execute_params
             )
-            
+
             # Commit transaction
             await asyncio.to_thread(
                 self.client.commit_transaction,
@@ -175,9 +173,9 @@ class RDSDataAPIConnector(DBConnector):
                 secretArn=self.secret_arn,
                 transactionId=tx_id
             )
-            
+
             return result
-            
+
         except Exception as e:
             if tx_id:
                 try:
@@ -190,11 +188,11 @@ class RDSDataAPIConnector(DBConnector):
                 except Exception as rollback_error:
                     logger.error(f"Failed to rollback transaction: {rollback_error}")
             raise e
-    
+
     async def health_check(self) -> bool:
         """
         Perform health check on the connection.
-        
+
         Returns:
             True if connection is healthy, False otherwise
         """
@@ -204,7 +202,7 @@ class RDSDataAPIConnector(DBConnector):
         except Exception as e:
             logger.warning(f"Health check failed for RDS Data API: {str(e)}")
             return False
-    
+
     @property
     def connection_info(self) -> Dict[str, Any]:
         """Get connection information."""

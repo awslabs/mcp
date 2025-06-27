@@ -15,9 +15,9 @@
 """Slow query identification and analysis tools."""
 
 import time
-from typing import Dict, List, Any
-from loguru import logger
 from ..connection.base_connection import DBConnector
+from loguru import logger
+from typing import Any, Dict, List
 
 
 async def identify_slow_queries(
@@ -27,22 +27,22 @@ async def identify_slow_queries(
 ) -> Dict[str, Any]:
     """
     Identify slow-running queries in the database.
-    
+
     Args:
         connection: Database connection instance
         min_execution_time: Minimum execution time in milliseconds (default: 100ms)
         limit: Maximum number of queries to return (default: 20)
-        
+
     Returns:
         Dictionary containing slow query analysis results
     """
     analysis_start = time.time()
     logger.info(f"Starting slow query analysis (min_time: {min_execution_time}ms, limit: {limit})")
-    
+
     try:
         # Check if pg_stat_statements extension is available
         extension_available = await _check_pg_stat_statements(connection)
-        
+
         if not extension_available:
             return {
                 "status": "error",
@@ -58,21 +58,21 @@ async def identify_slow_queries(
                 },
                 "partial_data": {}
             }
-        
+
         # Get slow queries from pg_stat_statements
         slow_queries = await _get_slow_queries(connection, min_execution_time, limit)
-        
+
         # Analyze query patterns
         query_analysis = _analyze_query_patterns(slow_queries)
-        
+
         # Get current running queries
         current_queries = await _get_current_long_running_queries(connection)
-        
+
         # Generate recommendations
         recommendations = _generate_slow_query_recommendations(slow_queries, query_analysis)
-        
+
         analysis_time = time.time() - analysis_start
-        
+
         result = {
             "status": "success",
             "data": {
@@ -90,10 +90,10 @@ async def identify_slow_queries(
             },
             "recommendations": recommendations
         }
-        
+
         logger.success("Slow query analysis completed successfully")
         return result
-        
+
     except Exception as e:
         logger.error(f"Slow query analysis failed: {str(e)}")
         return {
@@ -119,11 +119,11 @@ async def _check_pg_stat_statements(connection: DBConnector) -> bool:
     try:
         query = "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements')"
         result = await connection.execute_query(query)
-        
+
         if result.get('records'):
             return result['records'][0][0]['booleanValue']
         return False
-        
+
     except Exception as e:
         logger.warning(f"Failed to check pg_stat_statements availability: {str(e)}")
         return False
@@ -136,7 +136,7 @@ async def _get_slow_queries(
 ) -> List[Dict[str, Any]]:
     """Get slow queries from pg_stat_statements."""
     query = """
-        SELECT 
+        SELECT
             query,
             calls,
             total_exec_time,
@@ -154,20 +154,20 @@ async def _get_slow_queries(
             local_blks_hit,
             temp_blks_read,
             temp_blks_written
-        FROM pg_stat_statements 
+        FROM pg_stat_statements
         WHERE mean_exec_time >= :min_time
         ORDER BY mean_exec_time DESC
         LIMIT :limit_count
     """
-    
+
     params = [
         {'name': 'min_time', 'value': {'doubleValue': min_execution_time}},
         {'name': 'limit_count', 'value': {'longValue': limit}}
     ]
-    
+
     result = await connection.execute_query(query, params)
     slow_queries = []
-    
+
     for row in result.get('records', []):
         query_info = {
             "query": row[0]['stringValue'],
@@ -188,13 +188,13 @@ async def _get_slow_queries(
             "temp_blocks_read": row[15]['longValue'] if not row[15].get('isNull') else 0,
             "temp_blocks_written": row[16]['longValue'] if not row[16].get('isNull') else 0
         }
-        
+
         # Calculate derived metrics
         if query_info["calls"] > 0:
             query_info["avg_rows_per_call"] = query_info["rows_returned"] / query_info["calls"]
         else:
             query_info["avg_rows_per_call"] = 0
-        
+
         # Classify query performance
         if query_info["mean_exec_time_ms"] > 5000:
             query_info["performance_category"] = "Critical"
@@ -204,12 +204,12 @@ async def _get_slow_queries(
             query_info["performance_category"] = "Moderate"
         else:
             query_info["performance_category"] = "Acceptable"
-        
+
         # Identify query type
         query_info["query_type"] = _identify_query_type(query_info["query"])
-        
+
         slow_queries.append(query_info)
-    
+
     return slow_queries
 
 
@@ -218,7 +218,7 @@ async def _get_current_long_running_queries(
 ) -> List[Dict[str, Any]]:
     """Get currently running long queries."""
     query = """
-        SELECT 
+        SELECT
             pid,
             usename,
             application_name,
@@ -228,16 +228,16 @@ async def _get_current_long_running_queries(
             state_change,
             EXTRACT(EPOCH FROM (now() - query_start)) * 1000 as duration_ms,
             query
-        FROM pg_stat_activity 
-        WHERE state = 'active' 
+        FROM pg_stat_activity
+        WHERE state = 'active'
         AND query_start < now() - interval '30 seconds'
         AND query NOT LIKE '%pg_stat_activity%'
         ORDER BY query_start
     """
-    
+
     result = await connection.execute_query(query)
     current_queries = []
-    
+
     for row in result.get('records', []):
         current_queries.append({
             "pid": row[0]['longValue'] if not row[0].get('isNull') else 0,
@@ -250,14 +250,14 @@ async def _get_current_long_running_queries(
             "duration_ms": row[7]['doubleValue'] if not row[7].get('isNull') else 0,
             "query": row[8]['stringValue'][:200] + "..." if len(row[8]['stringValue']) > 200 else row[8]['stringValue']
         })
-    
+
     return current_queries
 
 
 def _identify_query_type(query: str) -> str:
     """Identify the type of SQL query."""
     query_lower = query.lower().strip()
-    
+
     if query_lower.startswith('select'):
         if 'join' in query_lower:
             return 'SELECT with JOINs'
@@ -294,21 +294,21 @@ def _analyze_query_patterns(slow_queries: List[Dict[str, Any]]) -> Dict[str, Any
             "total_execution_time": 0
         }
     }
-    
+
     total_exec_time = 0
     total_calls = 0
-    
+
     for query in slow_queries:
         # Count query types
         query_type = query["query_type"]
         patterns["query_types"][query_type] = patterns["query_types"].get(query_type, 0) + 1
-        
+
         # Count performance categories
         perf_cat = query["performance_category"]
         patterns["performance_categories"][perf_cat] = patterns["performance_categories"].get(perf_cat, 0) + 1
-        
+
         # Identify high I/O queries
-        total_blocks = (query["shared_blocks_read"] + query["shared_blocks_written"] + 
+        total_blocks = (query["shared_blocks_read"] + query["shared_blocks_written"] +
                        query["temp_blocks_read"] + query["temp_blocks_written"])
         if total_blocks > 10000:
             patterns["high_io_queries"].append({
@@ -316,7 +316,7 @@ def _analyze_query_patterns(slow_queries: List[Dict[str, Any]]) -> Dict[str, Any
                 "total_blocks": total_blocks,
                 "mean_exec_time": query["mean_exec_time_ms"]
             })
-        
+
         # Identify low cache hit queries
         if query["cache_hit_percent"] < 90 and query["shared_blocks_read"] > 1000:
             patterns["low_cache_hit_queries"].append({
@@ -324,7 +324,7 @@ def _analyze_query_patterns(slow_queries: List[Dict[str, Any]]) -> Dict[str, Any
                 "cache_hit_percent": query["cache_hit_percent"],
                 "blocks_read": query["shared_blocks_read"]
             })
-        
+
         # Identify queries using temp files
         if query["temp_blocks_read"] > 0 or query["temp_blocks_written"] > 0:
             patterns["temp_file_queries"].append({
@@ -332,16 +332,16 @@ def _analyze_query_patterns(slow_queries: List[Dict[str, Any]]) -> Dict[str, Any
                 "temp_blocks_read": query["temp_blocks_read"],
                 "temp_blocks_written": query["temp_blocks_written"]
             })
-        
+
         # Update summary
         total_exec_time += query["total_exec_time_ms"]
         total_calls += query["calls"]
-    
+
     patterns["summary"]["total_calls"] = total_calls
     patterns["summary"]["total_execution_time"] = total_exec_time
     if len(slow_queries) > 0:
         patterns["summary"]["avg_execution_time"] = total_exec_time / len(slow_queries)
-    
+
     return patterns
 
 
@@ -351,11 +351,11 @@ def _generate_slow_query_recommendations(
 ) -> List[str]:
     """Generate recommendations based on slow query analysis."""
     recommendations = []
-    
+
     if not slow_queries:
         recommendations.append("No slow queries found above the specified threshold - performance looks good")
         return recommendations
-    
+
     # Critical queries
     critical_queries = [q for q in slow_queries if q["performance_category"] == "Critical"]
     if critical_queries:
@@ -363,47 +363,47 @@ def _generate_slow_query_recommendations(
             f"CRITICAL: {len(critical_queries)} queries with >5 second average execution time - "
             f"immediate optimization required"
         )
-    
+
     # High I/O queries
     if query_analysis["high_io_queries"]:
         recommendations.append(
             f"HIGH: {len(query_analysis['high_io_queries'])} queries performing excessive I/O - "
             f"consider adding indexes or optimizing query structure"
         )
-    
+
     # Low cache hit queries
     if query_analysis["low_cache_hit_queries"]:
         recommendations.append(
             f"MEDIUM: {len(query_analysis['low_cache_hit_queries'])} queries with low cache hit ratio - "
             f"consider increasing shared_buffers or optimizing data access patterns"
         )
-    
+
     # Temp file usage
     if query_analysis["temp_file_queries"]:
         recommendations.append(
             f"MEDIUM: {len(query_analysis['temp_file_queries'])} queries using temporary files - "
             f"consider increasing work_mem or optimizing sort/hash operations"
         )
-    
+
     # Query type specific recommendations
     query_types = query_analysis["query_types"]
     if query_types.get("SELECT with JOINs", 0) > 5:
         recommendations.append(
             "Consider optimizing JOIN operations - ensure proper indexes on join columns"
         )
-    
+
     if query_types.get("SELECT with GROUP BY", 0) > 3:
         recommendations.append(
             "Multiple slow GROUP BY queries detected - consider indexes on grouping columns"
         )
-    
+
     # General recommendations
     recommendations.append(
         "Review and optimize the top 5 slowest queries for maximum performance impact"
     )
-    
+
     recommendations.append(
         "Monitor pg_stat_statements regularly to track query performance trends"
     )
-    
+
     return recommendations

@@ -4,6 +4,8 @@
 import asyncio
 import os
 import sys
+
+
 sys.path.insert(0, '/Users/reachrk/Downloads/awslabs/aws-mcp-servers/src/postgres-mcp-server')
 
 # from awslabs.postgres_mcp_server.unified_connection import UnifiedDBConnectionSingleton  # Module doesn't exist
@@ -14,7 +16,7 @@ async def test_direct_postgres_query():
     """Test Direct PostgreSQL query execution directly."""
     print("🧪 Testing Direct PostgreSQL Query Execution")
     print("=" * 50)
-    
+
     try:
         # Create connection using ConnectionFactory
         db_connection = ConnectionFactory.create_connection(
@@ -25,22 +27,22 @@ async def test_direct_postgres_query():
             region="us-west-2",
             readonly=True
         )
-        
+
         print("✅ Connection created")
         print(f"✅ Connection type: {type(db_connection).__name__}")
-        
+
         # Test simple query
         print("\n🔍 Testing simple query: SELECT 1")
         result = await db_connection.execute_query("SELECT 1 as test")
         print(f"✅ Query result: {result}")
-        
+
         # Test version query
         print("\n🔍 Testing version query")
         result = await db_connection.execute_query("SELECT version() as postgresql_version")
         print(f"✅ Version result: {result}")
-        
+
         return True
-        
+
     except Exception as e:
         print(f"❌ Test failed: {str(e)}")
         import traceback
@@ -53,14 +55,14 @@ async def main():
     # Set AWS profile
     os.environ['AWS_PROFILE'] = 'mcp_profile'
     os.environ['AWS_REGION'] = 'us-west-2'
-    
+
     success = await test_direct_postgres_query()
-    
+
     if success:
         print("\n🎉 Direct PostgreSQL query execution is working!")
     else:
         print("\n❌ Direct PostgreSQL query execution has issues")
-    
+
     return success
 
 

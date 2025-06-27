@@ -14,22 +14,22 @@
 
 """Table schema analysis tools."""
 
-from typing import Dict, List, Any
-from loguru import logger
 from ..connection.base_connection import DBConnector
+from loguru import logger
+from typing import Any, Dict, List
 
 
 async def get_table_schema(
-    connection: DBConnector, 
+    connection: DBConnector,
     table_name: str
 ) -> List[Dict[str, Any]]:
     """
     Get a table's schema information given the table name.
-    
+
     Args:
         connection: Database connection instance
         table_name: Name of the table to analyze
-        
+
     Returns:
         List of dictionaries containing column information
     """
@@ -57,13 +57,13 @@ async def get_table_schema(
         # Execute query with parameterized approach
         params = [{'name': 'table_name', 'value': {'stringValue': table_name}}]
         response = await connection.execute_query(sql, params)
-        
+
         # Parse response based on connection type
         if connection.connection_info['type'] == 'rds_data_api':
             # RDS Data API response format
             columns = [col['name'] for col in response.get('columnMetadata', [])]
             records = []
-            
+
             for row in response.get('records', []):
                 row_data = {}
                 for col, cell in zip(columns, row):
@@ -71,13 +71,13 @@ async def get_table_schema(
                         row_data[col] = None
                     else:
                         # Extract value from cell
-                        for key in ('stringValue', 'longValue', 'doubleValue', 
+                        for key in ('stringValue', 'longValue', 'doubleValue',
                                    'booleanValue', 'blobValue'):
                             if key in cell:
                                 row_data[col] = cell[key]
                                 break
                 records.append(row_data)
-            
+
             return records
         else:
             # Direct PostgreSQL connection - ensure we return a list
@@ -85,7 +85,7 @@ async def get_table_schema(
                 return response
             else:
                 return [response] if response else []
-            
+
     except Exception as e:
         logger.exception(f"Error fetching table schema for {table_name}")
         raise Exception(f"Failed to fetch table schema: {str(e)}")

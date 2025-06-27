@@ -15,17 +15,16 @@
 """Connection factory for determining connection types and creating connections."""
 
 import os
-from typing import Optional, Tuple, Dict, Any
-from loguru import logger
-
 from .base_connection import DBConnector
-from .rds_connector import RDSDataAPIConnector
 from .postgres_driver import PostgresDriver
+from .rds_connector import RDSDataAPIConnector
+from loguru import logger
+from typing import Any, Dict, Optional, Tuple
 
 
 class ConnectionFactory:
     """Factory class for determining connection types and creating appropriate connections."""
-    
+
     @staticmethod
     def determine_connection_type(
         resource_arn: Optional[str] = None,
@@ -35,16 +34,16 @@ class ConnectionFactory:
     ) -> str:
         """
         Determine the connection type based on provided parameters.
-        
+
         Args:
             resource_arn: ARN of the RDS cluster or instance
             hostname: Database hostname
             secret_arn: ARN of the secret containing credentials
             database: Database name
-            
+
         Returns:
             Connection type: 'rds_data_api' or 'psycopg_driver'
-            
+
         Raises:
             ValueError: If neither resource_arn nor hostname is provided
         """
@@ -56,7 +55,7 @@ class ConnectionFactory:
             return "psycopg_driver"
         else:
             raise ValueError("Either resource_arn or hostname must be provided")
-    
+
     @staticmethod
     def create_connection(
         resource_arn: Optional[str] = None,
@@ -69,7 +68,7 @@ class ConnectionFactory:
     ) -> DBConnector:
         """
         Create and return the appropriate connection object.
-        
+
         Args:
             resource_arn: ARN of the RDS cluster or instance
             hostname: Database hostname
@@ -78,10 +77,10 @@ class ConnectionFactory:
             database: Database name
             region: AWS region name
             readonly: Whether connection is read-only
-            
+
         Returns:
             DBConnector: An instance of the appropriate connector class
-            
+
         Raises:
             ValueError: If neither resource_arn nor hostname is provided
         """
@@ -89,7 +88,7 @@ class ConnectionFactory:
             resource_arn=resource_arn,
             hostname=hostname
         )
-        
+
         # Validate parameters
         is_valid, error_msg = ConnectionFactory.validate_connection_params(
             connection_type=connection_type,
@@ -99,10 +98,10 @@ class ConnectionFactory:
             hostname=hostname,
             region_name=region
         )
-        
+
         if not is_valid:
             raise ValueError(error_msg)
-        
+
         if connection_type == "rds_data_api":
             if not resource_arn or not secret_arn or not database or not region:
                 raise ValueError("RDS Data API requires resource_arn, secret_arn, database, and region")
@@ -126,7 +125,7 @@ class ConnectionFactory:
             )
         else:
             raise ValueError(f"Unknown connection type: {connection_type}")
-    
+
     @staticmethod
     def create_pool_key(
         connection_type: str,
@@ -138,7 +137,7 @@ class ConnectionFactory:
     ) -> str:
         """
         Create a unique pool key for connection pooling.
-        
+
         Args:
             connection_type: Type of connection ('rds_data_api' or 'psycopg_driver')
             resource_arn: ARN of the RDS cluster or instance
@@ -146,7 +145,7 @@ class ConnectionFactory:
             port: Database port
             database: Database name
             secret_arn: ARN of the secret containing credentials
-            
+
         Returns:
             Unique pool key string
         """
@@ -159,12 +158,12 @@ class ConnectionFactory:
             return f"postgres://{hostname}:{port}/{database}#{secret_hash}"
         else:
             raise ValueError(f"Unknown connection type: {connection_type}")
-    
+
     @staticmethod
     def get_connection_config() -> Dict[str, Any]:
         """
         Get connection configuration from environment variables.
-        
+
         Returns:
             Dictionary containing connection configuration
         """
@@ -177,7 +176,7 @@ class ConnectionFactory:
             'region_name': os.getenv('POSTGRES_REGION', 'us-west-2'),
             'readonly': os.getenv('POSTGRES_READONLY', 'true').lower() == 'true'
         }
-    
+
     @staticmethod
     def validate_connection_params(
         connection_type: str,
@@ -189,7 +188,7 @@ class ConnectionFactory:
     ) -> Tuple[bool, str]:
         """
         Validate connection parameters for the given connection type.
-        
+
         Args:
             connection_type: Type of connection
             secret_arn: ARN of the secret containing credentials
@@ -197,7 +196,7 @@ class ConnectionFactory:
             database: Database name
             hostname: Database hostname
             region_name: AWS region name
-            
+
         Returns:
             Tuple of (is_valid, error_message)
         """
@@ -213,7 +212,7 @@ class ConnectionFactory:
                 if not region_name:
                     missing.append('region_name')
                 return False, f"Missing required parameters for RDS Data API: {', '.join(missing)}"
-        
+
         elif connection_type == "psycopg_driver":
             if not all([hostname, database, secret_arn, region_name]):
                 missing = []
@@ -226,8 +225,8 @@ class ConnectionFactory:
                 if not region_name:
                     missing.append('region_name')
                 return False, f"Missing required parameters for direct PostgreSQL: {', '.join(missing)}"
-        
+
         else:
             return False, f"Unknown connection type: {connection_type}"
-        
+
         return True, ""
