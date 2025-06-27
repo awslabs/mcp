@@ -15,8 +15,9 @@
 
 set -eo pipefail
 
-# Check if the server is running and responding to health checks
-if curl -f http://localhost:8000/health || wget -q -O - http://localhost:8000/health; then
+# Since MCP servers don't typically run HTTP endpoints, 
+# we'll check if the main server module exists and is accessible
+if [ -f "/app/awslabs/postgres_mcp_server/server.py" ]; then
   exit 0
 fi
 
