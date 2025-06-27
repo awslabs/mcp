@@ -15,7 +15,7 @@
 """Tests for the CDK analyzer module."""
 
 import pytest
-from awslabs.cost_analysis_mcp_server.cdk_analyzer import CDKAnalyzer, analyze_cdk_project
+from awslabs.aws_pricing_mcp_server.cdk_analyzer import CDKAnalyzer, analyze_cdk_project
 from pathlib import Path
 
 

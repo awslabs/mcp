@@ -15,7 +15,7 @@
 """Tests for the Terraform project analyzer."""
 
 import pytest
-from awslabs.cost_analysis_mcp_server.terraform_analyzer import (
+from awslabs.aws_pricing_mcp_server.terraform_analyzer import (
     TerraformAnalyzer,
     analyze_terraform_project,
 )

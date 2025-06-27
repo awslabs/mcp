@@ -60,7 +60,7 @@ body:
           required: false
         - label: core-mcp-server
           required: false
-        - label: cost-analysis-mcp-server
+        - label: aws-pricing-mcp-server
           required: false
         - label: git-repo-research-msp-server
           required: false

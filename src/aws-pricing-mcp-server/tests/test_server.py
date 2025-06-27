@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the server module of the cost-analysis-mcp-server."""
+"""Tests for the server module of the aws-pricing-mcp-server."""
 
 import pytest
-from awslabs.cost_analysis_mcp_server.server import (
+from awslabs.aws_pricing_mcp_server.server import (
     analyze_cdk_project_wrapper,
     generate_cost_report_wrapper,
     get_bedrock_patterns,

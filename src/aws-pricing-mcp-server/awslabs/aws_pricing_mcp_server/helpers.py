@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs MCP Cost Analysis mcp server helper classes.
+"""awslabs MCP AWS Pricing mcp server helper classes.
 
 This module provides helper classes for analyzing AWS service costs.
 """

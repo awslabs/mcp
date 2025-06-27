@@ -1,5 +1,5 @@
 ---
-title: Cost Analysis MCP Server
+title: AWS Pricing MCP Server
 ---
 
-{%include "../../src/cost-analysis-mcp-server/README.md"%}
+{%include "../../src/aws-pricing-mcp-server/README.md"%}

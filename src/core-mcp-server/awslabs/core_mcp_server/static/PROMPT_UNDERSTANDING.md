@@ -45,7 +45,7 @@ When a user presents a query, follow these steps to break it down:
   - generate_image_with_colors: Generate an image using Amazon Nova Canvas with color guidance
 
 #### Cost Analysis MCP Server
-- Use `awslabs.cost-analysis-mcp-server` for analyzing AWS service costs:
+- Use `awslabs.aws-pricing-mcp-server` for analyzing AWS service costs:
   - analyze_cdk_project: Analyze a CDK project to identify AWS services used
   - get_pricing_from_web: Get pricing information from AWS pricing webpage
   - get_pricing_from_api: Get pricing information from AWS Price List API
@@ -271,14 +271,14 @@ Generate images for UI or solution architecture diagrams:
 </use_mcp_tool>
 ```
 
-### 6.2 AWS Cost Analysis MCP Server
+### 6.2 AWS Pricing MCP Server
 
 Get pricing information for AWS services:
 
 ```md
 # Getting pricing information
 <use_mcp_tool>
-<server_name>awslabs.cost-analysis-mcp-server</server_name>
+<server_name>awslabs.aws-pricing-mcp-server</server_name>
 <tool_name>get_pricing_from_web</tool_name>
 <arguments>
 {

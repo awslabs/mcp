@@ -14,7 +14,7 @@
 
 """Tests for the helpers module."""
 
-from awslabs.cost_analysis_mcp_server.helpers import CostAnalysisHelper
+from awslabs.aws_pricing_mcp_server.helpers import CostAnalysisHelper
 
 
 class TestCostAnalysisHelper:

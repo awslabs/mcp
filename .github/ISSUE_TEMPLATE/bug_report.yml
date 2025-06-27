@@ -86,7 +86,7 @@ body:
         - cfn-mcp-server
         - code-doc-gen-mcp-server
         - core-mcp-server
-        - cost-analysis-mcp-server
+        - aws-pricing-mcp-server
         - documentdb-mcp-server
         - dynamodb-mcp-server
         - frontend-mcp-server

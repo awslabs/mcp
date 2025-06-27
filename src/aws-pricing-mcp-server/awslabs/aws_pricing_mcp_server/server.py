@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs MCP Cost Analysis mcp server implementation.
+"""awslabs MCP AWS Pricing mcp server implementation.
 
 This server provides tools for analyzing AWS service costs across different user tiers.
 """
 
 import os
 import sys
-from awslabs.cost_analysis_mcp_server import consts
-from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
-from awslabs.cost_analysis_mcp_server.pricing_client import create_pricing_client
-from awslabs.cost_analysis_mcp_server.static.patterns import BEDROCK
-from awslabs.cost_analysis_mcp_server.terraform_analyzer import analyze_terraform_project
+from awslabs.aws_pricing_mcp_server import consts
+from awslabs.aws_pricing_mcp_server.cdk_analyzer import analyze_cdk_project
+from awslabs.aws_pricing_mcp_server.pricing_client import create_pricing_client
+from awslabs.aws_pricing_mcp_server.static.patterns import BEDROCK
+from awslabs.aws_pricing_mcp_server.terraform_analyzer import analyze_terraform_project
 from bs4 import BeautifulSoup
 from httpx import AsyncClient
 from loguru import logger
@@ -57,7 +57,7 @@ class PricingFilters(BaseModel):
 
 
 mcp = FastMCP(
-    name='awslabs.cost-analysis-mcp-server',
+    name='awslabs.aws-pricing-mcp-server',
     instructions="""Use this server for analyzing AWS service costs, with a focus on serverless services.
 
     REQUIRED WORKFLOW:
@@ -529,7 +529,7 @@ async def generate_cost_report_wrapper(
         str: The generated document in markdown format
     """
     # Import and call the implementation from report_generator.py
-    from awslabs.cost_analysis_mcp_server.report_generator import (
+    from awslabs.aws_pricing_mcp_server.report_generator import (
         generate_cost_report,
     )
 

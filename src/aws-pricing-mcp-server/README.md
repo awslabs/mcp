@@ -1,4 +1,4 @@
-# Cost Analysis MCP Server
+# AWS Pricing MCP Server
 
 MCP server for generating upfront AWS service cost estimates and providing cost insights
 
@@ -36,16 +36,16 @@ MCP server for generating upfront AWS service cost estimates and providing cost 
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.cost-analysis-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuY29zdC1hbmFseXNpcy1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-pricing-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuY29zdC1hbmFseXNpcy1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
 
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
   "mcpServers": {
-    "awslabs.cost-analysis-mcp-server": {
+    "awslabs.aws-pricing-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.cost-analysis-mcp-server@latest"],
+      "args": ["awslabs.aws-pricing-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile"
@@ -57,7 +57,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
-or docker after a successful `docker build -t awslabs/cost-analysis-mcp-server .`:
+or docker after a successful `docker build -t awslabs/aws-pricing-mcp-server .`:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials
@@ -69,7 +69,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
 ```json
   {
     "mcpServers": {
-      "awslabs.cost-analysis-mcp-server": {
+      "awslabs.aws-pricing-mcp-server": {
         "command": "docker",
         "args": [
           "run",
@@ -79,7 +79,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
           "FASTMCP_LOG_LEVEL=ERROR",
           "--env-file",
           "/full/path/to/file/above/.env",
-          "awslabs/cost-analysis-mcp-server:latest"
+          "awslabs/aws-pricing-mcp-server:latest"
         ],
         "env": {},
         "disabled": false,

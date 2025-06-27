@@ -17,8 +17,8 @@ from importlib import (  # nosem: python.lang.compatibility.python37.python37-co
 )  # nosem: python.lang.compatibility.python37.python37-compatibility-importlib2
 
 with (
-    resources.files('awslabs.cost_analysis_mcp_server.static.patterns')
-    .joinpath('BEDROCK.md')
+    resources.files('awslabs.aws_pricing_mcp_server.static')
+    .joinpath('COST_REPORT_TEMPLATE.md')
     .open('r', encoding='utf-8') as f
 ):
-    BEDROCK = f.read()
+    COST_REPORT_TEMPLATE = f.read()

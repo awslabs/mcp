@@ -4,7 +4,7 @@ MCP server that provides a starting point for using the following awslabs MCP se
 - awslabs.cdk-mcp-server
 - awslabs.bedrock-kb-retrieval-mcp-server
 - awslabs.nova-canvas-mcp-server
-- awslabs.cost-analysis-mcp-server
+- awslabs.aws-pricing-mcp-server
 - awslabs.aws-documentation-mcp-server
 - awslabs.aws-diagram-mcp-server
 
