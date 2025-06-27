@@ -66,8 +66,8 @@ The following operations are read-only and relatively safe for production enviro
 
 | Tool | Operation | Production Safety |
 |------|-----------|-------------------|
-| `ecs_resource_management` | `list` operations (clusters, services, tasks) | ✅ Safe - Read-only |
-| `ecs_resource_management` | `describe` operations (clusters, services, tasks) | ✅ Safe - Read-only |
+| `ecs_resource_management` | List operations (clusters, services, tasks) | ✅ Safe - Read-only |
+| `ecs_resource_management` | Describe operations (clusters, services, tasks) | ✅ Safe - Read-only |
 | `ecs_troubleshooting_tool` | `fetch_service_events` | ✅ Safe - Read-only |
 | `ecs_troubleshooting_tool` | `get_ecs_troubleshooting_guidance` | ✅ Safe - Read-only |
 | `get_deployment_status` | Status checking | ✅ Safe - Read-only |
@@ -79,6 +79,10 @@ The following operations modify resources and should be used with extreme cautio
 | `create_ecs_infrastructure` | Creating resources | ⚠️ High Risk - Creates infrastructure |
 | `delete_ecs_infrastructure` | Deleting resources | 🛑 Dangerous - Deletes infrastructure |
 | `containerize_app` | Generate container configs | 🟡 Medium Risk - Local changes only |
+| `ecs_resource_management` | Create operations (clusters, services, tasks) | ⚠️ High Risk - Creates resources |
+| `ecs_resource_management` | Update operations (services, tasks, settings) | ⚠️ High Risk - Modifies resources |
+| `ecs_resource_management` | Delete operations (clusters, services, tasks) | 🛑 Dangerous - Deletes resources |
+| `ecs_resource_management` | Run/Start/Stop task operations | ⚠️ High Risk - Affects running workloads |
 
 ### When to Consider Production Use
 
@@ -224,16 +228,26 @@ The troubleshooting tool helps diagnose and resolve common ECS deployment issues
 
 ### Resource Management
 
-This tool provides read-only access to Amazon ECS resources to help you monitor and understand your deployment environment.
+This tool provides comprehensive access to Amazon ECS resources to help you monitor, understand, and manage your deployment environment.
 
-- **ecs_resource_management**: List and describe ECS resources including:
-  - Clusters: List all clusters, describe specific cluster details
-  - Services: List services in a cluster, describe service configuration
-  - Tasks: List running or stopped tasks, describe task details and status
-  - Task Definitions: List task definition families, describe specific task definition revisions
-  - Container Instances: List container instances, describe instance health and capacity
-  - Capacity Providers: List and describe capacity providers associated with clusters
-  - ECR repositories and container images
+- **ecs_resource_management**: Execute operations on ECS resources with a consistent interface:
+  - **Read Operations** (always available):
+    - Clusters: List all clusters, describe specific cluster details
+    - Services: List services in a cluster, describe service configuration
+    - Tasks: List running or stopped tasks, describe task details and status
+    - Task Definitions: List task definition families, describe specific task definition revisions
+    - Container Instances: List container instances, describe instance health and capacity
+    - Capacity Providers: List and describe capacity providers associated with clusters
+    - ECR repositories and container images
+  - **Write Operations** (requires ALLOW_WRITE=true):
+    - Create resources: Create clusters, services, task sets, and capacity providers
+    - Update resources: Update service configurations, task protection settings, and cluster settings
+    - Delete resources: Delete clusters, services, task definitions, and capacity providers
+    - Register/Deregister: Register and deregister task definitions and container instances
+    - Task Management: Run tasks, start tasks, stop tasks, and execute commands on running tasks
+    - Tag Management: Tag and untag resources
+
+The resource management tool enforces permission checks for write operations. Operations that modify resources require the ALLOW_WRITE environment variable to be set to true.
 
 ## Example Prompts
 
@@ -260,6 +274,12 @@ This tool provides read-only access to Amazon ECS resources to help you monitor 
 - "List all running tasks in my ECS cluster"
 - "Describe my ECS service configuration"
 - "Get information about my task definition"
+- "Create a new ECS cluster"
+- "Update my service configuration"
+- "Register a new task definition"
+- "Delete an unused task definition"
+- "Run a task in my cluster"
+- "Stop a running task"
 
 ## Requirements
 
