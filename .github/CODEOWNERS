@@ -40,7 +40,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/cloudwatch_logs_mcp_server         @lemmoi @shri-tambe              @awslabs/mcp-admins
 /src/code-doc-gen-mcp-server            @jimini55                        @awslabs/mcp-admins
 /src/core-mcp-server                    @PaulVincent707                  @awslabs/mcp-admins
-#/src/cost-analysis-mcp-server          @awslabs/mcp-maintainers         @awslabs/mcp-admins
+#/src/aws-pricing-mcp-server            @nspring00 @aytech-in         @awslabs/mcp-admins
 /src/cost-explorer-mcp-server           @Fedayizada                      @awslabs/mcp-admins
 #/src/documentdb-mcp-server             @awslabs/mcp-maintainers         @awslabs/mcp-admin
 /src/dynamodb-mcp-server                @erbenmo                         @awslabs/mcp-admins
