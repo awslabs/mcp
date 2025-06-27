@@ -135,4 +135,3 @@ If neither is provided, the MCP server defaults to using the "default" profile i
 ### `--region`
 
 This is a mandatory parameter to specify the region of your DSQL database.
-

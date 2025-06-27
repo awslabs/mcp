@@ -148,4 +148,3 @@ NOTE: Your credentials will need to be kept refreshed from your host
 
 - Results with `IMAGE` content type are not included in the KB query response.
 - The `reranking` parameter requires additional permissions, Amazon Bedrock model access, and is only available in specific regions.
-

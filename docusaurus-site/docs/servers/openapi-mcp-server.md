@@ -362,4 +362,3 @@ To test the OpenAPI MCP Server with Amazon Q, you need to configure Amazon Q to 
    ```
 
    Amazon Q should respond with guidance using the natural language prompt.
-

@@ -107,4 +107,3 @@ The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment v
 ```
 
 Make sure the AWS profile has permissions to access the AWS Pricing API. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
-

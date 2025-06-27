@@ -68,4 +68,3 @@ Available topics:
 2. **troubleshooting**: Common issues and solutions for React development with AWS integrations
 
 Each topic returns comprehensive markdown documentation with explanations, code examples, and implementation guidance.
-

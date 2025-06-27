@@ -127,4 +127,3 @@ When using this MCP server, consider:
 ## Version
 
 Current MCP server version: 0.0.0
-

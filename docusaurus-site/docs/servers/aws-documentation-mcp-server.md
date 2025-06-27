@@ -115,4 +115,3 @@ Gets a list of available AWS services in China regions.
 ```python
 get_available_services() -> str
 ```
-

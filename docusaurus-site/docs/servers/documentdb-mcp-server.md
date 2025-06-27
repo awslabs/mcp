@@ -199,4 +199,3 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 - Network access to your DocumentDB cluster
 - SSL/TLS certificate if your cluster requires TLS (typically `global-bundle.pem`)
-

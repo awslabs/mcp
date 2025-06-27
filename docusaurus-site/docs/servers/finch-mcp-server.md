@@ -187,4 +187,3 @@ Example:
 ## Version
 
 Current MCP server version: 0.1.0
-
