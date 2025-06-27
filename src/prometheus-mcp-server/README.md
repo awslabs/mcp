@@ -66,7 +66,7 @@ mkdir -p ~/.aws/amazonq/
       "args": [
         "awslabs.prometheus-mcp-server@latest",
         "--url",
-        "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-<Workspace ID>",
+        "https://aps-workspaces.<AWS Region>.amazonaws.com/workspaces/ws-<Workspace ID>",
         "--region",
         "<Your AWS Region>",
         "--profile",
