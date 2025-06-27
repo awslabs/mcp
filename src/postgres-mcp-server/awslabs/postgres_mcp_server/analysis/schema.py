@@ -80,8 +80,11 @@ async def get_table_schema(
             
             return records
         else:
-            # Direct PostgreSQL connection
-            return response
+            # Direct PostgreSQL connection - ensure we return a list
+            if isinstance(response, list):
+                return response
+            else:
+                return [response] if response else []
             
     except Exception as e:
         logger.exception(f"Error fetching table schema for {table_name}")

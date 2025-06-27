@@ -124,10 +124,11 @@ def _parse_query_for_indexes(query: str) -> Dict[str, Any]:
             # Extract column names from conditions like "column = value" or "column > value"
             col_match = re.search(r'([a-zA-Z_][a-zA-Z0-9_]*)\s*[=<>!]+', condition)
             if col_match:
+                operator_match = re.search(r'[=<>!]+', condition)
                 where_conditions.append({
                     "column": col_match.group(1),
                     "condition": condition.strip(),
-                    "operator": re.search(r'[=<>!]+', condition).group() if re.search(r'[=<>!]+', condition) else "="
+                    "operator": operator_match.group() if operator_match else "="
                 })
     
     # Extract ORDER BY columns

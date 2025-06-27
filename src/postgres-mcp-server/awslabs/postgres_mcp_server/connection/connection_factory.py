@@ -62,9 +62,9 @@ class ConnectionFactory:
         resource_arn: Optional[str] = None,
         hostname: Optional[str] = None,
         port: int = 5432,
-        secret_arn: str = None,
-        database: str = None,
-        region: str = None,
+        secret_arn: Optional[str] = None,
+        database: Optional[str] = None,
+        region: Optional[str] = None,
         readonly: bool = True
     ) -> DBConnector:
         """
@@ -104,6 +104,8 @@ class ConnectionFactory:
             raise ValueError(error_msg)
         
         if connection_type == "rds_data_api":
+            if not resource_arn or not secret_arn or not database or not region:
+                raise ValueError("RDS Data API requires resource_arn, secret_arn, database, and region")
             return RDSDataAPIConnector(
                 resource_arn=resource_arn,
                 secret_arn=secret_arn,
@@ -112,6 +114,8 @@ class ConnectionFactory:
                 readonly=readonly
             )
         elif connection_type == "psycopg_driver":
+            if not hostname or not database or not secret_arn or not region:
+                raise ValueError("PostgreSQL driver requires hostname, database, secret_arn, and region")
             return PostgresDriver(
                 hostname=hostname,
                 port=port,

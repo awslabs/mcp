@@ -196,7 +196,7 @@ async def analyze_database_structure(
             return str({'error': error_msg})
 
         # Use analysis module for secure analysis
-        result = await analyze_db_structure(db_connection, debug)
+        result = await analyze_db_structure(db_connection)
         return result
         
     except Exception as e:
@@ -231,7 +231,7 @@ async def show_postgresql_settings(
             return str({'error': error_msg})
 
         # Use analysis module for secure analysis
-        result = await show_pg_settings(db_connection, pattern, debug)
+        result = await show_pg_settings(db_connection, pattern)
         return result
         
     except Exception as e:
