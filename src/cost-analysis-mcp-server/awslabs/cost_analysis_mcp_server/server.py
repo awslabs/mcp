@@ -284,8 +284,8 @@ async def get_pricing_from_api(
     filters: Optional[PricingFilters] = Field(
         None, description='Optional filters for pricing queries'
     ),
-) -> Optional[Dict]:
-    """Get pricing information from AWS Price List API. If the API request fails in the initial attempt, retry by modifying the service_code.
+) -> Dict[str, Any]:
+    """Get pricing information from AWS Price List API.
 
     Args:
         service_code: The service code (e.g., 'AmazonES' for OpenSearch, 'AmazonS3' for S3)
@@ -300,9 +300,22 @@ async def get_pricing_from_api(
     if isinstance(filters, FieldInfo):
         filters = filters.default
 
+    logger.info(f'Getting pricing for {service_code} in {region}')
+
+    # Create pricing client with error handling
     try:
         pricing_client = create_pricing_client()
+    except Exception as e:
+        return await create_error_response(
+            ctx=ctx,
+            error_type='client_creation_failed',
+            message=f'Failed to create AWS Pricing client: {str(e)}',
+            service_code=service_code,
+            region=region,
+        )
 
+    # Build filters
+    try:
         # Start with the region filter
         region_filter = {'Field': 'regionCode', 'Type': 'TERM_MATCH', 'Value': region}
         api_filters = [region_filter]
@@ -311,50 +324,51 @@ async def get_pricing_from_api(
         if filters and filters.filters:
             api_filters.extend([f.model_dump(by_alias=True) for f in filters.filters])
 
+        # Make the API request
         response = pricing_client.get_products(
             ServiceCode=service_code,
             Filters=api_filters,
             MaxResults=100,
         )
-
-        if not response['PriceList']:
-            await ctx.error(f'Pricing API returned empty results for service code: {service_code}')
-            return {
-                'status': 'error',
-                'error_type': 'empty_results',
-                'message': f'The service code "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.',
-                'examples': {
-                    'OpenSearch': 'AmazonES',
-                    'Lambda': 'AWSLambda',
-                    'DynamoDB': 'AmazonDynamoDB',
-                    'Bedrock': 'AmazonBedrock',
-                },
-            }
-
-        result = {
-            'status': 'success',
-            'service_name': service_code,
-            'data': response['PriceList'],
-            'message': f'Retrieved pricing for {service_code} in {region} from AWS Pricing API',
-        }
-
-        # No need to store in context, just return the result
-
-        return result
-
     except Exception as e:
-        error_msg = str(e)
-        await ctx.error(f'Pricing API request failed: {e}')
+        return await create_error_response(
+            ctx=ctx,
+            error_type='api_error',
+            message=f'Failed to retrieve pricing data for service "{service_code}" in region "{region}": {str(e)}',
+            service_code=service_code,
+            region=region,
+            suggestion='Verify that the service code and region combination is valid.',
+        )
 
-        # Just pass through the original error message
-        return {
-            'status': 'error',
-            'error_type': 'api_error',
-            'message': error_msg,
-            'service_code': service_code,
-            'region': region,
-            'note': 'AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES" (for OpenSearch), etc.',
-        }
+    # Check if results are empty
+    if not response.get('PriceList'):
+        return await create_error_response(
+            ctx=ctx,
+            error_type='empty_results',
+            message=f'The service "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.',
+            service_code=service_code,
+            region=region,
+            examples={
+                'OpenSearch': 'AmazonES',
+                'Lambda': 'AWSLambda',
+                'DynamoDB': 'AmazonDynamoDB',
+                'Bedrock': 'AmazonBedrock',
+            },
+        )
+
+    price_list = response['PriceList']
+    total_count = len(price_list)
+
+    # Success response
+    logger.info(f'Successfully retrieved {total_count} pricing items for {service_code}')
+    await ctx.info(f'Successfully retrieved pricing for {service_code} in {region}')
+
+    return {
+        'status': 'success',
+        'service_name': service_code,
+        'data': price_list,
+        'message': f'Retrieved pricing for {service_code} in {region} from AWS Pricing API',
+    }
 
 
 @mcp.tool(

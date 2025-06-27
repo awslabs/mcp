@@ -14,7 +14,9 @@
 
 """Tests for the server module of the cost-analysis-mcp-server."""
 
+import json
 import pytest
+from awslabs.cost_analysis_mcp_server.models import PricingFilter, PricingFilters
 from awslabs.cost_analysis_mcp_server.server import (
     analyze_cdk_project_wrapper,
     generate_cost_report_wrapper,
@@ -132,7 +134,102 @@ class TestGetPricingFromApi:
         assert result['status'] == 'success'
         assert result['service_name'] == 'AWSLambda'
         assert 'data' in result
+        assert isinstance(result['data'], list)
         assert len(result['data']) > 0
+        assert 'message' in result
+        assert 'AWSLambda' in result['message']
+        assert 'us-west-2' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_with_filters(self, mock_boto3, mock_context):
+        """Test getting pricing with filters using PricingFilters model."""
+        # Create filters using the Pydantic models
+        filters = PricingFilters(
+            filters=[
+                PricingFilter(Field='instanceType', Value='t3.medium', Type='TERM_MATCH'),
+                PricingFilter(Field='location', Value='US East (N. Virginia)', Type='TERM_MATCH'),
+            ]
+        )
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1', filters)
+
+        assert result is not None
+        assert result['status'] == 'success'
+        assert result['service_name'] == 'AmazonEC2'
+        assert isinstance(result['data'], list)
+
+        # Verify that the mocked pricing client was called with correct filters
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_products.assert_called_once()
+        call_args = pricing_client.get_products.call_args[1]
+        assert 'Filters' in call_args
+        assert len(call_args['Filters']) == 3  # region + 2 custom filters
+
+        # Check that our custom filters are included
+        filter_fields = [f['Field'] for f in call_args['Filters']]
+        assert 'instanceType' in filter_fields
+        assert 'location' in filter_fields
+        assert 'regionCode' in filter_fields  # Always added by the function
+
+    @pytest.mark.asyncio
+    async def test_pricing_filters_model_validation(self):
+        """Test that PricingFilters model validates correctly."""
+        # Test valid filter creation
+        valid_filter = PricingFilter(Field='instanceType', Value='t3.medium')
+        assert valid_filter.field == 'instanceType'
+        assert valid_filter.value == 't3.medium'
+        assert valid_filter.type == 'TERM_MATCH'  # Default value
+
+        # Test serialization with aliases
+        filter_dict = valid_filter.model_dump(by_alias=True)
+        assert 'Field' in filter_dict
+        assert 'Value' in filter_dict
+        assert 'Type' in filter_dict
+        assert filter_dict['Field'] == 'instanceType'
+        assert filter_dict['Value'] == 't3.medium'
+        assert filter_dict['Type'] == 'TERM_MATCH'
+
+        # Test PricingFilters container
+        filters = PricingFilters(filters=[valid_filter])
+        assert len(filters.filters) == 1
+        assert filters.filters[0].field == 'instanceType'
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_response_structure_validation(self, mock_boto3, mock_context):
+        """Test that the response structure is properly validated."""
+        # Mock a more realistic pricing response
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_products.return_value = {
+            'PriceList': [
+                '{"product":{"sku":"ABC123","productFamily":"Compute","attributes":{"instanceType":"t3.medium"}},"terms":{"OnDemand":{"ABC123.TERM1":{"priceDimensions":{"ABC123.TERM1.DIM1":{"unit":"Hrs","pricePerUnit":{"USD":"0.0416"}}}}}},"serviceCode":"AmazonEC2"}'
+            ]
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1')
+
+        # Validate top-level response structure
+        assert result['status'] == 'success'
+        assert result['service_name'] == 'AmazonEC2'
+        assert isinstance(result['data'], list)
+        assert len(result['data']) == 1
+        assert isinstance(result['message'], str)
+
+        pricing_item = json.loads(result['data'][0])
+
+        # Validate required fields in pricing item
+        assert 'product' in pricing_item
+        assert 'terms' in pricing_item
+        assert 'sku' in pricing_item['product']
+        assert 'attributes' in pricing_item['product']
+        assert 'OnDemand' in pricing_item['terms']
+
+        # Validate pricing structure
+        product = pricing_item['product']
+        assert product['sku'] == 'ABC123'
+        assert 'instanceType' in product['attributes']
+        assert product['attributes']['instanceType'] == 't3.medium'
 
     @pytest.mark.asyncio
     async def test_get_pricing_empty_results(self, mock_boto3, mock_context):
@@ -145,8 +242,13 @@ class TestGetPricingFromApi:
 
         assert result is not None
         assert result['status'] == 'error'
-        assert 'error_type' in result
         assert result['error_type'] == 'empty_results'
+        assert 'InvalidService' in result['message']
+        assert result['service_code'] == 'InvalidService'
+        assert result['region'] == 'us-west-2'
+        assert 'examples' in result
+        assert 'AmazonES' in result['examples']['OpenSearch']
+        mock_context.error.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_pricing_api_error(self, mock_boto3, mock_context):
@@ -159,8 +261,30 @@ class TestGetPricingFromApi:
 
         assert result is not None
         assert result['status'] == 'error'
-        assert 'error_type' in result
         assert result['error_type'] == 'api_error'
+        assert 'API Error' in result['message']
+        assert result['service_code'] == 'AWSLambda'
+        assert result['region'] == 'us-west-2'
+        assert 'suggestion' in result
+        mock_context.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_client_creation_error(self, mock_context):
+        """Test handling of client creation errors."""
+        with patch(
+            'awslabs.cost_analysis_mcp_server.server.create_pricing_client',
+            side_effect=Exception('Client creation failed'),
+        ):
+            result = await get_pricing_from_api(mock_context, 'AWSLambda', 'us-west-2')
+
+        assert result is not None
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'client_creation_failed'
+        assert 'Failed to create AWS Pricing client' in result['message']
+        assert 'Client creation failed' in result['message']
+        assert result['service_code'] == 'AWSLambda'
+        assert result['region'] == 'us-west-2'
+        mock_context.error.assert_called_once()
 
 
 class TestGetBedrockPatterns:
