@@ -248,29 +248,115 @@ async def get_pricing_from_web(
 
 @mcp.tool(
     name='get_pricing_from_api',
-    description="""Get pricing information from AWS Price List API.
-    Service codes for API often differ from web URLs.
-    (e.g., use "AmazonES" for OpenSearch, not "AmazonOpenSearchService").
-    List of service codes can be found with `curl 'https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/index.json' | jq -r '.offers| .[] | .offerCode'`
-    IMPORTANT GUIDELINES:
-    - When retrieving foundation model pricing, always use the latest models for comparison
-    - For database compatibility with services, only include confirmed supported databases
-    - Providing less information is better than giving incorrect information
+    description="""
+    Get detailed pricing information from AWS Price List API with optional filters.
 
-    Filters should be provided in the format:
-    [
-        {
-            'Field': 'feeCode',
-            'Type': 'TERM_MATCH',
-            'Value': 'Glacier:EarlyDelete'
-        },
-        {
-            'Field': 'regionCode',
-            'Type': 'TERM_MATCH',
-            'Value': 'ap-southeast-1'
-        }
-    ]
-    Details of the filter can be found at https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_pricing_Filter.html
+    **TOOL PURPOSE:**
+    Retrieve AWS pricing data for various analysis needs: cost optimization, regional comparisons, compliance reporting, budget planning, or general pricing research.
+
+    **YOUR APPROACH:**
+    Follow a systematic discovery workflow to ensure accurate, complete results regardless of your specific use case.
+
+    **MANDATORY WORKFLOW - ALWAYS FOLLOW:**
+
+    **Step 1: Build Precise Filters**
+    ```python
+    # FOR COST OPTIMIZATION: Create matrix of ALL minimum qualifying combinations
+    filters = {
+       "filters": [
+           {"Field": "memory", "Value": "8 GiB", "Type": "TERM_MATCH"},
+           {"Field": "instanceType", "Value": "m5.large", "Type": "TERM_MATCH"}
+       ]
+    }
+    ```
+
+    **Step 2: Execute Query**
+    ```python
+    pricing = get_pricing_from_api('AmazonEC2', 'us-east-1', filters)
+    ```
+
+    **COMMON USE CASES:**
+
+    **Cost Optimization (CRITICAL):**
+    - Build complete cross-product matrix of ALL qualifying attribute combinations
+    - Test every combination systematically: example: (min_memory × qualifying_storage × other_attributes)
+    - Start with minimum thresholds, test ALL possibilities - don't stop at first match
+    - Compare prices to find most cost-effective solution
+    - Prove optimality: Verify no cheaper option exists within requirements
+
+    **Regional Comparison:**
+    - Use identical filters across different regions
+    - Compare same instance types between us-east-1 vs eu-west-1
+    - Analyze pricing variations for capacity planning
+
+    **Compliance/Reporting:**
+    - Retrieve pricing for specific instance families or configurations
+    - Generate cost reports for budget planning
+    - Document pricing for procurement processes
+
+    **Research/Analysis:**
+    - Compare pricing across different service tiers
+    - Analyze cost implications of different configurations
+    - Investigate pricing patterns for forecasting
+
+    **CRITICAL REQUIREMENTS:**
+    - **USE SPECIFIC FILTERS**: Large services (EC2, RDS) require 2-3 filters minimum
+    - **VERIFY EXISTENCE**: Ensure all filter values exist in the service before querying
+    - **FOR "CHEAPEST" QUERIES**: Build complete matrix, test ALL qualifying combinations, prove optimality
+
+    **CONTEXT AND CONSTRAINTS:**
+    - **CURRENT PRICING ONLY:** Use get_price_list_file for historical data
+    - **NO SAVINGS PLANS/SPOT:** Only On-Demand and Reserved Instance pricing
+    - **REGION AUTO-FILTER:** 'region' parameter creates regionCode filter automatically
+
+    **REQUIRED INPUTS:**
+    - `service_code`: (e.g., 'AmazonEC2', 'AmazonS3')
+    - `region`: AWS region (e.g., 'us-east-1')
+    - `filters`: Built using discovered values (MANDATORY for large services)
+    - `max_allowed_characters`: Response limit (default: 100,000)
+
+    **ANTI-PATTERNS - AVOID THESE:**
+    ❌ Using broad queries without specific filters on large services
+    ❌ Assuming attribute values exist across different services/regions
+    ❌ **Stopping at first qualifying option when seeking cheapest price**
+    ❌ **Testing only "obvious" instance sizes - smaller may be cheaper**
+
+    **EXAMPLE USE CASES:**
+
+    **1. Cost Optimization Example:**
+    ```python
+    # Find cheapest option meeting requirements
+    qualifying_memory = [m for m in memory_options if meets_requirement(m, "≥8GB")]
+    # Test combinations starting with minimum qualifying specs
+    ```
+
+    **2. Regional Comparison Example:**
+    ```python
+    # Compare same configuration across regions
+    filters = {"filters": [{"Field": "instanceType", "Value": "m5.large", "Type": "TERM_MATCH"}]}
+    us_pricing = get_pricing_from_api('AmazonEC2', 'us-east-1', filters)
+    eu_pricing = get_pricing_from_api('AmazonEC2', 'eu-west-1', filters)
+    ```
+
+    **3. Research/Analysis Example:**
+    ```python
+    # Compare different memory tiers for same instance family
+    memory_tiers = ["4 GiB", "8 GiB", "16 GiB"]
+    for memory in memory_tiers:
+       filters = {"filters": [{"Field": "memory", "Value": memory, "Type": "TERM_MATCH"}]}
+       pricing = get_pricing_from_api('AmazonEC2', 'us-east-1', filters)
+    ```
+
+    **FILTERING STRATEGY:**
+    - **Large Services (EC2, RDS)**: ALWAYS use 2-3 specific filters to prevent 200+ record responses
+    - **Small Services**: May work with single filter or no filters
+    - **Multi-Region Analysis**: Use identical filters across regions for accurate comparison
+    - **Requirement-Based**: Systematically discover ALL options meeting criteria
+    - **Cost Optimization**: Start with minimum qualifying thresholds, use minimum-threshold filtering, test all qualifying combinations
+
+    **SUCCESS CRITERIA:**
+    ✅ Applied appropriate filters for the service size
+    ✅ For cost optimization: tested all qualifying combinations and proved optimality
     """,
 )
 async def get_pricing_from_api(
