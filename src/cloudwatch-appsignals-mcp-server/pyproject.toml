@@ -1,0 +1,125 @@
+[project]
+name = "awslabs.cloudwatch-appsignals-mcp-server"
+version = "0.1.0"
+description = "An AWS Labs Model Context Protocol (MCP) server for AWS Application Signals"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "boto3>=1.37.24",
+    "httpx>=0.24.0",
+    "loguru>=0.7.3",
+    "mcp[cli]>=1.6.0",
+    "pydantic>=2.11.1",
+]
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE" ]
+
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.scripts]
+"awslabs.cloudwatch-appsignals-mcp-server" = "awslabs.cloudwatch_appsignals_mcp_server.server:main"
+
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/cloudwatch-appsignals-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/cloudwatch-appsignals-mcp-server/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "boto3-stubs[application-signals,cloudwatch,logs,xray]>=1.37.24",
+    "commitizen>=4.4.1",
+    "moto>=5.0.0",
+    "pre-commit>=4.2.0",
+    "pyright>=1.1.398",
+    "ruff>=0.11.2",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/cloudwatch_appsignals_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv","tests"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["awslabs"]
