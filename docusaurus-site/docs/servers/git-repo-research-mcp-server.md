@@ -158,4 +158,3 @@ repositories:///path/to/custom/index/directory
 - Large repositories may take significant time to index
 - Binary files (except images) are not supported for content viewing
 - GitHub repository search is by default limited to AWS organizations: aws-samples, aws-solutions-library-samples, and awslabs (but can be configured to include other organizations)
-

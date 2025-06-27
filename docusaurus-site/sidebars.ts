@@ -17,6 +17,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Get Started',
+      collapsed: false,
       items: [
         'intro',
         'installation',
@@ -26,6 +27,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Available AWS MCP Servers',
+      collapsed: false,
       items: [
         {
           type: 'category',
@@ -116,6 +118,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Samples',
+      collapsed: false,
       items: [
         'samples/mcp-integration-with-kb',
         'samples/mcp-integration-with-nova-canvas',

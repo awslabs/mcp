@@ -199,4 +199,3 @@ docker run -p 8080:8080 \
   -e MEMCACHED_PORT=11211 \
   awslabs/memcached-mcp-server --readonly
 ```
-

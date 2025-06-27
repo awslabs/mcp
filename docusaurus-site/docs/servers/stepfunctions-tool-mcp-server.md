@@ -184,4 +184,3 @@ When using this MCP server, you should consider:
 - Only state machines that are in the provided list or with a name starting with the prefix are imported as MCP tools.
 - The MCP server needs permissions to invoke the state machines.
 - Each state machine has its own permissions to optionally access other AWS resources.
-

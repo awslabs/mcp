@@ -199,4 +199,3 @@ docker run -p 8080:8080 \
   -e VALKEY_PORT=6379 \
   awslabs/valkey-mcp-server --readonly
 ```
-
