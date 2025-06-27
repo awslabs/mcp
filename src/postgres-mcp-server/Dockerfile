@@ -25,11 +25,17 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
     pip install -e .
 
-# Install lsof for the healthcheck
+# Install lsof for the healthcheck and create non-root user
 RUN yum update -y && \
-    yum install -y lsof && \
+    yum install -y lsof shadow-utils && \
     yum clean all -y && \
-    rm -rf /var/cache/yum
+    rm -rf /var/cache/yum && \
+    # Create app user and group using full paths
+    /usr/sbin/groupadd --system app && \
+    /usr/sbin/useradd --system --gid app --no-create-home --shell /bin/false app && \
+    # Create app directory and set ownership
+    mkdir -p /app && \
+    chown -R app:app /app
 
 # Get healthcheck script
 COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
@@ -38,6 +44,9 @@ RUN chmod +x /usr/local/bin/docker-healthcheck.sh
 # Set default connection pool configuration
 ENV POSTGRES_POOL_MIN_SIZE="5"
 ENV POSTGRES_POOL_MAX_SIZE="30"
+
+# Switch to non-root user
+USER app
 
 # Expose the port
 EXPOSE 8000
