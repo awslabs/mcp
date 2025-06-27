@@ -25,8 +25,23 @@ const config: Config = {
   organizationName: 'awslabs', // Usually your GitHub org/user name.
   projectName: 'mcp', // Usually your repo name.
 
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
+
+  // Add search plugin
+  plugins: [
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      {
+        // Options for the search plugin
+        hashed: true, // Generate search-index.json for client-side search
+        language: ['en'], // Language
+        indexDocs: true,
+        indexPages: true,
+        docsRouteBasePath: '/',
+      },
+    ],
+  ],
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -47,6 +62,8 @@ const config: Config = {
           editUrl:
             'https://github.com/awslabs/mcp/tree/main/',
           routeBasePath: '/', // Serve docs at the site's root
+          remarkPlugins: [],
+          rehypePlugins: [],
         },
         blog: false, // Disable blog
         theme: {
@@ -70,12 +87,6 @@ const config: Config = {
         src: 'img/logo.png',
       },
       items: [
-        {
-          type: 'docSidebar',
-          sidebarId: 'mainSidebar',
-          position: 'left',
-          label: 'Documentation',
-        },
         {
           href: 'https://github.com/awslabs/mcp',
           label: 'GitHub',

@@ -151,4 +151,3 @@ This MCP server implementation is for demonstration purposes only to showcase ho
 - Implement proper validation of all authorization codes and tokens
 - Store tokens securely and never log them
 - Implement proper token revocation when sessions end
-

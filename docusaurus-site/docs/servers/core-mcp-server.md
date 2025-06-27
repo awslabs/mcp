@@ -80,4 +80,3 @@ or docker after a successful `docker build -t awslabs/core-mcp-server .`:
 The server exposes the following tools through the MCP interface:
 
 - `prompt_understanding` - Helps to provide guidance and planning support when building AWS Solutions for the given prompt
-

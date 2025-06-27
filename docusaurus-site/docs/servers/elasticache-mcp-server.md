@@ -224,4 +224,3 @@ docker run -p 8080:8080 \
   -e AWS_PROFILE=default \
   -e AWS_REGION=us-west-2 \
   awslabs/elasticache-mcp-server
-

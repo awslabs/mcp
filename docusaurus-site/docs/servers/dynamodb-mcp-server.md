@@ -115,4 +115,3 @@ or docker after a successful `docker build -t awslabs/dynamodb-mcp-server .`:
     }
   }
 ```
-

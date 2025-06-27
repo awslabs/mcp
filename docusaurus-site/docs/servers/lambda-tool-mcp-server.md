@@ -168,4 +168,3 @@ When using this MCP server, you should consider:
 - Only Lambda functions that are in the provided list or with a name starting with the prefix are imported as MCP tools.
 - The MCP server needs permissions to invoke the Lambda functions.
 - Each Lambda function has its own permissions to optionally access other AWS resources.
-

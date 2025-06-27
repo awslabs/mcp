@@ -1,3 +1,8 @@
+---
+slug: /
+title: Welcome to AWS MCP Servers
+---
+
 # Welcome to AWS MCP Servers
 
 Get started with AWS MCP Servers and learn core features.
@@ -41,6 +46,10 @@ The servers are organized into these main categories:
 - **🛠️ Developer Tools & Support**: Accelerate development with code analysis and testing utilities
 - **📡 Integration & Messaging**: Connect systems with messaging, workflows, and location services
 - **💰 Cost & Operations**: Monitor, optimize, and manage your AWS infrastructure and costs
+
+import ServerCards from '@site/src/components/ServerCards';
+
+<ServerCards />
 
 ## Workflows
 
