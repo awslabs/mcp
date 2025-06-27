@@ -1,0 +1,2077 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://awslabs.github.io/mcp/servers/openapi-mcp-server/">
+      
+      
+        <link rel="prev" href="../git-repo-research-mcp-server/">
+      
+      
+        <link rel="next" href="../cfn-mcp-server/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>OpenAPI MCP Server - AWS MCP Servers</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="dracula" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#aws-labs-openapi-mcp-server" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="AWS MCP Servers" class="md-header__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AWS MCP Servers
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              OpenAPI MCP Server
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="dracula" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/awslabs/mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    awslabs/mcp
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="AWS MCP Servers" class="md-nav__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    AWS MCP Servers
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/awslabs/mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    awslabs/mcp
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    AWS MCP Servers
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            AWS MCP Servers
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../amazon-mq-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon MQ MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../amazon-sns-sqs-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS SNS SQS MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Core MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bedrock-kb-retrieval-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Bedrock Knowledge Base Retrieval MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-bedrock-data-automation-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Bedrock Data Automation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cdk-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS CDK MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cost-analysis-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cost Analysis MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cost-explorer-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cost Explorer MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nova-canvas-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Nova Canvas MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../amazon-qindex-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Q index MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../amazon-rekognition-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Rekognition MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-documentation-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Documentation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../iam-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS IAM MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lambda-tool-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Lambda Tool MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-diagram-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Diagram MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stepfunctions-tool-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Step Functions Tool MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Terraform MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elasticache-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ElastiCache MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../valkey-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ElastiCache/MemoryDB for Valkey MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memcached-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ElastiCache for Memcached MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-repo-research-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Git Repo Research MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    OpenAPI MCP Server
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    OpenAPI MCP Server
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#from-pypi" class="md-nav__link">
+    <span class="md-ellipsis">
+      From PyPI
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Optional Dependencies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      From Source
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-mcp-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using MCP Configuration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Usage
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authenticated-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Authenticated API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-openapi-specification" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local OpenAPI Specification
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#yaml-openapi-specification" class="md-nav__link">
+    <span class="md-ellipsis">
+      YAML OpenAPI Specification
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-development-and-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local Development and Testing
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Documentation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aws-best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      AWS Best Practices
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#docker-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Docker Deployment
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running Tests
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Instructions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Instructions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      Getting Started
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-and-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring and Metrics
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-with-amazon-q" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing with Amazon Q
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cfn-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CloudFormation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-serverless-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Serverless MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../finch-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Finch MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eks-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon EKS MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ecs-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ECS MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-support-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Support MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Managed Prometheus MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timestream-for-influxdb-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Timestream for InfluxDB MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../redshift-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Redshift MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Samples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Samples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samples/mcp-integration-with-kb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MCP Integration with Amazon Bedrock Knowledge Bases
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#from-pypi" class="md-nav__link">
+    <span class="md-ellipsis">
+      From PyPI
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Optional Dependencies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#from-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      From Source
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-mcp-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using MCP Configuration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic Usage
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Custom API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authenticated-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Authenticated API
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-openapi-specification" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local OpenAPI Specification
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#yaml-openapi-specification" class="md-nav__link">
+    <span class="md-ellipsis">
+      YAML OpenAPI Specification
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-development-and-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local Development and Testing
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment Variables
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Documentation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aws-best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      AWS Best Practices
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#docker-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      Docker Deployment
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running Tests
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#instructions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Instructions
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Instructions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      Getting Started
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-and-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      Monitoring and Metrics
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-with-amazon-q" class="md-nav__link">
+    <span class="md-ellipsis">
+      Testing with Amazon Q
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="aws-labs-openapi-mcp-server">AWS Labs OpenAPI MCP Server</h1>
+<p>This project is a server that dynamically creates Model Context Protocol (MCP) tools and resources from OpenAPI specifications. It allows Large Language Models (LLMs) to interact with APIs through the Model Context Protocol.</p>
+<h2 id="features">Features</h2>
+<ul>
+<li><strong>Dynamic Tool Generation</strong>: Automatically creates MCP tools from OpenAPI endpoints</li>
+<li><strong>Intelligent Route Mapping</strong>: Maps GET operations with query parameters to TOOLS instead of RESOURCES</li>
+<li>Makes API operations with query parameters easier for LLMs to understand and use</li>
+<li>Improves usability of search and filtering endpoints</li>
+<li>Configurable via the route_patch module</li>
+<li><strong>Dynamic Prompt Generation</strong>: Creates helpful prompts based on API structure</li>
+<li><strong>Operation-Specific Prompts</strong>: Generates natural language prompts for each API operation</li>
+<li><strong>API Documentation Prompts</strong>: Creates comprehensive API documentation prompts</li>
+<li><strong>Prompt Optimization</strong>: Implements token efficiency strategies to reduce costs and enhance clarity<ul>
+<li>Follows MCP-compliant structure with name, description, arguments, and metadata</li>
+<li>Achieves 70-75% reduction in token usage while maintaining functionality</li>
+<li>Uses concise descriptions with essential information for better developer experience</li>
+</ul>
+</li>
+<li><strong>Transport Options</strong>: Supports stdio transport</li>
+<li><strong>Flexible Configuration</strong>: Configure via environment variables or command line arguments</li>
+<li><strong>OpenAPI Support</strong>: Works with OpenAPI 3.x specifications in JSON or YAML format</li>
+<li><strong>OpenAPI Specification Validation</strong>: Validates specifications without failing startup if issues detected, logging warnings instead to work with specs having minor issues or non-standard extensions</li>
+<li><strong>Authentication Support</strong>: Supports multiple authentication methods (Basic, Bearer Token, API Key, Cognito)</li>
+<li><strong>AWS Best Practices</strong>: Implements AWS best practices for caching, resilience, and observability</li>
+<li><strong>Comprehensive Testing</strong>: Includes extensive unit and integration tests with high code coverage</li>
+<li><strong>Metrics Collection</strong>: Tracks API calls, tool usage, errors, and performance metrics</li>
+</ul>
+<h2 id="installation">Installation</h2>
+<h3 id="from-pypi">From PyPI</h3>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;awslabs.openapi-mcp-server&quot;</span>
+</code></pre></div>
+<h3 id="optional-dependencies">Optional Dependencies</h3>
+<p>The package supports several optional dependencies:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># For YAML OpenAPI specification support</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;awslabs.openapi-mcp-server[yaml]&quot;</span>
+
+<span class="c1"># For Prometheus metrics support</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;awslabs.openapi-mcp-server[prometheus]&quot;</span>
+
+<span class="c1"># For testing</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;awslabs.openapi-mcp-server[test]&quot;</span>
+
+<span class="c1"># For all optional dependencies</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;awslabs.openapi-mcp-server[all]&quot;</span>
+</code></pre></div>
+<h3 id="from-source">From Source</h3>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/awslabs/mcp.git
+<span class="nb">cd</span><span class="w"> </span>mcp/src/openapi-mcp-server
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</code></pre></div>
+<h3 id="using-mcp-configuration">Using MCP Configuration</h3>
+<p>Here are some ways you can work with MCP across AWS (e.g. for Amazon Q Developer CLI MCP, <code>~/.aws/amazonq/mcp.json</code>):</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.openapi-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uvx&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;awslabs.openapi-mcp-server@latest&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;API_NAME&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-api-name&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;API_BASE_URL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://api.example.com&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;API_SPEC_URL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://api.example.com/openapi.json&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;LOG_LEVEL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ERROR&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;ENABLE_PROMETHEUS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;false&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;ENABLE_OPERATION_PROMPTS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;true&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;5.0&quot;</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">&quot;UVICORN_GRACEFUL_SHUTDOWN&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;true&quot;</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;disabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;autoApprove&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="usage">Usage</h2>
+<h3 id="basic-usage">Basic Usage</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Start with Petstore API example</span>
+awslabs.openapi-mcp-server<span class="w"> </span>--api-name<span class="w"> </span>petstore<span class="w"> </span>--api-url<span class="w"> </span>https://petstore3.swagger.io/api/v3<span class="w"> </span>--spec-url<span class="w"> </span>https://petstore3.swagger.io/api/v3/openapi.json
+</code></pre></div>
+<h3 id="custom-api">Custom API</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Use a different API</span>
+awslabs.openapi-mcp-server<span class="w"> </span>--api-name<span class="w"> </span>myapi<span class="w"> </span>--api-url<span class="w"> </span>https://api.example.com<span class="w"> </span>--spec-url<span class="w"> </span>https://api.example.com/openapi.json
+</code></pre></div>
+<h3 id="authenticated-api">Authenticated API</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Basic Authentication</span>
+awslabs.openapi-mcp-server<span class="w"> </span>--api-url<span class="w"> </span>https://api.example.com<span class="w"> </span>--spec-url<span class="w"> </span>https://api.example.com/openapi.json<span class="w"> </span>--auth-type<span class="w"> </span>basic<span class="w"> </span>--auth-username<span class="w"> </span>YOUR_USERNAME<span class="w"> </span>--auth-password<span class="w"> </span>YOUR_PASSWORD<span class="w"> </span><span class="c1"># pragma: allowlist secret</span>
+
+<span class="c1"># Bearer Token Authentication</span>
+awslabs.openapi-mcp-server<span class="w"> </span>--api-url<span class="w"> </span>https://api.example.com<span class="w"> </span>--spec-url<span class="w"> </span>https://api.example.com/openapi.json<span class="w"> </span>--auth-type<span class="w"> </span>bearer<span class="w"> </span>--auth-token<span class="w"> </span>YOUR_TOKEN<span class="w"> </span><span class="c1"># pragma: allowlist secret</span>
+
+<span class="c1"># API Key Authentication (in header)</span>
+awslabs.openapi-mcp-server<span class="w"> </span>--api-url<span class="w"> </span>https://api.example.com<span class="w"> </span>--spec-url<span class="w"> </span>https://api.example.com/openapi.json<span class="w"> </span>--auth-type<span class="w"> </span>api_key<span class="w"> </span>--auth-api-key<span class="w"> </span>YOUR_API_KEY<span class="w"> </span>--auth-api-key-name<span class="w"> </span>X-API-Key<span class="w"> </span>--auth-api-key-in<span class="w"> </span>header<span class="w"> </span><span class="c1"># pragma: allowlist secret</span>
+</code></pre></div>
+<p>For detailed information about authentication methods, configuration options, and examples, see <a href="AUTHENTICATION.md">AUTHENTICATION.md</a>.</p>
+<h3 id="local-openapi-specification">Local OpenAPI Specification</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Use a local OpenAPI specification file</span>
+awslabs.openapi-mcp-server<span class="w"> </span>--spec-path<span class="w"> </span>./openapi.json
+</code></pre></div>
+<h3 id="yaml-openapi-specification">YAML OpenAPI Specification</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Use a YAML OpenAPI specification file (requires pyyaml)</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;awslabs.openapi-mcp-server[yaml]&quot;</span>
+awslabs.openapi-mcp-server<span class="w"> </span>--spec-path<span class="w"> </span>./openapi.yaml
+</code></pre></div>
+<h3 id="local-development-and-testing">Local Development and Testing</h3>
+<p>For local development and testing, you can use the <code>uvx</code> command with the <code>--refresh</code> and <code>--from</code> options:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Run the server from the local directory with the Petstore API</span>
+uvx<span class="w"> </span>--refresh<span class="w"> </span>--from<span class="w"> </span>.<span class="w"> </span>awslabs.openapi-mcp-server<span class="w"> </span>--api-url<span class="w"> </span>https://petstore3.swagger.io/api/v3<span class="w"> </span>--spec-url<span class="w"> </span>https://petstore3.swagger.io/api/v3/openapi.json<span class="w"> </span>--log-level<span class="w"> </span>DEBUG
+</code></pre></div>
+<p><strong>Command Options Explained:</strong></p>
+<ul>
+<li><code>uvx</code> - The uv package manager's execution tool for running Python packages</li>
+<li><code>--refresh</code> - Refreshes the package cache to ensure the latest version is used (important during development)</li>
+<li><code>--from .</code> - Uses the package from the current directory instead of installing from PyPI</li>
+<li><code>awslabs.openapi-mcp-server</code> - The package name to run</li>
+<li><code>--api-url</code> - The base URL of the API</li>
+<li><code>--spec-url</code> - The URL of the OpenAPI specification</li>
+<li>
+<p><code>--log-level DEBUG</code> - Sets the logging level to DEBUG for more detailed logs (useful for development)
+<strong>When to Use These Options:</strong></p>
+</li>
+<li>
+<p>Use <code>--refresh</code> when you've made changes to your code and want to ensure the latest version is used</p>
+</li>
+<li>Use <code>--log-level DEBUG</code> when you need detailed logs for troubleshooting or development</li>
+</ul>
+<p><strong>Note:</strong> The Petstore API is a standard OpenAPI schema endpoint that can be used for simple testing without any API authentication configuration. It's perfect for testing your MCP server implementation without setting up your own API.</p>
+<h2 id="configuration">Configuration</h2>
+<h3 id="environment-variables">Environment Variables</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Server configuration</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">SERVER_NAME</span><span class="o">=</span><span class="s2">&quot;My API Server&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">SERVER_DEBUG</span><span class="o">=</span><span class="nb">true</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">SERVER_MESSAGE_TIMEOUT</span><span class="o">=</span><span class="m">60</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">SERVER_HOST</span><span class="o">=</span><span class="s2">&quot;0.0.0.0&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">SERVER_PORT</span><span class="o">=</span><span class="m">8000</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">SERVER_TRANSPORT</span><span class="o">=</span><span class="s2">&quot;stdio&quot;</span><span class="w">  </span><span class="c1"># Option: stdio</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">LOG_LEVEL</span><span class="o">=</span><span class="s2">&quot;INFO&quot;</span><span class="w">  </span><span class="c1"># Options: DEBUG, INFO, WARNING, ERROR, CRITICAL</span>
+
+<span class="c1"># Metrics and monitoring configuration</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">ENABLE_PROMETHEUS</span><span class="o">=</span><span class="s2">&quot;false&quot;</span><span class="w">  </span><span class="c1"># Enable/disable Prometheus metrics (default: false)</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PROMETHEUS_PORT</span><span class="o">=</span><span class="m">9090</span><span class="w">  </span><span class="c1"># Port for Prometheus metrics server</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">ENABLE_OPERATION_PROMPTS</span><span class="o">=</span><span class="s2">&quot;true&quot;</span><span class="w">  </span><span class="c1"># Enable/disable operation-specific prompts (default: true)</span>
+
+<span class="c1"># Graceful shutdown configuration</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN</span><span class="o">=</span><span class="m">5</span>.0<span class="w">  </span><span class="c1"># Timeout for graceful shutdown in seconds</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">UVICORN_GRACEFUL_SHUTDOWN</span><span class="o">=</span><span class="nb">true</span><span class="w">  </span><span class="c1"># Enable/disable graceful shutdown</span>
+
+<span class="c1"># API configuration</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">API_NAME</span><span class="o">=</span><span class="s2">&quot;myapi&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">API_BASE_URL</span><span class="o">=</span><span class="s2">&quot;https://api.example.com&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">API_SPEC_URL</span><span class="o">=</span><span class="s2">&quot;https://api.example.com/openapi.json&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">API_SPEC_PATH</span><span class="o">=</span><span class="s2">&quot;/path/to/local/openapi.json&quot;</span><span class="w">  </span><span class="c1"># Optional: local file path</span>
+
+<span class="c1"># Authentication configuration</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">AUTH_TYPE</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="w">  </span><span class="c1"># Options: none, basic, bearer, api_key</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">AUTH_USERNAME</span><span class="o">=</span><span class="s2">&quot;PLACEHOLDER_USERNAME&quot;</span><span class="w">  </span><span class="c1"># For basic authentication # pragma: allowlist secret</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">AUTH_PASSWORD</span><span class="o">=</span><span class="s2">&quot;PLACEHOLDER_PASSWORD&quot;</span><span class="w">  </span><span class="c1"># For basic authentication # pragma: allowlist secret</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">AUTH_TOKEN</span><span class="o">=</span><span class="s2">&quot;PLACEHOLDER_TOKEN&quot;</span><span class="w">  </span><span class="c1"># For bearer token authentication # pragma: allowlist secret</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">AUTH_API_KEY</span><span class="o">=</span><span class="s2">&quot;PLACEHOLDER_API_KEY&quot;</span><span class="w">  </span><span class="c1"># For API key authentication # pragma: allowlist secret</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">AUTH_API_KEY_NAME</span><span class="o">=</span><span class="s2">&quot;X-API-Key&quot;</span><span class="w">  </span><span class="c1"># Name of the API key (default: api_key)</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">AUTH_API_KEY_IN</span><span class="o">=</span><span class="s2">&quot;header&quot;</span><span class="w">  </span><span class="c1"># Where to place the API key (options: header, query, cookie)</span>
+</code></pre></div>
+<h2 id="documentation">Documentation</h2>
+<p>The OpenAPI MCP Server includes comprehensive documentation to help you get started and make the most of its features:</p>
+<ul>
+<li><a href="AUTHENTICATION.md"><strong>AUTHENTICATION.md</strong></a>: Detailed information about authentication methods, configuration options, and troubleshooting</li>
+<li><a href="DEPLOYMENT.md"><strong>DEPLOYMENT.md</strong></a>: Guidelines for deploying the server in various environments, including Docker and AWS</li>
+<li><a href="AWS_BEST_PRACTICES.md"><strong>AWS_BEST_PRACTICES.md</strong></a>: AWS best practices implemented in the server for resilience, caching, and efficiency</li>
+<li><a href="OBSERVABILITY.md"><strong>OBSERVABILITY.md</strong></a>: Information about metrics, logging, and monitoring capabilities</li>
+<li><a href="tests/README.md"><strong>tests/README.md</strong></a>: Overview of the test structure and strategy</li>
+</ul>
+<h2 id="aws-best-practices">AWS Best Practices</h2>
+<p>The OpenAPI MCP Server implements AWS best practices for building resilient, observable, and efficient cloud applications. These include:</p>
+<ul>
+<li><strong>Caching</strong>: Robust caching system with multiple backend options</li>
+<li><strong>Resilience</strong>: Patterns to handle transient failures and ensure high availability</li>
+<li><strong>Observability</strong>: Comprehensive monitoring, metrics, and logging features</li>
+</ul>
+<p>For detailed information about these features, including implementation details and configuration options, see <a href="AWS_BEST_PRACTICES.md">AWS_BEST_PRACTICES.md</a>.</p>
+<h2 id="docker-deployment">Docker Deployment</h2>
+<p>The project includes a Dockerfile for containerized deployment. To build and run:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Build the Docker image</span>
+docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>openapi-mcp-server:latest<span class="w"> </span>.
+
+<span class="c1"># Run with default settings</span>
+docker<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span>openapi-mcp-server:latest
+
+<span class="c1"># Run with custom configuration</span>
+docker<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span><span class="m">8000</span>:8000<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">API_NAME</span><span class="o">=</span>myapi<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">API_BASE_URL</span><span class="o">=</span>https://api.example.com<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">API_SPEC_URL</span><span class="o">=</span>https://api.example.com/openapi.json<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">SERVER_TRANSPORT</span><span class="o">=</span>stdio<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">ENABLE_PROMETHEUS</span><span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">ENABLE_OPERATION_PROMPTS</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN</span><span class="o">=</span><span class="m">5</span>.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-e<span class="w"> </span><span class="nv">UVICORN_GRACEFUL_SHUTDOWN</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>openapi-mcp-server:latest
+</code></pre></div>
+<p>For detailed information about Docker deployment, AWS service integration, and transport considerations, see the <a href="DEPLOYMENT.md">DEPLOYMENT.md</a> file.</p>
+<h2 id="testing">Testing</h2>
+<p>The project includes a comprehensive test suite covering unit tests, integration tests, and API functionality tests.</p>
+<h3 id="running-tests">Running Tests</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Install test dependencies</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;awslabs.openapi-mcp-server[test]&quot;</span>
+
+<span class="c1"># Run all tests</span>
+pytest
+
+<span class="c1"># Run tests with coverage</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>awslabs
+
+<span class="c1"># Run specific test modules</span>
+pytest<span class="w"> </span>tests/api/
+pytest<span class="w"> </span>tests/utils/
+</code></pre></div>
+<p>The test suite covers:</p>
+<ol>
+<li><strong>API Configuration</strong>: Tests for API configuration handling and validation</li>
+<li><strong>API Discovery</strong>: Tests for API endpoint discovery and tool generation</li>
+<li><strong>Caching</strong>: Tests for the caching system and providers</li>
+<li><strong>HTTP Client</strong>: Tests for the HTTP client with resilience features</li>
+<li><strong>Metrics</strong>: Tests for metrics collection and reporting</li>
+<li><strong>OpenAPI Validation</strong>: Tests for OpenAPI specification validation</li>
+</ol>
+<p>For more information about the test structure and strategy, see the <a href="tests/README.md">tests/README.md</a> file.</p>
+<h2 id="instructions">Instructions</h2>
+<p>This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions. The server creates structured MCP tools that LLMs can use to understand and interact with your API endpoints, parameters, and response formats.</p>
+<h3 id="key-features">Key Features</h3>
+<ol>
+<li><strong>Dynamic Tool Generation</strong>: Automatically creates MCP tools from your API endpoints</li>
+<li><strong>Operation-Specific Prompts</strong>: Generates natural language prompts for each API operation</li>
+<li><strong>API Documentation</strong>: Creates comprehensive documentation prompts for the entire API</li>
+<li><strong>Authentication Support</strong>: Works with Basic Auth, Bearer Token, API Key, and Cognito authentication</li>
+</ol>
+<h3 id="getting-started">Getting Started</h3>
+<ol>
+<li>Point the server to your API by providing:</li>
+<li>API name</li>
+<li>API base URL</li>
+<li>OpenAPI specification URL or local file path</li>
+<li>Set up appropriate authentication if your API requires it</li>
+<li>Configure the stdio transport option</li>
+</ol>
+<h3 id="monitoring-and-metrics">Monitoring and Metrics</h3>
+<p>The server includes built-in monitoring capabilities:
+- Prometheus metrics (disabled by default)
+- Detailed logging of API calls and tool usage
+- Performance tracking for API operations</p>
+<h2 id="testing-with-amazon-q">Testing with Amazon Q</h2>
+<p>To test the OpenAPI MCP Server with Amazon Q, you need to configure Amazon Q to use your MCP server. Here's how:</p>
+<ol>
+<li><strong>Configure Amazon Q MCP Integration</strong></li>
+</ol>
+<p>Create or edit the MCP configuration file:</p>
+<div class="highlight"><pre><span></span><code>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.aws/amazonq
+nano<span class="w"> </span>~/.aws/amazonq/mcp.json
+</code></pre></div>
+<p>Add the following configuration:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.openapi-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;python&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;-m&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;awslabs.openapi_mcp_server&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;cwd&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/your/openapi-mcp-server&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;API_NAME&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;petstore&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;API_BASE_URL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://petstore3.swagger.io/api/v3&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;API_SPEC_URL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://petstore3.swagger.io/api/v3/openapi.json&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;LOG_LEVEL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INFO&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;ENABLE_PROMETHEUS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;false&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;ENABLE_OPERATION_PROMPTS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;true&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;5.0&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;UVICORN_GRACEFUL_SHUTDOWN&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;true&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;PYTHONPATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/your/openapi-mcp-server&quot;</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">&quot;disabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;autoApprove&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<ol>
+<li><strong>Start Amazon Q CLI</strong></li>
+</ol>
+<p>Launch the Amazon Q CLI:</p>
+<div class="highlight"><pre><span></span><code>q<span class="w"> </span>chat
+</code></pre></div>
+<ol>
+<li><strong>Test the Operation Prompts</strong></li>
+</ol>
+<p>Once connected, you can test the operation prompts by asking Amazon Q to help you with specific API operations:</p>
+<div class="highlight"><pre><span></span><code>I need to find a pet by ID using the Petstore API
+</code></pre></div>
+<p>Amazon Q should respond with guidance using the natural language prompt.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; Amazon Web Services, Inc. or its affiliates. All rights reserved.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["search.suggest", "search.highlight", "navigation.instant"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,3273 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://awslabs.github.io/mcp/servers/iam-mcp-server/">
+      
+      
+        <link rel="prev" href="../aws-documentation-mcp-server/">
+      
+      
+        <link rel="next" href="../lambda-tool-mcp-server/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>IAM MCP Server - AWS MCP Servers</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.342714a4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        
+        <link rel="stylesheet" href="../../assets/external/fonts.googleapis.com/css.49ea35f2.css">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="dracula" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#aws-iam-mcp-server" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="AWS MCP Servers" class="md-header__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AWS MCP Servers
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              IAM MCP Server
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="dracula" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/awslabs/mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    awslabs/mcp
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="AWS MCP Servers" class="md-nav__button md-logo" aria-label="AWS MCP Servers" data-md-component="logo">
+      
+  <img src="../../images/logo.png" alt="logo">
+
+    </a>
+    AWS MCP Servers
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/awslabs/mcp" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    awslabs/mcp
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    AWS MCP Servers
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            AWS MCP Servers
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../amazon-mq-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon MQ MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../amazon-sns-sqs-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS SNS SQS MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../core-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Core MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bedrock-kb-retrieval-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Bedrock Knowledge Base Retrieval MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-bedrock-data-automation-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Bedrock Data Automation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cdk-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS CDK MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cost-analysis-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cost Analysis MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cost-explorer-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Cost Explorer MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nova-canvas-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Nova Canvas MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../amazon-qindex-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Q index MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../amazon-rekognition-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Rekognition MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-documentation-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Documentation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    AWS IAM MCP Server
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS IAM MCP Server
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-iam-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Core IAM Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#best-practices-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Best Practices Integration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#aws-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      AWS Credentials
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#required-iam-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Required IAM Permissions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mcp-client-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      MCP Client Configuration
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP Client Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#amazon-q-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      Amazon Q CLI
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cline
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cursor" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cursor
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Read-Only Mode
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Read-Only Mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enabling-read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Enabling Read-Only Mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mcp-client-configuration-with-read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      MCP Client Configuration with Read-Only Mode
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP Client Configuration with Read-Only Mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#amazon-q-cli_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Amazon Q CLI
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-mcp-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      Other MCP Clients
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operations-blocked-in-read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Operations Blocked in Read-Only Mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operations-available-in-read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Operations Available in Read-Only Mode
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#available-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Available Tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Available Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#user-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      User Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="User Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_users" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_users
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_user" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_user
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_user" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_user
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_user" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_user
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Role Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Role Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_roles
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_role" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_role
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Group Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Group Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_groups
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add_user_to_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      add_user_to_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remove_user_from_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      remove_user_from_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attach_group_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      attach_group_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#detach_group_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      detach_group_policy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#policy-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Policy Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Policy Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_policies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attach_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      attach_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#detach_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      detach_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#access-key-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Access Key Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Access Key Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#create_access_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_access_key
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_access_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_access_key
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Analysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#simulate_principal_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      simulate_principal_policy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inline-policy-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inline Policy Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inline Policy Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#put_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      put_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list_user_policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_user_policies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#put_role_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      put_role_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_role_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_role_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_role_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_role_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list_role_policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_role_policies
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage Examples
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-user-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic User Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Role Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Group Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#policy-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Policy Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Testing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inline-policy-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inline Policy Management
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Best Practices
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Handling
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development" class="md-nav__link">
+    <span class="md-ellipsis">
+      Development
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running Tests
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local Development
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#contributing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Contributing
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      License
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support" class="md-nav__link">
+    <span class="md-ellipsis">
+      Support
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#changelog" class="md-nav__link">
+    <span class="md-ellipsis">
+      Changelog
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lambda-tool-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Lambda Tool MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-diagram-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Diagram MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stepfunctions-tool-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Step Functions Tool MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terraform-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Terraform MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../elasticache-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ElastiCache MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../valkey-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ElastiCache/MemoryDB for Valkey MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../memcached-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ElastiCache for Memcached MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../git-repo-research-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Git Repo Research MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../openapi-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    OpenAPI MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cfn-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CloudFormation MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-serverless-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Serverless MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../finch-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Finch MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../eks-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon EKS MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ecs-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon ECS MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../aws-support-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Support MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prometheus-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AWS Managed Prometheus MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../timestream-for-influxdb-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Timestream for InfluxDB MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../redshift-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Amazon Redshift MCP Server
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Samples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Samples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samples/mcp-integration-with-kb/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    MCP Integration with Amazon Bedrock Knowledge Bases
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Features
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-iam-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Core IAM Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Features
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#best-practices-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Best Practices Integration
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      Installation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      Configuration
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#aws-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      AWS Credentials
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#required-iam-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      Required IAM Permissions
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mcp-client-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      MCP Client Configuration
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP Client Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#amazon-q-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      Amazon Q CLI
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cline" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cline
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cursor" class="md-nav__link">
+    <span class="md-ellipsis">
+      Cursor
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Read-Only Mode
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Read-Only Mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#enabling-read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Enabling Read-Only Mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mcp-client-configuration-with-read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      MCP Client Configuration with Read-Only Mode
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MCP Client Configuration with Read-Only Mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#amazon-q-cli_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Amazon Q CLI
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-mcp-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      Other MCP Clients
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operations-blocked-in-read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Operations Blocked in Read-Only Mode
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operations-available-in-read-only-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      Operations Available in Read-Only Mode
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#available-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      Available Tools
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Available Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#user-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      User Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="User Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_users" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_users
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_user" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_user
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_user" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_user
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_user" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_user
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Role Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Role Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_roles
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_role" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_role
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Group Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Group Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_groups" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_groups
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add_user_to_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      add_user_to_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remove_user_from_group" class="md-nav__link">
+    <span class="md-ellipsis">
+      remove_user_from_group
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attach_group_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      attach_group_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#detach_group_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      detach_group_policy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#policy-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Policy Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Policy Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list_policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_policies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attach_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      attach_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#detach_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      detach_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#access-key-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Access Key Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Access Key Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#create_access_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_access_key
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_access_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_access_key
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Analysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#simulate_principal_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      simulate_principal_policy
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inline-policy-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inline Policy Management
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inline Policy Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#put_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      put_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_user_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_user_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list_user_policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_user_policies
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#put_role_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      put_role_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get_role_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_role_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#delete_role_policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete_role_policy
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list_role_policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      list_role_policies
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      Usage Examples
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-user-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      Basic User Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Role Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#group-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Group Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#policy-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Policy Management
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Testing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inline-policy-management_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Inline Policy Management
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      Security Best Practices
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      Error Handling
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development" class="md-nav__link">
+    <span class="md-ellipsis">
+      Development
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#running-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      Running Tests
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      Local Development
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#contributing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Contributing
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license" class="md-nav__link">
+    <span class="md-ellipsis">
+      License
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support" class="md-nav__link">
+    <span class="md-ellipsis">
+      Support
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#changelog" class="md-nav__link">
+    <span class="md-ellipsis">
+      Changelog
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="aws-iam-mcp-server">AWS IAM MCP Server</h1>
+<p>A Model Context Protocol (MCP) server for comprehensive AWS Identity and Access Management (IAM) operations. This server provides AI assistants with the ability to manage IAM users, roles, policies, and permissions while following security best practices.</p>
+<h2 id="features">Features</h2>
+<h3 id="core-iam-management">Core IAM Management</h3>
+<ul>
+<li><strong>User Management</strong>: Create, list, retrieve, and delete IAM users</li>
+<li><strong>Role Management</strong>: Create, list, and manage IAM roles with trust policies</li>
+<li><strong>Group Management</strong>: Create, list, retrieve, and delete IAM groups with member management</li>
+<li><strong>Policy Management</strong>: List and manage IAM policies (managed and inline)</li>
+<li><strong>Inline Policy Management</strong>: Full CRUD operations for user and role inline policies</li>
+<li><strong>Permission Management</strong>: Attach/detach policies to users and roles</li>
+<li><strong>Access Key Management</strong>: Create and delete access keys for users</li>
+<li><strong>Security Simulation</strong>: Test policy permissions before applying them</li>
+</ul>
+<h3 id="security-features">Security Features</h3>
+<ul>
+<li><strong>Policy Simulation</strong>: Test permissions without making changes</li>
+<li><strong>Force Delete</strong>: Safely remove users with all associated resources</li>
+<li><strong>Permissions Boundary Support</strong>: Set permission boundaries for enhanced security</li>
+<li><strong>Trust Policy Validation</strong>: Validate JSON trust policies for roles</li>
+<li><strong>Read-Only Mode</strong>: Run server in read-only mode to prevent any modifications</li>
+</ul>
+<h3 id="best-practices-integration">Best Practices Integration</h3>
+<ul>
+<li>Follows AWS IAM security best practices</li>
+<li>Supports principle of least privilege</li>
+<li>Provides warnings for sensitive operations</li>
+<li>Includes comprehensive error handling</li>
+</ul>
+<h2 id="installation">Installation</h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># Install using uv (recommended)</span>
+uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>awslabs.iam-mcp-server
+
+<span class="c1"># Or install using pip</span>
+pip<span class="w"> </span>install<span class="w"> </span>awslabs.iam-mcp-server
+</code></pre></div>
+<h2 id="configuration">Configuration</h2>
+<h3 id="aws-credentials">AWS Credentials</h3>
+<p>The server requires AWS credentials to be configured. You can use any of the following methods:</p>
+<ol>
+<li>
+<p><strong>AWS Profile</strong> (recommended):
+   <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">AWS_PROFILE</span><span class="o">=</span>your-profile-name
+</code></pre></div></p>
+</li>
+<li>
+<p><strong>Environment Variables</strong>:
+   <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">AWS_ACCESS_KEY_ID</span><span class="o">=</span>your-access-key
+<span class="nb">export</span><span class="w"> </span><span class="nv">AWS_SECRET_ACCESS_KEY</span><span class="o">=</span>your-secret-key
+<span class="nb">export</span><span class="w"> </span><span class="nv">AWS_REGION</span><span class="o">=</span>us-east-1
+</code></pre></div></p>
+</li>
+<li>
+<p><strong>IAM Roles</strong> (for EC2/Lambda):
+   The server will automatically use IAM roles when running on AWS services.</p>
+</li>
+</ol>
+<h3 id="required-iam-permissions">Required IAM Permissions</h3>
+<p>The AWS credentials used by this server need the following IAM permissions:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;Version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2012-10-17&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;Statement&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;Effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Allow&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;Action&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListUsers&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:GetUser&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:CreateUser&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DeleteUser&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListRoles&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:GetRole&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:CreateRole&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DeleteRole&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListGroups&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:GetGroup&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:CreateGroup&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DeleteGroup&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:AddUserToGroup&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:RemoveUserFromGroup&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:AttachGroupPolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DetachGroupPolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListAttachedGroupPolicies&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListGroupPolicies&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListPolicies&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:GetPolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:CreatePolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DeletePolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:AttachUserPolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DetachUserPolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:AttachRolePolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DetachRolePolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListAttachedUserPolicies&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListAttachedRolePolicies&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListUserPolicies&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListRolePolicies&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:GetUserPolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:GetRolePolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:PutUserPolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:PutRolePolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:GetGroupsForUser&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:ListAccessKeys&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:CreateAccessKey&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DeleteAccessKey&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:SimulatePrincipalPolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:RemoveUserFromGroup&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DeleteUserPolicy&quot;</span><span class="p">,</span>
+<span class="w">                </span><span class="s2">&quot;iam:DeleteRolePolicy&quot;</span>
+<span class="w">            </span><span class="p">],</span>
+<span class="w">            </span><span class="nt">&quot;Resource&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;*&quot;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="mcp-client-configuration">MCP Client Configuration</h3>
+<h4 id="amazon-q-cli">Amazon Q CLI</h4>
+<p>Add to your <code>~/.aws/amazonq/mcp.json</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.iam-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uvx&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;awslabs.iam-mcp-server@latest&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;AWS_PROFILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-profile&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;AWS_REGION&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;us-east-1&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;FASTMCP_LOG_LEVEL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ERROR&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="cline">Cline</h4>
+<p>Add to your <code>cline_mcp_settings.json</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.iam-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uvx&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;awslabs.iam-mcp-server@latest&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;AWS_PROFILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-profile&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;AWS_REGION&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;us-east-1&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;FASTMCP_LOG_LEVEL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ERROR&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="cursor">Cursor</h4>
+<p><a href="cursor://mcp/install?config=ewogICJtY3BTZXJ2ZXJzIjogewogICAgImF3c2xhYnMuaWFtLW1jcC1zZXJ2ZXIiOiB7CiAgICAgICJjb21tYW5kIjogInV2eCIsCiAgICAgICJhcmdzIjogWyJhd3NsYWJzLmlhbS1tY3Atc2VydmVyQGxhdGVzdCJdLAogICAgICAiZW52IjogewogICAgICAgICJBV1NfUFJPRklMRSI6ICJ5b3VyLWF3cy1wcm9maWxlIiwKICAgICAgICAiQVdTX1JFR0lPTiI6ICJ1cy1lYXN0LTEiLAogICAgICAgICJGQVNUTUNQX0xPR19MRVZFTCI6ICJFUlJPUiIKICAgICAgfQogICAgfQogIH0KfQo="><img alt="Install in Cursor" src="../../assets/external/img.shields.io/badge/Install in-Cursor-blue.b7568c12.svg"></a></p>
+<p>Add to your <code>.cursor/mcp.json</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.iam-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uvx&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;awslabs.iam-mcp-server@latest&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;AWS_PROFILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-profile&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;AWS_REGION&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;us-east-1&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;FASTMCP_LOG_LEVEL&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ERROR&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="read-only-mode">Read-Only Mode</h2>
+<p>The server supports a read-only mode that prevents all mutating operations while still allowing read operations. This is useful for:</p>
+<ul>
+<li><strong>Safety</strong>: Preventing accidental modifications in production environments</li>
+<li><strong>Testing</strong>: Allowing safe exploration of IAM resources without risk of changes</li>
+<li><strong>Auditing</strong>: Running the server in environments where only read access should be allowed</li>
+</ul>
+<h3 id="enabling-read-only-mode">Enabling Read-Only Mode</h3>
+<p>Add the <code>--readonly</code> flag when starting the server:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Using uvx</span>
+uvx<span class="w"> </span>awslabs.iam-mcp-server@latest<span class="w"> </span>--readonly
+
+<span class="c1"># Or if installed locally</span>
+python<span class="w"> </span>-m<span class="w"> </span>awslabs.iam_mcp_server.server<span class="w"> </span>--readonly
+</code></pre></div>
+<h3 id="mcp-client-configuration-with-read-only-mode">MCP Client Configuration with Read-Only Mode</h3>
+<h4 id="amazon-q-cli_1">Amazon Q CLI</h4>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;awslabs.iam-mcp-server&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uvx&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;awslabs.iam-mcp-server@latest&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;--readonly&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;AWS_PROFILE&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;your-aws-profile&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;AWS_REGION&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;us-east-1&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h4 id="other-mcp-clients">Other MCP Clients</h4>
+<p>Simply add <code>"--readonly"</code> to the args array in your MCP configuration.</p>
+<h3 id="operations-blocked-in-read-only-mode">Operations Blocked in Read-Only Mode</h3>
+<p>When read-only mode is enabled, the following operations will return an error:
+- <code>create_user</code>
+- <code>delete_user</code>
+- <code>create_role</code>
+- <code>attach_user_policy</code>
+- <code>detach_user_policy</code>
+- <code>create_access_key</code>
+- <code>delete_access_key</code></p>
+<h3 id="operations-available-in-read-only-mode">Operations Available in Read-Only Mode</h3>
+<p>These operations continue to work normally:
+- <code>list_users</code>
+- <code>get_user</code>
+- <code>list_roles</code>
+- <code>list_policies</code>
+- <code>simulate_principal_policy</code></p>
+<h2 id="available-tools">Available Tools</h2>
+<h3 id="user-management">User Management</h3>
+<h4 id="list_users"><code>list_users</code></h4>
+<p>List IAM users in the account with optional filtering.</p>
+<p><strong>Parameters:</strong>
+- <code>path_prefix</code> (optional): Path prefix to filter users (e.g., "/division_abc/")
+- <code>max_items</code> (optional): Maximum number of users to return (default: 100)</p>
+<h4 id="get_user"><code>get_user</code></h4>
+<p>Get detailed information about a specific IAM user including attached policies, groups, and access keys.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user to retrieve</p>
+<h4 id="create_user"><code>create_user</code></h4>
+<p>Create a new IAM user.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the new IAM user
+- <code>path</code> (optional): The path for the user (default: "/")
+- <code>permissions_boundary</code> (optional): ARN of the permissions boundary policy</p>
+<h4 id="delete_user"><code>delete_user</code></h4>
+<p>Delete an IAM user with optional force cleanup.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user to delete
+- <code>force</code> (optional): Force delete by removing all attached resources first (default: false)</p>
+<h3 id="role-management">Role Management</h3>
+<h4 id="list_roles"><code>list_roles</code></h4>
+<p>List IAM roles in the account with optional filtering.</p>
+<p><strong>Parameters:</strong>
+- <code>path_prefix</code> (optional): Path prefix to filter roles (e.g., "/service-role/")
+- <code>max_items</code> (optional): Maximum number of roles to return (default: 100)</p>
+<h4 id="create_role"><code>create_role</code></h4>
+<p>Create a new IAM role with a trust policy.</p>
+<p><strong>Parameters:</strong>
+- <code>role_name</code>: The name of the new IAM role
+- <code>assume_role_policy_document</code>: The trust policy document in JSON format
+- <code>path</code> (optional): The path for the role (default: "/")
+- <code>description</code> (optional): Description of the role
+- <code>max_session_duration</code> (optional): Maximum session duration in seconds (default: 3600)
+- <code>permissions_boundary</code> (optional): ARN of the permissions boundary policy</p>
+<h3 id="group-management">Group Management</h3>
+<h4 id="list_groups"><code>list_groups</code></h4>
+<p>List IAM groups in the account with optional filtering.</p>
+<p><strong>Parameters:</strong>
+- <code>path_prefix</code> (optional): Path prefix to filter groups (e.g., "/division_abc/")
+- <code>max_items</code> (optional): Maximum number of groups to return (default: 100)</p>
+<h4 id="get_group"><code>get_group</code></h4>
+<p>Get detailed information about a specific IAM group including members, attached policies, and inline policies.</p>
+<p><strong>Parameters:</strong>
+- <code>group_name</code>: The name of the IAM group to retrieve</p>
+<h4 id="create_group"><code>create_group</code></h4>
+<p>Create a new IAM group.</p>
+<p><strong>Parameters:</strong>
+- <code>group_name</code>: The name of the new IAM group
+- <code>path</code> (optional): The path for the group (default: "/")</p>
+<h4 id="delete_group"><code>delete_group</code></h4>
+<p>Delete an IAM group with optional force cleanup.</p>
+<p><strong>Parameters:</strong>
+- <code>group_name</code>: The name of the IAM group to delete
+- <code>force</code> (optional): Force delete by removing all members and policies first (default: false)</p>
+<h4 id="add_user_to_group"><code>add_user_to_group</code></h4>
+<p>Add a user to an IAM group.</p>
+<p><strong>Parameters:</strong>
+- <code>group_name</code>: The name of the IAM group
+- <code>user_name</code>: The name of the IAM user</p>
+<h4 id="remove_user_from_group"><code>remove_user_from_group</code></h4>
+<p>Remove a user from an IAM group.</p>
+<p><strong>Parameters:</strong>
+- <code>group_name</code>: The name of the IAM group
+- <code>user_name</code>: The name of the IAM user</p>
+<h4 id="attach_group_policy"><code>attach_group_policy</code></h4>
+<p>Attach a managed policy to an IAM group.</p>
+<p><strong>Parameters:</strong>
+- <code>group_name</code>: The name of the IAM group
+- <code>policy_arn</code>: The ARN of the policy to attach</p>
+<h4 id="detach_group_policy"><code>detach_group_policy</code></h4>
+<p>Detach a managed policy from an IAM group.</p>
+<p><strong>Parameters:</strong>
+- <code>group_name</code>: The name of the IAM group
+- <code>policy_arn</code>: The ARN of the policy to detach</p>
+<h3 id="policy-management">Policy Management</h3>
+<h4 id="list_policies"><code>list_policies</code></h4>
+<p>List IAM policies in the account.</p>
+<p><strong>Parameters:</strong>
+- <code>scope</code> (optional): Scope of policies to list: "All", "AWS", or "Local" (default: "Local")
+- <code>only_attached</code> (optional): Only return policies that are attached (default: false)
+- <code>path_prefix</code> (optional): Path prefix to filter policies
+- <code>max_items</code> (optional): Maximum number of policies to return (default: 100)</p>
+<h4 id="attach_user_policy"><code>attach_user_policy</code></h4>
+<p>Attach a managed policy to an IAM user.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user
+- <code>policy_arn</code>: The ARN of the policy to attach</p>
+<h4 id="detach_user_policy"><code>detach_user_policy</code></h4>
+<p>Detach a managed policy from an IAM user.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user
+- <code>policy_arn</code>: The ARN of the policy to detach</p>
+<h3 id="access-key-management">Access Key Management</h3>
+<h4 id="create_access_key"><code>create_access_key</code></h4>
+<p>Create a new access key for an IAM user.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user</p>
+<p><strong>⚠️ Security Warning:</strong> The secret access key is only returned once and cannot be retrieved again.</p>
+<h4 id="delete_access_key"><code>delete_access_key</code></h4>
+<p>Delete an access key for an IAM user.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user
+- <code>access_key_id</code>: The access key ID to delete</p>
+<h3 id="security-analysis">Security Analysis</h3>
+<h4 id="simulate_principal_policy"><code>simulate_principal_policy</code></h4>
+<p>Simulate IAM policy evaluation for a principal to test permissions.</p>
+<p><strong>Parameters:</strong>
+- <code>policy_source_arn</code>: ARN of the user or role to simulate
+- <code>action_names</code>: List of actions to simulate
+- <code>resource_arns</code> (optional): List of resource ARNs to test against
+- <code>context_entries</code> (optional): Context entries for the simulation</p>
+<h3 id="inline-policy-management">Inline Policy Management</h3>
+<h4 id="put_user_policy"><code>put_user_policy</code></h4>
+<p>Create or update an inline policy for an IAM user.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user
+- <code>policy_name</code>: The name of the inline policy
+- <code>policy_document</code>: The policy document in JSON format (string or dict)</p>
+<h4 id="get_user_policy"><code>get_user_policy</code></h4>
+<p>Retrieve an inline policy for an IAM user.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user
+- <code>policy_name</code>: The name of the inline policy</p>
+<h4 id="delete_user_policy"><code>delete_user_policy</code></h4>
+<p>Delete an inline policy from an IAM user.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user
+- <code>policy_name</code>: The name of the inline policy to delete</p>
+<h4 id="list_user_policies"><code>list_user_policies</code></h4>
+<p>List all inline policies for an IAM user.</p>
+<p><strong>Parameters:</strong>
+- <code>user_name</code>: The name of the IAM user</p>
+<h4 id="put_role_policy"><code>put_role_policy</code></h4>
+<p>Create or update an inline policy for an IAM role.</p>
+<p><strong>Parameters:</strong>
+- <code>role_name</code>: The name of the IAM role
+- <code>policy_name</code>: The name of the inline policy
+- <code>policy_document</code>: The policy document in JSON format (string or dict)</p>
+<h4 id="get_role_policy"><code>get_role_policy</code></h4>
+<p>Retrieve an inline policy for an IAM role.</p>
+<p><strong>Parameters:</strong>
+- <code>role_name</code>: The name of the IAM role
+- <code>policy_name</code>: The name of the inline policy</p>
+<h4 id="delete_role_policy"><code>delete_role_policy</code></h4>
+<p>Delete an inline policy from an IAM role.</p>
+<p><strong>Parameters:</strong>
+- <code>role_name</code>: The name of the IAM role
+- <code>policy_name</code>: The name of the inline policy to delete</p>
+<h4 id="list_role_policies"><code>list_role_policies</code></h4>
+<p>List all inline policies for an IAM role.</p>
+<p><strong>Parameters:</strong>
+- <code>role_name</code>: The name of the IAM role</p>
+<h2 id="usage-examples">Usage Examples</h2>
+<h3 id="basic-user-management">Basic User Management</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># List all users</span>
+<span class="n">users</span> <span class="o">=</span> <span class="k">await</span> <span class="n">list_users</span><span class="p">()</span>
+
+<span class="c1"># Get specific user details</span>
+<span class="n">user_details</span> <span class="o">=</span> <span class="k">await</span> <span class="n">get_user</span><span class="p">(</span><span class="n">user_name</span><span class="o">=</span><span class="s2">&quot;john.doe&quot;</span><span class="p">)</span>
+
+<span class="c1"># Create a new user</span>
+<span class="n">new_user</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create_user</span><span class="p">(</span>
+    <span class="n">user_name</span><span class="o">=</span><span class="s2">&quot;jane.smith&quot;</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">&quot;/developers/&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># Delete a user (with force cleanup)</span>
+<span class="k">await</span> <span class="n">delete_user</span><span class="p">(</span><span class="n">user_name</span><span class="o">=</span><span class="s2">&quot;old.user&quot;</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="role-management_1">Role Management</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Create a role for EC2 instances</span>
+<span class="n">trust_policy</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;Version&quot;</span><span class="p">:</span> <span class="s2">&quot;2012-10-17&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;Statement&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;Effect&quot;</span><span class="p">:</span> <span class="s2">&quot;Allow&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Principal&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;Service&quot;</span><span class="p">:</span> <span class="s2">&quot;ec2.amazonaws.com&quot;</span><span class="p">},</span>
+            <span class="s2">&quot;Action&quot;</span><span class="p">:</span> <span class="s2">&quot;sts:AssumeRole&quot;</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">}</span>
+
+<span class="n">role</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create_role</span><span class="p">(</span>
+    <span class="n">role_name</span><span class="o">=</span><span class="s2">&quot;EC2-S3-Access-Role&quot;</span><span class="p">,</span>
+    <span class="n">assume_role_policy_document</span><span class="o">=</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">trust_policy</span><span class="p">),</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Role for EC2 instances to access S3&quot;</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="group-management_1">Group Management</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Create a new group</span>
+<span class="n">group</span> <span class="o">=</span> <span class="k">await</span> <span class="n">create_group</span><span class="p">(</span>
+    <span class="n">group_name</span><span class="o">=</span><span class="s2">&quot;Developers&quot;</span><span class="p">,</span>
+    <span class="n">path</span><span class="o">=</span><span class="s2">&quot;/teams/&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># Add users to the group</span>
+<span class="k">await</span> <span class="n">add_user_to_group</span><span class="p">(</span>
+    <span class="n">group_name</span><span class="o">=</span><span class="s2">&quot;Developers&quot;</span><span class="p">,</span>
+    <span class="n">user_name</span><span class="o">=</span><span class="s2">&quot;john.doe&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># Attach a policy to the group</span>
+<span class="k">await</span> <span class="n">attach_group_policy</span><span class="p">(</span>
+    <span class="n">group_name</span><span class="o">=</span><span class="s2">&quot;Developers&quot;</span><span class="p">,</span>
+    <span class="n">policy_arn</span><span class="o">=</span><span class="s2">&quot;arn:aws:iam::123456789012:policy/DeveloperPolicy&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># Get group details including members</span>
+<span class="n">group_details</span> <span class="o">=</span> <span class="k">await</span> <span class="n">get_group</span><span class="p">(</span><span class="n">group_name</span><span class="o">=</span><span class="s2">&quot;Developers&quot;</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="policy-management_1">Policy Management</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># List customer managed policies</span>
+<span class="n">policies</span> <span class="o">=</span> <span class="k">await</span> <span class="n">list_policies</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;Local&quot;</span><span class="p">,</span> <span class="n">only_attached</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># Attach a policy to a user</span>
+<span class="k">await</span> <span class="n">attach_user_policy</span><span class="p">(</span>
+    <span class="n">user_name</span><span class="o">=</span><span class="s2">&quot;developer&quot;</span><span class="p">,</span>
+    <span class="n">policy_arn</span><span class="o">=</span><span class="s2">&quot;arn:aws:iam::123456789012:policy/DeveloperPolicy&quot;</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="security-testing">Security Testing</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Test if a user can perform specific actions</span>
+<span class="n">simulation</span> <span class="o">=</span> <span class="k">await</span> <span class="n">simulate_principal_policy</span><span class="p">(</span>
+    <span class="n">policy_source_arn</span><span class="o">=</span><span class="s2">&quot;arn:aws:iam::123456789012:user/developer&quot;</span><span class="p">,</span>
+    <span class="n">action_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;s3:GetObject&quot;</span><span class="p">,</span> <span class="s2">&quot;s3:PutObject&quot;</span><span class="p">],</span>
+    <span class="n">resource_arns</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;arn:aws:s3:::my-bucket/*&quot;</span><span class="p">]</span>
+<span class="p">)</span>
+</code></pre></div>
+<h3 id="inline-policy-management_1">Inline Policy Management</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Create an inline policy for a user</span>
+<span class="n">policy_document</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;Version&quot;</span><span class="p">:</span> <span class="s2">&quot;2012-10-17&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;Statement&quot;</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;Effect&quot;</span><span class="p">:</span> <span class="s2">&quot;Allow&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;Action&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;s3:GetObject&quot;</span><span class="p">,</span> <span class="s2">&quot;s3:PutObject&quot;</span><span class="p">],</span>
+            <span class="s2">&quot;Resource&quot;</span><span class="p">:</span> <span class="s2">&quot;arn:aws:s3:::my-bucket/*&quot;</span>
+        <span class="p">}</span>
+    <span class="p">]</span>
+<span class="p">}</span>
+
+<span class="k">await</span> <span class="n">put_user_policy</span><span class="p">(</span>
+    <span class="n">user_name</span><span class="o">=</span><span class="s2">&quot;developer&quot;</span><span class="p">,</span>
+    <span class="n">policy_name</span><span class="o">=</span><span class="s2">&quot;S3AccessPolicy&quot;</span><span class="p">,</span>
+    <span class="n">policy_document</span><span class="o">=</span><span class="n">policy_document</span>
+<span class="p">)</span>
+
+<span class="c1"># Retrieve an inline policy</span>
+<span class="n">policy</span> <span class="o">=</span> <span class="k">await</span> <span class="n">get_user_policy</span><span class="p">(</span>
+    <span class="n">user_name</span><span class="o">=</span><span class="s2">&quot;developer&quot;</span><span class="p">,</span>
+    <span class="n">policy_name</span><span class="o">=</span><span class="s2">&quot;S3AccessPolicy&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># List all inline policies for a user</span>
+<span class="n">policies</span> <span class="o">=</span> <span class="k">await</span> <span class="n">list_user_policies</span><span class="p">(</span><span class="n">user_name</span><span class="o">=</span><span class="s2">&quot;developer&quot;</span><span class="p">)</span>
+
+<span class="c1"># Create an inline policy for a role</span>
+<span class="k">await</span> <span class="n">put_role_policy</span><span class="p">(</span>
+    <span class="n">role_name</span><span class="o">=</span><span class="s2">&quot;EC2-S3-Access-Role&quot;</span><span class="p">,</span>
+    <span class="n">policy_name</span><span class="o">=</span><span class="s2">&quot;S3ReadOnlyPolicy&quot;</span><span class="p">,</span>
+    <span class="n">policy_document</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">&quot;Version&quot;</span><span class="p">:</span> <span class="s2">&quot;2012-10-17&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;Statement&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;Effect&quot;</span><span class="p">:</span> <span class="s2">&quot;Allow&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Action&quot;</span><span class="p">:</span> <span class="s2">&quot;s3:GetObject&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;Resource&quot;</span><span class="p">:</span> <span class="s2">&quot;*&quot;</span>
+            <span class="p">}</span>
+        <span class="p">]</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1"># Delete an inline policy</span>
+<span class="k">await</span> <span class="n">delete_user_policy</span><span class="p">(</span>
+    <span class="n">user_name</span><span class="o">=</span><span class="s2">&quot;developer&quot;</span><span class="p">,</span>
+    <span class="n">policy_name</span><span class="o">=</span><span class="s2">&quot;S3AccessPolicy&quot;</span>
+<span class="p">)</span>
+</code></pre></div>
+<h2 id="security-best-practices">Security Best Practices</h2>
+<ol>
+<li><strong>Principle of Least Privilege</strong>: Always grant the minimum permissions necessary</li>
+<li><strong>Use Roles for Applications</strong>: Prefer IAM roles over users for applications</li>
+<li><strong>Regular Access Reviews</strong>: Periodically review and clean up unused users and permissions</li>
+<li><strong>Access Key Rotation</strong>: Regularly rotate access keys</li>
+<li><strong>Enable MFA</strong>: Use multi-factor authentication where possible</li>
+<li><strong>Permissions Boundaries</strong>: Use permissions boundaries to set maximum permissions</li>
+<li><strong>Policy Simulation</strong>: Test policies before applying them to production</li>
+<li><strong>Prefer Managed Policies</strong>: Use managed policies over inline policies for reusable permissions</li>
+<li><strong>Inline Policy Guidelines</strong>: Use inline policies only for permissions unique to a single identity</li>
+</ol>
+<h2 id="error-handling">Error Handling</h2>
+<p>The server provides comprehensive error handling with descriptive messages:</p>
+<ul>
+<li><strong>Authentication Errors</strong>: Clear messages for credential issues</li>
+<li><strong>Permission Errors</strong>: Specific information about missing permissions</li>
+<li><strong>Resource Not Found</strong>: Helpful messages when resources don't exist</li>
+<li><strong>Validation Errors</strong>: Detailed feedback on invalid parameters</li>
+</ul>
+<h2 id="development">Development</h2>
+<h3 id="running-tests">Running Tests</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Install development dependencies</span>
+uv<span class="w"> </span>sync<span class="w"> </span>--dev
+
+<span class="c1"># Run tests</span>
+uv<span class="w"> </span>run<span class="w"> </span>pytest
+
+<span class="c1"># Run tests with coverage</span>
+uv<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>--cov<span class="o">=</span>awslabs.iam_mcp_server
+</code></pre></div>
+<h3 id="local-development">Local Development</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Install in development mode</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+
+<span class="c1"># Run the server directly</span>
+python<span class="w"> </span>-m<span class="w"> </span>awslabs.iam_mcp_server.server
+</code></pre></div>
+<h2 id="contributing">Contributing</h2>
+<p>Contributions are welcome! Please see the main repository's <a href="../../CONTRIBUTING.md">CONTRIBUTING.md</a> for guidelines.</p>
+<h2 id="license">License</h2>
+<p>This project is licensed under the Apache License 2.0. See the <a href="LICENSE">LICENSE</a> file for details.</p>
+<h2 id="support">Support</h2>
+<p>For issues and questions:
+1. Check the <a href="https://docs.aws.amazon.com/iam/">AWS IAM documentation</a>
+2. Review the <a href="https://modelcontextprotocol.io/">MCP specification</a>
+3. Open an issue in the <a href="https://github.com/awslabs/mcp">GitHub repository</a></p>
+<h2 id="changelog">Changelog</h2>
+<p>See <a href="CHANGELOG.md">CHANGELOG.md</a> for version history and changes.</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; Amazon Web Services, Inc. or its affiliates. All rights reserved.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["search.suggest", "search.highlight", "navigation.instant"], "search": "../../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+    
+  </body>
+</html>
