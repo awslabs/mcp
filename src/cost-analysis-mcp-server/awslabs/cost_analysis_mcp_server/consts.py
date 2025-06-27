@@ -12,6 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""AWS IAM MCP Server package."""
+"""awslabs MCP Cost Analysis mcp server constants.
 
-__version__ = '1.0.0'
+This module provides constant values for analyzing AWS service costs.
+"""
+
+import os
+
+
+MCP_SERVER_NAME = 'awslabs.cost-analysis-mcp-server'
+
+# Environment parameters
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+AWS_PROFILE = os.environ.get('AWS_PROFILE')
+LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'WARNING')
+
+# Supported AWS Pricing API regions
+PRICING_API_REGIONS = {
+    'classic': ['us-east-1', 'eu-central-1', 'ap-southeast-1'],
+    'china': ['cn-northwest-1'],
+}
