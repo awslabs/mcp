@@ -110,46 +110,6 @@ class TestDBConnection:
         pass
 
 
-class TestDBConnectionSingleton:
-    """Tests for the DBConnectionSingleton class - DEPRECATED."""
-
-    def setup_method(self):
-        """Set up the test environment."""
-        # Reset the singleton before each test
-        # DBConnectionSingleton._instance = None  # Class no longer exists
-        pass
-
-    @pytest.mark.skip(reason="DBConnectionSingleton class no longer exists - functionality moved to ConnectionFactory")
-    def test_initialize(self):
-        """Test initializing the singleton."""
-        DBConnectionSingleton.initialize(
-            'resource_arn',
-            'secret_arn', # pragma: allowlist secret
-            'database',
-            'region',
-            True,
-            is_test=True,
-        )
-        assert DBConnectionSingleton._instance is not None
-        assert DBConnectionSingleton._instance._db_connection.cluster_arn == 'resource_arn'
-
-    @pytest.mark.skip(reason="DBConnectionSingleton class no longer exists - functionality moved to ConnectionFactory")
-    def test_get_without_initialize(self):
-        """Test getting the singleton without initializing it."""
-        pass
-
-    @pytest.mark.skip(reason="DBConnectionSingleton class no longer exists - functionality moved to ConnectionFactory")
-    def test_get_after_initialize(self):
-        """Test getting the singleton after initializing it."""
-        pass
-
-    @pytest.mark.skip(reason="DBConnectionSingleton class no longer exists - functionality moved to ConnectionFactory")
-    def test_initialize_missing_params(self):
-        """Test initializing with missing parameters."""
-        pass
-
-
-class TestRunQuery:
     """Tests for the run_query function."""
 
     @pytest.mark.skip(reason="run_query function signature changed")

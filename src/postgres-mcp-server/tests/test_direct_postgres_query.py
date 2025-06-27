@@ -18,7 +18,6 @@ async def test_direct_postgres_query():
     try:
         # Create connection using ConnectionFactory
         db_connection = ConnectionFactory.create_connection(
-            connection_type="psycopg_driver",
             hostname="pg-clone-db-cluster.cluster-cjvgkx7iusm0.us-west-2.rds.amazonaws.com",
             port=5432,
             secret_arn="arn:aws:secretsmanager:us-west-2:288947426911:secret:rds!cluster-7d957e88-d967-46f3-a21e-7db88c36bdf9-NEq9xL",
