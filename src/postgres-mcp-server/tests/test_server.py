@@ -246,9 +246,9 @@ class TestRunQuery:
 
 
 class TestGetTableSchema:
-    @pytest.mark.skip(reason="get_table_schema function signature changed")
     """Tests for the get_table_schema function."""
-
+    
+    @pytest.mark.skip(reason="get_table_schema function signature changed")
     @pytest.mark.skip(reason="run_query function signature changed")
     @pytest.mark.asyncio
     @patch('awslabs.postgres_mcp_server.server.run_query')

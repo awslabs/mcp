@@ -9,6 +9,7 @@ import asyncio
 import boto3
 import json
 import os
+import pytest
 
 
 def extract_cell(cell: dict):
