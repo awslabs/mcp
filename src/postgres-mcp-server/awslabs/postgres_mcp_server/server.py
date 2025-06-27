@@ -449,6 +449,11 @@ async def recommend_indexes(
             error_msg = "No database connection available"
             await ctx.error(error_msg)
             return str({'error': error_msg})
+            
+        if not query:
+            error_msg = "Query parameter is required for index recommendations"
+            await ctx.error(error_msg)
+            return str({'error': error_msg})
 
         # Use analysis module for secure analysis
         result = await suggest_indexes(db_connection, query)
