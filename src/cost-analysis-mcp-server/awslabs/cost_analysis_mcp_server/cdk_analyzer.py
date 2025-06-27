@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """CDK Project Analyzer.
 
@@ -128,6 +131,24 @@ class CDKAnalyzer:
             Dictionary containing identified services and their configurations
         """
         logger.info('Starting project analysis')
+
+        # Check if project path exists
+        if not self.project_path.exists():
+            logger.error(f'Project path does not exist: {self.project_path}')
+            error_msg = f'Error: Project path does not exist: {self.project_path}'
+            logger.error(error_msg)
+            return {
+                'status': 'error',
+                'services': [],
+                'message': error_msg,
+                'details': {
+                    'services': [],
+                    'project_path': str(self.project_path),
+                    'analysis_type': 'cdk',
+                    'error': 'Path not found',
+                },
+            }
+
         all_services = []
 
         # Get all Python and TypeScript files in the project

@@ -27,3 +27,9 @@ env.bak/
 venv.bak/
 .idea/
 .vscode/
+# Coverage reports
+htmlcov/
+.coverage
+# Developer log and scripts
+DEVELOPER_LOG.md
+add_core_dev.py

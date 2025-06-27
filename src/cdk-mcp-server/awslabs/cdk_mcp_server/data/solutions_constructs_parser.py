@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """AWS Solutions Constructs patterns parser module."""
 
@@ -18,6 +21,40 @@ import urllib.parse
 from awslabs.cdk_mcp_server.core import search_utils
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
+
+
+# Regular expression patterns for parsing documentation
+# AsciiDoc patterns
+# Matches a Description section in AsciiDoc format: "= Description" followed by text until the next section or end
+ADOC_DESCRIPTION_SECTION_PATTERN = r'= Description\s*\n+(.*?)(?=\n=|\Z)'
+
+# Matches an Overview section in AsciiDoc format: "= Overview" followed by text until the next section or end
+ADOC_OVERVIEW_SECTION_PATTERN = r'= Overview\s*\n+(.*?)(?=\n=|\Z)'
+
+# Matches the first paragraph in a section: start of text until first blank line or end
+FIRST_PARAGRAPH_PATTERN = r'^(.*?)(?=\n\n|\Z)'
+
+# Matches a title and the following paragraph in AsciiDoc: "= Title" followed by blank line and text
+ADOC_TITLE_AND_PARAGRAPH_PATTERN = r'= ([^\n]+)\s*\n\n(.*?)(?=\n\n|\n=|\Z)'
+
+# Markdown patterns
+# Matches a Description section in Markdown: "## Description" followed by text until the next section or end
+MD_DESCRIPTION_SECTION_PATTERN = r'## Description\s*\n+(.*?)(?=\n##|\Z)'
+
+# Matches an Overview section in Markdown: "## Overview" followed by text until the next section or end
+MD_OVERVIEW_SECTION_PATTERN = r'## Overview\s*\n+(.*?)(?=\n##|\Z)'
+
+# Matches the first paragraph after a title in Markdown: "# Title" followed by blank line and text
+MD_TITLE_AND_PARAGRAPH_PATTERN = r'# [^\n]*\n\n(.*?)(?=\n\n|\n##|\Z)'
+
+# Matches any text before the first ## heading
+MD_TEXT_BEFORE_FIRST_HEADING_PATTERN = r'\n\n(.*?)(?=\n##|\Z)'
+
+# Matches a title in Markdown: "# Title"
+MD_TITLE_PATTERN = r'# ([^\n]+)'
+
+# Pattern to replace multiple whitespace characters with a single space
+WHITESPACE_CLEANUP_PATTERN = r'\s+'
 
 
 # Set up logging
@@ -112,22 +149,32 @@ async def get_pattern_info(pattern_name: str) -> Dict[str, Any]:
             logger.info(f'Using cached info for {pattern_name}')
             return _pattern_details_cache[pattern_name]['data']
 
-        # Fetch README.md content
+        # Try to fetch README.adoc first (preferred)
         async with httpx.AsyncClient() as client:
-            readme_url = f'{GITHUB_RAW_CONTENT_URL}/{REPO_OWNER}/{REPO_NAME}/main/{PATTERNS_PATH}/{pattern_name}/README.md'
-            logger.info(f'Fetching README from {readme_url}')
-            response = await client.get(readme_url)
+            readme_adoc_url = f'{GITHUB_RAW_CONTENT_URL}/{REPO_OWNER}/{REPO_NAME}/main/{PATTERNS_PATH}/{pattern_name}/README.adoc'
+            logger.info(f'Fetching README.adoc from {readme_adoc_url}')
+            adoc_response = await client.get(readme_adoc_url)
 
-            if response.status_code != 200:
-                logger.warning(
-                    f'Failed to fetch README for {pattern_name}: HTTP {response.status_code}'
-                )
-                return {
-                    'error': f'Pattern {pattern_name} not found or README.md not available',
-                    'status_code': response.status_code,
-                }
+            if adoc_response.status_code == 200:
+                readme_content = adoc_response.text
+                logger.info(f'Successfully fetched README.adoc for {pattern_name}')
+            else:
+                # Fall back to README.md (if README.adoc is not available)
+                readme_md_url = f'{GITHUB_RAW_CONTENT_URL}/{REPO_OWNER}/{REPO_NAME}/main/{PATTERNS_PATH}/{pattern_name}/README.md'
+                logger.info(f'README.adoc not found, trying README.md from {readme_md_url}')
+                md_response = await client.get(readme_md_url)
 
-            readme_content = response.text
+                if md_response.status_code != 200:
+                    logger.warning(
+                        f'Failed to fetch README for {pattern_name}: HTTP {md_response.status_code}'
+                    )
+                    return {
+                        'error': f'Pattern {pattern_name} not found or README not available',
+                        'status_code': md_response.status_code,
+                    }
+
+                readme_content = md_response.text
+                logger.info(f'Successfully fetched README.md for {pattern_name}')
 
         # Extract only metadata
         services = extract_services_from_pattern_name(pattern_name)
@@ -310,41 +357,69 @@ def extract_services_from_pattern_name(pattern_name: str) -> List[str]:
 
 
 def extract_description(content: str) -> str:
-    """Extract the pattern description from README.md content.
+    """Extract the pattern description from README content.
 
     Args:
-        content: README.md content
+        content: README content (can be .md or .adoc format)
 
     Returns:
         Pattern description
     """
+    # Check if this is an AsciiDoc (.adoc) file
+    if any(marker in content for marker in ['= Overview', '= Description']):
+        # First, try to find a dedicated Description section in AsciiDoc
+        desc_section_match = re.search(ADOC_DESCRIPTION_SECTION_PATTERN, content, re.DOTALL)
+        if desc_section_match:
+            desc_text = desc_section_match.group(1).strip()
+            # Replace newlines with spaces to ensure a single line description
+            return re.sub(WHITESPACE_CLEANUP_PATTERN, ' ', desc_text)
+
+        # Next, try to find an Overview section in AsciiDoc
+        overview_section_match = re.search(ADOC_OVERVIEW_SECTION_PATTERN, content, re.DOTALL)
+        if overview_section_match:
+            # Take the first paragraph of the overview
+            overview = overview_section_match.group(1).strip()
+            first_para_match = re.search(FIRST_PARAGRAPH_PATTERN, overview, re.DOTALL)
+            if first_para_match:
+                # Replace newlines with spaces to ensure a single line description
+                return re.sub(WHITESPACE_CLEANUP_PATTERN, ' ', first_para_match.group(1).strip())
+            # Replace newlines with spaces to ensure a single line description
+            return re.sub(WHITESPACE_CLEANUP_PATTERN, ' ', overview)
+
+        # Try to find the first paragraph after a title in AsciiDoc format
+        title_match = re.search(ADOC_TITLE_AND_PARAGRAPH_PATTERN, content, re.DOTALL)
+        if title_match:
+            # Replace newlines with spaces to ensure a single line description
+            return re.sub(WHITESPACE_CLEANUP_PATTERN, ' ', title_match.group(2).strip())
+
+    # For Markdown format
     # First, try to find a dedicated Description section
-    desc_section_match = re.search(r'## Description\s*\n+(.*?)(?=\n##|\Z)', content, re.DOTALL)
+    desc_section_match = re.search(MD_DESCRIPTION_SECTION_PATTERN, content, re.DOTALL)
     if desc_section_match:
         return desc_section_match.group(1).strip()
 
     # Next, try to find an Overview section
-    overview_section_match = re.search(r'## Overview\s*\n+(.*?)(?=\n##|\Z)', content, re.DOTALL)
+    overview_section_match = re.search(MD_OVERVIEW_SECTION_PATTERN, content, re.DOTALL)
     if overview_section_match:
         # Take the first paragraph of the overview
         overview = overview_section_match.group(1).strip()
-        first_para_match = re.search(r'^(.*?)(?=\n\n|\Z)', overview, re.DOTALL)
+        first_para_match = re.search(FIRST_PARAGRAPH_PATTERN, overview, re.DOTALL)
         if first_para_match:
             return first_para_match.group(1).strip()
         return overview
 
     # Try to find the first paragraph after the title
-    match = re.search(r'# [^\n]*\n\n(.*?)(?=\n\n|\n##|\Z)', content, re.DOTALL)
+    match = re.search(MD_TITLE_AND_PARAGRAPH_PATTERN, content, re.DOTALL)
     if match:
         return match.group(1).strip()
 
     # Fallback: Try to find any text before the first ## heading
-    match = re.search(r'\n\n(.*?)(?=\n##|\Z)', content, re.DOTALL)
+    match = re.search(MD_TEXT_BEFORE_FIRST_HEADING_PATTERN, content, re.DOTALL)
     if match:
         return match.group(1).strip()
 
     # If all else fails, extract the title as a fallback
-    title_match = re.search(r'# ([^\n]+)', content)
+    title_match = re.search(MD_TITLE_PATTERN, content)
     if title_match:
         pattern_name = title_match.group(1).strip()
         return f'A pattern for integrating {pattern_name} services'

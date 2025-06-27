@@ -1,14 +1,17 @@
 #
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 
 """Tests for the diagrams module of the diagrams-mcp-server."""
@@ -108,8 +111,8 @@ class TestGetDiagramExamples:
 class TestListDiagramIcons:
     """Tests for the list_diagram_icons function."""
 
-    def test_list_icons(self):
-        """Test listing diagram icons."""
+    def test_list_icons_without_filters(self):
+        """Test listing diagram icons without filters."""
         response = list_diagram_icons()
         assert response.providers is not None
         assert len(response.providers) > 0
@@ -119,6 +122,19 @@ class TestListDiagramIcons:
         assert 'k8s' in response.providers
         assert 'onprem' in response.providers
         assert 'programming' in response.providers
+        # Check that the providers don't have services (just provider names)
+        assert response.providers['aws'] == {}
+        assert response.filtered is False
+        assert response.filter_info is None
+
+    def test_list_icons_with_provider_filter(self):
+        """Test listing diagram icons with provider filter."""
+        response = list_diagram_icons(provider_filter='aws')
+        assert response.providers is not None
+        assert len(response.providers) == 1
+        assert 'aws' in response.providers
+        assert response.filtered is True
+        assert response.filter_info == {'provider': 'aws'}
         # Check that we have services for AWS
         assert 'compute' in response.providers['aws']
         assert 'database' in response.providers['aws']
@@ -126,6 +142,50 @@ class TestListDiagramIcons:
         # Check that we have icons for AWS compute
         assert 'EC2' in response.providers['aws']['compute']
         assert 'Lambda' in response.providers['aws']['compute']
+
+    def test_list_icons_with_provider_and_service_filter(self):
+        """Test listing diagram icons with provider and service filter."""
+        response = list_diagram_icons(provider_filter='aws', service_filter='compute')
+        assert response.providers is not None
+        assert len(response.providers) == 1
+        assert 'aws' in response.providers
+        assert len(response.providers['aws']) == 1
+        assert 'compute' in response.providers['aws']
+        assert response.filtered is True
+        assert response.filter_info == {'provider': 'aws', 'service': 'compute'}
+        # Check that we have icons for AWS compute
+        assert 'EC2' in response.providers['aws']['compute']
+        assert 'Lambda' in response.providers['aws']['compute']
+
+    def test_list_icons_with_invalid_provider(self):
+        """Test listing diagram icons with invalid provider."""
+        response = list_diagram_icons(provider_filter='invalid_provider')
+        assert response.providers == {}
+        assert response.filtered is True
+        assert response.filter_info is not None
+        assert response.filter_info.get('provider') == 'invalid_provider'
+        assert 'error' in response.filter_info
+
+    def test_list_icons_with_invalid_service(self):
+        """Test listing diagram icons with invalid service."""
+        response = list_diagram_icons(provider_filter='aws', service_filter='invalid_service')
+        assert response.providers is not None
+        assert 'aws' in response.providers
+        assert response.providers['aws'] == {}
+        assert response.filtered is True
+        assert response.filter_info is not None
+        assert response.filter_info.get('provider') == 'aws'
+        assert response.filter_info.get('service') == 'invalid_service'
+        assert 'error' in response.filter_info
+
+    def test_list_icons_with_service_filter_only(self):
+        """Test listing diagram icons with only service filter."""
+        response = list_diagram_icons(service_filter='compute')
+        assert response.providers == {}
+        assert response.filtered is True
+        assert response.filter_info is not None
+        assert response.filter_info.get('service') == 'compute'
+        assert 'error' in response.filter_info
 
 
 class TestGenerateDiagram:

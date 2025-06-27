@@ -14,12 +14,13 @@ on:
   schedule:
     - cron: '43 16 * * 1'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   detect-dockerfiles:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       dockerfiles: ${{ steps.find-dockerfiles.outputs.dockerfiles }}
     steps:
@@ -39,9 +40,8 @@ jobs:
         dockerfile: ${{ fromJson(needs.detect-dockerfiles.outputs.dockerfiles) }}
     name: Build ${{ matrix.dockerfile }}
     permissions:
-      contents: read # for actions/checkout to fetch code
-      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+      contents: read
+      security-events: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -53,15 +53,13 @@ jobs:
           docker build -t docker.io/${{ matrix.dockerfile }}:${{ github.sha }} .
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
+        uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 #v0.31.0
         with:
           image-ref: 'docker.io/${{ matrix.dockerfile }}:${{ github.sha }}'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
+          format: 'sarif'
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3.28.15 #v3.28.15
+        uses: github/codeql-action/upload-sarif@57eebf61a2246ab60a0c2f5a85766db783ad3553 # v3.28.15
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'

@@ -1,15 +1,16 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Diagram generation and example functions for the diagrams-mcp-server."""
 
@@ -110,10 +111,21 @@ async def generate_diagram(
 
         # Import necessary modules directly in the namespace
         # nosec B102 - These exec calls are necessary to import modules in the namespace
-        exec('import os', namespace)  # nosec
-        exec('import diagrams', namespace)  # nosec
-        exec('from diagrams import Diagram, Cluster, Edge', namespace)  # nosec
-        exec(  # nosec B102 - This exec is necessary to import all diagram modules
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
+            # nosem: python.lang.security.audit.exec-detected.exec-detected
+            'import os',
+            namespace,
+        )
+        # nosec B102 - These exec calls are necessary to import modules in the namespace
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
+            'import diagrams', namespace
+        )
+        # nosec B102 - These exec calls are necessary to import modules in the namespace
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
+            'from diagrams import Diagram, Cluster, Edge', namespace
+        )  # nosem: python.lang.security.audit.exec-detected.exec-detected
+        # nosec B102 - These exec calls are necessary to import modules in the namespace
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
             """from diagrams.saas.crm import *
 from diagrams.saas.identity import *
 from diagrams.saas.chat import *
@@ -237,7 +249,10 @@ from diagrams.aws.enduser import *
 """,
             namespace,
         )
-        exec('from urllib.request import urlretrieve', namespace)  # nosec
+        # nosec B102 - These exec calls are necessary to import modules in the namespace
+        exec(  # nosem: python.lang.security.audit.exec-detected.exec-detected
+            'from urllib.request import urlretrieve', namespace
+        )  # nosem: python.lang.security.audit.exec-detected.exec-detected
 
         # Process the code to ensure show=False and set the output path
         if 'with Diagram(' in code:
@@ -287,7 +302,7 @@ from diagrams.aws.enduser import *
 
         # Execute the code
         # nosec B102 - This exec is necessary to run user-provided diagram code in a controlled environment
-        exec(code, namespace)  # nosec
+        exec(code, namespace)  # nosem: python.lang.security.audit.exec-detected.exec-detected
 
         # Cancel the alarm
         signal.alarm(0)
@@ -556,62 +571,86 @@ with Diagram("Broker Consumers", show=False):
     return DiagramExampleResponse(examples=examples)
 
 
-def list_diagram_icons() -> DiagramIconsResponse:
-    """List all available icons from the diagrams package.
+def list_diagram_icons(
+    provider_filter: Optional[str] = None, service_filter: Optional[str] = None
+) -> DiagramIconsResponse:
+    """List available icons from the diagrams package, with optional filtering.
 
-    This function dynamically inspects the diagrams package to find all available
-    providers, services, and icons that can be used in diagrams.
+    Args:
+        provider_filter: Optional filter by provider name (e.g., "aws", "gcp")
+        service_filter: Optional filter by service name (e.g., "compute", "database")
 
     Returns:
-        DiagramIconsResponse: Dictionary with all available providers, services, and icons
+        DiagramIconsResponse: Dictionary with available providers, services, and icons
     """
     logger.debug('Starting list_diagram_icons function')
+    logger.debug(f'Filters - provider: {provider_filter}, service: {service_filter}')
 
     try:
-        # Dictionary to store all providers and their services/icons
+        # If no filters provided, just return the list of available providers
+        if not provider_filter and not service_filter:
+            # Get the base path of the diagrams package
+            diagrams_path = os.path.dirname(diagrams.__file__)
+            providers = {}
+
+            # List of provider directories to exclude
+            exclude_dirs = ['__pycache__', '_template']
+
+            # Just list the available providers without their services/icons
+            for provider_name in os.listdir(os.path.join(diagrams_path)):
+                provider_path = os.path.join(diagrams_path, provider_name)
+
+                # Skip non-directories and excluded directories
+                if (
+                    not os.path.isdir(provider_path)
+                    or provider_name.startswith('_')
+                    or provider_name in exclude_dirs
+                ):
+                    continue
+
+                # Add provider to the dictionary with empty services
+                providers[provider_name] = {}
+
+            return DiagramIconsResponse(providers=providers, filtered=False, filter_info=None)
+
+        # Dictionary to store filtered providers and their services/icons
         providers = {}
 
         # Get the base path of the diagrams package
         diagrams_path = os.path.dirname(diagrams.__file__)
-        logger.debug(f'Diagrams package path: {diagrams_path}')
 
         # List of provider directories to exclude
         exclude_dirs = ['__pycache__', '_template']
 
-        # Iterate through all provider directories
-        for provider_name in os.listdir(os.path.join(diagrams_path)):
-            provider_path = os.path.join(diagrams_path, provider_name)
+        # If only provider filter is specified
+        if provider_filter and not service_filter:
+            provider_path = os.path.join(diagrams_path, provider_filter)
 
-            # Skip non-directories and excluded directories
-            if (
-                not os.path.isdir(provider_path)
-                or provider_name.startswith('_')
-                or provider_name in exclude_dirs
-            ):
-                logger.debug(f'Skipping {provider_name}: not a directory or in exclude list')
-                continue
+            # Check if the provider exists
+            if not os.path.isdir(provider_path) or provider_filter in exclude_dirs:
+                return DiagramIconsResponse(
+                    providers={},
+                    filtered=True,
+                    filter_info={'provider': provider_filter, 'error': 'Provider not found'},
+                )
 
             # Add provider to the dictionary
-            providers[provider_name] = {}
-            logger.debug(f'Processing provider: {provider_name}')
+            providers[provider_filter] = {}
 
             # Iterate through all service modules in the provider
             for service_file in os.listdir(provider_path):
                 # Skip non-Python files and special files
                 if not service_file.endswith('.py') or service_file.startswith('_'):
-                    logger.debug(
-                        f'Skipping file {service_file}: not a Python file or starts with _'
-                    )
                     continue
 
                 service_name = service_file[:-3]  # Remove .py extension
-                logger.debug(f'Processing service: {provider_name}.{service_name}')
 
                 # Import the service module
-                module_path = f'diagrams.{provider_name}.{service_name}'
+                module_path = f'diagrams.{provider_filter}.{service_name}'
                 try:
-                    logger.debug(f'Attempting to import module: {module_path}')
-                    service_module = importlib.import_module(module_path)
+                    service_module = importlib.import_module(  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+                        module_path  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+                    )  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
 
                     # Find all classes in the module that are Node subclasses
                     icons = []
@@ -623,30 +662,185 @@ def list_diagram_icons() -> DiagramIconsResponse:
                         # Check if it's a class and likely a Node subclass
                         if inspect.isclass(obj) and hasattr(obj, '_icon'):
                             icons.append(name)
-                            logger.debug(f'Found icon: {name}')
 
                     # Add service and its icons to the provider
                     if icons:
-                        providers[provider_name][service_name] = sorted(icons)
+                        providers[provider_filter][service_name] = sorted(icons)
+
+                except (ImportError, AttributeError, Exception) as e:
+                    logger.error(f'Error processing {module_path}: {str(e)}')
+                    continue
+
+            return DiagramIconsResponse(
+                providers=providers, filtered=True, filter_info={'provider': provider_filter}
+            )
+
+        # If both provider and service filters are specified
+        elif provider_filter and service_filter:
+            provider_path = os.path.join(diagrams_path, provider_filter)
+
+            # Check if the provider exists
+            if not os.path.isdir(provider_path) or provider_filter in exclude_dirs:
+                return DiagramIconsResponse(
+                    providers={},
+                    filtered=True,
+                    filter_info={
+                        'provider': provider_filter,
+                        'service': service_filter,
+                        'error': 'Provider not found',
+                    },
+                )
+
+            # Add provider to the dictionary
+            providers[provider_filter] = {}
+
+            # Check if the service exists
+            service_file = f'{service_filter}.py'
+            service_path = os.path.join(provider_path, service_file)
+
+            if not os.path.isfile(service_path):
+                return DiagramIconsResponse(
+                    providers={provider_filter: {}},
+                    filtered=True,
+                    filter_info={
+                        'provider': provider_filter,
+                        'service': service_filter,
+                        'error': 'Service not found',
+                    },
+                )
+
+            # Import the service module
+            module_path = f'diagrams.{provider_filter}.{service_filter}'
+            try:
+                service_module = importlib.import_module(  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+                    module_path  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+                )  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+
+                # Find all classes in the module that are Node subclasses
+                icons = []
+                for name, obj in inspect.getmembers(service_module):
+                    # Skip private members and imported modules
+                    if name.startswith('_') or inspect.ismodule(obj):
+                        continue
+
+                    # Check if it's a class and likely a Node subclass
+                    if inspect.isclass(obj) and hasattr(obj, '_icon'):
+                        icons.append(name)
+
+                # Add service and its icons to the provider
+                if icons:
+                    providers[provider_filter][service_filter] = sorted(icons)
+
+            except (ImportError, AttributeError, Exception) as e:
+                logger.error(f'Error processing {module_path}: {str(e)}')
+                return DiagramIconsResponse(
+                    providers={provider_filter: {}},
+                    filtered=True,
+                    filter_info={
+                        'provider': provider_filter,
+                        'service': service_filter,
+                        'error': f'Error loading service: {str(e)}',
+                    },
+                )
+
+            return DiagramIconsResponse(
+                providers=providers,
+                filtered=True,
+                filter_info={'provider': provider_filter, 'service': service_filter},
+            )
+
+        # If only service filter is specified (not supported)
+        elif service_filter:
+            return DiagramIconsResponse(
+                providers={},
+                filtered=True,
+                filter_info={
+                    'service': service_filter,
+                    'error': 'Service filter requires provider filter',
+                },
+            )
+
+        # Original implementation for backward compatibility
+        else:
+            # Dictionary to store all providers and their services/icons
+            providers = {}
+
+            # Get the base path of the diagrams package
+            diagrams_path = os.path.dirname(diagrams.__file__)
+            logger.debug(f'Diagrams package path: {diagrams_path}')
+
+            # Iterate through all provider directories
+            for provider_name in os.listdir(os.path.join(diagrams_path)):
+                provider_path = os.path.join(diagrams_path, provider_name)
+
+                # Skip non-directories and excluded directories
+                if (
+                    not os.path.isdir(provider_path)
+                    or provider_name.startswith('_')
+                    or provider_name in exclude_dirs
+                ):
+                    logger.debug(f'Skipping {provider_name}: not a directory or in exclude list')
+                    continue
+
+                # Add provider to the dictionary
+                providers[provider_name] = {}
+                logger.debug(f'Processing provider: {provider_name}')
+
+                # Iterate through all service modules in the provider
+                for service_file in os.listdir(provider_path):
+                    # Skip non-Python files and special files
+                    if not service_file.endswith('.py') or service_file.startswith('_'):
                         logger.debug(
-                            f'Added {len(icons)} icons for {provider_name}.{service_name}'
+                            f'Skipping file {service_file}: not a Python file or starts with _'
                         )
-                    else:
-                        logger.warning(f'No icons found for {provider_name}.{service_name}')
+                        continue
 
-                except ImportError as ie:
-                    logger.error(f'ImportError for {module_path}: {str(ie)}')
-                    continue
-                except AttributeError as ae:
-                    logger.error(f'AttributeError for {module_path}: {str(ae)}')
-                    continue
-                except Exception as e:
-                    logger.error(f'Unexpected error processing {module_path}: {str(e)}')
-                    continue
+                    service_name = service_file[:-3]  # Remove .py extension
+                    logger.debug(f'Processing service: {provider_name}.{service_name}')
 
-        logger.debug(f'Completed processing. Found {len(providers)} providers')
-        return DiagramIconsResponse(providers=providers)
+                    # Import the service module
+                    module_path = f'diagrams.{provider_name}.{service_name}'
+                    try:
+                        logger.debug(f'Attempting to import module: {module_path}')
+                        service_module = importlib.import_module(  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+                            module_path  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+                        )  # nosem: python.lang.security.audit.non-literal-import.non-literal-import
+
+                        # Find all classes in the module that are Node subclasses
+                        icons = []
+                        for name, obj in inspect.getmembers(service_module):
+                            # Skip private members and imported modules
+                            if name.startswith('_') or inspect.ismodule(obj):
+                                continue
+
+                            # Check if it's a class and likely a Node subclass
+                            if inspect.isclass(obj) and hasattr(obj, '_icon'):
+                                icons.append(name)
+                                logger.debug(f'Found icon: {name}')
+
+                        # Add service and its icons to the provider
+                        if icons:
+                            providers[provider_name][service_name] = sorted(icons)
+                            logger.debug(
+                                f'Added {len(icons)} icons for {provider_name}.{service_name}'
+                            )
+                        else:
+                            logger.warning(f'No icons found for {provider_name}.{service_name}')
+
+                    except ImportError as ie:
+                        logger.error(f'ImportError for {module_path}: {str(ie)}')
+                        continue
+                    except AttributeError as ae:
+                        logger.error(f'AttributeError for {module_path}: {str(ae)}')
+                        continue
+                    except Exception as e:
+                        logger.error(f'Unexpected error processing {module_path}: {str(e)}')
+                        continue
+
+            logger.debug(f'Completed processing. Found {len(providers)} providers')
+            return DiagramIconsResponse(providers=providers, filtered=False, filter_info=None)
+
     except Exception as e:
         logger.exception(f'Error in list_diagram_icons: {str(e)}')
         # Return empty response on error
-        return DiagramIconsResponse(providers={})
+        return DiagramIconsResponse(providers={}, filtered=False, filter_info={'error': str(e)})

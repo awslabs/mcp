@@ -179,6 +179,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.direnv/
+
+# Certificates
+awslabs/certs
 
 # Spyder project settings
 .spyderproject
@@ -555,3 +559,14 @@ dist
 
 
 # End of https://www.toptal.com/developers/gitignore/api/jetbrains+all,pycharm+all,node
+samples/mcp-integration-with-nova-canvas/output/*
+
+memory-bank/*
+.clinerules
+
+# OpenAPI MCP Server specific ignores
+src/openapi-mcp-server/generated-diagrams/*
+src/openapi-mcp-server/*.txt
+src/openapi-mcp-server/*-coverage.xml
+src/openapi-mcp-server/junit.xml
+executive-summary.md

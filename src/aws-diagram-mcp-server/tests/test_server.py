@@ -1,14 +1,17 @@
 #
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 
 """Tests for the server module of the diagrams-mcp-server."""
@@ -191,21 +194,19 @@ class TestMcpListDiagramIcons:
 
     @pytest.mark.asyncio
     @patch('awslabs.aws_diagram_mcp_server.server.list_diagram_icons')
-    async def test_list_diagram_icons(self, mock_list_diagram_icons):
-        """Test the mcp_list_diagram_icons function."""
+    async def test_list_diagram_icons_without_filters(self, mock_list_diagram_icons):
+        """Test the mcp_list_diagram_icons function without filters."""
         # Set up the mock
         mock_list_diagram_icons.return_value = MagicMock(
             model_dump=MagicMock(
                 return_value={
                     'providers': {
-                        'aws': {
-                            'compute': ['EC2', 'Lambda'],
-                            'database': ['RDS', 'DynamoDB'],
-                        },
-                        'gcp': {
-                            'compute': ['GCE', 'GKE'],
-                        },
-                    }
+                        'aws': {},
+                        'gcp': {},
+                        'k8s': {},
+                    },
+                    'filtered': False,
+                    'filter_info': None,
                 }
             )
         )
@@ -216,18 +217,102 @@ class TestMcpListDiagramIcons:
         # Check the result
         assert result == {
             'providers': {
-                'aws': {
-                    'compute': ['EC2', 'Lambda'],
-                    'database': ['RDS', 'DynamoDB'],
-                },
-                'gcp': {
-                    'compute': ['GCE', 'GKE'],
-                },
-            }
+                'aws': {},
+                'gcp': {},
+                'k8s': {},
+            },
+            'filtered': False,
+            'filter_info': None,
         }
 
         # Check that list_diagram_icons was called
         mock_list_diagram_icons.assert_called_once()
+        # We don't check the exact arguments because they are Field objects
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.list_diagram_icons')
+    async def test_list_diagram_icons_with_provider_filter(self, mock_list_diagram_icons):
+        """Test the mcp_list_diagram_icons function with provider filter."""
+        # Set up the mock
+        mock_list_diagram_icons.return_value = MagicMock(
+            model_dump=MagicMock(
+                return_value={
+                    'providers': {
+                        'aws': {
+                            'compute': ['EC2', 'Lambda'],
+                            'database': ['RDS', 'DynamoDB'],
+                        }
+                    },
+                    'filtered': True,
+                    'filter_info': {'provider': 'aws'},
+                }
+            )
+        )
+
+        # Call the function
+        result = await mcp_list_diagram_icons(provider_filter='aws')
+
+        # Check the result
+        assert result == {
+            'providers': {
+                'aws': {
+                    'compute': ['EC2', 'Lambda'],
+                    'database': ['RDS', 'DynamoDB'],
+                }
+            },
+            'filtered': True,
+            'filter_info': {'provider': 'aws'},
+        }
+
+        # Check that list_diagram_icons was called
+        mock_list_diagram_icons.assert_called_once()
+        # We don't check the exact arguments because they are Field objects
+        # But we can check that the first argument contains 'aws'
+        args, _ = mock_list_diagram_icons.call_args
+        assert args[0] == 'aws'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.aws_diagram_mcp_server.server.list_diagram_icons')
+    async def test_list_diagram_icons_with_provider_and_service_filter(
+        self, mock_list_diagram_icons
+    ):
+        """Test the mcp_list_diagram_icons function with provider and service filter."""
+        # Set up the mock
+        mock_list_diagram_icons.return_value = MagicMock(
+            model_dump=MagicMock(
+                return_value={
+                    'providers': {
+                        'aws': {
+                            'compute': ['EC2', 'Lambda'],
+                        }
+                    },
+                    'filtered': True,
+                    'filter_info': {'provider': 'aws', 'service': 'compute'},
+                }
+            )
+        )
+
+        # Call the function
+        result = await mcp_list_diagram_icons(provider_filter='aws', service_filter='compute')
+
+        # Check the result
+        assert result == {
+            'providers': {
+                'aws': {
+                    'compute': ['EC2', 'Lambda'],
+                }
+            },
+            'filtered': True,
+            'filter_info': {'provider': 'aws', 'service': 'compute'},
+        }
+
+        # Check that list_diagram_icons was called
+        mock_list_diagram_icons.assert_called_once()
+        # We don't check the exact arguments because they are Field objects
+        # But we can check that the arguments contain the expected values
+        args, _ = mock_list_diagram_icons.call_args
+        assert args[0] == 'aws'
+        assert args[1] == 'compute'
 
 
 class TestServerIntegration:
@@ -254,6 +339,6 @@ class TestServerIntegration:
         )
         assert (
             mcp_list_diagram_icons.__doc__ is not None
-            and 'List all available icons from the diagrams package'
+            and 'List available icons from the diagrams package, with optional filtering'
             in mcp_list_diagram_icons.__doc__
         )

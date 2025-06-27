@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-documentation-mcp-server"
-version = "0.0.2025141004"
+version = "1.1.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Documentation"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -47,6 +47,7 @@ dev = [
     "ruff>=0.9.7",
     "pyright>=1.1.398",
     "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.1",
     "pytest-asyncio>=0.26.0",
 ]
@@ -119,3 +120,6 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.bandit]
 exclude_dirs = ["venv","tests"]
+
+[tool.coverage.run]
+source = ["awslabs"]

@@ -1,0 +1,92 @@
+[project]
+name = "awslabs.terraform-mcp-server"
+version = "1.0.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for terraform"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "pydantic>=2.10.6",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "loguru>=0.7.0",
+    "playwright>=1.40.0",
+    "PyPDF2>=3.0.0",
+    "checkov>=3.2.402",
+]
+
+[project.scripts]
+"awslabs.terraform-mcp-server" = "awslabs.terraform_mcp_server.server:main"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.399",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/terraform_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.coverage.run]
+source = ["awslabs"]

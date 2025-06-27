@@ -28,6 +28,14 @@ The samples in this directory provide:
 
 ## Available Samples
 
+### MCP Integration with KB
+
+A client that integrates with the Amazon Bedrock Knowledge Base MCP server. Code can be found in the [mcp-integration-with-kb](https://github.com/awslabs/mcp/tree/main/samples/mcp-integration-with-kb) folder.
+
+### AWS Step Functions Tool MCP Server
+
+A server that enables AI models to execute AWS Step Functions state machines as tools, allowing seamless integration with existing workflows. The server supports both Standard and Express workflows, and integrates with EventBridge Schema Registry for input validation. Code can be found in the [src/stepfunctions-tool-mcp-server](https://github.com/awslabs/mcp/tree/main/src/stepfunctions-tool-mcp-server) folder.
+
 ### Coming Soon
 
 ## Contributing

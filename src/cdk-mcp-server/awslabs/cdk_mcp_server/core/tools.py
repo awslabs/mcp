@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """AWS CDK MCP tool handlers."""
 
@@ -203,7 +206,12 @@ def save_fallback_script_to_file(
             f.write(script_content)
 
         # Update to executable permissions (only for the owner)
-        os.chmod(script_path, 0o700)  # rwx------ permissions (owner only)
+        # rwx------ permissions (owner only)
+        # nosem: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions
+        os.chmod(
+            script_path,
+            0o700,
+        )
 
         logger.info(f'Successfully created script at {script_path}')
         return script_path
@@ -391,11 +399,16 @@ async def search_genai_cdk_constructs(
 
     The search is flexible and will match any of your search terms (OR logic).
     It handles common variations like singular/plural forms and terms with/without spaces.
+    Content is fetched dynamically from GitHub to ensure the most up-to-date documentation.
 
     Examples:
     - "bedrock agent" - Returns all agent-related constructs
     - "knowledgebase vector" - Returns knowledge base constructs related to vector stores
     - "agent actiongroups" - Returns action groups for agents
+    - "opensearch vector" - Returns OpenSearch vector constructs
+
+    The search supports subdirectory content (like knowledge bases and their sections)
+    and will find matches across all available content.
 
     Args:
         ctx: MCP context
@@ -407,7 +420,7 @@ async def search_genai_cdk_constructs(
     """
     try:
         # Get list of constructs
-        constructs = list_available_constructs(construct_type)
+        constructs = await list_available_constructs(construct_type)
 
         # If no query, return all constructs
         if not query:

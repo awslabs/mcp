@@ -1,16 +1,18 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """awslabs Bedrock Knowledge Base Retrieval MCP Server."""
 
-import argparse
 import json
 import os
 import sys
@@ -19,9 +21,10 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.clients import (
     get_bedrock_agent_runtime_client,
 )
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.discovery import (
+    DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY,
     discover_knowledge_bases,
 )
-from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.runtime import (
+from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import (
     query_knowledge_base,
 )
 from loguru import logger
@@ -30,7 +33,8 @@ from pydantic import Field
 from typing import List, Literal, Optional
 
 
-logger.remove(0)
+# Remove all default handlers then add our own
+logger.remove()
 logger.add(sys.stderr, level='INFO')
 
 
@@ -50,6 +54,18 @@ except Exception as e:
     logger.error(f'Error getting bedrock agent client: {e}')
     raise e
 
+kb_inclusion_tag_key = os.getenv('KB_INCLUSION_TAG_KEY', DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY)
+
+# Parse reranking enabled environment variable
+kb_reranking_enabled_raw = os.getenv('BEDROCK_KB_RERANKING_ENABLED')
+kb_reranking_enabled = False  # Default value is now False (off)
+if kb_reranking_enabled_raw is not None:
+    kb_reranking_enabled_raw = kb_reranking_enabled_raw.strip().lower()
+    if kb_reranking_enabled_raw in ('true', '1', 'yes', 'on'):
+        kb_reranking_enabled = True
+logger.info(
+    f'Default reranking enabled: {kb_reranking_enabled} (from BEDROCK_KB_RERANKING_ENABLED)'
+)
 
 mcp = FastMCP(
     'awslabs.bedrock-kb-retrieval-mcp-server',
@@ -105,7 +121,7 @@ async def knowledgebases_resource() -> str:
     2. Note the data source IDs if you want to filter queries to specific data sources
     3. Use the names to determine which knowledge base and data source(s) are most relevant to the user's query
     """
-    return json.dumps(await discover_knowledge_bases(kb_agent_mgmt_client))
+    return json.dumps(await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key))
 
 
 @mcp.tool(name='QueryKnowledgeBases')
@@ -122,8 +138,8 @@ async def query_knowledge_bases_tool(
         description='The number of results to return. Use smaller values for focused results and larger values for broader coverage.',
     ),
     reranking: bool = Field(
-        True,
-        description='Whether to rerank the results. Useful for improving relevance and sorting.',
+        kb_reranking_enabled,
+        description='Whether to rerank the results. Useful for improving relevance and sorting. Can be globally configured with BEDROCK_KB_RERANKING_ENABLED environment variable.',
     ),
     reranking_model_name: Literal['COHERE', 'AMAZON'] = Field(
         'AMAZON',
@@ -173,18 +189,7 @@ async def query_knowledge_bases_tool(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='A Model Context Protocol (MCP) server')
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

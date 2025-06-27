@@ -1,0 +1,127 @@
+[project]
+name = "awslabs.cost-explorer-mcp-server"
+version = "0.0.5"
+description = "MCP server for analyzing AWS costs and usage data through the AWS Cost Explorer API"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "boto3>=1.38.40",
+    "loguru>=0.7.0",
+    "mcp[cli]>=1.6.0",
+    "pandas>=2.2.3",
+    "pydantic>=2.10.6",
+]
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE" ]
+
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.scripts]
+"awslabs.cost-explorer-mcp-server" = "awslabs.cost_explorer_mcp_server.server:main"
+
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/cost-explorer-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/cost-explorer-mcp-server/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/cost_explorer_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=awslabs.cost_explorer_mcp_server --cov-report=term-missing"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "asyncio: mark a test as an asyncio coroutine"
+]
+
+[tool.bandit]
+exclude_dirs = ["venv","tests"]
+
+[tool.coverage.run]
+source = ["awslabs"]

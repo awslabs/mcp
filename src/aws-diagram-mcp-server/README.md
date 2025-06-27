@@ -14,7 +14,9 @@ This MCP server that seamlessly creates [diagrams](https://diagrams.mingrammer.c
 
 ## Installation
 
-Here are some ways you can work with MCP across AWS, and we'll be adding support to more products including Amazon Q Developer CLI soon: (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-diagram-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWRpYWdyYW0tbWNwLXNlcnZlciIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sImF1dG9BcHByb3ZlIjpbXSwiZGlzYWJsZWQiOmZhbHNlfQ%3D%3D)
+
+Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
 {
@@ -32,6 +34,29 @@ Here are some ways you can work with MCP across AWS, and we'll be adding support
 }
 ```
 
+or docker after a successful `docker build -t awslabs/aws-diagram-mcp-server .`:
+
+```json
+  {
+    "mcpServers": {
+      "awslabs.aws-diagram-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env",
+          "FASTMCP_LOG_LEVEL=ERROR",
+          "awslabs/aws-diagram-mcp-server:latest"
+        ],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+      }
+    }
+  }
+```
+
 ## Features
 
 The Diagrams MCP Server provides the following capabilities:
@@ -40,6 +65,22 @@ The Diagrams MCP Server provides the following capabilities:
 2. **Multiple Diagram Types**: Support for AWS architecture, sequence diagrams, flow charts, class diagrams, and more
 3. **Customization**: Customize diagram appearance, layout, and styling
 4. **Security**: Code scanning to ensure secure diagram generation
+
+## Quick Example
+
+```python
+from diagrams import Diagram
+from diagrams.aws.compute import Lambda
+from diagrams.aws.database import Dynamodb
+from diagrams.aws.network import APIGateway
+
+with Diagram("Serverless Application", show=False):
+    api = APIGateway("API Gateway")
+    function = Lambda("Function")
+    database = Dynamodb("DynamoDB")
+
+    api >> function >> database
+```
 
 ## Development
 

@@ -1,15 +1,16 @@
-#
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
-#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Models for the diagrams-mcp-server."""
 
@@ -77,7 +78,20 @@ class DiagramExampleResponse(BaseModel):
     examples: Dict[str, str]
 
 
+class DiagramIconsRequest(BaseModel):
+    """Request model for listing available diagram icons."""
+
+    provider_filter: Optional[str] = Field(
+        None, description='Filter icons by provider name (e.g., "aws", "gcp", "k8s")'
+    )
+    service_filter: Optional[str] = Field(
+        None, description='Filter icons by service name (e.g., "compute", "database", "network")'
+    )
+
+
 class DiagramIconsResponse(BaseModel):
     """Response model for listing available diagram icons."""
 
     providers: Dict[str, Dict[str, List[str]]]
+    filtered: bool = False
+    filter_info: Optional[Dict[str, str]] = None

@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD041 MD043 -->
-**Issue number:**
+Fixes
 
 ## Summary
 
@@ -20,8 +20,7 @@ If your change doesn't seem to apply, please leave them unchecked.
 * [ ] Changes have been tested
 * [ ] Changes are documented
 
-<details>
-<summary>Is this a breaking change?</summary>
+Is this a breaking change? (Y/N)
 
 **RFC issue number**:
 
@@ -29,8 +28,6 @@ Checklist:
 
 * [ ] Migration process documented
 * [ ] Implement warnings (if it can live side by side)
-
-</details>
 
 ## Acknowledgment
 

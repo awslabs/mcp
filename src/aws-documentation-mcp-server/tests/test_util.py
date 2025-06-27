@@ -1,13 +1,16 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """Tests for utility functions in the AWS Documentation MCP Server."""
 
 import os
@@ -17,7 +20,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     is_html_content,
     parse_recommendation_results,
 )
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 class TestIsHtmlContent:
@@ -212,6 +215,30 @@ class TestExtractContentFromHtml:
         assert props_pos > typescript_code_pos, (
             'Pattern Construct Props section should appear after code blocks'
         )
+
+    def test_extract_content_from_html(self):
+        """Test extracting content from HTML."""
+        html = '<html><body><h1>Test</h1><p>This is a test.</p></body></html>'
+        with patch('bs4.BeautifulSoup') as mock_bs:
+            mock_soup = MagicMock()
+            mock_bs.return_value = mock_soup
+            with patch('markdownify.markdownify') as mock_markdownify:
+                mock_markdownify.return_value = '# Test\n\nThis is a test.'
+                result = extract_content_from_html(html)
+                assert result == '# Test\n\nThis is a test.'
+                mock_bs.assert_called_once()
+                mock_markdownify.assert_called_once()
+
+    def test_extract_content_from_html_no_content(self):
+        """Test extracting content from HTML with no content."""
+        html = '<html><body></body></html>'
+        with patch('bs4.BeautifulSoup') as mock_bs:
+            mock_soup = MagicMock()
+            mock_bs.return_value = mock_soup
+            mock_soup.body = None
+            result = extract_content_from_html(html)
+            assert '<e>' in result
+            mock_bs.assert_called_once()
 
 
 class TestParseRecommendationResults:

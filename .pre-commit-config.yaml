@@ -3,6 +3,7 @@ repos:
     rev: v5.0.0
     hooks:
     -   id: check-added-large-files
+    -   id: check-case-conflict
     -   id: check-executables-have-shebangs
     -   id: check-illegal-windows-names
     -   id: check-json
@@ -11,8 +12,21 @@ repos:
     -   id: check-symlinks
     -   id: check-toml
     -   id: check-xml
+        # Full check against all YAML files excluding mkdocs.yml
     -   id: check-yaml
+        name: check non-mkdocs yaml
+        exclude: mkdocs.yml
+        # Unsafe check against mkdocs.yml specifically to allow the necessary
+        # custom tags to render Mermaid diagrams.
+    -   id: check-yaml
+        name: check mkdocs yaml
+        files: mkdocs.yml
+        args:
+          # https://github.com/pre-commit/pre-commit-hooks/issues/701
+          # Necessary so that non-standard tags do not throw failures.
+          - '--unsafe'
     -   id: end-of-file-fixer
+    -   id: debug-statements
     -   id: destroyed-symlinks
     -   id: detect-private-key
     -   id: detect-aws-credentials
@@ -21,9 +35,9 @@ repos:
     -   id: pretty-format-json
     -   id: trailing-whitespace
 
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.11.4
-  hooks:
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.4
+    hooks:
     - id: ruff
       args: [ --fix ]
     - id: ruff-format
@@ -33,3 +47,28 @@ repos:
     hooks:
     -   id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
+
+-   repo: local
+    hooks:
+    -   id: check-license-header
+        name: check license header
+        pass_filenames: false
+        language: system
+        entry: npm
+        args: [
+            'exec', '--',
+            'github:viperproject/check-license-header#v1', 'check', '--config', './.github/workflows/check-license-header.json']
+    -   id: pyright
+        name: pyright
+        pass_filenames: true
+        language: system
+        entry: bash -c 'for x in "$@"; do (cd `dirname $x`; pwd; uv run --frozen --all-extras --dev pyright --stats;); done;' --
+        stages: [pre-push]
+        files: (src|samples)\/.*\/pyproject.toml
+    -   id: pytest
+        name: pytest
+        pass_filenames: true
+        language: system
+        entry: bash -c 'for x in "$@"; do (cd `dirname $x`; pwd; uv run --frozen pytest --cov --cov-branch --cov-report=term-missing;); done;' --
+        stages: [pre-push]
+        files: src\/.*\/pyproject.toml

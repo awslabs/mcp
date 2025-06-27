@@ -1,17 +1,19 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """AWS CDK MCP server implementation."""
 
-import argparse
 import logging
 from awslabs.cdk_mcp_server.core import resources, tools
 from mcp.server.fastmcp import FastMCP
@@ -41,14 +43,15 @@ mcp.resource('lambda-powertools://')(resources.get_lambda_powertools_index)
 mcp.resource('aws-solutions-constructs://{pattern_name}')(
     resources.get_solutions_construct_pattern_resource
 )
+# Fixed the ordering - more specific routes first
+mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}/sections')(
+    resources.get_available_sections_resource
+)
 mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}/{section}')(
     resources.get_genai_cdk_construct_section_resource
 )
 mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}/{parent}/{child}')(
     resources.get_genai_cdk_construct_nested_section_resource
-)
-mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}/sections')(
-    resources.get_available_sections_resource
 )
 mcp.resource('genai-cdk-constructs://{construct_type}/{construct_name}')(
     resources.get_genai_cdk_construct_resource
@@ -68,18 +71,7 @@ mcp.tool(name='LambdaLayerDocumentationProvider')(tools.lambda_layer_documentati
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='AWS CDK MCP Server')
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':

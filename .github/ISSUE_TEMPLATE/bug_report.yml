@@ -73,11 +73,34 @@ body:
       label: Server
       multiple: true
       options:
-        - core-mcp-server
-        - nova-canvas-mcp-server
+        - amazon-kendra-index-mcp-server
+        - amazon-mq-mcp-server
+        - amazon-neptune-mcp-server
+        - amazon-sns-sqs-mcp-server
+        - amazon-dsql-mcp-server
+        - aws-diagram-mcp-server
+        - aws-documentation-mcp-server
+        - aws-location-mcp-server
         - bedrock-kb-retrieval-mcp-server
-        - cost-analysis-mcp-server
         - cdk-mcp-server
+        - cfn-mcp-server
+        - code-doc-gen-mcp-server
+        - core-mcp-server
+        - cost-analysis-mcp-server
+        - documentdb-mcp-server
+        - dynamodb-mcp-server
+        - frontend-mcp-server
+        - git-repo-research-mcp-server
+        - lambda-mcp-server
+        - mcp-lambda-handler
+        - memcached-mcp-server
+        - mysql-mcp-server
+        - nova-canvas-mcp-server
+        - postgres-mcp-server
+        - syntheticdata-mcp-server
+        - terraform-mcp-server
+        - valkey-mcp-server
+        - other
     validations:
       required: true
 

@@ -1,34 +1,60 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
-# Licensed under the Apache License, Version 2.0 (the "License"). You may not use this file except in compliance
-# with the License. A copy of the License is located at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#    http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-# or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES
-# OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions
-# and limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """awslabs MCP Cost Analysis mcp server implementation.
 
 This server provides tools for analyzing AWS service costs across different user tiers.
 """
 
-import argparse
-import boto3
-import logging
 import os
+import sys
+from awslabs.cost_analysis_mcp_server import consts
 from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
+from awslabs.cost_analysis_mcp_server.pricing_client import create_pricing_client
 from awslabs.cost_analysis_mcp_server.static.patterns import BEDROCK
+from awslabs.cost_analysis_mcp_server.terraform_analyzer import analyze_terraform_project
 from bs4 import BeautifulSoup
 from httpx import AsyncClient
+from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger.remove()
+logger.add(sys.stderr, level=consts.LOG_LEVEL)
+
+
+class PricingFilter(BaseModel):
+    """Filter model for AWS Price List API queries."""
+
+    field: str = Field(
+        ..., alias='Field', description="The field to filter on (e.g., 'instanceType', 'location')"
+    )
+    type: str = Field(default='TERM_MATCH', alias='Type', description='The type of filter match')
+    value: str = Field(..., alias='Value', description='The value to match against')
+    model_config = ConfigDict(validate_by_alias=True)
+
+
+class PricingFilters(BaseModel):
+    """Container for multiple pricing filters."""
+
+    filters: List[PricingFilter] = Field(
+        default_factory=list, description='List of filters to apply to the pricing query'
+    )
+
 
 mcp = FastMCP(
     name='awslabs.cost-analysis-mcp-server',
@@ -77,7 +103,7 @@ mcp = FastMCP(
     IMPORTANT: Steps MUST be executed in this exact order. Each step must be attempted
     before moving to the next fallback mechanism. The report is particularly focused on
     serverless services and pay-as-you-go pricing models.""",
-    dependencies=['pydantic', 'boto3', 'beautifulsoup4', 'websearch'],
+    dependencies=['pydantic', 'loguru', 'boto3', 'beautifulsoup4', 'websearch'],
 )
 
 profile_name = os.getenv('AWS_PROFILE', 'default')
@@ -113,6 +139,38 @@ async def analyze_cdk_project_wrapper(project_path: str, ctx: Context) -> Option
             }
     except Exception as e:
         await ctx.error(f'Failed to analyze CDK project: {e}')
+        return None
+
+
+@mcp.tool(
+    name='analyze_terraform_project',
+    description='Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
+)
+async def analyze_terraform_project_wrapper(project_path: str, ctx: Context) -> Optional[Dict]:
+    """Analyze a Terraform project to identify AWS services.
+
+    Args:
+        project_path: The path to the Terraform project
+        ctx: MCP context for logging and state management
+
+    Returns:
+        Dictionary containing the identified services and their configurations
+    """
+    try:
+        analysis_result = await analyze_terraform_project(project_path)
+        logger.info(f'Analysis result: {analysis_result}')
+        if analysis_result and 'services' in analysis_result:
+            return analysis_result
+        else:
+            logger.error(f'Invalid analysis result format: {analysis_result}')
+            return {
+                'status': 'error',
+                'services': [],
+                'message': f'Failed to analyze Terraform project at {project_path}: Invalid result format',
+                'details': {'error': 'Invalid result format'},
+            }
+    except Exception as e:
+        await ctx.error(f'Failed to analyze Terraform project: {e}')
         return None
 
 
@@ -179,30 +237,56 @@ async def get_pricing_from_web(service_code: str, ctx: Context) -> Optional[Dict
     description="""Get pricing information from AWS Price List API.
     Service codes for API often differ from web URLs.
     (e.g., use "AmazonES" for OpenSearch, not "AmazonOpenSearchService").
+    List of service codes can be found with `curl 'https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/index.json' | jq -r '.offers| .[] | .offerCode'`
     IMPORTANT GUIDELINES:
     - When retrieving foundation model pricing, always use the latest models for comparison
     - For database compatibility with services, only include confirmed supported databases
-    - Providing less information is better than giving incorrect information""",
+    - Providing less information is better than giving incorrect information
+
+    Filters should be provided in the format:
+    [
+        {
+            'Field': 'feeCode',
+            'Type': 'TERM_MATCH',
+            'Value': 'Glacier:EarlyDelete'
+        },
+        {
+            'Field': 'regionCode',
+            'Type': 'TERM_MATCH',
+            'Value': 'ap-southeast-1'
+        }
+    ]
+    Details of the filter can be found at https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_pricing_Filter.html
+    """,
 )
-async def get_pricing_from_api(service_code: str, region: str, ctx: Context) -> Optional[Dict]:
+async def get_pricing_from_api(
+    service_code: str, region: str, ctx: Context, filters: Optional[PricingFilters] = None
+) -> Optional[Dict]:
     """Get pricing information from AWS Price List API. If the API request fails in the initial attempt, retry by modifying the service_code.
 
     Args:
         service_code: The service code (e.g., 'AmazonES' for OpenSearch, 'AmazonS3' for S3)
         region: AWS region (e.g., 'us-west-2')
+        filters: Optional list of filter dictionaries in format {'Field': str, 'Type': str, 'Value': str}
         ctx: MCP context for logging and state management
 
     Returns:
         Dictionary containing pricing information from AWS Pricing API
     """
     try:
-        pricing_client = boto3.Session(profile_name=profile_name).client(
-            'pricing', region_name='us-east-1'
-        )
+        pricing_client = create_pricing_client()
+
+        # Start with the region filter
+        region_filter = {'Field': 'regionCode', 'Type': 'TERM_MATCH', 'Value': region}
+        api_filters = [region_filter]
+
+        # Add any additional filters if provided
+        if filters and filters.filters:
+            api_filters.extend([f.model_dump(by_alias=True) for f in filters.filters])
 
         response = pricing_client.get_products(
             ServiceCode=service_code,
-            Filters=[{'Type': 'TERM_MATCH', 'Field': 'regionCode', 'Value': region}],
+            Filters=api_filters,
             MaxResults=100,
         )
 
@@ -478,7 +562,6 @@ async def generate_cost_report_wrapper(
         elif 'recommendations' not in detailed_cost_data:
             # Create a default prompt based on the services and context
             architecture_patterns_str = 'Available' if architecture_patterns else 'Not provided'
-
             prompt = DEFAULT_RECOMMENDATION_PROMPT.format(
                 services=services,
                 architecture_patterns=architecture_patterns_str,
@@ -511,18 +594,7 @@ async def generate_cost_report_wrapper(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(description='Analyze cost of AWS services')
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
