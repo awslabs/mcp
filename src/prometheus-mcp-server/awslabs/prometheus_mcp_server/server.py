@@ -46,10 +46,6 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Optional
 
-
-# No need for urlparse anymore
-
-
 # Configure loguru
 logger.remove()
 logger.add(sys.stderr, level=os.getenv(ENV_LOG_LEVEL, 'INFO'))
