@@ -45,6 +45,14 @@ class TestWorkspaceConfig:
                 client = get_prometheus_client()
                 assert client == mock_client
                 mock_session.client.assert_called_with("amp", config=ANY)
+                
+            # Test with no region provided and no environment variable
+            with patch.dict(os.environ, {"AWS_REGION": ""}, clear=True), \
+                 patch("awslabs.prometheus_mcp_server.server.DEFAULT_AWS_REGION", "us-east-1"):
+                client = get_prometheus_client()
+                assert client == mock_client
+                # We can't assert on the Session constructor call because it's already been called
+                # Just verify that the client was created
 
     @pytest.mark.asyncio
     async def test_get_workspace_details_success(self):
@@ -296,3 +304,36 @@ class TestWorkspaceConfig:
             mock_logger.warning.assert_called_once_with(
                 'Workspace ID "unusual-id" does not start with "ws-", which is unusual'
             )
+            
+    @pytest.mark.asyncio
+    async def test_configure_workspace_for_request_with_url_containing_workspace_id(self, mock_context):
+        """Test that configure_workspace_for_request extracts workspace ID from URL."""
+        mock_test_connection = AsyncMock(return_value=True)
+        mock_extract = MagicMock(return_value="ws-12345")
+        
+        # Set environment variables with URL containing workspace ID
+        os.environ["PROMETHEUS_URL"] = "https://example.com/workspaces/ws-12345"
+        os.environ["AWS_REGION"] = "us-west-2"
+        
+        with patch("awslabs.prometheus_mcp_server.server.PrometheusConnection.test_connection", mock_test_connection), \
+             patch("awslabs.prometheus_mcp_server.server.extract_workspace_id_from_url", mock_extract), \
+             patch("awslabs.prometheus_mcp_server.server.logger"):
+            
+            result = await configure_workspace_for_request(
+                ctx=mock_context,
+                workspace_id=None,  # No explicit workspace_id
+                region=None,
+                profile=None
+            )
+            
+            assert result == {
+                "prometheus_url": "https://example.com/workspaces/ws-12345",
+                "region": "us-west-2",
+                "profile": None,
+                "workspace_id": "ws-12345"  # Should be extracted from URL
+            }
+            mock_extract.assert_called_once_with("https://example.com/workspaces/ws-12345")
+        
+        # Reset environment variables
+        del os.environ["PROMETHEUS_URL"]
+        del os.environ["AWS_REGION"]

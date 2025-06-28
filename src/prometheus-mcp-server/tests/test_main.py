@@ -41,6 +41,23 @@ class TestMain:
         
         # Reset environment variable
         del os.environ["PROMETHEUS_URL"]
+        
+    @pytest.mark.asyncio
+    async def test_async_main_with_url_containing_workspace_id(self):
+        """Test that async_main correctly logs when URL contains a workspace ID."""
+        # Set environment variable with URL containing workspace ID
+        os.environ["PROMETHEUS_URL"] = "https://example.com/workspaces/ws-12345"
+        
+        with patch("awslabs.prometheus_mcp_server.server.logger") as mock_logger, \
+             patch("awslabs.prometheus_mcp_server.server.extract_workspace_id_from_url", return_value="ws-12345"):
+            await async_main()
+            
+            mock_logger.info.assert_any_call("Using Prometheus URL from environment: https://example.com/workspaces/ws-12345")
+            mock_logger.info.assert_any_call("Detected workspace ID in URL: ws-12345")
+            mock_logger.info.assert_any_call("This workspace ID can be used with queries, but must be explicitly provided")
+        
+        # Reset environment variable
+        del os.environ["PROMETHEUS_URL"]
 
     @pytest.mark.asyncio
     async def test_async_main_without_url(self):
@@ -77,6 +94,37 @@ class TestMain:
                 assert os.environ["PROMETHEUS_URL"] == "https://example.com"
                 assert os.environ["AWS_REGION"] == "us-east-1"
                 assert os.environ["AWS_PROFILE"] == "test-profile"
+            finally:
+                # Restore original environment
+                os.environ.clear()
+                os.environ.update(original_env)
+                
+    def test_main_with_workspace_id_in_url(self):
+        """Test that main correctly handles URLs with workspace IDs."""
+        mock_args = MagicMock()
+        mock_config = {"region": "us-east-1", "profile": "test-profile", "url": "https://example.com/workspaces/ws-12345"}
+        
+        with patch("awslabs.prometheus_mcp_server.server.ConfigManager.parse_arguments", return_value=mock_args), \
+             patch("awslabs.prometheus_mcp_server.server.ConfigManager.setup_basic_config", return_value=mock_config), \
+             patch("awslabs.prometheus_mcp_server.server.AWSCredentials.validate", return_value=True), \
+             patch("awslabs.prometheus_mcp_server.server.extract_workspace_id_from_url", return_value="ws-12345"), \
+             patch("asyncio.run"), \
+             patch("awslabs.prometheus_mcp_server.server.mcp.run"), \
+             patch("awslabs.prometheus_mcp_server.server.logger") as mock_logger:
+            
+            # Save original environment
+            original_env = os.environ.copy()
+            try:
+                main()
+                
+                # Check that environment variables were set
+                assert os.environ["PROMETHEUS_URL"] == "https://example.com/workspaces/ws-12345"
+                assert os.environ["AWS_REGION"] == "us-east-1"
+                assert os.environ["AWS_PROFILE"] == "test-profile"
+                
+                # Check that the workspace ID was detected and logged
+                mock_logger.info.assert_any_call("Detected workspace ID in URL: ws-12345")
+                mock_logger.info.assert_any_call("This workspace will be used automatically when no workspace ID is provided")
             finally:
                 # Restore original environment
                 os.environ.clear()

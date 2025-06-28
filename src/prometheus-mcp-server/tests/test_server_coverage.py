@@ -161,3 +161,32 @@ class TestServerCoverage:
             
             assert result["region"] == "us-east-1"
             mock_client.list_workspaces.assert_called_once()
+            
+    @pytest.mark.asyncio
+    async def test_execute_query_with_time_parameter(self, mock_context):
+        """Test execute_query with time parameter."""
+        mock_configure = AsyncMock(return_value={
+            'prometheus_url': 'https://example.com',
+            'region': 'us-east-1',
+            'profile': None,
+            'workspace_id': 'ws-12345'
+        })
+        mock_make_request = AsyncMock(return_value={"resultType": "vector", "result": []})
+        
+        with patch("awslabs.prometheus_mcp_server.server.configure_workspace_for_request", mock_configure), \
+             patch("awslabs.prometheus_mcp_server.server.PrometheusClient.make_request", mock_make_request), \
+             patch("awslabs.prometheus_mcp_server.server.SecurityValidator.validate_query", return_value=True), \
+             patch("awslabs.prometheus_mcp_server.server.logger"):
+            
+            result = await execute_query(
+                ctx=mock_context,
+                workspace_id="ws-12345",
+                query="up",
+                time="2023-01-01T00:00:00Z"
+            )
+            
+            assert result == {"resultType": "vector", "result": []}
+            mock_make_request.assert_called_once()
+            # Verify time parameter was passed correctly
+            args, kwargs = mock_make_request.call_args
+            assert kwargs.get('params', {}).get('time') == "2023-01-01T00:00:00Z"
