@@ -269,8 +269,8 @@ class TestTools:
             
             assert result["count"] == 2
             assert result["region"] == "us-east-1"
-            # Only one active workspace with URL, so no user selection required
-            assert result["requires_user_selection"] is False
+            # With our new implementation, we always require user selection when multiple workspaces exist
+            assert result["requires_user_selection"] is True
             assert len(result["workspaces"]) == 2
             assert result["workspaces"][0]["workspace_id"] == "ws-12345"
             assert result["workspaces"][0]["status"] == "ACTIVE"
