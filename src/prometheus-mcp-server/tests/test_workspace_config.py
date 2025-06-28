@@ -21,8 +21,7 @@ from botocore.config import Config
 from awslabs.prometheus_mcp_server.server import (
     get_prometheus_client,
     get_workspace_details,
-    configure_workspace_for_request,
-    _global_config
+    configure_workspace_for_request
 )
 
 
@@ -118,49 +117,49 @@ class TestWorkspaceConfig:
                 )
 
     @pytest.mark.asyncio
-    async def test_configure_workspace_for_request_with_global_url(self, mock_context):
-        """Test that configure_workspace_for_request uses global URL when available."""
+    async def test_configure_workspace_for_request_with_env_url(self, mock_context):
+        """Test that configure_workspace_for_request uses environment URL when available."""
         mock_test_connection = AsyncMock(return_value=True)
         
-        # Set global config with URL
-        _global_config["prometheus_url"] = "https://global-example.com"
-        _global_config["region"] = "us-west-2"
-        _global_config["profile"] = "global-profile"
+        # Set environment variables
+        os.environ["PROMETHEUS_URL"] = "https://env-example.com"
+        os.environ["AWS_REGION"] = "us-west-2"
+        os.environ["AWS_PROFILE"] = "env-profile"
         
         with patch("awslabs.prometheus_mcp_server.server.PrometheusConnection.test_connection", mock_test_connection), \
              patch("awslabs.prometheus_mcp_server.server.logger"):
             
             result = await configure_workspace_for_request(
                 ctx=mock_context,
-                workspace_id=None,  # No workspace_id needed when global URL is set
+                workspace_id=None,  # No workspace_id needed when URL is set in env
                 region=None,
                 profile=None
             )
             
             assert result == {
-                "prometheus_url": "https://global-example.com",
+                "prometheus_url": "https://env-example.com",
                 "region": "us-west-2",
-                "profile": "global-profile",
+                "profile": "env-profile",
                 "workspace_id": None
             }
             mock_test_connection.assert_called_once_with(
-                "https://global-example.com", "us-west-2", "global-profile"
+                "https://env-example.com", "us-west-2", "env-profile"
             )
         
-        # Reset global config
-        _global_config["prometheus_url"] = None
-        _global_config["region"] = None
-        _global_config["profile"] = None
+        # Reset environment variables
+        del os.environ["PROMETHEUS_URL"]
+        del os.environ["AWS_REGION"]
+        del os.environ["AWS_PROFILE"]
 
     @pytest.mark.asyncio
-    async def test_configure_workspace_for_request_with_global_url_connection_failure(self, mock_context):
-        """Test that configure_workspace_for_request raises RuntimeError when connection to global URL fails."""
+    async def test_configure_workspace_for_request_with_env_url_connection_failure(self, mock_context):
+        """Test that configure_workspace_for_request raises RuntimeError when connection to environment URL fails."""
         mock_test_connection = AsyncMock(return_value=False)
         
-        # Set global config with URL
-        _global_config["prometheus_url"] = "https://global-example.com"
-        _global_config["region"] = "us-west-2"
-        _global_config["profile"] = "global-profile"
+        # Set environment variables
+        os.environ["PROMETHEUS_URL"] = "https://env-example.com"
+        os.environ["AWS_REGION"] = "us-west-2"
+        os.environ["AWS_PROFILE"] = "env-profile"
         
         with patch("awslabs.prometheus_mcp_server.server.PrometheusConnection.test_connection", mock_test_connection), \
              patch("awslabs.prometheus_mcp_server.server.logger"):
@@ -173,16 +172,17 @@ class TestWorkspaceConfig:
                     profile=None
                 )
         
-        # Reset global config
-        _global_config["prometheus_url"] = None
-        _global_config["region"] = None
-        _global_config["profile"] = None
+        # Reset environment variables
+        del os.environ["PROMETHEUS_URL"]
+        del os.environ["AWS_REGION"]
+        del os.environ["AWS_PROFILE"]
 
     @pytest.mark.asyncio
-    async def test_configure_workspace_for_request_no_global_url_no_workspace_id(self, mock_context):
-        """Test that configure_workspace_for_request raises ValueError when no global URL and no workspace_id."""
-        # Ensure global config has no URL
-        _global_config["prometheus_url"] = None
+    async def test_configure_workspace_for_request_no_env_url_no_workspace_id(self, mock_context):
+        """Test that configure_workspace_for_request raises ValueError when no environment URL and no workspace_id."""
+        # Ensure environment has no URL
+        if "PROMETHEUS_URL" in os.environ:
+            del os.environ["PROMETHEUS_URL"]
         
         with patch("awslabs.prometheus_mcp_server.server.logger"):
             with pytest.raises(ValueError, match="Workspace ID is required when no Prometheus URL is configured"):
@@ -195,7 +195,7 @@ class TestWorkspaceConfig:
 
     @pytest.mark.asyncio
     async def test_configure_workspace_for_request_with_workspace_id(self, mock_context):
-        """Test that configure_workspace_for_request uses workspace_id when no global URL is available."""
+        """Test that configure_workspace_for_request uses workspace_id when no environment URL is available."""
         mock_get_workspace_details = AsyncMock(return_value={
             "workspace_id": "ws-12345",
             "alias": "test-workspace",
@@ -205,8 +205,9 @@ class TestWorkspaceConfig:
         })
         mock_test_connection = AsyncMock(return_value=True)
         
-        # Ensure global config has no URL
-        _global_config["prometheus_url"] = None
+        # Ensure environment has no URL
+        if "PROMETHEUS_URL" in os.environ:
+            del os.environ["PROMETHEUS_URL"]
         
         with patch("awslabs.prometheus_mcp_server.server.get_workspace_details", mock_get_workspace_details), \
              patch("awslabs.prometheus_mcp_server.server.PrometheusConnection.test_connection", mock_test_connection), \
@@ -242,8 +243,9 @@ class TestWorkspaceConfig:
         })
         mock_test_connection = AsyncMock(return_value=False)
         
-        # Ensure global config has no URL
-        _global_config["prometheus_url"] = None
+        # Ensure environment has no URL
+        if "PROMETHEUS_URL" in os.environ:
+            del os.environ["PROMETHEUS_URL"]
         
         with patch("awslabs.prometheus_mcp_server.server.get_workspace_details", mock_get_workspace_details), \
              patch("awslabs.prometheus_mcp_server.server.PrometheusConnection.test_connection", mock_test_connection), \
@@ -270,8 +272,9 @@ class TestWorkspaceConfig:
         mock_test_connection = AsyncMock(return_value=True)
         mock_logger = MagicMock()
         
-        # Ensure global config has no URL
-        _global_config["prometheus_url"] = None
+        # Ensure environment has no URL
+        if "PROMETHEUS_URL" in os.environ:
+            del os.environ["PROMETHEUS_URL"]
         
         with patch("awslabs.prometheus_mcp_server.server.get_workspace_details", mock_get_workspace_details), \
              patch("awslabs.prometheus_mcp_server.server.PrometheusConnection.test_connection", mock_test_connection), \

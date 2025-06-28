@@ -15,9 +15,10 @@
 """Tests for the main function and async_main function."""
 
 import pytest
+import os
 from unittest.mock import patch, MagicMock, AsyncMock
 import sys
-from awslabs.prometheus_mcp_server.server import main, async_main, _global_config
+from awslabs.prometheus_mcp_server.server import main, async_main
 
 
 class TestMain:
@@ -26,23 +27,24 @@ class TestMain:
     @pytest.mark.asyncio
     async def test_async_main_with_url(self):
         """Test that async_main correctly logs when URL is configured."""
-        # Set global config with URL
-        _global_config["prometheus_url"] = "https://example.com"
+        # Set environment variable
+        os.environ["PROMETHEUS_URL"] = "https://example.com"
         
         with patch("awslabs.prometheus_mcp_server.server.logger") as mock_logger:
             await async_main()
             
-            mock_logger.info.assert_any_call("Using configured Prometheus URL: https://example.com")
+            mock_logger.info.assert_any_call("Using Prometheus URL from environment: https://example.com")
             mock_logger.info.assert_any_call("Workspace ID will be optional when using tools")
         
-        # Reset global config
-        _global_config["prometheus_url"] = None
+        # Reset environment variable
+        del os.environ["PROMETHEUS_URL"]
 
     @pytest.mark.asyncio
     async def test_async_main_without_url(self):
         """Test that async_main correctly logs when URL is not configured."""
-        # Ensure global config has no URL
-        _global_config["prometheus_url"] = None
+        # Ensure environment has no URL
+        if "PROMETHEUS_URL" in os.environ:
+            del os.environ["PROMETHEUS_URL"]
         
         with patch("awslabs.prometheus_mcp_server.server.logger") as mock_logger:
             await async_main()
@@ -63,15 +65,19 @@ class TestMain:
              patch("awslabs.prometheus_mcp_server.server.mcp.run"), \
              patch("awslabs.prometheus_mcp_server.server.logger"):
             
-            # Mock _global_config as a regular dictionary
-            mock_global_config = {}
-            with patch("awslabs.prometheus_mcp_server.server._global_config", mock_global_config):
+            # Save original environment
+            original_env = os.environ.copy()
+            try:
                 main()
                 
-                # Check that global config was updated
-                assert mock_global_config["prometheus_url"] == "https://example.com"
-                assert mock_global_config["region"] == "us-east-1"
-                assert mock_global_config["profile"] == "test-profile"
+                # Check that environment variables were set
+                assert os.environ["PROMETHEUS_URL"] == "https://example.com"
+                assert os.environ["AWS_REGION"] == "us-east-1"
+                assert os.environ["AWS_PROFILE"] == "test-profile"
+            finally:
+                # Restore original environment
+                os.environ.clear()
+                os.environ.update(original_env)
 
     def test_main_credentials_failure(self):
         """Test that main exits when credentials validation fails."""
@@ -101,9 +107,6 @@ class TestMain:
              patch("awslabs.prometheus_mcp_server.server.sys.exit") as mock_exit, \
              patch("awslabs.prometheus_mcp_server.server.logger"):
             
-            # Mock _global_config as a regular dictionary
-            mock_global_config = {}
-            with patch("awslabs.prometheus_mcp_server.server._global_config", mock_global_config):
-                main()
-                
-                mock_exit.assert_called_once_with(1)
+            main()
+            
+            mock_exit.assert_called_once_with(1)

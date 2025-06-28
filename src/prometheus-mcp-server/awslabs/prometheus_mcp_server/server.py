@@ -401,12 +401,7 @@ mcp = FastMCP(
     ],
 )
 
-# Global configuration to store command line arguments
-_global_config = {
-    'prometheus_url': None,
-    'region': None,
-    'profile': None
-}
+# No global configuration - using environment variables instead
 
 
 def get_prometheus_client(region_name: Optional[str] = None, profile_name: Optional[str] = None):
@@ -797,9 +792,9 @@ async def get_available_workspaces(
       }
     """
     try:
-        # Use provided region or default
-        aws_region = region or _global_config['region'] or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
-        aws_profile = profile or _global_config['profile'] or os.getenv(ENV_AWS_PROFILE)
+        # Use provided region or default from environment
+        aws_region = region or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
+        aws_profile = profile or os.getenv(ENV_AWS_PROFILE)
 
         logger.info(f'Listing available Prometheus workspaces in region {aws_region}')
 
@@ -856,7 +851,7 @@ async def configure_workspace_for_request(
 ) -> Dict[str, Any]:
     """Configure the workspace for the current request.
     
-    If a global URL is configured, it will be used directly.
+    If a URL is provided via environment variable, it will be used directly.
     Otherwise, workspace_id is required to fetch the URL from AWS API.
 
     Args:
@@ -869,14 +864,14 @@ async def configure_workspace_for_request(
         Dictionary with workspace configuration including the URL
     """
     try:
-        # Use provided region or default
-        aws_region = region or _global_config['region'] or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
-        aws_profile = profile or _global_config['profile'] or os.getenv(ENV_AWS_PROFILE)
+        # Use provided region or default from environment
+        aws_region = region or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
+        aws_profile = profile or os.getenv(ENV_AWS_PROFILE)
         
-        # Check if we have a globally configured URL
-        if _global_config['prometheus_url']:
-            prometheus_url = _global_config['prometheus_url']
-            logger.info(f'Using configured Prometheus URL: {prometheus_url}')
+        # Check if we have a URL from environment
+        prometheus_url = os.getenv('PROMETHEUS_URL')
+        if prometheus_url:
+            logger.info(f'Using Prometheus URL from environment: {prometheus_url}')
             
             # Test connection with the URL
             if not await PrometheusConnection.test_connection(prometheus_url, aws_region, aws_profile):
@@ -937,9 +932,10 @@ async def configure_workspace_for_request(
 
 async def async_main():
     """Run the async initialization tasks."""
-    # Initialize with default configuration
-    if _global_config['prometheus_url']:
-        logger.info(f"Using configured Prometheus URL: {_global_config['prometheus_url']}")
+    # Check if URL is configured in environment
+    prometheus_url = os.getenv('PROMETHEUS_URL')
+    if prometheus_url:
+        logger.info(f"Using Prometheus URL from environment: {prometheus_url}")
         logger.info("Workspace ID will be optional when using tools")
     else:
         logger.info(
@@ -957,10 +953,13 @@ def main():
     # Setup basic configuration
     config = ConfigManager.setup_basic_config(args)
     
-    # Store configuration globally
-    _global_config['prometheus_url'] = config['url']
-    _global_config['region'] = config['region']
-    _global_config['profile'] = config['profile']
+    # Set as environment variables for other functions to use
+    if config['url']:
+        os.environ['PROMETHEUS_URL'] = config['url']
+    if config['region']:
+        os.environ['AWS_REGION'] = config['region']
+    if config['profile']:
+        os.environ[ENV_AWS_PROFILE] = config['profile']
     
     if config['url']:
         logger.info(f"Using configured Prometheus URL: {config['url']}")

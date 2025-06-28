@@ -15,6 +15,7 @@
 """Tests for the MCP tool functions."""
 
 import pytest
+import os
 from unittest.mock import patch, MagicMock, AsyncMock
 from awslabs.prometheus_mcp_server.server import (
     execute_query,
@@ -211,7 +212,7 @@ class TestTools:
         with patch("awslabs.prometheus_mcp_server.server.get_prometheus_client", return_value=mock_client), \
              patch("awslabs.prometheus_mcp_server.server.get_workspace_details", mock_get_workspace_details), \
              patch("awslabs.prometheus_mcp_server.server.logger"), \
-             patch.dict("awslabs.prometheus_mcp_server.server._global_config", {"region": None, "profile": None}):
+             patch.dict(os.environ, {"AWS_REGION": "", "AWS_PROFILE": ""}, clear=True):
             
             result = await get_available_workspaces(
                 ctx=mock_context,
@@ -258,7 +259,7 @@ class TestTools:
         with patch("awslabs.prometheus_mcp_server.server.get_prometheus_client", return_value=mock_client), \
              patch("awslabs.prometheus_mcp_server.server.get_workspace_details", mock_get_workspace_details), \
              patch("awslabs.prometheus_mcp_server.server.logger"), \
-             patch.dict("awslabs.prometheus_mcp_server.server._global_config", {"region": None, "profile": None}):
+             patch.dict(os.environ, {"AWS_REGION": "", "AWS_PROFILE": ""}, clear=True):
             
             result = await get_available_workspaces(
                 ctx=mock_context,
@@ -314,7 +315,7 @@ class TestTools:
         with patch("awslabs.prometheus_mcp_server.server.get_prometheus_client", return_value=mock_client), \
              patch("awslabs.prometheus_mcp_server.server.get_workspace_details", mock_get_workspace_details), \
              patch("awslabs.prometheus_mcp_server.server.logger"), \
-             patch.dict("awslabs.prometheus_mcp_server.server._global_config", {"region": None, "profile": None}):
+             patch.dict(os.environ, {"AWS_REGION": "", "AWS_PROFILE": ""}, clear=True):
             
             result = await get_available_workspaces(
                 ctx=mock_context,
