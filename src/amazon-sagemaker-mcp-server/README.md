@@ -4,13 +4,6 @@
 
 The Amazon SageMaker Model Context Protocol (MCP) Server is an open-source tool that provides AI assistants with comprehensive access to Amazon SageMaker's machine learning capabilities. This server enables seamless integration between AI coding assistants and SageMaker services, allowing developers to build, train, deploy, and manage machine learning models through natural language interactions.
 
-Key benefits of the SageMaker MCP Server include:
-
-- **Complete ML Lifecycle Management**: Provides tools for the entire machine learning workflow from data preparation to model deployment and monitoring.
-- **AI-powered ML Development**: Offers contextual guidance and best practices for machine learning development on AWS.
-- **Comprehensive SageMaker Integration**: Supports endpoints, training jobs, processing jobs, AutoML, Feature Store, Pipelines, Studio, and more.
-- **Security-first Approach**: Implements built-in guardrails with read-only defaults and controlled access to sensitive operations.
-- **Operational Excellence**: Includes monitoring, logging, and troubleshooting capabilities for production ML workloads.
 
 ## Prerequisites
 
