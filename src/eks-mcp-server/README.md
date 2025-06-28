@@ -35,6 +35,7 @@ For read operations, the following permissions are required:
       "Effect": "Allow",
       "Action": [
         "eks:DescribeCluster",
+        "eks:ListClusters",
         "cloudformation:DescribeStacks",
         "cloudwatch:GetMetricData",
         "logs:StartQuery",
@@ -270,6 +271,24 @@ Specifies the AWS region where EKS clusters are managed, which will be used for 
 The following tools are provided by the EKS MCP server for managing Amazon EKS clusters and Kubernetes resources. Each tool performs a specific action that can be invoked to automate common tasks in your EKS clusters and Kubernetes workloads.
 
 ### EKS Cluster Management
+
+#### `list_clusters`
+
+Lists all EKS clusters in the current AWS account and region.
+
+Features:
+
+* Discovers all Amazon EKS clusters in the current AWS account and region.
+* Provides cluster names and total count for cluster inventory.
+* Supports pagination for large numbers of clusters.
+* Can include external/connected clusters when specified.
+* Useful for discovering available clusters before performing operations.
+
+Parameters:
+
+* `max_results` (optional): Maximum number of results to return (1-100)
+* `next_token` (optional): Token for pagination continuation
+* `include` (optional): List containing 'all' to include external clusters
 
 #### `manage_eks_stacks`
 
@@ -521,7 +540,7 @@ When using the EKS MCP Server, consider the following:
 
 The EKS MCP Server can be used for production environments with proper security controls in place. The server runs in read-only mode by default, which is recommended and considered generally safer for production environments. Only explicitly enable write access when necessary. Below are the EKS MCP server tools available in read-only versus write-access mode:
 
-* **Read-only mode (default)**: `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`.
+* **Read-only mode (default)**: `list_clusters`, `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`.
 * **Write-access mode**: (require `--allow-write`): `manage_eks_stacks` (with "generate", "deploy", "delete"), `manage_k8s_resource` (with "create", "replace", "patch", "delete"), `apply_yaml`, `generate_app_manifest`, `add_inline_policy`.
 
 #### `autoApprove` (optional)
@@ -543,6 +562,7 @@ An array within the MCP server definition that lists tool names to be automatica
         "FASTMCP_LOG_LEVEL": "INFO"
       },
       "autoApprove": [
+        "list_clusters",
         "manage_eks_stacks",
         "manage_k8s_resource",
         "list_k8s_resources",
@@ -576,6 +596,7 @@ An array within the MCP server definition that lists tool names to be automatica
         "FASTMCP_LOG_LEVEL": "INFO"
       },
       "autoApprove": [
+        "list_clusters",
         "manage_eks_stacks",
         "manage_k8s_resource",
         "list_k8s_resources",

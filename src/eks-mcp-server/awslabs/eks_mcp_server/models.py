@@ -283,3 +283,15 @@ class MetricsGuidanceResponse(CallToolResult):
         ..., description='Resource type (cluster, node, pod, namespace, service)'
     )
     metrics: List[Dict[str, Any]] = Field(..., description='List of metrics with their details')
+
+
+class ListClustersResponse(CallToolResult):
+    """Response model for list_clusters tool.
+
+    This model contains the response from listing EKS clusters,
+    including the list of cluster names and count.
+    """
+
+    clusters: List[str] = Field(..., description='List of EKS cluster names')
+    count: int = Field(..., description='Number of clusters found', ge=0)
+    next_token: Optional[str] = Field(None, description='Token for paginated results')
