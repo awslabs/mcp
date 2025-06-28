@@ -61,6 +61,7 @@ nav:
     - AWS Managed Prometheus MCP Server: servers/prometheus-mcp-server.md
     - Amazon Timestream for InfluxDB MCP Server: servers/timestream-for-influxdb-mcp-server.md
     - Amazon OpenSearch MCP Server: servers/opensearch-mcp-server.md
+    - Amazon Redshift MCP Server: servers/redshift-mcp-server.md
   - Samples:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
