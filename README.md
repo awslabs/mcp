@@ -25,6 +25,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [🤖 AI \& Machine Learning](#-ai--machine-learning)
       - [📊 Data \& Analytics](#-data--analytics)
         - [SQL \& NoSQL Databases](#sql--nosql-databases)
+        - [Search \& Analytics](#search--analytics)
         - [Caching \& Performance](#caching--performance)
       - [🛠️ Developer Tools \& Support](#️-developer-tools--support)
       - [📡 Integration \& Messaging](#-integration--messaging)
@@ -156,6 +157,7 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries with openCypher and Gremlin
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
+- **[Amazon Redshift MCP Server](src/redshift-mcp-server/)** - Provides tools to discover, explore, and query Amazon Redshift clusters and serverless workgroups
 
 ##### Search & Analytics
 
@@ -171,7 +173,7 @@ Work with databases, caching systems, and data processing workflows.
 
 Accelerate development with code analysis, documentation, and testing utilities.
 
-- **[AWS IAM MCP Server](src/iam-mcp-server/)** - Comprehensive IAM user, role, and policy management with security best practices
+- **[AWS IAM MCP Server](src/iam-mcp-server/)** - Comprehensive IAM user, role, group, and policy management with security best practices
 - **[Git Repo Research MCP Server](src/git-repo-research-mcp-server/)** - Semantic code search and repository analysis
 - **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Automated documentation from code analysis
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams and technical illustrations
