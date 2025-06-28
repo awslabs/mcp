@@ -1,0 +1,12 @@
+{
+  "exclude": [
+    "tests"
+  ],
+  "include": [
+    "awslabs"
+  ],
+  "reportArgumentType": true,
+  "reportAttributeAccessIssue": true,
+  "reportCallIssue": false,
+  "reportOptionalSubscript": false
+}
