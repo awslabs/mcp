@@ -12,47 +12,6 @@ Key benefits of the SageMaker MCP Server include:
 - **Security-first Approach**: Implements built-in guardrails with read-only defaults and controlled access to sensitive operations.
 - **Operational Excellence**: Includes monitoring, logging, and troubleshooting capabilities for production ML workloads.
 
-## Features
-
-The SageMaker MCP server provides tools and resources organized into several categories:
-
-### 1. Model Deployment & Inference
-- **Endpoint Management**: Create, update, delete, and invoke SageMaker endpoints
-- **Model Management**: Create, describe, and manage SageMaker models
-- **Real-time Inference**: Invoke endpoints for real-time predictions
-- **Batch Transform**: Manage batch inference jobs
-
-### 2. Model Training & Development
-- **Training Jobs**: Create, monitor, and manage SageMaker training jobs
-- **Processing Jobs**: Run data processing and feature engineering jobs
-- **AutoML**: Automated machine learning with SageMaker Autopilot
-- **Hyperparameter Tuning**: Optimize model hyperparameters
-
-### 3. Feature Store & Data Management
-- **Feature Groups**: Create and manage feature groups in SageMaker Feature Store
-- **Feature Ingestion**: Put and get records from feature groups
-- **Data Lineage**: Track data lineage and feature transformations
-
-### 4. ML Pipelines & Workflows
-- **Pipeline Management**: Create, execute, and monitor SageMaker Pipelines
-- **Workflow Orchestration**: Manage complex ML workflows
-- **Pipeline Execution**: Start, stop, and monitor pipeline executions
-
-### 5. Development Environment
-- **SageMaker Studio**: Manage Studio domains and user profiles
-- **Notebook Instances**: Create and manage SageMaker notebook instances
-- **Development Tools**: Access to SageMaker's integrated development environment
-
-### 6. Monitoring & Operations
-- **Model Monitoring**: Monitor model performance and data drift
-- **Metrics & Logging**: Access CloudWatch metrics and logs
-- **Quality Monitoring**: Set up model quality monitoring jobs
-
-### 7. Guidance & Best Practices
-- **ML Workflow Guidance**: Get recommendations for ML workflows
-- **Instance Recommendations**: Get optimal instance type recommendations
-- **Best Practices**: Access to SageMaker best practices and patterns
-
 ## Prerequisites
 
 - Have an AWS account with [credentials configured](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html)
@@ -80,8 +39,7 @@ Add the following code to your MCP client configuration. The SageMaker MCP serve
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "SAGEMAKER_EXECUTION_ROLE": "arn:aws:iam::123456789012:role/SageMakerExecutionRole"
+        "AWS_REGION": "us-east-1"
       },
       "disabled": false,
       "autoApprove": []
@@ -106,8 +64,7 @@ Add the following code to your MCP client configuration. The SageMaker MCP serve
         "AWS_ACCESS_KEY_ID": "your-temporary-access-key",
         "AWS_SECRET_ACCESS_KEY": "your-temporary-secret-key",
         "AWS_SESSION_TOKEN": "your-session-token",
-        "AWS_REGION": "us-east-1",
-        "SAGEMAKER_EXECUTION_ROLE": "arn:aws:iam::123456789012:role/SageMakerExecutionRole"
+        "AWS_REGION": "us-east-1"
       },
       "disabled": false,
       "autoApprove": []
@@ -122,19 +79,12 @@ Add the following code to your MCP client configuration. The SageMaker MCP serve
 Enables write access mode, which allows mutating operations and creation of resources. By default, the server runs in read-only mode, which restricts operations to only perform read actions, preventing any changes to AWS resources.
 
 Write operations include:
-- Creating, updating, and deleting SageMaker endpoints
-- Starting and stopping training jobs
-- Creating and managing models
-- Managing Feature Store feature groups
-- Creating and executing pipelines
-- Creating and deleting Studio Space apps
+- Creating and deleting SageMaker Studio Space apps
 - Starting and stopping notebook instances
 
 ### `--allow-sensitive-data-access`
 Enables access to sensitive data operations, such as:
 - Invoking SageMaker endpoints and accessing inference results
-- Accessing training job logs and metrics
-- Retrieving feature data from Feature Store
 
 ## Environment Variables
 
@@ -143,94 +93,133 @@ Enables access to sensitive data operations, such as:
 - `AWS_ACCESS_KEY_ID`: AWS access key ID (for temporary credentials)
 - `AWS_SECRET_ACCESS_KEY`: AWS secret access key (for temporary credentials)
 - `AWS_SESSION_TOKEN`: AWS session token (for temporary credentials)
-- `SAGEMAKER_EXECUTION_ROLE`: Default SageMaker execution role ARN
 - `FASTMCP_LOG_LEVEL`: Log level (DEBUG, INFO, WARNING, ERROR)
 
-## Available Tools
+## Available MCP Tools
 
-### Endpoint Management
-- `list_sm_endpoints`: List all endpoints
-- `describe_sm_endpoint`: Get detailed endpoint information
-- `invoke_sm_endpoint`: Invoke an endpoint for inference
+The SageMaker MCP server provides the following tools organized by category:
 
-### Studio & Development
-- `list_sm_domains`: List all Studio domains
-- `describe_sm_domain`: Get detailed domain information
-- `list_sm_space_apps`: List all Studio Space apps with filtering and sorting
-- `create_sm_space_app`: Create a new Studio Space app
-- `delete_sm_space_app`: Stop/Delete a Studio Space app
+### Notebook Instance Management
 
-### Notebook Instances
-- `list_sm_nb_instances`: List all notebook instances
-- `describe_sm_nb_instance`: Get detailed notebook instance information
-- `start_sm_nb_instance`: Start a notebook instance
-- `stop_sm_nb_instance`: Stop a notebook instance
+#### `list_sm_nb_instances`
+List SageMaker notebook instances with optional filtering and sorting.
 
-## Available Resources
+**Parameters:**
+- `sort_by` (optional): Sort criteria - Name, CreationTime, Status (default: CreationTime)
+- `sort_order` (optional): Sort order - Ascending, Descending (default: Descending)
+- `name_contains` (optional): Filter instances by name containing this string
+- `status_equals` (optional): Filter instances by status
+- `max_results` (optional): Maximum number of results to return (default: 10)
 
-The server provides access to various SageMaker resources through URI patterns:
+#### `describe_sm_nb_instance`
+Get detailed information about a specific SageMaker notebook instance.
 
-- `sagemaker://endpoints` - List of all endpoints
-- `sagemaker://endpoints/{endpoint_name}` - Specific endpoint details
-- `sagemaker://models` - List of all models
-- `sagemaker://models/{model_name}` - Specific model details
-- `sagemaker://training-jobs` - List of all training jobs
-- `sagemaker://training-jobs/{job_name}` - Specific training job details
-- `sagemaker://processing-jobs` - List of all processing jobs
-- `sagemaker://processing-jobs/{job_name}` - Specific processing job details
-- `sagemaker://automl-jobs` - List of all AutoML jobs
-- `sagemaker://automl-jobs/{job_name}` - Specific AutoML job details
-- `sagemaker://feature-groups` - List of all feature groups
-- `sagemaker://feature-groups/{feature_group_name}` - Specific feature group details
-- `sagemaker://pipelines` - List of all pipelines
-- `sagemaker://pipelines/{pipeline_name}` - Specific pipeline details
-- `sagemaker://domains` - List of all Studio domains
-- `sagemaker://domains/{domain_id}` - Specific domain details
-- `sagemaker://space-apps` - List of all Studio Space apps
-- `sagemaker://space-apps/{domain_id}/{space_name}/{app_type}/{app_name}` - Specific Space app details
-- `sagemaker://notebook-instances` - List of all notebook instances
-- `sagemaker://notebook-instances/{instance_name}` - Specific notebook instance details
+**Parameters:**
+- `notebook_instance_name` (required): Name of the notebook instance
+
+#### `start_sm_nb_instance`
+Start a stopped SageMaker notebook instance.
+
+**Parameters:**
+- `notebook_instance_name` (required): Name of the notebook instance
+
+*Requires `--allow-write` flag*
+
+#### `stop_sm_nb_instance`
+Stop a running SageMaker notebook instance.
+
+**Parameters:**
+- `notebook_instance_name` (required): Name of the notebook instance
+
+*Requires `--allow-write` flag*
+
+### SageMaker Studio Space App Management
+
+#### `list_sm_space_apps`
+List SageMaker Space apps with optional filtering and sorting.
+
+**Parameters:**
+- `sort_by` (optional): Sort criteria - Name, CreationTime, Status (default: CreationTime)
+- `sort_order` (optional): Sort order - Ascending, Descending (default: Descending)
+- `domain_id_contains` (optional): Filter apps by Domain Id
+- `space_name_contains` (optional): Filter apps by space name
+- `max_results` (optional): Maximum number of results to return (default: 10)
+
+#### `create_sm_space_app`
+Create a new SageMaker Space app.
+
+**Parameters:**
+- `domain_id` (required): Domain ID of the app
+- `space_name` (required): Space name of the app
+- `app_type` (required): Type of the app (JupyterServer, KernelGateway, or Space)
+- `app_name` (required): Name of the app
+
+*Requires `--allow-write` flag*
+
+#### `delete_sm_space_app`
+Stop/Delete a SageMaker Space app.
+
+**Parameters:**
+- `domain_id` (required): Domain ID of the app
+- `space_name` (required): Space name of the app
+- `app_type` (required): Type of the app (JupyterServer, KernelGateway, DetailedProfiler, TensorBoard, CodeEditor, JupyterLab, RStudioServerPro, RSessionGateway, Canvas)
+- `app_name` (required): Name of the app
+
+*Requires `--allow-write` flag*
+
+### SageMaker Studio Domain Management
+
+#### `list_sm_domains`
+List SageMaker Studio domains in your AWS account.
+
+**Parameters:**
+- `max_results` (optional): Maximum number of results to return (default: 10)
+
+#### `describe_sm_domain`
+Get detailed information about a specific SageMaker Studio domain.
+
+**Parameters:**
+- `domain_id` (required): Unique identifier of the domain
+
+### SageMaker Endpoint Management
+
+#### `list_sm_endpoints`
+List SageMaker endpoints with optional filtering and sorting.
+
+**Parameters:**
+- `sort_by` (optional): Sort criteria - Name, CreationTime, Status (default: CreationTime)
+- `sort_order` (optional): Sort order - Ascending, Descending (default: Descending)
+- `name_contains` (optional): Filter endpoints by name containing this string
+- `status_equals` (optional): Filter endpoints by status
+- `max_results` (optional): Maximum number of results to return (default: 10)
+
+#### `describe_sm_endpoint`
+Get detailed information about a specific SageMaker endpoint.
+
+**Parameters:**
+- `endpoint_name` (required): Name of the endpoint to describe
+
+#### `invoke_sm_endpoint`
+Invoke a SageMaker endpoint for real-time inference with input data.
+
+**Parameters:**
+- `endpoint_name` (required): Name of the endpoint to invoke
+- `body` (required): Input data for the endpoint (JSON string)
+- `content_type` (optional): Content type of the input data (default: application/json)
+- `accept` (optional): Accept header for the response (default: application/json)
+
+*Requires `--allow-sensitive-data-access` flag*
 
 ## Usage Examples
 
-### Creating and Deploying a Model
+### Managing Notebook Instances
 
 ```
 Using the SageMaker MCP server, help me:
-1. Create a model using a pre-trained container
-2. Create an endpoint configuration
-3. Deploy the model to an endpoint
-4. Test the endpoint with sample data
-```
-
-### Training a Custom Model
-
-```
-Using the SageMaker MCP server, help me:
-1. Create a training job using my custom algorithm
-2. Monitor the training progress
-3. Create a model from the training artifacts
-4. Deploy the trained model to an endpoint
-```
-
-### Setting up AutoML
-
-```
-Using the SageMaker MCP server, help me:
-1. Create an AutoML job for my dataset
-2. Monitor the AutoML job progress
-3. Deploy the best model from AutoML
-4. Get predictions from the deployed model
-```
-
-### Managing Feature Store
-
-```
-Using the SageMaker MCP server, help me:
-1. Create a feature group for my ML features
-2. Ingest data into the feature group
-3. Retrieve features for training
-4. Monitor feature group usage
+1. List all my notebook instances
+2. Start a specific notebook instance named "my-notebook"
+3. Check the status of the notebook instance
+4. Stop the notebook instance when finished
 ```
 
 ### Managing Studio Space Apps
@@ -238,9 +227,28 @@ Using the SageMaker MCP server, help me:
 ```
 Using the SageMaker MCP server, help me:
 1. List all my Studio Space apps
-2. Create a new JupyterLab app in a specific space
+2. Create a new JupyterLab app in domain "d-123456789" and space "my-space"
 3. Monitor the app status
-4. Stop the app when finished
+4. Delete the app when finished
+```
+
+### Working with Endpoints
+
+```
+Using the SageMaker MCP server, help me:
+1. List all my SageMaker endpoints
+2. Get detailed information about a specific endpoint
+3. Invoke the endpoint with sample data for inference
+4. Analyze the inference results
+```
+
+### Managing Studio Domains
+
+```
+Using the SageMaker MCP server, help me:
+1. List all my SageMaker Studio domains
+2. Get detailed information about a specific domain
+3. Understand the domain configuration and settings
 ```
 
 ## IAM Permissions
@@ -254,16 +262,18 @@ The SageMaker MCP server requires appropriate IAM permissions to access SageMake
     {
       "Effect": "Allow",
       "Action": [
-        "sagemaker:*",
-        "iam:PassRole",
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:ListBucket",
-        "cloudwatch:GetMetricData",
-        "cloudwatch:GetMetricStatistics",
-        "logs:GetLogEvents",
-        "logs:DescribeLogGroups",
-        "logs:DescribeLogStreams"
+        "sagemaker:ListNotebookInstances",
+        "sagemaker:DescribeNotebookInstance",
+        "sagemaker:StartNotebookInstance",
+        "sagemaker:StopNotebookInstance",
+        "sagemaker:ListApps",
+        "sagemaker:CreateApp",
+        "sagemaker:DeleteApp",
+        "sagemaker:ListDomains",
+        "sagemaker:DescribeDomain",
+        "sagemaker:ListEndpoints",
+        "sagemaker:DescribeEndpoint",
+        "sagemaker-runtime:InvokeEndpoint"
       ],
       "Resource": "*"
     }
@@ -286,7 +296,8 @@ The SageMaker MCP server requires appropriate IAM permissions to access SageMake
 1. **Authentication Errors**: Ensure AWS credentials are properly configured
 2. **Permission Denied**: Check IAM permissions for SageMaker operations
 3. **Region Mismatch**: Ensure AWS_REGION matches your SageMaker resources
-4. **Execution Role**: Set SAGEMAKER_EXECUTION_ROLE for operations requiring it
+4. **Write Operations Blocked**: Ensure `--allow-write` flag is set for mutating operations
+5. **Sensitive Data Access Blocked**: Ensure `--allow-sensitive-data-access` flag is set for endpoint invocations
 
 ### Debug Mode
 
