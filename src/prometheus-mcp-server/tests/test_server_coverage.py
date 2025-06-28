@@ -58,8 +58,11 @@ class TestServerCoverage:
         # Test with numeric endpoint (should be caught before AWS credentials are checked)
         with patch('awslabs.prometheus_mcp_server.server.logger'):
             with pytest.raises(ValueError, match='Endpoint must be a string'):
+                # Using type ignore to suppress pyright error
                 await PrometheusClient.make_request(
-                    prometheus_url='https://example.com', endpoint=123, region='us-east-1'
+                    prometheus_url='https://example.com',
+                    endpoint=123,  # type: ignore
+                    region='us-east-1',
                 )
 
             # Test with dangerous endpoint

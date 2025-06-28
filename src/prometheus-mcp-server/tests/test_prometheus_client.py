@@ -41,8 +41,11 @@ class TestPrometheusClient:
         """Test that make_request raises ValueError when endpoint is not a string."""
         # Test with numeric endpoint (should be caught before AWS credentials are checked)
         with pytest.raises(ValueError, match='Endpoint must be a string'):
+            # Using type ignore to suppress pyright error
             await PrometheusClient.make_request(
-                prometheus_url='https://example.com', endpoint=123, params={'query': 'up'}
+                prometheus_url='https://example.com',
+                endpoint=123,  # type: ignore
+                params={'query': 'up'},
             )
 
     @pytest.mark.asyncio
