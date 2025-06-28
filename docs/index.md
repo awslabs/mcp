@@ -392,6 +392,18 @@ A Model Context Protocol (MCP) server for Amazon EKS that enables generative AI 
 
 [Learn more about the Amazon EKS MCP Server](servers/eks-mcp-server.md)
 
+### Amazon Elastic Beanstalk MCP Server
+
+A Model Context Protocol (MCP) server for AWS Elastic Beanstalk that allows LLMs to communicate with your Beanstalk resources, including your environments and applications.
+
+**Features:**
+
+- Environment Discovery: Query different Beanstalk environments in your account based on criteria of your choice
+- Application Management: Describe configurations of your applications/environments to better manage and update them
+- Event Monitoring: Discover events across all environments and search for specific contents of interest.
+
+[Learn more about the Elastic Beanstalk MCP Server](servers/elasticbeanstalk-mcp-server.md)
+
 ### Synthetic Data MCP Server
 
 A server for generating, validating, and managing synthetic data.

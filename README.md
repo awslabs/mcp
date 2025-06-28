@@ -117,6 +117,10 @@ Build, deploy, and manage cloud infrastructure with Infrastructure as Code best 
 - **[AWS Terraform MCP Server](src/terraform-mcp-server/)** - Terraform workflows with integrated security scanning
 - **[AWS CloudFormation MCP Server](src/cfn-mcp-server/)** - Direct CloudFormation resource management via Cloud Control API
 
+  ##### Application Platforms
+
+- **[AWS Elastic Beanstalk MCP Server](src/elasticbeanstalk-mcp-server/)** - Automated application deployment and environment management
+
 ##### Container Platforms
 
 - **[Amazon EKS MCP Server](src/eks-mcp-server/)** - Kubernetes cluster management and application deployment
