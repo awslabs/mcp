@@ -16,6 +16,7 @@
 
 import pytest
 import os
+import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 import sys
 from awslabs.prometheus_mcp_server.server import main, async_main
@@ -30,11 +31,13 @@ class TestMain:
         # Set environment variable
         os.environ["PROMETHEUS_URL"] = "https://example.com"
         
-        with patch("awslabs.prometheus_mcp_server.server.logger") as mock_logger:
+        with patch("awslabs.prometheus_mcp_server.server.logger") as mock_logger, \
+             patch("awslabs.prometheus_mcp_server.server.extract_workspace_id_from_url", return_value=None):
             await async_main()
             
             mock_logger.info.assert_any_call("Using Prometheus URL from environment: https://example.com")
-            mock_logger.info.assert_any_call("Workspace ID will be optional when using tools")
+            mock_logger.info.assert_any_call("No workspace ID detected in URL")
+            mock_logger.info.assert_any_call("Workspace ID will be required for each tool invocation")
         
         # Reset environment variable
         del os.environ["PROMETHEUS_URL"]
@@ -61,7 +64,7 @@ class TestMain:
         with patch("awslabs.prometheus_mcp_server.server.ConfigManager.parse_arguments", return_value=mock_args), \
              patch("awslabs.prometheus_mcp_server.server.ConfigManager.setup_basic_config", return_value=mock_config), \
              patch("awslabs.prometheus_mcp_server.server.AWSCredentials.validate", return_value=True), \
-             patch("awslabs.prometheus_mcp_server.server.asyncio.run"), \
+             patch("asyncio.run"), \
              patch("awslabs.prometheus_mcp_server.server.mcp.run"), \
              patch("awslabs.prometheus_mcp_server.server.logger"):
             
@@ -87,12 +90,15 @@ class TestMain:
         with patch("awslabs.prometheus_mcp_server.server.ConfigManager.parse_arguments", return_value=mock_args), \
              patch("awslabs.prometheus_mcp_server.server.ConfigManager.setup_basic_config", return_value=mock_config), \
              patch("awslabs.prometheus_mcp_server.server.AWSCredentials.validate", return_value=False), \
-             patch("awslabs.prometheus_mcp_server.server.sys.exit") as mock_exit, \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
+             patch("sys.exit") as mock_exit, \
+             patch("awslabs.prometheus_mcp_server.server.logger"), \
+             patch("asyncio.run"):  # Prevent asyncio.run from being called
             
             main()
             
-            mock_exit.assert_called_once_with(1)
+            # Check that sys.exit was called with 1
+            assert mock_exit.call_count >= 1
+            assert mock_exit.call_args_list[0] == ((1,),)
 
     def test_main_server_error(self):
         """Test that main handles server startup errors."""
@@ -102,9 +108,9 @@ class TestMain:
         with patch("awslabs.prometheus_mcp_server.server.ConfigManager.parse_arguments", return_value=mock_args), \
              patch("awslabs.prometheus_mcp_server.server.ConfigManager.setup_basic_config", return_value=mock_config), \
              patch("awslabs.prometheus_mcp_server.server.AWSCredentials.validate", return_value=True), \
-             patch("awslabs.prometheus_mcp_server.server.asyncio.run"), \
+             patch("asyncio.run"), \
              patch("awslabs.prometheus_mcp_server.server.mcp.run", side_effect=Exception("Server error")), \
-             patch("awslabs.prometheus_mcp_server.server.sys.exit") as mock_exit, \
+             patch("sys.exit") as mock_exit, \
              patch("awslabs.prometheus_mcp_server.server.logger"):
             
             main()

@@ -27,7 +27,7 @@ class TestModels:
         metrics = MetricsList(metrics=[])
         assert metrics.metrics == []
         assert metrics.model_dump() == {"metrics": []}
-        
+
         # Check that JSON contains expected values
         json_str = metrics.model_dump_json()
         assert "metrics" in json_str
@@ -37,7 +37,7 @@ class TestModels:
         metrics = MetricsList(metrics=["metric1", "metric2", "metric3"])
         assert metrics.metrics == ["metric1", "metric2", "metric3"]
         assert metrics.model_dump() == {"metrics": ["metric1", "metric2", "metric3"]}
-        
+
         # Check that JSON contains expected values
         json_str = metrics.model_dump_json()
         assert "metric1" in json_str
@@ -57,17 +57,20 @@ class TestModels:
         assert server_info.aws_region == "us-east-1"
         assert server_info.aws_profile == "default"
         assert server_info.service_name == "aps"
-        
+
         # Test dict representation
         info_dict = server_info.model_dump()
         assert info_dict["prometheus_url"] == "https://example.com"
         assert info_dict["aws_region"] == "us-east-1"
         assert info_dict["aws_profile"] == "default"
         assert info_dict["service_name"] == "aps"
-        
+
         # Test JSON serialization
         json_str = server_info.model_dump_json()
-        assert "https://example.com" in json_str
-        assert "us-east-1" in json_str
-        assert "default" in json_str
-        assert "aps" in json_str
+        # Use a more robust check that handles the URL being at any position in the JSON
+        import json
+        json_data = json.loads(json_str)
+        assert json_data["prometheus_url"] == "https://example.com"
+        assert json_data["aws_region"] == "us-east-1"
+        assert json_data["aws_profile"] == "default"
+        assert json_data["service_name"] == "aps"
