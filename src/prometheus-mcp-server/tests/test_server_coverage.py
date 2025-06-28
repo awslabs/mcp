@@ -55,20 +55,14 @@ class TestServerCoverage:
     @pytest.mark.asyncio
     async def test_make_request_invalid_endpoint(self):
         """Test make_request with invalid endpoint."""
-        # Create mock objects with valid credentials
-        mock_session = MagicMock()
-        mock_credentials = MagicMock()
-        mock_session.get_credentials.return_value = mock_credentials
-
-        with (
-            patch('awslabs.prometheus_mcp_server.server.boto3.Session', return_value=mock_session),
-            patch('awslabs.prometheus_mcp_server.server.logger'),
-        ):
+        # Test with numeric endpoint (should be caught before AWS credentials are checked)
+        with patch('awslabs.prometheus_mcp_server.server.logger'):
             with pytest.raises(ValueError, match='Endpoint must be a string'):
                 await PrometheusClient.make_request(
-                    prometheus_url='https://example.com', endpoint='123', region='us-east-1'
+                    prometheus_url='https://example.com', endpoint=123, region='us-east-1'
                 )
 
+            # Test with dangerous endpoint
             with pytest.raises(ValueError, match='Invalid endpoint'):
                 await PrometheusClient.make_request(
                     prometheus_url='https://example.com',

@@ -39,18 +39,11 @@ class TestPrometheusClient:
     @pytest.mark.asyncio
     async def test_make_request_invalid_endpoint_type(self):
         """Test that make_request raises ValueError when endpoint is not a string."""
-        # Create mock objects with valid credentials
-        mock_session = MagicMock()
-        mock_credentials = MagicMock()
-        mock_session.get_credentials.return_value = mock_credentials
-
-        with patch(
-            'awslabs.prometheus_mcp_server.server.boto3.Session', return_value=mock_session
-        ):
-            with pytest.raises(ValueError, match='Endpoint must be a string'):
-                await PrometheusClient.make_request(
-                    prometheus_url='https://example.com', endpoint='123', params={'query': 'up'}
-                )
+        # Test with numeric endpoint (should be caught before AWS credentials are checked)
+        with pytest.raises(ValueError, match='Endpoint must be a string'):
+            await PrometheusClient.make_request(
+                prometheus_url='https://example.com', endpoint=123, params={'query': 'up'}
+            )
 
     @pytest.mark.asyncio
     async def test_make_request_dangerous_endpoint(self):
