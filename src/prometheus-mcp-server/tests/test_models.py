@@ -14,7 +14,6 @@
 
 """Tests for the models module."""
 
-import pytest
 from awslabs.prometheus_mcp_server.models import MetricsList, ServerInfo
 
 
@@ -26,51 +25,52 @@ class TestModels:
         # Test with empty list
         metrics = MetricsList(metrics=[])
         assert metrics.metrics == []
-        assert metrics.model_dump() == {"metrics": []}
+        assert metrics.model_dump() == {'metrics': []}
 
         # Check that JSON contains expected values
         json_str = metrics.model_dump_json()
-        assert "metrics" in json_str
-        assert "[]" in json_str
+        assert 'metrics' in json_str
+        assert '[]' in json_str
 
         # Test with populated list
-        metrics = MetricsList(metrics=["metric1", "metric2", "metric3"])
-        assert metrics.metrics == ["metric1", "metric2", "metric3"]
-        assert metrics.model_dump() == {"metrics": ["metric1", "metric2", "metric3"]}
+        metrics = MetricsList(metrics=['metric1', 'metric2', 'metric3'])
+        assert metrics.metrics == ['metric1', 'metric2', 'metric3']
+        assert metrics.model_dump() == {'metrics': ['metric1', 'metric2', 'metric3']}
 
         # Check that JSON contains expected values
         json_str = metrics.model_dump_json()
-        assert "metric1" in json_str
-        assert "metric2" in json_str
-        assert "metric3" in json_str
+        assert 'metric1' in json_str
+        assert 'metric2' in json_str
+        assert 'metric3' in json_str
 
     def test_server_info(self):
         """Test that ServerInfo model works correctly."""
         # Test with minimal values
         server_info = ServerInfo(
-            prometheus_url="https://example.com",
-            aws_region="us-east-1",
-            aws_profile="default",
-            service_name="aps",
+            prometheus_url='https://example.com',
+            aws_region='us-east-1',
+            aws_profile='default',
+            service_name='aps',
         )
-        assert server_info.prometheus_url == "https://example.com"
-        assert server_info.aws_region == "us-east-1"
-        assert server_info.aws_profile == "default"
-        assert server_info.service_name == "aps"
+        assert server_info.prometheus_url == 'https://example.com'
+        assert server_info.aws_region == 'us-east-1'
+        assert server_info.aws_profile == 'default'
+        assert server_info.service_name == 'aps'
 
         # Test dict representation
         info_dict = server_info.model_dump()
-        assert info_dict["prometheus_url"] == "https://example.com"
-        assert info_dict["aws_region"] == "us-east-1"
-        assert info_dict["aws_profile"] == "default"
-        assert info_dict["service_name"] == "aps"
+        assert info_dict['prometheus_url'] == 'https://example.com'
+        assert info_dict['aws_region'] == 'us-east-1'
+        assert info_dict['aws_profile'] == 'default'
+        assert info_dict['service_name'] == 'aps'
 
         # Test JSON serialization
         json_str = server_info.model_dump_json()
         # Use a more robust check that handles the URL being at any position in the JSON
         import json
+
         json_data = json.loads(json_str)
-        assert json_data["prometheus_url"] == "https://example.com"
-        assert json_data["aws_region"] == "us-east-1"
-        assert json_data["aws_profile"] == "default"
-        assert json_data["service_name"] == "aps"
+        assert json_data['prometheus_url'] == 'https://example.com'
+        assert json_data['aws_region'] == 'us-east-1'
+        assert json_data['aws_profile'] == 'default'
+        assert json_data['service_name'] == 'aps'

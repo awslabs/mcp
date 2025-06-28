@@ -46,6 +46,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Optional
 
+
 # Configure loguru
 logger.remove()
 logger.add(sys.stderr, level=os.getenv(ENV_LOG_LEVEL, 'INFO'))
@@ -815,7 +816,7 @@ async def get_available_workspaces(
 
         workspaces = []
         configured_workspace_details = None
-        
+
         for ws in response.get('workspaces', []):
             workspace_id = ws['workspaceId']
 
@@ -824,15 +825,15 @@ async def get_available_workspaces(
                 try:
                     # Get full details including URL from DescribeWorkspace API
                     details = await get_workspace_details(workspace_id, aws_region, aws_profile)
-                    
+
                     # If this is the configured workspace, mark it
                     if configured_workspace_id and workspace_id == configured_workspace_id:
                         details['is_configured'] = True
-                        details['note'] = "(Detected from URL - will be used automatically)"
+                        details['note'] = '(Detected from URL - will be used automatically)'
                         configured_workspace_details = details
                     else:
                         details['is_configured'] = False
-                        
+
                     workspaces.append(details)
                 except Exception as e:
                     logger.warning(f'Could not get details for workspace {workspace_id}: {str(e)}')
@@ -846,7 +847,8 @@ async def get_available_workspaces(
                         'alias': ws.get('alias', 'No alias'),
                         'status': ws['status']['statusCode'],
                         'region': aws_region,
-                        'is_configured': configured_workspace_id and workspace_id == configured_workspace_id,
+                        'is_configured': configured_workspace_id
+                        and workspace_id == configured_workspace_id,
                     }
                 )
 
@@ -855,15 +857,17 @@ async def get_available_workspaces(
         if configured_workspace_id and not configured_workspace_details and prometheus_url:
             try:
                 # Create a basic entry for the configured workspace
-                workspaces.append({
-                    'workspace_id': configured_workspace_id,
-                    'alias': 'Configured Workspace',
-                    'status': 'ACTIVE',  # Assume active since we have a URL
-                    'prometheus_url': prometheus_url,
-                    'region': aws_region,
-                    'is_configured': True,
-                    'note': "(Detected from URL - will be used automatically)"
-                })
+                workspaces.append(
+                    {
+                        'workspace_id': configured_workspace_id,
+                        'alias': 'Configured Workspace',
+                        'status': 'ACTIVE',  # Assume active since we have a URL
+                        'prometheus_url': prometheus_url,
+                        'region': aws_region,
+                        'is_configured': True,
+                        'note': '(Detected from URL - will be used automatically)',
+                    }
+                )
                 logger.info(f'Added configured workspace {configured_workspace_id} from URL')
             except Exception as e:
                 logger.warning(f'Could not add configured workspace: {str(e)}')
@@ -872,25 +876,25 @@ async def get_available_workspaces(
         workspaces.sort(key=lambda ws: 0 if ws.get('is_configured') else 1)
 
         logger.info(f'Found {len(workspaces)} workspaces in region {aws_region}')
-        
+
         # If we have a configured workspace ID from the URL, we don't need user selection
         requires_selection = not configured_workspace_id and len(workspaces) > 1
-        
-        message = ""
+
+        message = ''
         if configured_workspace_id:
-            message = f"A workspace ID ({configured_workspace_id}) was detected in the URL and will be used automatically. You can override it by explicitly providing a workspace_id parameter."
+            message = f'A workspace ID ({configured_workspace_id}) was detected in the URL and will be used automatically. You can override it by explicitly providing a workspace_id parameter.'
         elif len(workspaces) > 1:
-            message = "Please choose a workspace ID to use with your queries."
+            message = 'Please choose a workspace ID to use with your queries.'
         else:
-            message = "Only one workspace is available. You can use it by specifying its workspace_id in your queries."
-        
+            message = 'Only one workspace is available. You can use it by specifying its workspace_id in your queries.'
+
         return {
             'workspaces': workspaces,
             'count': len(workspaces),
             'region': aws_region,
             'requires_user_selection': requires_selection,
             'configured_workspace_id': configured_workspace_id,
-            'message': message
+            'message': message,
         }
     except Exception as e:
         error_msg = f'Error listing workspaces: {str(e)}'
@@ -901,18 +905,19 @@ async def get_available_workspaces(
 
 def extract_workspace_id_from_url(url: str) -> Optional[str]:
     """Extract workspace ID from a Prometheus URL.
-    
+
     Args:
         url: The Prometheus URL that may contain a workspace ID
-        
+
     Returns:
         The extracted workspace ID or None if not found
     """
     if not url:
         return None
-        
+
     # Look for the pattern /workspaces/ws-XXXX in the URL
     import re
+
     match = re.search(r'/workspaces/(ws-[\w-]+)', url)
     if match:
         workspace_id = match.group(1)
@@ -928,7 +933,7 @@ async def configure_workspace_for_request(
     profile: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Configure the workspace for the current request.
-    
+
     If a URL is provided via environment variable, it will be used directly.
     If a workspace ID is provided, it will be used to fetch the URL from AWS API.
     If no workspace ID is provided but the URL contains one, it will be extracted and used.
@@ -946,42 +951,44 @@ async def configure_workspace_for_request(
         # Use provided region or default from environment
         aws_region = region or os.getenv('AWS_REGION') or DEFAULT_AWS_REGION
         aws_profile = profile or os.getenv(ENV_AWS_PROFILE)
-        
+
         # Check if we have a URL from environment
         prometheus_url = os.getenv('PROMETHEUS_URL')
-        
+
         # If no workspace_id is provided, extract it from the URL if possible
         if not workspace_id and prometheus_url:
             extracted_workspace_id = extract_workspace_id_from_url(prometheus_url)
             if extracted_workspace_id:
                 workspace_id = extracted_workspace_id
                 logger.info(f'Using workspace ID extracted from URL: {workspace_id}')
-        
+
         # If we have a URL but no workspace_id could be extracted, use the URL directly
         if prometheus_url:
             logger.info(f'Using Prometheus URL from environment: {prometheus_url}')
-            
+
             # Test connection with the URL
-            if not await PrometheusConnection.test_connection(prometheus_url, aws_region, aws_profile):
+            if not await PrometheusConnection.test_connection(
+                prometheus_url, aws_region, aws_profile
+            ):
                 error_msg = f'Failed to connect to Prometheus with configured URL {prometheus_url}'
                 logger.error(error_msg)
                 await ctx.error(error_msg)
                 raise RuntimeError(error_msg)
-                
+
             return {
                 'prometheus_url': prometheus_url,
                 'region': aws_region,
                 'profile': aws_profile,
                 'workspace_id': workspace_id,
             }
-        
+
         # If no URL is configured, require workspace_id
         if not workspace_id:
             error_msg = 'Workspace ID is required when no Prometheus URL is configured. Please use GetAvailableWorkspaces to list available workspaces and choose one.'
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise ValueError(error_msg)
-            
+
         logger.info(f'Configuring workspace ID for request: {workspace_id}')
 
         # Validate workspace ID format
@@ -1023,17 +1030,19 @@ async def async_main():
     # Check if URL is configured in environment
     prometheus_url = os.getenv('PROMETHEUS_URL')
     if prometheus_url:
-        logger.info(f"Using Prometheus URL from environment: {prometheus_url}")
-        
+        logger.info(f'Using Prometheus URL from environment: {prometheus_url}')
+
         # Check if the URL contains a workspace ID
         workspace_id = extract_workspace_id_from_url(prometheus_url)
         if workspace_id:
-            logger.info(f"Detected workspace ID in URL: {workspace_id}")
-            logger.info("This workspace ID can be used with queries, but must be explicitly provided")
+            logger.info(f'Detected workspace ID in URL: {workspace_id}')
+            logger.info(
+                'This workspace ID can be used with queries, but must be explicitly provided'
+            )
         else:
-            logger.info("No workspace ID detected in URL")
-        
-        logger.info("Workspace ID will be required for each tool invocation")
+            logger.info('No workspace ID detected in URL')
+
+        logger.info('Workspace ID will be required for each tool invocation')
     else:
         logger.info(
             'Initializing Prometheus MCP Server - workspace ID will be required for each tool invocation'
@@ -1049,7 +1058,7 @@ def main():
 
     # Setup basic configuration
     config = ConfigManager.setup_basic_config(args)
-    
+
     # Set as environment variables for other functions to use
     if config['url']:
         os.environ['PROMETHEUS_URL'] = config['url']
@@ -1057,18 +1066,20 @@ def main():
         os.environ['AWS_REGION'] = config['region']
     if config['profile']:
         os.environ[ENV_AWS_PROFILE] = config['profile']
-    
+
     if config['url']:
-        logger.info(f"Using configured Prometheus URL: {config['url']}")
-        
+        logger.info(f'Using configured Prometheus URL: {config["url"]}')
+
         # Check if the URL contains a workspace ID
         workspace_id = extract_workspace_id_from_url(config['url'])
         if workspace_id:
-            logger.info(f"Detected workspace ID in URL: {workspace_id}")
-            logger.info("This workspace will be used automatically when no workspace ID is provided")
+            logger.info(f'Detected workspace ID in URL: {workspace_id}')
+            logger.info(
+                'This workspace will be used automatically when no workspace ID is provided'
+            )
         else:
-            logger.info("No workspace ID detected in URL")
-            logger.info("Workspace ID will be required for each tool invocation")
+            logger.info('No workspace ID detected in URL')
+            logger.info('Workspace ID will be required for each tool invocation')
 
     # Validate AWS credentials
     if not AWSCredentials.validate(config['region'], config['profile']):

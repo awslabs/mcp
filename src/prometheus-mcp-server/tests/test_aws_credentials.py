@@ -14,10 +14,9 @@
 
 """Tests for the AWSCredentials class."""
 
-import pytest
-from unittest.mock import patch, MagicMock
-from botocore.exceptions import ClientError, NoCredentialsError
 from awslabs.prometheus_mcp_server.server import AWSCredentials
+from botocore.exceptions import ClientError, NoCredentialsError
+from unittest.mock import MagicMock, patch
 
 
 class TestAWSCredentials:
@@ -28,15 +27,19 @@ class TestAWSCredentials:
         mock_session = MagicMock()
         mock_credentials = MagicMock()
         mock_sts_client = MagicMock()
-        
+
         mock_session.get_credentials.return_value = mock_credentials
         mock_session.client.return_value = mock_sts_client
-        mock_sts_client.get_caller_identity.return_value = {"Arn": "arn:aws:iam::123456789012:user/test-user"}
-        
-        with patch("awslabs.prometheus_mcp_server.server.boto3.Session", return_value=mock_session), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            result = AWSCredentials.validate("us-east-1", "test-profile")
-            
+        mock_sts_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:iam::123456789012:user/test-user'
+        }
+
+        with (
+            patch('awslabs.prometheus_mcp_server.server.boto3.Session', return_value=mock_session),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = AWSCredentials.validate('us-east-1', 'test-profile')
+
             assert result is True
             mock_session.get_credentials.assert_called_once()
             mock_session.client.assert_called_once()
@@ -47,15 +50,19 @@ class TestAWSCredentials:
         mock_session = MagicMock()
         mock_credentials = MagicMock()
         mock_sts_client = MagicMock()
-        
+
         mock_session.get_credentials.return_value = mock_credentials
         mock_session.client.return_value = mock_sts_client
-        mock_sts_client.get_caller_identity.return_value = {"Arn": "arn:aws:iam::123456789012:user/test-user"}
-        
-        with patch("awslabs.prometheus_mcp_server.server.boto3.Session", return_value=mock_session), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            result = AWSCredentials.validate("us-east-1")
-            
+        mock_sts_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws:iam::123456789012:user/test-user'
+        }
+
+        with (
+            patch('awslabs.prometheus_mcp_server.server.boto3.Session', return_value=mock_session),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = AWSCredentials.validate('us-east-1')
+
             assert result is True
             mock_session.get_credentials.assert_called_once()
             mock_session.client.assert_called_once()
@@ -65,11 +72,13 @@ class TestAWSCredentials:
         """Test that validate returns False when no credentials are found."""
         mock_session = MagicMock()
         mock_session.get_credentials.return_value = None
-        
-        with patch("awslabs.prometheus_mcp_server.server.boto3.Session", return_value=mock_session), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            result = AWSCredentials.validate("us-east-1")
-            
+
+        with (
+            patch('awslabs.prometheus_mcp_server.server.boto3.Session', return_value=mock_session),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = AWSCredentials.validate('us-east-1')
+
             assert result is False
             mock_session.get_credentials.assert_called_once()
 
@@ -77,11 +86,13 @@ class TestAWSCredentials:
         """Test that validate returns False when NoCredentialsError is raised."""
         mock_session = MagicMock()
         mock_session.get_credentials.side_effect = NoCredentialsError()
-        
-        with patch("awslabs.prometheus_mcp_server.server.boto3.Session", return_value=mock_session), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            result = AWSCredentials.validate("us-east-1")
-            
+
+        with (
+            patch('awslabs.prometheus_mcp_server.server.boto3.Session', return_value=mock_session),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = AWSCredentials.validate('us-east-1')
+
             assert result is False
             mock_session.get_credentials.assert_called_once()
 
@@ -91,14 +102,15 @@ class TestAWSCredentials:
         mock_credentials = MagicMock()
         mock_session.get_credentials.return_value = mock_credentials
         mock_session.client.side_effect = ClientError(
-            {"Error": {"Code": "AccessDenied", "Message": "Access Denied"}},
-            "GetCallerIdentity"
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access Denied'}}, 'GetCallerIdentity'
         )
-        
-        with patch("awslabs.prometheus_mcp_server.server.boto3.Session", return_value=mock_session), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            result = AWSCredentials.validate("us-east-1")
-            
+
+        with (
+            patch('awslabs.prometheus_mcp_server.server.boto3.Session', return_value=mock_session),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = AWSCredentials.validate('us-east-1')
+
             assert result is False
             mock_session.get_credentials.assert_called_once()
             mock_session.client.assert_called_once()

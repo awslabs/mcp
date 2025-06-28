@@ -32,12 +32,12 @@ class TestConsts:
 
     def test_api_version_path(self):
         """Test that API_VERSION_PATH is correctly defined."""
-        assert API_VERSION_PATH == "/api/v1"
+        assert API_VERSION_PATH == '/api/v1'
         assert isinstance(API_VERSION_PATH, str)
 
     def test_default_aws_region(self):
         """Test that DEFAULT_AWS_REGION is correctly defined."""
-        assert DEFAULT_AWS_REGION == "us-east-1"
+        assert DEFAULT_AWS_REGION == 'us-east-1'
         assert isinstance(DEFAULT_AWS_REGION, str)
 
     def test_default_max_retries(self):
@@ -54,22 +54,22 @@ class TestConsts:
 
     def test_default_service_name(self):
         """Test that DEFAULT_SERVICE_NAME is correctly defined."""
-        assert DEFAULT_SERVICE_NAME == "aps"
+        assert DEFAULT_SERVICE_NAME == 'aps'
         assert isinstance(DEFAULT_SERVICE_NAME, str)
 
     def test_env_aws_profile(self):
         """Test that ENV_AWS_PROFILE is correctly defined."""
-        assert ENV_AWS_PROFILE == "AWS_PROFILE"
+        assert ENV_AWS_PROFILE == 'AWS_PROFILE'
         assert isinstance(ENV_AWS_PROFILE, str)
 
     def test_env_aws_region(self):
         """Test that ENV_AWS_REGION is correctly defined."""
-        assert ENV_AWS_REGION == "AWS_REGION"
+        assert ENV_AWS_REGION == 'AWS_REGION'
         assert isinstance(ENV_AWS_REGION, str)
 
     def test_env_log_level(self):
         """Test that ENV_LOG_LEVEL is correctly defined."""
-        assert ENV_LOG_LEVEL == "FASTMCP_LOG_LEVEL"
+        assert ENV_LOG_LEVEL == 'FASTMCP_LOG_LEVEL'
         assert isinstance(ENV_LOG_LEVEL, str)
 
     def test_server_instructions(self):

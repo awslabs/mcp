@@ -15,10 +15,10 @@
 """Tests for the PrometheusConnection class."""
 
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 import requests
-from botocore.exceptions import ClientError
 from awslabs.prometheus_mcp_server.server import PrometheusConnection
+from botocore.exceptions import ClientError
+from unittest.mock import AsyncMock, patch
 
 
 class TestPrometheusConnection:
@@ -28,104 +28,116 @@ class TestPrometheusConnection:
     async def test_test_connection_success(self):
         """Test that test_connection returns True when connection is successful."""
         mock_make_request = AsyncMock()
-        mock_make_request.return_value = {"values": ["metric1", "metric2"]}
-        
-        with patch("awslabs.prometheus_mcp_server.server.PrometheusClient.make_request", mock_make_request), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            
+        mock_make_request.return_value = {'values': ['metric1', 'metric2']}
+
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
             result = await PrometheusConnection.test_connection(
-                prometheus_url="https://example.com",
-                region="us-east-1",
-                profile="test-profile"
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
             )
-            
+
             assert result is True
             mock_make_request.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_test_connection_access_denied(self):
         """Test that test_connection returns False when access is denied."""
-        error_response = {"Error": {"Code": "AccessDeniedException"}}
-        mock_make_request = AsyncMock(side_effect=ClientError(error_response, "GetLabels"))
-        
-        with patch("awslabs.prometheus_mcp_server.server.PrometheusClient.make_request", mock_make_request), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            
+        error_response = {'Error': {'Code': 'AccessDeniedException'}}
+        mock_make_request = AsyncMock(side_effect=ClientError(error_response, 'GetLabels'))
+
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
             result = await PrometheusConnection.test_connection(
-                prometheus_url="https://example.com",
-                region="us-east-1",
-                profile="test-profile"
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
             )
-            
+
             assert result is False
             mock_make_request.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_test_connection_resource_not_found(self):
         """Test that test_connection returns False when resource is not found."""
-        error_response = {"Error": {"Code": "ResourceNotFoundException"}}
-        mock_make_request = AsyncMock(side_effect=ClientError(error_response, "GetLabels"))
-        
-        with patch("awslabs.prometheus_mcp_server.server.PrometheusClient.make_request", mock_make_request), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            
+        error_response = {'Error': {'Code': 'ResourceNotFoundException'}}
+        mock_make_request = AsyncMock(side_effect=ClientError(error_response, 'GetLabels'))
+
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
             result = await PrometheusConnection.test_connection(
-                prometheus_url="https://example.com",
-                region="us-east-1",
-                profile="test-profile"
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
             )
-            
+
             assert result is False
             mock_make_request.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_test_connection_other_aws_error(self):
         """Test that test_connection returns False when other AWS error occurs."""
-        error_response = {"Error": {"Code": "InternalServerError"}}
-        mock_make_request = AsyncMock(side_effect=ClientError(error_response, "GetLabels"))
-        
-        with patch("awslabs.prometheus_mcp_server.server.PrometheusClient.make_request", mock_make_request), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            
+        error_response = {'Error': {'Code': 'InternalServerError'}}
+        mock_make_request = AsyncMock(side_effect=ClientError(error_response, 'GetLabels'))
+
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
             result = await PrometheusConnection.test_connection(
-                prometheus_url="https://example.com",
-                region="us-east-1",
-                profile="test-profile"
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
             )
-            
+
             assert result is False
             mock_make_request.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_test_connection_network_error(self):
         """Test that test_connection returns False when network error occurs."""
-        mock_make_request = AsyncMock(side_effect=requests.RequestException("Network error"))
-        
-        with patch("awslabs.prometheus_mcp_server.server.PrometheusClient.make_request", mock_make_request), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            
+        mock_make_request = AsyncMock(side_effect=requests.RequestException('Network error'))
+
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
             result = await PrometheusConnection.test_connection(
-                prometheus_url="https://example.com",
-                region="us-east-1",
-                profile="test-profile"
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
             )
-            
+
             assert result is False
             mock_make_request.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_test_connection_generic_error(self):
         """Test that test_connection returns False when generic error occurs."""
-        mock_make_request = AsyncMock(side_effect=Exception("Generic error"))
-        
-        with patch("awslabs.prometheus_mcp_server.server.PrometheusClient.make_request", mock_make_request), \
-             patch("awslabs.prometheus_mcp_server.server.logger"):
-            
+        mock_make_request = AsyncMock(side_effect=Exception('Generic error'))
+
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
             result = await PrometheusConnection.test_connection(
-                prometheus_url="https://example.com",
-                region="us-east-1",
-                profile="test-profile"
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
             )
-            
+
             assert result is False
             mock_make_request.assert_called_once()
