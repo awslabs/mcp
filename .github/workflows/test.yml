@@ -1,0 +1,25 @@
+name: scottschreckengaust
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+permissions: {}
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          lfs: true
+      - if: hashFiles('src/aws-mcp-server/trivy-results.sarif') != ''
+        run: |
+          git lfs ls-files
+          git lfs pointer --file="src/aws-mcp-server/trivy-results.sarif"
+          ls -l "src/aws-mcp-server/trivy-results.sarif"
+          echo "::group::Action Checkout"
+          cat "src/aws-mcp-server/trivy-results.sarif"
+          echo "::endgroup::"
