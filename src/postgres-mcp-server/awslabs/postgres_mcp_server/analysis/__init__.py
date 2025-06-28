@@ -1,4 +1,3 @@
-#!/bin/bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,11 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eo pipefail
+"""Analysis tools package for PostgreSQL MCP Server."""
 
-# Check if the server is running and responding to health checks
-if curl -f http://localhost:8000/health || wget -q -O - http://localhost:8000/health; then
-  exit 0
-fi
+from .structure import analyze_database_structure
+from .performance import analyze_query_performance
+from .indexes import recommend_indexes
+from .fragmentation import analyze_table_fragmentation
+from .vacuum import analyze_vacuum_stats
+from .slow_queries import identify_slow_queries
+from .settings import show_postgresql_settings
 
-exit 1
+__all__ = [
+    'analyze_database_structure',
+    'analyze_query_performance', 
+    'recommend_indexes',
+    'analyze_table_fragmentation',
+    'analyze_vacuum_stats',
+    'identify_slow_queries',
+    'show_postgresql_settings'
+]

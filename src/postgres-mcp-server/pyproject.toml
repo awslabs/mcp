@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.postgres-mcp-server"
-version = "1.0.2"
+version = "1.0.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for postgres"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.10.6",
     "boto3>=1.38.5",
     "botocore>=1.38.5",
+    "psycopg2-binary>=2.9.9",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -31,10 +32,10 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/postgresql-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/postgresql-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/postgres-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/postgresql-mcp-server/CHANGELOG.md"
 
 [project.scripts]
 "awslabs.postgres-mcp-server" = "awslabs.postgres_mcp_server.server:main"
@@ -77,7 +78,7 @@ force-exclude = true
 [tool.ruff.lint]
 exclude = ["__init__.py"]
 select = ["C", "D", "E", "F", "I", "W"]
-ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106", "D203", "D211", "D203", "D212"]
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2

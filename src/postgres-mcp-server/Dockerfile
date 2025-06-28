@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#FROM public.ecr.aws/sam/build-python3.10:1.137.1-20250411084548
 FROM public.ecr.aws/sam/build-python3.10@sha256:d821662474d65f3cf2fc97dba2fa807a3adb580d02895fc4545527812550ea65 AS uv
 
 # Install the project into `/app`
@@ -69,10 +68,25 @@ COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
 COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+RUN chmod +x /usr/local/bin/docker-healthcheck.sh
+
+# Set empty AWS credentials to avoid using build environment credentials
+ENV AWS_ACCESS_KEY_ID=""
+ENV AWS_SECRET_ACCESS_KEY=""
+ENV AWS_SESSION_TOKEN=""
+
+# Set default connection pool configuration
+ENV POSTGRES_POOL_MIN_SIZE="5"
+ENV POSTGRES_POOL_MAX_SIZE="30"
 
 # Run as non-root
 USER app
 
+# Expose the port
+EXPOSE 8000
+
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
-ENTRYPOINT ["awslabs.postgres-mcp-server"]
+
+# Use the main module directly instead of the entry point for better control
+CMD ["python3", "-m", "awslabs.postgresql_mcp_server.main"]
