@@ -39,11 +39,11 @@ def test_rds_control_plane_mcp_server_package_exists():
     assert os.path.isdir(package_path)
 
 
-def test_can_import_server():
-    """Test that the server module can be imported."""
+def test_can_import_common_server():
+    """Test that the common/server module can be imported."""
     # Import the server module
     try:
-        from awslabs.rds_control_plane_mcp_server import server
+        from awslabs.rds_control_plane_mcp_server.common import server
 
         assert server is not None
     except ImportError as e:
@@ -53,9 +53,10 @@ def test_can_import_server():
 def test_server_has_mcp_instance():
     """Test that the server module has an MCP instance."""
     # Import the server module
-    from awslabs.rds_control_plane_mcp_server import server
+    from awslabs.rds_control_plane_mcp_server.common import server
 
-    assert hasattr(server, '_mcp')
+    assert hasattr(server, 'mcp')
+    assert server.mcp is not None
 
 
 def test_constants_has_version():
