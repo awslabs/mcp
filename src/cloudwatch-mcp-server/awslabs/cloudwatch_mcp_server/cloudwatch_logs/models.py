@@ -53,7 +53,7 @@ class LogGroupMetadata(BaseModel):
         return v
 
 
-class SavedQuery(BaseModel):
+class SavedLogsInsightsQuery(BaseModel):
     """Represents a saved CloudWatch Logs Insights query."""
 
     logGroupNames: Set[str] = Field(
@@ -88,18 +88,18 @@ class SavedQuery(BaseModel):
         return values
 
 
-class LogMetadata(BaseModel):
+class LogsMetadata(BaseModel):
     """Represents information about a CloudWatch log."""
 
     log_group_metadata: List[LogGroupMetadata] = Field(
         ..., description='List of metadata about log groups'
     )
-    saved_queries: List[SavedQuery] = Field(
+    saved_queries: List[SavedLogsInsightsQuery] = Field(
         ..., description='Saved queries associated with the log'
     )
 
 
-class AnomalyDetector(BaseModel):
+class LogAnomalyDetector(BaseModel):
     """Represents a CloudWatch Logs Anomaly Detector."""
 
     anomalyDetectorArn: str = Field(..., description='The ARN of the anomaly detector')
@@ -163,7 +163,7 @@ class LogAnomaly(BaseModel):
 class LogAnomalyResults(BaseModel):
     """Represents the results of a log anomaly query."""
 
-    anomaly_detectors: List[AnomalyDetector] = Field(
+    anomaly_detectors: List[LogAnomalyDetector] = Field(
         ..., description='List of anomaly detectors monitoring this log group'
     )
     anomalies: List[LogAnomaly] = Field(
@@ -171,7 +171,7 @@ class LogAnomalyResults(BaseModel):
     )
 
 
-class LogAnalysisResult(BaseModel):
+class LogsAnalysisResult(BaseModel):
     """Result of analyzing a log group."""
 
     log_anomaly_results: LogAnomalyResults = Field(
@@ -185,9 +185,9 @@ class LogAnalysisResult(BaseModel):
     )
 
 
-class CancelQueryResult(BaseModel):
-    """Result of canceling a query."""
+class LogsQueryCancelResult(BaseModel):
+    """Result of canceling Logs Insight query."""
 
     success: bool = Field(
-        ..., description='True if the query was successfully cancelled, false otherwise'
+        ..., description='True if the logs insight query was successfully cancelled, false otherwise'
     )

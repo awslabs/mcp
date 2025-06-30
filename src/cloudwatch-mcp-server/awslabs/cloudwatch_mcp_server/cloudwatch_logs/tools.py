@@ -18,6 +18,7 @@ import asyncio
 import boto3
 import datetime
 import os
+from pathlib import Path
 from awslabs.cloudwatch_mcp_server import MCP_SERVER_VERSION
 from awslabs.cloudwatch_mcp_server.common import (
     clean_up_pattern,
@@ -25,21 +26,21 @@ from awslabs.cloudwatch_mcp_server.common import (
     remove_null_values,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
-    AnomalyDetector,
-    CancelQueryResult,
-    LogAnalysisResult,
+    LogAnomalyDetector,
+    LogsQueryCancelResult,
+    LogsAnalysisResult,
     LogAnomaly,
     LogAnomalyResults,
     LogGroupMetadata,
-    LogMetadata,
-    SavedQuery,
+    LogsMetadata,
+    SavedLogsInsightsQuery,
 )
 from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from timeit import default_timer as timer
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Union
 
 
 class CloudWatchLogsTools:
@@ -62,6 +63,110 @@ class CloudWatchLogsTools:
             logger.error(f'Error creating cloudwatch logs client: {str(e)}')
             raise
 
+    def _validate_log_group_parameters(self, log_group_names: Optional[List[str]], log_group_identifiers: Optional[List[str]]) -> None:
+        """Validate that exactly one of log_group_names or log_group_identifiers is provided.
+        
+        Args:
+            log_group_names: List of log group names
+            log_group_identifiers: List of log group identifiers
+            
+        Raises:
+            ValueError: If both or neither parameters are provided
+        """
+        if bool(log_group_names) == bool(log_group_identifiers):
+            raise ValueError('Exactly one of log_group_names or log_group_identifiers must be provided')
+
+    def _convert_time_to_timestamp(self, time_str: str) -> int:
+        """Convert ISO 8601 time string to Unix timestamp.
+        
+        Args:
+            time_str: ISO 8601 formatted time string
+            
+        Returns:
+            Unix timestamp as integer
+        """
+        return int(datetime.datetime.fromisoformat(time_str).timestamp())
+
+    def _build_logs_query_params(self, 
+                                 log_group_names: Optional[List[str]],
+                                 log_group_identifiers: Optional[List[str]], 
+                                 start_time: str,
+                                 end_time: str,
+                                 query_string: str,
+                                 limit: Optional[int]) -> Dict:
+        """Build parameters for CloudWatch Logs Insights query.
+        
+        Args:
+            log_group_names: List of log group names
+            log_group_identifiers: List of log group identifiers
+            start_time: Start time in ISO 8601 format
+            end_time: End time in ISO 8601 format
+            query_string: CloudWatch Logs Insights query string
+            limit: Maximum number of results to return
+            
+        Returns:
+            Dictionary of parameters for the start_query API call
+        """
+        return {
+            'startTime': self._convert_time_to_timestamp(start_time),
+            'endTime': self._convert_time_to_timestamp(end_time),
+            'queryString': query_string,
+            'logGroupIdentifiers': log_group_identifiers,
+            'logGroupNames': log_group_names,
+            'limit': limit,
+        }
+
+    def _process_query_results(self, response: Dict, query_id: str = '') -> Dict:
+        """Process query results response into standardized format.
+        
+        Args:
+            response: Raw response from get_query_results API
+            query_id: The query ID to include in the response
+            
+        Returns:
+            Processed query results dictionary
+        """
+        return {
+            'queryId': query_id or response.get('queryId', ''),
+            'status': response['status'], 
+            'statistics': response.get('statistics', {}),
+            'results': [
+                {field['field']: field['value'] for field in line}
+                for line in response.get('results', [])
+            ],
+        }
+
+    async def _poll_for_query_completion(self, query_id: str, max_timeout: int, ctx: Context) -> Dict:
+        """Poll for query completion within the specified timeout.
+        
+        Args:
+            query_id: The query ID to poll for
+            max_timeout: Maximum time to wait in seconds
+            ctx: MCP context for warnings
+            
+        Returns:
+            Query results dictionary or timeout message
+        """
+        poll_start = timer()
+        while poll_start + max_timeout > timer():
+            response = self.logs_client.get_query_results(queryId=query_id)
+            status = response['status']
+
+            if status in {'Complete', 'Failed', 'Cancelled'}:
+                logger.info(f'Query {query_id} finished with status {status}')
+                return self._process_query_results(response, query_id)
+
+            await asyncio.sleep(1)
+
+        msg = f'Query {query_id} did not complete within {max_timeout} seconds. Use get_logs_insight_query_results with the returned queryId to try again to retrieve query results.'
+        logger.warning(msg)
+        await ctx.warning(msg)
+        return {
+            'queryId': query_id,
+            'status': 'Polling Timeout',
+            'message': msg,
+        }
+
     def register(self, mcp):
         """Register all CloudWatch Logs tools with the MCP server."""
         
@@ -80,15 +185,15 @@ class CloudWatchLogsTools:
             name='execute_log_insights_query'
         )(self.execute_log_insights_query)
 
-        # Register get_query_results tool
+        # Register get_logs_insight_query_results tool
         mcp.tool(
-            name='get_query_results'
-        )(self.get_query_results)
+            name='get_logs_insight_query_results'
+        )(self.get_logs_insight_query_results)
 
-        # Register cancel_query tool
+        # Register cancel_logs_insight_query tool
         mcp.tool(
-            name='cancel_query'
-        )(self.cancel_query)
+            name='cancel_logs_insight_query'
+        )(self.cancel_logs_insight_query)
 
     async def describe_log_groups(
         self,
@@ -120,7 +225,7 @@ class CloudWatchLogsTools:
             None,
             description=('The maximum number of log groups to return.'),
         ),
-    ) -> LogMetadata:
+    ) -> LogsMetadata:
         """Lists AWS CloudWatch log groups and saved queries associated with them, optionally filtering by a name prefix.
 
         This tool retrieves information about log groups in the account, or log groups in accounts linked to this account as a monitoring account.
@@ -164,7 +269,7 @@ class CloudWatchLogsTools:
             logger.info(f'Log groups: {log_groups}')
             return [LogGroupMetadata.model_validate(lg) for lg in log_groups]
 
-        def get_filtered_saved_queries(log_groups: List[LogGroupMetadata]) -> List[SavedQuery]:
+        def get_filtered_saved_queries(log_groups: List[LogGroupMetadata]) -> List[SavedLogsInsightsQuery]:
             saved_queries = []
             next_token = None
 
@@ -180,7 +285,7 @@ class CloudWatchLogsTools:
                     break
 
             logger.info(f'Saved queries: {saved_queries}')
-            modeled_queries = [SavedQuery.model_validate(saved_query) for saved_query in saved_queries]
+            modeled_queries = [SavedLogsInsightsQuery.model_validate(saved_query) for saved_query in saved_queries]
 
             log_group_targets = {lg.logGroupName for lg in log_groups}
             # filter to only saved queries applicable to log groups we're looking at
@@ -194,7 +299,7 @@ class CloudWatchLogsTools:
         try:
             log_groups = describe_log_groups()
             filtered_saved_queries = get_filtered_saved_queries(log_groups)
-            return LogMetadata(log_group_metadata=log_groups, saved_queries=filtered_saved_queries)
+            return LogsMetadata(log_group_metadata=log_groups, saved_queries=filtered_saved_queries)
 
         except Exception as e:
             logger.error(f'Error in describe_log_groups_tool: {str(e)}')
@@ -220,7 +325,7 @@ class CloudWatchLogsTools:
                 'ISO 8601 formatted end time for the CloudWatch Logs Insights query window (e.g., "2025-04-19T21:00:00+00:00").'
             ),
         ),
-    ) -> LogAnalysisResult:
+    ) -> LogsAnalysisResult:
         """Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
 
         This tool performs an analysis of the specified log group by:
@@ -235,7 +340,7 @@ class CloudWatchLogsTools:
 
         Returns:
         --------
-        A LogAnalysisResult object containing:
+        A LogsAnalysisResult object containing:
             - log_anomaly_results: Information about anomaly detectors and their findings
                 * anomaly_detectors: List of anomaly detectors for the log group
                 * anomalies: List of anomalies that fall within the specified time range
@@ -252,11 +357,11 @@ class CloudWatchLogsTools:
             return log_group_arn in anomaly.logGroupArnList
 
         async def get_applicable_anomalies() -> LogAnomalyResults:
-            detectors: List[AnomalyDetector] = []
+            detectors: List[LogAnomalyDetector] = []
             paginator = self.logs_client.get_paginator('list_log_anomaly_detectors')
             for page in paginator.paginate(filterLogGroupArn=log_group_arn):
                 detectors.extend(
-                    [AnomalyDetector.model_validate(d) for d in page.get('anomalyDetectors', [])]
+                    [LogAnomalyDetector.model_validate(d) for d in page.get('anomalyDetectors', [])]
                 )
 
             logger.info(f'Found {len(detectors)} anomaly detectors for log group')
@@ -311,7 +416,7 @@ class CloudWatchLogsTools:
             clean_up_pattern(pattern_query_result.get('results', []))
             clean_up_pattern(error_pattern_result.get('results', []))
 
-            return LogAnalysisResult(
+            return LogsAnalysisResult(
                 log_anomaly_results=log_anomaly_results,
                 top_patterns=pattern_query_result,
                 top_patterns_containing_errors=error_pattern_result,
@@ -385,62 +490,28 @@ class CloudWatchLogsTools:
                 - messages: Any informational messages about the query
         """
         try:
-            # Start query
-            kwargs = {
-                'startTime': int(datetime.datetime.fromisoformat(start_time).timestamp()),
-                'endTime': int(datetime.datetime.fromisoformat(end_time).timestamp()),
-                'queryString': query_string,
-                'logGroupIdentifiers': log_group_identifiers,
-                'logGroupNames': log_group_names,
-                'limit': limit,
-            }
+            # Validate parameters
+            self._validate_log_group_parameters(log_group_names, log_group_identifiers)
+            
+            # Build query parameters
+            kwargs = self._build_logs_query_params(
+                log_group_names, log_group_identifiers, start_time, end_time, query_string, limit
+            )
 
-            # TODO: Not true for open search sql style queries
-            if bool(log_group_names) == bool(log_group_identifiers):
-                await ctx.error(
-                    'Exactly one of log_group_names or log_group_identifiers must be provided'
-                )
-                raise
-
+            # Start the query
             start_response = self.logs_client.start_query(**remove_null_values(kwargs))
             query_id = start_response['queryId']
             logger.info(f'Started query with ID: {query_id}')
 
-            # Seconds
-            poll_start = timer()
-            while poll_start + max_timeout > timer():
-                response = self.logs_client.get_query_results(queryId=query_id)
-                status = response['status']
-
-                if status in {'Complete', 'Failed', 'Cancelled'}:
-                    logger.info(f'Query {query_id} finished with status {status}')
-                    return {
-                        'queryId': query_id,
-                        'status': status,
-                        'statistics': response.get('statistics', {}),
-                        'results': [
-                            {field['field']: field['value'] for field in line}
-                            for line in response.get('results', [])
-                        ],
-                    }
-
-                await asyncio.sleep(1)
-
-            msg = f'Query {query_id} did not complete within {max_timeout} seconds. Use get_query_results with the returned queryId to try again to retrieve query results.'
-            logger.warning(msg)
-            await ctx.warning(msg)
-            return {
-                'queryId': query_id,
-                'status': 'Polling Timeout',
-                'message': msg,
-            }
+            # Poll for completion
+            return await self._poll_for_query_completion(query_id, max_timeout, ctx)
 
         except Exception as e:
             logger.error(f'Error in execute_log_insights_query_tool: {str(e)}')
             await ctx.error(f'Error executing CloudWatch Logs Insights query: {str(e)}')
             raise
 
-    async def get_query_results(
+    async def get_logs_insight_query_results(
         self, 
         ctx: Context, 
         query_id: str = Field(
@@ -466,28 +537,20 @@ class CloudWatchLogsTools:
 
             logger.info(f'Retrieved results for query ID {query_id}')
 
-            return {
-                'queryId': query_id,
-                'status': response['status'],
-                'statistics': response.get('statistics', {}),
-                'results': [
-                    {field['field']: field['value'] for field in line}
-                    for line in response.get('results', [])
-                ],
-            }
+            return self._process_query_results(response, query_id)
         except Exception as e:
             logger.error(f'Error in get_query_results_tool: {str(e)}')
             await ctx.error(f'Error retrieving CloudWatch Logs Insights query results: {str(e)}')
             raise
 
-    async def cancel_query(
+    async def cancel_logs_insight_query(
         self, 
         ctx: Context, 
         query_id: str = Field(
             ...,
             description='The unique ID of the ongoing query to cancel. CRITICAL: This ID is returned by the execute_log_insights_query tool.',
         ),
-    ) -> CancelQueryResult:
+    ) -> LogsQueryCancelResult:
         """Cancels an ongoing CloudWatch Logs Insights query. If the query has already ended, returns an error that the given query is not running.
 
         Usage: If a log query is started by execute_log_insights_query tool and has a polling time out, this tool can be used to cancel
@@ -495,11 +558,11 @@ class CloudWatchLogsTools:
 
         Returns:
         --------
-            A CancelQueryResult with a "success" key, which is True if the query was successfully cancelled.
+            A LogsQueryCancelResult with a "success" key, which is True if the query was successfully cancelled.
         """
         try:
             response = self.logs_client.stop_query(queryId=query_id)
-            return CancelQueryResult.model_validate(response)
+            return LogsQueryCancelResult.model_validate(response)
         except Exception as e:
             logger.error(f'Error in cancel_query_tool: {str(e)}')
             await ctx.error(f'Error cancelling CloudWatch Logs Insights query: {str(e)}')

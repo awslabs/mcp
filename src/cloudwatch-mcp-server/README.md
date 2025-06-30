@@ -1,46 +1,89 @@
-# AWS Labs cloudwatch-logs MCP Server
+# AWS Labs cloudwatch MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for Amazon CloudWatch
+An AWS Labs Model Context Protocol (MCP) server for CloudWatch provides AI-powered troubleshooting tools across metrics, alarms, logs, and traces, enabling rapid root cause analysis and intelligent recommendations. It offers comprehensive observability tools that simplify monitoring, reduce context switching, and help teams quickly diagnose and resolve service issues. This server will provide AI agents and application developers with seamless access to CloudWatch telemetry data through standardized MCP interfaces, eliminating the need for custom API solutions and reducing context switching during troubleshooting workflows. By consolidating access to all CloudWatch capabilities, we enable powerful cross-service correlations and insights that accelerate incident resolution and improve operational visibility.
 
 ## Instructions
 
-Use this MCP server to run commands on CloudWatch resources. Supports discovering logs groups as well as running CloudWatch Log Insight
-Queries. With CloudWatch Logs Insights, you can interactively search and analyze your log data in Amazon CloudWatch Logs and perform queries to help
-you more efficiently and effectively respond to operational issues.
+The CloudWatch MCP Server provides specialized tools to address common operational scenarios including alarm troubleshooting, understand metrics definitions,  alarm recommendations and log analysis. Each tool encapsulates multiple CloudWatch APIs into task-oriented operations. Along with specialized tools, each service offers core tools that enables seamless interaction with CloudWatch services.
 
 ## Features
 
-- Discovering log groups and metadata about them within your AWS account or accounts connected by CloudWatch Cross Account Observability
-- Converting human-readable questions and commands into CloudWatch Log Insight queries and executing them against the discovered log groups.
+Alarm Based Troubleshooting - Identifies active alarms, retrieves related metrics and logs, and analyzes historical alarm patterns to determine root causes of triggered alerts. Provides context-aware recommendations for remediation.
+
+API Gateway Lambda Diagnostics - Correlates API Gateway metrics with Lambda execution logs to pinpoint failures in serverless applications. Identifies cold starts, timeouts, and error patterns affecting API performance.
+
+Log Analyzer -  Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
+
+SLO Compliance Analyzer - Evaluates Service Level Objective compliance by examining traces and logs for breached thresholds. Helps identify service dependencies contributing to SLO violations and recommend corrective actions.
+
+Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated. Differentiates between standard and custom metrics.
+
+Alarm Recommendations - Suggests optimal alarm configurations based on historical patterns and best practices. Helps reduce false positives and ensure appropriate coverage of critical metrics.
+
 
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
-3. An AWS account with [CloudWatch Log Groups](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_GettingStarted.html)
+3. An AWS account with [CloudWatch Telemetry](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html)
 4. This MCP server can only be run locally on the same host as your LLM client.
 5. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
 
 ## Available Tools
-* `describe_log_groups` - Describe log groups in the account and region, including user saved queries applicable to them. Supports Cross Account Observability.
-* `analyze_log_group` - Analyzes a CloudWatch log group for anomalies, top message patterns, and top error patterns within a specified time window.
-Log group must have at least one [CloudWatch Log Anomaly Detector](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/LogsAnomalyDetection.html) configured to search for anomalies.
-* `execute_log_insights_query` - Execute a Log Insights query against one or more log groups. Will wait for the query to complete for a configurable timeout.
-* `get_query_results` - Get the results of a query previously started by `execute_log_insights_query`.
-* `cancel_query` - Cancel an ongoing query that was previously started by `execute_log_insights_query`.
+
+### Core Tools from CloudWatch Metrics
+* `get_metric_data` - Retrieves detailed metric data for any CloudWatch metric
+* `get_metric_metadata` - Retrieves retrieves comprehensive metadata about a specific CloudWatch metric
+* `get_recommended_metric_alarms` - Gets recommended alarms for a CloudWatch metric
+
+### Core Tools from CloudWatch Alarms
+* `get_active_alarms` - Identifies currently active alarms across the account
+* `get_alarm_history` - Retrieves historical alarm state changes and patterns
+
+### Core Tools from CloudWatch Dashboards
+* `list_dashboards` - Discovers available CloudWatch dashboards
+* `get_dashboard_data` - Retrieves the widgets and data from dashboards
+* `get_dashboard_recommendations` - Recommends dashboard improvements
+
+### Core Tools from CloudWatch Logs
+* `describe_log_groups` - Finds metadata about log groups
+* `analyze_log_group` - Analyzes logs for anomalies, message patterns, and error patterns
+* `execute_log_insights_query` - Executes queries with time-frame and query input
+* `get_logs_insight_query_results` - Retrieves results from executed queries
+* `cancel_logs_insight_query` - Cancels running queries
+
+### Core Tools from CloudWatch Application Signals
+* `list_monitored_services` - Lists all services monitored by Application Signals
+* `get_service_detail` - Gets health data for specific services
+* `get_service_metrics` - Queries CloudWatch metrics for monitored services
+* `list_slis` - Monitors SLI status and SLO compliance across services
+* `get_slo` - Gets SLO setup information in the account
+* `get_traces_for_slo` - Retrieves traces related to SLO breaches
+* `query_sampled_traces` - Queries AWS X-Ray traces data
+* `search_transaction_spans` - Queries OTel Spans data via Transaction Search
 
 ### Required IAM Permissions
-* `logs:Describe*`
-* `logs:Get*`
-* `logs:List*`
+* `cloudwatch:DescribeAlarms`
+* `cloudwatch:DescribeAlarmHistory`
+* `cloudwatch:GetMetricData`
+* `cloudwatch:ListMetrics`
+* `cloudwatch:GetMetricStatistics`
+* `cloudwatch:DescribeInsightRules`
+* `cloudwatch:GetInsightRuleReport`
+
+* `logs:DescribeLogGroups`
+* `logs:DescribeQueryDefinitions`
+* `logs:ListLogAnomalyDetectors`
+* `logs:ListAnomalies`
 * `logs:StartQuery`
+* `logs:GetQueryResults`
 * `logs:StopQuery`
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.cloudwatch-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidGltZW91dCI6NjAsImNvbW1hbmQiOiJ1dnggYXdzbGFicy5jbG91ZHdhdGNoLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoiW1RoZSBBV1MgUHJvZmlsZSBOYW1lIHRvIHVzZSBmb3IgQVdTIGFjY2Vzc10iLCJBV1NfUkVHSU9OIjoiW1RoZSBBV1MgcmVnaW9uIHRvIHJ1biBpbl0iLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sInRyYW5zcG9ydFR5cGUiOiJzdGRpbyJ9)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.cloudwatch-mcp-server&config=ewogICAgImF1dG9BcHByb3ZlIjogW10sCiAgICAiZGlzYWJsZWQiOiBmYWxzZSwKICAgICJ0aW1lb3V0IjogNjAsCiAgICAiY29tbWFuZCI6ICJ1dnggYXdzbGFicy5jbG91ZHdhdGNoLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwKICAgICJlbnYiOiB7CiAgICAgICJBV1NfUFJPRklMRSI6ICJbVGhlIEFXUyBQcm9maWxlIE5hbWUgdG8gdXNlIGZvciBBV1MgYWNjZXNzXSIsCiAgICAgICJBV1NfUkVHSU9OIjogIltUaGUgQVdTIHJlZ2lvbiB0byBydW4gaW5dIiwKICAgICAgIkZBU1RNQ1BfTE9HX0xFVkVMIjogIkVSUk9SIgogICAgfSwKICAgICJ0cmFuc3BvcnRUeXBlIjogInN0ZGlvIgp)
 
 Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 
