@@ -15,8 +15,6 @@ from unittest.mock import AsyncMock, MagicMock
 class TestFormatAwsResponse:
     """Tests for format_aws_response function."""
 
-    # Additional tests for advanced format_aws_response cases
-
     def test_format_aws_response_removes_metadata(self):
         """Test that ResponseMetadata is removed from response."""
         response = {
@@ -75,7 +73,6 @@ class TestFormatAwsResponse:
         assert 'ResponseMetadata' in formatted['Items'][1]
         assert 'ResponseMetadata' in formatted['NestedData']
         
-        # Ensure other data is preserved
         assert formatted['Items'][0]['id'] == '1'
         assert formatted['NestedData']['value'] == 'test'
 
@@ -106,7 +103,6 @@ class TestFormatAwsResponse:
 class TestConvertDatetimeToString:
     """Tests for convert_datetime_to_string function."""
     
-    # Additional advanced tests for datetime conversion
 
     def test_convert_datetime_direct(self):
         """Test converting a datetime object directly."""
@@ -218,7 +214,6 @@ class TestConvertDatetimeToString:
         
         result = utils.convert_datetime_to_string(data)
         
-        # Check conversions at all levels
         assert result['toplevel'] == now.isoformat()
         assert result['nested']['datetime'] == yesterday.isoformat()
         assert result['nested']['list'][0] == now.isoformat()
@@ -229,7 +224,6 @@ class TestConvertDatetimeToString:
         assert result['list_of_dicts'][0]['time'] == now.isoformat()
         assert result['list_of_dicts'][1]['time'] == yesterday.isoformat()
         
-        # Check non-datetime values remain unchanged
         assert result['nested']['list'][1] == 'string'
         assert result['nested']['list'][2] == 123
         
@@ -243,11 +237,9 @@ class TestConvertDatetimeToString:
         
         custom = CustomObj()
         
-        # Custom objects should be left as-is
         result = utils.convert_datetime_to_string(custom)
         assert result == custom
         
-        # Test mixed with dicts
         data = {'obj': custom, 'time': now}
         result = utils.convert_datetime_to_string(data)
         
@@ -259,7 +251,6 @@ class TestConvertDatetimeToString:
 class TestPaginateAwsApiCall:
     """Tests for paginate_aws_api_call function."""
     
-    # Advanced pagination tests
 
     async def test_paginate_single_page(self):
         """Test pagination with single page of results."""
@@ -366,17 +357,13 @@ class TestPaginateAwsApiCall:
             
     async def test_paginate_with_exception_handling(self):
         """Test pagination handling when exceptions occur mid-way."""
-        # Use a MagicMock instead of AsyncMock because of asyncio.to_thread
         mock_client = MagicMock()
         
-        # First call succeeds, second call raises exception
         mock_client.side_effect = [
             {'Items': [{'id': '1'}], 'Marker': 'token1'},
             Exception("API error")
         ]
         
-        # The function should handle the exception gracefully in a real scenario,
-        # but for test purposes we ensure it's propagated correctly
         with pytest.raises(Exception) as excinfo:
             await utils.paginate_aws_api_call(
                 mock_client,
@@ -389,10 +376,8 @@ class TestPaginateAwsApiCall:
 
     async def test_paginate_with_missing_token(self):
         """Test pagination with inconsistent token presence."""
-        # Use a MagicMock instead of AsyncMock because of asyncio.to_thread
         mock_client = MagicMock()
         
-        # First call has no Marker token - so only processes one page
         mock_client.return_value = {'Items': [{'id': '1'}]}  # No marker/token key
         
         result = await utils.paginate_aws_api_call(
@@ -401,14 +386,12 @@ class TestPaginateAwsApiCall:
             result_key='Items'
         )
         
-        # Should only process first call since there's no marker
         assert len(result) == 1
         assert result[0]['id'] == '1'
         assert mock_client.call_count == 1
 
     async def test_paginate_with_complex_params(self):
         """Test pagination with complex initial parameters."""
-        # Use a MagicMock instead of AsyncMock because of asyncio.to_thread
         mock_client = MagicMock()
         mock_client.side_effect = [
             {'Resources': [{'id': '1'}], 'Marker': 'token1'},
@@ -432,16 +415,13 @@ class TestPaginateAwsApiCall:
             **complex_params
         )
         
-        # Should combine all pages
         assert len(result) == 3
         assert [r['id'] for r in result] == ['1', '2', '3']
         
-        # Check params were passed correctly in first call
         first_call_kwargs = mock_client.call_args_list[0][1]
         assert first_call_kwargs['Filters'] == complex_params['Filters']
         assert first_call_kwargs['Config'] == complex_params['Config']
         
-        # Check token was passed in subsequent calls
         assert mock_client.call_args_list[1][1]['Marker'] == 'token1'
         assert mock_client.call_args_list[2][1]['Marker'] == 'token2'
 
@@ -731,12 +711,10 @@ class TestHandleExceptions:
         result = await self.mock_aws_operation(error=error)
         result_dict = json.loads(result)
         
-        # Check all expected fields
         assert "error" in result_dict
         assert result_dict["error_code"] == error_code
         assert result_dict["error_message"] == error_message
         assert result_dict["operation"] == "mock_aws_operation"
-        # Only check that error code is in the error message, not necessarily the full error message
         assert error_code in result_dict["error"]
 
     async def test_handle_nested_exception(self):
@@ -752,11 +730,7 @@ class TestHandleExceptions:
         result = await self.mock_aws_operation(error=error)
         result_dict = json.loads(result)
         
-        # Check for expected fields
         assert "error" in result_dict
         assert result_dict["error_type"] == "ValueError"
         assert result_dict["error_message"] == "Invalid calculation"
         assert result_dict["operation"] == "mock_aws_operation"
-        
-        # The error handling doesn't always include cause info in the string
-        # Just check the error type and message

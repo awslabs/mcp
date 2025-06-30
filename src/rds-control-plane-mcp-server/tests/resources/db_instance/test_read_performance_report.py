@@ -25,7 +25,6 @@ from awslabs.rds_control_plane_mcp_server.common.connection import PIConnectionM
 @pytest.mark.asyncio
 async def test_read_performance_report_success(mock_rds_client):
     """Test the read_performance_report function with successful return."""
-    # Setup mock for the get_performance_analysis_report API call
     mock_report_content = {
         'AnalysisReport': {
             'report_id': 'report-123',
@@ -54,25 +53,20 @@ async def test_read_performance_report_success(mock_rds_client):
     }
     
     mock_rds_client.get_performance_analysis_report.return_value = mock_report_content
-    
-    # Call the resource function with a valid instance ID and report ID with the patched connection
     with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
         result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
     
-    # Verify the result is well-formed
     result_dict = json.loads(result)
     assert 'report_id' in result_dict
     assert 'report_name' in result_dict
     assert 'status' in result_dict
     assert 'data' in result_dict
     
-    # Check basic report metadata
     assert result_dict['report_id'] == 'report-123'
     assert result_dict['report_name'] == 'weekly-performance-report'
     assert result_dict['status'] == 'completed'
     assert result_dict['instance_id'] == 'test-instance-1'
     
-    # Check report data
     report_data = result_dict['data']
     assert 'summary' in report_data
     assert 'metrics' in report_data
@@ -84,7 +78,6 @@ async def test_read_performance_report_success(mock_rds_client):
 @pytest.mark.asyncio
 async def test_read_performance_report_not_found(mock_rds_client):
     """Test the read_performance_report function when report doesn't exist."""
-    # Set up the mock to raise a client error for report not found
     from botocore.exceptions import ClientError
     error_response = {
         'Error': {
@@ -96,11 +89,9 @@ async def test_read_performance_report_not_found(mock_rds_client):
         error_response, 'GetPerformanceAnalysisReport'
     )
     
-    # Call the resource function with a non-existent report ID with the patched connection
     with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
         result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-999")
     
-    # Verify the error response
     result_dict = json.loads(result)
     assert 'error' in result_dict
     assert 'ReportNotFoundFault' in result_dict['error']
@@ -109,14 +100,11 @@ async def test_read_performance_report_not_found(mock_rds_client):
 @pytest.mark.asyncio
 async def test_read_performance_report_invalid_json(mock_rds_client):
     """Test the read_performance_report function with invalid JSON in report data."""
-    # Setup mock with invalid JSON in AnalysisReport
     mock_rds_client.get_performance_analysis_report.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
     
-    # Call the resource function with the patched connection
     with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
         result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
     
-    # Verify error handling for invalid JSON
     result_dict = json.loads(result)
     assert 'error' in result_dict
     assert 'JSON' in result_dict['error']
@@ -125,7 +113,6 @@ async def test_read_performance_report_invalid_json(mock_rds_client):
 @pytest.mark.asyncio
 async def test_read_performance_report_empty_data(mock_rds_client):
     """Test the read_performance_report function with empty report data."""
-    # Setup mock with empty AnalysisReport
     mock_rds_client.get_performance_analysis_report.return_value = {
         'AnalysisReport': {
             'report_id': 'report-123',
@@ -136,21 +123,17 @@ async def test_read_performance_report_empty_data(mock_rds_client):
         }
     }
     
-    # Call the resource function with the patched connection
     with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
         result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
     
-    # Verify handling of empty data
     result_dict = json.loads(result)
     assert 'report_id' in result_dict
     assert 'report_name' in result_dict
-    assert result_dict['data'] is None  # Or appropriate error handling based on implementation
-
+    assert result_dict['data'] is None 
 
 @pytest.mark.asyncio
 async def test_read_performance_report_client_error(mock_rds_client):
     """Test the read_performance_report function with a client error."""
-    # Set up the mock to raise a client error
     from botocore.exceptions import ClientError
     error_response = {
         'Error': {
@@ -162,11 +145,9 @@ async def test_read_performance_report_client_error(mock_rds_client):
         error_response, 'GetPerformanceAnalysisReport'
     )
     
-    # Call the resource function with the patched connection
     with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
         result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
     
-    # Verify the error response
     result_dict = json.loads(result)
     assert 'error' in result_dict
     assert 'AccessDenied' in result_dict['error']
@@ -175,14 +156,11 @@ async def test_read_performance_report_client_error(mock_rds_client):
 @pytest.mark.asyncio
 async def test_read_performance_report_general_error(mock_rds_client):
     """Test the read_performance_report function with a general error."""
-    # Set up the mock to raise a general exception
     mock_rds_client.get_performance_analysis_report.side_effect = ValueError("Unexpected error")
     
-    # Call the resource function with the patched connection
     with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
         result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
     
-    # Verify the error response
     result_dict = json.loads(result)
     assert 'error' in result_dict
     assert 'Unexpected error' in result_dict['error']
