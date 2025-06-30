@@ -2,7 +2,7 @@
 name = "awslabs.redshift-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.0"
+version = "0.0.1"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for Redshift"
 readme = "README.md"
