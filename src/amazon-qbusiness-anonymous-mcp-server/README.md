@@ -19,14 +19,14 @@ An AWS Labs Model Context Protocol (MCP) server for Amazon Q Business anonymous 
 - The QBusinessQueryTool takes the query specified by the user and queries the Amazon Q Business application to get a response.
 - Required parameter: query(str)
 - Example:
-    * `Can you get me the details of the ACME project? Use the QBisinessQueryTool to get the context.`. Note that in this case the details of the ACME are required to be ingested to the underlying Amazon Q Business application created using anonymous mode.
+    * `Can you get me the details of the ACME project? Use the QBusinessQueryTool to get the context.`. Note that in this case the details of the ACME are required to be ingested to the underlying Amazon Q Business application created using anonymous mode.
 
 ## Setup
 
 ### IAM Configuration
 
 1. Provision a user in your AWS account IAM
-2. Attach a policy that contains at a minimum the `qbusiness:ChatSync` permission. Alternatively the AWS Managed `AmazonKendraFullAccess` policy can be attached. Always follow the principal or least privilege when granting users permissions. See the [documentation](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/security_iam_id-based-policy-examples.html#security_iam_id-based-policy-examples-application-1) for more information on IAM permissions for Amazon Q Business.
+2. Attach a policy that contains at a minimum the `qbusiness:ChatSync` permission. Always follow the principal or least privilege when granting users permissions. See the [documentation](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/security_iam_id-based-policy-examples.html#security_iam_id-based-policy-examples-application-1) for more information on IAM permissions for Amazon Q Business.
 3. Use `aws configure` on your environment to configure the credentials (access ID and access key)
 
 ### Installation
