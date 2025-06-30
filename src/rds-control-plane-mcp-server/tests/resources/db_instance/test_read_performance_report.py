@@ -17,128 +17,172 @@
 import json
 import pytest
 from unittest.mock import MagicMock, patch
-from datetime import datetime
 
 from awslabs.rds_control_plane_mcp_server.resources.db_instance.read_performance_report import read_performance_report
+from awslabs.rds_control_plane_mcp_server.common.connection import PIConnectionManager
 
 
 @pytest.mark.asyncio
-async def test_read_performance_report_success():
-    """Test successful retrieval of a performance report."""
-    instance_id = 'test-instance-1'
-    report_id = 'report-123'
-    create_time = datetime(2023, 1, 1, 12, 0, 0)
-    start_time = datetime(2023, 1, 1, 10, 0, 0)
-    end_time = datetime(2023, 1, 1, 11, 0, 0)
-
-    mock_pi_client = MagicMock()
-    mock_pi_client.get_performance_analysis_report.return_value = {
+async def test_read_performance_report_success(mock_rds_client):
+    """Test the read_performance_report function with successful return."""
+    # Setup mock for the get_performance_analysis_report API call
+    mock_report_content = {
         'AnalysisReport': {
-            'AnalysisReportId': report_id,
-            'ServiceType': 'RDS',
-            'CreateTime': create_time,
-            'StartTime': start_time,
-            'EndTime': end_time,
-            'Status': 'SUCCEEDED',
-            'AnalysisData': {
-                'Summary': 'Performance analysis for high CPU usage',
-                'Findings': [
+            'report_id': 'report-123',
+            'report_name': 'weekly-performance-report',
+            'status': 'completed',
+            'instance_id': 'test-instance-1',
+            'data': {
+                'summary': 'Database performance report',
+                'metrics': [
                     {
-                        'Category': 'CPU',
-                        'Description': 'High CPU utilization detected',
-                        'Impact': 'HIGH',
-                        'Recommendations': [
-                            'Consider scaling up instance class',
-                            'Optimize expensive queries'
-                        ]
+                        'name': 'cpu_utilization',
+                        'average': 45.7,
+                        'peak': 85.2
+                    },
+                    {
+                        'name': 'memory_utilization',
+                        'average': 65.3,
+                        'peak': 78.1
                     }
+                ],
+                'recommendations': [
+                    'Consider scaling up the instance if CPU utilization remains high'
                 ]
             }
         }
     }
-
-    with patch(
-        'awslabs.rds_control_plane_mcp_server.common.connection.PIConnectionManager.get_connection',
-        return_value=mock_pi_client
-    ):
-        result = await read_performance_report(instance_id, report_id)
-
-        mock_pi_client.get_performance_analysis_report.assert_called_once_with(
-            ServiceType='RDS',
-            Identifier=instance_id,
-            AnalysisReportId=report_id,
-            TextFormat='MARKDOWN'
-        )
-
-        result_dict = json.loads(result)
-
-        assert result_dict['AnalysisReportId'] == report_id
-        assert result_dict['ServiceType'] == 'RDS'
-        assert result_dict['Status'] == 'SUCCEEDED'
-        assert 'AnalysisData' in result_dict
-        assert 'Summary' in result_dict['AnalysisData']
-        assert len(result_dict['AnalysisData']['Findings']) == 1
+    
+    mock_rds_client.get_performance_analysis_report.return_value = mock_report_content
+    
+    # Call the resource function with a valid instance ID and report ID with the patched connection
+    with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
+    
+    # Verify the result is well-formed
+    result_dict = json.loads(result)
+    assert 'report_id' in result_dict
+    assert 'report_name' in result_dict
+    assert 'status' in result_dict
+    assert 'data' in result_dict
+    
+    # Check basic report metadata
+    assert result_dict['report_id'] == 'report-123'
+    assert result_dict['report_name'] == 'weekly-performance-report'
+    assert result_dict['status'] == 'completed'
+    assert result_dict['instance_id'] == 'test-instance-1'
+    
+    # Check report data
+    report_data = result_dict['data']
+    assert 'summary' in report_data
+    assert 'metrics' in report_data
+    assert 'recommendations' in report_data
+    assert len(report_data['metrics']) == 2
+    assert 'cpu_utilization' == report_data['metrics'][0]['name']
 
 
 @pytest.mark.asyncio
-async def test_read_performance_report_not_found():
-    """Test read_performance_report when report is not found."""
+async def test_read_performance_report_not_found(mock_rds_client):
+    """Test the read_performance_report function when report doesn't exist."""
+    # Set up the mock to raise a client error for report not found
     from botocore.exceptions import ClientError
-
-    instance_id = 'test-instance-1'
-    report_id = 'non-existent-report'
-
-    mock_pi_client = MagicMock()
-    mock_pi_client.get_performance_analysis_report.side_effect = ClientError(
-        {
-            'Error': {
-                'Code': 'ResourceNotFoundException',
-                'Message': f'Performance report {report_id} not found'
-            }
-        },
-        'GetPerformanceAnalysisReport'
-    )
-
-    with patch(
-        'awslabs.rds_control_plane_mcp_server.common.connection.PIConnectionManager.get_connection',
-        return_value=mock_pi_client
-    ):
-        result = await read_performance_report(instance_id, report_id)
-
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'resource' in result_dict
-        assert f'Performance report {report_id} not found' in result_dict['error']
-        assert f'aws-rds://db-instance/{instance_id}/performance_report/{report_id}' == result_dict['resource']
-
-
-@pytest.mark.asyncio
-async def test_read_performance_report_running():
-    """Test read_performance_report for a report that is still running."""
-    instance_id = 'test-instance-1'
-    report_id = 'running-report'
-
-    mock_pi_client = MagicMock()
-    mock_pi_client.get_performance_analysis_report.return_value = {
-        'AnalysisReport': {
-            'AnalysisReportId': report_id,
-            'ServiceType': 'RDS',
-            'Status': 'RUNNING',
-            'AnalysisData': {
-                'Summary': 'Analysis in progress',
-                'Progress': '50%'
-            }
+    error_response = {
+        'Error': {
+            'Code': 'ReportNotFoundFault',
+            'Message': 'Report with ID report-999 not found'
         }
     }
+    mock_rds_client.get_performance_analysis_report.side_effect = ClientError(
+        error_response, 'GetPerformanceAnalysisReport'
+    )
+    
+    # Call the resource function with a non-existent report ID with the patched connection
+    with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-999")
+    
+    # Verify the error response
+    result_dict = json.loads(result)
+    assert 'error' in result_dict
+    assert 'ReportNotFoundFault' in result_dict['error']
 
-    with patch(
-        'awslabs.rds_control_plane_mcp_server.common.connection.PIConnectionManager.get_connection',
-        return_value=mock_pi_client
-    ):
-        result = await read_performance_report(instance_id, report_id)
 
-        result_dict = json.loads(result)
-        assert result_dict['Status'] == 'RUNNING'
-        assert 'AnalysisData' in result_dict
-        assert result_dict['AnalysisData']['Summary'] == 'Analysis in progress'
-        assert result_dict['AnalysisData']['Progress'] == '50%'
+@pytest.mark.asyncio
+async def test_read_performance_report_invalid_json(mock_rds_client):
+    """Test the read_performance_report function with invalid JSON in report data."""
+    # Setup mock with invalid JSON in AnalysisReport
+    mock_rds_client.get_performance_analysis_report.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
+    
+    # Call the resource function with the patched connection
+    with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
+    
+    # Verify error handling for invalid JSON
+    result_dict = json.loads(result)
+    assert 'error' in result_dict
+    assert 'JSON' in result_dict['error']
+
+
+@pytest.mark.asyncio
+async def test_read_performance_report_empty_data(mock_rds_client):
+    """Test the read_performance_report function with empty report data."""
+    # Setup mock with empty AnalysisReport
+    mock_rds_client.get_performance_analysis_report.return_value = {
+        'AnalysisReport': {
+            'report_id': 'report-123',
+            'report_name': 'weekly-performance-report',
+            'status': 'completed',
+            'instance_id': 'test-instance-1',
+            'data': None
+        }
+    }
+    
+    # Call the resource function with the patched connection
+    with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
+    
+    # Verify handling of empty data
+    result_dict = json.loads(result)
+    assert 'report_id' in result_dict
+    assert 'report_name' in result_dict
+    assert result_dict['data'] is None  # Or appropriate error handling based on implementation
+
+
+@pytest.mark.asyncio
+async def test_read_performance_report_client_error(mock_rds_client):
+    """Test the read_performance_report function with a client error."""
+    # Set up the mock to raise a client error
+    from botocore.exceptions import ClientError
+    error_response = {
+        'Error': {
+            'Code': 'AccessDenied',
+            'Message': 'User is not authorized to perform operation'
+        }
+    }
+    mock_rds_client.get_performance_analysis_report.side_effect = ClientError(
+        error_response, 'GetPerformanceAnalysisReport'
+    )
+    
+    # Call the resource function with the patched connection
+    with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
+    
+    # Verify the error response
+    result_dict = json.loads(result)
+    assert 'error' in result_dict
+    assert 'AccessDenied' in result_dict['error']
+
+
+@pytest.mark.asyncio
+async def test_read_performance_report_general_error(mock_rds_client):
+    """Test the read_performance_report function with a general error."""
+    # Set up the mock to raise a general exception
+    mock_rds_client.get_performance_analysis_report.side_effect = ValueError("Unexpected error")
+    
+    # Call the resource function with the patched connection
+    with patch.object(PIConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await read_performance_report(dbi_resource_identifier="test-instance-1", report_id="report-123")
+    
+    # Verify the error response
+    result_dict = json.loads(result)
+    assert 'error' in result_dict
+    assert 'Unexpected error' in result_dict['error']

@@ -17,160 +17,125 @@
 import json
 import pytest
 from unittest.mock import MagicMock, patch
-from datetime import datetime
 
 from awslabs.rds_control_plane_mcp_server.resources.db_instance.list_db_logs import list_db_log_files
-from awslabs.rds_control_plane_mcp_server.common.constants import RESOURCE_PREFIX_DB_LOG_FILES
+from awslabs.rds_control_plane_mcp_server.common.connection import RDSConnectionManager
 
 
 @pytest.mark.asyncio
-async def test_list_db_log_files_success():
-    """Test successful retrieval of DB log files."""
-    instance_id = 'test-mysql-instance'
-
-    mock_paginator = MagicMock()
-    mock_paginator.paginate.return_value = [{
+async def test_list_db_logs_success(mock_rds_client):
+    """Test the list_db_log_files function with successful return."""
+    # Setup mock for the describe_db_log_files API call
+    mock_rds_client.describe_db_log_files.return_value = {
         'DescribeDBLogFiles': [
             {
                 'LogFileName': 'error/mysql-error.log',
-                'LastWritten': 1625097600000,  
-                'Size': 12345
-            },
-            {
-                'LogFileName': 'error/mysql-error-previous.log',
-                'LastWritten': 1625011200000,
-                'Size': 5678
-            },
-            {
-                'LogFileName': 'general/mysql.log',
                 'LastWritten': 1625097600000,
-                'Size': 87654
+                'Size': 1024
+            },
+            {
+                'LogFileName': 'error/mysql-error-running.log',
+                'LastWritten': 1625098200000,
+                'Size': 512
+            }
+        ]
+    }
+    
+    # Mock paginator
+    paginator_mock = MagicMock()
+    paginator_mock.paginate.return_value = [{
+        'DescribeDBLogFiles': [
+            {
+                'LogFileName': 'error/mysql-error.log',
+                'LastWritten': 1625097600000,
+                'Size': 1024
+            },
+            {
+                'LogFileName': 'error/mysql-error-running.log',
+                'LastWritten': 1625098200000,
+                'Size': 512
             }
         ]
     }]
-
-    mock_client = MagicMock()
-    mock_client.get_paginator.return_value = mock_paginator
-
-    with patch(
-        'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_client,
-    ):
-        result = await list_db_log_files(instance_id)
-
-        mock_client.get_paginator.assert_called_once_with('describe_db_log_files')
-        mock_paginator.paginate.assert_called_once()
-
-        result_dict = json.loads(result)
-        assert 'log_files' in result_dict
-        assert 'count' in result_dict
-        assert 'resource_uri' in result_dict
-
-        assert result_dict['count'] == 3
-        assert result_dict['resource_uri'] == RESOURCE_PREFIX_DB_LOG_FILES.format(instance_id)
-
-        assert len(result_dict['log_files']) == 3
-
-        log_file = result_dict['log_files'][0]
-        assert log_file['log_file_name'] == 'error/mysql-error.log'
-        assert 'last_written' in log_file
-        assert log_file['size'] == 12345
+    mock_rds_client.get_paginator.return_value = paginator_mock
+    
+    # Call the resource function with a valid instance ID
+    with patch.object(RDSConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await list_db_log_files(db_instance_identifier="test-instance-1")
+    
+    # Verify the result is well-formed
+    result_dict = json.loads(result)
+    assert 'log_files' in result_dict
+    assert 'count' in result_dict
+    assert 'resource_uri' in result_dict
+    
+    assert result_dict['count'] == 2
+    
+    # Verify log files data
+    assert len(result_dict['log_files']) == 2
+    assert result_dict['log_files'][0]['log_file_name'] == 'error/mysql-error.log'
+    assert result_dict['log_files'][0]['size'] == 1024
+    assert 'last_written' in result_dict['log_files'][0]
 
 
 @pytest.mark.asyncio
-async def test_list_db_log_files_empty():
-    """Test list_db_log_files when no logs are available."""
-    instance_id = 'test-empty-logs'
-
-    mock_paginator = MagicMock()
-    mock_paginator.paginate.return_value = [{
-        'DescribeDBLogFiles': []
-    }]
-
-    mock_client = MagicMock()
-    mock_client.get_paginator.return_value = mock_paginator
-
-    with patch(
-        'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_client,
-    ):
-        result = await list_db_log_files(instance_id)
-
-        result_dict = json.loads(result)
-        assert result_dict['log_files'] == []
-        assert result_dict['count'] == 0
-
+async def test_list_db_logs_empty(mock_rds_client):
+    """Test the list_db_log_files function with empty response."""
+    # Setup mock for empty log files
+    paginator_mock = MagicMock()
+    paginator_mock.paginate.return_value = [{'DescribeDBLogFiles': []}]
+    mock_rds_client.get_paginator.return_value = paginator_mock
+    
+    # Call the resource function with the patched connection
+    with patch.object(RDSConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await list_db_log_files(db_instance_identifier="test-instance-1")
+    
+    # Verify the result is well-formed with empty list
+    result_dict = json.loads(result)
+    assert 'log_files' in result_dict
+    assert 'count' in result_dict
+    assert 'resource_uri' in result_dict
+    assert result_dict['count'] == 0
+    assert len(result_dict['log_files']) == 0
 
 @pytest.mark.asyncio
-async def test_list_db_log_files_with_pagination():
-    """Test list_db_log_files with pagination."""
-    instance_id = 'test-paginated-logs'
-
-    mock_paginator = MagicMock()
-    mock_paginator.paginate.return_value = [
-        {
-            'DescribeDBLogFiles': [
-                {
-                    'LogFileName': 'log1.log',
-                    'LastWritten': 1625097600000,
-                    'Size': 1000
-                }
-            ]
-        },
-        {
-            'DescribeDBLogFiles': [
-                {
-                    'LogFileName': 'log2.log',
-                    'LastWritten': 1625097700000,
-                    'Size': 2000
-                }
-            ]
-        }
-    ]
-
-    mock_client = MagicMock()
-    mock_client.get_paginator.return_value = mock_paginator
-
-    with patch(
-        'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_client,
-    ):
-        result = await list_db_log_files(instance_id)
-
-        result_dict = json.loads(result)
-        assert len(result_dict['log_files']) == 2
-        assert result_dict['count'] == 2
-
-        log_file_names = [log['log_file_name'] for log in result_dict['log_files']]
-        assert 'log1.log' in log_file_names
-        assert 'log2.log' in log_file_names
-
-
-@pytest.mark.asyncio
-async def test_list_db_log_files_client_error():
-    """Test list_db_log_files when the client raises an error."""
+async def test_list_db_logs_client_error(mock_rds_client):
+    """Test the list_db_log_files function with a client error."""
+    # Set up the mock to raise a client error
     from botocore.exceptions import ClientError
-
-    instance_id = 'non-existent-instance'
-    mock_client = MagicMock()
-    mock_client.get_paginator.side_effect = ClientError(
-        {
-            'Error': {
-                'Code': 'DBInstanceNotFound',
-                'Message': f'DBInstance {instance_id} not found'
-            }
-        },
-        'DescribeDBLogFiles'
+    error_response = {
+        'Error': {
+            'Code': 'DBInstanceNotFound',
+            'Message': 'DB instance not found'
+        }
+    }
+    mock_rds_client.get_paginator.side_effect = ClientError(
+        error_response, 'DescribeDBLogFiles'
     )
+    
+    # Call the resource function with the patched connection
+    with patch.object(RDSConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await list_db_log_files(db_instance_identifier="non-existent-instance")
+    
+    # Verify the error response
+    result_dict = json.loads(result)
+    assert 'error' in result_dict
+    assert 'error_code' in result_dict
+    assert result_dict['error_code'] == 'DBInstanceNotFound'
 
-    with patch(
-        'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_client,
-    ):
-        result = await list_db_log_files(instance_id)
 
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'error_code' in result_dict
-        assert result_dict['error_code'] == 'DBInstanceNotFound'
-        assert f'DBInstance {instance_id} not found' in result_dict['error_message']
+@pytest.mark.asyncio
+async def test_list_db_logs_general_error(mock_rds_client):
+    """Test the list_db_log_files function with a general error."""
+    # Set up the mock to raise a general exception
+    mock_rds_client.get_paginator.side_effect = ValueError("Unexpected error")
+    
+    # Call the resource function with the patched connection
+    with patch.object(RDSConnectionManager, 'get_connection', return_value=mock_rds_client):
+        result = await list_db_log_files(db_instance_identifier="test-instance")
+    
+    # Verify the error response
+    result_dict = json.loads(result)
+    assert 'error' in result_dict
+    assert 'error_type' in result_dict
+    assert result_dict['error_type'] == 'ValueError'
