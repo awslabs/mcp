@@ -133,27 +133,16 @@ def test_mcp_tool_signature():
     sig = inspect.signature(registered_func)
 
     # Verify the function has the expected parameters
-    assert "action" in sig.parameters
-    assert "resource_type" in sig.parameters
-    assert "identifier" in sig.parameters
-    assert "filters" in sig.parameters
+    assert "api_operation" in sig.parameters
+    assert "api_params" in sig.parameters
 
     # For this test, we only care that the parameters exist and have the right kind
     # Parameter kinds\
     # : POSITIONAL_ONLY, POSITIONAL_OR_KEYWORD, VAR_POSITIONAL, KEYWORD_ONLY, VAR_KEYWORD
 
-    # action and resource_type are required
-    assert "action" in sig.parameters
-    assert "resource_type" in sig.parameters
-
-    # identifier and filters are optional (have default values)
-    assert (
-        sig.parameters["identifier"].default is not None
-        or sig.parameters["identifier"].default is None
-    )
-    assert (
-        sig.parameters["filters"].default is not None or sig.parameters["filters"].default is None
-    )
+    # api_operation and api_params are required
+    assert "api_operation" in sig.parameters
+    assert "api_params" in sig.parameters
 
 
 def test_register_module_with_each_prompt():
