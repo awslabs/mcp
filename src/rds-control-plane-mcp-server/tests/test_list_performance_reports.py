@@ -20,7 +20,7 @@ from awslabs.rds_control_plane_mcp_server.common.config import max_items
 from awslabs.rds_control_plane_mcp_server.common.constants import (
     RESOURCE_PREFIX_DB_PERFORMANCE_REPORT,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instances.list_performance_reports import (
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.list_performance_reports import (
     ListPerformanceReportHandler,
 )
 from datetime import datetime

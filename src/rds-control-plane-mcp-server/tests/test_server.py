@@ -17,25 +17,27 @@
 import argparse
 import pytest
 from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
-from awslabs.rds_control_plane_mcp_server.resources.clusters.get_cluster_detail import (
+from awslabs.rds_control_plane_mcp_server.resources.db_cluster.get_cluster_detail import (
     GetClusterDetailHandler,
 )
 
 # Handler imports
-from awslabs.rds_control_plane_mcp_server.resources.clusters.list_clusters import (
+from awslabs.rds_control_plane_mcp_server.resources.db_cluster.list_clusters import (
     ListClustersHandler,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instances.get_instance_detail import (
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.get_instance_detail import (
     GetInstanceDetailHandler,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instances.list_db_logs import ListDBLogsHandler
-from awslabs.rds_control_plane_mcp_server.resources.instances.list_instances import (
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.list_db_logs import (
+    ListDBLogsHandler,
+)
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.list_instances import (
     ListInstancesHandler,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instances.list_performance_reports import (
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.list_performance_reports import (
     ListPerformanceReportHandler,
 )
-from awslabs.rds_control_plane_mcp_server.resources.instances.read_performance_report import (
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.read_performance_report import (
     ReadPerformanceReportHandler,
 )
 

@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Read Performance Report handler for the RDS Control Plane MCP Server."""
+"""Resource for reading RDS Performance Reports for a RDS DB Instance."""
 
 import json
-from awslabs.rds_control_plane_mcp_server.common.utils import format_aws_response, handle_aws_error
-from mypy_boto3_pi import PIClient
+from ...common.connection import PIConnectionManager
+from ...common.decorator import handle_exceptions
+from ...common.server import mcp
+from ...common.utils import format_aws_response
+from loguru import logger
 from pydantic import Field
 
 
@@ -63,64 +66,53 @@ Example usage scenarios:
 """
 
 
-class ReadPerformanceReportHandler:
-    """Handler for RDS Performance Report reading operations in the RDS MCP Server.
+@mcp.resource(
+    uri='aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id}',
+    name='ReadPerformanceReport',
+    mime_type='application/json',
+    description=READ_PERFORMANCE_REPORT_RESOURCE_DESCRIPTION,
+)
+@handle_exceptions
+async def read_performance_report(
+    dbi_resource_identifier: str = Field(
+        ...,
+        description='The AWS Region-unique, immutable identifier for the DB instance. This is the DbiResourceId returned by the ListDBInstances resource',
+    ),
+    report_id: str = Field(
+        ..., description='The unique identifier of the performance analysis report to retrieve'
+    ),
+) -> str:
+    """Retrieve a specific performance report from AWS Performance Insights.
 
-    This class provides tools for reading a previously generated
-    RDS performance reports.
+    Args:
+        dbi_resource_identifier: The resource identifier for the DB instance
+        report_id: The ID of the performance report to read
+
+    Returns:
+        JSON string containing the complete performance report data including metrics, analysis, and recommendations
     """
+    logger.info(
+        f'Retrieving performance report {report_id} for DB instance {dbi_resource_identifier}'
+    )
+    pi_client = PIConnectionManager.get_connection()
 
-    def __init__(self, mcp, pi_client: PIClient):
-        """Initialize the RDS Performance Report handler.
+    try:
+        response = pi_client.get_performance_analysis_report(
+            ServiceType='RDS',
+            Identifier=dbi_resource_identifier,
+            AnalysisReportId=report_id,
+            TextFormat='MARKDOWN',
+        )
+    except Exception as e:
+        return json.dumps(
+            {
+                'error': f'Failed to retrieve performance report: {str(e)}',
+                'resource': f'aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id}',
+            },
+            indent=2,
+        )
 
-        Args:
-            mcp: The MCP server instance
-            pi_client: The AWS Performance Insights client instance
-        """
-        self.mcp = mcp
-        self.pi_client = pi_client
-
-        # Register resources
-        self.mcp.resource(
-            uri='aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id}',
-            name='ReadPerformanceReport',
-            mime_type='application/json',
-            description=READ_PERFORMANCE_REPORT_RESOURCE_DESCRIPTION,
-        )(self.read_performance_report)
-
-    async def read_performance_report(
-        self,
-        dbi_resource_identifier: str = Field(
-            description='The AWS Region-unique, immutable identifier for the DB instance. This is the DbiResourceId returned by the ListDBInstances resource'
-        ),
-        report_id: str = Field(
-            ..., description='The unique identifier of the performance analysis report to retrieve'
-        ),
-    ) -> str:
-        """Retrieve a specific performance report from AWS Performance Insights.
-
-        Args:
-            dbi_resource_identifier (str): The resource identifier for the DB instance
-            report_id (str): The ID of the performance report to read
-            pi_client (PIClient): The AWS Performance Insights client
-
-        Returns:
-            dict: The complete performance report data including metrics, analysis, and recommendations
-        """
-        try:
-            response = self.pi_client.get_performance_analysis_report(
-                ServiceType='RDS',
-                Identifier=dbi_resource_identifier,
-                AnalysisReportId=report_id,
-                TextFormat='MARKDOWN',
-            )
-        except Exception as e:
-            error_result = await handle_aws_error(
-                f'get_performance_analysis_report({dbi_resource_identifier}, {report_id})', e, None
-            )
-            return json.dumps(error_result, indent=2)
-
-        # Convert TypedDict to Dict before formatting
-        formatted_response = format_aws_response(dict(response))
-        analysis_report = formatted_response.get('AnalysisReport', {})
-        return json.dumps(analysis_report)
+    # Convert TypedDict to Dict before formatting
+    formatted_response = format_aws_response(dict(response))
+    analysis_report = formatted_response.get('AnalysisReport', {})
+    return json.dumps(analysis_report, indent=2)

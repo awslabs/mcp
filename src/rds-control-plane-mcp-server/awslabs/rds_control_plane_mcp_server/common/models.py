@@ -14,9 +14,8 @@
 
 """Model definitions for RDS Control Plane MCP Server."""
 
-from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Optional
 
 
 class VpcSecurityGroup(BaseModel):
@@ -149,70 +148,3 @@ class InstanceListModel(BaseModel):
     )
     count: int = Field(description='Total number of DB instances')
     resource_uri: str = Field(description='The resource URI for the DB instances')
-
-
-class DBLogFileSummary(BaseModel):
-    """Database log file information.
-
-    This model represents an Amazon RDS database log file with its metadata,
-    including name, last modification time, and size.
-
-    Attributes:
-        log_file_name: The name of the log file in the database instance.
-        last_written: A POSIX timestamp when the last log entry was written.
-        size: Size of the log file in bytes.
-    """
-
-    log_file_name: str = Field(
-        description='Name of the log file',
-    )
-    last_written: datetime = Field(
-        description='A POSIX timestamp when the last log entry was written.'
-    )
-    size: int = Field(description='Size of the log file in bytes', ge=0)
-
-
-class DBLogFileListModel(BaseModel):
-    """DB cluster list model."""
-
-    log_files: List[DBLogFileSummary] = Field(
-        default_factory=list, description='List of DB log files'
-    )
-    count: int = Field(
-        description='Total number of non-empty log files for the DB instance in Amazon RDS'
-    )
-    resource_uri: str = Field(description='The resource URI for the DB log files')
-
-
-class PerformanceReportSummary(BaseModel):
-    """Performance analysis report information.
-
-    This model represents an Amazon RDS performance analysis report with its metadata,
-    including report ID, creation time, time range of the analysis, and status.
-
-    Attributes:
-        analysis_report_id: Unique identifier for the performance report.
-        create_time: Timestamp when the report was created.
-        start_time: Start time of the performance analysis period.
-        end_time: End time of the performance analysis period.
-        status: Current status of the report (RUNNING, SUCCEEDED, or FAILED).
-    """
-
-    # Models the AnalysisReportSummaryTypeDef class which has no required fields
-    analysis_report_id: str | None = Field(
-        None, description='Unique identifier for the performance report'
-    )
-    create_time: str | None = Field(None, description='Time when the report was created')
-    start_time: str | None = Field(None, description='Start time of the analysis period')
-    end_time: str | None = Field(None, description='End time of the analysis period')
-    status: Literal['RUNNING', 'SUCCEEDED', 'FAILED'] | None = None
-
-
-class PerformanceReportListModel(BaseModel):
-    """DB cluster list model."""
-
-    reports: List[PerformanceReportSummary] = Field(
-        default_factory=list, description='List of performance reports for a RDS instance'
-    )
-    count: int = Field(description='Total number of performance reports')
-    resource_uri: str = Field(description='The resource URI for the performance reports')

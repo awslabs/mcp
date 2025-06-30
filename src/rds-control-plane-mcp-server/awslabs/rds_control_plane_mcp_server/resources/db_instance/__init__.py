@@ -14,3 +14,17 @@
 
 # This file is part of the awslabs namespace.
 # It is intentionally minimal to support PEP 420 namespace packages.
+
+from .get_instance_detail import get_instance_detail
+from .list_instances import list_instances
+from .list_performance_reports import list_performance_reports
+from .read_performance_report import read_performance_report
+from .list_db_logs import list_db_log_files
+
+__all__ = [
+    'get_instance_detail',
+    'list_instances',
+    'list_performance_reports',
+    'read_performance_report',
+    'list_db_log_files',
+]

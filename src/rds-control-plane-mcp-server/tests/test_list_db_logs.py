@@ -18,7 +18,9 @@ import json
 import pytest
 from awslabs.rds_control_plane_mcp_server.common.config import get_pagination_config
 from awslabs.rds_control_plane_mcp_server.common.constants import RESOURCE_PREFIX_DB_LOG_FILES
-from awslabs.rds_control_plane_mcp_server.resources.instances.list_db_logs import ListDBLogsHandler
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.list_db_logs import (
+    ListDBLogsHandler,
+)
 from unittest.mock import AsyncMock, MagicMock, patch
 
 

@@ -16,7 +16,7 @@
 
 import json
 import pytest
-from awslabs.rds_control_plane_mcp_server.resources.instances.read_performance_report import (
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.read_performance_report import (
     ReadPerformanceReportHandler,
 )
 from unittest.mock import AsyncMock, patch
