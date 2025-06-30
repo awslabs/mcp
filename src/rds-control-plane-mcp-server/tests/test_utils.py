@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock
 class TestFormatAwsResponse:
     """Tests for format_aws_response function."""
 
+    # Additional tests for advanced format_aws_response cases
+
     def test_format_aws_response_removes_metadata(self):
         """Test that ResponseMetadata is removed from response."""
         response = {
@@ -52,9 +54,59 @@ class TestFormatAwsResponse:
         result = utils.format_aws_response(response)
         assert result == response
 
+    def test_format_aws_response_with_nested_metadata(self):
+        """Test formatting AWS response with nested metadata."""
+        response = {
+            'ResponseMetadata': {'RequestId': '1234', 'HTTPStatusCode': 200},
+            'Items': [
+                {'id': '1', 'name': 'item1'},
+                {'id': '2', 'name': 'item2', 'ResponseMetadata': {'internal': True}},
+            ],
+            'NestedData': {
+                'ResponseMetadata': {'nested': True},
+                'value': 'test',
+            }
+        }
+
+        formatted = utils.format_aws_response(response)
+        
+        assert 'ResponseMetadata' not in formatted
+        
+        assert 'ResponseMetadata' in formatted['Items'][1]
+        assert 'ResponseMetadata' in formatted['NestedData']
+        
+        # Ensure other data is preserved
+        assert formatted['Items'][0]['id'] == '1'
+        assert formatted['NestedData']['value'] == 'test'
+
+    def test_format_aws_response_with_empty_nested_structures(self):
+        """Test formatting AWS response with empty nested structures."""
+        response = {
+            'ResponseMetadata': {'RequestId': '1234'},
+            'EmptyDict': {},
+            'EmptyList': [],
+            'NullValue': None,
+            'NestedEmpty': {
+                'EmptyDict': {},
+                'EmptyList': []
+            }
+        }
+
+        formatted = utils.format_aws_response(response)
+        
+        # Check that empty structures are preserved
+        assert 'EmptyDict' in formatted
+        assert formatted['EmptyDict'] == {}
+        assert formatted['EmptyList'] == []
+        assert formatted['NullValue'] is None
+        assert formatted['NestedEmpty']['EmptyDict'] == {}
+        assert formatted['NestedEmpty']['EmptyList'] == []
+
 
 class TestConvertDatetimeToString:
     """Tests for convert_datetime_to_string function."""
+    
+    # Additional advanced tests for datetime conversion
 
     def test_convert_datetime_direct(self):
         """Test converting a datetime object directly."""
@@ -142,11 +194,72 @@ class TestConvertDatetimeToString:
         assert result['dict']['time'] == now.isoformat()
         assert isinstance(result['nested']['mixed'][0]['time'], str)
         assert result['nested']['mixed'][0]['time'] == now.isoformat()
+        
+    def test_convert_datetime_in_deeply_nested_structures(self):
+        """Test converting datetime in deeply nested structures."""
+        now = datetime.datetime.now()
+        yesterday = datetime.datetime(now.year, now.month, max(1, now.day - 1))
+        
+        data = {
+            'toplevel': now,
+            'nested': {
+                'datetime': yesterday,
+                'list': [now, 'string', 123],
+                'deeper': {
+                    'datetime': now,
+                    'mixed': [yesterday, {'time': now}, [yesterday]]
+                }
+            },
+            'list_of_dicts': [
+                {'time': now},
+                {'time': yesterday}
+            ]
+        }
+        
+        result = utils.convert_datetime_to_string(data)
+        
+        # Check conversions at all levels
+        assert result['toplevel'] == now.isoformat()
+        assert result['nested']['datetime'] == yesterday.isoformat()
+        assert result['nested']['list'][0] == now.isoformat()
+        assert result['nested']['deeper']['datetime'] == now.isoformat()
+        assert result['nested']['deeper']['mixed'][0] == yesterday.isoformat()
+        assert result['nested']['deeper']['mixed'][1]['time'] == now.isoformat()
+        assert result['nested']['deeper']['mixed'][2][0] == yesterday.isoformat()
+        assert result['list_of_dicts'][0]['time'] == now.isoformat()
+        assert result['list_of_dicts'][1]['time'] == yesterday.isoformat()
+        
+        # Check non-datetime values remain unchanged
+        assert result['nested']['list'][1] == 'string'
+        assert result['nested']['list'][2] == 123
+        
+    def test_convert_datetime_with_custom_objects(self):
+        """Test converting datetime with custom objects in the structure."""
+        now = datetime.datetime.now()
+        
+        class CustomObj:
+            def __init__(self):
+                self.timestamp = now
+        
+        custom = CustomObj()
+        
+        # Custom objects should be left as-is
+        result = utils.convert_datetime_to_string(custom)
+        assert result == custom
+        
+        # Test mixed with dicts
+        data = {'obj': custom, 'time': now}
+        result = utils.convert_datetime_to_string(data)
+        
+        assert result['obj'] == custom
+        assert result['time'] == now.isoformat()
 
 
 @pytest.mark.asyncio
 class TestPaginateAwsApiCall:
     """Tests for paginate_aws_api_call function."""
+    
+    # Advanced pagination tests
 
     async def test_paginate_single_page(self):
         """Test pagination with single page of results."""
@@ -250,6 +363,87 @@ class TestPaginateAwsApiCall:
                 format_function=format_item,
                 result_key='Items'
             )
+            
+    async def test_paginate_with_exception_handling(self):
+        """Test pagination handling when exceptions occur mid-way."""
+        # Use a MagicMock instead of AsyncMock because of asyncio.to_thread
+        mock_client = MagicMock()
+        
+        # First call succeeds, second call raises exception
+        mock_client.side_effect = [
+            {'Items': [{'id': '1'}], 'Marker': 'token1'},
+            Exception("API error")
+        ]
+        
+        # The function should handle the exception gracefully in a real scenario,
+        # but for test purposes we ensure it's propagated correctly
+        with pytest.raises(Exception) as excinfo:
+            await utils.paginate_aws_api_call(
+                mock_client,
+                format_function=lambda x: x,
+                result_key='Items'
+            )
+        
+        assert "API error" in str(excinfo.value)
+        assert mock_client.call_count == 2
+
+    async def test_paginate_with_missing_token(self):
+        """Test pagination with inconsistent token presence."""
+        # Use a MagicMock instead of AsyncMock because of asyncio.to_thread
+        mock_client = MagicMock()
+        
+        # First call has no Marker token - so only processes one page
+        mock_client.return_value = {'Items': [{'id': '1'}]}  # No marker/token key
+        
+        result = await utils.paginate_aws_api_call(
+            mock_client,
+            format_function=lambda x: x,
+            result_key='Items'
+        )
+        
+        # Should only process first call since there's no marker
+        assert len(result) == 1
+        assert result[0]['id'] == '1'
+        assert mock_client.call_count == 1
+
+    async def test_paginate_with_complex_params(self):
+        """Test pagination with complex initial parameters."""
+        # Use a MagicMock instead of AsyncMock because of asyncio.to_thread
+        mock_client = MagicMock()
+        mock_client.side_effect = [
+            {'Resources': [{'id': '1'}], 'Marker': 'token1'},
+            {'Resources': [{'id': '2'}], 'Marker': 'token2'},
+            {'Resources': [{'id': '3'}]}
+        ]
+        
+        # Complex initial parameters including lists and nested dictionaries
+        complex_params = {
+            'Filters': [
+                {'Name': 'state', 'Values': ['running', 'stopped']},
+                {'Name': 'type', 'Values': ['t2.micro']}
+            ],
+            'Config': {'DetailLevel': 'high', 'Options': {'IncludeTags': True}}
+        }
+        
+        result = await utils.paginate_aws_api_call(
+            mock_client,
+            format_function=lambda x: x,
+            result_key='Resources',
+            **complex_params
+        )
+        
+        # Should combine all pages
+        assert len(result) == 3
+        assert [r['id'] for r in result] == ['1', '2', '3']
+        
+        # Check params were passed correctly in first call
+        first_call_kwargs = mock_client.call_args_list[0][1]
+        assert first_call_kwargs['Filters'] == complex_params['Filters']
+        assert first_call_kwargs['Config'] == complex_params['Config']
+        
+        # Check token was passed in subsequent calls
+        assert mock_client.call_args_list[1][1]['Marker'] == 'token1'
+        assert mock_client.call_args_list[2][1]['Marker'] == 'token2'
 
 
 class TestFormatClusterInfo:
@@ -518,3 +712,51 @@ class TestHandleExceptions:
         """Test handling successful operation."""
         result = await self.mock_aws_operation()
         assert result == 'success'
+        
+    async def test_handle_aws_api_error_with_detailed_error(self):
+        """Test AWS API error handling with detailed error information."""
+        error_code = "InvalidParameterCombination"
+        error_message = "Parameters x and y cannot be used together"
+        
+        error_response = {
+            "Error": {
+                "Code": error_code,
+                "Message": error_message,
+                "Type": "Sender"
+            }
+        }
+        
+        error = ClientError(error_response, "describe_db_clusters")
+        
+        result = await self.mock_aws_operation(error=error)
+        result_dict = json.loads(result)
+        
+        # Check all expected fields
+        assert "error" in result_dict
+        assert result_dict["error_code"] == error_code
+        assert result_dict["error_message"] == error_message
+        assert result_dict["operation"] == "mock_aws_operation"
+        # Only check that error code is in the error message, not necessarily the full error message
+        assert error_code in result_dict["error"]
+
+    async def test_handle_nested_exception(self):
+        """Test general error handling with nested exception."""
+        try:
+            try:
+                1 / 0
+            except ZeroDivisionError as e:
+                raise ValueError("Invalid calculation") from e
+        except ValueError as e:
+            error = e
+            
+        result = await self.mock_aws_operation(error=error)
+        result_dict = json.loads(result)
+        
+        # Check for expected fields
+        assert "error" in result_dict
+        assert result_dict["error_type"] == "ValueError"
+        assert result_dict["error_message"] == "Invalid calculation"
+        assert result_dict["operation"] == "mock_aws_operation"
+        
+        # The error handling doesn't always include cause info in the string
+        # Just check the error type and message
