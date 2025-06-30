@@ -8,6 +8,8 @@ on:
       - main
     # Review gh actions docs if you want to further define triggers, paths, etc
     # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#on
+    # Review gh actions docs if you want to further define triggers, paths, etc
+    # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#on
 
 jobs:
   build:
@@ -21,17 +23,17 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: 'docs/package-lock.json'
+          cache-dependency-path: 'docusaurus-site/package-lock.json'
 
       - name: Install dependencies
-        run: cd docs && npm ci
+        run: cd docusaurus-site && npm ci
       - name: Build website
-        run: cd docs && npm run build
+        run: cd docusaurus-site && npm run build
 
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: docs/build
+          path: docusaurus-site/build
 
   deploy:
     name: Deploy to GitHub Pages
