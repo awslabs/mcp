@@ -121,21 +121,39 @@ async def list_performance_reports(
     pi_client = PIConnectionManager.get_connection()
     reports: List[PerformanceReportSummary] = []
 
-    # Only get up to max_items reports
-    response = pi_client.list_performance_analysis_reports(
-        ServiceType='RDS', Identifier=dbi_resource_identifier, MaxResults=Context.max_items()
-    )
+    next_token = None
+    max_results = 20 
 
-    for report in response.get('AnalysisReports', []):
-        reports.append(
-            PerformanceReportSummary(
-                analysis_report_id=report.get('AnalysisReportId'),
-                create_time=convert_datetime_to_string(report.get('CreateTime')),
-                start_time=convert_datetime_to_string(report.get('StartTime')),
-                end_time=convert_datetime_to_string(report.get('EndTime')),
-                status=report.get('Status'),
+    while True:
+        if next_token:
+            response = pi_client.list_performance_analysis_reports(
+                ServiceType='RDS', 
+                Identifier=dbi_resource_identifier, 
+                MaxResults=max_results,
+                NextToken=next_token
             )
-        )
+        else:
+            response = pi_client.list_performance_analysis_reports(
+                ServiceType='RDS', 
+                Identifier=dbi_resource_identifier, 
+                MaxResults=max_results
+            )
+        
+        for report in response.get('AnalysisReports', []):
+            reports.append(
+                PerformanceReportSummary(
+                    analysis_report_id=report.get('AnalysisReportId'),
+                    create_time=convert_datetime_to_string(report.get('CreateTime')),
+                    start_time=convert_datetime_to_string(report.get('StartTime')),
+                    end_time=convert_datetime_to_string(report.get('EndTime')),
+                    status=report.get('Status'),
+                )
+            )
+            
+        if 'NextToken' not in response:
+            break
+            
+        next_token = response.get('NextToken')
 
     result = PerformanceReportListModel(
         reports=reports,

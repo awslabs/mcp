@@ -11,63 +11,75 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the main function in server.py."""
 
-from awslabs.rds_control_plane_mcp_server.server import create_mcp_server, main
-from unittest.mock import MagicMock, patch
+"""Tests for the RDS Control Plane MCP Server main module."""
+
+import os
+import pytest
+from unittest.mock import patch, MagicMock, ANY
+
+from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
+from awslabs.rds_control_plane_mcp_server.common.server import mcp, SERVER_INSTRUCTIONS, SERVER_DEPENDENCIES
 
 
-class TestMain:
-    """Tests for the main function."""
+def test_mcp_server_version():
+    """Test that the MCP server version is set correctly."""
+    assert MCP_SERVER_VERSION is not None
+    assert isinstance(MCP_SERVER_VERSION, str)
+    # Version should follow semantic versioning
+    assert len(MCP_SERVER_VERSION.split('.')) >= 2
 
-    @patch('awslabs.rds_control_plane_mcp_server.server.create_mcp_server')
-    @patch('sys.argv', ['awslabs.rds_control_plane_mcp_server'])
-    def test_main_default(self, mock_create_server):
-        """Test main function with default arguments."""
-        mock_server = MagicMock()
-        mock_create_server.return_value = mock_server
 
-        # Call the main function
-        main()
+def test_mcp_server_instructions():
+    """Test that the MCP server instructions are set correctly."""
+    assert SERVER_INSTRUCTIONS is not None
+    assert isinstance(SERVER_INSTRUCTIONS, str)
+    assert len(SERVER_INSTRUCTIONS) > 0
+    
+    # Instructions should contain key information about the server
+    assert 'Amazon RDS' in SERVER_INSTRUCTIONS
+    assert 'database' in SERVER_INSTRUCTIONS.lower()
+    assert any(keyword in SERVER_INSTRUCTIONS.lower() for keyword in ['instance', 'cluster'])
 
-        # Check that create_server was called
-        mock_create_server.assert_called_once()
 
-        # Check that run was called with the correct arguments
-        mock_server.run.assert_called_once()
-        assert mock_server.run.call_args[1].get('transport') is None
+def test_mcp_server_dependencies():
+    """Test that the MCP server dependencies are set correctly."""
+    assert SERVER_DEPENDENCIES is not None
+    assert isinstance(SERVER_DEPENDENCIES, list)
+    assert len(SERVER_DEPENDENCIES) > 0
+    
+    # Check for required dependencies
+    assert 'boto3' in SERVER_DEPENDENCIES
+    assert 'pydantic' in SERVER_DEPENDENCIES
+    assert 'loguru' in SERVER_DEPENDENCIES
 
-    def test_module_execution(self):
-        """Test the module execution when run as __main__."""
-        # This test directly executes the code in the if __name__ == '__main__': block
-        # to ensure coverage of that line
 
-        # Get the source code of the module
-        import inspect
-        from awslabs.rds_control_plane_mcp_server import server
+def test_mcp_object():
+    """Test the mcp object."""
+    assert mcp is not None
+    assert hasattr(mcp, 'resource')
+    assert callable(mcp.resource)
 
-        # Get the source code
-        source = inspect.getsource(server)
 
-        # Check that the module has the if __name__ == '__main__': block
-        assert "if __name__ == '__main__':" in source
-        assert 'main()' in source
-
-        # This test doesn't actually execute the code, but it ensures
-        # that the coverage report includes the if __name__ == '__main__': line
-        # by explicitly checking for its presence
-
-    def test_create_server(self):
-        """Test that create_server creates a FastMCP instance with the correct parameters."""
-        with patch('awslabs.rds_control_plane_mcp_server.server.FastMCP') as mock_fastmcp:
-            # Call create_server
-            create_mcp_server()
-
-            # Check that FastMCP was called with the correct parameters
-            mock_fastmcp.assert_called_once()
-            args, kwargs = mock_fastmcp.call_args
-            assert args[0] == 'awslabs.rds-control-plane-mcp-server'
-            assert 'instructions' in kwargs
-            assert 'dependencies' in kwargs
-            assert 'Amazon RDS' in kwargs['instructions']
-            assert 'boto3' in kwargs['dependencies']
+@patch.dict(os.environ, {'AWS_REGION': 'us-west-2'})
+def test_environment_variables():
+    """Test that the server respects environment variables."""
+    # Import connection manager to test environment variables
+    from awslabs.rds_control_plane_mcp_server.common.connection import RDSConnectionManager
+    
+    # Reset connection to ensure it's recreated with our environment variables
+    RDSConnectionManager._client = None
+    
+    with patch('boto3.Session') as mock_session:
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_client = MagicMock()
+        mock_session_instance.client.return_value = mock_client
+        
+        # Call get_connection to trigger session creation with environment variables
+        RDSConnectionManager.get_connection()
+        
+        # Verify the session was created with the region from environment variables
+        mock_session.assert_called_once()
+        args, kwargs = mock_session.call_args
+        assert kwargs['region_name'] == 'us-west-2'
