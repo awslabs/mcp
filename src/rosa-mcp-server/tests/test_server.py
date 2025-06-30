@@ -25,7 +25,8 @@ def test_server_creation():
     assert mcp.name == 'awslabs.rosa-mcp-server'
 
 
-def test_server_has_tools():
+@pytest.mark.asyncio
+async def test_server_has_tools():
     """Test that the server has tools registered."""
     mcp = create_server()
     
@@ -37,7 +38,7 @@ def test_server_has_tools():
     ROSAAuthHandler(mcp, allow_write=False)
     
     # Check that tools are registered
-    tools = mcp.list_tools()
+    tools = await mcp.list_tools()
     assert len(tools) > 0
     
     # Check for specific tools
