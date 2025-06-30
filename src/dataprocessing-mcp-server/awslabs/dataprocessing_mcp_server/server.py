@@ -27,6 +27,9 @@ import argparse
 from awslabs.dataprocessing_mcp_server.handlers.athena.athena_query_handler import (
     AthenaQueryHandler,
 )
+from awslabs.dataprocessing_mcp_server.handlers.emr.emr_ec2_cluster_handler import (
+    EMREc2ClusterHandler,
+)
 from awslabs.dataprocessing_mcp_server.handlers.emr.emr_ec2_instance_handler import (
     EMREc2InstanceHandler,
 )
@@ -238,6 +241,11 @@ def main():
         allow_sensitive_data_access=allow_sensitive_data_access,
     )
     GlueCommonsHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+    EMREc2ClusterHandler(
         mcp,
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,

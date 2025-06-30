@@ -15,7 +15,7 @@
 
 """Response models for EMR operations."""
 
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, Content, TextContent
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
@@ -142,6 +142,7 @@ class ListInstanceFleetsResponseModel(EMRResponseBase):
     instance_fleets: List[Dict[str, Any]] = Field(..., description='List of instance fleets')
     count: int = Field(..., description='Number of instance fleets found')
     marker: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list', description='Operation performed')
 
 
 class ListInstanceFleetsResponse(CallToolResult):
@@ -160,6 +161,7 @@ class ListInstanceFleetsResponse(CallToolResult):
             instance_fleets=model.instance_fleets,
             count=model.count,
             marker=model.marker,
+            operation=model.operation,
         )
 
 
@@ -169,6 +171,7 @@ class ListInstancesResponseModel(EMRResponseBase):
     instances: List[Dict[str, Any]] = Field(..., description='List of instances')
     count: int = Field(..., description='Number of instances found')
     marker: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list', description='Operation performed')
 
 
 class ListInstancesResponse(CallToolResult):
@@ -187,6 +190,7 @@ class ListInstancesResponse(CallToolResult):
             instances=model.instances,
             count=model.count,
             marker=model.marker,
+            operation=model.operation,
         )
 
 
@@ -199,6 +203,7 @@ class ListSupportedInstanceTypesResponseModel(BaseModel):
     count: int = Field(..., description='Number of instance types found')
     marker: Optional[str] = Field(None, description='Token for pagination')
     release_label: str = Field(..., description='EMR release label')
+    operation: str = Field(default='list', description='Operation performed')
 
 
 class ListSupportedInstanceTypesResponse(CallToolResult):
@@ -220,6 +225,7 @@ class ListSupportedInstanceTypesResponse(CallToolResult):
             count=model.count,
             marker=model.marker,
             release_label=model.release_label,
+            operation=model.operation,
         )
 
 
@@ -342,3 +348,120 @@ class ListStepsResponse(CallToolResult):
             marker=model.marker,
             operation=model.operation,
         )
+
+
+# Response models for EMR Security Configuration Operations
+
+
+class CreateSecurityConfigurationResponse(CallToolResult):
+    """Response model for create security configuration operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    name: str = Field(..., description='Name of the created security configuration')
+    creation_date_time: str = Field(..., description='Creation timestamp in ISO format')
+    operation: str = Field(default='create', description='Operation performed')
+
+
+class DeleteSecurityConfigurationResponse(CallToolResult):
+    """Response model for delete security configuration operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    name: str = Field(..., description='Name of the deleted security configuration')
+    operation: str = Field(default='delete', description='Operation performed')
+
+
+class DescribeSecurityConfigurationResponse(CallToolResult):
+    """Response model for describe security configuration operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    name: str = Field(..., description='Name of the security configuration')
+    security_configuration: str = Field(..., description='Security configuration content')
+    creation_date_time: str = Field(..., description='Creation timestamp in ISO format')
+    operation: str = Field(default='describe', description='Operation performed')
+
+
+class ListSecurityConfigurationsResponse(CallToolResult):
+    """Response model for list security configurations operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    security_configurations: List[Dict[str, Any]] = Field(
+        ..., description='List of security configurations'
+    )
+    count: int = Field(..., description='Number of security configurations found')
+    marker: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list', description='Operation performed')
+
+
+# Response models for EMR Cluster Operations
+
+
+class CreateClusterResponse(CallToolResult):
+    """Response model for create cluster operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    cluster_id: Optional[str] = Field(default='', description='ID of the created cluster')
+    cluster_arn: Optional[str] = Field(default='', description='ARN of the created cluster')
+    operation: str = Field(default='create', description='Operation performed')
+
+
+class DescribeClusterResponse(CallToolResult):
+    """Response model for describe cluster operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    cluster: Dict[str, Any] = Field(..., description='Cluster details')
+    operation: str = Field(default='describe', description='Operation performed')
+
+
+class ModifyClusterResponse(CallToolResult):
+    """Response model for modify cluster operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    cluster_id: str = Field(..., description='ID of the modified cluster')
+    step_concurrency_level: Optional[int] = Field(None, description='Step concurrency level')
+    operation: str = Field(default='modify', description='Operation performed')
+
+
+class ModifyClusterAttributesResponse(CallToolResult):
+    """Response model for modify cluster attributes operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    cluster_id: str = Field(..., description='ID of the cluster with modified attributes')
+    operation: str = Field(default='modify_attributes', description='Operation performed')
+
+
+class TerminateClustersResponse(CallToolResult):
+    """Response model for terminate clusters operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    cluster_ids: List[str] = Field(..., description='IDs of the terminated clusters')
+    operation: str = Field(default='terminate', description='Operation performed')
+
+
+class ListClustersResponse(CallToolResult):
+    """Response model for list clusters operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    clusters: List[Dict[str, Any]] = Field(..., description='List of clusters')
+    count: int = Field(..., description='Number of clusters found')
+    marker: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list', description='Operation performed')
+
+
+class WaitClusterResponse(CallToolResult):
+    """Response model for wait operation."""
+
+    isError: bool = Field(default=False, description='Whether the operation resulted in an error')
+    content: List[Content] = Field(..., description='Content of the response')
+    cluster_id: str = Field(..., description='ID of the cluster')
+    state: str = Field(..., description='Current state of the cluster')
+    operation: str = Field(default='wait', description='Operation performed')
