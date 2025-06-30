@@ -1,23 +1,13 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """Tests for RDS Management MCP Server utilities."""
 
 import datetime
+import json
 import pytest
 from awslabs.rds_control_plane_mcp_server.common import utils
 from awslabs.rds_control_plane_mcp_server.common.models import ClusterModel, InstanceModel
+from awslabs.rds_control_plane_mcp_server.resources.db_cluster.utils import format_cluster_info
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.utils import format_instance_info
+from awslabs.rds_control_plane_mcp_server.common.decorator import handle_exceptions
 from botocore.exceptions import ClientError
 from unittest.mock import AsyncMock, MagicMock
 
@@ -105,6 +95,162 @@ class TestConvertDatetimeToString:
 
         assert result == data
 
+    def test_convert_datetime_with_none_values(self):
+        """Test converting data with None values."""
+        now = datetime.datetime.now()
+        data = {'created': now, 'updated': None, 'nested': {'time': now, 'value': None}}
+
+        result = utils.convert_datetime_to_string(data)
+
+        assert isinstance(result['created'], str)
+        assert result['created'] == now.isoformat()
+        assert result['updated'] is None
+        assert isinstance(result['nested']['time'], str)
+        assert result['nested']['time'] == now.isoformat()
+        assert result['nested']['value'] is None
+
+    def test_convert_datetime_with_mixed_types(self):
+        """Test converting data with mixed types including datetimes."""
+        now = datetime.datetime.now()
+        data = {
+            'datetime': now,
+            'string': 'test',
+            'number': 42,
+            'boolean': True,
+            'none': None,
+            'list': [now, 'test', 42],
+            'dict': {'time': now, 'value': 'test'},
+            'nested': {
+                'mixed': [
+                    {'time': now, 'value': 1},
+                    {'time': now, 'value': 'test'}
+                ]
+            }
+        }
+
+        result = utils.convert_datetime_to_string(data)
+
+        assert isinstance(result['datetime'], str)
+        assert result['datetime'] == now.isoformat()
+        assert result['string'] == 'test'
+        assert result['number'] == 42
+        assert result['boolean'] is True
+        assert result['none'] is None
+        assert isinstance(result['list'][0], str)
+        assert result['list'][0] == now.isoformat()
+        assert isinstance(result['dict']['time'], str)
+        assert result['dict']['time'] == now.isoformat()
+        assert isinstance(result['nested']['mixed'][0]['time'], str)
+        assert result['nested']['mixed'][0]['time'] == now.isoformat()
+
+
+@pytest.mark.asyncio
+class TestPaginateAwsApiCall:
+    """Tests for paginate_aws_api_call function."""
+
+    async def test_paginate_single_page(self):
+        """Test pagination with single page of results."""
+        mock_client = MagicMock()
+        mock_client.return_value = {
+            'Items': [{'id': '1'}, {'id': '2'}]
+        }
+
+        def format_item(item):
+            return {'formatted_id': item['id']}
+
+        result = await utils.paginate_aws_api_call(
+            client_function=mock_client,
+            format_function=format_item,
+            result_key='Items'
+        )
+
+        assert len(result) == 2
+        assert result[0]['formatted_id'] == '1'
+        assert result[1]['formatted_id'] == '2'
+        assert mock_client.call_count == 1
+
+    async def test_paginate_multiple_pages(self):
+        """Test pagination with multiple pages of results."""
+        mock_client = MagicMock()
+        mock_client.side_effect = [
+            {
+                'Items': [{'id': '1'}, {'id': '2'}],
+                'Marker': 'next-page'
+            },
+            {
+                'Items': [{'id': '3'}, {'id': '4'}]
+            }
+        ]
+
+        def format_item(item):
+            return {'formatted_id': item['id']}
+
+        result = await utils.paginate_aws_api_call(
+            client_function=mock_client,
+            format_function=format_item,
+            result_key='Items'
+        )
+
+        assert len(result) == 4
+        assert [item['formatted_id'] for item in result] == ['1', '2', '3', '4']
+        assert mock_client.call_count == 2
+
+    async def test_paginate_empty_results(self):
+        """Test pagination with empty results."""
+        mock_client = MagicMock()
+        mock_client.return_value = {
+            'Items': []
+        }
+
+        def format_item(item):
+            return item
+
+        result = await utils.paginate_aws_api_call(
+            client_function=mock_client,
+            format_function=format_item,
+            result_key='Items'
+        )
+
+        assert len(result) == 0
+        assert mock_client.call_count == 1
+
+    async def test_paginate_with_kwargs(self):
+        """Test pagination with additional keyword arguments."""
+        mock_client = MagicMock()
+        mock_client.return_value = {
+            'Items': [{'id': '1'}]
+        }
+
+        def format_item(item):
+            return item
+
+        await utils.paginate_aws_api_call(
+            client_function=mock_client,
+            format_function=format_item,
+            result_key='Items',
+            MaxResults=10,
+            Filter='test'
+        )
+
+        mock_client.assert_called_once_with(MaxResults=10, Filter='test')
+
+    async def test_paginate_with_format_error(self):
+        """Test pagination when format function raises an error."""
+        mock_client = MagicMock()
+        mock_client.return_value = {
+            'Items': [{'id': '1'}, {'bad_item': True}]
+        }
+
+        def format_item(item):
+            return {'formatted_id': item['id']}  # Will raise KeyError for bad_item
+
+        with pytest.raises(KeyError):
+            await utils.paginate_aws_api_call(
+                client_function=mock_client,
+                format_function=format_item,
+                result_key='Items'
+            )
+
 
 class TestFormatClusterInfo:
     """Tests for format_cluster_info function."""
@@ -114,7 +260,7 @@ class TestFormatClusterInfo:
         response = mock_rds_client.describe_db_clusters()
         cluster = response['DBClusters'][0]
 
-        result = utils.format_cluster_info(cluster)  # type: ignore
+        result = format_cluster_info(cluster)  # type: ignore
 
         assert isinstance(result, ClusterModel)
 
@@ -155,7 +301,7 @@ class TestFormatClusterInfo:
             'BackupRetentionPeriod': 1,
         }
 
-        result = utils.format_cluster_info(cluster)  # type: ignore
+        result = format_cluster_info(cluster)  # type: ignore
 
         assert isinstance(result, ClusterModel)
         assert result.cluster_id == 'min-cluster'
@@ -183,7 +329,7 @@ class TestFormatClusterInfo:
             'TagList': [],
         }
 
-        result = utils.format_cluster_info(cluster)  # type: ignore
+        result = format_cluster_info(cluster)  # type: ignore
 
         assert isinstance(result, ClusterModel)
         assert result.cluster_id == 'empty-list-cluster'
@@ -202,7 +348,7 @@ class TestFormatInstanceInfo:
         response = mock_rds_client.describe_db_instances()
         instance = response['DBInstances'][0]  # Instance with cluster
 
-        result = utils.format_instance_info(instance)  # type: ignore
+        result = format_instance_info(instance)  # type: ignore
 
         assert isinstance(result, InstanceModel)
 
@@ -231,7 +377,7 @@ class TestFormatInstanceInfo:
         response = mock_rds_client.describe_db_instances()
         instance = response['DBInstances'][1]  # Standalone instance
 
-        result = utils.format_instance_info(instance)
+        result = format_instance_info(instance)
 
         assert isinstance(result, InstanceModel)
 
@@ -267,7 +413,7 @@ class TestFormatInstanceInfo:
             'PubliclyAccessible': True,
         }
 
-        result = utils.format_instance_info(instance)  # type: ignore
+        result = format_instance_info(instance)  # type: ignore
 
         assert isinstance(result, InstanceModel)
         assert result.instance_id == 'min-instance'
@@ -297,7 +443,7 @@ class TestFormatInstanceInfo:
             },
         }
 
-        result = utils.format_instance_info(instance)  # type: ignore
+        result = format_instance_info(instance)  # type: ignore
 
         assert isinstance(result, InstanceModel)
         assert result.instance_id == 'partial-endpoint-instance'
@@ -320,7 +466,7 @@ class TestFormatInstanceInfo:
             'StorageType': 'gp2',
         }
 
-        result = utils.format_instance_info(instance)  # type: ignore
+        result = format_instance_info(instance)  # type: ignore
 
         assert isinstance(result, InstanceModel)
         assert result.instance_id == 'partial-storage-instance'
@@ -332,65 +478,43 @@ class TestFormatInstanceInfo:
 
 
 @pytest.mark.asyncio
-class TestHandleAwsError:
-    """Tests for handle_aws_error function."""
+class TestHandleExceptions:
+    """Tests for handle_exceptions decorator."""
 
-    async def test_handle_aws_error_client_error(self):
+    @handle_exceptions
+    async def mock_aws_operation(self, error=None):
+        """Mock AWS operation that may raise an error."""
+        if error:
+            raise error
+        return 'success'
+
+    async def test_handle_client_error(self):
         """Test handling AWS client error."""
-        operation = 'test_operation'
         error = ClientError(
             error_response={'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
             operation_name='DescribeDBClusters',
         )
 
-        result = await utils.handle_aws_error(operation, error)
+        result = await self.mock_aws_operation(error=error)
+        result_dict = json.loads(result)
 
-        assert 'error' in result
-        assert 'Access denied' in str(result)
-        assert 'error_code' in result
-        assert result['error_code'] == 'AccessDenied'
+        assert 'error' in result_dict
+        assert 'Access denied' in str(result_dict)
+        assert 'error_code' in result_dict
+        assert result_dict['error_code'] == 'AccessDenied'
 
-    async def test_handle_aws_error_general_exception(self):
+    async def test_handle_general_exception(self):
         """Test handling general exception."""
-        operation = 'test_operation'
         error = ValueError('Invalid value')
 
-        result = await utils.handle_aws_error(operation, error)
+        result = await self.mock_aws_operation(error=error)
+        result_dict = json.loads(result)
 
-        assert 'error' in result
-        assert 'Invalid value' in str(result)
-        assert 'error_type' in result
+        assert 'error' in result_dict
+        assert 'Invalid value' in str(result_dict)
+        assert 'error_type' in result_dict
 
-    async def test_handle_aws_error_with_context(self):
-        """Test handling AWS error with MCP context."""
-        operation = 'test_operation'
-        error = ClientError(
-            error_response={
-                'Error': {'Code': 'ResourceNotFound', 'Message': 'Resource not found'}
-            },
-            operation_name='DescribeDBClusters',
-        )
-
-        mock_ctx = MagicMock()
-        mock_ctx.error = AsyncMock()
-
-        result = await utils.handle_aws_error(operation, error, ctx=mock_ctx)
-
-        assert 'error' in result
-        assert 'Resource not found' in str(result)
-        assert result['error_code'] == 'ResourceNotFound'
-        mock_ctx.error.assert_called_once_with('ResourceNotFound: Resource not found')
-
-    async def test_handle_general_error_with_context(self):
-        """Test handling general error with MCP context."""
-        operation = 'test_operation'
-        error = RuntimeError('Unexpected runtime error')
-
-        mock_ctx = MagicMock()
-        mock_ctx.error = AsyncMock()
-
-        result = await utils.handle_aws_error(operation, error, ctx=mock_ctx)
-
-        assert 'error' in result
-        assert 'Unexpected runtime error' in str(result)
-        mock_ctx.error.assert_called_once_with('Unexpected runtime error')
+    async def test_handle_success(self):
+        """Test handling successful operation."""
+        result = await self.mock_aws_operation()
+        assert result == 'success'
