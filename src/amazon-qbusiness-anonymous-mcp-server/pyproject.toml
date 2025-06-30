@@ -9,8 +9,10 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.38.45",
+    "boto3-stubs[qbusiness]>=1.38.46",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
+    "mypy-boto3-qbusiness>=1.38.45",
     "pydantic>=2.10.6",
 ]
 license = {text = "Apache-2.0"}

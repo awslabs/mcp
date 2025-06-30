@@ -16,14 +16,15 @@ import boto3
 import os
 import secrets
 from botocore.exceptions import ClientError
-from typing import Any, Dict
+from mypy_boto3_qbusiness.client import QBusinessClient
+from mypy_boto3_qbusiness.type_defs import ChatSyncOutputTypeDef
 
 
-def get_qbiz_client() -> boto3.client:
+def get_qbiz_client() -> QBusinessClient:
     """Create and return an Amazon Q Business client.
 
     Returns:
-        boto3.client: Configured Q Business client instance
+        QBusinessClient: Configured Q Business client instance
 
     Raises:
         Exception: If AWS_REGION environment variable is not set
@@ -37,14 +38,20 @@ def get_qbiz_client() -> boto3.client:
         region = os.getenv('AWS_REGION')
         if not region:
             raise ValueError('AWS_REGION environment variable is not set')
+        AWS_PROFILE = os.environ.get('AWS_PROFILE')
+        if AWS_PROFILE:
+            aq_client: QBusinessClient = boto3.Session(
+                profile_name=AWS_PROFILE, region_name=region
+            ).client('qbusiness')
+            return aq_client
 
-        aq_client = boto3.client('qbusiness', region_name=region)
+        aq_client: QBusinessClient = boto3.client('qbusiness', region_name=region)
         return aq_client
     except Exception as e:
         raise Exception(f'Failed to create Q Business client: {str(e)}')
 
 
-def make_query(client: boto3.client, query: str) -> Dict[str, Any]:
+def make_query(client: QBusinessClient, query: str) -> ChatSyncOutputTypeDef:
     """Execute a synchronous chat query against Amazon Q Business.
 
     Args:
@@ -74,6 +81,4 @@ def make_query(client: boto3.client, query: str) -> Dict[str, Any]:
         )
         return resp
     except ClientError as e:
-        error_code = e.response['Error']['Code']
-        error_message = e.response['Error']['Message']
-        raise Exception(f'Amazon Q Business API error ({error_code}): {error_message}')
+        raise Exception(f'Amazon Q Business API error {str(e)}')
