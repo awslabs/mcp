@@ -28,7 +28,7 @@ const config: Config = {
   onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
 
-  // Add search plugin
+  // Add search plugin and other plugins
   plugins: [
     [
       require.resolve('@easyops-cn/docusaurus-search-local'),
@@ -41,6 +41,14 @@ const config: Config = {
         docsRouteBasePath: '/',
       },
     ],
+  ],
+
+  // Add scripts to be loaded in the client
+  scripts: [
+    {
+      src: 'https://unpkg.com/feather-icons/dist/feather.min.js',
+      async: true,
+    },
   ],
 
   // Even if you don't use internationalization, you can use this field to set

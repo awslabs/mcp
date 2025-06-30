@@ -1,7 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import styles from './styles.module.css';
 import serverCardsData from '@site/static/assets/server-cards.json';
+
+// Add TypeScript declaration for Feather
+declare global {
+  interface Window {
+    feather?: {
+      replace: () => void;
+    };
+  }
+}
 
 type ServerCardProps = {
   id: string;
@@ -34,22 +43,37 @@ const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
 
+  // Map category to Feather icon name
+  const getCategoryIcon = (category: string) => {
+    const iconMap: Record<string, string> = {
+      'Documentation': 'book-open',
+      'Infrastructure & Deployment': 'server',
+      'AI & Machine Learning': 'cpu',
+      'Data & Analytics': 'database',
+      'Developer Tools & Support': 'tool',
+      'Integration & Messaging': 'share-2',
+      'Cost & Operations': 'dollar-sign',
+      'Core': 'zap'
+    };
+    return iconMap[category] || 'help-circle';
+  };
+
+  const categoryIconName = getCategoryIcon(server.category);
+
   return (
     <a href={`/mcp/servers/${server.id}`} className={styles.serverCardLink}>
       <div className={clsx(styles.serverCard)} data-id={server.id}>
         <div className={styles.serverCardHeader}>
           <div className={styles.serverCardIcon}>
-            <span role="img" aria-label={server.category}>
-              {server.icon}
-            </span>
+            <i data-feather={categoryIconName} style={{ width: '22px', height: '22px' }}></i>
           </div>
           <div className={styles.serverCardTitleSection}>
             <h3 className={styles.serverCardTitle}>{server.name || 'Unknown Server'}</h3>
-            <span 
+            <span
               className={clsx(
-                styles.serverCardCategory, 
+                styles.serverCardCategory,
                 styles[`serverCardCategory${categoryId}`]
-              )} 
+              )}
               data-category={server.category || ''}
             >
               {server.category || 'Uncategorized'}
@@ -67,10 +91,22 @@ const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
           <div className={styles.serverCardWorkflows}>
             {server.workflows?.map((workflow, index) => {
               const workflowData = serverCardsData.workflows.find(w => w.id === workflow);
+              // Map workflow IDs to Feather icon names
+              const getWorkflowIcon = (workflowId) => {
+                const iconMap = {
+                  'vibe-coding': 'code',
+                  'conversational': 'message-circle',
+                  'autonomous': 'cpu'
+                };
+                return iconMap[workflowId] || 'zap';
+              };
+
+              const workflowIconName = getWorkflowIcon(workflow);
+
               return (
                 <span key={index} className={styles.serverCardWorkflow} data-workflow={workflow}>
                   <span className={styles.serverCardWorkflowIcon}>
-                    {workflowData?.icon}
+                    <i data-feather={workflowIconName} style={{ width: '12px', height: '12px' }}></i>
                   </span>
                   {workflowData?.name || workflow}
                 </span>
@@ -89,23 +125,46 @@ export default function ServerCards(): React.ReactNode {
   const [workflowFilter, setWorkflowFilter] = useState('');
   const [sortOption, setSortOption] = useState('name-asc');
   const [filteredServers, setFilteredServers] = useState(serverCardsData.servers);
+  const featherInitialized = useRef(false);
+
+  // Initialize Feather icons after component mounts and whenever filtered servers change
+  useEffect(() => {
+    // Check if feather is available in the global scope
+    if (typeof window !== 'undefined' && window.feather) {
+      // Replace all feather icons
+      window.feather.replace();
+      featherInitialized.current = true;
+    } else if (!featherInitialized.current) {
+      // If feather is not available, try to load it dynamically
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/feather-icons';
+      script.async = true;
+      script.onload = () => {
+        if (window.feather) {
+          window.feather.replace();
+          featherInitialized.current = true;
+        }
+      };
+      document.body.appendChild(script);
+    }
+  }, [filteredServers]);
 
   useEffect(() => {
     // Filter servers based on search query and filters
     const filtered = serverCardsData.servers.filter(server => {
-      const matchesSearch = !searchQuery || 
+      const matchesSearch = !searchQuery ||
         server.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         server.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (server.tags && server.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
-      
+
       const matchesCategory = !categoryFilter || server.category === categoryFilter;
-      
-      const matchesWorkflow = !workflowFilter || 
+
+      const matchesWorkflow = !workflowFilter ||
         (server.workflows && server.workflows.some(workflow => {
           const workflowData = serverCardsData.workflows.find(w => w.id === workflow);
           return workflowData?.name === workflowFilter;
         }));
-      
+
       return matchesSearch && matchesCategory && matchesWorkflow;
     });
 
@@ -113,7 +172,7 @@ export default function ServerCards(): React.ReactNode {
     const [sortField, sortDirection] = sortOption.split('-');
     const sorted = [...filtered].sort((a, b) => {
       let aValue, bValue;
-      
+
       if (sortField === 'name') {
         aValue = a.name.toLowerCase();
         bValue = b.name.toLowerCase();
@@ -124,12 +183,12 @@ export default function ServerCards(): React.ReactNode {
         aValue = a[sortField as keyof ServerCardProps] as string || '';
         bValue = b[sortField as keyof ServerCardProps] as string || '';
       }
-      
-      return sortDirection === 'asc' 
+
+      return sortDirection === 'asc'
         ? aValue.localeCompare(bValue)
         : bValue.localeCompare(aValue);
     });
-    
+
     setFilteredServers(sorted);
   }, [searchQuery, categoryFilter, workflowFilter, sortOption]);
 
@@ -137,7 +196,7 @@ export default function ServerCards(): React.ReactNode {
     <div className={styles.serverCardsContainer} id="server-cards-container">
       <div className={styles.cardControls}>
         <div className={styles.cardControlsSearch}>
-          <input 
+          <input
             type="text"
             className={styles.searchInput}
             placeholder="Search servers by name, description, or tags..."
@@ -149,8 +208,8 @@ export default function ServerCards(): React.ReactNode {
 
         <div className={styles.cardControlsFilters}>
           <div className={styles.cardControlsFilterGroup}>
-            <select 
-              id="category-filter" 
+            <select
+              id="category-filter"
               className={styles.cardControlsSelect}
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
@@ -165,8 +224,8 @@ export default function ServerCards(): React.ReactNode {
           </div>
 
           <div className={styles.cardControlsFilterGroup}>
-            <select 
-              id="workflow-filter" 
+            <select
+              id="workflow-filter"
               className={styles.cardControlsSelect}
               value={workflowFilter}
               onChange={(e) => setWorkflowFilter(e.target.value)}
@@ -181,8 +240,8 @@ export default function ServerCards(): React.ReactNode {
           </div>
 
           <div className={styles.cardControlsFilterGroup}>
-            <select 
-              id="sort-select" 
+            <select
+              id="sort-select"
               className={styles.cardControlsSelect}
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value)}

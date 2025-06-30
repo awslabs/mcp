@@ -2,49 +2,49 @@
   "categories": [
     {
       "description": "Real-time access to official AWS documentation",
-      "icon": "📚",
+      "icon": "\ud83d\udcda",
       "id": "documentation",
       "name": "Documentation"
     },
     {
       "description": "Build, deploy, and manage cloud infrastructure",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "infrastructure-deployment",
       "name": "Infrastructure & Deployment"
     },
     {
       "description": "Enhance AI applications with knowledge retrieval and ML capabilities",
-      "icon": "🤖",
+      "icon": "\ud83e\udd16",
       "id": "ai-ml",
       "name": "AI & Machine Learning"
     },
     {
       "description": "Work with databases, caching systems, and data processing",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "data-analytics",
       "name": "Data & Analytics"
     },
     {
       "description": "Accelerate development with code analysis and testing utilities",
-      "icon": "🛠️",
+      "icon": "\ud83d\udee0\ufe0f",
       "id": "developer-tools",
       "name": "Developer Tools & Support"
     },
     {
       "description": "Connect systems with messaging, workflows, and location services",
-      "icon": "📡",
+      "icon": "\ud83d\udce1",
       "id": "integration-messaging",
       "name": "Integration & Messaging"
     },
     {
       "description": "Monitor, optimize, and manage your AWS infrastructure and costs",
-      "icon": "💰",
+      "icon": "\ud83d\udcb0",
       "id": "cost-operations",
       "name": "Cost & Operations"
     },
     {
       "description": "Essential orchestration and planning capabilities",
-      "icon": "⚡",
+      "icon": "\u26a1",
       "id": "core",
       "name": "Core"
     }
@@ -53,7 +53,7 @@
     {
       "category": "Documentation",
       "description": "Get latest AWS docs and APIs",
-      "icon": "📚",
+      "icon": "\ud83d\udcda",
       "id": "aws-documentation-mcp-server",
       "name": "AWS Documentation MCP Server",
       "source_path": "src/aws-documentation-mcp-server/",
@@ -74,7 +74,7 @@
     {
       "category": "Infrastructure & Deployment",
       "description": "AWS CDK development with security compliance",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "cdk-mcp-server",
       "name": "AWS CDK MCP Server",
       "source_path": "src/cdk-mcp-server/",
@@ -95,7 +95,7 @@
     {
       "category": "Infrastructure & Deployment",
       "description": "Terraform workflows with integrated security scanning",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "terraform-mcp-server",
       "name": "AWS Terraform MCP Server",
       "source_path": "src/terraform-mcp-server/",
@@ -115,7 +115,7 @@
     {
       "category": "Infrastructure & Deployment",
       "description": "Direct CloudFormation resource management via Cloud Control API",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "cfn-mcp-server",
       "name": "AWS CloudFormation MCP Server",
       "source_path": "src/cfn-mcp-server/",
@@ -135,7 +135,7 @@
     {
       "category": "Infrastructure & Deployment",
       "description": "Kubernetes cluster management and application deployment",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "eks-mcp-server",
       "name": "Amazon EKS MCP Server",
       "source_path": "src/eks-mcp-server/",
@@ -156,7 +156,7 @@
     {
       "category": "Infrastructure & Deployment",
       "description": "Container orchestration and ECS application deployment",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "ecs-mcp-server",
       "name": "Amazon ECS MCP Server",
       "source_path": "src/ecs-mcp-server/",
@@ -176,7 +176,7 @@
     {
       "category": "Infrastructure & Deployment",
       "description": "Local container building with ECR integration",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "finch-mcp-server",
       "name": "Finch MCP Server",
       "source_path": "src/finch-mcp-server/",
@@ -197,7 +197,7 @@
     {
       "category": "Infrastructure & Deployment",
       "description": "Complete serverless application lifecycle with SAM CLI",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "aws-serverless-mcp-server",
       "name": "AWS Serverless MCP Server",
       "source_path": "src/aws-serverless-mcp-server/",
@@ -217,7 +217,7 @@
     {
       "category": "Infrastructure & Deployment",
       "description": "Execute Lambda functions as AI tools for private resource access",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "lambda-tool-mcp-server",
       "name": "AWS Lambda Tool MCP Server",
       "source_path": "src/lambda-tool-mcp-server/",
@@ -237,7 +237,7 @@
     {
       "category": "Infrastructure & Deployment",
       "description": "Help users create and manage AWS Support cases",
-      "icon": "🏗️",
+      "icon": "\ud83c\udfd7\ufe0f",
       "id": "aws-support-mcp-server",
       "name": "AWS Support MCP Server",
       "source_path": "src/aws-support-mcp-server/",
@@ -256,7 +256,7 @@
     {
       "category": "AI & Machine Learning",
       "description": "Query enterprise knowledge bases with citation support",
-      "icon": "🤖",
+      "icon": "\ud83e\udd16",
       "id": "bedrock-kb-retrieval-mcp-server",
       "name": "Amazon Bedrock Knowledge Bases Retrieval MCP Server",
       "source_path": "src/bedrock-kb-retrieval-mcp-server/",
@@ -277,7 +277,7 @@
     {
       "category": "AI & Machine Learning",
       "description": "Enterprise search and RAG enhancement",
-      "icon": "🤖",
+      "icon": "\ud83e\udd16",
       "id": "amazon-kendra-index-mcp-server",
       "name": "Amazon Kendra Index MCP Server",
       "source_path": "src/amazon-kendra-index-mcp-server/",
@@ -298,7 +298,7 @@
     {
       "category": "AI & Machine Learning",
       "description": "Data accessors to search through enterprise's Q index",
-      "icon": "🤖",
+      "icon": "\ud83e\udd16",
       "id": "amazon-qindex-mcp-server",
       "name": "Amazon Q index MCP Server",
       "source_path": "src/amazon-qindex-mcp-server/",
@@ -318,7 +318,7 @@
     {
       "category": "AI & Machine Learning",
       "description": "AI image generation with text and color guidance",
-      "icon": "🤖",
+      "icon": "\ud83e\udd16",
       "id": "nova-canvas-mcp-server",
       "name": "Amazon Nova Canvas MCP Server",
       "source_path": "src/nova-canvas-mcp-server/",
@@ -339,7 +339,7 @@
     {
       "category": "AI & Machine Learning",
       "description": "Analyze images using computer vision capabilities",
-      "icon": "🤖",
+      "icon": "\ud83e\udd16",
       "id": "amazon-rekognition-mcp-server",
       "name": "Amazon Rekognition MCP Server",
       "source_path": "src/amazon-rekognition-mcp-server/",
@@ -359,7 +359,7 @@
     {
       "category": "AI & Machine Learning",
       "description": "Analyze documents, images, videos, and audio files",
-      "icon": "🤖",
+      "icon": "\ud83e\udd16",
       "id": "aws-bedrock-data-automation-mcp-server",
       "name": "Amazon Bedrock Data Automation MCP Server",
       "source_path": "src/aws-bedrock-data-automation-mcp-server/",
@@ -380,7 +380,7 @@
     {
       "category": "Data & Analytics",
       "description": "Complete DynamoDB operations and table management",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "dynamodb-mcp-server",
       "name": "Amazon DynamoDB MCP Server",
       "source_path": "src/dynamodb-mcp-server/",
@@ -401,7 +401,7 @@
     {
       "category": "Data & Analytics",
       "description": "PostgreSQL database operations via RDS Data API",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "postgres-mcp-server",
       "name": "Amazon Aurora PostgreSQL MCP Server",
       "source_path": "src/postgres-mcp-server/",
@@ -422,7 +422,7 @@
     {
       "category": "Data & Analytics",
       "description": "MySQL database operations via RDS Data API",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "mysql-mcp-server",
       "name": "Amazon Aurora MySQL MCP Server",
       "source_path": "src/mysql-mcp-server/",
@@ -443,7 +443,7 @@
     {
       "category": "Data & Analytics",
       "description": "Distributed SQL with PostgreSQL compatibility",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "aurora-dsql-mcp-server",
       "name": "Amazon Aurora DSQL MCP Server",
       "source_path": "src/aurora-dsql-mcp-server/",
@@ -463,7 +463,7 @@
     {
       "category": "Data & Analytics",
       "description": "MongoDB-compatible document database operations",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "documentdb-mcp-server",
       "name": "Amazon DocumentDB MCP Server",
       "source_path": "src/documentdb-mcp-server/",
@@ -483,7 +483,7 @@
     {
       "category": "Data & Analytics",
       "description": "Graph database queries with openCypher and Gremlin",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "amazon-neptune-mcp-server",
       "name": "Amazon Neptune MCP Server",
       "source_path": "src/amazon-neptune-mcp-server/",
@@ -504,7 +504,7 @@
     {
       "category": "Data & Analytics",
       "description": "Apache Cassandra-compatible operations",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "amazon-keyspaces-mcp-server",
       "name": "Amazon Keyspaces MCP Server",
       "source_path": "src/amazon-keyspaces-mcp-server/",
@@ -524,7 +524,7 @@
     {
       "category": "Data & Analytics",
       "description": "InfluxDB-compatible operations",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "timestream-for-influxdb-mcp-server",
       "name": "Amazon Timestream for InfluxDB MCP Server",
       "source_path": "src/timestream-for-influxdb-mcp-server/",
@@ -544,7 +544,7 @@
     {
       "category": "Data & Analytics",
       "description": "Complete ElastiCache operations",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "elasticache-mcp-server",
       "name": "Amazon ElastiCache MCP Server",
       "source_path": "src/elasticache-mcp-server/",
@@ -564,7 +564,7 @@
     {
       "category": "Data & Analytics",
       "description": "Advanced data structures and caching with Valkey",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "valkey-mcp-server",
       "name": "Amazon ElastiCache / MemoryDB for Valkey MCP Server",
       "source_path": "src/valkey-mcp-server/",
@@ -585,7 +585,7 @@
     {
       "category": "Data & Analytics",
       "description": "High-speed caching operations",
-      "icon": "📊",
+      "icon": "\ud83d\udcca",
       "id": "memcached-mcp-server",
       "name": "Amazon ElastiCache for Memcached MCP Server",
       "source_path": "src/memcached-mcp-server/",
@@ -606,7 +606,7 @@
     {
       "category": "Developer Tools & Support",
       "description": "Semantic code search and repository analysis",
-      "icon": "🛠️",
+      "icon": "\ud83d\udee0\ufe0f",
       "id": "git-repo-research-mcp-server",
       "name": "Git Repo Research MCP Server",
       "source_path": "src/git-repo-research-mcp-server/",
@@ -627,7 +627,7 @@
     {
       "category": "Developer Tools & Support",
       "description": "Automated documentation from code analysis",
-      "icon": "🛠️",
+      "icon": "\ud83d\udee0\ufe0f",
       "id": "code-doc-gen-mcp-server",
       "name": "Code Documentation Generation MCP Server",
       "source_path": "src/code-doc-gen-mcp-server/",
@@ -647,7 +647,7 @@
     {
       "category": "Developer Tools & Support",
       "description": "Generate architecture diagrams and technical illustrations",
-      "icon": "🛠️",
+      "icon": "\ud83d\udee0\ufe0f",
       "id": "aws-diagram-mcp-server",
       "name": "AWS Diagram MCP Server",
       "source_path": "src/aws-diagram-mcp-server/",
@@ -668,7 +668,7 @@
     {
       "category": "Developer Tools & Support",
       "description": "React and modern web development guidance",
-      "icon": "🛠️",
+      "icon": "\ud83d\udee0\ufe0f",
       "id": "frontend-mcp-server",
       "name": "Frontend MCP Server",
       "source_path": "src/frontend-mcp-server/",
@@ -689,7 +689,7 @@
     {
       "category": "Developer Tools & Support",
       "description": "Generate realistic test data for development and ML",
-      "icon": "🛠️",
+      "icon": "\ud83d\udee0\ufe0f",
       "id": "syntheticdata-mcp-server",
       "name": "Synthetic Data MCP Server",
       "source_path": "src/syntheticdata-mcp-server/",
@@ -710,7 +710,7 @@
     {
       "category": "Integration & Messaging",
       "description": "Dynamic API integration through OpenAPI specifications",
-      "icon": "📡",
+      "icon": "\ud83d\udce1",
       "id": "openapi-mcp-server",
       "name": "OpenAPI MCP Server",
       "source_path": "src/openapi-mcp-server/",
@@ -731,7 +731,7 @@
     {
       "category": "Integration & Messaging",
       "description": "Event-driven messaging and queue management",
-      "icon": "📡",
+      "icon": "\ud83d\udce1",
       "id": "amazon-sns-sqs-mcp-server",
       "name": "Amazon SNS / SQS MCP Server",
       "source_path": "src/amazon-sns-sqs-mcp-server/",
@@ -753,7 +753,7 @@
     {
       "category": "Integration & Messaging",
       "description": "Message broker management for RabbitMQ and ActiveMQ",
-      "icon": "📡",
+      "icon": "\ud83d\udce1",
       "id": "amazon-mq-mcp-server",
       "name": "Amazon MQ MCP Server",
       "source_path": "src/amazon-mq-mcp-server/",
@@ -774,7 +774,7 @@
     {
       "category": "Integration & Messaging",
       "description": "Execute complex workflows and business processes",
-      "icon": "📡",
+      "icon": "\ud83d\udce1",
       "id": "stepfunctions-tool-mcp-server",
       "name": "AWS Step Functions Tool MCP Server",
       "source_path": "src/stepfunctions-tool-mcp-server/",
@@ -795,7 +795,7 @@
     {
       "category": "Integration & Messaging",
       "description": "Place search, geocoding, and route optimization",
-      "icon": "📡",
+      "icon": "\ud83d\udce1",
       "id": "aws-location-mcp-server",
       "name": "Amazon Location Service MCP Server",
       "source_path": "src/aws-location-mcp-server/",
@@ -816,7 +816,7 @@
     {
       "category": "Cost & Operations",
       "description": "Pre-deployment cost estimation and optimization",
-      "icon": "💰",
+      "icon": "\ud83d\udcb0",
       "id": "cost-analysis-mcp-server",
       "name": "Cost Analysis MCP Server",
       "source_path": "src/cost-analysis-mcp-server/",
@@ -837,7 +837,7 @@
     {
       "category": "Cost & Operations",
       "description": "Detailed cost analysis and reporting",
-      "icon": "💰",
+      "icon": "\ud83d\udcb0",
       "id": "cost-explorer-mcp-server",
       "name": "AWS Cost Explorer MCP Server",
       "source_path": "src/cost-explorer-mcp-server/",
@@ -859,7 +859,7 @@
     {
       "category": "Cost & Operations",
       "description": "Log analysis and operational troubleshooting",
-      "icon": "💰",
+      "icon": "\ud83d\udcb0",
       "id": "cloudwatch-logs-mcp-server",
       "name": "Amazon CloudWatch Logs MCP Server",
       "source_path": "src/cloudwatch-logs-mcp-server/",
@@ -881,7 +881,7 @@
     {
       "category": "Cost & Operations",
       "description": "Prometheus-compatible operations",
-      "icon": "💰",
+      "icon": "\ud83d\udcb0",
       "id": "prometheus-mcp-server",
       "name": "AWS Managed Prometheus MCP Server",
       "source_path": "src/prometheus-mcp-server/",
@@ -902,7 +902,7 @@
     {
       "category": "Core",
       "description": "Intelligent planning and AWS MCP server orchestration",
-      "icon": "⚡",
+      "icon": "\u26a1",
       "id": "core-mcp-server",
       "name": "Core MCP Server",
       "source_path": "src/core-mcp-server/",
@@ -923,19 +923,19 @@
   "workflows": [
     {
       "description": "AI coding assistants helping you build faster",
-      "icon": "👨‍💻",
+      "icon": "\ud83d\udc68\u200d\ud83d\udcbb",
       "id": "vibe-coding",
       "name": "Vibe Coding & Development"
     },
     {
       "description": "Customer-facing chatbots and interactive Q&A systems",
-      "icon": "💬",
+      "icon": "\ud83d\udcac",
       "id": "conversational",
       "name": "Conversational Assistants"
     },
     {
       "description": "Headless automation, ETL pipelines, and operational systems",
-      "icon": "🤖",
+      "icon": "\ud83e\udd16",
       "id": "autonomous",
       "name": "Autonomous Background Agents"
     }
