@@ -174,3 +174,31 @@ async def test_qbiz_local_query_failure5(mocker):
     assert result != expected_response
     monkeypatch.delenv('AWS_REGION')
     monkeypatch.delenv('QBUSINESS_APPLICATION_ID')
+
+
+@pytest.mark.asyncio
+async def test_qbiz_local_query_failure6(mocker):
+    """Test the qbiz_local_query tool returns error when AWS_PROFILE is invalid."""
+    # Arrange
+    test_query = 'List of holidays'
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv('AWS_REGION', 'us-east-1')
+    monkeypatch.setenv('AWS_PROFILE', 'xxxx-xxxx-xxxx-xxxx')
+    monkeypatch.setenv('QBUSINESS_APPLICATION_ID', 'xxxx-xxxx-xxxx-xxxx')
+    mock_aq_client_chat_sync_response = {
+        'systemMessage': "Here are the official company holidays: \n\n\u2022 New Year's Day Observed (January 2) \n\u2022 Martin Luther King Jr. Day (3rd Monday in January) \n\u2022 President's Day (3rd Monday in February) \n\u2022 Cesar Chavez Day (March 31) \n\u2022 Memorial Day (last Monday in May) \n\u2022 Independence Day (July 4) \n\u2022 Labor Day (1st Monday in September) \n\u2022 Veteran's Day Observed (November 10) \n\u2022 Thanksgiving Day (4th Thursday in November) \n\u2022 Day after Thanksgiving \n\u2022 Christmas (December 25)  \n\nWhen a holiday falls on Saturday, employees receive holiday credit, and when a holiday falls on Sunday, the holiday is observed on the following Monday. \n\nAdditionally, permanent employees are entitled to one personal holiday per year.",
+        'conversationId': 'XXX',
+        'systemMessageId': 'XXX',
+        'sourceAttributions': [],
+        'messageId': 'XXX',
+    }
+    expected_response = f'Qbiz response: {mock_aq_client_chat_sync_response["systemMessage"]}'
+
+    # Act
+    result = await qbiz_local_query(test_query)
+
+    # Assert
+    assert result != expected_response
+    monkeypatch.delenv('AWS_REGION')
+    monkeypatch.delenv('AWS_PROFILE')
+    monkeypatch.delenv('QBUSINESS_APPLICATION_ID')
