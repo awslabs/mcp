@@ -420,31 +420,3 @@ class TestMain:
 
             # Check that mcp.run was called with the correct arguments
             mock_mcp.run.assert_called_once_with()
-
-    @patch('awslabs.security_hub_mcp_server.server.mcp')
-    @patch('sys.argv', ['server.py', '--sse'])  # Mock sys.argv to avoid pytest arguments
-    def test_sse_default(self, mock_mcp):
-        """Test the main function with default arguments."""
-        # Set up the mock
-        with patch.dict(os.environ, {'FASTMCP_LOG_LEVEL': 'DEBUG'}):
-            # Call the function
-            main()
-
-            # Check that mcp.run was called with the correct arguments
-            assert 8888 == mock_mcp.settings.port
-            mock_mcp.run.assert_called_once_with(transport='sse')
-
-    @patch('awslabs.security_hub_mcp_server.server.mcp')
-    @patch(
-        'sys.argv', ['server.py', '--sse', '--port', '4242']
-    )  # Mock sys.argv to avoid pytest arguments
-    def test_sse_custom_port(self, mock_mcp):
-        """Test the main function with default arguments."""
-        # Set up the mock
-        with patch.dict(os.environ, {'FASTMCP_LOG_LEVEL': 'DEBUG'}):
-            # Call the function
-            main()
-
-            # Check that mcp.run was called with the correct arguments
-            assert 4242 == mock_mcp.settings.port
-            mock_mcp.run.assert_called_once_with(transport='sse')

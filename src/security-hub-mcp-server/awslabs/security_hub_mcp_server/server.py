@@ -14,7 +14,6 @@
 
 """awslabs Security Hub MCP Server implementation."""
 
-import argparse
 import boto3
 import json
 import logging
@@ -200,20 +199,7 @@ async def get_findings(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    parser = argparse.ArgumentParser(
-        description='A Model Context Protocol (MCP) server for Security Hub'
-    )
-    parser.add_argument('--sse', action='store_true', help='Use SSE transport')
-    parser.add_argument('--port', type=int, default=8888, help='Port to run the server on')
-
-    args = parser.parse_args()
-
-    # Run server with appropriate transport
-    if args.sse:
-        mcp.settings.port = args.port
-        mcp.run(transport='sse')
-    else:
-        mcp.run()
+    mcp.run()
 
 
 if __name__ == '__main__':
