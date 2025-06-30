@@ -108,7 +108,7 @@ def test_extract_filtered_events_no_timezone():
 @pytest.mark.anyio
 async def test_check_target_group_health_unhealthy():
     """Test checking target group health with unhealthy targets."""
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
     mock_elb_client.describe_target_health.return_value = {
         "TargetHealthDescriptions": [{"TargetHealth": {"State": "unhealthy"}}]
     }
@@ -123,7 +123,7 @@ async def test_check_target_group_health_unhealthy():
 @pytest.mark.anyio
 async def test_check_target_group_health_healthy():
     """Test checking target group health with all healthy targets."""
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
     mock_elb_client.describe_target_health.return_value = {
         "TargetHealthDescriptions": [{"TargetHealth": {"State": "healthy"}}]
     }
@@ -137,7 +137,7 @@ async def test_check_target_group_health_healthy():
 async def test_check_target_group_health_empty_response():
     """Test checking target group health with empty response."""
     # Mock ELB client
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
 
     # Mock an empty response with no TargetHealthDescriptions
     mock_elb_client.describe_target_health.return_value = {
@@ -154,7 +154,7 @@ async def test_check_target_group_health_empty_response():
 async def test_check_target_group_health_no_targets():
     """Test checking target group health with empty targets list."""
     # Mock ELB client
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
 
     # Mock a response with empty TargetHealthDescriptions array
     mock_elb_client.describe_target_health.return_value = {
@@ -171,7 +171,7 @@ async def test_check_target_group_health_no_targets():
 async def test_check_target_group_health_client_error():
     """Test handling ClientError in target group health check."""
     # Mock ELB client
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
 
     # Mock describe_target_health to raise ClientError
     mock_elb_client.describe_target_health.side_effect = ClientError(
@@ -190,7 +190,7 @@ async def test_check_target_group_health_client_error():
 @pytest.mark.anyio
 async def test_check_port_mismatch_with_mismatch():
     """Test checking port mismatch when ports don't match."""
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
     mock_elb_client.describe_target_groups.return_value = {"TargetGroups": [{"Port": 80}]}
 
     result = await _check_port_mismatch(mock_elb_client, "test-arn", 8080)
@@ -204,7 +204,7 @@ async def test_check_port_mismatch_with_mismatch():
 @pytest.mark.anyio
 async def test_check_port_mismatch_no_mismatch():
     """Test checking port mismatch when ports match."""
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
     mock_elb_client.describe_target_groups.return_value = {"TargetGroups": [{"Port": 8080}]}
 
     result = await _check_port_mismatch(mock_elb_client, "test-arn", 8080)
@@ -215,7 +215,7 @@ async def test_check_port_mismatch_no_mismatch():
 @pytest.mark.anyio
 async def test_check_port_mismatch_client_error():
     """Test handling ClientError in port mismatch check."""
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
     mock_elb_client.describe_target_groups.side_effect = ClientError(
         {"Error": {"Code": "InvalidTargetGroup", "Message": "Target group not found"}},
         "DescribeTargetGroups",
@@ -232,7 +232,7 @@ async def test_check_port_mismatch_client_error():
 async def test_analyze_load_balancer_issues():
     """Test analyzing load balancer issues."""
     # Mock ELB client
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
 
     # Mock describe_target_health response for unhealthy targets
     mock_elb_client.describe_target_health.return_value = {
@@ -287,7 +287,7 @@ async def test_analyze_load_balancer_issues():
 async def test_analyze_load_balancer_no_targetgroup():
     """Test analyzing load balancers without target group ARNs."""
     # Mock ELB client
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
 
     # Define a service with load balancer but no targetGroupArn
     service = {
@@ -314,7 +314,7 @@ async def test_analyze_load_balancer_no_targetgroup():
 async def test_analyze_load_balancer_no_containerport():
     """Test analyzing load balancers without container port."""
     # Mock ELB client
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
 
     # Mock describe_target_health to return unhealthy targets
     mock_elb_client.describe_target_health.return_value = {
@@ -356,7 +356,7 @@ async def test_analyze_load_balancer_no_containerport():
 async def test_service_exists():
     """Test when ECS service exists."""
     # Mock ECS client with proper pagination
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
 
     # Set up proper pagination for any paginator functions
     mock_paginator = mock.Mock()  # Use regular Mock, not AsyncMock
@@ -416,7 +416,7 @@ async def test_service_exists():
     }
 
     # Mock ELB client for target group health
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
     mock_elb_client.describe_target_health.return_value = {
         "TargetHealthDescriptions": [
             {
@@ -466,7 +466,7 @@ async def test_service_exists():
 async def test_service_with_load_balancer_issues():
     """Test when ECS service has load balancer issues."""
     # Mock ECS client
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
 
     # Event timestamp - use datetime with timezone for proper filtering
     timestamp = datetime.datetime(2025, 5, 13, 12, 0, 0, tzinfo=datetime.timezone.utc)
@@ -515,7 +515,7 @@ async def test_service_with_load_balancer_issues():
     }
 
     # Mock ELB client for target group health
-    mock_elb_client = mock.AsyncMock()
+    mock_elb_client = mock.Mock()
     mock_elb_client.describe_target_health.return_value = {
         "TargetHealthDescriptions": [
             {
@@ -586,7 +586,7 @@ async def test_service_with_load_balancer_issues():
 async def test_service_with_failed_deployment():
     """Test when service has a failed deployment."""
     # Mock ECS client
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
 
     # Event timestamp
     timestamp = datetime.datetime(2025, 5, 13, 12, 0, 0, tzinfo=datetime.timezone.utc)
@@ -645,7 +645,7 @@ async def test_service_with_failed_deployment():
 async def test_service_with_stalled_deployment():
     """Test when service has a stalled deployment."""
     # Mock ECS client
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
 
     # Event timestamp
     timestamp = datetime.datetime(2025, 5, 13, 12, 0, 0, tzinfo=datetime.timezone.utc)
@@ -705,7 +705,7 @@ async def test_service_with_stalled_deployment():
 async def test_service_not_found():
     """Test when ECS service does not exist."""
     # Mock ECS client with proper pagination
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
 
     # Set up proper pagination for any paginator functions
     mock_paginator = mock.Mock()  # Use regular Mock, not AsyncMock
@@ -739,7 +739,7 @@ async def test_service_not_found():
 async def test_with_explicit_start_time():
     """Test with explicit start_time parameter."""
     # Mock ECS client
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
 
     # Event timestamp - use datetime with timezone for proper filtering
     timestamp = datetime.datetime(2025, 5, 13, 12, 0, 0, tzinfo=datetime.timezone.utc)
@@ -784,7 +784,7 @@ async def test_with_explicit_start_time():
 async def test_with_explicit_end_time():
     """Test with explicit end_time parameter."""
     # Mock ECS client
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
 
     # Event timestamp - use datetime with timezone for proper filtering
     timestamp = datetime.datetime(2025, 5, 13, 12, 0, 0, tzinfo=datetime.timezone.utc)
@@ -829,7 +829,7 @@ async def test_with_explicit_end_time():
 async def test_with_start_and_end_time():
     """Test with both start_time and end_time parameters."""
     # Mock ECS client
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
 
     # Event timestamp - use datetime with timezone for proper filtering
     timestamp = datetime.datetime(2025, 5, 13, 12, 0, 0, tzinfo=datetime.timezone.utc)
@@ -874,7 +874,7 @@ async def test_with_start_and_end_time():
 async def test_with_only_time_window():
     """Test with only time_window parameter."""
     # Mock ECS client
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
 
     # Create two events with different timestamps
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -925,7 +925,7 @@ async def test_with_only_time_window():
 async def test_service_client_error():
     """Test handling ClientError in service call."""
     # Mock ECS client with an error
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
     mock_ecs_client.describe_services.side_effect = ClientError(
         {"Error": {"Code": "ClusterNotFoundException", "Message": "Cluster not found"}},
         "DescribeServices",
@@ -946,7 +946,7 @@ async def test_service_client_error():
 async def test_general_exception():
     """Test handling general exceptions."""
     # Mock ECS client with a general exception
-    mock_ecs_client = mock.AsyncMock()
+    mock_ecs_client = mock.Mock()
     mock_ecs_client.describe_services.side_effect = Exception("Unexpected error")
 
     # Call the function
