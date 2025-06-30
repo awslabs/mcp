@@ -62,7 +62,7 @@ Effective prompting is crucial for successful AI-assisted development:
 To help you create your prompts, you can use:
 
 - tools like [Amazon Bedrock Prompt Optimization](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-management-optimize.html) which will rewrite prompts to yield inference results that are more suitable for your use case
-- metaprompting by discussing the feature with the ai assistant first, then summarize the discussion as a prompt for the agent to develop the feature
+- metaprompting by discussing the feature with the AI assistant first, then summarizing the discussion as a prompt for the agent to develop the feature
 
 ## Testing and Validation
 
@@ -111,7 +111,7 @@ For optimal results:
 - Maintain consistent configuration across environments
 - Document special rules and exceptions
 - Regularly review and update configuration settings
-- Implement modular design principles'
+- Implement modular design principles
 
 Examples of rules:
 
