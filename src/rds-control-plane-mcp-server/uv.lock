@@ -43,6 +43,7 @@ dependencies = [
     { name = "boto3" },
     { name = "loguru" },
     { name = "mcp", extra = ["cli"] },
+    { name = "mypy-boto3" },
     { name = "pydantic" },
 ]
 
@@ -63,6 +64,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.38.40" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.6.0" },
+    { name = "mypy-boto3", specifier = ">=1.39.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
 ]
 
@@ -559,6 +561,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "mypy-boto3"
+version = "1.39.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "boto3" },
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/84/4e/14b4dd044d2d2ea3fda373d2c35dc3b759112629c080ad37fff87eec8835/mypy_boto3-1.39.0.tar.gz", hash = "sha256:8c775c47afc6a2117b9f4487afb6622b864f9d96a5461ca58a1a10613c36b47b", size = 22324, upload-time = "2025-06-30T19:55:15.234Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/bc/baf5ee3e3a9ca236310834ecfc805a23a4c3c8ddfc8fc89aa90bc79f15b1/mypy_boto3-1.39.0-py3-none-any.whl", hash = "sha256:abb851683297ba27d76fb1e7fd39d89e8603f44f4d372f54373b46ba15a95df3", size = 22307, upload-time = "2025-06-30T19:55:12.498Z" },
 ]
 
 [[package]]

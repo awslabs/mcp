@@ -11,6 +11,7 @@ dependencies = [
     "boto3>=1.38.40",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
+    "mypy-boto3>=1.39.0",
     "pydantic>=2.10.6",
 ]
 license = {text = "Apache-2.0"}
