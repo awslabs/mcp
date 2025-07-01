@@ -20,6 +20,7 @@ import logging
 import os
 from enum import Enum
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 from typing import Dict, List, Optional
 
 
@@ -78,12 +79,31 @@ class WorkflowStatus(str, Enum):
 
 @mcp.tool(name='get_findings')
 async def get_findings(
-    region: str,
-    aws_account_id: str = None,
-    severity: str = None,
-    workflow_status: str = None,
-    custom_filters: dict = None,
-    max_results: Optional[int] = None,
+    region: str = Field(
+        description="The AWS region to in which to query the SecurityHub service"
+    ),
+    aws_account_id: Optional[str] = Field(
+        default=None,
+        description="""(optional) Filter the findings to the specified AWS account id"""
+    ),
+    severity: Optional[str] = Field(
+        default=None,
+        description="""(optional) Filter the findings to the specified finding severity (INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL)"""
+    ),
+    workflow_status: Optional[str] = Field(
+        default=None,
+        description="""(optional) Filter the findings to the specified workflow status (NEW, NOTIFIED, RESOLVED, SUPPRESSED)"""
+    ),
+    custom_filters: Optional[dict] = Field(
+        default=None,
+        description="""(optional) A dictionary of additional Security Hub filters
+                       Example: {"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}
+                       See AWS Security Hub GetFindings API documentation for all available filters."""
+    ),
+    max_results: Optional[int] = Field(
+        default=None,
+        description="""(optional) The maximum number of finding results to return"""
+    ),
 ) -> Optional[List[Dict]]:
     """Get findings from the Security Hub service.
 
@@ -109,9 +129,9 @@ async def get_findings(
         aws_account_id (str): (optional) filter the findings to the specified AWS account id
         severity (str): (optional) filter the findings to the specified finding severity (INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL)
         workflow_status (str): (optional) filter the findings to the specified workflow status (NEW, NOTIFIED, RESOLVED, SUPPRESSED)
-        custom_filters (str): (optional) JSON string of additional Security Hub filters
-                             Example: '{"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}'
-                             See AWS Security Hub GetFindings API documentation for all available filters
+        custom_filters (str): (optional) A dictionary of additional Security Hub filters
+                       Example: {"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}
+                       See AWS Security Hub GetFindings API documentation for all available filters.
         max_results (int): (optional) the maximum number of finding results to return
 
     Returns:
@@ -119,7 +139,7 @@ async def get_findings(
     """
     # Resolve string severity to Severity enum
     severity_enum = None
-    if severity:
+    if severity is not None:
         try:
             severity_enum = Severity(severity.upper())
         except ValueError:
