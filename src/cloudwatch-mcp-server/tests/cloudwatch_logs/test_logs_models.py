@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the cloudwatch-logs MCP Server models."""
+"""Tests for the CloudWatch Logs models."""
 
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
     LogAnomaly,

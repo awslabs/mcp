@@ -1,46 +1,66 @@
-# AWS Labs cloudwatch-logs MCP Server
+# AWS Labs cloudwatch MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for Amazon CloudWatch
+An AWS Labs Model Context Protocol (MCP) server for CloudWatch provides AI-powered troubleshooting tools across metrics, alarms, and logs, enabling rapid root cause analysis and intelligent recommendations. It offers comprehensive observability tools that simplify monitoring, reduce context switching, and help teams quickly diagnose and resolve service issues. This server will provide AI agents and application developers with seamless access to CloudWatch telemetry data through standardized MCP interfaces, eliminating the need for custom API solutions and reducing context switching during troubleshooting workflows. By consolidating access to all CloudWatch capabilities, we enable powerful cross-service correlations and insights that accelerate incident resolution and improve operational visibility.
 
 ## Instructions
 
-Use this MCP server to run commands on CloudWatch resources. Supports discovering logs groups as well as running CloudWatch Log Insight
-Queries. With CloudWatch Logs Insights, you can interactively search and analyze your log data in Amazon CloudWatch Logs and perform queries to help
-you more efficiently and effectively respond to operational issues.
+The CloudWatch MCP Server provides specialized tools to address common operational scenarios including alarm troubleshooting, understand metrics definitions, alarm recommendations and log analysis. Each tool encapsulates one or multiple CloudWatch APIs into task-oriented operations.
 
 ## Features
 
-- Discovering log groups and metadata about them within your AWS account or accounts connected by CloudWatch Cross Account Observability
-- Converting human-readable questions and commands into CloudWatch Log Insight queries and executing them against the discovered log groups.
+Alarm Based Troubleshooting - Identifies active alarms, retrieves related metrics and logs, and analyzes historical alarm patterns to determine root causes of triggered alerts. Provides context-aware recommendations for remediation.
+
+Log Analyzer - Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
+
+Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated, recommended statistics to use for metric data retrieval
+
+Alarm Recommendations - Suggests optimal alarm configurations based on best practices. Helps reduce false positives and ensure appropriate coverage of critical metrics.
 
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
-3. An AWS account with [CloudWatch Log Groups](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_GettingStarted.html)
+3. An AWS account with [CloudWatch Telemetry](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html)
 4. This MCP server can only be run locally on the same host as your LLM client.
 5. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
 
 ## Available Tools
-* `describe_log_groups` - Describe log groups in the account and region, including user saved queries applicable to them. Supports Cross Account Observability.
-* `analyze_log_group` - Analyzes a CloudWatch log group for anomalies, top message patterns, and top error patterns within a specified time window.
-Log group must have at least one [CloudWatch Log Anomaly Detector](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/LogsAnomalyDetection.html) configured to search for anomalies.
-* `execute_log_insights_query` - Execute a Log Insights query against one or more log groups. Will wait for the query to complete for a configurable timeout.
-* `get_query_results` - Get the results of a query previously started by `execute_log_insights_query`.
-* `cancel_query` - Cancel an ongoing query that was previously started by `execute_log_insights_query`.
+
+### Core Tools from CloudWatch Metrics
+* `get_metric_data` - Retrieves detailed metric data for any CloudWatch metric
+* `get_metric_metadata` - Retrieves comprehensive metadata about a specific CloudWatch metric
+* `get_recommended_metric_alarms` - Gets recommended alarms for a CloudWatch metric
+
+### Core Tools from CloudWatch Alarms
+* `get_active_alarms` - Identifies currently active alarms across the account
+* `get_alarm_history` - Retrieves historical alarm state changes and patterns
+
+### Core Tools from CloudWatch Logs
+* `describe_log_groups` - Finds metadata about log groups
+* `analyze_log_group` - Analyzes logs for anomalies, message patterns, and error patterns
+* `execute_log_insights_query` - Executes queries with time-frame and query input
+* `get_logs_insight_query_results` - Retrieves results from executed queries
+* `cancel_logs_insight_query` - Cancels running queries
 
 ### Required IAM Permissions
-* `logs:Describe*`
-* `logs:Get*`
-* `logs:List*`
+* `cloudwatch:DescribeAlarms`
+* `cloudwatch:DescribeAlarmHistory`
+* `cloudwatch:GetMetricData`
+* `cloudwatch:ListMetrics`
+
+* `logs:DescribeLogGroups`
+* `logs:DescribeQueryDefinitions`
+* `logs:ListLogAnomalyDetectors`
+* `logs:ListAnomalies`
 * `logs:StartQuery`
+* `logs:GetQueryResults`
 * `logs:StopQuery`
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.cloudwatch-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidGltZW91dCI6NjAsImNvbW1hbmQiOiJ1dnggYXdzbGFicy5jbG91ZHdhdGNoLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoiW1RoZSBBV1MgUHJvZmlsZSBOYW1lIHRvIHVzZSBmb3IgQVdTIGFjY2Vzc10iLCJBV1NfUkVHSU9OIjoiW1RoZSBBV1MgcmVnaW9uIHRvIHJ1biBpbl0iLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sInRyYW5zcG9ydFR5cGUiOiJzdGRpbyJ9)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://www.cursor.com/install-mcp?name=awslabs.cloudwatch-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidGltZW91dCI6NjAsImNvbW1hbmQiOiJ1dnggYXdzbGFicy5jbG91ZHdhdGNoLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoiW1RoZSBBV1MgUHJvZmlsZSBOYW1lIHRvIHVzZSBmb3IgQVdTIGFjY2Vzc10iLCJBV1NfUkVHSU9OIjoiW1RoZSBBV1MgcmVnaW9uIHRvIHJ1biBpbl0iLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sInRyYW5zcG9ydFR5cGUiOiJzdGRpbyJ9)
 
 Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 

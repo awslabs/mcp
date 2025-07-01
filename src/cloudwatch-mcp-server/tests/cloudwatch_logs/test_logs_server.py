@@ -11,16 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for the cloudwatch-logs MCP Server."""
+"""Tests for the CloudWatch Logs functionality in the MCP Server."""
 
 import boto3
 import os
 import pytest
 import pytest_asyncio
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
-    CancelQueryResult,
-    LogAnalysisResult,
-    LogMetadata,
+    LogsQueryCancelResult,
+    LogsAnalysisResult,
+    LogsMetadata,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTools
 from moto import mock_aws
@@ -107,7 +107,7 @@ class TestDescribeLogGroups:
         )
 
         # Verify results
-        assert isinstance(result, LogMetadata)
+        assert isinstance(result, LogsMetadata)
         assert len(result.log_group_metadata) == 1
         assert result.log_group_metadata[0].logGroupName == '/aws/test/group1'
         assert len(result.saved_queries) == 1
@@ -174,7 +174,7 @@ class TestDescribeLogGroups:
         )
 
         # Verify results
-        assert isinstance(result, LogMetadata)
+        assert isinstance(result, LogsMetadata)
         assert len(result.log_group_metadata) == 1
         assert len(result.saved_queries) == 1
 
@@ -303,7 +303,7 @@ class TestGetQueryResults:
         )
 
         # Call the tool
-        result = await cloudwatch_tools.get_query_results(ctx, query_id='test-query-id')
+        result = await cloudwatch_tools.get_logs_insight_query_results(ctx, query_id='test-query-id')
 
         # Verify results
         assert result['queryId'] == 'test-query-id'
@@ -322,10 +322,10 @@ class TestCancelQuery:
         cloudwatch_tools.logs_client.stop_query = MagicMock(return_value={'success': True})
 
         # Call the tool
-        result = await cloudwatch_tools.cancel_query(ctx, query_id='test-query-id')
+        result = await cloudwatch_tools.cancel_logs_insight_query(ctx, query_id='test-query-id')
 
         # Verify results
-        assert isinstance(result, CancelQueryResult)
+        assert isinstance(result, LogsQueryCancelResult)
         assert result.success is True
 
 
@@ -387,7 +387,7 @@ class TestAnalyzeLogGroup:
             )
 
         # Verify results
-        assert isinstance(result, LogAnalysisResult)
+        assert isinstance(result, LogsAnalysisResult)
         assert len(result.log_anomaly_results.anomaly_detectors) == 1
         assert result.log_anomaly_results.anomaly_detectors[0].detectorName == 'test-detector'
         assert 'results' in result.top_patterns
