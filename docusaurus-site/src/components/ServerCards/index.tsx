@@ -69,15 +69,37 @@ const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
           </div>
           <div className={styles.serverCardTitleSection}>
             <h3 className={styles.serverCardTitle}>{server.name || 'Unknown Server'}</h3>
-            <span
-              className={clsx(
-                styles.serverCardCategory,
-                styles[`serverCardCategory${categoryId}`]
-              )}
-              data-category={server.category || ''}
-            >
-              {server.category || 'Uncategorized'}
-            </span>
+            <div className={styles.serverCardTags}>
+              <span
+                className={clsx(
+                  styles.serverCardCategory,
+                  styles[`serverCardCategory${categoryId}`]
+                )}
+                data-category={server.category || ''}
+              >
+                {server.category || 'Uncategorized'}
+              </span>
+              {server.workflows?.map((workflow, index) => {
+                const workflowData = serverCardsData.workflows.find(w => w.id === workflow);
+                // Map workflow IDs to Feather icon names
+                const getWorkflowIcon = (workflowId) => {
+                  const iconMap = {
+                    'vibe-coding': 'code',
+                    'conversational': 'message-circle',
+                    'autonomous': 'cpu'
+                  };
+                  return iconMap[workflowId] || 'zap';
+                };
+
+                const workflowIconName = getWorkflowIcon(workflow);
+
+                return (
+                  <span key={index} className={styles.serverCardWorkflow} data-workflow={workflow}>
+                    {workflowData?.name || workflow}
+                  </span>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -85,34 +107,6 @@ const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
           <p className={styles.serverCardDescription}>
             {server.description || 'No description available'}
           </p>
-        </div>
-
-        <div className={styles.serverCardFooter}>
-          <div className={styles.serverCardWorkflows}>
-            {server.workflows?.map((workflow, index) => {
-              const workflowData = serverCardsData.workflows.find(w => w.id === workflow);
-              // Map workflow IDs to Feather icon names
-              const getWorkflowIcon = (workflowId) => {
-                const iconMap = {
-                  'vibe-coding': 'code',
-                  'conversational': 'message-circle',
-                  'autonomous': 'cpu'
-                };
-                return iconMap[workflowId] || 'zap';
-              };
-
-              const workflowIconName = getWorkflowIcon(workflow);
-
-              return (
-                <span key={index} className={styles.serverCardWorkflow} data-workflow={workflow}>
-                  <span className={styles.serverCardWorkflowIcon}>
-                    <i data-feather={workflowIconName} style={{ width: '12px', height: '12px' }}></i>
-                  </span>
-                  {workflowData?.name || workflow}
-                </span>
-              );
-            })}
-          </div>
         </div>
       </div>
     </a>
