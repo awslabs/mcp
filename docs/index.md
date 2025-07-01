@@ -312,14 +312,18 @@ A server for Aurora MySql.
 
 ### Amazon CloudWatch MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for Amazon Cloudwatch Logs.
+An AWS Labs Model Context Protocol (MCP) server for CloudWatch provides AI-powered troubleshooting tools across metrics, alarms, and logs, enabling rapid root cause analysis and intelligent recommendations. It offers comprehensive observability tools that simplify monitoring, reduce context switching, and help teams quickly diagnose and resolve service issues. This server will provide AI agents and application developers with seamless access to CloudWatch telemetry data through standardized MCP interfaces, eliminating the need for custom API solutions and reducing context switching during troubleshooting workflows. By consolidating access to all CloudWatch capabilities, we enable powerful cross-service correlations and insights that accelerate incident resolution and improve operational visibility.
 
 **Features:**
+The CloudWatch MCP Server provides specialized tools to address common operational scenarios including alarm troubleshooting, understand metrics definitions, alarm recommendations and log analysis. Each tool encapsulates one or multiple CloudWatch APIs into task-oriented operations.
 
-- Discover log groups and their metadata
-- Execute CloudWatch Log Insights queries against log groups
+- Alarm Based Troubleshooting - Identifies active alarms, retrieves related metrics and logs, and analyzes historical alarm patterns to determine root causes of triggered alerts. Provides context-aware recommendations for remediation.
 
-Use this MCP server to first discover available logs groups, then run queries on them to filter, analyze, aggregate, etc. logs.
+- Log Analyzer - Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
+
+- Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated, recommended statistics to use for metric data retrieval
+
+- Alarm Recommendations - Suggests optimal alarm configurations based on best practices. Helps reduce false positives and ensure appropriate coverage of critical metrics.
 
 [Learn more about the Amazon CloudWatch MCP Server](servers/cloudwatch-mcp-server.md)
 

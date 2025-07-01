@@ -4,18 +4,17 @@ An AWS Labs Model Context Protocol (MCP) server for CloudWatch provides AI-power
 
 ## Instructions
 
-The CloudWatch MCP Server provides specialized tools to address common operational scenarios including alarm troubleshooting, understand metrics definitions,  alarm recommendations and log analysis. Each tool encapsulates multiple CloudWatch APIs into task-oriented operations. Along with specialized tools, each service offers core tools that enables seamless interaction with CloudWatch services.
+The CloudWatch MCP Server provides specialized tools to address common operational scenarios including alarm troubleshooting, understand metrics definitions, alarm recommendations and log analysis. Each tool encapsulates one or multiple CloudWatch APIs into task-oriented operations.
 
 ## Features
 
 Alarm Based Troubleshooting - Identifies active alarms, retrieves related metrics and logs, and analyzes historical alarm patterns to determine root causes of triggered alerts. Provides context-aware recommendations for remediation.
 
-Log Analyzer -  Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
+Log Analyzer - Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
 
-Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated. 
+Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated, recommended statistics to use for metric data retrieval
 
-Alarm Recommendations - Suggests optimal alarm configurations based on historical patterns and best practices. Helps reduce false positives and ensure appropriate coverage of critical metrics.
-
+Alarm Recommendations - Suggests optimal alarm configurations based on best practices. Helps reduce false positives and ensure appropriate coverage of critical metrics.
 
 ## Prerequisites
 
