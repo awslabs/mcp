@@ -14,8 +14,6 @@
 
 """DataCatalogHandler for Data Processing MCP Server."""
 
-from __future__ import annotations
-
 from awslabs.dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_database_manager import (
     DataCatalogDatabaseManager,
 )
