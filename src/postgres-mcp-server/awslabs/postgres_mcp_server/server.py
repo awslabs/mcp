@@ -17,36 +17,62 @@
 import argparse
 import asyncio
 import sys
-from .analysis import (
-    analyze_database_structure as analyze_db_structure,
-)
-from .analysis import (
-    analyze_query_performance as analyze_performance,
-)
-from .analysis import (
-    analyze_table_fragmentation as analyze_fragmentation,
-)
-from .analysis import (
-    analyze_vacuum_stats as analyze_vacuum,
-)
-from .analysis import (
-    get_table_schema as fetch_table_schema,
-)
-from .analysis import (
-    identify_slow_queries as find_slow_queries,
-)
-from .analysis import (
-    recommend_indexes as suggest_indexes,
-)
-from .analysis import (
-    show_postgresql_settings as show_pg_settings,
-)
 from .connection import ConnectionFactory, DBConnector
 from .mutable_sql_detector import check_sql_injection_risk, detect_mutating_keywords
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
+
+
+async def fetch_table_schema(db_connection: DBConnector, table_name: str) -> List[Dict[str, Any]]:
+    """
+    Fetch table schema information from PostgreSQL.
+    
+    Args:
+        db_connection: Database connection
+        table_name: Name of the table to get schema for
+        
+    Returns:
+        List of column information dictionaries
+    """
+    # SQL query to get table schema information
+    query = """
+    SELECT 
+        a.attname as column_name,
+        pg_catalog.format_type(a.atttypid, a.atttypmod) as data_type,
+        (SELECT pg_catalog.col_description(c.oid, a.attnum) FROM pg_catalog.pg_class c 
+         WHERE c.oid = a.attrelid AND c.relname = :table_name) as column_comment,
+        a.attnotnull as is_not_null,
+        CASE WHEN p.contype = 'p' THEN true ELSE false END as is_primary_key
+    FROM 
+        pg_catalog.pg_attribute a
+    LEFT JOIN 
+        pg_catalog.pg_constraint p ON p.conrelid = a.attrelid AND a.attnum = ANY(p.conkey) AND p.contype = 'p'
+    WHERE 
+        a.attrelid = (SELECT c.oid FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace 
+                      WHERE c.relname = :table_name AND n.nspname = current_schema())
+        AND a.attnum > 0
+        AND NOT a.attisdropped
+    ORDER BY 
+        a.attnum;
+    """
+    
+    # Parameters for the query
+    parameters = [
+        {
+            "name": "table_name",
+            "value": {"stringValue": table_name}
+        }
+    ]
+    
+    try:
+        # Execute the query
+        result = await db_connection.execute_query(query, parameters)
+        return parse_execute_response(result)
+    except Exception as e:
+        logger.error(f"Error fetching table schema: {str(e)}")
+        raise
 
 
 # Error message constants
@@ -134,12 +160,8 @@ async def run_query(
             await ctx.error(str(error_details))
             return [{'error': QUERY_INJECTION_RISK_KEY}]
 
-        # Ensure connection is established
-        if not db_connection.is_connected():
-            logger.info("Establishing database connection for query execution...")
-            connected = await db_connection.connect()
-            if not connected:
-                raise Exception("Failed to establish database connection")
+        # Execute query directly - connection is handled internally
+        logger.info("Executing query...")
 
         logger.info(
             f'run_query: connection_type:{db_connection.connection_info["type"]}, '
@@ -176,7 +198,7 @@ async def get_table_schema(
             await ctx.error(error_msg)
             return [{'error': error_msg}]
 
-        # Use analysis module for secure query execution
+        # Use the implemented fetch_table_schema function
         result = await fetch_table_schema(db_connection, table_name)
         return result
 
@@ -185,182 +207,6 @@ async def get_table_schema(
         error_details = f'{type(e).__name__}: {str(e)}'
         await ctx.error(str({'message': error_details}))
         return [{'error': 'Failed to fetch table schema'}]
-
-
-@mcp.tool(
-    name='analyze_database_structure',
-    description='Analyze the database structure and provide insights on schema design, indexes, and potential optimizations'
-)
-async def analyze_database_structure(
-    ctx: Context,
-    debug: Annotated[
-        bool,
-        Field(description='Whether to include debug information')
-    ] = False
-) -> str:
-    """Analyze the database structure and provide optimization insights."""
-    global db_connection
-
-    try:
-        if db_connection is None:
-            error_msg = "No database connection available"
-            await ctx.error(error_msg)
-            return str({'error': error_msg})
-
-        # Use analysis module for secure analysis
-        result = await analyze_db_structure(db_connection)
-        return str(result)
-
-    except Exception as e:
-        logger.exception("Error analyzing database structure")
-        error_details = f'{type(e).__name__}: {str(e)}'
-        await ctx.error(str({'message': error_details}))
-        return str({'error': 'Failed to analyze database structure'})
-
-
-@mcp.tool(
-    name='show_postgresql_settings',
-    description='Show PostgreSQL configuration settings with optional filtering'
-)
-async def show_postgresql_settings(
-    ctx: Context,
-    pattern: Annotated[
-        Optional[str],
-        Field(description='Pattern to filter settings (SQL LIKE pattern)')
-    ] = None,
-    debug: Annotated[
-        bool,
-        Field(description='Include debug information')
-    ] = False
-) -> str:
-    """Show PostgreSQL configuration settings with optional filtering."""
-    global db_connection
-
-    try:
-        if db_connection is None:
-            error_msg = "No database connection available"
-            await ctx.error(error_msg)
-            return str({'error': error_msg})
-
-        # Use analysis module for secure analysis
-        result = await show_pg_settings(db_connection, pattern)
-        return str(result)
-
-    except Exception as e:
-        logger.exception("Error showing PostgreSQL settings")
-        error_details = f'{type(e).__name__}: {str(e)}'
-        await ctx.error(str({'message': error_details}))
-        return str({'error': 'Failed to show PostgreSQL settings'})
-
-
-@mcp.tool(
-    name='identify_slow_queries',
-    description='Identify slow-running queries in the database'
-)
-async def identify_slow_queries(
-    ctx: Context,
-    min_execution_time: Annotated[
-        float,
-        Field(description='Minimum execution time in milliseconds')
-    ] = 100.0,
-    limit: Annotated[
-        int,
-        Field(description='Maximum number of queries to return')
-    ] = 20,
-    debug: Annotated[
-        bool,
-        Field(description='Include debug information')
-    ] = False
-) -> str:
-    """Identify slow-running queries in the database."""
-    global db_connection
-
-    try:
-        if db_connection is None:
-            error_msg = "No database connection available"
-            await ctx.error(error_msg)
-            return str({'error': error_msg})
-
-        # Use analysis module for secure analysis
-        result = await find_slow_queries(
-            db_connection,
-            min_execution_time,
-            limit
-        )
-        return str(result)
-
-    except Exception as e:
-        logger.exception("Error identifying slow queries")
-        error_details = f'{type(e).__name__}: {str(e)}'
-        await ctx.error(str({'message': error_details}))
-        return str({'error': 'Failed to identify slow queries'})
-
-
-@mcp.tool(
-    name='analyze_table_fragmentation',
-    description='Analyze table fragmentation and provide optimization recommendations'
-)
-async def analyze_table_fragmentation(
-    ctx: Context,
-    threshold: Annotated[
-        float,
-        Field(description='Bloat percentage threshold for recommendations')
-    ] = 10.0,
-    debug: Annotated[
-        bool,
-        Field(description='Include debug information')
-    ] = False
-) -> str:
-    """Analyze table fragmentation and provide optimization recommendations."""
-    global db_connection
-
-    try:
-        if db_connection is None:
-            error_msg = "No database connection available"
-            await ctx.error(error_msg)
-            return str({'error': error_msg})
-
-        # Use analysis module for secure analysis
-        result = await analyze_fragmentation(db_connection, threshold)
-        return str(result)
-
-    except Exception as e:
-        logger.exception("Error analyzing table fragmentation")
-        error_details = f'{type(e).__name__}: {str(e)}'
-        await ctx.error(str({'message': error_details}))
-        return str({'error': 'Failed to analyze table fragmentation'})
-
-
-@mcp.tool(
-    name='analyze_query_performance',
-    description='Analyze query performance and provide optimization recommendations'
-)
-async def analyze_query_performance(
-    ctx: Context,
-    query: Annotated[str, Field(description='SQL query to analyze')],
-    debug: Annotated[
-        bool,
-        Field(description='Include debug information')
-    ] = False
-) -> str:
-    """Analyze query performance and provide optimization recommendations."""
-    global db_connection
-
-    try:
-        if db_connection is None:
-            error_msg = "No database connection available"
-            await ctx.error(error_msg)
-            return str({'error': error_msg})
-
-        # Use analysis module for secure analysis
-        result = await analyze_performance(db_connection, query)
-        return str(result)
-
-    except Exception as e:
-        logger.exception("Error analyzing query performance")
-        error_details = f'{type(e).__name__}: {str(e)}'
-        await ctx.error(str({'message': error_details}))
-        return str({'error': 'Failed to analyze query performance'})
 
 
 @mcp.tool(
@@ -406,76 +252,6 @@ async def health_check(ctx: Context) -> Dict[str, Any]:
             'connection_status': 'error'
         }
 
-
-@mcp.tool(
-    name='analyze_vacuum_stats',
-    description='Analyze vacuum statistics and provide recommendations for vacuum settings'
-)
-async def analyze_vacuum_stats(
-    ctx: Context,
-    debug: Annotated[
-        bool,
-        Field(description='Include debug information')
-    ] = False
-) -> str:
-    """Analyze vacuum statistics and provide recommendations for vacuum settings."""
-    global db_connection
-
-    try:
-        if db_connection is None:
-            error_msg = "No database connection available"
-            await ctx.error(error_msg)
-            return str({'error': error_msg})
-
-        # Use analysis module for secure analysis
-        result = await analyze_vacuum(db_connection)
-        return str(result)
-
-    except Exception as e:
-        logger.exception("Error analyzing vacuum stats")
-        error_details = f'{type(e).__name__}: {str(e)}'
-        await ctx.error(str({'message': error_details}))
-        return str({'error': 'Failed to analyze vacuum stats'})
-
-
-@mcp.tool(
-    name='recommend_indexes',
-    description='Recommend indexes for database optimization based on query patterns'
-)
-async def recommend_indexes(
-    ctx: Context,
-    query: Annotated[
-        Optional[str],
-        Field(description='Specific query to analyze for index recommendations')
-    ] = None,
-    debug: Annotated[
-        bool,
-        Field(description='Include debug information')
-    ] = False
-) -> str:
-    """Recommend indexes for database optimization based on query patterns."""
-    global db_connection
-
-    try:
-        if db_connection is None:
-            error_msg = "No database connection available"
-            await ctx.error(error_msg)
-            return str({'error': error_msg})
-
-        if not query:
-            error_msg = "Query parameter is required for index recommendations"
-            await ctx.error(error_msg)
-            return str({'error': error_msg})
-
-        # Use analysis module for secure analysis
-        result = await suggest_indexes(db_connection, query)
-        return str(result)
-
-    except Exception as e:
-        logger.exception("Error recommending indexes")
-        error_details = f'{type(e).__name__}: {str(e)}'
-        await ctx.error(str({'message': error_details}))
-        return str({'error': 'Failed to recommend indexes'})
 
 
 async def main() -> None:
@@ -585,23 +361,14 @@ async def main() -> None:
         connection_type = db_connection.connection_info['type']
         connection_display = connection_type.replace('_', ' ').title()
 
-        if connection_type == "rds_data_api":
-            # For RDS Data API, test with actual query (fast)
-            response = await run_query('SELECT 1', ctx)
-            if (isinstance(response, list) and len(response) == 1 and
-                isinstance(response[0], dict) and 'error' in response[0]):
-                logger.error(
-                    f'Failed to validate {connection_display} database connection. Exiting.'
-                )
-                sys.exit(1)
-        else:
-            # For direct PostgreSQL, test connection establishment
-            connected = await db_connection.connect()
-            if not connected:
-                logger.error(
-                    f'Failed to establish {connection_display} database connection. Exiting.'
-                )
-                sys.exit(1)
+        # Test with a simple query for all connection types
+        response = await run_query('SELECT 1', ctx)
+        if (isinstance(response, list) and len(response) == 1 and
+            isinstance(response[0], dict) and 'error' in response[0]):
+            logger.error(
+                f'Failed to validate {connection_display} database connection. Exiting.'
+            )
+            sys.exit(1)
 
         logger.success(
             f'{connection_display} database connection validated successfully'

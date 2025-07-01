@@ -173,7 +173,7 @@ CREATE EXTENSION pg_stat_statements;
 - loguru - Logging
 - mcp[cli] - Model Context Protocol
 - pydantic - Data validation
-- psycopg2-binary - PostgreSQL adapter
+- psycopg - PostgreSQL adapter
 
 ## License
 

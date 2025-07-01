@@ -16,14 +16,31 @@
 
 import os
 from .base_connection import DBConnector
-from .postgres_driver import PostgresDriver
-from .rds_connector import RDSDataAPIConnector
+from .psycopg_connector import PsycopgConnector
+from .rds_connector import RDSDataAPIConnector, Boto3ClientSingleton
 from loguru import logger
 from typing import Any, Dict, Optional, Tuple
 
 
+# Default pool configuration from environment variables
+DEFAULT_MIN_SIZE = int(os.getenv('POSTGRES_POOL_MIN_SIZE', '4'))
+DEFAULT_MAX_SIZE = int(os.getenv('POSTGRES_POOL_MAX_SIZE', '30'))
+DEFAULT_TIMEOUT = float(os.getenv('POSTGRES_POOL_TIMEOUT', '30.0'))
+
+
 class ConnectionFactory:
-    """Factory class for determining connection types and creating appropriate connections."""
+    """
+    Factory class for determining connection types and creating appropriate connections.
+    
+    This factory creates instances of database connectors based on the provided parameters.
+    The connectors use singleton patterns internally to ensure efficient resource usage:
+    
+    1. Boto3ClientSingleton: Ensures that boto3 clients are reused across the application,
+       maintaining HTTP keep-alive connections and reducing the overhead of creating new clients.
+       
+    Note: The psycopg3 ConnectionPool already manages connection pooling internally,
+    so no additional singleton pattern is needed for connection pools.
+    """
 
     @staticmethod
     def determine_connection_type(
@@ -42,7 +59,7 @@ class ConnectionFactory:
             database: Database name
 
         Returns:
-            Connection type: 'rds_data_api' or 'psycopg_driver'
+            Connection type: 'rds_data_api' or 'psycopg_pool'
 
         Raises:
             ValueError: If neither resource_arn nor hostname is provided
@@ -51,8 +68,8 @@ class ConnectionFactory:
             logger.info("Using RDS Data API connection (resource_arn provided)")
             return "rds_data_api"
         elif hostname:
-            logger.info("Using direct PostgreSQL connection (hostname provided)")
-            return "psycopg_driver"
+            logger.info("Using PostgreSQL connection with connection pool (hostname provided)")
+            return "psycopg_pool"
         else:
             raise ValueError("Either resource_arn or hostname must be provided")
 
@@ -112,16 +129,20 @@ class ConnectionFactory:
                 region_name=region,
                 readonly=readonly
             )
-        elif connection_type == "psycopg_driver":
+        elif connection_type == "psycopg_pool":
             if not hostname or not database or not secret_arn or not region:
-                raise ValueError("PostgreSQL driver requires hostname, database, secret_arn, and region")
-            return PostgresDriver(
+                raise ValueError("PostgreSQL connector requires hostname, database, secret_arn, and region")
+            
+            return PsycopgConnector(
                 hostname=hostname,
                 port=port,
                 database=database,
                 secret_arn=secret_arn,
                 region_name=region,
-                readonly=readonly
+                readonly=readonly,
+                min_size=DEFAULT_MIN_SIZE,
+                max_size=DEFAULT_MAX_SIZE,
+                timeout=DEFAULT_TIMEOUT
             )
         else:
             raise ValueError(f"Unknown connection type: {connection_type}")
@@ -152,7 +173,7 @@ class ConnectionFactory:
         if connection_type == "rds_data_api":
             secret_hash = hash(secret_arn) if secret_arn else 0
             return f"rds://{resource_arn}/{database}#{secret_hash}"
-        elif connection_type == "psycopg_driver":
+        elif connection_type == "psycopg_pool":
             port = port or 5432
             secret_hash = hash(secret_arn) if secret_arn else 0
             return f"postgres://{hostname}:{port}/{database}#{secret_hash}"
@@ -174,7 +195,10 @@ class ConnectionFactory:
             'hostname': os.getenv('POSTGRES_HOSTNAME'),
             'port': int(os.getenv('POSTGRES_PORT', '5432')),
             'region_name': os.getenv('POSTGRES_REGION', 'us-west-2'),
-            'readonly': os.getenv('POSTGRES_READONLY', 'true').lower() == 'true'
+            'readonly': os.getenv('POSTGRES_READONLY', 'true').lower() == 'true',
+            'min_size': DEFAULT_MIN_SIZE,
+            'max_size': DEFAULT_MAX_SIZE,
+            'timeout': DEFAULT_TIMEOUT
         }
 
     @staticmethod
@@ -213,7 +237,7 @@ class ConnectionFactory:
                     missing.append('region_name')
                 return False, f"Missing required parameters for RDS Data API: {', '.join(missing)}"
 
-        elif connection_type == "psycopg_driver":
+        elif connection_type == "psycopg_pool":
             if not all([hostname, database, secret_arn, region_name]):
                 missing = []
                 if not hostname:
@@ -224,7 +248,7 @@ class ConnectionFactory:
                     missing.append('secret_arn')
                 if not region_name:
                     missing.append('region_name')
-                return False, f"Missing required parameters for direct PostgreSQL: {', '.join(missing)}"
+                return False, f"Missing required parameters for PostgreSQL connection pool: {', '.join(missing)}"
 
         else:
             return False, f"Unknown connection type: {connection_type}"

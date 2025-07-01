@@ -30,7 +30,10 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-postgres = ["psycopg2-binary>=2.9.9"]
+postgres = [
+    "psycopg>=3.2.0",
+    "psycopg_pool>=3.2.0"
+]
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"

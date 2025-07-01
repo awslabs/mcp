@@ -22,21 +22,6 @@ class DBConnector(ABC):
     """Abstract base class for database connections."""
 
     @abstractmethod
-    async def connect(self) -> bool:
-        """
-        Establish connection to database.
-
-        Returns:
-            bool: True if connection successful, False otherwise
-        """
-        pass
-
-    @abstractmethod
-    async def disconnect(self):
-        """Disconnect from database."""
-        pass
-
-    @abstractmethod
     async def execute_query(
         self,
         query: str,
@@ -61,16 +46,6 @@ class DBConnector(ABC):
 
         Returns:
             bool: True if connection is healthy, False otherwise
-        """
-        pass
-
-    @abstractmethod
-    def is_connected(self) -> bool:
-        """
-        Check if connection is active.
-
-        Returns:
-            bool: True if connection is active, False otherwise
         """
         pass
 

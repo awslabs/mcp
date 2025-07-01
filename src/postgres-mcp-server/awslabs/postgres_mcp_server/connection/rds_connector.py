@@ -21,6 +21,30 @@ from loguru import logger
 from typing import Any, Dict, List, Optional
 
 
+class Boto3ClientSingleton:
+    """Singleton class for boto3 clients to ensure HTTP keep-alive connections."""
+    
+    _instances = {}
+    
+    @classmethod
+    def get_client(cls, service_name: str, region_name: str) -> Any:
+        """
+        Get or create a boto3 client instance.
+        
+        Args:
+            service_name: AWS service name
+            region_name: AWS region name
+            
+        Returns:
+            Boto3 client instance
+        """
+        key = f"{service_name}:{region_name}"
+        if key not in cls._instances:
+            logger.info(f"Creating new boto3 client for {service_name} in {region_name}")
+            cls._instances[key] = boto3.client(service_name, region_name=region_name)
+        return cls._instances[key]
+
+
 class RDSDataAPIConnector(DBConnector):
     """Connector for RDS Data API connections."""
 
@@ -52,52 +76,11 @@ class RDSDataAPIConnector(DBConnector):
 
     @property
     def client(self):
-        """Get or create the RDS Data API client."""
+        """Get or create the RDS Data API client using the singleton pattern."""
         if self._client is None:
-            self._client = boto3.client('rds-data', region_name=self.region_name)
+            self._client = Boto3ClientSingleton.get_client('rds-data', self.region_name)
         return self._client
 
-    def is_connected(self) -> bool:
-        """Check if the connection is active."""
-        return self._connected
-
-    async def connect(self) -> bool:
-        """
-        Establish connection to RDS Data API.
-
-        Returns:
-            True if connection successful, False otherwise
-        """
-        try:
-            # For RDS Data API, we just need to test that we can create a client
-            # and that our credentials work. We'll do a simple test without recursion.
-            client = self.client  # This creates the boto3 client
-
-            # Test with a direct API call instead of using execute_query to avoid recursion
-            test_params = {
-                'resourceArn': self.resource_arn,
-                'secretArn': self.secret_arn,
-                'database': self.database,
-                'sql': 'SELECT 1',
-                'includeResultMetadata': True,
-            }
-
-            # Direct call to test connection
-            await asyncio.to_thread(client.execute_statement, **test_params)
-
-            self._connected = True
-            logger.info(f"Successfully connected to RDS Data API: {self.resource_arn}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to connect to RDS Data API: {str(e)}")
-            self._connected = False
-            return False
-
-    async def disconnect(self):
-        """Disconnect from RDS Data API."""
-        # RDS Data API is stateless, so no explicit disconnect needed
-        self._connected = False
-        logger.info("Disconnected from RDS Data API")
 
     async def execute_query(
         self,

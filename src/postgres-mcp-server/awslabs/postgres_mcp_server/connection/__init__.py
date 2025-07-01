@@ -16,12 +16,12 @@
 
 from .base_connection import DBConnector
 from .rds_connector import RDSDataAPIConnector
-from .postgres_driver import PostgresDriver
+from .psycopg_connector import PsycopgConnector
 from .connection_factory import ConnectionFactory
 
 __all__ = [
     'DBConnector',
     'RDSDataAPIConnector',
-    'PostgresDriver',
+    'PsycopgConnector',
     'ConnectionFactory',
 ]
