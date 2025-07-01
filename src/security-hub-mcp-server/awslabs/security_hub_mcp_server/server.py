@@ -77,52 +77,15 @@ class WorkflowStatus(str, Enum):
     SUPPRESSED = 'SUPPRESSED'
 
 
-@mcp.tool(name='get_findings')
 async def get_findings(
-    region: str = Field(
-        description="The AWS region to in which to query the SecurityHub service"
-    ),
-    aws_account_id: Optional[str] = Field(
-        default=None,
-        description="""(optional) Filter the findings to the specified AWS account id"""
-    ),
-    severity: Optional[str] = Field(
-        default=None,
-        description="""(optional) Filter the findings to the specified finding severity (INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL)"""
-    ),
-    workflow_status: Optional[str] = Field(
-        default=None,
-        description="""(optional) Filter the findings to the specified workflow status (NEW, NOTIFIED, RESOLVED, SUPPRESSED)"""
-    ),
-    custom_filters: Optional[dict] = Field(
-        default=None,
-        description="""(optional) A dictionary of additional Security Hub filters
-                       Example: {"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}
-                       See AWS Security Hub GetFindings API documentation for all available filters."""
-    ),
-    max_results: Optional[int] = Field(
-        default=None,
-        description="""(optional) The maximum number of finding results to return"""
-    ),
+    region: str,
+    aws_account_id: Optional[str] = None,
+    severity: Optional[str] = None,
+    workflow_status: Optional[str] = None,
+    custom_filters: Optional[dict] = None,
+    max_results: Optional[int] = None,
 ) -> Optional[List[Dict]]:
     """Get findings from the Security Hub service.
-
-    Examples:
-        # Get all HIGH severity findings in us-east-1
-        get_findings(region="us-east-1", severity="HIGH")
-
-        # Get findings with a custom resource type filter
-        get_findings(
-            region="us-east-1",
-            custom_filters={'ResourceType': [{'Comparison': 'EQUALS', 'Value': 'AwsAccount'}]}
-        )
-
-        # Combine basic and custom filters
-        get_findings(
-            region="us-east-1",
-            severity="HIGH",
-            custom_filters='{"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}'
-        )
 
     Args:
         region (str): the AWS region to in which to query the SecurityHub service
@@ -215,6 +178,75 @@ async def get_findings(
             findings = findings[:max_results]
 
     return findings
+
+
+@mcp.tool(name='get_findings')
+async def get_findings_tool(
+    region: str = Field(
+        ..., description='The AWS region to in which to query the SecurityHub service'
+    ),
+    aws_account_id: Optional[str] = Field(
+        default=None,
+        description="""(optional) Filter the findings to the specified AWS account id""",
+    ),
+    severity: Optional[str] = Field(
+        default=None,
+        description="""(optional) Filter the findings to the specified finding severity (INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL)""",
+    ),
+    workflow_status: Optional[str] = Field(
+        default=None,
+        description="""(optional) Filter the findings to the specified workflow status (NEW, NOTIFIED, RESOLVED, SUPPRESSED)""",
+    ),
+    custom_filters: Optional[dict] = Field(
+        default=None,
+        description="""(optional) A dictionary of additional Security Hub filters
+                       Example: {"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}
+                       See AWS Security Hub GetFindings API documentation for all available filters.""",
+    ),
+    max_results: Optional[int] = Field(
+        default=None, description="""(optional) The maximum number of finding results to return"""
+    ),
+) -> Optional[List[Dict]]:
+    """Get findings from the Security Hub service.
+
+    Examples:
+        # Get all HIGH severity findings in us-east-1
+        get_findings(region="us-east-1", severity="HIGH")
+
+        # Get findings with a custom resource type filter
+        get_findings(
+            region="us-east-1",
+            custom_filters={'ResourceType': [{'Comparison': 'EQUALS', 'Value': 'AwsAccount'}]}
+        )
+
+        # Combine basic and custom filters
+        get_findings(
+            region="us-east-1",
+            severity="HIGH",
+            custom_filters='{"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}'
+        )
+
+    Args:
+        region (str): the AWS region to in which to query the SecurityHub service
+        aws_account_id (str): (optional) filter the findings to the specified AWS account id
+        severity (str): (optional) filter the findings to the specified finding severity (INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL)
+        workflow_status (str): (optional) filter the findings to the specified workflow status (NEW, NOTIFIED, RESOLVED, SUPPRESSED)
+        custom_filters (str): (optional) A dictionary of additional Security Hub filters
+                       Example: {"ResourceType": [{"Comparison": "EQUALS", "Value": "AwsAccount"}]}
+                       See AWS Security Hub GetFindings API documentation for all available filters.
+        max_results (int): (optional) the maximum number of finding results to return
+
+    Returns:
+        List containing the Security Hub findings for the query; each finding is a dictionary.
+    """
+    return await get_findings(
+        region=region,
+        aws_account_id=aws_account_id,
+        severity=severity,
+        workflow_status=workflow_status,
+        custom_filters=custom_filters,
+        max_results=max_results,
+    )
 
 
 def main():
