@@ -30,6 +30,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [🛠️ Developer Tools \& Support](#️-developer-tools--support)
       - [📡 Integration \& Messaging](#-integration--messaging)
       - [💰 Cost \& Operations](#-cost--operations)
+      - [🧬 Healthcare \& Lifesciences](#-healthcare--lifesciences)
     - [Browse by How You're Working](#browse-by-how-youre-working)
       - [👨‍💻 Vibe Coding \& Development](#-vibe-coding--development)
         - [Core Development Workflow](#core-development-workflow)
@@ -37,6 +38,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
         - [Application Development](#application-development)
         - [Container \& Serverless Development](#container--serverless-development)
         - [Testing \& Data](#testing--data)
+        - [Lifesciences Workflow Development](#lifesciences-workflow-development)
       - [💬 Conversational Assistants](#-conversational-assistants)
         - [Knowledge \& Search](#knowledge--search)
         - [Content Processing \& Generation](#content-processing--generation)
@@ -200,6 +202,12 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 - **[Amazon CloudWatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
 
+#### 🧬 Healthcare & Lifesciences
+
+Interact with AWS HealthAI services.
+
+- **[AWS HealthOmics MCP Server](src/aws-healthomics-mcp-server/)** - Generate, run, debug and optimize lifescience workflows on AWS HealthOmics
+
 ---
 
 ### Browse by How You're Working
@@ -237,6 +245,10 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 ##### Testing & Data
 
 - **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for your applications
+
+##### Lifesciences Workflow Development
+
+- **[AWS HealthOmics MCP Server](/src/aws-healthomics-mcp-server/)** - Generate, deploy, run and debug WDL, Nextflow and CWL workflows
 
 #### 💬 Conversational Assistants
 
