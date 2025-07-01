@@ -18,6 +18,8 @@ import boto3
 import json
 import logging
 import os
+from awslabs.security_hub_mcp_server import __version__
+from botocore.config import Config
 from enum import Enum
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -125,7 +127,9 @@ async def get_findings(
             ]
 
     security_hub = boto3.Session(profile_name=profile_name).client(
-        'securityhub', region_name=region
+        'securityhub',
+        region_name=region,
+        config=Config(user_agent_extra=f'awslabs-security-hub-mcp-server/{__version__}'),
     )
 
     # Start with basic filters from individual parameters

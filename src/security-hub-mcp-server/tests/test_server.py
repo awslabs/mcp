@@ -65,9 +65,10 @@ class TestGetFindings:
         ]
 
     @pytest.mark.asyncio
+    @patch('awslabs.security_hub_mcp_server.server.Config')
     @patch('awslabs.security_hub_mcp_server.server.boto3.Session')
     async def test_get_findings_basic(
-        self, mock_session, mock_security_hub_client, sample_findings
+        self, mock_session, mock_config, mock_security_hub_client, sample_findings
     ):
         """Test basic get_findings functionality."""
         client, paginator = mock_security_hub_client
@@ -79,9 +80,17 @@ class TestGetFindings:
         result = await get_findings(region='us-east-1')
 
         assert result == sample_findings
+
+        from awslabs.security_hub_mcp_server import __version__
+
+        mock_config.assert_called_once_with(
+            user_agent_extra=f'awslabs-security-hub-mcp-server/{__version__}'
+        )
         mock_session.assert_called_once_with(profile_name='default')
         mock_session.return_value.client.assert_called_once_with(
-            'securityhub', region_name='us-east-1'
+            'securityhub',
+            region_name='us-east-1',
+            config=mock_config.return_value,
         )
         client.get_paginator.assert_called_once_with('get_findings')
         paginator.paginate.assert_called_once_with(Filters={})
