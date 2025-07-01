@@ -40,6 +40,7 @@ nav:
     - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
     - Amazon Q index MCP Server: servers/amazon-qindex-mcp-server.md
     - Amazon Rekognition MCP Server: servers/amazon-rekognition-mcp-server.md
+    - Amazon RDS Control Plane Server: servers/rds-control-plane-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
     - AWS IAM MCP Server: servers/iam-mcp-server.md
     - AWS Lambda Tool MCP Server: servers/lambda-tool-mcp-server.md
