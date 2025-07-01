@@ -89,6 +89,12 @@ The AWS credentials used by this server need the following IAM permissions:
 
 ### MCP Client Configuration
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.security-hub&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJhd3NsYWJzLnNlY3VyaXR5LWh1Yi1tY3Atc2VydmVyQGxhdGVzdCJdLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiIsIkFXU19QUk9GSUxFIjoieW91ci1wcm9maWxlLW5hbWUifSwiZGlzYWJsZWQiOmZhbHNlfQ==)
+
+You can configure the Security Hub MCP server in your favorite code assistant with MCP support like Q Developer, Cline,
+or Claude. Add the `awslabs.security-hub` object below to your MCP server configuration and configure your
+`AWS_PROFILE`:
+
 ```json
 {
   "mcpServers": {
