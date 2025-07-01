@@ -9,7 +9,7 @@
       "**/site-packages/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt"
+      "docusaurus-site/**"
     ],
     "include": [
       "**/*.py",
@@ -36,7 +36,6 @@
       ".venv/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt",
       "**/*.js",
       "**/*.html",
       "**/*.tsx",
