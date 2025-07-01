@@ -5,14 +5,22 @@
 
 ## Table of Contents
 
-- [Vibe coding](#vibe-coding)
-- [Requirements and Design Guidelines](#requirements-and-design-guidelines)
-- [Prompting](#prompting)
-- [Testing and Validation](#testing-and-validation)
-- [Context](#context)
-- [Documentation](#documentation)
-- [Limitations](#limitations)
-- [Version Control](#version-control)
+- [Vibe coding tips and tricks](#vibe-coding-tips-and-tricks)
+  - [Table of Contents](#table-of-contents)
+  - [Vibe coding](#vibe-coding)
+  - [AI Development Clients](#ai-development-clients)
+  - [Requirements and Design Guidelines](#requirements-and-design-guidelines)
+  - [Prompting](#prompting)
+  - [Testing and Validation](#testing-and-validation)
+  - [Documentation](#documentation)
+    - [Co-authoring Documentation with AI](#co-authoring-documentation-with-ai)
+  - [Limitations](#limitations)
+    - [Number of MCP servers and tools](#number-of-mcp-servers-and-tools)
+    - [Conversation Management](#conversation-management)
+  - [Context](#context)
+    - [Rules and Configuration](#rules-and-configuration)
+  - [Tooling](#tooling)
+  - [Version Control](#version-control)
 
 ## Vibe coding
 
@@ -33,6 +41,15 @@ An important aspect is that while coding AI intends to help you be more producti
 > - Verify all dependencies
 > - Perform necessary security checks
 > - Test the code in a controlled environment
+
+## AI Development Clients
+
+* Selection Criteria: When selecting an AI development client, consider your organization's requirements, such as compliance, security policies, and approved vendor lists. Technical aspects like pricing and IDE integration are also important factors in your decision.
+* Leverage Client Features: Each client has unique characteristics to optimize your workflow. For instance, in Cline, start with Plan mode to discuss and refine implementation details until you have a clear understanding. Only move to Act mode once the plan is thoroughly reviewed - this way, the code generation will align with your agreed-upon approach. Stay informed about new features and updates in your chosen clients through regular review of documentation and release notes.
+* Feature Compatibility: Each client supports different MCP features (Tools, Resources, Prompts - seeMCP clients). For example, if you plan to use the CDK MCP server, ensure your chosen client supports both Tools and Resources features.
+* Multi-Client Strategy: You don't need to limit yourself to a single client. Different clients excel at different tasks - you might use Cline for backend/CDK development while using Q CLI for AWS troubleshooting of permissions, network reachability, and security group rules.
+* MCP Server Selection: Don't feel overwhelmed by the number of available MCP servers (40+ and growing). Focus only on those that match your specific needs and use cases. Review their documentation carefully and test them as part of your selection process.
+
 
 ## Requirements and Design Guidelines
 
@@ -88,6 +105,12 @@ Maintain high-quality documentation by:
 - Ensuring the client generates appropriate code documentation (e.g., Python docstrings in code and written documentation in a README)
 - Keeping documentation up-to-date with code changes
 
+### Co-authoring Documentation with AI
+
+You may create multiple documents with AI and let AI update them whenever you make changes together. For example, you can define database schemas when planning, and let AI create ERD diagrams. When you review and want to make changes, remember to update both the documentation and the code. This collaborative approach can apply to various aspects of your project, such as API design or network architecture. The key is to split the documentation in meaningful ways and keep it up-to-date and concise, helping both you and AI maintain clear context and control. 
+
+> Tip: Well-organized documentation helps maintain context for both you and your AI assistant throughout the project lifecycle.
+
 ## Limitations
 
 ### Number of MCP servers and tools
@@ -130,6 +153,6 @@ When you assign tasks to a coding agent, it can autonomously iterate by running 
 
 Follow these version control best practices:
 
-- Commit changes frequently with meaningful messages
-- Use feature branches for new development
-- Maintain a clean and organized repository structure
+* Meaningful Commits: Commit changes frequently with clear, descriptive messages. Consider using AI to help draft commit messages, but always review them to ensure they accurately reflect your changes and provide good reference points for potential rollbacks.
+* Branch Strategy: Use feature branches for new development. Create separate branches for significant changes to maintain flexibility in your development process.
+* Repository Structure: Maintain a clean and organized repository structure. Define your structural requirements (like file size limits, mono repo setup, frontend framework) early and include these in your AI prompts for consistent code organization.
