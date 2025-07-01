@@ -14,7 +14,7 @@ The AWS MSK MCP Server provides a set of tools for interacting with Amazon MSK t
 - **Monitoring and Telemetry**: Access cluster metrics, logs, and operational data
 - **Security Management**: Configure authentication, encryption, and access policies
 - **Best Practices**: Get recommendations for cluster sizing, configuration, and performance optimization
-- **Read-Only Mode**: Server runs in read-only mode by default, protecting against accidental modifications
+- **Read-Only Mode**: Server runs in write mode by default, switch to read-only to protect against accidental modifications
 
 ## Tools
 
