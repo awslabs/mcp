@@ -66,7 +66,7 @@ This MCP server can be used by AI assistants to help users manage their Amazon M
 
 ### Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-msk-mcp-server&config=eyJjb21tYW5kIjoidXYgYXdzbGFicy5hd3MtbXNrLW1jcC1zZXJ2ZXIiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-msk-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnV2JTIwYXdzbGFicy5hd3MtbXNrLW1jcC1zZXJ2ZXIlMjAtLWFsbG93LXdyaXRlcyUyMiUyQyUyMmVudiUyMiUzQSU3QiUyMkZBU1RNQ1BfTE9HX0xFVkVMJTIyJTNBJTIyRVJST1IlMjIlN0QlMkMlMjJkaXNhYmxlZCUyMiUzQWZhbHNlJTJDJTIyYXV0b0FwcHJvdmUlMjIlM0ElNUIlNUQlN0Q%3D)
 
 To use this MCP server with your MCP client, add the following configuration to your MCP client settings:
 
@@ -74,8 +74,8 @@ To use this MCP server with your MCP client, add the following configuration to 
 "awslabs.aws-msk-mcp-server": {
     "command": "uv",
     "args": [
-        "awslabs.aws-msk-mcp-server"
-        // Add "--allow-writes" here to enable write operations
+        "awslabs.aws-msk-mcp-server",
+        "--allow-writes"
     ],
     "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -108,19 +108,21 @@ The server requires AWS credentials to access MSK resources. These can be provid
 
 #### `--allow-writes`
 
-By default, the MSK MCP server runs in read-only mode, which disables all write operations. In this mode, only read operations (tools in directories prefixed with "read_") and utility tools are available. Write operations (tools in directories prefixed with "mutate_") are disabled.
+By default, the MSK MCP server runs in write mode.
 
-To enable write operations, add the `--allow-writes` parameter to your MCP client configuration:
+To disable write operations, remove the `--allow-writes` parameter to your MCP client configuration:
 
 ```json
 "args": [
     "--directory",
     "<absolute path to your server code>",
     "run",
-    "server.py",
-    "--allow-writes"
+    "server.py"
+    //Removed "--allow-writes"
 ]
 ```
+
+In this mode, only read operations (tools in directories prefixed with "read_") and utility tools are available. Write operations (tools in directories prefixed with "mutate_") are disabled.
 
 #### Region Selection
 

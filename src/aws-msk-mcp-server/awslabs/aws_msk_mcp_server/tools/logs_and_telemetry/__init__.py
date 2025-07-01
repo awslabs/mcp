@@ -57,6 +57,19 @@ def register_module(mcp: FastMCP) -> None:
                         - Dictionary mapping metric names to optional statistics
                           (e.g., {'BytesInPerSec': 'Sum', 'BytesOutPerSec': 'Average'})
 
+                        IMPORTANT: A list of dictionaries is NOT supported and will cause an "unhashable type: 'dict'" error.
+                        For example, this will NOT work:
+                        [{'BytesInPerSec': 'Sum'}, {'BytesOutPerSec': 'Average'}]
+
+                        To specify multiple metrics with different statistics, use a single dictionary:
+                        {'BytesInPerSec': 'Sum', 'BytesOutPerSec': 'Average'}
+
+                        To use default statistics for all metrics, use a simple list:
+                        ['BytesInPerSec', 'BytesOutPerSec']
+
+                        Note: To specify multiple statistics for the same metric (e.g., both Sum and Average),
+                        you need to make separate API calls.
+
                         The function will validate that metrics is provided and raise an error if missing.
                         If you're unsure which metrics to include, consider using these recommended cluster-level metrics for PROVISONED clusters:
 
@@ -101,6 +114,7 @@ def register_module(mcp: FastMCP) -> None:
                         - StatusCode (str): The status code of the metric data
 
                     **How to interpret and use the data:** The tool returns a dictionary of metrics with time-series data (timestamps and values). Key interpretations:
+                    - **Interpreting aggregate statistics:** When using the 'Sum' statistic over a period, the value represents the sum across time windows, not the instantaneous value at a given time. To get the average value, divide the sum by the number of data points (which equals the total time span divided by the period parameter in seconds). For example, if Sum=5 over a 5-minute period with period=60 (1-minute data points), this means 5÷(300/60)=5÷5=1 on average. This is especially important for metrics like ActiveControllerCount where the expected value is 1.
                     - **Topics/Partitions:** Gradual increases are normal as you add topics. However, if you notice an unplanned spike, ensure it's expected (maybe a deployment created many topics). Extremely high counts (relative to broker number) might degrade performance; consider adding brokers if partitions per broker count is very high.
                     - **Offline Partitions:** If this is >0 at any time, the cluster has lost leadership for some partitions (likely a broker went down without replica to take over). If partitions remain offline, data for those partitions is unavailable. Investigate broker failures or replication-factor settings (ensure critical topics have replication factor >= 2 or 3).
                     - **Under-Replicated Partitions:** Spikes may occur during broker restarts or network blips, but they should return to 0 quickly. If under-replicated count persists >0 for extended periods, it suggests one or more brokers are not caught up. Identify which broker is lagging or down and resolve (could involve restarting a stuck broker or adding a replacement).
@@ -113,7 +127,6 @@ def register_module(mcp: FastMCP) -> None:
                     - **Under-Replicated Partitions** should trend back to 0 quickly after any transient issues. Continuous non-zero values (especially increasing) is critical to address (could lead to data loss if another failure occurs).
                     - **Connection Count:** No fixed "max", but track your typical range. If it approaches known limits (for example, if each broker can handle X thousand connections based on instance type), consider scaling or load balancing clients. Spikes might correlate with deploys or client bugs.
                     - **Controller Elections:** If ActiveControllerCount deviates from 1 even briefly, note the time and correlate with broker logs (there will be logs for controller election). Frequent elections (e.g., multiple times a day) are a concern - possibly due to a flapping broker or network issues between brokers.
-
                     **Trends and thresholds for broker-level metrics:**
                     - **Throughput:** If cluster traffic is increasing, ensure no single broker approaches network saturation (for instance, if an instance type can handle X MB/s, keep an eye if BytesOut on any broker gets close). Sudden throughput imbalance might warrant data redistribution.
                     - **UnderReplicated:** Should normally be 0. Even a small non-zero for extended periods is an alert condition. If under-replication persists on one broker, it may eventually lead to ISR shrink (replica being kicked out) or risk data loss if another failure happens.
