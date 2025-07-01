@@ -155,6 +155,7 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon DocumentDB MCP Server](src/documentdb-mcp-server/)** - MongoDB-compatible document database operations
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries with openCypher and Gremlin
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
+- **[Amazon RDS Control Plane MCP Server](src/rds-control-plane-mcp-server/)** - View RDS/Aurora database instances, clusters, and configurations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
 
 ##### Search & Analytics
@@ -272,6 +273,7 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 - **[Amazon DocumentDB MCP Server](src/documentdb-mcp-server/)** - MongoDB-compatible document operations
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries and analytics
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Cassandra-compatible operations
+- **[Amazon RDS Control Plane MCP Server](src/rds-control-plane-mcp-server/)** - View RDS/Aurora database instances, clusters, and configurations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
 
 ##### Caching & Performance
