@@ -498,6 +498,22 @@ A server for interacting with AWS Cost Explorer to analyze AWS costs and usage d
 
 [Learn more about the AWS Cost Explorer MCP Server](servers/cost-explorer-mcp-server.md)
 
+### AWS HealthOmics MCP Server
+
+An AWS Labs Model Context Protocol (MCP) server for AWS HealthOmics
+
+**Features:**
+
+- Workflow Management: Create, validate, and manage genomic workflows
+- Workflow Execution: Start runs, monitor status, and manage tasks
+- Analysis and Troubleshooting: Analyze run performance and diagnose failures
+- Log Access: Retrieve run, engine, task, and manifest logs
+- Region Management: Get supported AWS regions for HealthOmics
+
+Instructions for using this aws-healthomics MCP server. This can be used by clients to improve the LLM's understanding of available tools, resources, etc. for the AWS HealthOmics service
+
+[Learn more about the aws-healthomics MCP Server](servers/aws-healthomics-mcp-server.md)
+
 ## Installation and Setup
 
 Please refer to the README files in each server's directory for specific installation instructions.

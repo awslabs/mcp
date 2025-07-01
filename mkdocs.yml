@@ -62,6 +62,8 @@ nav:
     - Amazon CloudWatch Application Signals MCP Server: servers/cloudwatch-appsignals-mcp-server.md
     - Amazon Timestream for InfluxDB MCP Server: servers/timestream-for-influxdb-mcp-server.md
     - Amazon Redshift MCP Server: servers/redshift-mcp-server.md
+    - AWS HealthOmics MCP Server: servers/aws-healthomics-mcp-server.md
+
   - Samples:
     - Home: samples/index.md
     - MCP Integration with Amazon Bedrock Knowledge Bases: samples/mcp-integration-with-kb.md
