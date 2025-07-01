@@ -49,16 +49,25 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  position: relative;
 }
 
 .cardControlsSelect {
   padding: 0.5rem 0.75rem;
+  padding-right: 2rem;
   border: 1px solid var(--ifm-color-emphasis-300);
   border-radius: 6px;
   background-color: var(--ifm-background-color);
   color: var(--ifm-font-color-base);
   font-size: 0.875rem;
   width: 100%;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23666' d='M4.5 6l3.5 3.5L11.5 6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem;
 }
 
 .cardControlsSelect:focus {
@@ -133,7 +142,7 @@
   background-color: var(--ifm-background-color);
   border: 1px solid var(--ifm-color-emphasis-300);
   border-radius: 6px;
-  padding: 0.8rem;
+  padding: .9rem;
   transition: all 0.2s ease;
   height: 150px; /* Reduced from 185px to 150px */
   width: 100%; /* Ensure the card takes full width of its grid cell */
@@ -165,6 +174,7 @@
 }
 
 .serverCardTitleSection {
+  margin-top: .35rem;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -180,29 +190,25 @@
   color: var(--ifm-heading-color);
 }
 
-.serverCardCategory {
+.serverCardTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
   margin-top: 0.1rem;
+  align-items: center;
+}
+
+.serverCardCategory {
   display: inline-block;
   padding: 0.15rem 0.2rem;
-  background-color: #87adc2af;
-  color: white;
+  background-color: var(--ifm-menu-color-background-active);
   font-size: 0.6rem;
   font-weight: 500;
   border-radius: 3px;
-  text-transform: uppercase;
   letter-spacing: 0;
   width: fit-content;
 }
 
-/* Category Colors */
-.serverCardCategorydocumentation { background-color: #87adc2af; color: white; }
-.serverCardCategoryinfrastructuredeployment { background-color: #87adc2af; color: white; }
-.serverCardCategoryaiml { background-color: #87adc2af; color: white; }
-.serverCardCategorydataanalytics { background-color: #87adc2af; color: white; }
-.serverCardCategorydevelopertools { background-color: #87adc2af; color: white; }
-.serverCardCategoryintegrationmessaging { background-color: #87adc2af; color: white; }
-.serverCardCategorycostoperations { background-color: #87adc2af; color: white; }
-.serverCardCategorycore { background-color: #87adc2af; color: white; }
 
 /* Card Content */
 .serverCardContent {
@@ -213,12 +219,12 @@
 }
 
 .serverCardDescription {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   line-height: 1.3;
   color: var(--ifm-font-color-base);
   opacity: 0.85;
-  margin-top: 0.2rem;
-  margin-bottom: 0.2rem; /* Reduced from 0.3rem to 0.2rem */
+  margin-top: 0.5rem;
+  margin-bottom: 0rem; /* Reduced from 0.3rem to 0.2rem */
   margin-left: 32px;
   flex: 1;
   height: 2.6rem; /* Reduced from 3.8rem to 2.6rem */
@@ -229,41 +235,18 @@
   -webkit-box-orient: vertical;
 }
 
-/* Card Footer */
-.serverCardFooter {
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--ifm-color-emphasis-200);
-  padding-bottom: 1rem;
-  width: 100%;
-  height: 1.5rem;
-  overflow: hidden;
-}
-
-.serverCardWorkflows {
-  display: flex;
-  flex-wrap: nowrap; /* Prevent wrapping to maintain consistent height */
-  gap: 0.4rem;
-  margin-left: 32px;
-  overflow: hidden;
-}
-
+/* Workflow Tags */
 .serverCardWorkflow {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0.05rem 0.15rem;
-  background-color: var(--ifm-color-emphasis-100);
-  color: var(--ifm-color-primary);
-  font-size: 0.65rem;
+  display: inline-block;
+  padding: 0.15rem 0.2rem;
+  background-color: var(--ifm-menu-color-background-active);
+  color: var(--ifm-font-color-base);
+  font-size: 0.6rem;
   font-weight: 500;
   border-radius: 3px;
+  letter-spacing: 0;
   white-space: nowrap;
-}
-
-.serverCardWorkflowIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: fit-content;
 }
 
 /* Empty State */
