@@ -105,7 +105,7 @@ def mock_boto3():
     with patch('awslabs.postgres_mcp_server.connection.psycopg_connector.boto3') as mock_boto3:
         mock_client = MagicMock()
         mock_client.get_secret_value.return_value = {
-            'SecretString': '{"username": "test_user", "password": "test_password"}'
+            'SecretString': '{"username": "test_user", "password": "test_password"}' # pragma: allowlist secret
         }
         mock_boto3.client.return_value = mock_client
         yield mock_boto3
