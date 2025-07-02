@@ -303,6 +303,7 @@ Interact with AWS HealthAI services.
 ##### Operations & Monitoring
 
 - **[Amazon CloudWatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
+- **[Amazon CloudWatch Application Signals MCP Server](src/cloudwatch-appsignals-mcp-server/)** - Application monitoring and performance insights
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Cost monitoring and spend analysis
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
 
