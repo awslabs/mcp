@@ -18,15 +18,55 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 
-# Mock boto3 client to avoid real AWS API calls
 @pytest.fixture(autouse=True)
-def mock_boto3():
-    """Mock boto3 client to avoid real AWS API calls."""
-    with patch('boto3.client') as mock_client:
-        # Create a mock ce client
-        mock_ce = MagicMock()
-        mock_client.return_value = mock_ce
-        yield mock_ce
+def reset_client_cache():
+    """Reset the global client cache before each test."""
+    import awslabs.cost_explorer_mcp_server.helpers
+
+    # Reset the global client cache to ensure clean state for each test
+    awslabs.cost_explorer_mcp_server.helpers._cost_explorer_client = None
+    yield
+    # Clean up after test
+    awslabs.cost_explorer_mcp_server.helpers._cost_explorer_client = None
+
+
+@pytest.fixture
+def mock_cost_explorer_client():
+    """Provide a mock Cost Explorer client for tests."""
+    mock_client = MagicMock()
+
+    # Set up common mock responses
+    mock_client.get_dimension_values.return_value = {
+        'DimensionValues': [
+            {'Value': 'Amazon Elastic Compute Cloud - Compute'},
+            {'Value': 'Amazon Simple Storage Service'},
+        ]
+    }
+
+    mock_client.get_tags.return_value = {'Tags': ['dev', 'prod', 'test']}
+
+    mock_client.get_cost_and_usage.return_value = {
+        'ResultsByTime': [
+            {
+                'TimePeriod': {'Start': '2025-05-01', 'End': '2025-06-01'},
+                'Groups': [
+                    {
+                        'Keys': ['Amazon Elastic Compute Cloud - Compute'],
+                        'Metrics': {'UnblendedCost': {'Amount': '100.50', 'Unit': 'USD'}},
+                    }
+                ],
+            }
+        ]
+    }
+
+    return mock_client
+
+
+@pytest.fixture
+def mock_aws_environment():
+    """Mock AWS environment variables for testing."""
+    with patch.dict('os.environ', {'AWS_REGION': 'us-east-1', 'AWS_PROFILE': 'test-profile'}):
+        yield
 
 
 @pytest.fixture

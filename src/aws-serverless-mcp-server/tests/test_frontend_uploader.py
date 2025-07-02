@@ -167,7 +167,7 @@ class TestFrontendUploader:
             framework='react',
             index_document='index.html',
             error_document='error.html',
-            certificate_arn='arn:aws:acm:us-east-1:123456789012:certificate/abcd1234',
+            certificate_arn='arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-2',
             custom_domain='example.com',
         )
 

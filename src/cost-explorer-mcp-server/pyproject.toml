@@ -1,11 +1,12 @@
 [project]
 name = "awslabs.cost-explorer-mcp-server"
-version = "0.0.4"
+version = "0.0.6"
 description = "MCP server for analyzing AWS costs and usage data through the AWS Cost Explorer API"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.36.20",
+    "boto3>=1.38.40",
+    "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pandas>=2.2.3",
     "pydantic>=2.10.6",

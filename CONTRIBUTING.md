@@ -24,9 +24,13 @@ Contributions via pull requests are much appreciated. Before sending us a pull r
 
 1. You are working against the latest source on the *main* branch.
 2. You check existing open, and recently merged, pull requests to make sure someone else hasn't addressed the problem already.
-3. You open an issue to discuss any significant work - we would hate for your time to be wasted. For instance, if you want to propose a new MCP Server, you would need to fist open a RFC issue.
+3. You open an issue to discuss any significant work - we would hate for your time to be wasted. For instance, if you want to propose a new MCP Server, you would need to first open a RFC issue.
 
 The [Developer guide](DEVELOPER_GUIDE.md) provides the steps to set up your dev environment and make sure your code is ready before you submit your pull request.
+
+### Special `./README.md` considerations for new MCP servers
+
+When adding a new MCP server, you must update the README.md to include your server in the appropriate categories under "Available MCP Servers". Add it to both the "Browse by What You're Building" and "Browse by How You're Working" sections with a brief description that clearly explains its purpose. Include a link to the server's directory using the pattern `src/your-server-name/`. Ensure your server's description is consistent with the style of existing entries.
 
 GitHub provides additional document on [forking a repository](https://help.github.com/articles/fork-a-repo/) and
 [creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
@@ -39,7 +43,7 @@ Looking at the existing issues is a great way to find something to contribute on
 
 This project has adopted the [Amazon Open Source Code of Conduct](https://aws.github.io/code-of-conduct).
 For more information see the [Code of Conduct FAQ](https://aws.github.io/code-of-conduct-faq) or contact
-opensource-codeofconduct@amazon.com with any additional questions or comments.
+[opensource-codeofconduct@amazon.com](mailto:opensource-codeofconduct@amazon.com) with any additional questions or comments.
 
 ## Security issue notifications
 

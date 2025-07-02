@@ -23,6 +23,8 @@ Model Context Protocol (MCP) server that enables LLMs to directly create and man
 
 ## Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.cfn-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuY2ZuLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1uYW1lZC1wcm9maWxlIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
+
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
@@ -100,34 +102,42 @@ NOTE: Your credentials will need to be kept refreshed from your host
 ## Tools
 
 ### create_resource
+
 Creates an AWS resource using the AWS Cloud Control API with a declarative approach.
 **Example**: Create an S3 bucket with versioning and encryption enabled.
 
 ### get_resource
+
 Gets details of a specific AWS resource using the AWS Cloud Control API.
 **Example**: Get the configuration of an EC2 instance.
 
 ### update_resource
+
 Updates an AWS resource using the AWS Cloud Control API with a declarative approach.
 **Example**: Update an RDS instance's storage capacity.
 
 ### delete_resource
+
 Deletes an AWS resource using the AWS Cloud Control API.
 **Example**: Remove an unused NAT gateway.
 
 ### list_resources
+
 Lists AWS resources of a specified type using AWS Cloud Control API.
 **Example**: List all EC2 instances in a region.
 
 ### get_resource_schema_information
+
 Get schema information for an AWS CloudFormation resource.
 **Example**: Get the schema for AWS::S3::Bucket to understand all available properties.
 
 ### get_request_status
+
 Get the status of a mutation that was initiated by create/update/delete resource.
 **Example**: Give me the status of the last request I made.
 
-### create_tempalte
+### create_template
+
 Create a Cloudformation template from created or listed resources.
 **Example**: Create a YAML template for those resources.
 
@@ -147,7 +157,8 @@ Examples of how to use the AWS Infrastructure as Code MCP Server:
 - "Create a template for all the resources we created and modified"
 
 ## Resource Type support
-Resources which are supported by this MCP and the supported operations can be found here: https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html
+
+Resources which are supported by this MCP and the supported operations can be found here: <https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html>
 
 ## Security Considerations
 

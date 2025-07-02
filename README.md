@@ -25,10 +25,12 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [🤖 AI \& Machine Learning](#-ai--machine-learning)
       - [📊 Data \& Analytics](#-data--analytics)
         - [SQL \& NoSQL Databases](#sql--nosql-databases)
+        - [Search \& Analytics](#search--analytics)
         - [Caching \& Performance](#caching--performance)
       - [🛠️ Developer Tools \& Support](#️-developer-tools--support)
       - [📡 Integration \& Messaging](#-integration--messaging)
       - [💰 Cost \& Operations](#-cost--operations)
+      - [🧬 Healthcare \& Lifesciences](#-healthcare--lifesciences)
     - [Browse by How You're Working](#browse-by-how-youre-working)
       - [👨‍💻 Vibe Coding \& Development](#-vibe-coding--development)
         - [Core Development Workflow](#core-development-workflow)
@@ -36,6 +38,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
         - [Application Development](#application-development)
         - [Container \& Serverless Development](#container--serverless-development)
         - [Testing \& Data](#testing--data)
+        - [Lifesciences Workflow Development](#lifesciences-workflow-development)
       - [💬 Conversational Assistants](#-conversational-assistants)
         - [Knowledge \& Search](#knowledge--search)
         - [Content Processing \& Generation](#content-processing--generation)
@@ -139,6 +142,7 @@ Enhance AI applications with knowledge retrieval, content generation, and ML cap
 - **[Amazon Kendra Index MCP Server](src/amazon-kendra-index-mcp-server/)** - Enterprise search and RAG enhancement
 - **[Amazon Q index MCP Server](src/amazon-qindex-mcp-server/)** - Data accessors to search through enterprise's Q index
 - **[Amazon Nova Canvas MCP Server](src/nova-canvas-mcp-server/)** - AI image generation with text and color guidance
+- **[Amazon Rekognition MCP Server](src/amazon-rekognition-mcp-server/)** - Analyze images using computer vision capabilities
 - **[Amazon Bedrock Data Automation MCP Server](src/aws-bedrock-data-automation-mcp-server/)** - Analyze documents, images, videos, and audio files
 
 #### 📊 Data & Analytics
@@ -156,6 +160,11 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries with openCypher and Gremlin
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
+- **[Amazon Redshift MCP Server](src/redshift-mcp-server/)** - Provides tools to discover, explore, and query Amazon Redshift clusters and serverless workgroups
+
+##### Search & Analytics
+
+- **[Amazon OpenSearch MCP Server](https://github.com/opensearch-project/opensearch-mcp-server-py)** - OpenSearch powered search, Analytics, and Observability
 
 ##### Caching & Performance
 
@@ -167,11 +176,13 @@ Work with databases, caching systems, and data processing workflows.
 
 Accelerate development with code analysis, documentation, and testing utilities.
 
+- **[AWS IAM MCP Server](src/iam-mcp-server/)** - Comprehensive IAM user, role, group, and policy management with security best practices
 - **[Git Repo Research MCP Server](src/git-repo-research-mcp-server/)** - Semantic code search and repository analysis
 - **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Automated documentation from code analysis
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams and technical illustrations
 - **[Frontend MCP Server](src/frontend-mcp-server/)** - React and modern web development guidance
 - **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for development and ML
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 #### 📡 Integration & Messaging
 
@@ -181,6 +192,7 @@ Connect systems with messaging, workflows, and location services.
 - **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker management for RabbitMQ and ActiveMQ
 - **[AWS Step Functions Tool MCP Server](src/stepfunctions-tool-mcp-server/)** - Execute complex workflows and business processes
 - **[Amazon Location Service MCP Server](src/aws-location-mcp-server/)** - Place search, geocoding, and route optimization
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 #### 💰 Cost & Operations
 
@@ -190,6 +202,12 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and reporting
 - **[Amazon CloudWatch Logs MCP Server](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
+
+#### 🧬 Healthcare & Lifesciences
+
+Interact with AWS HealthAI services.
+
+- **[AWS HealthOmics MCP Server](src/aws-healthomics-mcp-server/)** - Generate, run, debug and optimize lifescience workflows on AWS HealthOmics
 
 ---
 
@@ -216,6 +234,7 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 - **[Frontend MCP Server](src/frontend-mcp-server/)** - React and modern web development patterns with AWS integration
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams as you design
 - **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Auto-generate docs from your codebase
+- **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
 ##### Container & Serverless Development
 
@@ -227,6 +246,10 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 ##### Testing & Data
 
 - **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for your applications
+
+##### Lifesciences Workflow Development
+
+- **[AWS HealthOmics MCP Server](/src/aws-healthomics-mcp-server/)** - Generate, deploy, run and debug WDL, Nextflow and CWL workflows
 
 #### 💬 Conversational Assistants
 
@@ -242,6 +265,7 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 ##### Content Processing & Generation
 
 - **[Amazon Nova Canvas MCP Server](src/nova-canvas-mcp-server/)** - Generate images from text descriptions and color palettes
+- **[Amazon Rekognition MCP Server](src/amazon-rekognition-mcp-server/)** - Analyze images using computer vision capabilities
 - **[Amazon Bedrock Data Automation MCP Server](src/aws-bedrock-data-automation-mcp-server/)** - Analyze uploaded documents, images, and media
 
 ##### Business Services
@@ -894,6 +918,16 @@ You can use these MCP servers with your AI coding assistant to [vibe code](https
 
 - [Introducing AWS MCP Servers for code assistants](https://aws.amazon.com/blogs/machine-learning/introducing-aws-mcp-servers-for-code-assistants-part-1/)
 - [Vibe coding with AWS MCP Servers | AWS Show & Tell](https://www.youtube.com/watch?v=qXGQQRMrcz0)
+- [Supercharging AWS database development with AWS MCP servers](https://aws.amazon.com/blogs/database/supercharging-aws-database-development-with-aws-mcp-servers/)
+- [AWS costs estimation using Amazon Q CLI and AWS Cost Analysis MCP](https://aws.amazon.com/blogs/machine-learning/aws-costs-estimation-using-amazon-q-cli-and-aws-cost-analysis-mcp/)
+- [Introducing AWS Serverless MCP Server: AI-powered development for modern applications](https://aws.amazon.com/blogs/compute/introducing-aws-serverless-mcp-server-ai-powered-development-for-modern-applications/)
+- [Announcing new Model Context Protocol (MCP) Servers for AWS Serverless and Containers](https://aws.amazon.com/about-aws/whats-new/2025/05/new-model-context-protocol-servers-aws-serverless-containers/)
+- [Accelerating application development with the Amazon EKS MCP server](https://aws.amazon.com/blogs/containers/accelerating-application-development-with-the-amazon-eks-model-context-protocol-server/)
+- [Amazon Neptune announces MCP (Model Context Protocol) Server](https://aws.amazon.com/about-aws/whats-new/2025/05/amazon-neptune-mcp-server/)
+- [Terraform MCP Server Vibe Coding](https://youtu.be/i2nBD65md0Y)
+- [How to Generate AWS Architecture Diagrams Using Amazon Q CLI and MCP](https://community.aws/content/2vPiiPiBSdRalaEax2rVDtshpf3/how-to-generate-aws-architecture-diagrams-using-amazon-q-cli-and-mcp)
+- [Harness the power of MCP servers with Amazon Bedrock Agents](https://aws.amazon.com/blogs/machine-learning/harness-the-power-of-mcp-servers-with-amazon-bedrock-agents/)
+- [Unlocking the power of Model Context Protocol (MCP) on AWS](https://aws.amazon.com/blogs/machine-learning/unlocking-the-power-of-model-context-protocol-mcp-on-aws/)
 
 ## Security
 
