@@ -93,23 +93,34 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 3. Run 'docker build -t awslabs/cloudwatch-mcp-server:latest .'
 
 ### Add or update your LLM client's config with following:
+```file
+# fictitious `.env` file with AWS temporary credentials
+AWS_ACCESS_KEY_ID=<from the profile you set up>
+AWS_SECRET_ACCESS_KEY=<from the profile you set up>
+AWS_SESSION_TOKEN=<from the profile you set up>
+```
+
 ```json
-{
-  "mcpServers": {
-    "awslabs.cloudwatch-mcp-server": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e", "AWS_PROFILE=[your data]",
-        "-e", "AWS_REGION=[your data]",
-        "awslabs/cloudwatch-mcp-server:latest"
-      ]
+  {
+    "mcpServers": {
+      "awslabs.cloudwatch-mcp-server": {
+        "command": "docker",
+        "args": [
+          "run",
+          "--rm",
+          "--interactive",
+          "--env-file",
+          "/full/path/to/file/above/.env",
+          "awslabs/cloudwatch-mcp-server:latest"
+        ],
+        "env": {},
+        "disabled": false,
+        "autoApprove": []
+      }
     }
   }
-}
 ```
+NOTE: Your credentials will need to be kept refreshed from your host
 
 ## Contributing
 

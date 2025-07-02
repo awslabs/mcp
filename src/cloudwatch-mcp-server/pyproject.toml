@@ -89,6 +89,8 @@ no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
+# Ignore D205 for a specific file
+"**/cloudwatch_metrics/tools.py" = ["D205"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
