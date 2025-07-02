@@ -14,7 +14,7 @@ Log Analyzer - Analyzes a CloudWatch log group for anomalies, message patterns, 
 
 Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated, recommended statistics to use for metric data retrieval
 
-Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm 
+Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm
 
 ## Prerequisites
 
@@ -86,7 +86,7 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 }
 ```
 
-Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) to create and manage your credentials profile 
+Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) to create and manage your credentials profile
 
 ### Build and install docker image locally on the same host of your LLM client
 
