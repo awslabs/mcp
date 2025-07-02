@@ -8,8 +8,7 @@
       "**/*venv/**",
       "**/site-packages/**",
       ".github/**",
-      "docs/**",
-      "docusaurus-site/**"
+      "docs/**"
     ],
     "include": [
       "**/*.py",

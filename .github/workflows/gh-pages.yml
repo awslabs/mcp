@@ -23,17 +23,17 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: 'docusaurus-site/package-lock.json'
+          cache-dependency-path: 'docs/package-lock.json'
 
       - name: Install dependencies
-        run: cd docusaurus-site && npm ci
+        run: cd docs && npm ci
       - name: Build website
-        run: cd docusaurus-site && npm run build
+        run: cd docs && npm run build
 
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: docusaurus-site/build
+          path: docs/build
 
   deploy:
     name: Deploy to GitHub Pages
