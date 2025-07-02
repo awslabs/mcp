@@ -33,6 +33,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/aws-documentation-mcp-server       @Lavoiedavidw @JonLim            @awslabs/mcp-admins
 /src/aws-healthomics-mcp-server         @markjschreiber			             @awslabs/mcp-admins
 #/src/aws-location-mcp-server           @awslabs/mcp-maintainers         @awslabs/mcp-admins
+/src/aws-pricing-mcp-server             @nspring00 @aytech-in            @awslabs/mcp-admins
 /src/aws-serverless-mcp-server          @bx9900                          @awslabs/mcp-admins
 /src/aws-support-mcp-server             @Wook133                         @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers         @awslabs/mcp-admins
@@ -41,7 +42,6 @@ NOTICE                                @awslabs/mcp-admins
 /src/cloudwatch_logs_mcp_server         @lemmoi @shri-tambe              @awslabs/mcp-admins
 /src/code-doc-gen-mcp-server            @jimini55                        @awslabs/mcp-admins
 /src/core-mcp-server                    @PaulVincent707                  @awslabs/mcp-admins
-#/src/aws-pricing-mcp-server            @nspring00 @aytech-in         @awslabs/mcp-admins
 /src/cost-explorer-mcp-server           @Fedayizada                      @awslabs/mcp-admins
 #/src/documentdb-mcp-server             @awslabs/mcp-maintainers         @awslabs/mcp-admin
 /src/dynamodb-mcp-server                @erbenmo                         @awslabs/mcp-admins
