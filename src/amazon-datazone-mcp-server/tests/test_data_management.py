@@ -648,20 +648,24 @@ class TestDataManagementPragmaNoCoverHandling:
     ):
         """Test get_subscription ClientError handling - covers line 894."""
         get_subscription = tool_extractor(mcp_server_with_tools, 'get_subscription')
-        
+
         # Mock ClientError for get_subscription
         mock_client_error.return_value = Exception(
             'Error getting subscription test-subscription in domain test-domain: An error occurred (AccessDenied) when calling the GetSubscription operation: Access denied'
         )
-        mcp_server_with_tools._mock_client.get_subscription.side_effect = mock_client_error.return_value
-        
+        mcp_server_with_tools._mock_client.get_subscription.side_effect = (
+            mock_client_error.return_value
+        )
+
         with pytest.raises(Exception) as exc_info:
             await get_subscription(
                 domain_identifier='test-domain',
                 identifier='test-subscription'
             )
-        
-        assert 'Error getting subscription test-subscription in domain test-domain' in str(exc_info.value)
+
+        assert 'Error getting subscription test-subscription in domain test-domain' in str(
+            exc_info.value
+        )
 
     @pytest.mark.asyncio
     async def test_get_form_type_with_revision_pragma_coverage(
@@ -774,8 +778,8 @@ class TestDataManagementPragmaNoCoverHandling:
             mcp_server_with_tools, 'accept_subscription_request'
         )
 
-        mcp_server_with_tools._mock_client.accept_subscription_request.side_effect = mock_client_error(
-            'ValidationException', 'Invalid request'
+        mcp_server_with_tools._mock_client.accept_subscription_request.side_effect = (
+            mock_client_error('ValidationException', 'Invalid request')
         )
 
         with pytest.raises(Exception) as exc_info:

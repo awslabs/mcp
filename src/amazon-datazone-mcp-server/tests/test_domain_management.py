@@ -473,9 +473,7 @@ class TestDomainManagementUncoveredLines:
         create_domain = tool_extractor(mcp_server_with_tools, 'create_domain')
 
         # Mock a non-ClientError exception
-        mcp_server_with_tools._mock_client.create_domain.side_effect = ValueError(
-            'Test exception'
-        )
+        mcp_server_with_tools._mock_client.create_domain.side_effect = ValueError('Test exception')
 
         with pytest.raises(Exception) as exc_info:
             await create_domain(
@@ -709,7 +707,9 @@ class TestDomainManagementUncoveredLines:
                 parent_domain_unit_identifier='parent-unit-123',
             )
 
-        assert "Domain unit 'test-unit' already exists in domain dzd_123456789" in str(exc_info.value)
+        assert "Domain unit 'test-unit' already exists in domain dzd_123456789" in str(
+            exc_info.value
+        )
 
     @pytest.mark.asyncio
     async def test_create_domain_unit_resource_not_found_coverage(
@@ -751,7 +751,9 @@ class TestDomainManagementUncoveredLines:
                 parent_domain_unit_identifier='parent-unit-123',
             )
 
-        assert "Service quota exceeded while creating domain unit 'test-unit'" in str(exc_info.value)
+        assert "Service quota exceeded while creating domain unit 'test-unit'" in str(
+            exc_info.value
+        )
 
     @pytest.mark.asyncio
     async def test_create_domain_unit_validation_error_coverage(
@@ -791,7 +793,9 @@ class TestDomainManagementUncoveredLines:
                 parent_domain_unit_identifier='parent-unit-123',
             )
 
-        assert "Error creating domain unit 'test-unit' in domain dzd_123456789" in str(exc_info.value)
+        assert "Error creating domain unit 'test-unit' in domain dzd_123456789" in str(
+            exc_info.value
+        )
 
     @pytest.mark.asyncio
     async def test_create_domain_unit_general_exception_coverage(
@@ -883,7 +887,9 @@ class TestDomainManagementUncoveredLines:
                 principal_identifier='user-123',
             )
 
-        assert 'Error adding policy grant to entity entity-123 in domain dzd_123456789' in str(exc_info.value)
+        assert 'Error adding policy grant to entity entity-123 in domain dzd_123456789' in str(
+            exc_info.value
+        )
 
     @pytest.mark.asyncio
     async def test_search_with_all_optional_params_coverage(
@@ -934,9 +940,7 @@ class TestDomainManagementUncoveredLines:
         assert 'Access denied while searching in domain dzd_123456789' in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_search_general_exception_coverage(
-        self, mcp_server_with_tools, tool_extractor
-    ):
+    async def test_search_general_exception_coverage(self, mcp_server_with_tools, tool_extractor):
         """Test search general exception handling - covers line 730."""
         search = tool_extractor(mcp_server_with_tools, 'search')
 
@@ -1004,7 +1008,7 @@ class TestDomainManagementUncoveredLines:
 
         mcp_server_with_tools._mock_client.get_user_profile.return_value = {'id': 'user-123'}
 
-        # Test with optional user_type - use IAM instead of IAM_USER 
+        # Test with optional user_type - use IAM instead of IAM_USER
         await get_user_profile(
             domain_identifier='dzd_123456789',
             user_identifier='user-123',
@@ -1072,7 +1076,10 @@ class TestDomainManagementUncoveredLines:
                 user_type='DATAZONE_IAM_USER',
             )
 
-        assert 'Access denied while searching DATAZONE_IAM_USER user profiles in domain dzd_123456789' in str(exc_info.value)
+        assert (
+            'Access denied while searching DATAZONE_IAM_USER user profiles in domain dzd_123456789'
+            in str(exc_info.value)
+        )
 
     @pytest.mark.asyncio
     async def test_search_group_profiles_with_all_optional_params_coverage(
@@ -1132,7 +1139,10 @@ class TestDomainManagementUncoveredLines:
                 group_type='SSO_GROUP',
             )
 
-        assert 'Internal server error while searching SSO_GROUP group profiles in domain dzd_123456789' in str(exc_info.value)
+        assert (
+            'Internal server error while searching SSO_GROUP group profiles in domain dzd_123456789'
+            in str(exc_info.value)
+        )
 
     @pytest.mark.asyncio
     async def test_search_group_profiles_throttling_error_coverage(
@@ -1151,7 +1161,10 @@ class TestDomainManagementUncoveredLines:
                 group_type='SSO_GROUP',
             )
 
-        assert 'Request throttled while searching SSO_GROUP group profiles in domain dzd_123456789' in str(exc_info.value)
+        assert (
+            'Request throttled while searching SSO_GROUP group profiles in domain dzd_123456789'
+            in str(exc_info.value)
+        )
 
     @pytest.mark.asyncio
     async def test_search_group_profiles_unauthorized_error_coverage(
@@ -1170,7 +1183,10 @@ class TestDomainManagementUncoveredLines:
                 group_type='SSO_GROUP',
             )
 
-        assert 'Unauthorized to search SSO_GROUP group profiles in domain dzd_123456789' in str(exc_info.value)
+        assert (
+            'Unauthorized to search SSO_GROUP group profiles in domain dzd_123456789'
+            in str(exc_info.value)
+        )
 
     @pytest.mark.asyncio
     async def test_search_group_profiles_validation_error_coverage(
@@ -1189,7 +1205,10 @@ class TestDomainManagementUncoveredLines:
                 group_type='SSO_GROUP',
             )
 
-        assert 'Invalid input while searching SSO_GROUP group profiles in domain dzd_123456789' in str(exc_info.value)
+        assert (
+            'Invalid input while searching SSO_GROUP group profiles in domain dzd_123456789'
+            in str(exc_info.value)
+        )
 
     @pytest.mark.asyncio
     async def test_search_group_profiles_unknown_client_error_coverage(
@@ -1208,7 +1227,10 @@ class TestDomainManagementUncoveredLines:
                 group_type='SSO_GROUP',
             )
 
-        assert 'Error searching SSO_GROUP group profiles in domain dzd_123456789' in str(exc_info.value)
+        assert (
+            'Error searching SSO_GROUP group profiles in domain dzd_123456789'
+            in str(exc_info.value)
+        )
 
     @pytest.mark.asyncio
     async def test_search_group_profiles_general_exception_coverage(
@@ -1218,7 +1240,9 @@ class TestDomainManagementUncoveredLines:
         search_group_profiles = tool_extractor(mcp_server_with_tools, 'search_group_profiles')
 
         # Mock a non-ClientError exception
-        mcp_server_with_tools._mock_client.search_group_profiles.side_effect = ValueError('Test exception')
+        mcp_server_with_tools._mock_client.search_group_profiles.side_effect = ValueError(
+            'Test exception'
+        )
 
         with pytest.raises(Exception) as exc_info:
             await search_group_profiles(
@@ -1226,4 +1250,7 @@ class TestDomainManagementUncoveredLines:
                 group_type='SSO_GROUP',
             )
 
-        assert 'Unexpected error searching tSSO_GROUP group profiles in domain dzd_123456789' in str(exc_info.value)
+        assert (
+            'Unexpected error searching tSSO_GROUP group profiles in domain dzd_123456789'
+            in str(exc_info.value)
+        )

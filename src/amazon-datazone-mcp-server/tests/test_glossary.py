@@ -366,4 +366,6 @@ class TestGlossaryErrorHandlingCoverage:
                 identifier='term-123',
             )
 
-        assert 'Error getting glossary term term-123 in domain dzd_123456789' in str(exc_info.value)
+        assert 'Error getting glossary term term-123 in domain dzd_123456789' in str(
+            exc_info.value
+        )

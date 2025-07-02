@@ -760,7 +760,9 @@ class TestProjectManagementErrorHandlingCoverage:
         self, mcp_server_with_tools, tool_extractor
     ):
         """Test list_project_memberships with optional parameters - covers line 455."""
-        list_project_memberships = tool_extractor(mcp_server_with_tools, 'list_project_memberships')
+        list_project_memberships = tool_extractor(
+            mcp_server_with_tools, 'list_project_memberships'
+        )
 
         mcp_server_with_tools._mock_client.list_project_memberships.return_value = {'members': []}
 
@@ -782,10 +784,12 @@ class TestProjectManagementErrorHandlingCoverage:
         self, mcp_server_with_tools, tool_extractor, mock_client_error
     ):
         """Test list_project_memberships AccessDeniedException handling - covers line 466-467."""
-        list_project_memberships = tool_extractor(mcp_server_with_tools, 'list_project_memberships')
+        list_project_memberships = tool_extractor(
+            mcp_server_with_tools, 'list_project_memberships'
+        )
 
-        mcp_server_with_tools._mock_client.list_project_memberships.side_effect = mock_client_error(
-            'AccessDeniedException', 'Access denied'
+        mcp_server_with_tools._mock_client.list_project_memberships.side_effect = (
+            mock_client_error('AccessDeniedException', 'Access denied')
         )
 
         with pytest.raises(Exception) as exc_info:
@@ -801,10 +805,12 @@ class TestProjectManagementErrorHandlingCoverage:
         self, mcp_server_with_tools, tool_extractor, mock_client_error
     ):
         """Test list_project_memberships ResourceNotFoundException handling - covers line 469."""
-        list_project_memberships = tool_extractor(mcp_server_with_tools, 'list_project_memberships')
+        list_project_memberships = tool_extractor(
+            mcp_server_with_tools, 'list_project_memberships'
+            )
 
-        mcp_server_with_tools._mock_client.list_project_memberships.side_effect = mock_client_error(
-            'ResourceNotFoundException', 'Project not found'
+        mcp_server_with_tools._mock_client.list_project_memberships.side_effect = (
+            mock_client_error('ResourceNotFoundException', 'Project not found')
         )
 
         with pytest.raises(Exception) as exc_info:
@@ -820,10 +826,14 @@ class TestProjectManagementErrorHandlingCoverage:
         self, mcp_server_with_tools, tool_extractor
     ):
         """Test list_project_memberships general exception handling - covers lines 497, 500, 503-504, 507."""
-        list_project_memberships = tool_extractor(mcp_server_with_tools, 'list_project_memberships')
+        list_project_memberships = tool_extractor(
+            mcp_server_with_tools, 'list_project_memberships'
+        )
 
         # Mock a non-ClientError exception
-        mcp_server_with_tools._mock_client.list_project_memberships.side_effect = ValueError('Test exception')
+        mcp_server_with_tools._mock_client.list_project_memberships.side_effect = ValueError(
+            'Test exception'
+        )
 
         with pytest.raises(Exception) as exc_info:
             await list_project_memberships(
