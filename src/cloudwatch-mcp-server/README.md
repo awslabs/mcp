@@ -103,7 +103,7 @@ AWS_SESSION_TOKEN=<from the profile you set up>
 ```json
   {
     "mcpServers": {
-      "awslabs.amazon-kendra-index-mcp-server": {
+      "awslabs.cloudwatch-mcp-server": {
         "command": "docker",
         "args": [
           "run",
