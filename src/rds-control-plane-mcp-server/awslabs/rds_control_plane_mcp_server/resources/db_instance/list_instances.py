@@ -52,7 +52,7 @@ Returns a JSON document containing:
     description=LIST_INSTANCES_RESOURCE_DESCRIPTION,
 )
 @handle_exceptions
-async def list_instances() -> str:
+async def list_instances() -> InstanceListModel:
     """Get list of all RDS instances as a resource.
 
     Returns:
@@ -71,4 +71,4 @@ async def list_instances() -> str:
         instances=instances, count=len(instances), resource_uri=RESOURCE_PREFIX_DB_INSTANCE
     )
 
-    return json.dumps(result.model_dump(), indent=2)
+    return result
