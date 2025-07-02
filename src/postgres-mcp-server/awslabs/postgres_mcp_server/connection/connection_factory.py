@@ -134,27 +134,47 @@ class DBConnectionFactory:
                 is_test=kwargs.get('is_test', False)
             )
         elif hostname:
-            # For psycopg, we need to extract user and password from the secret
-            # This would typically be done using boto3 to get the secret value
-            # For now, we'll assume user and password are provided in kwargs
+            # For psycopg, we can use either direct credentials or get them from Secrets Manager
             user = kwargs.get('user')
             password = kwargs.get('password')
             
-            if not user or not password:
-                raise ValueError("Missing required parameters for psycopg: user and password")
-            
-            # Create psycopg connection
-            return PsycopgPoolConnection(
-                host=hostname,
-                port=port,
-                database=database,
-                user=user,
-                password=password,
-                readonly=readonly,
-                min_size=kwargs.get('min_pool_size', 1),
-                max_size=kwargs.get('max_pool_size', 10),
-                is_test=kwargs.get('is_test', False)
-            )
+            try:
+                # Try to create psycopg connection with appropriate parameters
+                logger.info(f"Attempting to connect to PostgreSQL at {hostname}:{port}/{database} using psycopg")
+                return PsycopgPoolConnection(
+                    host=hostname,
+                    port=port,
+                    database=database,
+                    readonly=readonly,
+                    user=user,
+                    password=password,
+                    secret_arn=secret_arn,
+                    region_name=region_name,
+                    min_size=kwargs.get('min_pool_size', 1),
+                    max_size=kwargs.get('max_pool_size', 10),
+                    is_test=kwargs.get('is_test', False)
+                )
+            except Exception as e:
+                # If resource_arn is provided, fall back to RDS Data API
+                if resource_arn:
+                    logger.warning(f"Failed to connect using psycopg: {str(e)}")
+                    logger.warning(f"Falling back to RDS Data API with resource_arn: {resource_arn}")
+                    
+                    # Import here to avoid circular imports
+                    from awslabs.postgres_mcp_server.connection.rds_connector import RDSDataAPIConnection
+                    
+                    return RDSDataAPIConnection(
+                        cluster_arn=resource_arn,
+                        secret_arn=secret_arn,
+                        database=database,
+                        region=region_name,
+                        readonly=readonly,
+                        is_test=kwargs.get('is_test', False)
+                    )
+                else:
+                    # Re-raise the exception if we can't fall back
+                    logger.error(f"Failed to connect using psycopg and no resource_arn provided for fallback: {str(e)}")
+                    raise
         else:
             raise ValueError("Either resource_arn or hostname must be provided")
 

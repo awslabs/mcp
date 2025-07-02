@@ -216,9 +216,8 @@ def main():
     )
     
     # Connection type arguments
-    connection_group = parser.add_mutually_exclusive_group()
-    connection_group.add_argument('--resource_arn', help='ARN of the RDS cluster (for RDS Data API)')
-    connection_group.add_argument('--hostname', help='Database host (for direct psycopg connection)')
+    parser.add_argument('--resource_arn', help='ARN of the RDS cluster (for RDS Data API or fallback)')
+    parser.add_argument('--hostname', help='Database host (for direct psycopg connection)')
     
     # Other arguments
     parser.add_argument('--region_name', help='AWS region for RDS Data API and Secrets Manager')
@@ -236,7 +235,7 @@ def main():
         connection_params['region_name'] = connection_params['region']
     
     # Log connection information
-    if args.resource_arn:
+    if args.resource_arn and not args.hostname:
         logger.info(
             'Postgres MCP init with RDS Data API: RESOURCE_ARN:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
             args.resource_arn,
