@@ -79,16 +79,14 @@ exclude = ["__init__.py"]
 select = ["C", "D", "E", "F", "I", "W"]
 ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
 
-[tool.ruff.lint.per-file-ignores]
-# Ignore D205 for a specific file
-"src/cloudwatch-mcp-server/awslabs/cloudwatch_mcp_server/cloudwatch_metrics/tools.py" = ["D205"]
-
 [tool.ruff.lint.isort]
 lines-after-imports = 2
 no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
+# Ignore D205 for a specific file
+"**/cloudwatch_metrics/tools.py" = ["D205"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

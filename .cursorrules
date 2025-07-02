@@ -1,0 +1,253 @@
+# Cursor Configuration for CloudWatch MCP Server
+
+## Project Overview
+This is an AWS Labs Model Context Protocol (MCP) server for CloudWatch that provides AI-powered troubleshooting tools across metrics, alarms, logs, and traces. The server enables rapid root cause analysis and intelligent recommendations for AWS CloudWatch services.
+
+## Project Structure
+- `src/cloudwatch-mcp-server/` - Main server implementation
+- `awslabs/cloudwatch_mcp_server/` - Core package
+- `cloudwatch_metrics/` - Metrics-related tools
+- `cloudwatch_alarms/` - Alarms-related tools  
+- `cloudwatch_logs/` - Logs-related tools
+- `tests/` - Test suite
+
+## Coding Standards
+
+### Python Standards
+- Use Python 3.10+ (as specified in pyproject.toml)
+- Follow PEP 8 style guidelines
+- Use type hints for all function parameters and return values
+- Use async/await for asynchronous operations
+- Use f-strings for string formatting
+- Use single quotes for strings (as configured in ruff)
+
+### Import Organization
+- Standard library imports first
+- Third-party imports second (boto3, loguru, mcp, pydantic)
+- Local imports last (awslabs.cloudwatch_mcp_server.*)
+- Use absolute imports for local modules
+
+### Error Handling
+- Use try/except blocks for AWS API calls
+- Log errors with loguru logger
+- Provide meaningful error messages
+- Handle AWS service exceptions gracefully
+- Use await ctx.error() for MCP context errors
+
+### AWS Best Practices
+- Use boto3 for AWS service interactions
+- Implement proper pagination for AWS API calls
+- Use environment variables for AWS configuration (AWS_PROFILE, AWS_REGION)
+- Follow AWS security best practices
+- Use appropriate IAM permissions
+
+## MCP Server Development
+
+### Tool Registration
+- Register tools using `mcp.tool()` decorator
+- Provide clear tool names and descriptions
+- Use Pydantic models for input/output validation
+- Include comprehensive docstrings with examples
+
+### Response Models
+- Use Pydantic models for structured responses
+- Include metadata like has_more_results, message fields
+- Provide time range suggestions for investigation
+- Include region information in responses
+
+### Performance Considerations
+- Implement pagination for large datasets
+- Use max_items parameter to limit response size
+- Cache frequently accessed data when appropriate
+- Optimize for LLM context window limitations
+
+## Testing Guidelines
+
+### Test Structure
+- Use pytest for testing framework
+- Place tests in `tests/` directory
+- Use descriptive test names
+- Mock AWS services using moto
+- Test both success and error scenarios
+
+### Test Categories
+- Unit tests for individual functions
+- Integration tests for AWS service interactions
+- MCP protocol tests for tool registration
+- Error handling tests
+
+## Documentation Standards
+
+### Code Documentation
+- Use Google-style docstrings
+- Include parameter descriptions
+- Provide usage examples
+- Document return types and values
+- Include error conditions
+
+### API Documentation
+- Document all MCP tools
+- Include IAM permission requirements
+- Provide configuration examples
+- Include troubleshooting guides
+
+## Development Workflow
+
+### Environment Setup
+- Use uv for dependency management
+- Install Python 3.10+ with `uv python install 3.10`
+- Use pre-commit hooks for code quality
+- Configure AWS credentials properly
+
+### Code Quality Tools
+- Use ruff for linting and formatting
+- Use pyright for type checking
+- Use commitizen for conventional commits
+- Run tests with pytest
+
+### AWS Configuration
+- Set AWS_PROFILE environment variable
+- Set AWS_REGION environment variable
+- Ensure proper IAM permissions
+- Test with real AWS services when possible
+
+## Common Patterns
+
+### AWS Client Initialization
+```python
+def __init__(self):
+    aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+    config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
+    
+    if aws_profile := os.environ.get('AWS_PROFILE'):
+        self.client = boto3.Session(profile_name=aws_profile, region_name=aws_region).client('service', config=config)
+    else:
+        self.client = boto3.Session(region_name=aws_region).client('service', config=config)
+```
+
+### Tool Registration Pattern
+```python
+def register(self, mcp):
+    mcp.tool(name='tool_name')(self.tool_method)
+
+async def tool_method(self, ctx: Context, param: str = Field(..., description="...")) -> ResponseModel:
+    """Tool description with usage examples."""
+    try:
+        # Implementation
+        return ResponseModel(...)
+    except Exception as e:
+        logger.error(f'Error in tool_method: {str(e)}')
+        await ctx.error(f'Error description: {str(e)}')
+        raise
+```
+
+### Pagination Pattern
+```python
+paginator = client.get_paginator('api_method')
+page_iterator = paginator.paginate(
+    Param=value,
+    PaginationConfig={'MaxItems': max_items + 1}
+)
+
+for page in page_iterator:
+    # Process page results
+    pass
+```
+
+## Security Considerations
+
+### AWS Credentials
+- Never hardcode AWS credentials
+- Use environment variables or AWS profiles
+- Follow principle of least privilege
+- Rotate credentials regularly
+
+### Input Validation
+- Validate all user inputs
+- Sanitize query parameters
+- Use Pydantic for data validation
+- Implement proper error handling
+
+### Logging
+- Use structured logging with loguru
+- Avoid logging sensitive information
+- Set appropriate log levels
+- Include request correlation IDs
+
+## Performance Optimization
+
+### Response Size
+- Limit response size with max_items parameter
+- Implement pagination for large datasets
+- Use summary models for overview data
+- Provide has_more_results indicators
+
+### Caching Strategy
+- Cache static configuration data
+- Cache frequently accessed metadata
+- Use appropriate cache TTL
+- Implement cache invalidation
+
+### AWS API Optimization
+- Use batch operations when possible
+- Implement proper retry logic
+- Use appropriate timeouts
+- Monitor API usage and costs
+
+## Troubleshooting
+
+### Common Issues
+- AWS credentials not configured
+- Insufficient IAM permissions
+- Network connectivity issues
+- Rate limiting from AWS APIs
+
+### Debugging
+- Enable debug logging
+- Check AWS CloudTrail for API calls
+- Verify environment variables
+- Test with AWS CLI first
+
+## Contributing Guidelines
+
+### Code Changes
+- Follow conventional commit format
+- Include tests for new features
+- Update documentation
+- Run linting and type checking
+
+### Pull Request Process
+- Create feature branch
+- Write comprehensive tests
+- Update relevant documentation
+- Request code review
+
+### Release Process
+- Update version in pyproject.toml
+- Update CHANGELOG.md
+- Create release tag
+- Publish to PyPI
+
+## Environment Variables
+
+### Required
+- `AWS_PROFILE` - AWS profile name for authentication
+- `AWS_REGION` - AWS region for service operations
+
+### Optional
+- `FASTMCP_LOG_LEVEL` - Logging level (default: ERROR)
+- `AWS_DEFAULT_REGION` - Fallback AWS region
+
+## Dependencies
+
+### Core Dependencies
+- boto3>=1.38.22 - AWS SDK for Python
+- loguru>=0.7.0 - Structured logging
+- mcp[cli]>=1.6.0 - Model Context Protocol
+- pydantic>=2.10.6 - Data validation
+
+### Development Dependencies
+- pytest>=8.0.0 - Testing framework
+- ruff>=0.9.7 - Linting and formatting
+- pyright>=1.1.398 - Type checking
+- moto>=5.1.4 - AWS service mocking 
