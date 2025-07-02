@@ -265,23 +265,23 @@ class CloudWatchAlarmsTools:
 
             # Set up default time range (last 24 hours)
             if end_time is None or not isinstance(end_time, str):
-                end_time = datetime.now()
+                end_time_dt = datetime.now()
             else:
-                end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                end_time_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
 
             if start_time is None or not isinstance(start_time, str):
-                start_time = end_time - timedelta(days=1)
+                start_time_dt = end_time_dt - timedelta(days=1)
             else:
-                start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                start_time_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
 
             logger.info(f'Fetching alarm history for {alarm_name}')
-            logger.info(f'Time range: {start_time} to {end_time}')
+            logger.info(f'Time range: {start_time_dt} to {end_time_dt}')
 
             paginator = cloudwatch_client.get_paginator('describe_alarm_history')
             page_iterator = paginator.paginate(
                 AlarmName=alarm_name,
-                StartDate=start_time,
-                EndDate=end_time,
+                StartDate=start_time_dt,
+                EndDate=end_time_dt,
                 HistoryItemType=history_item_type,
                 PaginationConfig={'MaxItems': max_items + 1},
             )
@@ -410,14 +410,14 @@ class CloudWatchAlarmsTools:
                     alarm_description=alarm.get('AlarmDescription'),
                     alarm_type='MetricAlarm',
                     current_state=alarm.get('StateValue', ''),
-                    metric_name=alarm.get('MetricName'),
-                    namespace=alarm.get('Namespace'),
+                    metric_name=alarm.get('MetricName', ''),
+                    namespace=alarm.get('Namespace', ''),
                     dimensions=dimensions,
                     threshold=alarm.get('Threshold'),
-                    comparison_operator=alarm.get('ComparisonOperator'),
-                    evaluation_periods=alarm.get('EvaluationPeriods'),
-                    period=alarm.get('Period'),
-                    statistic=alarm.get('Statistic'),
+                    comparison_operator=alarm.get('ComparisonOperator', ''),
+                    evaluation_periods=alarm.get('EvaluationPeriods', 1),
+                    period=alarm.get('Period', 300),
+                    statistic=alarm.get('Statistic', ''),
                 )
 
             # Process composite alarm
@@ -429,8 +429,16 @@ class CloudWatchAlarmsTools:
                     alarm_description=alarm.get('AlarmDescription'),
                     alarm_type='CompositeAlarm',
                     current_state=alarm.get('StateValue', ''),
-                    alarm_rule=alarm.get('AlarmRule'),
+                    alarm_rule=alarm.get('AlarmRule', ''),
                 )
+
+            # This should never be reached, but ensure we always return something
+            return AlarmDetails(
+                alarm_name=alarm_name,
+                alarm_type='Unknown',
+                current_state='Unknown',
+                alarm_description='No alarm data found',
+            )
 
         except Exception as e:
             logger.error(f'Error fetching alarm details for {alarm_name}: {str(e)}')

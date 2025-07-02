@@ -352,7 +352,10 @@ class TestGetActiveAlarms:
             assert isinstance(result, ActiveAlarmsResponse)
             assert len(result.metric_alarms) == 2  # Only 2 returned despite 3 available
             assert result.has_more_results
-            assert 'Showing 2 alarms (more available)' in result.message
+            assert (
+                result.message is not None
+                and 'Showing 2 alarms (more available)' in result.message
+            )
 
     @pytest.mark.asyncio
     async def test_aws_profile_initialization(self, mock_context):

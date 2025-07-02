@@ -17,7 +17,7 @@
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 class SortOrder(str, Enum):
@@ -115,7 +115,9 @@ class AlarmRecommendationDimension(BaseModel):
     """Represents a dimension for alarm recommendations."""
 
     name: str = Field(..., description='The name of the dimension')
-    value: Optional[str] = Field(None, description='The value of the dimension (if specified)')
+    value: str | None = Field(
+        default=None, description='The value of the dimension (if specified)'
+    )
 
 
 class AlarmRecommendation(BaseModel):

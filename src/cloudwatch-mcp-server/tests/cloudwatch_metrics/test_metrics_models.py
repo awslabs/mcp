@@ -42,10 +42,10 @@ class TestDimension:
         """Test validation for Dimension model."""
         # Missing required fields should raise ValidationError
         with pytest.raises(ValidationError):
-            Dimension(name='InstanceId')  # Missing value
+            Dimension(name='InstanceId')  # type: ignore[call-arg] # Missing value
 
         with pytest.raises(ValidationError):
-            Dimension(value='i-1234567890abcdef0')  # Missing name
+            Dimension(value='i-1234567890abcdef0')  # type: ignore[call-arg] # Missing name
 
 
 class TestMetricDataPoint:
@@ -65,10 +65,10 @@ class TestMetricDataPoint:
 
         # Missing required fields should raise ValidationError
         with pytest.raises(ValidationError):
-            MetricDataPoint(timestamp=timestamp)  # Missing value
+            MetricDataPoint(timestamp=timestamp)  # type: ignore[call-arg] # Missing value
 
         with pytest.raises(ValidationError):
-            MetricDataPoint(value=10.5)  # Missing timestamp
+            MetricDataPoint(value=10.5)  # type: ignore[call-arg] # Missing timestamp
 
 
 class TestMetricDataResult:
@@ -233,17 +233,11 @@ class TestMetricMetadata:
     def test_metric_metadata_validation(self):
         """Test metric metadata field validation."""
         # Test that all fields are required
-        try:
-            MetricMetadata()
-            assert False, 'Should have raised validation error'
-        except Exception:
-            pass  # Expected
+        with pytest.raises(ValidationError):
+            MetricMetadata()  # type: ignore[call-arg] # Missing all required fields
 
-        try:
-            MetricMetadata(description='Test')
-            assert False, 'Should have raised validation error'
-        except Exception:
-            pass  # Expected
+        with pytest.raises(ValidationError):
+            MetricMetadata(description='Test')  # type: ignore[call-arg] # Missing recommendedStatistics and unit
 
 
 class TestDimensionValidation:
@@ -259,11 +253,8 @@ class TestDimensionValidation:
     def test_dimension_validation(self):
         """Test dimension field validation."""
         # Test that all fields are required
-        try:
-            Dimension()
-            assert False, 'Should have raised validation error'
-        except Exception:
-            pass  # Expected
+        with pytest.raises(ValidationError):
+            Dimension()  # type: ignore[call-arg] # Missing name and value
 
 
 class TestAlarmRecommendationThreshold:
