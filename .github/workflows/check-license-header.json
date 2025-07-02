@@ -9,7 +9,6 @@
       "**/site-packages/**",
       ".github/**",
       "docs/**",
-      "docusaurus-site/**",
       "**/*requirements.txt"
     ],
     "include": [
