@@ -40,9 +40,9 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 ### Tools for CloudWatch Logs
 * `describe_log_groups` - Finds metadata about CloudWatch log groups
 * `analyze_log_group` - Analyzes CloudWatch logs for anomalies, message patterns, and error patterns
-* `execute_log_insights_query` - Executes CloudWatch Logs Insights query on CloudWatch log group(s) with specified time range and query syntax, returns a unique ID used to retrieve results
-* `get_logs_insight_query_results` - Retrieves the results of an executed CloudWatch Insights query using the query ID. It is used after `execute_log_insights_query` has been called
-* `cancel_logs_insight_query` - Cancels in progress CloudWatch logs insight query
+* `execute_log_insights_query` - Executes CloudWatch Logs insights query on CloudWatch log group(s) with specified time range and query syntax, returns a unique ID used to retrieve results
+* `get_logs_insight_query_results` - Retrieves the results of an executed CloudWatch insights query using the query ID. It is used after `execute_log_insights_query` has been called
+* `cancel_logs_insight_query` - Cancels in progress CloudWatch logs insights query
 
 ### Required IAM Permissions
 * `cloudwatch:DescribeAlarms`
