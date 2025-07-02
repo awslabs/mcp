@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
@@ -14,9 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Check if MCP server is running on stdio
-if pgrep -f "awslabs.cloudwatch-appsignals-mcp-server" > /dev/null; then
-    exit 0
+if [ "$(lsof +c 0 -p 1 | grep -e "^awslabs\..*\s1\s.*\sunix\s.*socket$" | wc -l)" -ne "0" ]; then
+  echo -n "$(lsof +c 0 -p 1 | grep -e "^awslabs\..*\s1\s.*\sunix\s.*socket$" | wc -l) awslabs.* streams found";
+  exit 0;
 else
-    exit 1
-fi
+  echo -n "Zero awslabs.* streams found";
+  exit 1;
+fi;
+
+echo -n "Never should reach here";
+exit 99;
