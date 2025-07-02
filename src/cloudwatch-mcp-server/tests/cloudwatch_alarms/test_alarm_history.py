@@ -501,4 +501,7 @@ class TestAlarmHistoryEdgeCases:
             assert result.alarm_name == 'nonexistent-alarm'
             assert result.alarm_type == 'Unknown'
             assert result.current_state == 'Unknown'
-            assert 'not found' in result.alarm_description.lower()
+            assert (
+                result.alarm_description is not None
+                and 'not found' in result.alarm_description.lower()
+            )

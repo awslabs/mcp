@@ -383,7 +383,7 @@ class TestAlarmHistoryIntegration:
 
             assert isinstance(result, AlarmHistoryResponse)
             assert result.has_more_results
-            assert 'more available' in result.message.lower()
+            assert result.message is not None and 'more available' in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_different_history_item_types(self, mock_context, realistic_metric_alarm):

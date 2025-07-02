@@ -16,18 +16,18 @@
 
 from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 class MetricAlarmSummary(BaseModel):
     """Summary information for a CloudWatch metric alarm in ALARM state."""
 
     alarm_name: str = Field(..., description='Name of the alarm')
-    alarm_description: Optional[str] = Field(None, description='Description of the alarm')
+    alarm_description: str | None = Field(default=None, description='Description of the alarm')
     state_value: str = Field(..., description='Current state of the alarm (ALARM)')
     state_reason: str = Field(..., description='Reason for the current state')
-    metric_name: str = Field(..., description='Name of the metric being monitored')
-    namespace: str = Field(..., description='Namespace of the metric')
+    metric_name: str | None = Field(default=None, description='Name of the metric being monitored')
+    namespace: str | None = Field(default=None, description='Namespace of the metric')
     dimensions: List[Dict[str, str]] = Field(
         default_factory=list, description='Key dimensions for the metric'
     )
@@ -43,7 +43,7 @@ class CompositeAlarmSummary(BaseModel):
     """Summary information for a CloudWatch composite alarm in ALARM state."""
 
     alarm_name: str = Field(..., description='Name of the composite alarm')
-    alarm_description: Optional[str] = Field(None, description='Description of the alarm')
+    alarm_description: str | None = Field(default=None, description='Description of the alarm')
     state_value: str = Field(..., description='Current state of the alarm')
     state_reason: str = Field(..., description='Reason for the current state')
     alarm_rule: str = Field(..., description='Rule expression for the composite alarm')
@@ -65,7 +65,7 @@ class ActiveAlarmsResponse(BaseModel):
     has_more_results: bool = Field(
         default=False, description='Whether more alarms are available than the requested max_items'
     )
-    message: Optional[str] = Field(None, description='Informational message about the results')
+    message: str | None = Field(None, description='Informational message about the results')
 
 
 class AlarmHistoryItem(BaseModel):
@@ -78,13 +78,13 @@ class AlarmHistoryItem(BaseModel):
         ..., description='Type of history item (StateUpdate, ConfigurationUpdate, Action)'
     )
     history_summary: str = Field(..., description='Human-readable summary of the history item')
-    old_state: Optional[str] = Field(
+    old_state: str | None = Field(
         None, description='Previous state of the alarm (for StateUpdate items)'
     )
-    new_state: Optional[str] = Field(
+    new_state: str | None = Field(
         None, description='New state of the alarm (for StateUpdate items)'
     )
-    state_reason: Optional[str] = Field(
+    state_reason: str | None = Field(
         None, description='Reason for the state change (for StateUpdate items)'
     )
 
@@ -93,24 +93,30 @@ class AlarmDetails(BaseModel):
     """Represents key details about a CloudWatch alarm."""
 
     alarm_name: str = Field(..., description='Name of the alarm')
-    alarm_description: Optional[str] = Field(None, description='Description of the alarm')
+    alarm_description: str | None = Field(default=None, description='Description of the alarm')
     alarm_type: str = Field(..., description='Type of alarm (MetricAlarm or CompositeAlarm)')
     current_state: str = Field(..., description='Current state of the alarm')
-    metric_name: Optional[str] = Field(None, description='Name of the metric (for MetricAlarm)')
-    namespace: Optional[str] = Field(None, description='Namespace of the metric (for MetricAlarm)')
+    metric_name: str | None = Field(
+        default=None, description='Name of the metric (for MetricAlarm)'
+    )
+    namespace: str | None = Field(
+        default=None, description='Namespace of the metric (for MetricAlarm)'
+    )
     dimensions: List[Dict[str, str]] = Field(
         default_factory=list, description='Dimensions of the metric (for MetricAlarm)'
     )
-    threshold: Optional[float] = Field(None, description='Threshold value (for MetricAlarm)')
-    comparison_operator: Optional[str] = Field(
-        None, description='Comparison operator (for MetricAlarm)'
+    threshold: float | None = Field(default=None, description='Threshold value (for MetricAlarm)')
+    comparison_operator: str | None = Field(
+        default=None, description='Comparison operator (for MetricAlarm)'
     )
-    evaluation_periods: Optional[int] = Field(
-        None, description='Number of evaluation periods (for MetricAlarm)'
+    evaluation_periods: int | None = Field(
+        default=None, description='Number of evaluation periods (for MetricAlarm)'
     )
-    period: Optional[int] = Field(None, description='Period in seconds (for MetricAlarm)')
-    statistic: Optional[str] = Field(None, description='Statistic used (for MetricAlarm)')
-    alarm_rule: Optional[str] = Field(None, description='Rule expression (for CompositeAlarm)')
+    period: int | None = Field(default=None, description='Period in seconds (for MetricAlarm)')
+    statistic: str | None = Field(default=None, description='Statistic used (for MetricAlarm)')
+    alarm_rule: str | None = Field(
+        default=None, description='Rule expression (for CompositeAlarm)'
+    )
 
 
 class TimeRangeSuggestion(BaseModel):
@@ -134,7 +140,7 @@ class AlarmHistoryResponse(BaseModel):
     has_more_results: bool = Field(
         default=False, description='Whether more history items are available'
     )
-    message: Optional[str] = Field(None, description='Informational message about the results')
+    message: str | None = Field(None, description='Informational message about the results')
 
 
 class CompositeAlarmComponentResponse(BaseModel):
@@ -145,6 +151,6 @@ class CompositeAlarmComponentResponse(BaseModel):
         default_factory=list, description='Names of component alarms'
     )
     alarm_rule: str = Field(..., description='Rule expression for the composite alarm')
-    component_details: Optional[List[AlarmDetails]] = Field(
+    component_details: List[AlarmDetails] | None = Field(
         None, description='Details about component alarms'
     )
