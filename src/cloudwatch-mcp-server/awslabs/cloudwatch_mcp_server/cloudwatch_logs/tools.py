@@ -345,9 +345,21 @@ class CloudWatchLogsTools:
         """
         
         def is_applicable_anomaly(anomaly: LogAnomaly) -> bool:
-            # Must have overlap
-            if anomaly.firstSeen > end_time or anomaly.lastSeen < start_time:
-                return False
+            # Must have overlap - convert to datetime objects for proper comparison
+            try:
+                anomaly_first_seen = datetime.datetime.fromisoformat(anomaly.firstSeen)
+                anomaly_last_seen = datetime.datetime.fromisoformat(anomaly.lastSeen)
+                end_time_dt = datetime.datetime.fromisoformat(end_time)
+                start_time_dt = datetime.datetime.fromisoformat(start_time)
+                
+                if anomaly_first_seen > end_time_dt or anomaly_last_seen < start_time_dt:
+                    return False
+            except ValueError as e:
+                logger.error(f"Error parsing timestamps for anomaly comparison: {e}")
+                # Fall back to string comparison if datetime parsing fails
+                if anomaly.firstSeen > end_time or anomaly.lastSeen < start_time:
+                    return False
+            
             # Must be for this log group
             return log_group_arn in anomaly.logGroupArnList
 
