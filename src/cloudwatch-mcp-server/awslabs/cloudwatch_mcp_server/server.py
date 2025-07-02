@@ -14,9 +14,9 @@
 
 """awslabs cloudwatch MCP Server implementation."""
 
+from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools import CloudWatchAlarmsTools
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTools
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
-from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools import CloudWatchAlarmsTools
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -44,6 +44,7 @@ try:
 except Exception as e:
     logger.error(f'Error initializing CloudWatch tools: {str(e)}')
     raise
+
 
 def main():
     """Run the MCP server."""

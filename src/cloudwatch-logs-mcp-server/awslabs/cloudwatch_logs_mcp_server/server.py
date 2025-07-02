@@ -99,6 +99,7 @@ async def describe_log_groups_tool(
     ),
 ) -> LogMetadata:
     """IMPORTANT: This tool is deprecated. Please use the describe_log_groups tool in the cloudwatch MCP server instead.
+
     Lists AWS CloudWatch log groups and saved queries associated with them, optionally filtering by a name prefix.
 
     This tool retrieves information about log groups in the account, or log groups in accounts linked to this account as a monitoring account.
@@ -201,6 +202,7 @@ async def analyze_log_group_tool(
     ),
 ) -> LogAnalysisResult:
     """IMPORTANT: This tool is deprecated. Please use the analyze_log_group tool in the cloudwatch MCP server instead.
+
     Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
 
     This tool performs an analysis of the specified log group by:
@@ -342,6 +344,7 @@ async def execute_log_insights_query_tool(
     ),
 ) -> Dict:
     """IMPORTANT: This tool is deprecated. Please use the execute_log_insights_query tool in the cloudwatch MCP server instead.
+
     Executes a CloudWatch Logs Insights query and waits for the results to be available.
 
     IMPORTANT: The operation must include exactly one of the following parameters: log_group_names, or log_group_identifiers.
@@ -432,6 +435,7 @@ async def get_query_results_tool(
     ),
 ) -> Dict:
     """IMPORTANT: This tool is deprecated. Please use the get_logs_insight_query_results tool in the cloudwatch MCP server instead.
+
     Retrieves the results of a previously started CloudWatch Logs Insights query.
 
     Usage: If a log query is started by execute_log_insights_query tool and has a polling time out, this tool can be used to try to retrieve
@@ -474,6 +478,7 @@ async def cancel_query_tool(
     ),
 ) -> CancelQueryResult:
     """IMPORTANT: This tool is deprecated. Please use the cancel_logs_insight_query tool in the cloudwatch MCP server instead.
+
     Cancels an ongoing CloudWatch Logs Insights query. If the query has already ended, returns an error that the given query is not running.
 
     Usage: If a log query is started by execute_log_insights_query tool and has a polling time out, this tool can be used to cancel
