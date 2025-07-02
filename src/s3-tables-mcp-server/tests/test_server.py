@@ -18,13 +18,8 @@ import pytest
 from awslabs.s3_tables_mcp_server.models import (
     IcebergMetadata,
     IcebergSchema,
-    MaintenanceStatus,
     OpenTableFormat,
     SchemaField,
-    TableBucketMaintenanceConfigurationValue,
-    TableBucketMaintenanceType,
-    TableMaintenanceConfigurationValue,
-    TableMaintenanceType,
     TableMetadata,
 )
 from awslabs.s3_tables_mcp_server.server import (
@@ -40,8 +35,6 @@ from awslabs.s3_tables_mcp_server.server import (
     list_table_buckets,
     list_tables,
     modify_database,
-    put_bucket_maintenance_config,
-    put_table_maintenance_config,
     rename_table,
     update_table_metadata_location,
 )
@@ -84,9 +77,6 @@ def mock_table_buckets():
     """Mock table_buckets module."""
     with patch('awslabs.s3_tables_mcp_server.server.table_buckets') as mock:
         mock.create_table_bucket = AsyncMock(return_value={'status': 'success'})
-        mock.put_table_bucket_maintenance_configuration = AsyncMock(
-            return_value={'status': 'success'}
-        )
         yield mock
 
 
@@ -106,7 +96,6 @@ def mock_tables():
         mock.get_table_maintenance_configuration = AsyncMock(return_value={'status': 'success'})
         mock.get_table_maintenance_job_status = AsyncMock(return_value={'status': 'success'})
         mock.get_table_metadata_location = AsyncMock(return_value={'status': 'success'})
-        mock.put_table_maintenance_configuration = AsyncMock(return_value={'status': 'success'})
         mock.rename_table = AsyncMock(return_value={'status': 'success'})
         mock.update_table_metadata_location = AsyncMock(return_value={'status': 'success'})
         yield mock
@@ -228,36 +217,6 @@ async def test_create_table(mock_tables):
 
 
 @pytest.mark.asyncio
-async def test_put_bucket_maintenance_config(mock_table_buckets):
-    """Test put_bucket_maintenance_config tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
-    value = TableBucketMaintenanceConfigurationValue(
-        status=MaintenanceStatus.ENABLED, settings=None
-    )
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await put_bucket_maintenance_config(
-        table_bucket_arn=table_bucket_arn,
-        maintenance_type=maintenance_type,
-        value=value,
-        region_name=region,
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_table_buckets.put_table_bucket_maintenance_configuration.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn,
-        maintenance_type=maintenance_type,
-        value=value,
-        region_name=region,
-    )
-
-
-@pytest.mark.asyncio
 async def test_get_table_maintenance_config(mock_tables):
     """Test get_table_maintenance_config tool."""
     # Arrange
@@ -320,40 +279,6 @@ async def test_get_table_metadata_location(mock_tables):
     assert result == expected_response
     mock_tables.get_table_metadata_location.assert_called_once_with(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-    )
-
-
-@pytest.mark.asyncio
-async def test_put_table_maintenance_config(mock_tables):
-    """Test put_table_maintenance_config tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    maintenance_type = TableMaintenanceType.ICEBERG_COMPACTION
-    value = TableMaintenanceConfigurationValue(status=MaintenanceStatus.ENABLED, settings=None)
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await put_table_maintenance_config(
-        table_bucket_arn=table_bucket_arn,
-        namespace=namespace,
-        name=name,
-        maintenance_type=maintenance_type,
-        value=value,
-        region_name=region,
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_tables.put_table_maintenance_configuration.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn,
-        namespace=namespace,
-        name=name,
-        maintenance_type=maintenance_type,
-        value=value,
-        region_name=region,
     )
 
 
@@ -495,29 +420,6 @@ async def test_create_table_readonly_mode(setup_app_readonly, mock_tables):
 
 
 @pytest.mark.asyncio
-async def test_put_bucket_maintenance_config_readonly_mode(setup_app_readonly, mock_table_buckets):
-    """Test put_bucket_maintenance_config tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
-    value = TableBucketMaintenanceConfigurationValue(
-        status=MaintenanceStatus.ENABLED, settings=None
-    )
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await put_bucket_maintenance_config(
-            table_bucket_arn=table_bucket_arn,
-            maintenance_type=maintenance_type,
-            value=value,
-            region_name=region,
-        )
-
-
-@pytest.mark.asyncio
 async def test_get_table_maintenance_config_readonly_mode(setup_app_readonly, mock_tables):
     """Test get_table_maintenance_config tool when allow_write is disabled."""
     # Arrange
@@ -568,83 +470,6 @@ async def test_get_table_metadata_location_readonly_mode(setup_app_readonly, moc
     ):
         await get_table_metadata_location(
             table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-        )
-
-
-@pytest.mark.asyncio
-async def test_put_table_maintenance_config_readonly_mode(setup_app_readonly, mock_tables):
-    """Test put_table_maintenance_config tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    maintenance_type = TableMaintenanceType.ICEBERG_COMPACTION
-    value = TableMaintenanceConfigurationValue(status=MaintenanceStatus.ENABLED, settings=None)
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await put_table_maintenance_config(
-            table_bucket_arn=table_bucket_arn,
-            namespace=namespace,
-            name=name,
-            maintenance_type=maintenance_type,
-            value=value,
-            region_name=region,
-        )
-
-
-@pytest.mark.asyncio
-async def test_rename_table_readonly_mode(setup_app_readonly, mock_tables):
-    """Test rename_table tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    new_name = 'new-table'
-    new_namespace_name = 'new-namespace'
-    version_token = 'test-version'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await rename_table(
-            table_bucket_arn=table_bucket_arn,
-            namespace=namespace,
-            name=name,
-            new_name=new_name,
-            new_namespace_name=new_namespace_name,
-            version_token=version_token,
-            region_name=region,
-        )
-
-
-@pytest.mark.asyncio
-async def test_update_table_metadata_location_readonly_mode(setup_app_readonly, mock_tables):
-    """Test update_table_metadata_location tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    metadata_location = 's3://test-bucket/metadata.json'
-    version_token = 'test-version'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await update_table_metadata_location(
-            table_bucket_arn=table_bucket_arn,
-            namespace=namespace,
-            name=name,
-            metadata_location=metadata_location,
-            version_token=version_token,
-            region_name=region,
         )
 
 

@@ -44,12 +44,6 @@ from awslabs.s3_tables_mcp_server.constants import (
     TABLE_NAME_FIELD,
     WORKGROUP_FIELD,
 )
-from awslabs.s3_tables_mcp_server.models import (
-    TableBucketMaintenanceConfigurationValue,
-    TableBucketMaintenanceType,
-    TableMaintenanceConfigurationValue,
-    TableMaintenanceType,
-)
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Annotated, Any, Callable, Dict, Optional
@@ -257,39 +251,6 @@ async def create_table(
 
 @app.tool()
 @write_operation
-async def put_bucket_maintenance_config(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    maintenance_type: Annotated[
-        TableBucketMaintenanceType,
-        Field(..., description='The type of the maintenance configuration.'),
-    ],
-    value: Annotated[
-        TableBucketMaintenanceConfigurationValue,
-        Field(
-            ...,
-            description='Defines the values of the maintenance configuration for the table bucket.',
-        ),
-    ],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Create or replace a maintenance configuration for a table bucket.
-
-    Creates a new maintenance configuration or replaces an existing maintenance configuration for a table bucket.
-    For more information, see Amazon S3 table bucket maintenance in the Amazon Simple Storage Service User Guide.
-
-    Permissions:
-    You must have the s3tables:PutTableBucketMaintenanceConfiguration permission to use this operation.
-    """
-    return await table_buckets.put_table_bucket_maintenance_configuration(
-        table_bucket_arn=table_bucket_arn,
-        maintenance_type=maintenance_type,
-        value=value,
-        region_name=region_name,
-    )
-
-
-@app.tool()
-@write_operation
 async def get_table_maintenance_config(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -346,45 +307,6 @@ async def get_table_metadata_location(
     """
     return await tables.get_table_metadata_location(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
-async def put_table_maintenance_config(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    name: Annotated[str, TABLE_NAME_FIELD],
-    maintenance_type: Annotated[
-        TableMaintenanceType,
-        Field(
-            ...,
-            description='The type of the maintenance configuration. Valid values are icebergCompaction or icebergSnapshotManagement.',
-        ),
-    ],
-    value: Annotated[
-        TableMaintenanceConfigurationValue,
-        Field(
-            ..., description='Defines the values of the maintenance configuration for the table.'
-        ),
-    ],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Create or replace a maintenance configuration for a table.
-
-    Creates a new maintenance configuration or replaces an existing maintenance configuration for a table.
-    For more information, see S3 Tables maintenance in the Amazon Simple Storage Service User Guide.
-
-    Permissions:
-    You must have the s3tables:PutTableMaintenanceConfiguration permission to use this operation.
-    """
-    return await tables.put_table_maintenance_configuration(
-        table_bucket_arn=table_bucket_arn,
-        namespace=namespace,
-        name=name,
-        maintenance_type=maintenance_type,
-        value=value,
-        region_name=region_name,
     )
 
 
