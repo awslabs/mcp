@@ -692,7 +692,8 @@ class TestDataManagementPragmaNoCoverHandling:
             name='Test Form',
             model={'type': 'object'},
             owning_project_identifier='project-123',
-            description='Test form description'
+            description='Test form description',
+            status='ENABLED'
         )
         
         call_kwargs = mcp_server_with_tools._mock_client.create_form_type.call_args[1]
@@ -713,17 +714,17 @@ class TestDataManagementPragmaNoCoverHandling:
             max_results=25,
             name='test-data-source',
             next_token='token-123',
-            status='AVAILABLE',
+            status='READY',
             data_source_type='S3'
         )
         
         call_kwargs = mcp_server_with_tools._mock_client.list_data_sources.call_args[1]
         assert call_kwargs['nextToken'] == 'token-123'
-        assert call_kwargs['status'] == 'AVAILABLE'
+        assert call_kwargs['status'] == 'READY'
         assert call_kwargs['connectionIdentifier'] == 'conn-123'
         assert call_kwargs['environmentIdentifier'] == 'env-123'
         assert call_kwargs['name'] == 'test-data-source'
-        assert call_kwargs['dataSourceType'] == 'S3'
+        assert call_kwargs['type'] == 'S3'
 
     @pytest.mark.asyncio
     async def test_list_data_sources_client_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
@@ -740,7 +741,7 @@ class TestDataManagementPragmaNoCoverHandling:
                 project_identifier='project-123'
             )
         
-        assert 'Error listing data sources in domain test-domain' in str(exc_info.value)
+        assert 'Error listing data sources in project project-123 in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_accept_subscription_request_error_handling_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
@@ -792,7 +793,8 @@ class TestDataManagementPragmaNoCoverHandling:
                 domain_identifier='test-domain',
                 name='Test Form',
                 model={'type': 'object'},
-                owning_project_identifier='project-123'
+                owning_project_identifier='project-123',
+                status='ENABLED'
             )
         
-        assert 'Error creating form type Test Form in domain test-domain' in str(exc_info.value)
+        assert 'Error creating form type in domain test-domain' in str(exc_info.value)

@@ -603,7 +603,7 @@ class TestEnvironmentPragmaNoCoverHandling:
                 identifier='conn-123'
             )
         
-        assert 'Invalid parameters for getting connection conn-123 in domain test-domain' in str(exc_info.value)
+        assert 'Invalid parameters while getting connection conn-123 in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_connection_unknown_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
@@ -620,7 +620,7 @@ class TestEnvironmentPragmaNoCoverHandling:
                 identifier='conn-123'
             )
         
-        assert 'Unexpected error getting connection conn-123 in domain test-domain' in str(exc_info.value)
+        assert 'Error getting connection conn-123 in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_list_connections_with_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):

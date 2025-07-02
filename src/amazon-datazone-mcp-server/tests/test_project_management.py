@@ -640,7 +640,7 @@ class TestProjectManagementPragmaNoCoverHandling:
                 name='Test Profile'
             )
         
-        assert 'Unexpected error creating project profile Test Profile in domain test-domain' in str(exc_info.value)
+        assert "Unexpected error creating project profile 'Test Profile' in domain test-domain" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_project_profile_all_error_scenarios_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
@@ -658,7 +658,7 @@ class TestProjectManagementPragmaNoCoverHandling:
                 identifier='profile-123'
             )
         
-        assert 'Access denied to get project profile profile-123 in domain test-domain' in str(exc_info.value)
+        assert "Access denied while getting project profile 'profile-123' in domain test-domain" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_list_project_memberships_with_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):

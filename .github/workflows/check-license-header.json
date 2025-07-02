@@ -36,7 +36,9 @@
       ".venv/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt"
+      "**/*requirements.txt",
+      "**/VERSION",
+      "**/py.typed"
     ]
   }
 ]
