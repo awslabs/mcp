@@ -19,6 +19,7 @@ import json
 from ...common.connection import RDSConnectionManager
 from ...common.constants import RESOURCE_PREFIX_DB_INSTANCE
 from ...common.decorator import handle_exceptions
+from ...common.models import InstanceModel
 from ...common.server import mcp
 from .utils import format_instance_info
 from loguru import logger
@@ -59,7 +60,7 @@ Returns a JSON document containing detailed instance information including:
 @handle_exceptions
 async def get_instance_detail(
     instance_id: str = Field(..., description='The instance identifier'),
-) -> str:
+) -> InstanceModel:
     """Get detailed information about a specific instance as a resource.
 
     Args:
@@ -77,9 +78,9 @@ async def get_instance_detail(
 
     instances = response.get('DBInstances', [])
     if not instances:
-        return json.dumps({'error': f'Instance {instance_id} not found'}, indent=2)
+        raise ValueError(f'Instance {instance_id} not found')
 
     instance = format_instance_info(instances[0])
     instance.resource_uri = f'{RESOURCE_PREFIX_DB_INSTANCE}/{instance_id}'
 
-    return json.dumps(instance.model_dump(), indent=2)
+    return instance
