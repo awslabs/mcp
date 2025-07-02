@@ -17,63 +17,106 @@ Resource Management module for ECS MCP Server.
 This module provides tools and prompts for managing ECS resources.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from awslabs.ecs_mcp_server.api.resource_management import ecs_resource_management
+from awslabs.ecs_mcp_server.api.resource_management import ecs_api_operation
 
 
 def register_module(mcp: FastMCP) -> None:
     """Register resource management module tools and prompts with the MCP server."""
 
+    api_operation_field = Field(
+        ...,
+        description="The ECS API operation to execute (CamelCase)",
+    )
+    api_params_field = Field(
+        default={},
+        description="Dictionary of parameters to pass to the API operation",
+    )
+
     @mcp.tool(name="ecs_resource_management", annotations=None)
     async def mcp_ecs_resource_management(
-        action: str = Field(
-            ...,
-            description="Action to perform (list, describe)",
-        ),
-        resource_type: str = Field(
-            ...,
-            description=(
-                "Type of resource (cluster, service, task, task_definition, "
-                "container_instance, capacity_provider)"
-            ),
-        ),
-        identifier: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,
+        api_operation: str = api_operation_field,
+        api_params: Dict[str, Any] = api_params_field,
     ) -> Dict[str, Any]:
         """
-        Read-only tool for managing ECS resources.
+        Execute ECS API operations directly.
 
-        This tool provides a consistent interface to list and describe various ECS resources.
+        This tool allows direct execution of ECS API operations using boto3.
 
-        USAGE EXAMPLES:
-        - List all clusters: ecs_resource_management("list", "cluster")
-        - Describe a cluster: ecs_resource_management("describe", "cluster", "my-cluster")
-        - List services in cluster: ecs_resource_management("list", "service",
-          filters={"cluster": "my-cluster"})
-        - List tasks by status: ecs_resource_management("list", "task",
-          filters={"cluster": "my-cluster", "status": "RUNNING"})
-        - Describe a task: ecs_resource_management("describe", "task", "task-id",
-          filters={"cluster": "my-cluster"})
-        - List task definitions: ecs_resource_management("list", "task_definition",
-          filters={"family": "nginx"})
-        - Describe a task definition: ecs_resource_management("describe", "task_definition",
-          "family:revision")
+        Supported operations:
+        - CreateCapacityProvider (requires WRITE permission)
+        - CreateCluster (requires WRITE permission)
+        - CreateService (requires WRITE permission)
+        - CreateTaskSet (requires WRITE permission)
+        - DeleteAccountSetting (requires WRITE permission)
+        - DeleteAttributes (requires WRITE permission)
+        - DeleteCapacityProvider (requires WRITE permission)
+        - DeleteCluster (requires WRITE permission)
+        - DeleteService (requires WRITE permission)
+        - DeleteTaskDefinitions (requires WRITE permission)
+        - DeleteTaskSet (requires WRITE permission)
+        - DeregisterContainerInstance (requires WRITE permission)
+        - DeregisterTaskDefinition (requires WRITE permission)
+        - DescribeCapacityProviders (read-only)
+        - DescribeClusters (read-only)
+        - DescribeContainerInstances (read-only)
+        - DescribeServiceDeployments (read-only)
+        - DescribeServiceRevisions (read-only)
+        - DescribeServices (read-only)
+        - DescribeTaskDefinition (read-only)
+        - DescribeTasks (read-only)
+        - DescribeTaskSets (read-only)
+        - DiscoverPollEndpoint (requires WRITE permission)
+        - ExecuteCommand (requires WRITE permission)
+        - GetTaskProtection (requires WRITE permission)
+        - ListAccountSettings (read-only)
+        - ListAttributes (read-only)
+        - ListClusters (read-only)
+        - ListContainerInstances (read-only)
+        - ListServiceDeployments (read-only)
+        - ListServices (read-only)
+        - ListServicesByNamespace (read-only)
+        - ListTagsForResource (read-only)
+        - ListTaskDefinitionFamilies (read-only)
+        - ListTaskDefinitions (read-only)
+        - ListTasks (read-only)
+        - PutAccountSetting (requires WRITE permission)
+        - PutAccountSettingDefault (requires WRITE permission)
+        - PutAttributes (requires WRITE permission)
+        - PutClusterCapacityProviders (requires WRITE permission)
+        - RegisterContainerInstance (requires WRITE permission)
+        - RegisterTaskDefinition (requires WRITE permission)
+        - RunTask (requires WRITE permission)
+        - StartTask (requires WRITE permission)
+        - StopServiceDeployment (requires WRITE permission)
+        - StopTask (requires WRITE permission)
+        - SubmitAttachmentStateChanges (requires WRITE permission)
+        - SubmitContainerStateChange (requires WRITE permission)
+        - SubmitTaskStateChange (requires WRITE permission)
+        - TagResource (requires WRITE permission)
+        - UntagResource (requires WRITE permission)
+        - UpdateCapacityProvider (requires WRITE permission)
+        - UpdateCluster (requires WRITE permission)
+        - UpdateClusterSettings (requires WRITE permission)
+        - UpdateContainerAgent (requires WRITE permission)
+        - UpdateContainerInstancesState (requires WRITE permission)
+        - UpdateService (requires WRITE permission)
+        - UpdateServicePrimaryTaskSet (requires WRITE permission)
+        - UpdateTaskProtection (requires WRITE permission)
+        - UpdateTaskSet (requires WRITE permission)
 
         Parameters:
-            action: Action to perform (list, describe)
-            resource_type: Type of resource (cluster, service, task, task_definition,
-                          container_instance, capacity_provider)
-            identifier: Resource identifier (name or ARN) for describe actions (optional)
-            filters: Filters for list operations (optional)
+            api_operation: The ECS API operation to execute (CamelCase)
+            api_params: Dictionary of parameters to pass to the API operation
 
         Returns:
-            Dictionary containing the requested ECS resources
+            Dictionary containing the API response
         """
-        return await ecs_resource_management(action, resource_type, identifier, filters)
+        return await ecs_api_operation(api_operation, api_params)
 
     # Prompt patterns for resource management
     @mcp.prompt("list ecs resources")
