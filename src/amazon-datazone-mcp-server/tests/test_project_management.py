@@ -637,7 +637,9 @@ class TestProjectManagementPragmaNoCoverHandling:
         """Test general exception handling in create_project_profile - covers pragma no cover."""
         create_project_profile = tool_extractor(mcp_server_with_tools, 'create_project_profile')
 
-        mcp_server_with_tools._mock_client.create_project_profile.side_effect = Exception('Network error')
+        mcp_server_with_tools._mock_client.create_project_profile.side_effect = Exception(
+            'Network error'
+        )
 
         with pytest.raises(Exception) as exc_info:
             await create_project_profile(domain_identifier='test-domain', name='Test Profile')
@@ -691,3 +693,142 @@ class TestProjectManagementPragmaNoCoverHandling:
         assert call_kwargs['nextToken'] == 'token123'
         assert call_kwargs['sortBy'] == 'NAME'
         assert call_kwargs['sortOrder'] == 'ASCENDING'
+
+
+class TestProjectManagementErrorHandlingCoverage:
+    """Test project management error handling scenarios to cover uncovered lines."""
+
+    @pytest.mark.asyncio
+    async def test_create_project_error_handling_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test create_project error handling - covers lines 175-176."""
+        create_project = tool_extractor(mcp_server_with_tools, 'create_project')
+
+        mcp_server_with_tools._mock_client.create_project.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await create_project(
+                domain_identifier='dzd_123456789',
+                name='test-project',
+                description='Test project description',
+            )
+
+        assert 'Error creating project in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_project_error_handling_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_project error handling - covers lines 207-208."""
+        get_project = tool_extractor(mcp_server_with_tools, 'get_project')
+
+        mcp_server_with_tools._mock_client.get_project.side_effect = mock_client_error(
+            'ResourceNotFoundException', 'Project not found'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_project(
+                domain_identifier='dzd_123456789',
+                project_identifier='project-123',
+            )
+
+        assert 'Error getting project project-123 in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_projects_error_handling_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test list_projects error handling - covers lines 247-248."""
+        list_projects = tool_extractor(mcp_server_with_tools, 'list_projects')
+
+        mcp_server_with_tools._mock_client.list_projects.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await list_projects(
+                domain_identifier='dzd_123456789',
+            )
+
+        assert 'Error listing projects in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_project_memberships_with_optional_params_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
+        """Test list_project_memberships with optional parameters - covers line 455."""
+        list_project_memberships = tool_extractor(mcp_server_with_tools, 'list_project_memberships')
+
+        mcp_server_with_tools._mock_client.list_project_memberships.return_value = {'members': []}
+
+        # Test with optional sort_by parameter
+        await list_project_memberships(
+            domain_identifier='dzd_123456789',
+            project_identifier='project-123',
+            sort_by='NAME',
+            sort_order='ASC',
+            max_results=25,
+            next_token='token-123',
+        )
+
+        call_kwargs = mcp_server_with_tools._mock_client.list_project_memberships.call_args[1]
+        assert call_kwargs.get('sortBy') == 'NAME'
+
+    @pytest.mark.asyncio
+    async def test_list_project_memberships_access_denied_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test list_project_memberships AccessDeniedException handling - covers line 466-467."""
+        list_project_memberships = tool_extractor(mcp_server_with_tools, 'list_project_memberships')
+
+        mcp_server_with_tools._mock_client.list_project_memberships.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await list_project_memberships(
+                domain_identifier='dzd_123456789',
+                project_identifier='project-123',
+            )
+
+        assert 'Error listing project project-123 memberships' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_project_memberships_resource_not_found_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test list_project_memberships ResourceNotFoundException handling - covers line 469."""
+        list_project_memberships = tool_extractor(mcp_server_with_tools, 'list_project_memberships')
+
+        mcp_server_with_tools._mock_client.list_project_memberships.side_effect = mock_client_error(
+            'ResourceNotFoundException', 'Project not found'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await list_project_memberships(
+                domain_identifier='dzd_123456789',
+                project_identifier='project-123',
+            )
+
+        assert 'Error listing project project-123 memberships' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_project_memberships_general_exception_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
+        """Test list_project_memberships general exception handling - covers lines 497, 500, 503-504, 507."""
+        list_project_memberships = tool_extractor(mcp_server_with_tools, 'list_project_memberships')
+
+        # Mock a non-ClientError exception
+        mcp_server_with_tools._mock_client.list_project_memberships.side_effect = ValueError('Test exception')
+
+        with pytest.raises(Exception) as exc_info:
+            await list_project_memberships(
+                domain_identifier='dzd_123456789',
+                project_identifier='project-123',
+            )
+
+        assert 'Test exception' in str(exc_info.value)

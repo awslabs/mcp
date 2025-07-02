@@ -304,3 +304,66 @@ class TestGlossaryParameterValidation:
             termRelations=[{'classifies': ['asset_123']}],
             clientToken='token_123',
         )
+
+
+class TestGlossaryErrorHandlingCoverage:
+    """Test glossary error handling scenarios to cover uncovered lines."""
+
+    @pytest.mark.asyncio
+    async def test_create_glossary_client_error_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test create_glossary ClientError handling - covers line 76."""
+        create_glossary = tool_extractor(mcp_server_with_tools, 'create_glossary')
+
+        mcp_server_with_tools._mock_client.create_glossary.side_effect = mock_client_error(
+            'ValidationException', 'Invalid glossary name'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await create_glossary(
+                domain_identifier='dzd_123456789',
+                name='invalid-glossary',
+                owning_project_identifier='project-123',
+            )
+
+        assert 'Error creating glossary in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_create_glossary_term_client_error_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test create_glossary_term ClientError handling - covers line 168."""
+        create_glossary_term = tool_extractor(mcp_server_with_tools, 'create_glossary_term')
+
+        mcp_server_with_tools._mock_client.create_glossary_term.side_effect = mock_client_error(
+            'ConflictException', 'Glossary term already exists'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await create_glossary_term(
+                domain_identifier='dzd_123456789',
+                glossary_identifier='glossary-123',
+                name='duplicate-term',
+            )
+
+        assert 'Error creating glossary term in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_glossary_term_client_error_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_glossary_term ClientError handling - covers lines 285-286."""
+        get_glossary_term = tool_extractor(mcp_server_with_tools, 'get_glossary_term')
+
+        mcp_server_with_tools._mock_client.get_glossary_term.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_glossary_term(
+                domain_identifier='dzd_123456789',
+                identifier='term-123',
+            )
+
+        assert 'Error getting glossary term term-123 in domain dzd_123456789' in str(exc_info.value)

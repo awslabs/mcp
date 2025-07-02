@@ -333,3 +333,51 @@ class TestServerEntryPointErrorHandling:
         assert error_response['message'] == 'MCP server encountered an error'
 
         mock_exit.assert_called_once_with(1)
+
+
+class TestServerMainFunctionHandling:
+    """Test main function error handling scenarios."""
+
+    @pytest.mark.asyncio
+    async def test_main_function_exception_handling_pragma_coverage(self, monkeypatch):
+        """Test main function exception handling that calls sys.exit(1) - covers line 65."""
+        from awslabs.amazon_datazone_mcp_server.server import main
+        import sys
+        import json
+        from io import StringIO
+        
+        # Mock stdout to capture print output
+        captured_output = StringIO()
+        monkeypatch.setattr(sys, 'stdout', captured_output)
+        
+        # Mock mcp.run to raise an exception
+        def mock_run(*args, **kwargs):
+            raise ValueError("Test exception for coverage")
+        
+        # Mock the mcp object's run method
+        from awslabs.amazon_datazone_mcp_server.server import mcp
+        monkeypatch.setattr(mcp, 'run', mock_run)
+        
+        # Mock sys.exit to capture the exit call
+        exit_calls = []
+        def mock_exit(code):
+            exit_calls.append(code)
+        monkeypatch.setattr(sys, 'exit', mock_exit)
+        
+        # Call main function
+        main()
+        
+        # Verify exception handling behavior
+        assert len(exit_calls) == 1
+        assert exit_calls[0] == 1  # Should exit with code 1
+        
+        # Verify JSON error response was printed
+        output = captured_output.getvalue()
+        try:
+            error_response = json.loads(output)
+            assert 'error' in error_response
+            assert 'Test exception for coverage' in error_response['error']
+            assert error_response['type'] == 'ValueError'
+            assert error_response['message'] == 'MCP server encountered an error'
+        except json.JSONDecodeError:
+            pytest.fail("Expected JSON error response to be printed")

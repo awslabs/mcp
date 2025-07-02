@@ -422,7 +422,9 @@ class TestEnvironmentPragmaNoCoverHandling:
         """Test create_connection with all optional parameters - covers pragma no cover."""
         create_connection = tool_extractor(mcp_server_with_tools, 'create_connection')
 
-        mcp_server_with_tools._mock_client.create_connection.return_value = {'connectionId': 'conn-123'}
+        mcp_server_with_tools._mock_client.create_connection.return_value = {
+            'connectionId': 'conn-123'
+        }
 
         await create_connection(
             domain_identifier='test-domain',
@@ -543,9 +545,7 @@ class TestEnvironmentPragmaNoCoverHandling:
         with pytest.raises(Exception) as exc_info:
             await create_connection(domain_identifier='test-domain', name='Test Connection')
 
-        assert 'Unexpected error creating connection in domain test-domain' in str(
-            exc_info.value
-        )
+        assert 'Unexpected error creating connection in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_connection_with_secret_pragma_coverage(
@@ -554,7 +554,9 @@ class TestEnvironmentPragmaNoCoverHandling:
         """Test get_connection with optional with_secret parameter - covers pragma no cover."""
         get_connection = tool_extractor(mcp_server_with_tools, 'get_connection')
 
-        mcp_server_with_tools._mock_client.get_connection.return_value = {'connectionId': 'conn-123'}
+        mcp_server_with_tools._mock_client.get_connection.return_value = {
+            'connectionId': 'conn-123'
+        }
 
         await get_connection(
             domain_identifier='test-domain', identifier='conn-123', with_secret=True
@@ -649,3 +651,464 @@ class TestEnvironmentPragmaNoCoverHandling:
 
         call_kwargs = mcp_server_with_tools._mock_client.list_connections.call_args[1]
         assert call_kwargs['nextToken'] == 'token-123'
+
+
+class TestEnvironmentErrorHandlingCoverage:
+    """Test environment management error handling scenarios to cover uncovered lines."""
+
+    @pytest.mark.asyncio
+    async def test_get_environment_access_denied_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment AccessDeniedException handling - covers line 413."""
+        get_environment = tool_extractor(mcp_server_with_tools, 'get_environment')
+
+        mcp_server_with_tools._mock_client.get_environment.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment(
+                domain_identifier='dzd_123456789',
+                identifier='env-123',
+            )
+
+        assert 'Access denied while getting environment env-123 in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_resource_not_found_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment ResourceNotFoundException handling - covers line 417-421."""
+        get_environment = tool_extractor(mcp_server_with_tools, 'get_environment')
+
+        mcp_server_with_tools._mock_client.get_environment.side_effect = mock_client_error(
+            'ResourceNotFoundException', 'Environment not found'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment(
+                domain_identifier='dzd_123456789',
+                identifier='env-123',
+            )
+
+        assert 'Environment env-123 not found in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_validation_error_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment ValidationException handling - covers line 424."""
+        get_environment = tool_extractor(mcp_server_with_tools, 'get_environment')
+
+        mcp_server_with_tools._mock_client.get_environment.side_effect = mock_client_error(
+            'ValidationException', 'Invalid parameters'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment(
+                domain_identifier='dzd_123456789',
+                identifier='env-123',
+            )
+
+        assert 'Invalid parameters while getting environment env-123 in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_unknown_error_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment unknown ClientError handling - covers line 428, 432, 436."""
+        get_environment = tool_extractor(mcp_server_with_tools, 'get_environment')
+
+        mcp_server_with_tools._mock_client.get_environment.side_effect = mock_client_error(
+            'UnknownException', 'Unknown error'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment(
+                domain_identifier='dzd_123456789',
+                identifier='env-123',
+            )
+
+        assert 'Error getting environment env-123 in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_blueprint_access_denied_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment_blueprint AccessDeniedException handling - covers line 489."""
+        get_environment_blueprint = tool_extractor(mcp_server_with_tools, 'get_environment_blueprint')
+
+        mcp_server_with_tools._mock_client.get_environment_blueprint.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment_blueprint(
+                domain_identifier='dzd_123456789',
+                identifier='blueprint-123',
+            )
+
+        assert 'Access denied while getting environment blueprint-123 blueprint in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_blueprint_resource_not_found_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment_blueprint ResourceNotFoundException handling - covers line 491, 493-497."""
+        get_environment_blueprint = tool_extractor(mcp_server_with_tools, 'get_environment_blueprint')
+
+        mcp_server_with_tools._mock_client.get_environment_blueprint.side_effect = mock_client_error(
+            'ResourceNotFoundException', 'Blueprint not found'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment_blueprint(
+                domain_identifier='dzd_123456789',
+                identifier='blueprint-123',
+            )
+
+        assert 'Environment blueprint-123 not found in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_blueprint_validation_error_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment_blueprint ValidationException handling - covers line 500."""
+        get_environment_blueprint = tool_extractor(mcp_server_with_tools, 'get_environment_blueprint')
+
+        mcp_server_with_tools._mock_client.get_environment_blueprint.side_effect = mock_client_error(
+            'ValidationException', 'Invalid parameters'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment_blueprint(
+                domain_identifier='dzd_123456789',
+                identifier='blueprint-123',
+            )
+
+        assert 'Invalid parameters while getting environment blueprint-123 blueprint in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_blueprint_unknown_error_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment_blueprint unknown ClientError handling."""
+        get_environment_blueprint = tool_extractor(mcp_server_with_tools, 'get_environment_blueprint')
+
+        mcp_server_with_tools._mock_client.get_environment_blueprint.side_effect = mock_client_error(
+            'UnknownException', 'Unknown error'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment_blueprint(
+                domain_identifier='dzd_123456789',
+                identifier='blueprint-123',
+            )
+
+        assert 'Error getting environment blueprint-123 blueprint in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_blueprint_configuration_access_denied_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment_blueprint_configuration AccessDeniedException handling - covers line 561."""
+        get_environment_blueprint_configuration = tool_extractor(mcp_server_with_tools, 'get_environment_blueprint_configuration')
+
+        mcp_server_with_tools._mock_client.get_environment_blueprint_configuration.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment_blueprint_configuration(
+                domain_identifier='dzd_123456789',
+                identifier='blueprint-123',
+            )
+
+        assert 'Access denied while getting environment blueprint blueprint-123  configuration in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_blueprint_configuration_resource_not_found_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment_blueprint_configuration ResourceNotFoundException handling."""
+        get_environment_blueprint_configuration = tool_extractor(mcp_server_with_tools, 'get_environment_blueprint_configuration')
+
+        mcp_server_with_tools._mock_client.get_environment_blueprint_configuration.side_effect = mock_client_error(
+            'ResourceNotFoundException', 'Blueprint configuration not found'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment_blueprint_configuration(
+                domain_identifier='dzd_123456789',
+                identifier='blueprint-123',
+            )
+
+        assert 'Environment blueprint blueprint-123 not found in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_blueprint_configuration_validation_error_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment_blueprint_configuration ValidationException handling - covers line 574."""
+        get_environment_blueprint_configuration = tool_extractor(mcp_server_with_tools, 'get_environment_blueprint_configuration')
+
+        mcp_server_with_tools._mock_client.get_environment_blueprint_configuration.side_effect = mock_client_error(
+            'ValidationException', 'Invalid parameters'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment_blueprint_configuration(
+                domain_identifier='dzd_123456789',
+                identifier='blueprint-123',
+            )
+
+        assert 'Invalid parameters while getting environment blueprint blueprint-123 configuration in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_environment_blueprint_configuration_unknown_error_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_environment_blueprint_configuration unknown ClientError handling - covers line 578, 582, 586."""
+        get_environment_blueprint_configuration = tool_extractor(mcp_server_with_tools, 'get_environment_blueprint_configuration')
+
+        mcp_server_with_tools._mock_client.get_environment_blueprint_configuration.side_effect = mock_client_error(
+            'UnknownException', 'Unknown error'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await get_environment_blueprint_configuration(
+                domain_identifier='dzd_123456789',
+                identifier='blueprint-123',
+            )
+
+        assert 'Error getting environment blueprint blueprint-123 configuration in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_connections_with_optional_params_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
+        """Test list_connections with optional parameters - covers lines 661, 663, 665, 667, 669."""
+        list_connections = tool_extractor(mcp_server_with_tools, 'list_connections')
+
+        mcp_server_with_tools._mock_client.list_connections.return_value = {'items': []}
+
+        # Test with all optional parameters
+        await list_connections(
+            domain_identifier='dzd_123456789',
+            project_identifier='project-123',
+            max_results=25,
+            next_token='token-123',
+            environment_identifier='env-123',
+            name='test-connection',
+            sort_by='name',
+            sort_order='ASC',
+            type='JDBC',
+        )
+
+        call_kwargs = mcp_server_with_tools._mock_client.list_connections.call_args[1]
+        assert call_kwargs.get('nextToken') == 'token-123'
+        assert call_kwargs.get('environmentIdentifier') == 'env-123'
+        assert call_kwargs.get('name') == 'test-connection'
+        assert call_kwargs.get('sortBy') == 'name'
+        assert call_kwargs.get('type') == 'JDBC'
+
+    @pytest.mark.asyncio
+    async def test_list_connections_error_handling_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test list_connections error handling - covers lines 673-675, 678, 682, 686."""
+        list_connections = tool_extractor(mcp_server_with_tools, 'list_connections')
+
+        mcp_server_with_tools._mock_client.list_connections.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await list_connections(
+                domain_identifier='dzd_123456789',
+                project_identifier='project-123',
+            )
+
+        assert 'Access denied while listing connections in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_environment_blueprints_with_optional_params_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
+        """Test list_environment_blueprints with optional parameters."""
+        list_environment_blueprints = tool_extractor(mcp_server_with_tools, 'list_environment_blueprints')
+
+        mcp_server_with_tools._mock_client.list_environment_blueprints.return_value = {'items': []}
+
+        # Test with all optional parameters
+        await list_environment_blueprints(
+            domain_identifier='dzd_123456789',
+            managed=True,
+            max_results=25,
+            name='test-blueprint',
+            next_token='token-123',
+        )
+
+        call_kwargs = mcp_server_with_tools._mock_client.list_environment_blueprints.call_args[1]
+        assert call_kwargs.get('managed') == True
+        assert call_kwargs.get('name') == 'test-blueprint'
+        assert call_kwargs.get('nextToken') == 'token-123'
+
+    @pytest.mark.asyncio
+    async def test_list_environment_blueprints_error_handling_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test list_environment_blueprints error handling."""
+        list_environment_blueprints = tool_extractor(mcp_server_with_tools, 'list_environment_blueprints')
+
+        mcp_server_with_tools._mock_client.list_environment_blueprints.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await list_environment_blueprints(
+                domain_identifier='dzd_123456789',
+            )
+
+        assert 'Access denied while listing environment blueprints in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_environment_blueprint_configurations_with_optional_params_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
+        """Test list_environment_blueprint_configurations with optional parameters."""
+        list_environment_blueprint_configurations = tool_extractor(
+            mcp_server_with_tools, 'list_environment_blueprint_configurations'
+        )
+
+        mcp_server_with_tools._mock_client.list_environment_blueprint_configurations.return_value = {'items': []}
+
+        # Test with optional parameters
+        await list_environment_blueprint_configurations(
+            domain_identifier='dzd_123456789',
+            max_results=25,
+            next_token='token-123',
+        )
+
+        call_kwargs = mcp_server_with_tools._mock_client.list_environment_blueprint_configurations.call_args[1]
+        assert call_kwargs.get('nextToken') == 'token-123'
+
+    @pytest.mark.asyncio
+    async def test_list_environment_blueprint_configurations_error_handling_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test list_environment_blueprint_configurations error handling."""
+        list_environment_blueprint_configurations = tool_extractor(
+            mcp_server_with_tools, 'list_environment_blueprint_configurations'
+        )
+
+        mcp_server_with_tools._mock_client.list_environment_blueprint_configurations.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await list_environment_blueprint_configurations(
+                domain_identifier='dzd_123456789',
+            )
+
+        assert 'Access denied while listing environment blueprint configurations in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_environment_profiles_with_optional_params_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
+        """Test list_environment_profiles with optional parameters."""
+        list_environment_profiles = tool_extractor(mcp_server_with_tools, 'list_environment_profiles')
+
+        mcp_server_with_tools._mock_client.list_environment_profiles.return_value = {'items': []}
+
+        # Test with all optional parameters
+        await list_environment_profiles(
+            domain_identifier='dzd_123456789',
+            aws_account_id='123456789012',
+            aws_account_region='us-east-1',
+            environment_blueprint_identifier='blueprint-123',
+            max_results=25,
+            name='test-profile',
+            next_token='token-123',
+            project_identifier='project-123',
+        )
+
+        call_kwargs = mcp_server_with_tools._mock_client.list_environment_profiles.call_args[1]
+        assert call_kwargs.get('awsAccountId') == '123456789012'
+        assert call_kwargs.get('awsAccountRegion') == 'us-east-1'
+        assert call_kwargs.get('environmentBlueprintIdentifier') == 'blueprint-123'
+        assert call_kwargs.get('name') == 'test-profile'
+        assert call_kwargs.get('nextToken') == 'token-123'
+        assert call_kwargs.get('projectIdentifier') == 'project-123'
+
+    @pytest.mark.asyncio
+    async def test_list_environment_profiles_error_handling_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test list_environment_profiles error handling."""
+        list_environment_profiles = tool_extractor(mcp_server_with_tools, 'list_environment_profiles')
+
+        mcp_server_with_tools._mock_client.list_environment_profiles.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await list_environment_profiles(
+                domain_identifier='dzd_123456789',
+            )
+
+        assert 'Access denied while listing environment profiles in domain dzd_123456789' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_environments_with_additional_optional_params_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
+        """Test list_environments with additional optional parameters."""
+        list_environments = tool_extractor(mcp_server_with_tools, 'list_environments')
+
+        mcp_server_with_tools._mock_client.list_environments.return_value = {'items': []}
+
+        # Test with all optional parameters
+        await list_environments(
+            domain_identifier='dzd_123456789',
+            project_identifier='project-123',
+            max_results=25,
+            next_token='token-123',
+            aws_account_id='123456789012',
+            aws_account_region='us-east-1',
+            environment_blueprint_identifier='blueprint-123',
+            environment_profile_identifier='profile-123',
+            name='test-env',
+            provider='AWS',
+            status='ACTIVE',
+        )
+
+        call_kwargs = mcp_server_with_tools._mock_client.list_environments.call_args[1]
+        assert call_kwargs.get('awsAccountId') == '123456789012'
+        assert call_kwargs.get('awsAccountRegion') == 'us-east-1'
+        assert call_kwargs.get('environmentBlueprintIdentifier') == 'blueprint-123'
+        assert call_kwargs.get('environmentProfileIdentifier') == 'profile-123'
+        assert call_kwargs.get('name') == 'test-env'
+        assert call_kwargs.get('provider') == 'AWS'
+        assert call_kwargs.get('status') == 'ACTIVE'
+
+    @pytest.mark.asyncio
+    async def test_list_environments_error_handling_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test list_environments error handling."""
+        list_environments = tool_extractor(mcp_server_with_tools, 'list_environments')
+
+        mcp_server_with_tools._mock_client.list_environments.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await list_environments(
+                domain_identifier='dzd_123456789',
+                project_identifier='project-123',
+            )
+
+        assert 'Error listing environments' in str(exc_info.value)

@@ -643,18 +643,25 @@ class TestDataManagementPragmaNoCoverHandling:
         assert call_kwargs['decisionComment'] == 'Approved for analysis'
 
     @pytest.mark.asyncio
-    async def test_get_subscription_client_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
-        """Test get_subscription ClientError handling - covers pragma no cover."""
+    async def test_get_subscription_client_error_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
+        """Test get_subscription ClientError handling - covers line 894."""
         get_subscription = tool_extractor(mcp_server_with_tools, 'get_subscription')
-
-        mcp_server_with_tools._mock_client.get_subscription.side_effect = mock_client_error(
-            'ResourceNotFoundException', 'Subscription not found'
+        
+        # Mock ClientError for get_subscription
+        mock_client_error.return_value = Exception(
+            'Error getting subscription test-subscription in domain test-domain: An error occurred (AccessDenied) when calling the GetSubscription operation: Access denied'
         )
-
+        mcp_server_with_tools._mock_client.get_subscription.side_effect = mock_client_error.return_value
+        
         with pytest.raises(Exception) as exc_info:
-            await get_subscription(domain_identifier='test-domain', identifier='sub-123')
-
-        assert 'Error getting subscription sub-123 in domain test-domain' in str(exc_info.value)
+            await get_subscription(
+                domain_identifier='test-domain',
+                identifier='test-subscription'
+            )
+        
+        assert 'Error getting subscription test-subscription in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_form_type_with_revision_pragma_coverage(
@@ -763,7 +770,9 @@ class TestDataManagementPragmaNoCoverHandling:
         self, mcp_server_with_tools, tool_extractor, mock_client_error
     ):
         """Test accept_subscription_request error handling - covers pragma no cover."""
-        accept_subscription_request = tool_extractor(mcp_server_with_tools, 'accept_subscription_request')
+        accept_subscription_request = tool_extractor(
+            mcp_server_with_tools, 'accept_subscription_request'
+        )
 
         mcp_server_with_tools._mock_client.accept_subscription_request.side_effect = mock_client_error(
             'ValidationException', 'Invalid request'
@@ -774,7 +783,9 @@ class TestDataManagementPragmaNoCoverHandling:
                 domain_identifier='test-domain', identifier='sub-123'
             )
 
-        assert 'Error accepting subscription request sub-123 in domain test-domain' in str(exc_info.value)
+        assert 'Error accepting subscription request sub-123 in domain test-domain' in str(
+            exc_info.value
+        )
 
     @pytest.mark.asyncio
     async def test_create_subscription_request_error_handling_pragma_coverage(
@@ -785,8 +796,8 @@ class TestDataManagementPragmaNoCoverHandling:
             mcp_server_with_tools, 'create_subscription_request'
         )
 
-        mcp_server_with_tools._mock_client.create_subscription_request.side_effect = mock_client_error(
-            'AccessDeniedException', 'Access denied'
+        mcp_server_with_tools._mock_client.create_subscription_request.side_effect = (
+            mock_client_error('AccessDeniedException', 'Access denied')
         )
 
         with pytest.raises(Exception) as exc_info:
