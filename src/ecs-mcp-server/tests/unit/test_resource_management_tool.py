@@ -50,8 +50,8 @@ class TestResourceManagementTool(unittest.TestCase):
 
     @pytest.mark.anyio
     @patch("mcp.server.fastmcp.FastMCP", MockFastMCP)
-    @patch("awslabs.ecs_mcp_server.api.resource_management.ecs_resource_management")
-    async def test_ecs_resource_management_tool_registration(self, mock_ecs_resource_management):
+    @patch("awslabs.ecs_mcp_server.api.resource_management.ecs_api_operation")
+    async def test_ecs_resource_management_tool_registration(self, mock_ecs_api_operation):
         """Test that the ecs_resource_management tool is properly registered."""
         # Import the patched module
         from awslabs.ecs_mcp_server.main import mcp
@@ -62,28 +62,30 @@ class TestResourceManagementTool(unittest.TestCase):
 
     @pytest.mark.anyio
     @patch("mcp.server.fastmcp.FastMCP", MockFastMCP)
-    @patch("awslabs.ecs_mcp_server.api.resource_management.ecs_resource_management")
-    async def test_ecs_resource_management_tool_function(self, mock_ecs_resource_management):
+    @patch("awslabs.ecs_mcp_server.api.resource_management.ecs_api_operation")
+    async def test_ecs_resource_management_tool_function(self, mock_ecs_api_operation):
         """Test that the ecs_resource_management tool function works correctly."""
         # Import the patched module
         from awslabs.ecs_mcp_server.modules.resource_management import mcp_ecs_resource_management
 
         # Setup mock
-        mock_ecs_resource_management.return_value = {"test": "result"}
+        mock_ecs_api_operation.return_value = {"test": "result"}
 
         # Test with different parameter combinations
-        await mcp_ecs_resource_management("list", "cluster")
-        mock_ecs_resource_management.assert_called_with("list", "cluster", None, None)
+        await mcp_ecs_resource_management("ListClusters", {})
+        mock_ecs_api_operation.assert_called_with("ListClusters", {})
 
         await mcp_ecs_resource_management(
-            "describe", "service", "my-service", {"cluster": "my-cluster"}
+            "DescribeServices",
+            {"cluster": "my-cluster", "services": ["my-service"], "include": ["TAGS"]},
         )
-        mock_ecs_resource_management.assert_called_with(
-            "describe", "service", "my-service", {"cluster": "my-cluster"}
+        mock_ecs_api_operation.assert_called_with(
+            "DescribeServices",
+            {"cluster": "my-cluster", "services": ["my-service"], "include": ["TAGS"]},
         )
 
         # Verify result is passed through
-        result = await mcp_ecs_resource_management("list", "cluster")
+        result = await mcp_ecs_resource_management("ListClusters", {})
         self.assertEqual(result, {"test": "result"})
 
 
