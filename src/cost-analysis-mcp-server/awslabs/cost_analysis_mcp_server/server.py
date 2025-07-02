@@ -17,41 +17,45 @@
 This server provides tools for analyzing AWS service costs across different user tiers.
 """
 
-import boto3
-import logging
 import os
+import sys
+from awslabs.cost_analysis_mcp_server import consts
 from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
+from awslabs.cost_analysis_mcp_server.models import ErrorResponse, PricingFilters
+from awslabs.cost_analysis_mcp_server.pricing_client import create_pricing_client
 from awslabs.cost_analysis_mcp_server.static.patterns import BEDROCK
 from awslabs.cost_analysis_mcp_server.terraform_analyzer import analyze_terraform_project
 from bs4 import BeautifulSoup
 from httpx import AsyncClient
+from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional
 
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger.remove()
+logger.add(sys.stderr, level=consts.LOG_LEVEL)
 
 
-class PricingFilter(BaseModel):
-    """Filter model for AWS Price List API queries."""
+async def create_error_response(
+    ctx: Context,
+    error_type: str,
+    message: str,
+    **kwargs,  # Accept any additional fields dynamically
+) -> Dict[str, Any]:
+    """Create a standardized error response, log it, and notify context."""
+    logger.error(message)
+    await ctx.error(message)
 
-    field: str = Field(
-        ..., alias='Field', description="The field to filter on (e.g., 'instanceType', 'location')"
+    error_response = ErrorResponse(
+        error_type=error_type,
+        message=message,
+        **kwargs,
     )
-    type: str = Field(default='TERM_MATCH', alias='Type', description='The type of filter match')
-    value: str = Field(..., alias='Value', description='The value to match against')
-    model_config = ConfigDict(validate_by_alias=True)
 
-
-class PricingFilters(BaseModel):
-    """Container for multiple pricing filters."""
-
-    filters: List[PricingFilter] = Field(
-        default_factory=list, description='List of filters to apply to the pricing query'
-    )
+    return error_response.model_dump()
 
 
 mcp = FastMCP(
@@ -101,7 +105,7 @@ mcp = FastMCP(
     IMPORTANT: Steps MUST be executed in this exact order. Each step must be attempted
     before moving to the next fallback mechanism. The report is particularly focused on
     serverless services and pay-as-you-go pricing models.""",
-    dependencies=['pydantic', 'boto3', 'beautifulsoup4', 'websearch'],
+    dependencies=['pydantic', 'loguru', 'boto3', 'beautifulsoup4', 'websearch'],
 )
 
 profile_name = os.getenv('AWS_PROFILE', 'default')
@@ -112,7 +116,10 @@ logger.info(f'Using AWS profile {profile_name}')
     name='analyze_cdk_project',
     description='Analyze a CDK project to identify AWS services used. This tool dynamically extracts service information from CDK constructs without relying on hardcoded service mappings.',
 )
-async def analyze_cdk_project_wrapper(project_path: str, ctx: Context) -> Optional[Dict]:
+async def analyze_cdk_project_wrapper(
+    ctx: Context,
+    project_path: str = Field(..., description='Path to the project directory'),
+) -> Optional[Dict]:
     """Analyze a CDK project to identify AWS services.
 
     Args:
@@ -144,7 +151,10 @@ async def analyze_cdk_project_wrapper(project_path: str, ctx: Context) -> Option
     name='analyze_terraform_project',
     description='Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
 )
-async def analyze_terraform_project_wrapper(project_path: str, ctx: Context) -> Optional[Dict]:
+async def analyze_terraform_project_wrapper(
+    ctx: Context,
+    project_path: str = Field(..., description='Path to the project directory'),
+) -> Optional[Dict]:
     """Analyze a Terraform project to identify AWS services.
 
     Args:
@@ -176,7 +186,13 @@ async def analyze_terraform_project_wrapper(project_path: str, ctx: Context) -> 
     name='get_pricing_from_web',
     description='Get pricing information from AWS pricing webpage. Service codes typically use lowercase with hyphens format (e.g., "opensearch-service" for both OpenSearch and OpenSearch Serverless, "api-gateway", "lambda"). Note that some services like OpenSearch Serverless are part of broader service codes (use "opensearch-service" not "opensearch-serverless"). Important: Web service codes differ from API service codes (e.g., use "opensearch-service" for web but "AmazonES" for API). When retrieving foundation model pricing, always use the latest models for comparison rather than specific named ones that may become outdated.',
 )
-async def get_pricing_from_web(service_code: str, ctx: Context) -> Optional[Dict]:
+async def get_pricing_from_web(
+    ctx: Context,
+    service_code: str = Field(
+        ...,
+        description='AWS service code for web pricing (lowercase with hyphens, e.g., "opensearch-service", "lambda")',
+    ),
+) -> Optional[Dict]:
     """Get pricing information from AWS pricing webpage.
 
     Args:
@@ -232,7 +248,9 @@ async def get_pricing_from_web(service_code: str, ctx: Context) -> Optional[Dict
 
 @mcp.tool(
     name='get_pricing_from_api',
-    description="""Get pricing information from AWS Price List API.
+    description="""
+    Get detailed pricing information from AWS Price List API with optional filters.
+
     Service codes for API often differ from web URLs.
     (e.g., use "AmazonES" for OpenSearch, not "AmazonOpenSearchService").
     List of service codes can be found with `curl 'https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/index.json' | jq -r '.offers| .[] | .offerCode'`
@@ -241,26 +259,127 @@ async def get_pricing_from_web(service_code: str, ctx: Context) -> Optional[Dict
     - For database compatibility with services, only include confirmed supported databases
     - Providing less information is better than giving incorrect information
 
-    Filters should be provided in the format:
-    [
-        {
-            'Field': 'feeCode',
-            'Type': 'TERM_MATCH',
-            'Value': 'Glacier:EarlyDelete'
-        },
-        {
-            'Field': 'regionCode',
-            'Type': 'TERM_MATCH',
-            'Value': 'ap-southeast-1'
-        }
-    ]
-    Details of the filter can be found at https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_pricing_Filter.html
+    **TOOL PURPOSE:**
+    Retrieve AWS pricing data for various analysis needs: cost optimization, regional comparisons, compliance reporting, budget planning, or general pricing research.
+
+    **YOUR APPROACH:**
+    Follow a systematic discovery workflow to ensure accurate, complete results regardless of your specific use case.
+
+    **MANDATORY WORKFLOW - ALWAYS FOLLOW:**
+
+    **Step 1: Build Precise Filters**
+    ```python
+    # FOR COST OPTIMIZATION: Create matrix of ALL minimum qualifying combinations
+    filters = {
+       "filters": [
+           {"Field": "memory", "Value": "8 GiB", "Type": "TERM_MATCH"},
+           {"Field": "instanceType", "Value": "m5.large", "Type": "TERM_MATCH"}
+       ]
+    }
+    ```
+
+    **Step 2: Execute Query**
+    ```python
+    pricing = get_pricing_from_api('AmazonEC2', 'us-east-1', filters)
+    ```
+
+    **COMMON USE CASES:**
+
+    **Cost Optimization (CRITICAL):**
+    - Build complete cross-product matrix of ALL qualifying attribute combinations
+    - Test every combination systematically: example: (min_memory × qualifying_storage × other_attributes)
+    - Start with minimum thresholds, test ALL possibilities - don't stop at first match
+    - Compare prices to find most cost-effective solution
+    - Prove optimality: Verify no cheaper option exists within requirements
+
+    **Regional Comparison:**
+    - Use identical filters across different regions
+    - Compare same instance types between us-east-1 vs eu-west-1
+    - Analyze pricing variations for capacity planning
+
+    **Compliance/Reporting:**
+    - Retrieve pricing for specific instance families or configurations
+    - Generate cost reports for budget planning
+    - Document pricing for procurement processes
+
+    **Research/Analysis:**
+    - Compare pricing across different service tiers
+    - Analyze cost implications of different configurations
+    - Investigate pricing patterns for forecasting
+
+    **CRITICAL REQUIREMENTS:**
+    - **USE SPECIFIC FILTERS**: Large services (EC2, RDS) require 2-3 filters minimum
+    - **VERIFY EXISTENCE**: Ensure all filter values exist in the service before querying
+    - **FOR "CHEAPEST" QUERIES**: Build complete matrix, test ALL qualifying combinations, prove optimality
+
+    **CONTEXT AND CONSTRAINTS:**
+    - **CURRENT PRICING ONLY:** Use get_price_list_file for historical data
+    - **NO SAVINGS PLANS/SPOT:** Only On-Demand and Reserved Instance pricing
+    - **REGION AUTO-FILTER:** 'region' parameter creates regionCode filter automatically
+
+    **REQUIRED INPUTS:**
+    - `service_code`: (e.g., 'AmazonEC2', 'AmazonS3')
+    - `region`: AWS region (e.g., 'us-east-1')
+    - `filters`: Built using discovered values (MANDATORY for large services)
+    - `max_allowed_characters`: Response limit (default: 100,000)
+
+    **ANTI-PATTERNS - AVOID THESE:**
+    ❌ Using broad queries without specific filters on large services
+    ❌ Assuming attribute values exist across different services/regions
+    ❌ **Stopping at first qualifying option when seeking cheapest price**
+    ❌ **Testing only "obvious" instance sizes - smaller may be cheaper**
+
+    **EXAMPLE USE CASES:**
+
+    **1. Cost Optimization Example:**
+    ```python
+    # Find cheapest option meeting requirements
+    qualifying_memory = [m for m in memory_options if meets_requirement(m, "≥8GB")]
+    # Test combinations starting with minimum qualifying specs
+    ```
+
+    **2. Regional Comparison Example:**
+    ```python
+    # Compare same configuration across regions
+    filters = {"filters": [{"Field": "instanceType", "Value": "m5.large", "Type": "TERM_MATCH"}]}
+    us_pricing = get_pricing_from_api('AmazonEC2', 'us-east-1', filters)
+    eu_pricing = get_pricing_from_api('AmazonEC2', 'eu-west-1', filters)
+    ```
+
+    **3. Research/Analysis Example:**
+    ```python
+    # Compare different memory tiers for same instance family
+    memory_tiers = ["4 GiB", "8 GiB", "16 GiB"]
+    for memory in memory_tiers:
+       filters = {"filters": [{"Field": "memory", "Value": memory, "Type": "TERM_MATCH"}]}
+       pricing = get_pricing_from_api('AmazonEC2', 'us-east-1', filters)
+    ```
+
+    **FILTERING STRATEGY:**
+    - **Large Services (EC2, RDS)**: ALWAYS use 2-3 specific filters to prevent 200+ record responses
+    - **Small Services**: May work with single filter or no filters
+    - **Multi-Region Analysis**: Use identical filters across regions for accurate comparison
+    - **Requirement-Based**: Systematically discover ALL options meeting criteria
+    - **Cost Optimization**: Start with minimum qualifying thresholds, use minimum-threshold filtering, test all qualifying combinations
+
+    **SUCCESS CRITERIA:**
+    ✅ Applied appropriate filters for the service size
+    ✅ For cost optimization: tested all qualifying combinations and proved optimality
     """,
 )
 async def get_pricing_from_api(
-    service_code: str, region: str, ctx: Context, filters: Optional[PricingFilters] = None
-) -> Optional[Dict]:
-    """Get pricing information from AWS Price List API. If the API request fails in the initial attempt, retry by modifying the service_code.
+    ctx: Context,
+    service_code: str = Field(
+        ..., description='AWS service code (e.g., "AmazonEC2", "AmazonS3", "AmazonES")'
+    ),
+    region: str = Field(
+        ..., description='AWS region (e.g., "us-east-1", "us-west-2", "eu-west-1")'
+    ),
+    filters: Optional[PricingFilters] = Field(
+        None, description='Optional filters for pricing queries'
+    ),
+) -> Dict[str, Any]:
+    """Get pricing information from AWS Price List API.
 
     Args:
         service_code: The service code (e.g., 'AmazonES' for OpenSearch, 'AmazonS3' for S3)
@@ -271,11 +390,26 @@ async def get_pricing_from_api(
     Returns:
         Dictionary containing pricing information from AWS Pricing API
     """
+    # Handle Pydantic Field objects when called directly (not through MCP framework)
+    if isinstance(filters, FieldInfo):
+        filters = filters.default
+
+    logger.info(f'Getting pricing for {service_code} in {region}')
+
+    # Create pricing client with error handling
     try:
-        pricing_client = boto3.Session(profile_name=profile_name).client(
-            'pricing', region_name='us-east-1'
+        pricing_client = create_pricing_client()
+    except Exception as e:
+        return await create_error_response(
+            ctx=ctx,
+            error_type='client_creation_failed',
+            message=f'Failed to create AWS Pricing client: {str(e)}',
+            service_code=service_code,
+            region=region,
         )
 
+    # Build filters
+    try:
         # Start with the region filter
         region_filter = {'Field': 'regionCode', 'Type': 'TERM_MATCH', 'Value': region}
         api_filters = [region_filter]
@@ -284,50 +418,51 @@ async def get_pricing_from_api(
         if filters and filters.filters:
             api_filters.extend([f.model_dump(by_alias=True) for f in filters.filters])
 
+        # Make the API request
         response = pricing_client.get_products(
             ServiceCode=service_code,
             Filters=api_filters,
             MaxResults=100,
         )
-
-        if not response['PriceList']:
-            await ctx.error(f'Pricing API returned empty results for service code: {service_code}')
-            return {
-                'status': 'error',
-                'error_type': 'empty_results',
-                'message': f'The service code "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.',
-                'examples': {
-                    'OpenSearch': 'AmazonES',
-                    'Lambda': 'AWSLambda',
-                    'DynamoDB': 'AmazonDynamoDB',
-                    'Bedrock': 'AmazonBedrock',
-                },
-            }
-
-        result = {
-            'status': 'success',
-            'service_name': service_code,
-            'data': response['PriceList'],
-            'message': f'Retrieved pricing for {service_code} in {region} from AWS Pricing API',
-        }
-
-        # No need to store in context, just return the result
-
-        return result
-
     except Exception as e:
-        error_msg = str(e)
-        await ctx.error(f'Pricing API request failed: {e}')
+        return await create_error_response(
+            ctx=ctx,
+            error_type='api_error',
+            message=f'Failed to retrieve pricing data for service "{service_code}" in region "{region}": {str(e)}',
+            service_code=service_code,
+            region=region,
+            suggestion='Verify that the service code and region combination is valid.',
+        )
 
-        # Just pass through the original error message
-        return {
-            'status': 'error',
-            'error_type': 'api_error',
-            'message': error_msg,
-            'service_code': service_code,
-            'region': region,
-            'note': 'AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES" (for OpenSearch), etc.',
-        }
+    # Check if results are empty
+    if not response.get('PriceList'):
+        return await create_error_response(
+            ctx=ctx,
+            error_type='empty_results',
+            message=f'The service "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.',
+            service_code=service_code,
+            region=region,
+            examples={
+                'OpenSearch': 'AmazonES',
+                'Lambda': 'AWSLambda',
+                'DynamoDB': 'AmazonDynamoDB',
+                'Bedrock': 'AmazonBedrock',
+            },
+        )
+
+    price_list = response['PriceList']
+    total_count = len(price_list)
+
+    # Success response
+    logger.info(f'Successfully retrieved {total_count} pricing items for {service_code}')
+    await ctx.info(f'Successfully retrieved pricing for {service_code} in {region}')
+
+    return {
+        'status': 'success',
+        'service_name': service_code,
+        'data': price_list,
+        'message': f'Retrieved pricing for {service_code} in {region} from AWS Pricing API',
+    }
 
 
 @mcp.tool(
@@ -468,21 +603,33 @@ Example usage:
 """,
 )
 async def generate_cost_report_wrapper(
-    pricing_data: Dict[str, Any],  # Required: Raw pricing data from AWS
-    service_name: str,  # Required: Primary service name
+    ctx: Context,
+    pricing_data: Dict[str, Any] = Field(
+        ..., description='Raw pricing data from AWS pricing tools'
+    ),
+    service_name: str = Field(..., description='Name of the AWS service'),
     # Core parameters (simple, commonly used)
-    related_services: Optional[List[str]] = None,
-    pricing_model: str = 'ON DEMAND',
-    assumptions: Optional[List[str]] = None,
-    exclusions: Optional[List[str]] = None,
-    output_file: Optional[str] = None,
-    format: str = 'markdown',  # Output format ('markdown' or 'csv')
+    related_services: Optional[List[str]] = Field(
+        None, description='List of related AWS services'
+    ),
+    pricing_model: str = Field(
+        'ON DEMAND', description='Pricing model (e.g., "ON DEMAND", "Reserved")'
+    ),
+    assumptions: Optional[List[str]] = Field(
+        None, description='List of assumptions for cost analysis'
+    ),
+    exclusions: Optional[List[str]] = Field(
+        None, description='List of items excluded from cost analysis'
+    ),
+    output_file: Optional[str] = Field(None, description='Path to save the report file'),
+    format: str = Field('markdown', description='Output format ("markdown" or "csv")'),
     # Advanced parameters (grouped in a dictionary for complex use cases)
-    detailed_cost_data: Optional[Dict[str, Any]] = None,
-    recommendations: Optional[
-        Dict[str, Any]
-    ] = None,  # Direct recommendations or guidance for generation
-    ctx: Optional[Context] = None,
+    detailed_cost_data: Optional[Dict[str, Any]] = Field(
+        None, description='Detailed cost information for complex scenarios'
+    ),
+    recommendations: Optional[Dict[str, Any]] = Field(
+        None, description='Direct recommendations or guidance for generation'
+    ),
 ) -> str:
     """Generate a cost analysis report for AWS services.
 
