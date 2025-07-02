@@ -30,7 +30,7 @@
   "engines": {
     "node": ">=18.0"
   },
-  "name": "docusaurus-site",
+  "name": "docs",
   "private": true,
   "scripts": {
     "build": "docusaurus build",
