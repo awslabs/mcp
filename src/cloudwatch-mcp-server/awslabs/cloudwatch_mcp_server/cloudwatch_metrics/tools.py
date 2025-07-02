@@ -189,20 +189,6 @@ class CloudWatchMetricsTools:
 
         Usage: Use this tool to get actual metric data from CloudWatch for analysis or visualization.
 
-        Args:
-            namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
-            metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
-            start_time: The start time for the metric data query (ISO format or datetime)
-            dimensions: List of dimensions with name and value pairs. Used as filters in standard mode or WHERE clause in Metrics Insights mode.
-            end_time: The end time for the metric data query (ISO format or datetime), defaults to current time
-            statistic: The statistic to use for the metric. For Metrics Insights: 'AVG', 'COUNT', 'MAX', 'MIN', 'SUM'. For standard GetMetricData: 'Average', 'Sum', 'Maximum', 'Minimum', 'SampleCount'.
-            target_datapoints: Target number of data points to return (default: 60). Controls the granularity of the returned data.
-            group_by_dimension: Dimension name to group by in Metrics Insights mode. Must be included in schema_dimension_keys.
-            schema_dimension_keys: List of dimension keys to include in the SCHEMA definition for Metrics Insights query.
-            limit: Maximum number of results to return in Metrics Insights mode (used with LIMIT clause).
-            sort_order: Sort order for results when using ORDER BY in Metrics Insights. Can be 'ASC', 'DESC', or None. If specified, order_by_statistic must also be specified.
-            order_by_statistic: Statistic to use in the ORDER BY clause. Can be 'AVG', 'COUNT', 'MAX', 'MIN', 'SUM'. If specified, an ORDER BY clause will be added to the query. Required if sort_order is specified.
-
         Returns:
             GetMetricDataResponse: An object containing the metric data results
 
