@@ -19,6 +19,7 @@ import json
 from ...common.connection import RDSConnectionManager
 from ...common.constants import RESOURCE_PREFIX_DB_CLUSTER
 from ...common.decorator import handle_exceptions
+from ...common.models import ClusterModel
 from ...common.server import mcp
 from .utils import format_cluster_info
 from loguru import logger
@@ -66,7 +67,7 @@ async def get_cluster_detail(
     cluster_id: str = Field(
         ..., description='The unique identifier of the RDS DB cluster to retrieve details for'
     ),
-) -> str:
+) -> ClusterModel:
     """Retrieve detailed information about a specific RDS cluster.
 
     This method queries the AWS RDS API for comprehensive information about
@@ -90,11 +91,9 @@ async def get_cluster_detail(
 
     clusters = response.get('DBClusters', [])
     if not clusters:
-        return json.dumps({'error': f'Cluster {cluster_id} not found'}, indent=2)
+        raise ValueError(f'Cluster {cluster_id} not found')
 
     cluster = format_cluster_info(clusters[0])
     cluster.resource_uri = f'{RESOURCE_PREFIX_DB_CLUSTER}/{cluster_id}'
 
-    model_dict = cluster.model_dump()
-
-    return json.dumps(model_dict, indent=2)
+    return cluster
