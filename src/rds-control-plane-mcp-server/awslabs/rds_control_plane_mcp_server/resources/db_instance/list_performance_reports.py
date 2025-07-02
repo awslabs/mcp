@@ -109,7 +109,7 @@ async def list_performance_reports(
         ...,
         description='The resource identifier for the DB instance. This is the DbiResourceId returned by the ListDBInstances resource',
     ),
-) -> str:
+) -> PerformanceReportListModel:
     """Retrieve all performance reports for a given DB instance.
 
     Args:
@@ -160,4 +160,4 @@ async def list_performance_reports(
         count=len(reports),
         resource_uri=RESOURCE_PREFIX_DB_PERFORMANCE_REPORT.format(dbi_resource_identifier),
     )
-    return json.dumps(result.model_dump(), indent=2)
+    return result
