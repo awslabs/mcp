@@ -19,7 +19,8 @@ license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Jonathan Manuel", email="jonamanu@amazon.com"},
+    {name = "Jonathan Manuel", email="jonathan.imanuel@gmail.com"},
+    {name = "Grace Lee", email="jaeeungracelee@gmail.com" }
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -40,7 +41,7 @@ repository = "https://github.com/awslabs/mcp.git"
 changelog = "https://github.com/awslabs/mcp/blob/main/src/rds-control-plane-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.rds-control-plane-mcp-server" = "awslabs.rds_control_plane_mcp_server.server:main"
+"awslabs.rds-control-plane-mcp-server" = "awslabs.rds_control_plane_mcp_server.main:main"
 
 [dependency-groups]
 dev = [
