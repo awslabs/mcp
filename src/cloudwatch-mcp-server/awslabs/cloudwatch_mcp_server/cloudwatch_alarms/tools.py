@@ -22,7 +22,7 @@ from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List, Union, Annotated
 
 from awslabs.cloudwatch_mcp_server import MCP_SERVER_VERSION
 from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
@@ -73,10 +73,9 @@ class CloudWatchAlarmsTools:
     async def get_active_alarms(
         self,
         ctx: Context,
-        max_items: Optional[int] = Field(
-            default=50,
+        max_items: Annotated[int | None, Field(
             description="Maximum number of alarms to return (default: 50). Large values may cause context window overflow and impact LLM performance."
-        )
+        )] = 50
     ) -> ActiveAlarmsResponse:
         """Gets all CloudWatch alarms currently in ALARM state.
 
@@ -186,26 +185,21 @@ class CloudWatchAlarmsTools:
             ...,
             description="Name of the alarm to retrieve history for"
         ),
-        start_time: Optional[str] = Field(
-            default=None,
+        start_time: Annotated[str | None, Field(
             description="The start time for the history query in ISO format (e.g., '2023-01-01T00:00:00Z') or as a datetime object. Defaults to 24 hours ago."
-        ),
-        end_time: Optional[str] = Field(
-            default=None,
+        )] = None,
+        end_time: Annotated[str | None, Field(
             description="The end time for the history query in ISO format (e.g., '2023-01-01T00:00:00Z') or as a datetime object. Defaults to current time."
-        ),
-        history_item_type: Optional[str] = Field(
-            default=None,
+        )] = None,
+        history_item_type: Annotated[str | None, Field(
             description="Type of history items to retrieve. Possible values: 'ConfigurationUpdate', 'StateUpdate', 'Action'. Defaults to 'StateUpdate'."
-        ),
-        max_items: Optional[int] = Field(
-            default=50,
+        )] = None,
+        max_items: Annotated[int | None, Field(
             description="Maximum number of history items to return (default: 50). Large values may cause context window overflow and impact LLM performance. Adjust time-range to limit responses."
-        ),
-        include_component_alarms: Optional[bool] = Field(
-            default=False,
+        )] = 50,
+        include_component_alarms: Annotated[bool | None, Field(
             description="For composite alarms, whether to include details about component alarms. Defaults to false."
-        )
+        )] = False
     ) -> Union[AlarmHistoryResponse, CompositeAlarmComponentResponse]:
         """Gets the history for a CloudWatch alarm with time range suggestions for investigation.
 
@@ -666,3 +660,4 @@ class CloudWatchAlarmsTools:
         except Exception as e:
             logger.error(f'Error parsing alarm rule: {str(e)}')
             return []
+

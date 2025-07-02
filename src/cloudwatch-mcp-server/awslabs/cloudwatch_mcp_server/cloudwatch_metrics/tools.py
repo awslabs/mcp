@@ -35,7 +35,7 @@ from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Dict, Any, Optional, List, Union, Literal
+from typing import Annotated, Dict, Any, Optional, List, Union, Literal
 
 
 class CloudWatchMetricsTools:
@@ -150,14 +150,30 @@ class CloudWatchMetricsTools:
         metric_name: str,
         start_time: Union[str, datetime],
         dimensions: List[Dimension] = [],
-        end_time: Optional[Union[str, datetime]] = None,
-        statistic: Literal["AVG", "COUNT", "MAX", "MIN", "SUM", "Average", "Sum", "Maximum", "Minimum", "SampleCount"] = "AVG",
-        target_datapoints: int = 60,
-        group_by_dimension: Optional[str] = None,
-        schema_dimension_keys: List[str] = [],
-        limit: Optional[int] = None,
-        sort_order: Optional[Literal["ASC", "DESC"]] = None,
-        order_by_statistic: Optional[Literal["AVG", "COUNT", "MAX", "MIN", "SUM"]] = None,
+        end_time: Annotated[Union[str, datetime] | None, Field(
+            description="The end time for the metric data query (ISO format or datetime), defaults to current time"
+        )] = None,
+        statistic: Annotated[Literal["AVG", "COUNT", "MAX", "MIN", "SUM", "Average", "Sum", "Maximum", "Minimum", "SampleCount"], Field(
+            description="The statistic to use for the metric"
+        )] = "AVG",
+        target_datapoints: Annotated[int, Field(
+            description="Target number of data points to return (default: 60). Controls the granularity of the returned data."
+        )] = 60,
+        group_by_dimension: Annotated[str | None, Field(
+            description="Dimension name to group by in Metrics Insights mode. Must be included in schema_dimension_keys."
+        )] = None,
+        schema_dimension_keys: Annotated[List[str], Field(
+            description="List of dimension keys to include in the SCHEMA definition for Metrics Insights query."
+        )] = [],
+        limit: Annotated[int | None, Field(
+            description="Maximum number of results to return in Metrics Insights mode (used with LIMIT clause)."
+        )] = None,
+        sort_order: Annotated[Literal["ASC", "DESC"] | None, Field(
+            description="Sort order for results when using ORDER BY in Metrics Insights. Can be 'ASC', 'DESC', or None."
+        )] = None,
+        order_by_statistic: Annotated[Literal["AVG", "COUNT", "MAX", "MIN", "SUM"] | None, Field(
+            description="Statistic to use in the ORDER BY clause. Required if sort_order is specified."
+        )] = None,
     ) -> GetMetricDataResponse:
         """Retrieves CloudWatch metric data for a specific metric.
 
