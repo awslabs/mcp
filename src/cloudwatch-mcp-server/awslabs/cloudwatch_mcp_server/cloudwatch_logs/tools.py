@@ -40,7 +40,7 @@ from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from timeit import default_timer as timer
-from typing import Dict, List, Literal, Optional, Union
+from typing import Annotated, Dict, List, Literal, Optional, Union
 
 
 class CloudWatchLogsTools:
@@ -198,33 +198,28 @@ class CloudWatchLogsTools:
     async def describe_log_groups(
         self,
         ctx: Context,
-        account_identifiers: Optional[List[str]] = Field(
-            None,
+        account_identifiers: Annotated[List[str] | None, Field(
             description=(
                 'When include_linked_accounts is set to True, use this parameter to specify the list of accounts to search. IMPORTANT: Only has affect if include_linked_accounts is True'
-            ),
-        ),
-        include_linked_accounts: Optional[bool] = Field(
-            False,
+            )
+        )] = None,
+        include_linked_accounts: Annotated[bool | None, Field(
             description=(
                 """If the AWS account is a monitoring account, set this to True to have the tool return log groups in the accounts listed in account_identifiers.
                 If this parameter is set to true and account_identifiers contains a null value, the tool returns all log groups in the monitoring account and all log groups in all source accounts that are linked to the monitoring account."""
-            ),
-        ),
-        log_group_class: Optional[Literal['STANDARD', 'INFREQUENT_ACCESS']] = Field(
-            None,
-            description=('If specified, filters for only log groups of the specified class.'),
-        ),
-        log_group_name_prefix: Optional[str] = Field(
-            None,
+            )
+        )] = False,
+        log_group_class: Annotated[Literal['STANDARD', 'INFREQUENT_ACCESS'] | None, Field(
+            description=('If specified, filters for only log groups of the specified class.')
+        )] = None,
+        log_group_name_prefix: Annotated[str | None, Field(
             description=(
                 'An exact prefix to filter log groups by name. IMPORTANT: Only log groups with names starting with this prefix will be returned.'
-            ),
-        ),
-        max_items: Optional[int] = Field(
-            None,
-            description=('The maximum number of log groups to return.'),
-        ),
+            )
+        )] = None,
+        max_items: Annotated[int | None, Field(
+            description=('The maximum number of log groups to return.')
+        )] = None,
     ) -> LogsMetadata:
         """Lists AWS CloudWatch log groups and saved queries associated with them, optionally filtering by a name prefix.
 
@@ -272,17 +267,17 @@ class CloudWatchLogsTools:
         def get_filtered_saved_queries(log_groups: List[LogGroupMetadata]) -> List[SavedLogsInsightsQuery]:
             saved_queries = []
             next_token = None
+            first_iteration = True
 
             # No paginator for this API
-            while True:
+            while first_iteration or next_token:
+                first_iteration = False
                 # TODO: Support other query language types
                 kwargs = {'nextToken': next_token, 'queryLanguage': 'CWLI'}
                 response = self.logs_client.describe_query_definitions(**remove_null_values(kwargs))
                 saved_queries.extend(response.get('queryDefinitions', []))
 
                 next_token = response.get('nextToken')
-                if not next_token:
-                    break
 
             logger.info(f'Saved queries: {saved_queries}')
             modeled_queries = [SavedLogsInsightsQuery.model_validate(saved_query) for saved_query in saved_queries]
@@ -350,9 +345,21 @@ class CloudWatchLogsTools:
         """
         
         def is_applicable_anomaly(anomaly: LogAnomaly) -> bool:
-            # Must have overlap
-            if anomaly.firstSeen > end_time or anomaly.lastSeen < start_time:
-                return False
+            # Must have overlap - convert to datetime objects for proper comparison
+            try:
+                anomaly_first_seen = datetime.datetime.fromisoformat(anomaly.firstSeen)
+                anomaly_last_seen = datetime.datetime.fromisoformat(anomaly.lastSeen)
+                end_time_dt = datetime.datetime.fromisoformat(end_time)
+                start_time_dt = datetime.datetime.fromisoformat(start_time)
+                
+                if anomaly_first_seen > end_time_dt or anomaly_last_seen < start_time_dt:
+                    return False
+            except ValueError as e:
+                logger.error(f"Error parsing timestamps for anomaly comparison: {e}")
+                # Fall back to string comparison if datetime parsing fails
+                if anomaly.firstSeen > end_time or anomaly.lastSeen < start_time:
+                    return False
+            
             # Must be for this log group
             return log_group_arn in anomaly.logGroupArnList
 
@@ -430,16 +437,14 @@ class CloudWatchLogsTools:
     async def execute_log_insights_query(
         self,
         ctx: Context,
-        log_group_names: Optional[List[str]] = Field(
-            None,
+        log_group_names: Annotated[List[str] | None, Field(
             max_length=50,
-            description='The list of up to 50 log group names to be queried. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.',
-        ),
-        log_group_identifiers: Optional[List[str]] = Field(
-            None,
+            description='The list of up to 50 log group names to be queried. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.'
+        )] = None,
+        log_group_identifiers: Annotated[List[str] | None, Field(
             max_length=50,
-            description="The list of up to 50 logGroupIdentifiers to query. You can specify them by the log group name or ARN. If a log group that you're querying is in a source account and you're using a monitoring account, you must use the ARN. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.",
-        ),
+            description="The list of up to 50 logGroupIdentifiers to query. You can specify them by the log group name or ARN. If a log group that you're querying is in a source account and you're using a monitoring account, you must use the ARN. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null."
+        )] = None,
         start_time: str = Field(
             ...,
             description=(
@@ -456,14 +461,12 @@ class CloudWatchLogsTools:
             ...,
             description='The query string in the Cloudwatch Log Insights Query Language. See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html.',
         ),
-        limit: Optional[int] = Field(
-            None,
-            description='The maximum number of log events to return. It is critical to use either this parameter or a `| limit <int>` operator in the query to avoid consuming too many tokens of the agent.',
-        ),
-        max_timeout: int = Field(
-            30,
-            description='Maximum time in second to poll for complete results before giving up',
-        ),
+        limit: Annotated[int | None, Field(
+            description='The maximum number of log events to return. It is critical to use either this parameter or a `| limit <int>` operator in the query to avoid consuming too many tokens of the agent.'
+        )] = None,
+        max_timeout: Annotated[int, Field(
+            description='Maximum time in second to poll for complete results before giving up'
+        )] = 30,
     ) -> Dict:
         """Executes a CloudWatch Logs Insights query and waits for the results to be available.
 

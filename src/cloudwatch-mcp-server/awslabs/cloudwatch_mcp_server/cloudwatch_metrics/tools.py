@@ -35,7 +35,7 @@ from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Dict, Any, Optional, List, Union, Literal
+from typing import Annotated, Dict, Any, Optional, List, Union, Literal
 
 
 class CloudWatchMetricsTools:
@@ -150,14 +150,30 @@ class CloudWatchMetricsTools:
         metric_name: str,
         start_time: Union[str, datetime],
         dimensions: List[Dimension] = [],
-        end_time: Optional[Union[str, datetime]] = None,
-        statistic: Literal["AVG", "COUNT", "MAX", "MIN", "SUM", "Average", "Sum", "Maximum", "Minimum", "SampleCount"] = "AVG",
-        target_datapoints: int = 60,
-        group_by_dimension: Optional[str] = None,
-        schema_dimension_keys: List[str] = [],
-        limit: Optional[int] = None,
-        sort_order: Optional[Literal["ASC", "DESC"]] = None,
-        order_by_statistic: Optional[Literal["AVG", "COUNT", "MAX", "MIN", "SUM"]] = None,
+        end_time: Annotated[Union[str, datetime] | None, Field(
+            description="The end time for the metric data query (ISO format or datetime), defaults to current time"
+        )] = None,
+        statistic: Annotated[Literal["AVG", "COUNT", "MAX", "MIN", "SUM", "Average", "Sum", "Maximum", "Minimum", "SampleCount"], Field(
+            description="The statistic to use for the metric"
+        )] = "AVG",
+        target_datapoints: Annotated[int, Field(
+            description="Target number of data points to return (default: 60). Controls the granularity of the returned data."
+        )] = 60,
+        group_by_dimension: Annotated[str | None, Field(
+            description="Dimension name to group by in Metrics Insights mode. Must be included in schema_dimension_keys."
+        )] = None,
+        schema_dimension_keys: Annotated[List[str], Field(
+            description="List of dimension keys to include in the SCHEMA definition for Metrics Insights query."
+        )] = [],
+        limit: Annotated[int | None, Field(
+            description="Maximum number of results to return in Metrics Insights mode (used with LIMIT clause)."
+        )] = None,
+        sort_order: Annotated[Literal["ASC", "DESC"] | None, Field(
+            description="Sort order for results when using ORDER BY in Metrics Insights. Can be 'ASC', 'DESC', or None."
+        )] = None,
+        order_by_statistic: Annotated[Literal["AVG", "COUNT", "MAX", "MIN", "SUM"] | None, Field(
+            description="Statistic to use in the ORDER BY clause. Required if sort_order is specified."
+        )] = None,
     ) -> GetMetricDataResponse:
         """Retrieves CloudWatch metric data for a specific metric.
 
@@ -172,20 +188,6 @@ class CloudWatchMetricsTools:
         When using group_by_dimension, you must include that dimension in schema_dimension_keys.
 
         Usage: Use this tool to get actual metric data from CloudWatch for analysis or visualization.
-
-        Args:
-            namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
-            metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
-            start_time: The start time for the metric data query (ISO format or datetime)
-            dimensions: List of dimensions with name and value pairs. Used as filters in standard mode or WHERE clause in Metrics Insights mode.
-            end_time: The end time for the metric data query (ISO format or datetime), defaults to current time
-            statistic: The statistic to use for the metric. For Metrics Insights: 'AVG', 'COUNT', 'MAX', 'MIN', 'SUM'. For standard GetMetricData: 'Average', 'Sum', 'Maximum', 'Minimum', 'SampleCount'.
-            target_datapoints: Target number of data points to return (default: 60). Controls the granularity of the returned data.
-            group_by_dimension: Dimension name to group by in Metrics Insights mode. Must be included in schema_dimension_keys.
-            schema_dimension_keys: List of dimension keys to include in the SCHEMA definition for Metrics Insights query.
-            limit: Maximum number of results to return in Metrics Insights mode (used with LIMIT clause).
-            sort_order: Sort order for results when using ORDER BY in Metrics Insights. Can be 'ASC', 'DESC', or None. If specified, order_by_statistic must also be specified.
-            order_by_statistic: Statistic to use in the ORDER BY clause. Can be 'AVG', 'COUNT', 'MAX', 'MIN', 'SUM'. If specified, an ORDER BY clause will be added to the query. Required if sort_order is specified.
 
         Returns:
             GetMetricDataResponse: An object containing the metric data results
