@@ -7,7 +7,7 @@ This is an AWS Labs Model Context Protocol (MCP) server for CloudWatch that prov
 - `src/cloudwatch-mcp-server/` - Main server implementation
 - `awslabs/cloudwatch_mcp_server/` - Core package
 - `cloudwatch_metrics/` - Metrics-related tools
-- `cloudwatch_alarms/` - Alarms-related tools  
+- `cloudwatch_alarms/` - Alarms-related tools
 - `cloudwatch_logs/` - Logs-related tools
 - `tests/` - Test suite
 
@@ -118,7 +118,7 @@ This is an AWS Labs Model Context Protocol (MCP) server for CloudWatch that prov
 def __init__(self):
     aws_region = os.environ.get('AWS_REGION', 'us-east-1')
     config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
-    
+
     if aws_profile := os.environ.get('AWS_PROFILE'):
         self.client = boto3.Session(profile_name=aws_profile, region_name=aws_region).client('service', config=config)
     else:
@@ -250,4 +250,4 @@ for page in page_iterator:
 - pytest>=8.0.0 - Testing framework
 - ruff>=0.9.7 - Linting and formatting
 - pyright>=1.1.398 - Type checking
-- moto>=5.1.4 - AWS service mocking 
+- moto>=5.1.4 - AWS service mocking
