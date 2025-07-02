@@ -20,7 +20,7 @@ import sys
 from . import __version__
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -87,7 +87,7 @@ async def list_monitored_services() -> str:
         logger.debug('Application Signals client created')
 
         # Calculate time range (last 24 hours)
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=24)
 
         # Get all services
@@ -165,7 +165,7 @@ async def get_service_detail(
         logger.debug('Application Signals client created')
 
         # Calculate time range (last 24 hours)
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=24)
 
         # First, get all services to find the one we want

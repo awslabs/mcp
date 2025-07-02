@@ -4,12 +4,11 @@ import pytest
 from awslabs.cloudwatch_appsignals_mcp_server.server import (
     get_service_detail,
     list_monitored_services,
-    remove_null_values,
     main,
+    remove_null_values,
 )
-from unittest.mock import MagicMock, patch
 from botocore.exceptions import ClientError
-import sys
+from unittest.mock import MagicMock, patch
 
 
 @pytest.mark.asyncio
@@ -121,9 +120,9 @@ def test_remove_null_values():
         'key6': '',  # Should not be removed
         'key7': False,  # Should not be removed
     }
-    
+
     result = remove_null_values(input_dict)
-    
+
     assert result == {
         'key1': 'value1',
         'key3': 'value3',
@@ -138,20 +137,21 @@ def test_remove_null_values():
 @pytest.mark.asyncio
 async def test_list_monitored_services_client_error():
     """Test ClientError handling in list_monitored_services."""
-    error_response = {
-        'Error': {
-            'Code': 'AccessDeniedException',
-            'Message': 'User is not authorized to perform this action'
-        }
-    }
-    
     with patch('boto3.client') as mock_boto:
         mock_client = MagicMock()
         mock_boto.return_value = mock_client
-        mock_client.list_services.side_effect = ClientError(error_response, 'ListServices')
-        
+        mock_client.list_services.side_effect = ClientError(
+            error_response={
+                'Error': {
+                    'Code': 'AccessDeniedException',
+                    'Message': 'User is not authorized to perform this action',
+                }
+            },
+            operation_name='ListServices',
+        )
+
         result = await list_monitored_services()
-        
+
         assert 'AWS Error: User is not authorized to perform this action' in result
 
 
@@ -162,9 +162,9 @@ async def test_list_monitored_services_general_exception():
         mock_client = MagicMock()
         mock_boto.return_value = mock_client
         mock_client.list_services.side_effect = Exception('Unexpected error occurred')
-        
+
         result = await list_monitored_services()
-        
+
         assert 'Error: Unexpected error occurred' in result
 
 
@@ -176,22 +176,23 @@ async def test_get_service_detail_client_error():
             {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
         ]
     }
-    
-    error_response = {
-        'Error': {
-            'Code': 'ResourceNotFoundException',
-            'Message': 'Service not found in Application Signals'
-        }
-    }
-    
+
     with patch('boto3.client') as mock_boto:
         mock_client = MagicMock()
         mock_boto.return_value = mock_client
         mock_client.list_services.return_value = mock_list_response
-        mock_client.get_service.side_effect = ClientError(error_response, 'GetService')
-        
+        mock_client.get_service.side_effect = ClientError(
+            error_response={
+                'Error': {
+                    'Code': 'ResourceNotFoundException',
+                    'Message': 'Service not found in Application Signals',
+                }
+            },
+            operation_name='GetService',
+        )
+
         result = await get_service_detail('test-service')
-        
+
         assert 'AWS Error: Service not found in Application Signals' in result
 
 
@@ -203,42 +204,43 @@ async def test_get_service_detail_general_exception():
             {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
         ]
     }
-    
+
     with patch('boto3.client') as mock_boto:
         mock_client = MagicMock()
         mock_boto.return_value = mock_client
         mock_client.list_services.return_value = mock_list_response
         mock_client.get_service.side_effect = Exception('Unexpected error in get_service')
-        
+
         result = await get_service_detail('test-service')
-        
+
         assert 'Error: Unexpected error in get_service' in result
 
 
 def test_main_normal_execution():
     """Test normal execution of main function."""
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp') as mock_mcp:
+    mock_mcp = MagicMock()
+    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp', mock_mcp):
         main()
         mock_mcp.run.assert_called_once_with(transport='stdio')
 
 
 def test_main_keyboard_interrupt():
     """Test KeyboardInterrupt handling in main function."""
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp') as mock_mcp:
-        mock_mcp.run.side_effect = KeyboardInterrupt()
-        
+    mock_mcp = MagicMock()
+    mock_mcp.run.side_effect = KeyboardInterrupt()
+
+    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp', mock_mcp):
         # Should not raise an exception
         main()
-        
         mock_mcp.run.assert_called_once_with(transport='stdio')
 
 
 def test_main_general_exception():
     """Test general exception handling in main function."""
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp') as mock_mcp:
-        mock_mcp.run.side_effect = Exception('Server error')
-        
+    mock_mcp = MagicMock()
+    mock_mcp.run.side_effect = Exception('Server error')
+
+    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.mcp', mock_mcp):
         with pytest.raises(Exception, match='Server error'):
             main()
-        
         mock_mcp.run.assert_called_once_with(transport='stdio')

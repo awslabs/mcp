@@ -11,10 +11,10 @@ def test_aws_client_initialization_error():
     module_name = 'awslabs.cloudwatch_appsignals_mcp_server.server'
     if module_name in sys.modules:
         del sys.modules[module_name]
-    
+
     with patch('boto3.client') as mock_boto:
         mock_boto.side_effect = Exception('Failed to initialize AWS client')
-        
+
         # Import should fail due to client initialization error
         with pytest.raises(Exception, match='Failed to initialize AWS client'):
             import awslabs.cloudwatch_appsignals_mcp_server.server  # noqa: F401
@@ -26,11 +26,10 @@ def test_module_as_main():
     module_name = 'awslabs.cloudwatch_appsignals_mcp_server.server'
     if module_name in sys.modules:
         del sys.modules[module_name]
-    
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.main') as mock_main:
+
+    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.main'):
         with patch('sys.argv', ['server.py']):
             # Simulate running the module as __main__
-            import runpy
             with patch('runpy.run_module') as mock_run:
                 mock_run.return_value = {'__name__': '__main__'}
                 # In actual execution, this would trigger the if __name__ == '__main__' block
