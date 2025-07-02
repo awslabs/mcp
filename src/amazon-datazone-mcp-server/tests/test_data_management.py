@@ -593,11 +593,17 @@ class TestDataManagementPragmaNoCoverHandling:
     """Test pragma no cover scenarios in data management tools."""
 
     @pytest.mark.asyncio
-    async def test_create_subscription_request_with_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
+    async def test_create_subscription_request_with_optional_params_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
         """Test create_subscription_request with optional parameters - covers pragma no cover."""
-        create_subscription_request = tool_extractor(mcp_server_with_tools, 'create_subscription_request')
+        create_subscription_request = tool_extractor(
+            mcp_server_with_tools, 'create_subscription_request'
+        )
 
-        mcp_server_with_tools._mock_client.create_subscription_request.return_value = {'id': 'sub-123'}
+        mcp_server_with_tools._mock_client.create_subscription_request.return_value = {
+            'id': 'sub-123'
+        }
 
         await create_subscription_request(
             domain_identifier='test-domain',
@@ -605,7 +611,7 @@ class TestDataManagementPragmaNoCoverHandling:
             subscribed_listings=[{'id': 'listing-123'}],
             subscribed_principals=[{'type': 'USER', 'id': 'user-123'}],
             metadata_forms=[{'form': 'value'}],
-            client_token='token-123'
+            client_token='token-123',
         )
 
         call_kwargs = mcp_server_with_tools._mock_client.create_subscription_request.call_args[1]
@@ -613,17 +619,23 @@ class TestDataManagementPragmaNoCoverHandling:
         assert call_kwargs['clientToken'] == 'token-123'
 
     @pytest.mark.asyncio
-    async def test_accept_subscription_request_with_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
+    async def test_accept_subscription_request_with_optional_params_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
         """Test accept_subscription_request with optional parameters - covers pragma no cover."""
-        accept_subscription_request = tool_extractor(mcp_server_with_tools, 'accept_subscription_request')
+        accept_subscription_request = tool_extractor(
+            mcp_server_with_tools, 'accept_subscription_request'
+        )
 
-        mcp_server_with_tools._mock_client.accept_subscription_request.return_value = {'status': 'APPROVED'}
+        mcp_server_with_tools._mock_client.accept_subscription_request.return_value = {
+            'status': 'APPROVED'
+        }
 
         await accept_subscription_request(
             domain_identifier='test-domain',
             identifier='sub-123',
             asset_scopes=[{'assetId': 'asset-123'}],
-            decision_comment='Approved for analysis'
+            decision_comment='Approved for analysis',
         )
 
         call_kwargs = mcp_server_with_tools._mock_client.accept_subscription_request.call_args[1]
@@ -640,31 +652,30 @@ class TestDataManagementPragmaNoCoverHandling:
         )
 
         with pytest.raises(Exception) as exc_info:
-            await get_subscription(
-                domain_identifier='test-domain',
-                identifier='sub-123'
-            )
+            await get_subscription(domain_identifier='test-domain', identifier='sub-123')
 
         assert 'Error getting subscription sub-123 in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_get_form_type_with_revision_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
+    async def test_get_form_type_with_revision_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
         """Test get_form_type with optional revision parameter - covers pragma no cover."""
         get_form_type = tool_extractor(mcp_server_with_tools, 'get_form_type')
 
         mcp_server_with_tools._mock_client.get_form_type.return_value = {'name': 'test-form'}
 
         await get_form_type(
-            domain_identifier='test-domain',
-            form_type_identifier='form-123',
-            revision='1.0.0'
+            domain_identifier='test-domain', form_type_identifier='form-123', revision='1.0.0'
         )
 
         call_kwargs = mcp_server_with_tools._mock_client.get_form_type.call_args[1]
         assert call_kwargs['revision'] == '1.0.0'
 
     @pytest.mark.asyncio
-    async def test_get_form_type_client_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+    async def test_get_form_type_client_error_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
         """Test get_form_type ClientError handling - covers pragma no cover."""
         get_form_type = tool_extractor(mcp_server_with_tools, 'get_form_type')
 
@@ -673,15 +684,14 @@ class TestDataManagementPragmaNoCoverHandling:
         )
 
         with pytest.raises(Exception) as exc_info:
-            await get_form_type(
-                domain_identifier='test-domain',
-                form_type_identifier='form-123'
-            )
+            await get_form_type(domain_identifier='test-domain', form_type_identifier='form-123')
 
         assert 'Error getting form type form-123 in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_create_form_type_with_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
+    async def test_create_form_type_with_optional_params_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
         """Test create_form_type with optional description parameter - covers pragma no cover."""
         create_form_type = tool_extractor(mcp_server_with_tools, 'create_form_type')
 
@@ -693,14 +703,16 @@ class TestDataManagementPragmaNoCoverHandling:
             model={'type': 'object'},
             owning_project_identifier='project-123',
             description='Test form description',
-            status='ENABLED'
+            status='ENABLED',
         )
 
         call_kwargs = mcp_server_with_tools._mock_client.create_form_type.call_args[1]
         assert call_kwargs['description'] == 'Test form description'
 
     @pytest.mark.asyncio
-    async def test_list_data_sources_with_all_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
+    async def test_list_data_sources_with_all_optional_params_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor
+    ):
         """Test list_data_sources with all optional parameters - covers pragma no cover."""
         list_data_sources = tool_extractor(mcp_server_with_tools, 'list_data_sources')
 
@@ -715,7 +727,7 @@ class TestDataManagementPragmaNoCoverHandling:
             name='test-data-source',
             next_token='token-123',
             status='READY',
-            data_source_type='S3'
+            data_source_type='S3',
         )
 
         call_kwargs = mcp_server_with_tools._mock_client.list_data_sources.call_args[1]
@@ -727,7 +739,9 @@ class TestDataManagementPragmaNoCoverHandling:
         assert call_kwargs['type'] == 'S3'
 
     @pytest.mark.asyncio
-    async def test_list_data_sources_client_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+    async def test_list_data_sources_client_error_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
         """Test list_data_sources ClientError handling - covers pragma no cover."""
         list_data_sources = tool_extractor(mcp_server_with_tools, 'list_data_sources')
 
@@ -737,14 +751,17 @@ class TestDataManagementPragmaNoCoverHandling:
 
         with pytest.raises(Exception) as exc_info:
             await list_data_sources(
-                domain_identifier='test-domain',
-                project_identifier='project-123'
+                domain_identifier='test-domain', project_identifier='project-123'
             )
 
-        assert 'Error listing data sources in project project-123 in domain test-domain' in str(exc_info.value)
+        assert 'Error listing data sources in project project-123 in domain test-domain' in str(
+            exc_info.value
+        )
 
     @pytest.mark.asyncio
-    async def test_accept_subscription_request_error_handling_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+    async def test_accept_subscription_request_error_handling_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
         """Test accept_subscription_request error handling - covers pragma no cover."""
         accept_subscription_request = tool_extractor(mcp_server_with_tools, 'accept_subscription_request')
 
@@ -754,16 +771,19 @@ class TestDataManagementPragmaNoCoverHandling:
 
         with pytest.raises(Exception) as exc_info:
             await accept_subscription_request(
-                domain_identifier='test-domain',
-                identifier='sub-123'
+                domain_identifier='test-domain', identifier='sub-123'
             )
 
         assert 'Error accepting subscription request sub-123 in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_create_subscription_request_error_handling_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+    async def test_create_subscription_request_error_handling_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
         """Test create_subscription_request error handling - covers pragma no cover."""
-        create_subscription_request = tool_extractor(mcp_server_with_tools, 'create_subscription_request')
+        create_subscription_request = tool_extractor(
+            mcp_server_with_tools, 'create_subscription_request'
+        )
 
         mcp_server_with_tools._mock_client.create_subscription_request.side_effect = mock_client_error(
             'AccessDeniedException', 'Access denied'
@@ -774,13 +794,15 @@ class TestDataManagementPragmaNoCoverHandling:
                 domain_identifier='test-domain',
                 request_reason='Need access',
                 subscribed_listings=[{'id': 'listing-123'}],
-                subscribed_principals=[{'type': 'USER', 'id': 'user-123'}]
+                subscribed_principals=[{'type': 'USER', 'id': 'user-123'}],
             )
 
         assert 'Error creating subscription request in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_create_form_type_error_handling_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+    async def test_create_form_type_error_handling_pragma_coverage(
+        self, mcp_server_with_tools, tool_extractor, mock_client_error
+    ):
         """Test create_form_type error handling - covers pragma no cover."""
         create_form_type = tool_extractor(mcp_server_with_tools, 'create_form_type')
 
@@ -794,7 +816,7 @@ class TestDataManagementPragmaNoCoverHandling:
                 name='Test Form',
                 model={'type': 'object'},
                 owning_project_identifier='project-123',
-                status='ENABLED'
+                status='ENABLED',
             )
 
         assert 'Error creating form type in domain test-domain' in str(exc_info.value)
