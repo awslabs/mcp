@@ -1,6 +1,6 @@
 # AWS Labs cloudwatch-logs MCP Server (DEPRECATED)
 
-An AWS Labs Model Context Protocol (MCP) server for cloudwatch-logs. (DEPRECATED). Please use [CloudWatch MCP Server](../../src/cloudwatch-mcp-server/README.md) for unified CloudWatch Telemetry related tools. 
+An AWS Labs Model Context Protocol (MCP) server for cloudwatch-logs. (DEPRECATED). Please use [CloudWatch MCP Server](../../src/cloudwatch-mcp-server/README.md) for unified CloudWatch Telemetry related tools.
 
 ## Instructions
 
@@ -40,7 +40,7 @@ Log group must have at least one [CloudWatch Log Anomaly Detector](https://docs.
 
 ## Installation
 
-(DEPRECATED). Please use [CloudWatch MCP Server](../../src/cloudwatch-mcp-server/README.md) for unified CloudWatch Telemetry related tools. 
+(DEPRECATED). Please use [CloudWatch MCP Server](../../src/cloudwatch-mcp-server/README.md) for unified CloudWatch Telemetry related tools.
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.cloudwatch-logs-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidGltZW91dCI6NjAsImNvbW1hbmQiOiJ1dnggYXdzbGFicy5jbG91ZHdhdGNoLWxvZ3MtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJbVGhlIEFXUyBQcm9maWxlIE5hbWUgdG8gdXNlIGZvciBBV1MgYWNjZXNzXSIsIkFXU19SRUdJT04iOiJbVGhlIEFXUyByZWdpb24gdG8gcnVuIGluXSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D)
 

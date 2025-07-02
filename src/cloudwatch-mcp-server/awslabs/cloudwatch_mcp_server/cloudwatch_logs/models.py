@@ -189,5 +189,6 @@ class LogsQueryCancelResult(BaseModel):
     """Result of canceling Logs Insight query."""
 
     success: bool = Field(
-        ..., description='True if the logs insight query was successfully cancelled, false otherwise'
+        ...,
+        description='True if the logs insight query was successfully cancelled, false otherwise',
     )

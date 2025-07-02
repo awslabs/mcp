@@ -18,14 +18,14 @@ import os
 import pytest
 import pytest_asyncio
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
-    LogsQueryCancelResult,
     LogsAnalysisResult,
     LogsMetadata,
+    LogsQueryCancelResult,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTools
 from moto import mock_aws
 from typing import Any
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest_asyncio.fixture
@@ -36,10 +36,7 @@ async def ctx():
 
 @pytest_asyncio.fixture
 async def aws_credentials():
-    """Mocked AWS Credentials for moto."""
-    os.environ['AWS_ACCESS_KEY_ID'] = 'testing'
-    os.environ['AWS_SECURITY_TOKEN'] = 'testing'
-    os.environ['AWS_SESSION_TOKEN'] = 'testing'
+    """Set up AWS credentials for testing."""
     os.environ['AWS_REGION'] = 'us-west-2'
 
 
@@ -68,7 +65,9 @@ async def logs_client(aws_credentials):
 @pytest_asyncio.fixture
 async def cloudwatch_tools(logs_client):
     """Create CloudWatchLogsTools instance with mocked client."""
-    with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session') as mock_session:
+    with patch(
+        'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
+    ) as mock_session:
         mock_session.return_value.client.return_value = logs_client
         tools = CloudWatchLogsTools()
         yield tools
@@ -206,7 +205,9 @@ class TestExecuteLogInsightsQuery:
         cloudwatch_tools.logs_client.create_log_group(logGroupName='/aws/test/group1')
 
         # Mock query execution
-        cloudwatch_tools.logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
+        cloudwatch_tools.logs_client.start_query = MagicMock(
+            return_value={'queryId': 'test-query-id'}
+        )
         cloudwatch_tools.logs_client.get_query_results = MagicMock(
             return_value={
                 'status': 'Complete',
@@ -245,7 +246,9 @@ class TestExecuteLogInsightsQuery:
         cloudwatch_tools.logs_client.create_log_group(logGroupName='/aws/test/group1')
 
         # Mock query execution with running status
-        cloudwatch_tools.logs_client.start_query = MagicMock(return_value={'queryId': 'test-query-id'})
+        cloudwatch_tools.logs_client.start_query = MagicMock(
+            return_value={'queryId': 'test-query-id'}
+        )
         cloudwatch_tools.logs_client.get_query_results = MagicMock(
             return_value={'status': 'Running', 'results': []}
         )
@@ -303,7 +306,9 @@ class TestGetQueryResults:
         )
 
         # Call the tool
-        result = await cloudwatch_tools.get_logs_insight_query_results(ctx, query_id='test-query-id')
+        result = await cloudwatch_tools.get_logs_insight_query_results(
+            ctx, query_id='test-query-id'
+        )
 
         # Verify results
         assert result['queryId'] == 'test-query-id'
@@ -339,23 +344,25 @@ class TestAnalyzeLogGroup:
 
         # Mock anomaly detection
         cloudwatch_tools.logs_client.get_paginator = MagicMock()
-        
+
         # Mock list_log_anomaly_detectors paginator
         anomaly_paginator = MagicMock()
         anomaly_paginator.paginate.return_value = [
-            {'anomalyDetectors': [
-                {
-                    'anomalyDetectorArn': 'arn:aws:logs:us-west-2:123456789012:anomaly-detector:test-detector',
-                    'detectorName': 'test-detector',
-                    'anomalyDetectorStatus': 'ACTIVE'
-                }
-            ]}
+            {
+                'anomalyDetectors': [
+                    {
+                        'anomalyDetectorArn': 'arn:aws:logs:us-west-2:123456789012:anomaly-detector:test-detector',
+                        'detectorName': 'test-detector',
+                        'anomalyDetectorStatus': 'ACTIVE',
+                    }
+                ]
+            }
         ]
-        
+
         # Mock list_anomalies paginator
         anomalies_paginator = MagicMock()
         anomalies_paginator.paginate.return_value = [{'anomalies': []}]
-        
+
         def get_paginator_side_effect(operation_name):
             if operation_name == 'list_log_anomaly_detectors':
                 return anomaly_paginator
@@ -363,7 +370,7 @@ class TestAnalyzeLogGroup:
                 return anomalies_paginator
             else:
                 return MagicMock()
-        
+
         cloudwatch_tools.logs_client.get_paginator.side_effect = get_paginator_side_effect
 
         # Mock the execute_log_insights_query calls for pattern analysis
@@ -371,13 +378,13 @@ class TestAnalyzeLogGroup:
             return {
                 'queryId': 'test-query-id',
                 'status': 'Complete',
-                'results': [
-                    {'@message': 'Test pattern', '@sampleCount': '10'}
-                ]
+                'results': [{'@message': 'Test pattern', '@sampleCount': '10'}],
             }
 
         # Patch the execute_log_insights_query method
-        with patch.object(cloudwatch_tools, 'execute_log_insights_query', side_effect=mock_execute_query):
+        with patch.object(
+            cloudwatch_tools, 'execute_log_insights_query', side_effect=mock_execute_query
+        ):
             # Call the tool
             result = await cloudwatch_tools.analyze_log_group(
                 ctx,

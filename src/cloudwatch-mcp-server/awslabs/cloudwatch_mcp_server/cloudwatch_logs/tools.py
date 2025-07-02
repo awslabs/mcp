@@ -18,34 +18,33 @@ import asyncio
 import boto3
 import datetime
 import os
-from pathlib import Path
 from awslabs.cloudwatch_mcp_server import MCP_SERVER_VERSION
+from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
+    LogAnomaly,
+    LogAnomalyDetector,
+    LogAnomalyResults,
+    LogGroupMetadata,
+    LogsAnalysisResult,
+    LogsMetadata,
+    LogsQueryCancelResult,
+    SavedLogsInsightsQuery,
+)
 from awslabs.cloudwatch_mcp_server.common import (
     clean_up_pattern,
     filter_by_prefixes,
     remove_null_values,
-)
-from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
-    LogAnomalyDetector,
-    LogsQueryCancelResult,
-    LogsAnalysisResult,
-    LogAnomaly,
-    LogAnomalyResults,
-    LogGroupMetadata,
-    LogsMetadata,
-    SavedLogsInsightsQuery,
 )
 from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from timeit import default_timer as timer
-from typing import Annotated, Dict, List, Literal, Optional, Union
+from typing import Annotated, Dict, List, Literal, Optional
 
 
 class CloudWatchLogsTools:
     """CloudWatch Logs tools for MCP server."""
-    
+
     def __init__(self):
         """Initialize the CloudWatch Logs client."""
         # Initialize client
@@ -54,48 +53,56 @@ class CloudWatchLogsTools:
 
         try:
             if aws_profile := os.environ.get('AWS_PROFILE'):
-                self.logs_client = boto3.Session(profile_name=aws_profile, region_name=aws_region).client(
+                self.logs_client = boto3.Session(
+                    profile_name=aws_profile, region_name=aws_region
+                ).client('logs', config=config)
+            else:
+                self.logs_client = boto3.Session(region_name=aws_region).client(
                     'logs', config=config
                 )
-            else:
-                self.logs_client = boto3.Session(region_name=aws_region).client('logs', config=config)
         except Exception as e:
             logger.error(f'Error creating cloudwatch logs client: {str(e)}')
             raise
 
-    def _validate_log_group_parameters(self, log_group_names: Optional[List[str]], log_group_identifiers: Optional[List[str]]) -> None:
+    def _validate_log_group_parameters(
+        self, log_group_names: Optional[List[str]], log_group_identifiers: Optional[List[str]]
+    ) -> None:
         """Validate that exactly one of log_group_names or log_group_identifiers is provided.
-        
+
         Args:
             log_group_names: List of log group names
             log_group_identifiers: List of log group identifiers
-            
+
         Raises:
             ValueError: If both or neither parameters are provided
         """
         if bool(log_group_names) == bool(log_group_identifiers):
-            raise ValueError('Exactly one of log_group_names or log_group_identifiers must be provided')
+            raise ValueError(
+                'Exactly one of log_group_names or log_group_identifiers must be provided'
+            )
 
     def _convert_time_to_timestamp(self, time_str: str) -> int:
         """Convert ISO 8601 time string to Unix timestamp.
-        
+
         Args:
             time_str: ISO 8601 formatted time string
-            
+
         Returns:
             Unix timestamp as integer
         """
         return int(datetime.datetime.fromisoformat(time_str).timestamp())
 
-    def _build_logs_query_params(self, 
-                                 log_group_names: Optional[List[str]],
-                                 log_group_identifiers: Optional[List[str]], 
-                                 start_time: str,
-                                 end_time: str,
-                                 query_string: str,
-                                 limit: Optional[int]) -> Dict:
+    def _build_logs_query_params(
+        self,
+        log_group_names: Optional[List[str]],
+        log_group_identifiers: Optional[List[str]],
+        start_time: str,
+        end_time: str,
+        query_string: str,
+        limit: Optional[int],
+    ) -> Dict:
         """Build parameters for CloudWatch Logs Insights query.
-        
+
         Args:
             log_group_names: List of log group names
             log_group_identifiers: List of log group identifiers
@@ -103,7 +110,7 @@ class CloudWatchLogsTools:
             end_time: End time in ISO 8601 format
             query_string: CloudWatch Logs Insights query string
             limit: Maximum number of results to return
-            
+
         Returns:
             Dictionary of parameters for the start_query API call
         """
@@ -118,17 +125,17 @@ class CloudWatchLogsTools:
 
     def _process_query_results(self, response: Dict, query_id: str = '') -> Dict:
         """Process query results response into standardized format.
-        
+
         Args:
             response: Raw response from get_query_results API
             query_id: The query ID to include in the response
-            
+
         Returns:
             Processed query results dictionary
         """
         return {
             'queryId': query_id or response.get('queryId', ''),
-            'status': response['status'], 
+            'status': response['status'],
             'statistics': response.get('statistics', {}),
             'results': [
                 {field['field']: field['value'] for field in line}
@@ -136,14 +143,16 @@ class CloudWatchLogsTools:
             ],
         }
 
-    async def _poll_for_query_completion(self, query_id: str, max_timeout: int, ctx: Context) -> Dict:
+    async def _poll_for_query_completion(
+        self, query_id: str, max_timeout: int, ctx: Context
+    ) -> Dict:
         """Poll for query completion within the specified timeout.
-        
+
         Args:
             query_id: The query ID to poll for
             max_timeout: Maximum time to wait in seconds
             ctx: MCP context for warnings
-            
+
         Returns:
             Query results dictionary or timeout message
         """
@@ -169,57 +178,58 @@ class CloudWatchLogsTools:
 
     def register(self, mcp):
         """Register all CloudWatch Logs tools with the MCP server."""
-        
         # Register describe_log_groups tool
-        mcp.tool(
-            name='describe_log_groups'
-        )(self.describe_log_groups)
+        mcp.tool(name='describe_log_groups')(self.describe_log_groups)
 
-        # Register analyze_log_group tool  
-        mcp.tool(
-            name='analyze_log_group'
-        )(self.analyze_log_group)
+        # Register analyze_log_group tool
+        mcp.tool(name='analyze_log_group')(self.analyze_log_group)
 
         # Register execute_log_insights_query tool
-        mcp.tool(
-            name='execute_log_insights_query'
-        )(self.execute_log_insights_query)
+        mcp.tool(name='execute_log_insights_query')(self.execute_log_insights_query)
 
         # Register get_logs_insight_query_results tool
-        mcp.tool(
-            name='get_logs_insight_query_results'
-        )(self.get_logs_insight_query_results)
+        mcp.tool(name='get_logs_insight_query_results')(self.get_logs_insight_query_results)
 
         # Register cancel_logs_insight_query tool
-        mcp.tool(
-            name='cancel_logs_insight_query'
-        )(self.cancel_logs_insight_query)
+        mcp.tool(name='cancel_logs_insight_query')(self.cancel_logs_insight_query)
 
     async def describe_log_groups(
         self,
         ctx: Context,
-        account_identifiers: Annotated[List[str] | None, Field(
-            description=(
-                'When include_linked_accounts is set to True, use this parameter to specify the list of accounts to search. IMPORTANT: Only has affect if include_linked_accounts is True'
-            )
-        )] = None,
-        include_linked_accounts: Annotated[bool | None, Field(
-            description=(
-                """If the AWS account is a monitoring account, set this to True to have the tool return log groups in the accounts listed in account_identifiers.
+        account_identifiers: Annotated[
+            List[str] | None,
+            Field(
+                description=(
+                    'When include_linked_accounts is set to True, use this parameter to specify the list of accounts to search. IMPORTANT: Only has affect if include_linked_accounts is True'
+                )
+            ),
+        ] = None,
+        include_linked_accounts: Annotated[
+            bool | None,
+            Field(
+                description=(
+                    """If the AWS account is a monitoring account, set this to True to have the tool return log groups in the accounts listed in account_identifiers.
                 If this parameter is set to true and account_identifiers contains a null value, the tool returns all log groups in the monitoring account and all log groups in all source accounts that are linked to the monitoring account."""
-            )
-        )] = False,
-        log_group_class: Annotated[Literal['STANDARD', 'INFREQUENT_ACCESS'] | None, Field(
-            description=('If specified, filters for only log groups of the specified class.')
-        )] = None,
-        log_group_name_prefix: Annotated[str | None, Field(
-            description=(
-                'An exact prefix to filter log groups by name. IMPORTANT: Only log groups with names starting with this prefix will be returned.'
-            )
-        )] = None,
-        max_items: Annotated[int | None, Field(
-            description=('The maximum number of log groups to return.')
-        )] = None,
+                )
+            ),
+        ] = False,
+        log_group_class: Annotated[
+            Literal['STANDARD', 'INFREQUENT_ACCESS'] | None,
+            Field(
+                description=('If specified, filters for only log groups of the specified class.')
+            ),
+        ] = None,
+        log_group_name_prefix: Annotated[
+            str | None,
+            Field(
+                description=(
+                    'An exact prefix to filter log groups by name. IMPORTANT: Only log groups with names starting with this prefix will be returned.'
+                )
+            ),
+        ] = None,
+        max_items: Annotated[
+            int | None, Field(description=('The maximum number of log groups to return.'))
+        ] = None,
     ) -> LogsMetadata:
         """Lists AWS CloudWatch log groups and saved queries associated with them, optionally filtering by a name prefix.
 
@@ -244,7 +254,7 @@ class CloudWatchLogsTools:
                 - logGroupArn: The Amazon Resource Name (ARN) of the log group. This version of the ARN doesn't include a trailing :* after the log group name.
             Any saved queries that are applicable to the returned log groups are also included.
         """
-        
+
         def describe_log_groups() -> List[LogGroupMetadata]:
             paginator = self.logs_client.get_paginator('describe_log_groups')
             kwargs = {
@@ -264,7 +274,9 @@ class CloudWatchLogsTools:
             logger.info(f'Log groups: {log_groups}')
             return [LogGroupMetadata.model_validate(lg) for lg in log_groups]
 
-        def get_filtered_saved_queries(log_groups: List[LogGroupMetadata]) -> List[SavedLogsInsightsQuery]:
+        def get_filtered_saved_queries(
+            log_groups: List[LogGroupMetadata],
+        ) -> List[SavedLogsInsightsQuery]:
             saved_queries = []
             next_token = None
             first_iteration = True
@@ -274,13 +286,17 @@ class CloudWatchLogsTools:
                 first_iteration = False
                 # TODO: Support other query language types
                 kwargs = {'nextToken': next_token, 'queryLanguage': 'CWLI'}
-                response = self.logs_client.describe_query_definitions(**remove_null_values(kwargs))
+                response = self.logs_client.describe_query_definitions(
+                    **remove_null_values(kwargs)
+                )
                 saved_queries.extend(response.get('queryDefinitions', []))
 
                 next_token = response.get('nextToken')
 
             logger.info(f'Saved queries: {saved_queries}')
-            modeled_queries = [SavedLogsInsightsQuery.model_validate(saved_query) for saved_query in saved_queries]
+            modeled_queries = [
+                SavedLogsInsightsQuery.model_validate(saved_query) for saved_query in saved_queries
+            ]
 
             log_group_targets = {lg.logGroupName for lg in log_groups}
             # filter to only saved queries applicable to log groups we're looking at
@@ -294,7 +310,9 @@ class CloudWatchLogsTools:
         try:
             log_groups = describe_log_groups()
             filtered_saved_queries = get_filtered_saved_queries(log_groups)
-            return LogsMetadata(log_group_metadata=log_groups, saved_queries=filtered_saved_queries)
+            return LogsMetadata(
+                log_group_metadata=log_groups, saved_queries=filtered_saved_queries
+            )
 
         except Exception as e:
             logger.error(f'Error in describe_log_groups_tool: {str(e)}')
@@ -343,7 +361,7 @@ class CloudWatchLogsTools:
             - top_patterns_containing_errors: Results of the query for patterns containing error-related terms
                 (error, exception, fail, timeout, fatal)
         """
-        
+
         def is_applicable_anomaly(anomaly: LogAnomaly) -> bool:
             # Must have overlap - convert to datetime objects for proper comparison
             try:
@@ -351,15 +369,15 @@ class CloudWatchLogsTools:
                 anomaly_last_seen = datetime.datetime.fromisoformat(anomaly.lastSeen)
                 end_time_dt = datetime.datetime.fromisoformat(end_time)
                 start_time_dt = datetime.datetime.fromisoformat(start_time)
-                
+
                 if anomaly_first_seen > end_time_dt or anomaly_last_seen < start_time_dt:
                     return False
             except ValueError as e:
-                logger.error(f"Error parsing timestamps for anomaly comparison: {e}")
+                logger.error(f'Error parsing timestamps for anomaly comparison: {e}')
                 # Fall back to string comparison if datetime parsing fails
                 if anomaly.firstSeen > end_time or anomaly.lastSeen < start_time:
                     return False
-            
+
             # Must be for this log group
             return log_group_arn in anomaly.logGroupArnList
 
@@ -368,7 +386,10 @@ class CloudWatchLogsTools:
             paginator = self.logs_client.get_paginator('list_log_anomaly_detectors')
             for page in paginator.paginate(filterLogGroupArn=log_group_arn):
                 detectors.extend(
-                    [LogAnomalyDetector.model_validate(d) for d in page.get('anomalyDetectors', [])]
+                    [
+                        LogAnomalyDetector.model_validate(d)
+                        for d in page.get('anomalyDetectors', [])
+                    ]
                 )
 
             logger.info(f'Found {len(detectors)} anomaly detectors for log group')
@@ -385,7 +406,9 @@ class CloudWatchLogsTools:
                         LogAnomaly.model_validate(anomaly) for anomaly in page.get('anomalies', [])
                     )
 
-            applicable_anomalies = [anomaly for anomaly in anomalies if is_applicable_anomaly(anomaly)]
+            applicable_anomalies = [
+                anomaly for anomaly in anomalies if is_applicable_anomaly(anomaly)
+            ]
             logger.info(
                 f'Found {len(anomalies)} anomaly detectors for log group, {len(applicable_anomalies)} of which are applicable'
             )
@@ -437,14 +460,20 @@ class CloudWatchLogsTools:
     async def execute_log_insights_query(
         self,
         ctx: Context,
-        log_group_names: Annotated[List[str] | None, Field(
-            max_length=50,
-            description='The list of up to 50 log group names to be queried. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.'
-        )] = None,
-        log_group_identifiers: Annotated[List[str] | None, Field(
-            max_length=50,
-            description="The list of up to 50 logGroupIdentifiers to query. You can specify them by the log group name or ARN. If a log group that you're querying is in a source account and you're using a monitoring account, you must use the ARN. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null."
-        )] = None,
+        log_group_names: Annotated[
+            List[str] | None,
+            Field(
+                max_length=50,
+                description='The list of up to 50 log group names to be queried. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.',
+            ),
+        ] = None,
+        log_group_identifiers: Annotated[
+            List[str] | None,
+            Field(
+                max_length=50,
+                description="The list of up to 50 logGroupIdentifiers to query. You can specify them by the log group name or ARN. If a log group that you're querying is in a source account and you're using a monitoring account, you must use the ARN. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.",
+            ),
+        ] = None,
         start_time: str = Field(
             ...,
             description=(
@@ -461,12 +490,18 @@ class CloudWatchLogsTools:
             ...,
             description='The query string in the Cloudwatch Log Insights Query Language. See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html.',
         ),
-        limit: Annotated[int | None, Field(
-            description='The maximum number of log events to return. It is critical to use either this parameter or a `| limit <int>` operator in the query to avoid consuming too many tokens of the agent.'
-        )] = None,
-        max_timeout: Annotated[int, Field(
-            description='Maximum time in second to poll for complete results before giving up'
-        )] = 30,
+        limit: Annotated[
+            int | None,
+            Field(
+                description='The maximum number of log events to return. It is critical to use either this parameter or a `| limit <int>` operator in the query to avoid consuming too many tokens of the agent.'
+            ),
+        ] = None,
+        max_timeout: Annotated[
+            int,
+            Field(
+                description='Maximum time in second to poll for complete results before giving up'
+            ),
+        ] = 30,
     ) -> Dict:
         """Executes a CloudWatch Logs Insights query and waits for the results to be available.
 
@@ -495,7 +530,7 @@ class CloudWatchLogsTools:
         try:
             # Validate parameters
             self._validate_log_group_parameters(log_group_names, log_group_identifiers)
-            
+
             # Build query parameters
             kwargs = self._build_logs_query_params(
                 log_group_names, log_group_identifiers, start_time, end_time, query_string, limit
@@ -515,8 +550,8 @@ class CloudWatchLogsTools:
             raise
 
     async def get_logs_insight_query_results(
-        self, 
-        ctx: Context, 
+        self,
+        ctx: Context,
         query_id: str = Field(
             ...,
             description='The unique ID of the query to retrieve the results for. CRITICAL: This ID is returned by the execute_log_insights_query tool.',
@@ -547,8 +582,8 @@ class CloudWatchLogsTools:
             raise
 
     async def cancel_logs_insight_query(
-        self, 
-        ctx: Context, 
+        self,
+        ctx: Context,
         query_id: str = Field(
             ...,
             description='The unique ID of the ongoing query to cancel. CRITICAL: This ID is returned by the execute_log_insights_query tool.',

@@ -15,8 +15,8 @@
 
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest_asyncio.fixture
@@ -28,7 +28,9 @@ async def ctx():
 @pytest_asyncio.fixture
 async def cloudwatch_metrics_tools():
     """Create CloudWatchMetricsTools instance with mocked client."""
-    with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session') as mock_session:
+    with patch(
+        'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'
+    ) as mock_session:
         mock_session.return_value.client.return_value = MagicMock()
         tools = CloudWatchMetricsTools()
         return tools
@@ -38,7 +40,9 @@ async def cloudwatch_metrics_tools():
 class TestValidationError:
     """Tests for validation error in CloudWatch Metrics tools."""
 
-    async def test_group_by_dimension_not_in_schema_dimension_keys(self, ctx, cloudwatch_metrics_tools):
+    async def test_group_by_dimension_not_in_schema_dimension_keys(
+        self, ctx, cloudwatch_metrics_tools
+    ):
         """Test that an error is raised when group_by_dimension is not in schema_dimension_keys."""
         # Call the tool with group_by_dimension not in schema_dimension_keys
         with pytest.raises(ValueError) as excinfo:
@@ -50,8 +54,10 @@ class TestValidationError:
                 end_time='2023-01-01T01:00:00Z',
                 statistic='AVG',
                 group_by_dimension='InstanceId',
-                schema_dimension_keys=['InstanceType']  # InstanceId is not in this list
+                schema_dimension_keys=['InstanceType'],  # InstanceId is not in this list
             )
-        
+
         # Verify the error message
-        assert "group_by_dimension 'InstanceId' must be included in schema_dimension_keys" in str(excinfo.value)
+        assert "group_by_dimension 'InstanceId' must be included in schema_dimension_keys" in str(
+            excinfo.value
+        )
