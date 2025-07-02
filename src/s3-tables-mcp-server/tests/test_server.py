@@ -32,9 +32,6 @@ from awslabs.s3_tables_mcp_server.server import (
     create_namespace,
     create_table,
     create_table_bucket,
-    delete_namespace,
-    delete_table,
-    delete_table_bucket,
     get_maintenance_job_status,
     get_table_maintenance_config,
     get_table_metadata_location,
@@ -87,7 +84,6 @@ def mock_table_buckets():
     """Mock table_buckets module."""
     with patch('awslabs.s3_tables_mcp_server.server.table_buckets') as mock:
         mock.create_table_bucket = AsyncMock(return_value={'status': 'success'})
-        mock.delete_table_bucket = AsyncMock(return_value={'status': 'success'})
         mock.put_table_bucket_maintenance_configuration = AsyncMock(
             return_value={'status': 'success'}
         )
@@ -99,7 +95,6 @@ def mock_namespaces():
     """Mock namespaces module."""
     with patch('awslabs.s3_tables_mcp_server.server.namespaces') as mock:
         mock.create_namespace = AsyncMock(return_value={'status': 'success'})
-        mock.delete_namespace = AsyncMock(return_value={'status': 'success'})
         yield mock
 
 
@@ -108,7 +103,6 @@ def mock_tables():
     """Mock tables module."""
     with patch('awslabs.s3_tables_mcp_server.server.tables') as mock:
         mock.create_table = AsyncMock(return_value={'status': 'success'})
-        mock.delete_table = AsyncMock(return_value={'status': 'success'})
         mock.get_table_maintenance_configuration = AsyncMock(return_value={'status': 'success'})
         mock.get_table_maintenance_job_status = AsyncMock(return_value={'status': 'success'})
         mock.get_table_metadata_location = AsyncMock(return_value={'status': 'success'})
@@ -229,76 +223,6 @@ async def test_create_table(mock_tables):
         name=name,
         format=OpenTableFormat.ICEBERG,
         metadata=metadata,
-        region_name=region,
-    )
-
-
-@pytest.mark.asyncio
-async def test_delete_table_bucket(mock_table_buckets):
-    """Test delete_table_bucket tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await delete_table_bucket(table_bucket_arn=table_bucket_arn, region_name=region)
-
-    # Assert
-    assert result == expected_response
-    mock_table_buckets.delete_table_bucket.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn, region_name=region
-    )
-
-
-@pytest.mark.asyncio
-async def test_delete_namespace(mock_namespaces):
-    """Test delete_namespace tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await delete_namespace(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=region
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_namespaces.delete_namespace.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=region
-    )
-
-
-@pytest.mark.asyncio
-async def test_delete_table(mock_tables):
-    """Test delete_table tool."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    version_token = 'test-version'
-    region = 'us-west-2'
-    expected_response = {'status': 'success'}
-
-    # Act
-    result = await delete_table(
-        table_bucket_arn=table_bucket_arn,
-        namespace=namespace,
-        name=name,
-        version_token=version_token,
-        region_name=region,
-    )
-
-    # Assert
-    assert result == expected_response
-    mock_tables.delete_table.assert_called_once_with(
-        table_bucket_arn=table_bucket_arn,
-        namespace=namespace,
-        name=name,
-        version_token=version_token,
         region_name=region,
     )
 
@@ -566,60 +490,6 @@ async def test_create_table_readonly_mode(setup_app_readonly, mock_tables):
             name=name,
             format=format,
             metadata=metadata,
-            region_name=region,
-        )
-
-
-@pytest.mark.asyncio
-async def test_delete_table_bucket_readonly_mode(setup_app_readonly, mock_table_buckets):
-    """Test delete_table_bucket tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await delete_table_bucket(table_bucket_arn=table_bucket_arn, region_name=region)
-
-
-@pytest.mark.asyncio
-async def test_delete_namespace_readonly_mode(setup_app_readonly, mock_namespaces):
-    """Test delete_namespace tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await delete_namespace(
-            table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=region
-        )
-
-
-@pytest.mark.asyncio
-async def test_delete_table_readonly_mode(setup_app_readonly, mock_tables):
-    """Test delete_table tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    name = 'test-table'
-    version_token = 'test-version'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await delete_table(
-            table_bucket_arn=table_bucket_arn,
-            namespace=namespace,
-            name=name,
-            version_token=version_token,
             region_name=region,
         )
 

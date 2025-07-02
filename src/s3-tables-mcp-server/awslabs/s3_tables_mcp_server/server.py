@@ -257,71 +257,6 @@ async def create_table(
 
 @app.tool()
 @write_operation
-async def delete_table_bucket(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Delete an S3 table bucket.
-
-    Deletes an S3 table bucket.
-
-    Permissions:
-    You must have the s3tables:DeleteTableBucket permission to use this operation.
-    """
-    return await table_buckets.delete_table_bucket(
-        table_bucket_arn=table_bucket_arn, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
-async def delete_namespace(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Delete a namespace.
-
-    Deletes a namespace.
-
-    Permissions:
-    You must have the s3tables:DeleteNamespace permission to use this operation.
-    """
-    return await namespaces.delete_namespace(
-        table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=region_name
-    )
-
-
-@app.tool()
-@write_operation
-async def delete_table(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    name: Annotated[str, TABLE_NAME_FIELD],
-    version_token: Annotated[
-        Optional[str],
-        Field(None, description='The version token of the table. Must be 1-2048 characters long.'),
-    ] = None,
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
-):
-    """Delete a table.
-
-    Deletes a table.
-
-    Permissions:
-    You must have the s3tables:DeleteTable permission to use this operation.
-    """
-    return await tables.delete_table(
-        table_bucket_arn=table_bucket_arn,
-        namespace=namespace,
-        name=name,
-        version_token=version_token,
-        region_name=region_name,
-    )
-
-
-@app.tool()
-@write_operation
 async def put_bucket_maintenance_config(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     maintenance_type: Annotated[
@@ -587,8 +522,8 @@ async def modify_database(
     """Execute SQL queries against S3 Tables using Athena, including write operations.
 
     This tool provides a secure interface to run SQL queries against your S3 Tables data,
-    including write operations like INSERT, UPDATE, DELETE, etc. It leverages Athena for
-    query execution and supports all standard SQL operations.
+    including write operations like INSERT, UPDATE, etc. It leverages Athena for
+    query execution and supports all standard SQL operations except destructive ones like DELETE, DROP, MERGE, REPLACE, TRUNCATE, VACUUM.
 
     The tool automatically handles query execution, result retrieval, and proper formatting of the
     response.
@@ -596,7 +531,6 @@ async def modify_database(
     Examples:
     - INSERT INTO customers (customer_id, first_name, last_name, email) VALUES (1, 'John', 'Doe', 'john.doe@example.com')
     - UPDATE customers SET email = 'john.doe@example.com' WHERE customer_id = 1
-    - DELETE FROM customers WHERE customer_id = 1
 
     Permissions:
     You must have the necessary Athena permissions to execute queries, including:

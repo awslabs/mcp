@@ -20,76 +20,8 @@ from awslabs.s3_tables_mcp_server.database import (
     _execute_database_query,
     modify_database_resource,
     query_database_resource,
-    validate_read_only_query,
 )
 from unittest.mock import MagicMock, patch
-
-
-class TestValidateReadOnlyQuery:
-    """Test the validate_read_only_query function."""
-
-    def test_valid_read_only_query(self):
-        """Test that valid read-only queries pass validation."""
-        valid_queries = [
-            'SELECT * FROM table',
-            'SELECT id, name FROM users WHERE active = true',
-            'SELECT COUNT(*) FROM orders',
-            'SELECT DISTINCT category FROM products',
-            'SELECT * FROM table1 JOIN table2 ON table1.id = table2.id',
-        ]
-
-        for query in valid_queries:
-            assert validate_read_only_query(query) is True
-
-    def test_query_starting_with_write_operation(self):
-        """Test that queries starting with write operations are rejected."""
-        write_queries = [
-            "INSERT INTO table VALUES (1, 'test')",
-            "UPDATE users SET name = 'new' WHERE id = 1",
-            'DELETE FROM table WHERE id = 1',
-            'DROP TABLE users',
-            'CREATE TABLE new_table (id INT)',
-            'ALTER TABLE users ADD COLUMN email VARCHAR(255)',
-            'TRUNCATE TABLE logs',
-            'MERGE INTO target USING source ON target.id = source.id',
-            "UPSERT INTO table VALUES (1, 'test')",
-            "REPLACE INTO table VALUES (1, 'test')",
-            "LOAD DATA FROM 'file.csv' INTO TABLE users",
-            "COPY table FROM 's3://bucket/file.csv'",
-            'WRITE TO table SELECT * FROM source',
-            'VACUUM table',
-            '/*SELECT*/ INSERT INTO table SELECT * FROM source',
-        ]
-
-        for query in write_queries:
-            with pytest.raises(ValueError, match='Write operations are not allowed'):
-                validate_read_only_query(query)
-
-    def test_case_insensitive_validation(self):
-        """Test that validation is case insensitive."""
-        case_variations = [
-            'insert into table values (1)',
-            'INSERT INTO table VALUES (1)',
-            'Insert Into Table Values (1)',
-            'iNsErT iNtO tAbLe vAlUeS (1)',
-        ]
-
-        for query in case_variations:
-            with pytest.raises(ValueError, match='Write operations are not allowed'):
-                validate_read_only_query(query)
-
-    def test_partial_word_matches_ignored(self):
-        """Test that partial word matches are ignored."""
-        # These should pass because they don't contain actual write operations
-        safe_queries = [
-            'SELECT * FROM insertion_logs',
-            'SELECT * FROM deleted_records',
-            'SELECT * FROM creation_timestamps',
-            'SELECT * FROM alteration_history',
-        ]
-
-        for query in safe_queries:
-            assert validate_read_only_query(query) is True
 
 
 class TestExecuteDatabaseQuery:
@@ -267,17 +199,18 @@ class TestExecuteDatabaseQuery:
         query = 'INSERT INTO table VALUES (1)'
 
         # Act & Assert
-        with pytest.raises(ValueError, match='Write operations are not allowed'):
-            _execute_database_query(
-                table_bucket_arn=table_bucket_arn,
-                namespace=namespace,
-                query=query,
-            )
+        # _execute_database_query no longer validates read-only, so this test is not needed here
+        result = _execute_database_query(
+            table_bucket_arn=table_bucket_arn,
+            namespace=namespace,
+            query=query,
+        )
+        assert result['status'] == 'success'
 
     def test_read_only_validation_disabled(
         self, mock_env_region, mock_athena_engine, mock_athena_config
     ):
-        """Test that read-only validation can be disabled."""
+        """Test that read-only validation can be disabled (no longer relevant, always allowed)."""
         # Arrange
         table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
         namespace = 'test-namespace'
@@ -288,7 +221,6 @@ class TestExecuteDatabaseQuery:
             table_bucket_arn=table_bucket_arn,
             namespace=namespace,
             query=query,
-            validate_read_only=False,
         )
 
         # Assert
@@ -373,8 +305,20 @@ class TestQueryDatabaseResource:
                 query=query,
                 output_location=None,
                 workgroup='primary',
-                validate_read_only=True,
                 region_name=None,
+            )
+
+    @pytest.mark.asyncio
+    async def test_query_database_resource_rejects_write(self):
+        """Test that query_database_resource rejects write queries."""
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        namespace = 'test-namespace'
+        query = 'INSERT INTO table VALUES (1)'
+        with pytest.raises(ValueError, match='Write operations are not allowed'):
+            await query_database_resource(
+                table_bucket_arn=table_bucket_arn,
+                namespace=namespace,
+                query=query,
             )
 
 
@@ -410,6 +354,32 @@ class TestModifyDatabaseResource:
                 query=query,
                 output_location=None,
                 workgroup='primary',
-                validate_read_only=False,
                 region_name=None,
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'operation',
+        [
+            'DELETE',
+            'DROP',
+            'MERGE',
+            'REPLACE',
+            'TRUNCATE',
+            'VACUUM',
+        ],
+    )
+    async def test_modify_database_resource_rejects_destructive_ops(self, operation):
+        """Test that modify_database_resource rejects destructive operations."""
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        namespace = 'test-namespace'
+        query = f'{operation} FROM test_table'
+        with pytest.raises(
+            ValueError,
+            match=rf'Destructive operations are not allowed in write queries:.*{operation}',
+        ):
+            await modify_database_resource(
+                table_bucket_arn=table_bucket_arn,
+                namespace=namespace,
+                query=query,
             )

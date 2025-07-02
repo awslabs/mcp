@@ -26,56 +26,53 @@ from .engines.config import AthenaConfig
 from typing import Any, Dict, Optional
 
 
-def validate_read_only_query(query: str) -> bool:
-    """Validate that the query is read-only.
+WRITE_OPERATIONS = {
+    'ADD',
+    'ALTER',
+    'ANALYZE',
+    'COMMIT',
+    'COPY',
+    'CREATE',
+    'DELETE',
+    'DROP',
+    'EXPORT',
+    'GRANT',
+    'IMPORT',
+    'INSERT',
+    'LOAD',
+    'LOCK',
+    'MERGE',
+    'MSCK',
+    'REDUCE',
+    'REFRESH',
+    'REPLACE',
+    'RESET',
+    'REVOKE',
+    'ROLLBACK',
+    'SET',
+    'START',
+    'TRUNCATE',
+    'UNCACHE',
+    'UNLOCK',
+    'UPDATE',
+    'UPSERT',
+    'VACUUM',
+    'VALUES',
+    'WRITE',
+}
 
-    Args:
-        query: The SQL query to validate
+READ_OPERATIONS = {
+    'DESC',
+    'DESCRIBE',
+    'EXPLAIN',
+    'LIST',
+    'SELECT',
+    'SHOW',
+    'USE',
+}
 
-    Returns:
-        bool: True if the query is read-only, False otherwise
-
-    Raises:
-        ValueError: If the query contains write operations
-    """
-
-    def contains_write_operation(sql: str) -> bool:
-        """Check if SQL contains write operations using sqlparse.
-
-        Args:
-            sql: The SQL query to check
-
-        Returns:
-            bool: True if the query contains write operations, False otherwise
-        """
-        parsed = sqlparse.parse(sql)
-        write_keywords = {
-            'INSERT',
-            'UPDATE',
-            'DELETE',
-            'CREATE',
-            'ALTER',
-            'DROP',
-            'TRUNCATE',
-            'MERGE',
-            'REPLACE',
-            'VACUUM',
-            'LOAD',
-            'COPY',
-            'WRITE',
-            'UPSERT',
-        }
-
-        for stmt in parsed:
-            tokens = [token.value.upper() for token in stmt.tokens if not token.is_whitespace]
-            if any(token in write_keywords for token in tokens):
-                return True
-        return False
-
-    if contains_write_operation(query):
-        raise ValueError('Write operations are not allowed in read-only queries')
-
-    return True
+# Disallowed destructive operations for write
+DESTRUCTIVE_OPERATIONS = {'DELETE', 'DROP', 'MERGE', 'REPLACE', 'TRUNCATE', 'VACUUM'}
 
 
 def _execute_database_query(
@@ -84,7 +81,6 @@ def _execute_database_query(
     query: str,
     output_location: Optional[str] = None,
     workgroup: str = 'primary',
-    validate_read_only: bool = True,
     region_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Internal helper function to execute database queries.
@@ -95,14 +91,13 @@ def _execute_database_query(
         query: Custom SQL query
         output_location: Optional S3 location for query results
         workgroup: Athena workgroup to use for query execution
-        validate_read_only: Whether to validate that the query is read-only
         region_name: Optional AWS region name. If not provided, uses AWS_REGION environment variable
 
     Returns:
         Dict containing query results and metadata
 
     Raises:
-        ValueError: If AWS_REGION is not set or query contains write operations
+        ValueError: If AWS_REGION is not set
         ConnectionError: If connection to Athena fails
     """
     # Get region from parameter or environment variable
@@ -136,10 +131,6 @@ def _execute_database_query(
     if not engine.test_connection():
         raise ConnectionError('Failed to connect to Athena')
 
-    # Validate that the query is read-only if required
-    if validate_read_only:
-        validate_read_only_query(query)
-
     # Prepend version comment to the query
     version_comment = f'/* awslabs/mcp/s3-tables-mcp-server/{__version__} */'
     query_with_comment = f'{version_comment}\n{query}'
@@ -159,6 +150,18 @@ def _execute_database_query(
     }
 
 
+def _get_query_operations(query: str) -> set:
+    """Extract all top-level SQL operations from the query as a set."""
+    parsed = sqlparse.parse(query)
+    operations = set()
+    for stmt in parsed:
+        tokens = [token.value.upper() for token in stmt.tokens if not token.is_whitespace]
+        for token in tokens:
+            if token.isalpha():
+                operations.add(token)
+    return operations
+
+
 async def query_database_resource(
     table_bucket_arn: str,
     namespace: str,
@@ -167,30 +170,17 @@ async def query_database_resource(
     workgroup: str = 'primary',
     region_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Execute a read-only query against a database using Athena.
-
-    Args:
-        table_bucket_arn: The ARN of the table bucket containing the table
-        namespace: The namespace containing the table
-        query: Custom SQL query
-        output_location: Optional S3 location for query results
-        workgroup: Athena workgroup to use for query execution
-        region_name: Optional AWS region name. If not provided, uses AWS_REGION environment variable
-
-    Returns:
-        Dict containing query results and metadata
-
-    Raises:
-        ValueError: If AWS_REGION is not set or query contains write operations
-        ConnectionError: If connection to Athena fails
-    """
+    """Execute a read-only query against a database using Athena."""
+    operations = _get_query_operations(query)
+    disallowed = operations & WRITE_OPERATIONS
+    if disallowed:
+        raise ValueError(f'Write operations are not allowed in read-only queries: {disallowed}')
     return _execute_database_query(
         table_bucket_arn=table_bucket_arn,
         namespace=namespace,
         query=query,
         output_location=output_location,
         workgroup=workgroup,
-        validate_read_only=True,
         region_name=region_name,
     )
 
@@ -203,29 +193,16 @@ async def modify_database_resource(
     workgroup: str = 'primary',
     region_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Execute a query against a database using Athena, allowing write operations.
-
-    Args:
-        table_bucket_arn: The ARN of the table bucket containing the table
-        namespace: The namespace containing the table
-        query: Custom SQL query
-        output_location: Optional S3 location for query results
-        workgroup: Athena workgroup to use for query execution
-        region_name: Optional AWS region name. If not provided, uses AWS_REGION environment variable
-
-    Returns:
-        Dict containing query results and metadata
-
-    Raises:
-        ValueError: If AWS_REGION is not set
-        ConnectionError: If connection to Athena fails
-    """
+    """Execute a query against a database using Athena, allowing write operations except destructive ones."""
+    operations = _get_query_operations(query)
+    disallowed = operations & DESTRUCTIVE_OPERATIONS
+    if disallowed:
+        raise ValueError(f'Destructive operations are not allowed in write queries: {disallowed}')
     return _execute_database_query(
         table_bucket_arn=table_bucket_arn,
         namespace=namespace,
         query=query,
         output_location=output_location,
         workgroup=workgroup,
-        validate_read_only=False,
         region_name=region_name,
     )
