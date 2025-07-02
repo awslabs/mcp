@@ -303,12 +303,12 @@ class TestServerEntryPointErrorHandling:
     def test_main_keyboard_interrupt_pragma_coverage(self, mock_exit, mock_mcp):
         """Test KeyboardInterrupt handling in main function - covers pragma no cover."""
         from awslabs.amazon_datazone_mcp_server.server import main
-        
+
         mock_mcp.run.side_effect = KeyboardInterrupt()
-        
-        with patch('sys.stderr.write') as mock_stderr:
+
+        with patch('sys.stderr.write'):
             main()
-            
+
         mock_exit.assert_called_once_with(0)
 
     @patch('awslabs.amazon_datazone_mcp_server.server.mcp')
@@ -317,19 +317,19 @@ class TestServerEntryPointErrorHandling:
     def test_main_exception_handling_pragma_coverage(self, mock_print, mock_exit, mock_mcp):
         """Test general exception handling in main function - covers pragma no cover."""
         from awslabs.amazon_datazone_mcp_server.server import main
-        
+
         test_exception = Exception('Test error')
         mock_mcp.run.side_effect = test_exception
-        
+
         main()
-        
+
         # Verify error response was printed
         mock_print.assert_called_once()
         call_args = mock_print.call_args[0][0]
         error_response = json.loads(call_args)
-        
+
         assert error_response['error'] == 'Test error'
         assert error_response['type'] == 'Exception'
         assert error_response['message'] == 'MCP server encountered an error'
-        
+
         mock_exit.assert_called_once_with(1)

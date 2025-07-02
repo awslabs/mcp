@@ -461,11 +461,11 @@ class TestProjectManagementPragmaNoCoverHandling:
     async def test_create_project_with_all_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
         """Test create_project with all optional parameters - covers pragma no cover."""
         create_project = tool_extractor(mcp_server_with_tools, 'create_project')
-        
+
         mcp_server_with_tools._mock_client.create_project.return_value = {'projectId': 'test-project-123'}
-        
+
         # Test with all optional parameters to hit pragma: no cover lines
-        result = await create_project(
+        await create_project(
             domain_identifier='test-domain',
             name='Test Project',
             description='Test Description',
@@ -474,10 +474,10 @@ class TestProjectManagementPragmaNoCoverHandling:
             project_profile_id='profile-123',
             user_parameters=[{'key': 'value'}]
         )
-        
+
         # Verify the call included all optional parameters
         call_kwargs = mcp_server_with_tools._mock_client.create_project.call_args[1]
-        
+
         assert call_kwargs['domainUnitId'] == 'test-unit'
         assert call_kwargs['glossaryTerms'] == ['term1', 'term2']
         assert call_kwargs['projectProfileId'] == 'profile-123'
@@ -487,9 +487,9 @@ class TestProjectManagementPragmaNoCoverHandling:
     async def test_list_projects_with_all_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
         """Test list_projects with all optional parameters - covers pragma no cover."""
         list_projects = tool_extractor(mcp_server_with_tools, 'list_projects')
-        
+
         mcp_server_with_tools._mock_client.list_projects.return_value = {'items': []}
-        
+
         await list_projects(
             domain_identifier='test-domain',
             max_results=25,
@@ -498,7 +498,7 @@ class TestProjectManagementPragmaNoCoverHandling:
             user_identifier='user123',
             group_identifier='group123'
         )
-        
+
         call_kwargs = mcp_server_with_tools._mock_client.list_projects.call_args[1]
         assert call_kwargs['nextToken'] == 'token123'
         assert call_kwargs['name'] == 'test-name'
@@ -509,15 +509,15 @@ class TestProjectManagementPragmaNoCoverHandling:
     async def test_list_project_profiles_with_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
         """Test list_project_profiles with optional parameters - covers pragma no cover."""
         list_project_profiles = tool_extractor(mcp_server_with_tools, 'list_project_profiles')
-        
+
         mcp_server_with_tools._mock_client.list_project_profiles.return_value = {'items': []}
-        
+
         await list_project_profiles(
             domain_identifier='test-domain',
             max_results=25,
             next_token='token123'
         )
-        
+
         call_kwargs = mcp_server_with_tools._mock_client.list_project_profiles.call_args[1]
         assert call_kwargs['nextToken'] == 'token123'
 
@@ -525,10 +525,10 @@ class TestProjectManagementPragmaNoCoverHandling:
     async def test_create_project_profile_with_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
         """Test create_project_profile with all optional parameters - covers pragma no cover."""
         create_project_profile = tool_extractor(mcp_server_with_tools, 'create_project_profile')
-        
+
         expected_response = {'id': 'profile-123'}
         mcp_server_with_tools._mock_client.create_project_profile.return_value = expected_response
-        
+
         await create_project_profile(
             domain_identifier='test-domain',
             name='Test Profile',
@@ -536,7 +536,7 @@ class TestProjectManagementPragmaNoCoverHandling:
             domain_unit_identifier='unit-123',
             environment_configurations=[{'key': 'value'}]
         )
-        
+
         call_kwargs = mcp_server_with_tools._mock_client.create_project_profile.call_args[1]
         assert call_kwargs['description'] == 'Test description'
         assert call_kwargs['domainUnitIdentifier'] == 'unit-123'
@@ -546,127 +546,127 @@ class TestProjectManagementPragmaNoCoverHandling:
     async def test_create_project_profile_conflict_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
         """Test ConflictException handling in create_project_profile - covers pragma no cover."""
         create_project_profile = tool_extractor(mcp_server_with_tools, 'create_project_profile')
-        
+
         mcp_server_with_tools._mock_client.create_project_profile.side_effect = mock_client_error(
             'ConflictException', 'Profile already exists'
         )
-        
+
         with pytest.raises(Exception) as exc_info:
             await create_project_profile(
                 domain_identifier='test-domain',
                 name='Test Profile'
             )
-        
+
         assert 'already exists in domain test-domain' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_create_project_profile_resource_not_found_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
         """Test ResourceNotFoundException handling in create_project_profile - covers pragma no cover."""
         create_project_profile = tool_extractor(mcp_server_with_tools, 'create_project_profile')
-        
+
         mcp_server_with_tools._mock_client.create_project_profile.side_effect = mock_client_error(
             'ResourceNotFoundException', 'Domain not found'
         )
-        
+
         with pytest.raises(Exception) as exc_info:
             await create_project_profile(
                 domain_identifier='test-domain',
                 name='Test Profile'
             )
-        
+
         assert 'Domain or domain unit not found' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_create_project_profile_service_quota_exceeded_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
         """Test ServiceQuotaExceededException handling in create_project_profile - covers pragma no cover."""
         create_project_profile = tool_extractor(mcp_server_with_tools, 'create_project_profile')
-        
+
         mcp_server_with_tools._mock_client.create_project_profile.side_effect = mock_client_error(
             'ServiceQuotaExceededException', 'Profile limit exceeded'
         )
-        
+
         with pytest.raises(Exception) as exc_info:
             await create_project_profile(
                 domain_identifier='test-domain',
                 name='Test Profile'
             )
-        
+
         assert 'Service quota exceeded' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_create_project_profile_validation_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
         """Test ValidationException handling in create_project_profile - covers pragma no cover."""
         create_project_profile = tool_extractor(mcp_server_with_tools, 'create_project_profile')
-        
+
         mcp_server_with_tools._mock_client.create_project_profile.side_effect = mock_client_error(
             'ValidationException', 'Invalid parameters'
         )
-        
+
         with pytest.raises(Exception) as exc_info:
             await create_project_profile(
                 domain_identifier='test-domain',
                 name='Test Profile'
             )
-        
+
         assert 'Invalid parameters for creating project profile' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_create_project_profile_unknown_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
         """Test unknown error handling in create_project_profile - covers pragma no cover."""
         create_project_profile = tool_extractor(mcp_server_with_tools, 'create_project_profile')
-        
+
         mcp_server_with_tools._mock_client.create_project_profile.side_effect = mock_client_error(
             'UnknownException', 'Unknown error occurred'
         )
-        
+
         with pytest.raises(Exception) as exc_info:
             await create_project_profile(
                 domain_identifier='test-domain',
                 name='Test Profile'
             )
-        
+
         assert 'Error creating project profile' in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_create_project_profile_general_exception_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
         """Test general exception handling in create_project_profile - covers pragma no cover."""
         create_project_profile = tool_extractor(mcp_server_with_tools, 'create_project_profile')
-        
+
         mcp_server_with_tools._mock_client.create_project_profile.side_effect = Exception('Network error')
-        
+
         with pytest.raises(Exception) as exc_info:
             await create_project_profile(
                 domain_identifier='test-domain',
                 name='Test Profile'
             )
-        
+
         assert "Unexpected error creating project profile 'Test Profile' in domain test-domain" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_project_profile_all_error_scenarios_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
         """Test all error scenarios in get_project_profile - covers pragma no cover."""
         get_project_profile = tool_extractor(mcp_server_with_tools, 'get_project_profile')
-        
+
         # Test AccessDeniedException
         mcp_server_with_tools._mock_client.get_project_profile.side_effect = mock_client_error(
             'AccessDeniedException', 'Access denied'
         )
-        
+
         with pytest.raises(Exception) as exc_info:
             await get_project_profile(
                 domain_identifier='test-domain',
                 identifier='profile-123'
             )
-        
+
         assert "Access denied while getting project profile 'profile-123' in domain test-domain" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_list_project_memberships_with_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
         """Test list_project_memberships with all optional parameters - covers pragma no cover."""
         list_project_memberships = tool_extractor(mcp_server_with_tools, 'list_project_memberships')
-        
+
         mcp_server_with_tools._mock_client.list_project_memberships.return_value = {'members': []}
-        
+
         await list_project_memberships(
             domain_identifier='test-domain',
             project_identifier='project-123',
@@ -675,7 +675,7 @@ class TestProjectManagementPragmaNoCoverHandling:
             sort_by='NAME',
             sort_order='ASCENDING'
         )
-        
+
         call_kwargs = mcp_server_with_tools._mock_client.list_project_memberships.call_args[1]
         assert call_kwargs['nextToken'] == 'token123'
         assert call_kwargs['sortBy'] == 'NAME'
