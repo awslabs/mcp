@@ -807,7 +807,7 @@ class TestProjectManagementErrorHandlingCoverage:
         """Test list_project_memberships ResourceNotFoundException handling - covers line 469."""
         list_project_memberships = tool_extractor(
             mcp_server_with_tools, 'list_project_memberships'
-            )
+        )
 
         mcp_server_with_tools._mock_client.list_project_memberships.side_effect = (
             mock_client_error('ResourceNotFoundException', 'Project not found')

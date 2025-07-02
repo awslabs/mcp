@@ -658,10 +658,7 @@ class TestDataManagementPragmaNoCoverHandling:
         )
 
         with pytest.raises(Exception) as exc_info:
-            await get_subscription(
-                domain_identifier='test-domain',
-                identifier='test-subscription'
-            )
+            await get_subscription(domain_identifier='test-domain', identifier='test-subscription')
 
         assert 'Error getting subscription test-subscription in domain test-domain' in str(
             exc_info.value

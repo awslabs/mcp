@@ -673,9 +673,8 @@ class TestEnvironmentErrorHandlingCoverage:
                 identifier='env-123',
             )
 
-        assert (
-            'Access denied while getting environment env-123 in domain dzd_123456789'
-            in str(exc_info.value)
+        assert 'Access denied while getting environment env-123 in domain dzd_123456789' in str(
+            exc_info.value
         )
 
     @pytest.mark.asyncio
@@ -826,9 +825,8 @@ class TestEnvironmentErrorHandlingCoverage:
                 identifier='blueprint-123',
             )
 
-        assert (
-            'Error getting environment blueprint-123 blueprint in domain dzd_123456789'
-            in str(exc_info.value)
+        assert 'Error getting environment blueprint-123 blueprint in domain dzd_123456789' in str(
+            exc_info.value
         )
 
     @pytest.mark.asyncio
@@ -996,11 +994,7 @@ class TestEnvironmentErrorHandlingCoverage:
             next_token='token-123',
         )
 
-        call_kwargs = (
-            mcp_server_with_tools._mock_client.list_environment_blueprints.call_args[
-                1
-            ]
-        )
+        call_kwargs = mcp_server_with_tools._mock_client.list_environment_blueprints.call_args[1]
         assert call_kwargs.get('managed')
         assert call_kwargs.get('name') == 'test-blueprint'
         assert call_kwargs.get('nextToken') == 'token-123'
@@ -1047,7 +1041,11 @@ class TestEnvironmentErrorHandlingCoverage:
             next_token='token-123',
         )
 
-        call_kwargs = mcp_server_with_tools._mock_client.list_environment_blueprint_configurations.call_args[1]
+        call_kwargs = (
+            mcp_server_with_tools._mock_client.list_environment_blueprint_configurations.call_args[
+                1
+            ]
+        )
         assert call_kwargs.get('nextToken') == 'token-123'
 
     @pytest.mark.asyncio

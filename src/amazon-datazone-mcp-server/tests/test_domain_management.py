@@ -1120,7 +1120,10 @@ class TestDomainManagementUncoveredLines:
                 group_type='SSO_GROUP',
             )
 
-        assert 'Access denied while searching SSO_GROUP group profiles in domain dzd_123456789' in str(exc_info.value)
+        assert (
+            'Access denied while searching SSO_GROUP group profiles in domain dzd_123456789'
+            in str(exc_info.value)
+        )
 
     @pytest.mark.asyncio
     async def test_search_group_profiles_internal_server_error_coverage(
@@ -1183,9 +1186,8 @@ class TestDomainManagementUncoveredLines:
                 group_type='SSO_GROUP',
             )
 
-        assert (
-            'Unauthorized to search SSO_GROUP group profiles in domain dzd_123456789'
-            in str(exc_info.value)
+        assert 'Unauthorized to search SSO_GROUP group profiles in domain dzd_123456789' in str(
+            exc_info.value
         )
 
     @pytest.mark.asyncio
@@ -1227,9 +1229,8 @@ class TestDomainManagementUncoveredLines:
                 group_type='SSO_GROUP',
             )
 
-        assert (
-            'Error searching SSO_GROUP group profiles in domain dzd_123456789'
-            in str(exc_info.value)
+        assert 'Error searching SSO_GROUP group profiles in domain dzd_123456789' in str(
+            exc_info.value
         )
 
     @pytest.mark.asyncio

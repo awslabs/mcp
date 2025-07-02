@@ -356,12 +356,15 @@ class TestServerMainFunctionHandling:
 
         # Mock the mcp object's run method
         from awslabs.amazon_datazone_mcp_server.server import mcp
+
         monkeypatch.setattr(mcp, 'run', mock_run)
 
         # Mock sys.exit to capture the exit call
         exit_calls = []
+
         def mock_exit(code):
             exit_calls.append(code)
+
         monkeypatch.setattr(sys, 'exit', mock_exit)
 
         # Call main function
