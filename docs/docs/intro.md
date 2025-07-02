@@ -3,10 +3,16 @@ slug: /
 title: Welcome to AWS MCP Servers
 ---
 
+---
+slug: /
+title: Welcome to AWS MCP Servers
+---
+
 # Welcome to AWS MCP Servers
 
 Get started with AWS MCP Servers and learn core features.
 
+The AWS MCP Servers are a suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 The AWS MCP Servers are a suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
 ## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
@@ -63,10 +69,6 @@ Each server is designed for specific use cases:
 
 You can use the **AWS Documentation MCP Server** to help your AI assistant research and generate up-to-date code for any AWS service, like Amazon Bedrock Inline agents. Alternatively, you could use the **CDK MCP Server** or the **Terraform MCP Server** to have your AI assistant create infrastructure-as-code implementations that use the latest APIs and follow AWS best practices. With the **Cost Analysis MCP Server**, you could ask "What would be the estimated monthly cost for this CDK project before I deploy it?" or "Can you help me understand the potential AWS service expenses for this infrastructure design?" and receive detailed cost estimations and budget planning insights. The **Valkey MCP Server** enables natural language interaction with Valkey data stores, allowing AI assistants to efficiently manage data operations through a simple conversational interface.
 
-<<<<<<< HEAD:docs/docs/intro.md
-=======
-
->>>>>>> adb523f (docs: cleaning up, adding additional resources, removing unused css):docs/index.md
 ## Additional Resources
 
 - [Introducing AWS MCP Servers for code assistants](https://aws.amazon.com/blogs/machine-learning/introducing-aws-mcp-servers-for-code-assistants-part-1/)
