@@ -68,18 +68,18 @@ def register_tools(mcp: FastMCP):
             params: Dict[str, Any] = {'name': name, 'description': description_value}
 
             # Add optional parameters if provided
-            if domain_unit_id_value:  # pragma: no cover
+            if domain_unit_id_value:
                 params['domainUnitId'] = domain_unit_id_value
-            if glossary_terms_value:  # pragma: no cover
+            if glossary_terms_value:
                 params['glossaryTerms'] = glossary_terms_value
-            if project_profile_id_value:  # pragma: no cover
+            if project_profile_id_value:
                 params['projectProfileId'] = project_profile_id_value
-            if user_parameters_value:  # pragma: no cover
+            if user_parameters_value:
                 params['userParameters'] = user_parameters_value
 
             response = datazone_client.create_project(domainIdentifier=domain_identifier, **params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(f'Error creating project in domain {domain_identifier}: {e}')
 
     @mcp.tool()
@@ -111,7 +111,7 @@ def register_tools(mcp: FastMCP):
                 domainIdentifier=domain_identifier, identifier=project_identifier
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(
                 f'Error getting project {project_identifier} in domain {domain_identifier}: {e}'
             )
@@ -161,18 +161,18 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
-            if name_value:  # pragma: no cover
+            if name_value:
                 params['name'] = name_value
-            if user_identifier_value:  # pragma: no cover
+            if user_identifier_value:
                 params['userIdentifier'] = user_identifier_value
-            if group_identifier_value:  # pragma: no cover
+            if group_identifier_value:
                 params['groupIdentifier'] = group_identifier_value
 
             response = datazone_client.list_projects(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(f'Error listing projects in domain {domain_identifier}: {e}')
 
     @mcp.tool()
@@ -204,7 +204,7 @@ def register_tools(mcp: FastMCP):
                 )
                 response.raise_for_status()
                 return response.json()
-            except httpx.HTTPStatusError as e:  # pragma: no cover
+            except httpx.HTTPStatusError as e:
                 raise Exception(f'Failed to create project membership: {e}')
 
     @mcp.tool()
@@ -239,12 +239,12 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional next token if provided
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
 
             response = datazone_client.list_project_profiles(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(f'Error listing project profiles in domain {domain_identifier}: {e}')
 
     @mcp.tool()
@@ -321,11 +321,11 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters
-            if description_value:  # pragma: no cover
+            if description_value:
                 params['description'] = description_value
-            if domain_unit_identifier_value:  # pragma: no cover
+            if domain_unit_identifier_value:
                 params['domainUnitIdentifier'] = domain_unit_identifier_value
-            if environment_configurations_value:  # pragma: no cover
+            if environment_configurations_value:
                 params['environmentConfigurations'] = environment_configurations_value
 
             # Create the project profile
@@ -350,51 +350,51 @@ def register_tools(mcp: FastMCP):
             )
             return result
 
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 logger.error(
                     f"Access denied while creating project profile '{name}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Access denied while creating project profile '{name}' in domain {domain_identifier}"
                 )
-            elif error_code == 'ConflictException':  # pragma: no cover
+            elif error_code == 'ConflictException':
                 logger.error(
                     f"Project profile '{name}' already exists in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Project profile '{name}' already exists in domain {domain_identifier}"
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 logger.error(
                     f"Domain or domain unit not found while creating project profile '{name}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Domain or domain unit not found while creating project profile '{name}' in domain {domain_identifier}"
                 )
-            elif error_code == 'ServiceQuotaExceededException':  # pragma: no cover
+            elif error_code == 'ServiceQuotaExceededException':
                 logger.error(
                     f"Service quota exceeded while creating project profile '{name}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Service quota exceeded while creating project profile '{name}' in domain {domain_identifier}"
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 logger.error(
                     f"Invalid parameters for creating project profile '{name}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Invalid parameters for creating project profile '{name}' in domain {domain_identifier}"
                 )
-            else:  # pragma: no cover
+            else:
                 logger.error(
                     f"Error creating project profile '{name}' in domain {domain_identifier}: {str(e)}"
                 )
                 raise Exception(
                     f"Error creating project profile '{name}' in domain {domain_identifier}: {str(e)}"
                 )
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             logger.error(
                 f"Unexpected error creating project profile '{name}' in domain {domain_identifier}: {str(e)}"
             )
@@ -453,54 +453,54 @@ def register_tools(mcp: FastMCP):
 
             response = datazone_client.get_project_profile(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 logger.error(
                     f"Access denied while getting project profile '{identifier}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Access denied while getting project profile '{identifier}' in domain {domain_identifier}"
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 logger.error('Domain or project profile not found')
                 raise Exception('Domain or project profile not found')
-            elif error_code == 'InternalServerException':  # pragma: no cover
+            elif error_code == 'InternalServerException':
                 logger.error(
                     f"Getting project profile '{identifier}' in domain {domain_identifier} failed because of an unknown error, exception or failure"
                 )
                 raise Exception(
                     f"Getting project profile '{identifier}' in domain {domain_identifier} failed because of an unknown error, exception or failure"
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 logger.error(
                     f"Invalid parameters for getting project profile '{identifier}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Invalid parameters for getting project profile '{identifier}' in domain {domain_identifier}"
                 )
-            elif error_code == 'UnauthorizedException':  # pragma: no cover
+            elif error_code == 'UnauthorizedException':
                 logger.error(
                     f"You do not have permission to get project profile '{identifier}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"You do not have permission to get project profile '{identifier}' in domain {domain_identifier}"
                 )
-            elif error_code == 'ThrottlingException':  # pragma: no cover
+            elif error_code == 'ThrottlingException':
                 logger.error(
                     f"Request to get project profile '{identifier}' in domain {domain_identifier} is denied due to request throttling"
                 )
                 raise Exception(
                     f"Request to get project profile '{identifier}' in domain {domain_identifier} is denied due to request throttling"
                 )
-            else:  # pragma: no cover
+            else:
                 logger.error(
                     f"Error creating project profile '{identifier}' in domain {domain_identifier}: {str(e)}"
                 )
                 raise Exception(
                     f"Error creating project profile '{identifier}' in domain {domain_identifier}: {str(e)}"
                 )
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             logger.error(
                 f"Unexpected error creating project profile '{identifier}' in domain {domain_identifier}: {str(e)}"
             )
@@ -576,16 +576,16 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional next token if provided
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
-            if sort_by_value:  # pragma: no cover
+            if sort_by_value:
                 params['sortBy'] = sort_by_value
-            if sort_order_value:  # pragma: no cover
+            if sort_order_value:
                 params['sortOrder'] = sort_order_value
 
             response = datazone_client.list_project_memberships(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(
                 f'Error listing project {project_identifier} memberships in domain {domain_identifier}: {e}'
             )

@@ -99,15 +99,15 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters
-            if description_value:  # pragma: no cover
+            if description_value:
                 params['description'] = description_value
-            if kms_key_identifier_value:  # pragma: no cover
+            if kms_key_identifier_value:
                 params['kmsKeyIdentifier'] = kms_key_identifier_value
-            if tags_value:  # pragma: no cover
+            if tags_value:
                 params['tags'] = tags_value
-            if single_sign_on_value:  # pragma: no cover
+            if single_sign_on_value:
                 params['singleSignOn'] = single_sign_on_value
-            if service_role:  # pragma: no cover
+            if service_role:
                 params['serviceRole'] = service_role
 
             # Create the domain
@@ -128,21 +128,21 @@ def register_tools(mcp: FastMCP):
             logger.info(f'Successfully created {domain_version} domain: {name}')
             return result
 
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 logger.error(f'Access denied while creating domain {name}')
                 raise Exception(f'Access denied while creating domain {name}')
-            elif error_code == 'ConflictException':  # pragma: no cover
+            elif error_code == 'ConflictException':
                 logger.error(f'Domain {name} already exists')
                 raise Exception(f'Domain {name} already exists')
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 logger.error(f'Invalid parameters for creating domain {name}')
                 raise Exception(f'Invalid parameters for creating domain {name}')
-            else:  # pragma: no cover
+            else:
                 logger.error(f'Error creating domain {name}: {str(e)}')
                 raise Exception(f'Error creating domain {name}: {str(e)}')
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             logger.error(f'Unexpected error creating domain {name}: {str(e)}')
             raise Exception(f'Unexpected error creating domain {name}: {str(e)}')
 
@@ -168,7 +168,7 @@ def register_tools(mcp: FastMCP):
                 parentDomainUnitIdentifier=parent_domain_unit_identifier,
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(f'Error listing domain units for domain {domain_identifier}: {e}')
 
     @mcp.tool()
@@ -203,11 +203,11 @@ def register_tools(mcp: FastMCP):
             params: Dict[str, Any] = {
                 'maxResults': min(max_results_value, 25)
             }  # Ensure maxResults is within valid range
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = (
                     next_token_value  # Fixed: Amazon API expects 'nextToken', not 'next_token'
                 )
-            if status_value:  # pragma: no cover
+            if status_value:
                 params['status'] = status_value
 
             response = datazone_client.list_domains(**params)
@@ -231,42 +231,42 @@ def register_tools(mcp: FastMCP):
 
             logger.info('Successfully listed domains')
             return result
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 logger.error('Access denied while listing domains')
                 raise Exception('Access denied while listing domains')
-            elif error_code == 'InternalServerException':  # pragma: no cover
+            elif error_code == 'InternalServerException':
                 logger.error(
                     'The request has failed because of an unknown error, exception or failure'
                 )
                 raise Exception(
                     'The request has failed because of an unknown error, exception or failure'
                 )
-            elif error_code == 'ThrottlingException':  # pragma: no cover
+            elif error_code == 'ThrottlingException':
                 logger.error('The request was denied due to request throttling')
                 raise Exception('The request was denied due to request throttling')
-            elif error_code == 'ConflictException':  # pragma: no cover
+            elif error_code == 'ConflictException':
                 logger.error('There is a conflict listing the domains')
                 raise Exception('There is a conflict listing the domains')
-            elif error_code == 'UnauthorizedException':  # pragma: no cover
+            elif error_code == 'UnauthorizedException':
                 logger.error('Insufficient permission to list domains')
                 raise Exception('Insufficient permission to list domains')
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 logger.error(
                     'input fails to satisfy the constraints specified by the Amazon service'
                 )
                 raise Exception(
                     'input fails to satisfy the constraints specified by the Amazon service'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 logger.error(
                     'input fails to satisfy the constraints specified by the Amazon service'
                 )
                 raise Exception(
                     'input fails to satisfy the constraints specified by the Amazon service'
                 )
-        except Exception:  # pragma: no cover
+        except Exception:
             logger.error('Unexpected error listing domains')
             raise Exception('Unexpected error listing domains')
 
@@ -322,9 +322,9 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters
-            if description_value:  # pragma: no cover
+            if description_value:
                 params['description'] = description_value
-            if client_token_value:  # pragma: no cover
+            if client_token_value:
                 params['clientToken'] = client_token_value
 
             # Create the domain unit
@@ -346,42 +346,42 @@ def register_tools(mcp: FastMCP):
             logger.info(f"Successfully created domain unit '{name}' in domain {domain_identifier}")
             return result
 
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 logger.error(
                     f"Access denied while creating domain unit '{name}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Access denied while creating domain unit '{name}' in domain {domain_identifier}"
                 )
-            elif error_code == 'ConflictException':  # pragma: no cover
+            elif error_code == 'ConflictException':
                 logger.error(f"Domain unit '{name}' already exists in domain {domain_identifier}")
                 raise Exception(
                     f"Domain unit '{name}' already exists in domain {domain_identifier}"
                 )
-            elif error_code == 'ServiceQuotaExceededException':  # pragma: no cover
+            elif error_code == 'ServiceQuotaExceededException':
                 logger.error(
                     f"Service quota exceeded while creating domain unit '{name}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Service quota exceeded while creating domain unit '{name}' in domain {domain_identifier}"
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 logger.error(
                     f"Invalid parameters for creating domain unit '{name}' in domain {domain_identifier}"
                 )
                 raise Exception(
                     f"Invalid parameters for creating domain unit '{name}' in domain {domain_identifier}"
                 )
-            else:  # pragma: no cover
+            else:
                 logger.error(
                     f"Error creating domain unit '{name}' in domain {domain_identifier}: {str(e)}"
                 )
                 raise Exception(
                     f"Error creating domain unit '{name}' in domain {domain_identifier}: {str(e)}"
                 )
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             logger.error(
                 f"Unexpected error creating domain unit '{name}' in domain {domain_identifier}: {str(e)}"
             )
@@ -442,28 +442,28 @@ def register_tools(mcp: FastMCP):
             )
             return result
 
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 logger.error(
                     f'Access denied while getting domain unit {identifier} in domain {domain_identifier}'
                 )
                 raise Exception(
                     f'Access denied while getting domain unit {identifier} in domain {domain_identifier}'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 logger.error(f'Domain unit {identifier} not found in domain {domain_identifier}')
                 raise Exception(
                     f'Domain unit {identifier} not found in domain {domain_identifier}'
                 )
-            else:  # pragma: no cover
+            else:
                 logger.error(
                     f'Error getting domain unit {identifier} in domain {domain_identifier}: {str(e)}'
                 )
                 raise Exception(
                     f'Error getting domain unit {identifier} in domain {domain_identifier}: {str(e)}'
                 )
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             logger.error(
                 f'Unexpected error getting domain unit {identifier} in domain {domain_identifier}: {str(e)}'
             )
@@ -520,7 +520,7 @@ def register_tools(mcp: FastMCP):
             params = {'entityType': entity_type, 'owner': owner}
 
             # Add optional client token if provided
-            if client_token_value:  # pragma: no cover
+            if client_token_value:
                 params['clientToken'] = client_token_value
 
             response = datazone_client.add_entity_owner(
@@ -530,7 +530,7 @@ def register_tools(mcp: FastMCP):
                 f'Successfully added owner {owner_identifier} to {entity_type.lower()} {entity_identifier} in domain {domain_identifier}'
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(
                 f'Error adding owner to {entity_type.lower()} {entity_identifier} in domain {domain_identifier}: {e}'
             )
@@ -573,9 +573,9 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if client_token_value:  # pragma: no cover
+            if client_token_value:
                 params['clientToken'] = client_token_value
-            if detail_value:  # pragma: no cover
+            if detail_value:
                 params['detail'] = detail_value
 
             response = datazone_client.add_policy_grant(
@@ -585,7 +585,7 @@ def register_tools(mcp: FastMCP):
                 **params,
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(
                 f'Error adding policy grant to entity {entity_identifier} in domain {domain_identifier}: {e}'
             )
@@ -690,19 +690,19 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if additional_attributes_value:  # pragma: no cover
+            if additional_attributes_value:
                 params['additionalAttributes'] = additional_attributes_value
-            if filters_value:  # pragma: no cover
+            if filters_value:
                 params['filters'] = filters_value
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
-            if owning_project_identifier_value:  # pragma: no cover
+            if owning_project_identifier_value:
                 params['owningProjectIdentifier'] = owning_project_identifier_value
-            if search_in_value:  # pragma: no cover
+            if search_in_value:
                 params['searchIn'] = search_in_value
-            if search_text_value:  # pragma: no cover
+            if search_text_value:
                 params['searchText'] = search_text_value
-            if sort_value:  # pragma: no cover
+            if sort_value:
                 params['sort'] = sort_value
 
             response = datazone_client.search(**params)
@@ -710,23 +710,23 @@ def register_tools(mcp: FastMCP):
                 f'Successfully searched {search_scope.lower()} in domain {domain_identifier}'
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(f'Access denied while searching in domain {domain_identifier}')
-            elif error_code == 'InternalServerException':  # pragma: no cover
+            elif error_code == 'InternalServerException':
                 raise Exception(
                     f'Internal server error while searching in domain {domain_identifier}'
                 )
-            elif error_code == 'ThrottlingException':  # pragma: no cover
+            elif error_code == 'ThrottlingException':
                 raise Exception(f'Request throttled while searching in domain {domain_identifier}')
-            elif error_code == 'UnauthorizedException':  # pragma: no cover
+            elif error_code == 'UnauthorizedException':
                 raise Exception(f'Unauthorized to search in domain {domain_identifier}')
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(f'Invalid input while searching in domain {domain_identifier}')
-            else:  # pragma: no cover
+            else:
                 raise Exception(f'Error searching in domain {domain_identifier}: {str(e)}')
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             raise Exception(f'Unexpected error searching in domain {domain_identifier}: {str(e)}')
 
     @mcp.tool()
@@ -808,15 +808,15 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if filters_value:  # pragma: no cover
+            if filters_value:
                 params['filters'] = filters_value
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
-            if search_in_value:  # pragma: no cover
+            if search_in_value:
                 params['searchIn'] = search_in_value
-            if search_text_value:  # pragma: no cover
+            if search_text_value:
                 params['searchText'] = search_text_value
-            if sort_value:  # pragma: no cover
+            if sort_value:
                 params['sort'] = sort_value
 
             response = datazone_client.search_types(**params)
@@ -824,29 +824,29 @@ def register_tools(mcp: FastMCP):
                 f'Successfully searched types {search_scope.lower()} in domain {domain_identifier}'
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(
                     f'Access denied while searching types in domain {domain_identifier}'
                 )
-            elif error_code == 'InternalServerException':  # pragma: no cover
+            elif error_code == 'InternalServerException':
                 raise Exception(
                     f'Internal server error while searching types in domain {domain_identifier}'
                 )
-            elif error_code == 'ThrottlingException':  # pragma: no cover
+            elif error_code == 'ThrottlingException':
                 raise Exception(
                     f'Request throttled while searching types in domain {domain_identifier}'
                 )
-            elif error_code == 'UnauthorizedException':  # pragma: no cover
+            elif error_code == 'UnauthorizedException':
                 raise Exception(f'Unauthorized to search types in domain {domain_identifier}')
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(
                     f'Invalid input while searching types in domain {domain_identifier}'
                 )
-            else:  # pragma: no cover
+            else:
                 raise Exception(f'Error searching types in domain {domain_identifier}: {str(e)}')
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             raise Exception(
                 f'Unexpected error searching types in domain {domain_identifier}: {str(e)}'
             )
@@ -889,14 +889,14 @@ def register_tools(mcp: FastMCP):
             params = {'domainIdentifier': domain_identifier, 'userIdentifier': user_identifier}
 
             # Add optional parameters if provided
-            if user_type_value:  # pragma: no cover
+            if user_type_value:
                 valid_types = ['IAM', 'SSO']
-                if user_type_value not in valid_types:  # pragma: no cover
+                if user_type_value not in valid_types:
                     raise ValueError(f'user_type must be one of {valid_types}')
                 params['type'] = user_type_value
             response = datazone_client.get_user_profile(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(
                 f'Error getting user {user_identifier} profile in domain {domain_identifier}: {e}'
             )
@@ -971,9 +971,9 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if search_text_value:  # pragma: no cover
+            if search_text_value:
                 params['searchText'] = search_text_value
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
 
             response = datazone_client.search_user_profiles(**params)
@@ -981,33 +981,33 @@ def register_tools(mcp: FastMCP):
                 f'Successfully searched {user_type} user profiles in domain {domain_identifier}'
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(
                     f'Access denied while searching {user_type} user profiles in domain {domain_identifier}'
                 )
-            elif error_code == 'InternalServerException':  # pragma: no cover
+            elif error_code == 'InternalServerException':
                 raise Exception(
                     f'Internal server error while searching {user_type} user profiles in domain {domain_identifier}'
                 )
-            elif error_code == 'ThrottlingException':  # pragma: no cover
+            elif error_code == 'ThrottlingException':
                 raise Exception(
                     f'Request throttled while searching {user_type} user profiles in domain {domain_identifier}'
                 )
-            elif error_code == 'UnauthorizedException':  # pragma: no cover
+            elif error_code == 'UnauthorizedException':
                 raise Exception(
                     f'Unauthorized to search {user_type} user profiles in domain {domain_identifier}'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(
                     f'Invalid input while searching {user_type} user profiles in domain {domain_identifier}'
                 )
-            else:  # pragma: no cover
+            else:
                 raise Exception(
                     f'Error searching {user_type} user profiles in domain {domain_identifier}: {str(e)}'
                 )
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             raise Exception(
                 f'Unexpected error searching t{user_type} user profiles in domain {domain_identifier}: {str(e)}'
             )
@@ -1080,9 +1080,9 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if search_text_value:  # pragma: no cover
+            if search_text_value:
                 params['searchText'] = search_text_value
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
 
             response = datazone_client.search_group_profiles(**params)
@@ -1090,33 +1090,33 @@ def register_tools(mcp: FastMCP):
                 f'Successfully searched {group_type} group profiles in domain {domain_identifier}'
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(
                     f'Access denied while searching {group_type} group profiles in domain {domain_identifier}'
                 )
-            elif error_code == 'InternalServerException':  # pragma: no cover
+            elif error_code == 'InternalServerException':
                 raise Exception(
                     f'Internal server error while searching {group_type} group profiles in domain {domain_identifier}'
                 )
-            elif error_code == 'ThrottlingException':  # pragma: no cover
+            elif error_code == 'ThrottlingException':
                 raise Exception(
                     f'Request throttled while searching {group_type} group profiles in domain {domain_identifier}'
                 )
-            elif error_code == 'UnauthorizedException':  # pragma: no cover
+            elif error_code == 'UnauthorizedException':
                 raise Exception(
                     f'Unauthorized to search {group_type} group profiles in domain {domain_identifier}'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(
                     f'Invalid input while searching {group_type} group profiles in domain {domain_identifier}'
                 )
-            else:  # pragma: no cover
+            else:
                 raise Exception(
                     f'Error searching {group_type} group profiles in domain {domain_identifier}: {str(e)}'
                 )
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             raise Exception(
                 f'Unexpected error searching t{group_type} group profiles in domain {domain_identifier}: {str(e)}'
             )

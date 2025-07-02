@@ -22,7 +22,7 @@ _version_file = Path(__file__).parent.parent.parent / 'VERSION'
 if _version_file.exists():
     try:
         __version__ = _version_file.read_text().strip()
-    except FileNotFoundError:  # pragma: no cover
+    except FileNotFoundError:
         __version__ = 'unknown'
 else:
     __version__ = 'unknown'

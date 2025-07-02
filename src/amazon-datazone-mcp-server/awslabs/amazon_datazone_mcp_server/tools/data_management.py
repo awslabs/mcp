@@ -788,9 +788,9 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if metadata_forms_value:  # pragma: no cover
+            if metadata_forms_value:
                 params['metadataForms'] = metadata_forms_value
-            if client_token_value:  # pragma: no cover
+            if client_token_value:
                 params['clientToken'] = client_token_value
 
             response = datazone_client.create_subscription_request(**params)
@@ -848,9 +848,9 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if asset_scopes_value:  # pragma: no cover
+            if asset_scopes_value:
                 params['assetScopes'] = asset_scopes_value
-            if decision_comment_value:  # pragma: no cover
+            if decision_comment_value:
                 params['decisionComment'] = decision_comment_value
 
             response = datazone_client.accept_subscription_request(**params)
@@ -892,7 +892,7 @@ def register_tools(mcp: FastMCP):
                 domainIdentifier=domain_identifier, identifier=identifier
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(
                 f'Error getting subscription {identifier} in domain {domain_identifier}: {e}'
             )
@@ -955,12 +955,12 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional revision if provided
-            if revision_value:  # pragma: no cover
+            if revision_value:
                 params['revision'] = revision_value
 
             response = datazone_client.get_form_type(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(
                 f'Error getting form type {form_type_identifier} in domain {domain_identifier}: {e}'
             )
@@ -1045,14 +1045,14 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if description_value:  # pragma: no cover
+            if description_value:
                 params['description'] = description_value
 
             response = datazone_client.create_form_type(
                 domainIdentifier=domain_identifier, **params
             )
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(f'Error creating form type in domain {domain_identifier}: {e}')
 
     @mcp.tool()
@@ -1162,22 +1162,22 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
-            if status_value:  # pragma: no cover
+            if status_value:
                 params['status'] = status_value
-            if connection_identifier_value:  # pragma: no cover
+            if connection_identifier_value:
                 params['connectionIdentifier'] = connection_identifier_value
-            if environment_identifier_value:  # pragma: no cover
+            if environment_identifier_value:
                 params['environmentIdentifier'] = environment_identifier_value
-            if name_value:  # pragma: no cover
+            if name_value:
                 params['name'] = name_value
-            if data_source_type_value:  # pragma: no cover
+            if data_source_type_value:
                 params['type'] = data_source_type_value
 
             response = datazone_client.list_data_sources(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(
                 f'Error listing data sources in project {project_identifier} in domain {domain_identifier}: {e}'
             )

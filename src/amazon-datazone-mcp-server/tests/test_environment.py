@@ -359,3 +359,282 @@ class TestEnvironmentParameterValidation:
             projectIdentifier='prj_test123',
             maxResults=100,  # The function doesn't cap this, it passes through
         )
+
+
+class TestEnvironmentPragmaNoCoverHandling:
+    """Test pragma no cover scenarios in environment tools."""
+
+    @pytest.mark.asyncio
+    async def test_list_environments_with_all_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
+        """Test list_environments with all optional parameters - covers pragma no cover."""
+        list_environments = tool_extractor(mcp_server_with_tools, 'list_environments')
+        
+        mcp_server_with_tools._mock_client.list_environments.return_value = {'items': []}
+        
+        await list_environments(
+            domain_identifier='test-domain',
+            project_identifier='project-123',
+            max_results=25,
+            next_token='token-123',
+            aws_account_id='123456789012',
+            aws_account_region='us-east-1',
+            environment_blueprint_identifier='blueprint-123',
+            environment_profile_identifier='profile-123',
+            name='test-environment',
+            provider='AWS',
+            status='ACTIVE'
+        )
+        
+        call_kwargs = mcp_server_with_tools._mock_client.list_environments.call_args[1]
+        assert call_kwargs['nextToken'] == 'token-123'
+        assert call_kwargs['awsAccountId'] == '123456789012'
+        assert call_kwargs['awsAccountRegion'] == 'us-east-1'
+        assert call_kwargs['environmentBlueprintIdentifier'] == 'blueprint-123'
+        assert call_kwargs['environmentProfileIdentifier'] == 'profile-123'
+        assert call_kwargs['name'] == 'test-environment'
+        assert call_kwargs['provider'] == 'AWS'
+        assert call_kwargs['status'] == 'ACTIVE'
+
+    @pytest.mark.asyncio
+    async def test_list_environments_client_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test list_environments ClientError handling - covers pragma no cover."""
+        list_environments = tool_extractor(mcp_server_with_tools, 'list_environments')
+        
+        mcp_server_with_tools._mock_client.list_environments.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await list_environments(
+                domain_identifier='test-domain',
+                project_identifier='project-123'
+            )
+        
+        assert 'Error listing environments' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_create_connection_with_all_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
+        """Test create_connection with all optional parameters - covers pragma no cover."""
+        create_connection = tool_extractor(mcp_server_with_tools, 'create_connection')
+        
+        mcp_server_with_tools._mock_client.create_connection.return_value = {'connectionId': 'conn-123'}
+        
+        await create_connection(
+            domain_identifier='test-domain',
+            name='Test Connection',
+            environment_identifier='env-123',
+            aws_location={'awsRegion': 'us-east-1'},
+            description='Test connection description',
+            client_token='token-123',
+            props={'key': 'value'}
+        )
+        
+        call_kwargs = mcp_server_with_tools._mock_client.create_connection.call_args[1]
+        assert call_kwargs['environmentIdentifier'] == 'env-123'
+        assert call_kwargs['awsLocation'] == {'awsRegion': 'us-east-1'}
+        assert call_kwargs['description'] == 'Test connection description'
+        assert call_kwargs['clientToken'] == 'token-123'
+        assert call_kwargs['props'] == {'key': 'value'}
+
+    @pytest.mark.asyncio
+    async def test_create_connection_access_denied_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test AccessDeniedException handling in create_connection - covers pragma no cover."""
+        create_connection = tool_extractor(mcp_server_with_tools, 'create_connection')
+        
+        mcp_server_with_tools._mock_client.create_connection.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied while creating connection'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await create_connection(
+                domain_identifier='test-domain',
+                name='Test Connection'
+            )
+        
+        assert 'Access denied while creating connection in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_create_connection_conflict_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test ConflictException handling in create_connection - covers pragma no cover."""
+        create_connection = tool_extractor(mcp_server_with_tools, 'create_connection')
+        
+        mcp_server_with_tools._mock_client.create_connection.side_effect = mock_client_error(
+            'ConflictException', 'Connection already exists'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await create_connection(
+                domain_identifier='test-domain',
+                name='Test Connection'
+            )
+        
+        assert 'Conflict while creating connection in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_create_connection_resource_not_found_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test ResourceNotFoundException handling in create_connection - covers pragma no cover."""
+        create_connection = tool_extractor(mcp_server_with_tools, 'create_connection')
+        
+        mcp_server_with_tools._mock_client.create_connection.side_effect = mock_client_error(
+            'ResourceNotFoundException', 'Domain not found'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await create_connection(
+                domain_identifier='test-domain',
+                name='Test Connection'
+            )
+        
+        assert 'Resource not found while creating connection in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_create_connection_service_quota_exceeded_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test ServiceQuotaExceededException handling in create_connection - covers pragma no cover."""
+        create_connection = tool_extractor(mcp_server_with_tools, 'create_connection')
+        
+        mcp_server_with_tools._mock_client.create_connection.side_effect = mock_client_error(
+            'ServiceQuotaExceededException', 'Connection limit exceeded'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await create_connection(
+                domain_identifier='test-domain',
+                name='Test Connection'
+            )
+        
+        assert 'Service quota exceeded while creating connection in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_create_connection_validation_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test ValidationException handling in create_connection - covers pragma no cover."""
+        create_connection = tool_extractor(mcp_server_with_tools, 'create_connection')
+        
+        mcp_server_with_tools._mock_client.create_connection.side_effect = mock_client_error(
+            'ValidationException', 'Invalid parameters'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await create_connection(
+                domain_identifier='test-domain',
+                name='Test Connection'
+            )
+        
+        assert 'Invalid parameters while creating connection in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_create_connection_unknown_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test unknown error handling in create_connection - covers pragma no cover."""
+        create_connection = tool_extractor(mcp_server_with_tools, 'create_connection')
+        
+        mcp_server_with_tools._mock_client.create_connection.side_effect = mock_client_error(
+            'UnknownException', 'Unknown error'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await create_connection(
+                domain_identifier='test-domain',
+                name='Test Connection'
+            )
+        
+        assert 'Unexpected error creating connection in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_connection_with_secret_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
+        """Test get_connection with optional with_secret parameter - covers pragma no cover."""
+        get_connection = tool_extractor(mcp_server_with_tools, 'get_connection')
+        
+        mcp_server_with_tools._mock_client.get_connection.return_value = {'connectionId': 'conn-123'}
+        
+        await get_connection(
+            domain_identifier='test-domain',
+            identifier='conn-123',
+            with_secret=True
+        )
+        
+        call_kwargs = mcp_server_with_tools._mock_client.get_connection.call_args[1]
+        assert call_kwargs['withSecret'] == True
+
+    @pytest.mark.asyncio
+    async def test_get_connection_access_denied_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test AccessDeniedException handling in get_connection - covers pragma no cover."""
+        get_connection = tool_extractor(mcp_server_with_tools, 'get_connection')
+        
+        mcp_server_with_tools._mock_client.get_connection.side_effect = mock_client_error(
+            'AccessDeniedException', 'Access denied'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await get_connection(
+                domain_identifier='test-domain',
+                identifier='conn-123'
+            )
+        
+        assert 'Access denied while getting connection conn-123 in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_connection_resource_not_found_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test ResourceNotFoundException handling in get_connection - covers pragma no cover."""
+        get_connection = tool_extractor(mcp_server_with_tools, 'get_connection')
+        
+        mcp_server_with_tools._mock_client.get_connection.side_effect = mock_client_error(
+            'ResourceNotFoundException', 'Connection not found'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await get_connection(
+                domain_identifier='test-domain',
+                identifier='conn-123'
+            )
+        
+        assert 'Connection conn-123 not found in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_connection_validation_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test ValidationException handling in get_connection - covers pragma no cover."""
+        get_connection = tool_extractor(mcp_server_with_tools, 'get_connection')
+        
+        mcp_server_with_tools._mock_client.get_connection.side_effect = mock_client_error(
+            'ValidationException', 'Invalid parameters'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await get_connection(
+                domain_identifier='test-domain',
+                identifier='conn-123'
+            )
+        
+        assert 'Invalid parameters for getting connection conn-123 in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_connection_unknown_error_pragma_coverage(self, mcp_server_with_tools, tool_extractor, mock_client_error):
+        """Test unknown error handling in get_connection - covers pragma no cover."""
+        get_connection = tool_extractor(mcp_server_with_tools, 'get_connection')
+        
+        mcp_server_with_tools._mock_client.get_connection.side_effect = mock_client_error(
+            'UnknownException', 'Unknown error'
+        )
+        
+        with pytest.raises(Exception) as exc_info:
+            await get_connection(
+                domain_identifier='test-domain',
+                identifier='conn-123'
+            )
+        
+        assert 'Unexpected error getting connection conn-123 in domain test-domain' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_connections_with_optional_params_pragma_coverage(self, mcp_server_with_tools, tool_extractor):
+        """Test list_connections with all optional parameters - covers pragma no cover."""
+        list_connections = tool_extractor(mcp_server_with_tools, 'list_connections')
+        
+        mcp_server_with_tools._mock_client.list_connections.return_value = {'items': []}
+        
+        await list_connections(
+            domain_identifier='test-domain',
+            project_identifier='project-123',
+            max_results=25,
+            next_token='token-123'
+        )
+        
+        call_kwargs = mcp_server_with_tools._mock_client.list_connections.call_args[1]
+        assert call_kwargs['nextToken'] == 'token-123'

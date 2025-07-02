@@ -103,26 +103,26 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
-            if aws_account_id_value:  # pragma: no cover
+            if aws_account_id_value:
                 params['awsAccountId'] = aws_account_id_value
-            if aws_account_region_value:  # pragma: no cover
+            if aws_account_region_value:
                 params['awsAccountRegion'] = aws_account_region_value
-            if environment_blueprint_identifier_value:  # pragma: no cover
+            if environment_blueprint_identifier_value:
                 params['environmentBlueprintIdentifier'] = environment_blueprint_identifier_value
-            if environment_profile_identifier_value:  # pragma: no cover
+            if environment_profile_identifier_value:
                 params['environmentProfileIdentifier'] = environment_profile_identifier_value
-            if name_value:  # pragma: no cover
+            if name_value:
                 params['name'] = name_value
-            if provider_value:  # pragma: no cover
+            if provider_value:
                 params['provider'] = provider_value
-            if status_value:  # pragma: no cover
+            if status_value:
                 params['status'] = status_value
 
             response = datazone_client.list_environments(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             raise Exception(f'Error listing environments: {e}')
 
     @mcp.tool()
@@ -211,44 +211,44 @@ def register_tools(mcp: FastMCP):
             params: Dict[str, Any] = {'domainIdentifier': domain_identifier, 'name': name}
 
             # Add optional parameters if provided
-            if environment_identifier_value:  # pragma: no cover
+            if environment_identifier_value:
                 params['environmentIdentifier'] = environment_identifier_value
-            if aws_location_value:  # pragma: no cover
+            if aws_location_value:
                 params['awsLocation'] = aws_location_value
-            if description_value:  # pragma: no cover
+            if description_value:
                 params['description'] = description_value
-            if client_token_value:  # pragma: no cover
+            if client_token_value:
                 params['clientToken'] = client_token_value
-            if props_value:  # pragma: no cover
+            if props_value:
                 params['props'] = props_value
 
             response = datazone_client.create_connection(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
             error_message = e.response['Error']['Message']
 
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(
                     f'Access denied while creating connection in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ConflictException':  # pragma: no cover
+            elif error_code == 'ConflictException':
                 raise Exception(
                     f'Conflict while creating connection in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 raise Exception(
                     f'Resource not found while creating connection in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ServiceQuotaExceededException':  # pragma: no cover
+            elif error_code == 'ServiceQuotaExceededException':
                 raise Exception(
                     f'Service quota exceeded while creating connection in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(
                     f'Invalid parameters while creating connection in domain {domain_identifier}: {error_message}'
                 )
-            else:  # pragma: no cover
+            else:
                 raise Exception(
                     f'Unexpected error creating connection in domain {domain_identifier}: {error_message}'
                 )
@@ -314,28 +314,28 @@ def register_tools(mcp: FastMCP):
             }
             with_secret_value = _get_param_value(with_secret)
             # Add with_secret parameter if True
-            if with_secret_value:  # pragma: no cover
+            if with_secret_value:
                 params['withSecret'] = with_secret_value
 
             response = datazone_client.get_connection(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             error_message = e.response.get('Error', {}).get('Message', str(e))
 
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(
                     f'Access denied while getting connection {identifier} in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 raise Exception(
                     f'Connection {identifier} not found in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(
                     f'Invalid parameters while getting connection {identifier} in domain {domain_identifier}: {error_message}'
                 )
-            else:  # pragma: no cover
+            else:
                 raise Exception(
                     f'Error getting connection {identifier} in domain {domain_identifier}: {error_message}'
                 )
@@ -416,23 +416,23 @@ def register_tools(mcp: FastMCP):
 
             response = datazone_client.get_environment(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             error_message = e.response.get('Error', {}).get('Message', str(e))
 
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(
                     f'Access denied while getting environment {identifier} in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 raise Exception(
                     f'Environment {identifier} not found in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(
                     f'Invalid parameters while getting environment {identifier} in domain {domain_identifier}: {error_message}'
                 )
-            else:  # pragma: no cover
+            else:
                 raise Exception(
                     f'Error getting environment {identifier} in domain {domain_identifier}: {error_message}'
                 )
@@ -492,23 +492,23 @@ def register_tools(mcp: FastMCP):
 
             response = datazone_client.get_environment_blueprint(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             error_message = e.response.get('Error', {}).get('Message', str(e))
 
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(
                     f'Access denied while getting environment {identifier} blueprint in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 raise Exception(
                     f'Environment {identifier} not found in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(
                     f'Invalid parameters while getting environment {identifier} blueprint in domain {domain_identifier}: {error_message}'
                 )
-            else:  # pragma: no cover
+            else:
                 raise Exception(
                     f'Error getting environment {identifier} blueprint in domain {domain_identifier}: {error_message}'
                 )
@@ -566,23 +566,23 @@ def register_tools(mcp: FastMCP):
             }
             response = datazone_client.get_environment_blueprint_configuration(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             error_message = e.response.get('Error', {}).get('Message', str(e))
 
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(
                     f'Access denied while getting environment blueprint {identifier}  configuration in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 raise Exception(
                     f'Environment blueprint {identifier} not found in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(
                     f'Invalid parameters while getting environment blueprint {identifier} configuration in domain {domain_identifier}: {error_message}'
                 )
-            else:  # pragma: no cover
+            else:
                 raise Exception(
                     f'Error getting environment blueprint {identifier} configuration in domain {domain_identifier}: {error_message}'
                 )
@@ -655,34 +655,34 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters if provided
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
-            if environment_identifier_value:  # pragma: no cover
+            if environment_identifier_value:
                 params['environmentIdentifier'] = environment_identifier_value
-            if name_value:  # pragma: no cover
+            if name_value:
                 params['name'] = name_value
-            if sort_by_value:  # pragma: no cover
+            if sort_by_value:
                 params['sortBy'] = sort_by_value
-            if sort_order_value:  # pragma: no cover
+            if sort_order_value:
                 params['sortOrder'] = sort_order_value
-            if type_value:  # pragma: no cover
+            if type_value:
                 params['type'] = type_value
 
             response = datazone_client.list_connections(**params)
             return response
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
             error_message = e.response['Error']['Message']
 
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 raise Exception(
                     f'Access denied while listing connections in domain {domain_identifier}: {error_message}'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 raise Exception(
                     f'Invalid parameters while listing connections in domain {domain_identifier}: {error_message}'
                 )
-            else:  # pragma: no cover
+            else:
                 raise Exception(
                     f'Unexpected error listing connections in domain {domain_identifier}: {error_message}'
                 )
@@ -744,11 +744,11 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters
-            if managed_value is not None:  # pragma: no cover
+            if managed_value is not None:
                 params['managed'] = managed_value
-            if name_value:  # pragma: no cover
+            if name_value:
                 params['name'] = name_value
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
 
             # List the environment blueprints
@@ -775,37 +775,37 @@ def register_tools(mcp: FastMCP):
             )
             return result
 
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 logger.error(
                     f'Access denied while listing environment blueprints in domain {domain_identifier}'
                 )
                 raise Exception(
                     f'Access denied while listing environment blueprints in domain {domain_identifier}'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 logger.error(
                     f'Domain {domain_identifier} not found while listing environment blueprints'
                 )
                 raise Exception(
                     f'Domain {domain_identifier} not found while listing environment blueprints'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 logger.error(
                     f'Invalid parameters for listing environment blueprints in domain {domain_identifier}'
                 )
                 raise Exception(
                     f'Invalid parameters for listing environment blueprints in domain {domain_identifier}'
                 )
-            else:  # pragma: no cover
+            else:
                 logger.error(
                     f'Error listing environment blueprints in domain {domain_identifier}: {str(e)}'
                 )
                 raise Exception(
                     f'Error listing environment blueprints in domain {domain_identifier}: {str(e)}'
                 )
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             logger.error(
                 f'Unexpected error listing environment blueprints in domain {domain_identifier}: {str(e)}'
             )
@@ -870,7 +870,7 @@ def register_tools(mcp: FastMCP):
                 ),  # Ensure maxResults is within valid range
             }
 
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
 
             # List the environment blueprint configurations
@@ -902,37 +902,37 @@ def register_tools(mcp: FastMCP):
             )
             return result
 
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 logger.error(
                     f'Access denied while listing environment blueprint configurations in domain {domain_identifier}'
                 )
                 raise Exception(
                     f'Access denied while listing environment blueprint configurations in domain {domain_identifier}'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 logger.error(
                     f'Domain {domain_identifier} not found while listing environment blueprint configurations'
                 )
                 raise Exception(
                     f'Domain {domain_identifier} not found while listing environment blueprint configurations'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 logger.error(
                     f'Invalid parameters for listing environment blueprint configurations in domain {domain_identifier}'
                 )
                 raise Exception(
                     f'Invalid parameters for listing environment blueprint configurations in domain {domain_identifier}'
                 )
-            else:  # pragma: no cover
+            else:
                 logger.error(
                     f'Error listing environment blueprint configurations in domain {domain_identifier}: {str(e)}'
                 )
                 raise Exception(
                     f'Error listing environment blueprint configurations in domain {domain_identifier}: {str(e)}'
                 )
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             logger.error(
                 f'Unexpected error listing environment blueprint configurations in domain {domain_identifier}: {str(e)}'
             )
@@ -1034,17 +1034,17 @@ def register_tools(mcp: FastMCP):
             }
 
             # Add optional parameters
-            if aws_account_id_value:  # pragma: no cover
+            if aws_account_id_value:
                 params['awsAccountId'] = aws_account_id_value
-            if aws_account_region_value:  # pragma: no cover
+            if aws_account_region_value:
                 params['awsAccountRegion'] = aws_account_region_value
-            if environment_blueprint_identifier_value:  # pragma: no cover
+            if environment_blueprint_identifier_value:
                 params['environmentBlueprintIdentifier'] = environment_blueprint_identifier_value
-            if name_value:  # pragma: no cover
+            if name_value:
                 params['name'] = name_value
-            if next_token_value:  # pragma: no cover
+            if next_token_value:
                 params['nextToken'] = next_token_value
-            if project_identifier_value:  # pragma: no cover
+            if project_identifier_value:
                 params['projectIdentifier'] = project_identifier_value
 
             # List the environment profiles
@@ -1075,37 +1075,37 @@ def register_tools(mcp: FastMCP):
             )
             return result
 
-        except ClientError as e:  # pragma: no cover
+        except ClientError as e:
             error_code = e.response['Error']['Code']
-            if error_code == 'AccessDeniedException':  # pragma: no cover
+            if error_code == 'AccessDeniedException':
                 logger.error(
                     f'Access denied while listing environment profiles in domain {domain_identifier}'
                 )
                 raise Exception(
                     f'Access denied while listing environment profiles in domain {domain_identifier}'
                 )
-            elif error_code == 'ResourceNotFoundException':  # pragma: no cover
+            elif error_code == 'ResourceNotFoundException':
                 logger.error(
                     f'Domain {domain_identifier} not found while listing environment profiles'
                 )
                 raise Exception(
                     f'Domain {domain_identifier} not found while listing environment profiles'
                 )
-            elif error_code == 'ValidationException':  # pragma: no cover
+            elif error_code == 'ValidationException':
                 logger.error(
                     f'Invalid parameters for listing environment profiles in domain {domain_identifier}'
                 )
                 raise Exception(
                     f'Invalid parameters for listing environment profiles in domain {domain_identifier}'
                 )
-            else:  # pragma: no cover
+            else:
                 logger.error(
                     f'Error listing environment profiles in domain {domain_identifier}: {str(e)}'
                 )
                 raise Exception(
                     f'Error listing environment profiles in domain {domain_identifier}: {str(e)}'
                 )
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             logger.error(
                 f'Unexpected error listing environment profiles in domain {domain_identifier}: {str(e)}'
             )
