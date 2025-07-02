@@ -28,9 +28,10 @@ NOTICE                                @awslabs/mcp-admins
 /src/amazon-rekognition-mcp-server      @ayush987goyal                   @awslabs/mcp-admins
 /src/amazon-sns-sqs-mcp-server          @kenliao94 @hashimsharkh         @awslabs/mcp-admins
 #/src/aurora-dsql-mcp-server            @awslabs/mcp-maintainers         @awslabs/mcp-admins
-#/src/aws-bedrock-data-automation-mcp-server @awslabs/mcp-maintainers         @awslabs/mcp-admins
+#/src/aws-bedrock-data-automation-mcp-server @awslabs/mcp-maintainers    @awslabs/mcp-admins
 /src/aws-diagram-mcp-server             @MichaelWalker-git               @awslabs/mcp-admins
 /src/aws-documentation-mcp-server       @Lavoiedavidw @JonLim            @awslabs/mcp-admins
+/src/aws-healthomics-mcp-server         @markjschreiber			             @awslabs/mcp-admins
 #/src/aws-location-mcp-server           @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/aws-serverless-mcp-server          @bx9900                          @awslabs/mcp-admins
 /src/aws-support-mcp-server             @Wook133                         @awslabs/mcp-admins
@@ -59,7 +60,9 @@ NOTICE                                @awslabs/mcp-admins
 #/src/openapi-mcp-server                @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/postgres-mcp-server                @kennthhz                        @awslabs/mcp-admins
 /src/prometheus-mcp-server              @MohamedSherifAbdelsamiea        @awslabs/mcp-admins
+/src/redshift-mcp-server                @grayhemp                        @awslabs/mcp-admins
 /src/stepfunctions-tool-mcp-server      @mmouniro                        @awslabs/mcp-admins
+
 /src/syntheticdata-mcp-server           @pranjbh                         @awslabs/mcp-admins
 /src/terraform-mcp-server               @alexa-perlov                    @awslabs/mcp-admins
 /src/timestream-for-influxdb-mcp-server @lokendrp-aws                    @awslabs/mcp-admins
