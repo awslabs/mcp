@@ -312,7 +312,7 @@ A server for Aurora MySql.
 
 ### Amazon CloudWatch MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for CloudWatch provides AI-powered troubleshooting tools across metrics, alarms, and logs, enabling rapid root cause analysis and intelligent recommendations. It offers comprehensive observability tools that simplify monitoring, reduce context switching, and help teams quickly diagnose and resolve service issues. This server will provide AI agents and application developers with seamless access to CloudWatch telemetry data through standardized MCP interfaces, eliminating the need for custom API solutions and reducing context switching during troubleshooting workflows. By consolidating access to all CloudWatch capabilities, we enable powerful cross-service correlations and insights that accelerate incident resolution and improve operational visibility.
+This AWS Labs Model Context Protocol (MCP) server for CloudWatch enables your troubleshooting agents to use CloudWatch data to do AI-powered root cause analysis and provide recommendations. It offers comprehensive observability tools that simplify monitoring, reduce context switching, and help teams quickly diagnose and resolve service issues. This server will provide AI agents with seamless access to CloudWatch telemetry data through standardized MCP interfaces, eliminating the need for custom API integrations and reducing context switching during troubleshooting workflows. By consolidating access to all CloudWatch capabilities, we enable powerful cross-service correlations and insights that accelerate incident resolution and improve operational visibility.
 
 **Features:**
 The CloudWatch MCP Server provides specialized tools to address common operational scenarios including alarm troubleshooting, understand metrics definitions, alarm recommendations and log analysis. Each tool encapsulates one or multiple CloudWatch APIs into task-oriented operations.
@@ -323,7 +323,7 @@ The CloudWatch MCP Server provides specialized tools to address common operation
 
 - Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated, recommended statistics to use for metric data retrieval
 
-- Alarm Recommendations - Suggests optimal alarm configurations based on best practices. Helps reduce false positives and ensure appropriate coverage of critical metrics.
+- Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm
 
 [Learn more about the Amazon CloudWatch MCP Server](servers/cloudwatch-mcp-server.md)
 

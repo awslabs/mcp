@@ -1,6 +1,6 @@
 # AWS Labs cloudwatch MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for CloudWatch provides AI-powered troubleshooting tools across metrics, alarms, and logs, enabling rapid root cause analysis and intelligent recommendations. It offers comprehensive observability tools that simplify monitoring, reduce context switching, and help teams quickly diagnose and resolve service issues. This server will provide AI agents and application developers with seamless access to CloudWatch telemetry data through standardized MCP interfaces, eliminating the need for custom API solutions and reducing context switching during troubleshooting workflows. By consolidating access to all CloudWatch capabilities, we enable powerful cross-service correlations and insights that accelerate incident resolution and improve operational visibility.
+This AWS Labs Model Context Protocol (MCP) server for CloudWatch enables your troubleshooting agents to use CloudWatch data to do AI-powered root cause analysis and provide recommendations. It offers comprehensive observability tools that simplify monitoring, reduce context switching, and help teams quickly diagnose and resolve service issues. This server will provide AI agents with seamless access to CloudWatch telemetry data through standardized MCP interfaces, eliminating the need for custom API integrations and reducing context switching during troubleshooting workflows. By consolidating access to all CloudWatch capabilities, we enable powerful cross-service correlations and insights that accelerate incident resolution and improve operational visibility.
 
 ## Instructions
 
@@ -14,7 +14,7 @@ Log Analyzer - Analyzes a CloudWatch log group for anomalies, message patterns, 
 
 Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated, recommended statistics to use for metric data retrieval
 
-Alarm Recommendations - Suggests optimal alarm configurations based on best practices. Helps reduce false positives and ensure appropriate coverage of critical metrics.
+Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm 
 
 ## Prerequisites
 
@@ -28,21 +28,21 @@ Alarm Recommendations - Suggests optimal alarm configurations based on best prac
 
 ## Available Tools
 
-### Core Tools from CloudWatch Metrics
-* `get_metric_data` - Retrieves detailed metric data for any CloudWatch metric
+### Tools for CloudWatch Metrics
+* `get_metric_data` - Retrieves detailed CloudWatch metric data for any CloudWatch metric. Use this for general CloudWatch metrics that aren't specific to Application Signals. Provides ability to query any metric namespace, dimension, and statistic
 * `get_metric_metadata` - Retrieves comprehensive metadata about a specific CloudWatch metric
 * `get_recommended_metric_alarms` - Gets recommended alarms for a CloudWatch metric
 
-### Core Tools from CloudWatch Alarms
-* `get_active_alarms` - Identifies currently active alarms across the account
-* `get_alarm_history` - Retrieves historical alarm state changes and patterns
+### Tools for CloudWatch Alarms
+* `get_active_alarms` - Identifies currently active CloudWatch alarms across the account
+* `get_alarm_history` - Retrieves historical state changes and patterns for a given CloudWatch alarm
 
-### Core Tools from CloudWatch Logs
-* `describe_log_groups` - Finds metadata about log groups
-* `analyze_log_group` - Analyzes logs for anomalies, message patterns, and error patterns
-* `execute_log_insights_query` - Executes queries with time-frame and query input
-* `get_logs_insight_query_results` - Retrieves results from executed queries
-* `cancel_logs_insight_query` - Cancels running queries
+### Tools for CloudWatch Logs
+* `describe_log_groups` - Finds metadata about CloudWatch log groups
+* `analyze_log_group` - Analyzes CloudWatch logs for anomalies, message patterns, and error patterns
+* `execute_log_insights_query` - Executes CloudWatch Logs Insights query on CloudWatch log group(s) with specified time range and query syntax, returns a unique ID used to retrieve results
+* `get_logs_insight_query_results` - Retrieves the results of an executed CloudWatch Insights query using the query ID. It is used after `execute_log_insights_query` has been called
+* `cancel_logs_insight_query` - Cancels in progress CloudWatch logs insight query
 
 ### Required IAM Permissions
 * `cloudwatch:DescribeAlarms`
@@ -77,7 +77,7 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
       ],
       "env": {
         "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
-        "AWS_REGION": "[The AWS region to run in]",
+        "AWS_REGION": "[The target AWS region]",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "transportType": "stdio"
@@ -85,6 +85,8 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
   }
 }
 ```
+
+Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) to create and manage your credentials profile 
 
 ### Build and install docker image locally on the same host of your LLM client
 
