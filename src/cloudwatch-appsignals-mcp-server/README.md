@@ -4,7 +4,17 @@ An MCP (Model Context Protocol) server that provides tools for monitoring and an
 
 This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to help you monitor service health, analyze performance metrics, track SLO compliance, and investigate issues using distributed tracing.
 
-## Features
+## Key Features
+
+1. Monitor overall service health, diagnose root causes, and recommend actionable fixes with the built-in APM expertise.
+2. Generate business insights from telemetry data through natural language queries.
+
+## Prerequisites
+
+1. [Sign-Up for an AWS account](https://aws.amazon.com/free/?trk=78b916d7-7c94-4cab-98d9-0ce5e648dd5f&sc_channel=ps&ef_id=Cj0KCQjwxJvBBhDuARIsAGUgNfjOZq8r2bH2OfcYfYTht5v5I1Bn0lBKiI2Ii71A8Gk39ZU5cwMLPkcaAo_CEALw_wcB:G:s&s_kwcid=AL!4422!3!432339156162!e!!g!!aws%20sign%20up!9572385111!102212379327&gad_campaignid=9572385111&gbraid=0AAAAADjHtp99c5A9DUyUaUQVhVEoi8of3&gclid=Cj0KCQjwxJvBBhDuARIsAGUgNfjOZq8r2bH2OfcYfYTht5v5I1Bn0lBKiI2Ii71A8Gk39ZU5cwMLPkcaAo_CEALw_wcB)
+2. [Enable Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Monitoring-Sections.html) for your applications
+3. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
+4. Install Python using `uv python install 3.10`
 
 ### Available Tools
 
@@ -18,26 +28,36 @@ This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to h
    - View available CloudWatch metrics
    - Find associated log groups
 
+## Required IAM Permissions
+
+* `application-signals:List*`
+* `application-signals:Get*`
+* `xray:BatchGet*`
+* `xray:Get*`
+* `cloudwatch:GetMetricData`
+* `logs:Get*`
+* `logs:StartQuery`
+* `logs:StopQuery`
+
 ## Installation
-
-### Installing via Smithery
-
-To install CloudWatch Application Signals MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/awslabs.cloudwatch-appsignals-mcp-server):
-
-```bash
-npx @smithery/cli install awslabs.cloudwatch-appsignals-mcp-server --client claude
-```
 
 ### Installing via Cursor
 
 To install CloudWatch Application Signals MCP Server for Cursor automatically:
 
-[![Install in Cursor](https://img.shields.io/badge/Install%20in%20Cursor-Install-blue?style=for-the-badge&logo=cursor&logoColor=white)](https://cursor.com/settings/extensions/install?server=awslabs.cloudwatch-appsignals-mcp-server)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.cloudwatch-appsignals-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidGltZW91dCI6NjAsImNvbW1hbmQiOiJ1dnggYXdzbGFicy5jbG91ZHdhdGNoLWFwcHNpZ25hbHMtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJbVGhlIEFXUyBQcm9maWxlIE5hbWUgdG8gdXNlIGZvciBBV1MgYWNjZXNzXSIsIkFXU19SRUdJT04iOiJbVGhlIEFXUyByZWdpb24gdG8gcnVuIGluXSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D)
 
 ### Installing via `uv`
 
 When using [`uv`](https://docs.astral.sh/uv/) no specific installation is needed. We will
 use [`uvx`](https://docs.astral.sh/uv/guides/tools/) to directly run *awslabs.cloudwatch-appsignals-mcp-server*.
+
+### Installing for Amazon Q (Preview)
+
+- Start Q Developer from [here](https://q.aws/chat).
+- Click on "Manage Connectors" and choose MCP Client.
+- Click "Add New Context Connector," enter a name like "CloudWatch AppSignals," and enter the command in the format: `uvx awslabs.cloudwatch-appsignals-mcp-server`.
+- Verify it shows "Connected" in green under the connector.
 
 ### Installing via Claude Desktop
 
@@ -74,13 +94,6 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
   }
   ```
 </details>
-
-### Installing for Amazon Q (Preview)
-
-- Start Q Developer from [here](https://q.aws/chat).
-- Click on "Manage Connectors" and choose MCP Client.
-- Click "Add New Context Connector," enter a name like "CloudWatch AppSignals," and enter the command in the format: `uvx awslabs.cloudwatch-appsignals-mcp-server`.
-- Verify it shows "Connected" in green under the connector.
 
 ### Debugging
 
