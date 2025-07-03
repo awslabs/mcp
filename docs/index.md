@@ -356,6 +356,20 @@ The Prometheus MCP Server provides a robust interface for interacting with AWS M
 
 [Learn more about the AWS Managed Prometheus MCP Server](servers/prometheus-mcp-server.md)
 
+### Amazon CloudWatch Application Signals MCP Server
+
+The CloudWatch Application Signals MCP Server provides tools for monitoring and analyzing AWS services using AWS Application Signals.
+
+**Features:**
+
+- List all services monitored by AWS Application Signals
+- Get detailed information about specific services including configuration, metrics, and log groups
+- View service names, types, and key attributes
+- Access available CloudWatch metrics and dimensions
+- Find associated log groups for debugging
+
+[Learn more about the Amazon CloudWatch Application Signals MCP Server](servers/cloudwatch-appsignals-mcp-server.md)
+
 ### Amazon DynamoDB MCP Server
 
 A server for interacting with Amazon DynamoDB
