@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block scripts %}
+<!-- Add scripts that need to run before here -->
+{{ super() }}
+<!-- Add Feather Icons -->
+<script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Initialize feather icons
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
+
+        // Re-initialize feather icons when content changes (for dynamic content)
+        const observer = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                if (mutation.type === 'childList' && typeof feather !== 'undefined') {
+                    feather.replace();
+                }
+            });
+        });
+
+        // Observe the server cards container for changes
+        const cardContainer = document.getElementById('server-cards-container');
+        if (cardContainer) {
+            observer.observe(cardContainer, { childList: true, subtree: true });
+        }
+    });
+</script>
+{% endblock %}
