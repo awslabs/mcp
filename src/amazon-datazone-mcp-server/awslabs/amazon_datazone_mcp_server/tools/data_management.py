@@ -14,6 +14,7 @@
 """Data management tools for Amazon DataZone."""
 
 from .common import ClientError, _get_param_value, datazone_client, logger
+from ..context import Context
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -304,6 +305,8 @@ def register_tools(mcp: FastMCP):
                 - Forms and metadata
                 - Glossary terms
         """
+        # Check write permissions
+        Context.check_write_permission('publish_asset')
         try:
             # Handle optional parameters
             revision_value = _get_param_value(revision)
@@ -530,6 +533,8 @@ def register_tools(mcp: FastMCP):
                 - Last run information
                 - Error messages (if any)
         """
+        # Check write permissions
+        Context.check_write_permission('create_data_source')
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)
@@ -665,6 +670,8 @@ def register_tools(mcp: FastMCP):
             )
             ```
         """
+        # Check write permissions
+        Context.check_write_permission('start_data_source_run')
         try:
             # Handle optional parameters
             client_token_value = _get_param_value(client_token)
@@ -774,6 +781,7 @@ def register_tools(mcp: FastMCP):
                 - Metadata forms
                 - Reviewer information
         """
+        Context.check_write_permission('create_subscription_request')
         try:
             # Handle optional parameters
             metadata_forms_value = _get_param_value(metadata_forms)
@@ -836,6 +844,7 @@ def register_tools(mcp: FastMCP):
                 - Metadata forms
                 - Reviewer information
         """
+        Context.check_write_permission('accept_subscription_request')
         try:
             # Handle optional parameters
             asset_scopes_value = _get_param_value(asset_scopes)
@@ -1027,6 +1036,7 @@ def register_tools(mcp: FastMCP):
             )
             ```
         """
+        Context.check_write_permission('create_form_type')
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)

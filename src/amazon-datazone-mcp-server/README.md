@@ -124,6 +124,87 @@ async def main():
 asyncio.run(main())
 ```
 
+## Server Configuration
+
+### Read-Only Mode
+
+By default, the DataZone MCP server runs in **read-only mode** for enhanced security. In this mode, only read operations (like `get_domain`, `list_projects`, `search_listings`) are allowed, while write operations (like `create_domain`, `create_project`, `publish_asset`) are blocked.
+
+#### Starting in Read-Only Mode (Default)
+
+```bash
+# Default behavior - read-only mode
+python -m awslabs.amazon_datazone_mcp_server.server
+```
+
+#### Enabling Write Operations
+
+To allow write operations, use the `--allow-writes` flag:
+
+```bash
+# Enable write operations
+python -m awslabs.amazon_datazone_mcp_server.server --allow-writes
+```
+
+#### MCP Client Configuration
+
+When configuring with MCP clients, you can enable writes by adding the argument:
+
+```json
+{
+  "mcpServers": {
+    "amazon-datazone": {
+      "command": "python",
+      "args": [
+        "-m", 
+        "awslabs.amazon_datazone_mcp_server.server",
+        "--allow-writes"
+      ]
+    }
+  }
+}
+```
+
+#### Write Operations Restricted in Read-Only Mode
+
+The following operations are blocked when running in read-only mode:
+
+**Domain Management:**
+- `create_domain` - Create new domains
+- `create_domain_unit` - Create domain units
+
+**Project Management:**
+- `create_project` - Create new projects
+- `create_project_membership` - Add project members
+- `create_project_profile` - Create project profiles
+
+**Data Management:**
+- `create_asset` - Create data assets
+- `publish_asset` - Publish assets to catalog
+- `create_data_source` - Create data sources
+- `start_data_source_run` - Start data ingestion
+- `accept_subscription_request` - Accept subscription requests
+- `create_subscription_request` - Create subscription requests
+- `create_form_type` - Create metadata forms
+
+**Glossary Management:**
+- `create_glossary` - Create business glossaries
+- `create_glossary_term` - Create glossary terms
+
+**Environment Management:**
+- `create_connection` - Create data connections
+
+#### Security Best Practices
+
+We recommend using least-privilege access when connecting to Amazon DataZone:
+
+1. **Default to Read-Only**: Start in read-only mode unless write operations are explicitly needed
+2. **Use Read-Only Roles**: Configure AWS credentials with read-only permissions when possible
+3. **Enable Writes Selectively**: Only use `--allow-writes` in trusted environments where data modification is required
+4. **Monitor Operations**: Enable logging to track all operations performed through the MCP server
+
+The read-only mode provides client-side enforcement to reject mutations and helps prevent accidental modifications to your DataZone resources.
+
 ## Usage Examples
 
 ### Creating a DataZone Domain

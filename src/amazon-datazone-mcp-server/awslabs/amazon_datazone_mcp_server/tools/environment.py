@@ -14,6 +14,7 @@
 """Environment management tools for Amazon DataZone."""
 
 from .common import ClientError, _get_param_value, datazone_client, logger
+from ..context import Context
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, Optional
@@ -199,6 +200,8 @@ def register_tools(mcp: FastMCP):
             ...     description='Connection to external service',
             ... )
         """
+        # Check write permissions
+        Context.check_write_permission('create_connection')
         try:
             # Handle optional parameters
             environment_identifier_value = _get_param_value(environment_identifier)

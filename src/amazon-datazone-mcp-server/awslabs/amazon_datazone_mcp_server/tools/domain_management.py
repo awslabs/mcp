@@ -14,6 +14,7 @@
 """Domain management tools for Amazon DataZone."""
 
 from .common import ClientError, _get_param_value, datazone_client, logger
+from ..context import Context
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -82,6 +83,8 @@ def register_tools(mcp: FastMCP):
                 - portal_url: Data portal URL
                 - root_domain_unit_id: Root domain unit ID
         """
+        # Check write permissions
+        Context.check_write_permission('create_domain')
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)
@@ -307,6 +310,8 @@ def register_tools(mcp: FastMCP):
                 - created_by: Creator information
                 - owners: List of domain unit owners
         """
+        # Check write permissions
+        Context.check_write_permission('create_domain_unit')
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)
@@ -493,6 +498,7 @@ def register_tools(mcp: FastMCP):
         Returns:
             Any: The API response
         """
+        Context.check_write_permission('add_entity_owner')
         try:
             # Handle optional parameters
             client_token_value = _get_param_value(client_token)
@@ -561,6 +567,7 @@ def register_tools(mcp: FastMCP):
         Returns:
             Any: The API response
         """
+        Context.check_write_permission('add_policy_grant')
         try:
             # Handle optional parameters
             client_token_value = _get_param_value(client_token)

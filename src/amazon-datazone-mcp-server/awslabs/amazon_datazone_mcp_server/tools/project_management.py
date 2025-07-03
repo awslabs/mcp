@@ -14,6 +14,7 @@
 """Project management tools for Amazon DataZone."""
 
 from .common import USER_AGENT, ClientError, _get_param_value, datazone_client, httpx, logger
+from ..context import Context
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -56,6 +57,8 @@ def register_tools(mcp: FastMCP):
         Returns:
             Any: The API response containing the created project details
         """
+        # Check write permissions
+        Context.check_write_permission('create_project')
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)
@@ -190,6 +193,8 @@ def register_tools(mcp: FastMCP):
             designation (str): The designation of the member.
             memberIdentifier (str): The identifier of the member.
         """
+        # Check write permissions
+        Context.check_write_permission('create_project_membership')
         headers = {
             'User-Agent': USER_AGENT,
             'Accept': 'application/json',
@@ -304,6 +309,8 @@ def register_tools(mcp: FastMCP):
                 - created_by: Creator information
                 - last_updated_at: Last update timestamp
         """
+        # Check write permissions
+        Context.check_write_permission('create_project_profile')
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import json
 import logging
 import sys
@@ -23,6 +24,7 @@ from .tools import (  # bedrock
     glossary,
     project_management,
 )
+from .context import Context
 from mcp.server.fastmcp import FastMCP
 
 
@@ -43,6 +45,27 @@ environment.register_tools(mcp)
 
 def main():
     """Entry point for console script."""
+    parser = argparse.ArgumentParser(
+        description='An AWS Labs Model Context Protocol (MCP) server for Amazon DataZone'
+    )
+    parser.add_argument(
+        '--allow-writes',
+        action='store_true',
+        help='Allow use of tools that may perform write operations. By default, the server runs in read-only mode.',
+    )
+    
+    args = parser.parse_args()
+    
+    # Initialize context with read-only mode setting
+    # readonly = not allow_writes (if allow_writes is True, readonly is False)
+    readonly_mode = not args.allow_writes
+    Context.initialize(readonly=readonly_mode)
+    
+    if readonly_mode:
+        logger.info('DataZone MCP Server starting in READ-ONLY mode. Write operations will be blocked.')
+    else:
+        logger.info('DataZone MCP Server starting with WRITE operations ENABLED.')
+
     try:
         mcp.run(transport='stdio')
 

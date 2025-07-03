@@ -14,6 +14,7 @@
 """Glossary management tools for Amazon DataZone."""
 
 from .common import ClientError, _get_param_value, datazone_client
+from ..context import Context
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -65,6 +66,8 @@ def register_tools(mcp: FastMCP):
             )
             ```
         """
+        # Check write permissions
+        Context.check_write_permission('create_glossary')
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)
@@ -155,6 +158,8 @@ def register_tools(mcp: FastMCP):
             )
             ```
         """
+        # Check write permissions
+        Context.check_write_permission('create_glossary_term')
         try:
             # Handle optional parameters
             short_description_value = _get_param_value(short_description)
