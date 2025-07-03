@@ -40,22 +40,22 @@ class CloudWatchAlarmsTools:
     """CloudWatch Alarms tools for MCP server."""
 
     def __init__(self):
-        """Initialize the CloudWatch Alarms client."""
-        # Initialize client
-        aws_region: str = os.environ.get('AWS_REGION', 'us-east-1')
+        """Initialize the CloudWatch Alarms tools."""
+        pass
+
+    def _get_cloudwatch_client(self, region: str):
+        """Create a CloudWatch client for the specified region."""
         config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
 
         try:
             if aws_profile := os.environ.get('AWS_PROFILE'):
-                self.cloudwatch_client = boto3.Session(
-                    profile_name=aws_profile, region_name=aws_region
-                ).client('cloudwatch', config=config)
-            else:
-                self.cloudwatch_client = boto3.Session(region_name=aws_region).client(
+                return boto3.Session(profile_name=aws_profile, region_name=region).client(
                     'cloudwatch', config=config
                 )
+            else:
+                return boto3.Session(region_name=region).client('cloudwatch', config=config)
         except Exception as e:
-            logger.error(f'Error creating cloudwatch client: {str(e)}')
+            logger.error(f'Error creating cloudwatch client for region {region}: {str(e)}')
             raise
 
     def register(self, mcp):
@@ -75,6 +75,10 @@ class CloudWatchAlarmsTools:
                 description='Maximum number of alarms to return (default: 50). Large values may cause context window overflow and impact LLM performance.'
             ),
         ] = 50,
+        region: Annotated[
+            str,
+            Field(description='AWS region to query. Defaults to us-east-1.'),
+        ] = 'us-east-1',
     ) -> ActiveAlarmsResponse:
         """Gets all CloudWatch alarms currently in ALARM state.
 
@@ -88,6 +92,7 @@ class CloudWatchAlarmsTools:
         Args:
             ctx: The MCP context object for error handling and logging.
             max_items: Maximum number of alarms to return (default: 50).
+            region: AWS region to query. Defaults to 'us-east-1'.
 
         Returns:
             ActiveAlarmsResponse: Response containing active alarms.
@@ -112,8 +117,8 @@ class CloudWatchAlarmsTools:
             if max_items < 1:
                 raise ValueError('max_items must be at least 1')
 
-            # Use default client
-            cloudwatch_client = self.cloudwatch_client
+            # Create CloudWatch client for the specified region
+            cloudwatch_client = self._get_cloudwatch_client(region)
 
             # Fetch active alarms using paginator
             logger.info(f'Fetching up to {max_items} active alarms')
@@ -214,6 +219,10 @@ class CloudWatchAlarmsTools:
                 description='For composite alarms, whether to include details about component alarms. Defaults to false.'
             ),
         ] = False,
+        region: Annotated[
+            str,
+            Field(description='AWS region to query. Defaults to us-east-1.'),
+        ] = 'us-east-1',
     ) -> Union[AlarmHistoryResponse, CompositeAlarmComponentResponse]:
         """Gets the history for a CloudWatch alarm with time range suggestions for investigation.
 
@@ -228,6 +237,7 @@ class CloudWatchAlarmsTools:
 
         Args:
             ctx: The MCP context object for error handling and logging.
+            region: AWS region to query. Defaults to 'us-east-1'.
             alarm_name: Name of the alarm to retrieve history for.
             start_time: Optional start time for the history query. Defaults to 24 hours ago.
             end_time: Optional end time for the history query. Defaults to current time.
@@ -260,8 +270,8 @@ class CloudWatchAlarmsTools:
             if history_item_type is None or not isinstance(history_item_type, str):
                 history_item_type = 'StateUpdate'
 
-            # Use default client
-            cloudwatch_client = self.cloudwatch_client
+            # Create CloudWatch client for the specified region
+            cloudwatch_client = self._get_cloudwatch_client(region)
 
             # Set up default time range (last 24 hours)
             if end_time is None or not isinstance(end_time, str):

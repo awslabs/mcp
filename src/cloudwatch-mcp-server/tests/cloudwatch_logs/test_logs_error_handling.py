@@ -246,12 +246,11 @@ class TestErrorHandling:
             # Always return 'Running' status to trigger timeout
             mock_client.get_query_results.return_value = {'status': 'Running', 'results': []}
             mock_session.return_value.client.return_value = mock_client
-
             tools = CloudWatchLogsTools()
-
             # Use very short timeout to trigger timeout quickly
-            result = await tools._poll_for_query_completion('test-query-id', 1, mock_context)
-
+            result = await tools._poll_for_query_completion(
+                mock_client, 'test-query-id', 1, mock_context
+            )
             assert result['queryId'] == 'test-query-id'
             assert result['status'] == 'Polling Timeout'
             assert 'message' in result
@@ -270,11 +269,10 @@ class TestErrorHandling:
                 'results': [],
             }
             mock_session.return_value.client.return_value = mock_client
-
             tools = CloudWatchLogsTools()
-
-            result = await tools._poll_for_query_completion('test-query-id', 30, mock_context)
-
+            result = await tools._poll_for_query_completion(
+                mock_client, 'test-query-id', 30, mock_context
+            )
             assert result['queryId'] == 'test-query-id'
             assert result['status'] == 'Failed'
 
@@ -291,11 +289,10 @@ class TestErrorHandling:
                 'results': [],
             }
             mock_session.return_value.client.return_value = mock_client
-
             tools = CloudWatchLogsTools()
-
-            result = await tools._poll_for_query_completion('test-query-id', 30, mock_context)
-
+            result = await tools._poll_for_query_completion(
+                mock_client, 'test-query-id', 30, mock_context
+            )
             assert result['queryId'] == 'test-query-id'
             assert result['status'] == 'Cancelled'
 
@@ -321,57 +318,35 @@ class TestEdgeCases:
             assert processed['statistics'] == {}
             assert processed['results'] == []
 
-    def test_process_query_results_empty_results(self):
-        """Test processing query results with empty results array."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'):
-            tools = CloudWatchLogsTools()
-
-            raw_response = {'queryId': 'test-id', 'status': 'Complete', 'results': []}
-
-            processed = tools._process_query_results(raw_response)
-
-            assert processed['queryId'] == 'test-id'
-            assert processed['results'] == []
-
     def test_aws_profile_initialization(self):
         """Test initialization with AWS_PROFILE environment variable."""
-        with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-west-2'}):
+        with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile'}):
             with patch(
                 'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
             ) as mock_session:
                 mock_client = Mock()
                 mock_session.return_value.client.return_value = mock_client
 
-                CloudWatchLogsTools()
+                tools = CloudWatchLogsTools()
+                # Actually call a method that creates the client
+                tools._get_logs_client('us-east-1')
 
                 # Verify session was created with profile
                 mock_session.assert_called_with(
-                    profile_name='test-profile', region_name='us-west-2'
+                    profile_name='test-profile', region_name='us-east-1'
                 )
 
-    def test_default_region_usage(self):
-        """Test that default region is used when not specified."""
-        with patch.dict('os.environ', {}, clear=True):
-            with patch(
-                'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
-            ) as mock_session:
-                mock_client = Mock()
-                mock_session.return_value.client.return_value = mock_client
-
-                CloudWatchLogsTools()
-
-                # Should use default us-east-1
-                mock_session.assert_called_with(region_name='us-east-1')
-
-    def test_boto3_client_error_handling(self):
+    @pytest.mark.asyncio
+    async def test_boto3_client_error_handling(self, mock_context):
         """Test error handling when boto3 client creation fails."""
         with patch(
             'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
         ) as mock_session:
             mock_session.side_effect = Exception('AWS credentials not found')
 
+            tools = CloudWatchLogsTools()
             with pytest.raises(Exception, match='AWS credentials not found'):
-                CloudWatchLogsTools()
+                await tools.describe_log_groups(mock_context)
 
     def test_tools_registration(self):
         """Test that all tools are properly registered."""

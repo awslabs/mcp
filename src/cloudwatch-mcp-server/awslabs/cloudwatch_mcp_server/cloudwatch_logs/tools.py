@@ -46,22 +46,31 @@ class CloudWatchLogsTools:
     """CloudWatch Logs tools for MCP server."""
 
     def __init__(self):
-        """Initialize the CloudWatch Logs client."""
-        # Initialize client
-        aws_region: str = os.environ.get('AWS_REGION', 'us-east-1')
+        """Initialize the CloudWatch Logs tools."""
+        self._logs_client = None
+        self._logs_client_region = None
+
+    @property
+    def logs_client(self):
+        """Get the logs client for the default region (us-east-1)."""
+        if self._logs_client is None or self._logs_client_region != 'us-east-1':
+            self._logs_client = self._get_logs_client('us-east-1')
+            self._logs_client_region = 'us-east-1'
+        return self._logs_client
+
+    def _get_logs_client(self, region: str):
+        """Create a CloudWatch Logs client for the specified region."""
         config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
 
         try:
             if aws_profile := os.environ.get('AWS_PROFILE'):
-                self.logs_client = boto3.Session(
-                    profile_name=aws_profile, region_name=aws_region
-                ).client('logs', config=config)
-            else:
-                self.logs_client = boto3.Session(region_name=aws_region).client(
+                return boto3.Session(profile_name=aws_profile, region_name=region).client(
                     'logs', config=config
                 )
+            else:
+                return boto3.Session(region_name=region).client('logs', config=config)
         except Exception as e:
-            logger.error(f'Error creating cloudwatch logs client: {str(e)}')
+            logger.error(f'Error creating cloudwatch logs client for region {region}: {str(e)}')
             raise
 
     def _validate_log_group_parameters(
@@ -144,11 +153,12 @@ class CloudWatchLogsTools:
         }
 
     async def _poll_for_query_completion(
-        self, query_id: str, max_timeout: int, ctx: Context
+        self, logs_client, query_id: str, max_timeout: int, ctx: Context
     ) -> Dict:
         """Poll for query completion within the specified timeout.
 
         Args:
+            logs_client: The CloudWatch Logs client to use
             query_id: The query ID to poll for
             max_timeout: Maximum time to wait in seconds
             ctx: MCP context for warnings
@@ -158,7 +168,7 @@ class CloudWatchLogsTools:
         """
         poll_start = timer()
         while poll_start + max_timeout > timer():
-            response = self.logs_client.get_query_results(queryId=query_id)
+            response = logs_client.get_query_results(queryId=query_id)
             status = response['status']
 
             if status in {'Complete', 'Failed', 'Cancelled'}:
@@ -230,6 +240,10 @@ class CloudWatchLogsTools:
         max_items: Annotated[
             int | None, Field(description=('The maximum number of log groups to return.'))
         ] = None,
+        region: Annotated[
+            str,
+            Field(description='AWS region to query. Defaults to us-east-1.'),
+        ] = 'us-east-1',
     ) -> LogsMetadata:
         """Lists AWS CloudWatch log groups and saved queries associated with them, optionally filtering by a name prefix.
 
@@ -254,9 +268,11 @@ class CloudWatchLogsTools:
                 - logGroupArn: The Amazon Resource Name (ARN) of the log group. This version of the ARN doesn't include a trailing :* after the log group name.
             Any saved queries that are applicable to the returned log groups are also included.
         """
+        # Create logs client for the specified region
+        logs_client = self._get_logs_client(region)
 
         def describe_log_groups() -> List[LogGroupMetadata]:
-            paginator = self.logs_client.get_paginator('describe_log_groups')
+            paginator = logs_client.get_paginator('describe_log_groups')
             kwargs = {
                 'accountIdentifiers': account_identifiers,
                 'includeLinkedAccounts': include_linked_accounts,
@@ -286,9 +302,7 @@ class CloudWatchLogsTools:
                 first_iteration = False
                 # TODO: Support other query language types
                 kwargs = {'nextToken': next_token, 'queryLanguage': 'CWLI'}
-                response = self.logs_client.describe_query_definitions(
-                    **remove_null_values(kwargs)
-                )
+                response = logs_client.describe_query_definitions(**remove_null_values(kwargs))
                 saved_queries.extend(response.get('queryDefinitions', []))
 
                 next_token = response.get('nextToken')
@@ -338,6 +352,10 @@ class CloudWatchLogsTools:
                 'ISO 8601 formatted end time for the CloudWatch Logs Insights query window (e.g., "2025-04-19T21:00:00+00:00").'
             ),
         ),
+        region: Annotated[
+            str,
+            Field(description='AWS region to query. Defaults to us-east-1.'),
+        ] = 'us-east-1',
     ) -> LogsAnalysisResult:
         """Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
 
@@ -381,9 +399,12 @@ class CloudWatchLogsTools:
             # Must be for this log group
             return log_group_arn in anomaly.logGroupArnList
 
+        # Create logs client for the specified region
+        logs_client = self._get_logs_client(region)
+
         async def get_applicable_anomalies() -> LogAnomalyResults:
             detectors: List[LogAnomalyDetector] = []
-            paginator = self.logs_client.get_paginator('list_log_anomaly_detectors')
+            paginator = logs_client.get_paginator('list_log_anomaly_detectors')
             for page in paginator.paginate(filterLogGroupArn=log_group_arn):
                 detectors.extend(
                     [
@@ -397,7 +418,7 @@ class CloudWatchLogsTools:
             # 2 & 3. Get and filter anomalies for each detector
             anomalies: List[LogAnomaly] = []
             for detector in detectors:
-                paginator = self.logs_client.get_paginator('list_anomalies')
+                paginator = logs_client.get_paginator('list_anomalies')
 
                 for page in paginator.paginate(
                     anomalyDetectorArn=detector.anomalyDetectorArn, suppressionState='UNSUPPRESSED'
@@ -502,6 +523,10 @@ class CloudWatchLogsTools:
                 description='Maximum time in second to poll for complete results before giving up'
             ),
         ] = 30,
+        region: Annotated[
+            str,
+            Field(description='AWS region to query. Defaults to us-east-1.'),
+        ] = 'us-east-1',
     ) -> Dict:
         """Executes a CloudWatch Logs Insights query and waits for the results to be available.
 
@@ -536,13 +561,16 @@ class CloudWatchLogsTools:
                 log_group_names, log_group_identifiers, start_time, end_time, query_string, limit
             )
 
+            # Create logs client for the specified region
+            logs_client = self._get_logs_client(region)
+
             # Start the query
-            start_response = self.logs_client.start_query(**remove_null_values(kwargs))
+            start_response = logs_client.start_query(**remove_null_values(kwargs))
             query_id = start_response['queryId']
             logger.info(f'Started query with ID: {query_id}')
 
             # Poll for completion
-            return await self._poll_for_query_completion(query_id, max_timeout, ctx)
+            return await self._poll_for_query_completion(logs_client, query_id, max_timeout, ctx)
 
         except Exception as e:
             logger.error(f'Error in execute_log_insights_query_tool: {str(e)}')
@@ -556,6 +584,10 @@ class CloudWatchLogsTools:
             ...,
             description='The unique ID of the query to retrieve the results for. CRITICAL: This ID is returned by the execute_log_insights_query tool.',
         ),
+        region: Annotated[
+            str,
+            Field(description='AWS region to query. Defaults to us-east-1.'),
+        ] = 'us-east-1',
     ) -> Dict:
         """Retrieves the results of a previously started CloudWatch Logs Insights query.
 
@@ -571,7 +603,10 @@ class CloudWatchLogsTools:
                 - messages: Any informational messages about the query
         """
         try:
-            response = self.logs_client.get_query_results(queryId=query_id)
+            # Create logs client for the specified region
+            logs_client = self._get_logs_client(region)
+
+            response = logs_client.get_query_results(queryId=query_id)
 
             logger.info(f'Retrieved results for query ID {query_id}')
 
@@ -588,6 +623,10 @@ class CloudWatchLogsTools:
             ...,
             description='The unique ID of the ongoing query to cancel. CRITICAL: This ID is returned by the execute_log_insights_query tool.',
         ),
+        region: Annotated[
+            str,
+            Field(description='AWS region to query. Defaults to us-east-1.'),
+        ] = 'us-east-1',
     ) -> LogsQueryCancelResult:
         """Cancels an ongoing CloudWatch Logs Insights query. If the query has already ended, returns an error that the given query is not running.
 
@@ -599,7 +638,10 @@ class CloudWatchLogsTools:
             A LogsQueryCancelResult with a "success" key, which is True if the query was successfully cancelled.
         """
         try:
-            response = self.logs_client.stop_query(queryId=query_id)
+            # Create logs client for the specified region
+            logs_client = self._get_logs_client(region)
+
+            response = logs_client.stop_query(queryId=query_id)
             return LogsQueryCancelResult.model_validate(response)
         except Exception as e:
             logger.error(f'Error in cancel_query_tool: {str(e)}')

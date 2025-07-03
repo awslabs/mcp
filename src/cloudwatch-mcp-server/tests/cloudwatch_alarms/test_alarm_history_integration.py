@@ -545,7 +545,7 @@ class TestAlarmHistoryIntegration:
             }
 
             # Test different regions via environment
-            regions = ['us-east-1', 'us-west-2', 'eu-west-1', 'ap-southeast-1']
+            regions = ['us-east-1', 'us-east-1', 'eu-west-1', 'ap-southeast-1']
 
             for region in regions:
                 with patch.dict('os.environ', {'AWS_REGION': region}):

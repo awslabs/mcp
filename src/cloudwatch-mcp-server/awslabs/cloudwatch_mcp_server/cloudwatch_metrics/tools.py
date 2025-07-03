@@ -42,29 +42,27 @@ class CloudWatchMetricsTools:
     """CloudWatch Metrics tools for MCP server."""
 
     def __init__(self):
-        """Initialize the CloudWatch Metrics client."""
-        # Initialize client
-        aws_region: str = os.environ.get('AWS_REGION', 'us-east-1')
-        config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
-
-        try:
-            if aws_profile := os.environ.get('AWS_PROFILE'):
-                self.cloudwatch_client = boto3.Session(
-                    profile_name=aws_profile, region_name=aws_region
-                ).client('cloudwatch', config=config)
-            else:
-                self.cloudwatch_client = boto3.Session(region_name=aws_region).client(
-                    'cloudwatch', config=config
-                )
-        except Exception as e:
-            logger.error(f'Error creating cloudwatch client: {str(e)}')
-            raise
-
+        """Initialize the CloudWatch Metrics tools."""
         # Load and index metric metadata
         self.metric_metadata_index: Dict[MetricMetadataIndexKey, Any] = (
             self._load_and_index_metadata()
         )
         logger.info(f'Loaded {len(self.metric_metadata_index)} metric metadata entries')
+
+    def _get_cloudwatch_client(self, region: str):
+        """Create a CloudWatch client for the specified region."""
+        config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
+
+        try:
+            if aws_profile := os.environ.get('AWS_PROFILE'):
+                return boto3.Session(profile_name=aws_profile, region_name=region).client(
+                    'cloudwatch', config=config
+                )
+            else:
+                return boto3.Session(region_name=region).client('cloudwatch', config=config)
+        except Exception as e:
+            logger.error(f'Error creating cloudwatch client for region {region}: {str(e)}')
+            raise
 
     def _load_and_index_metadata(self) -> Dict[MetricMetadataIndexKey, Any]:
         """Load metric metadata from JSON file and create an indexed structure.
@@ -205,6 +203,10 @@ class CloudWatchMetricsTools:
                 description='Statistic to use in the ORDER BY clause. Required if sort_order is specified.'
             ),
         ] = None,
+        region: Annotated[
+            str,
+            Field(description='AWS region to query. Defaults to us-east-1.'),
+        ] = 'us-east-1',
     ) -> GetMetricDataResponse:
         """Retrieves CloudWatch metric data for a specific metric.
 
@@ -347,8 +349,11 @@ class CloudWatchMetricsTools:
                     namespace, metric_name, dimensions, statistic, period
                 )
 
+            # Create CloudWatch client for the specified region
+            cloudwatch_client = self._get_cloudwatch_client(region)
+
             # Call the GetMetricData API
-            response = self.cloudwatch_client.get_metric_data(
+            response = cloudwatch_client.get_metric_data(
                 MetricDataQueries=[metric_query], StartTime=start_time, EndTime=end_time
             )
 
@@ -577,6 +582,12 @@ class CloudWatchMetricsTools:
         metric_name: str = Field(
             ..., description="The name of the metric (e.g., 'CPUUtilization', 'Duration')"
         ),
+        region: Annotated[
+            str,
+            Field(
+                description='AWS region for consistency. Note: This function uses local metadata and does not make AWS API calls. Defaults to us-east-1.'
+            ),
+        ] = 'us-east-1',
     ) -> Optional[MetricMetadata]:
         """Gets metadata for a CloudWatch metric including description, unit and recommended
         statistics that can be used for metric data retrieval.
@@ -591,6 +602,7 @@ class CloudWatchMetricsTools:
             ctx: The MCP context object for error handling and logging.
             namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
+            region: AWS region to query. Defaults to 'us-east-1'.
 
         Returns:
             Optional[MetricMetadata]: An object containing the metric's description,
@@ -651,6 +663,12 @@ class CloudWatchMetricsTools:
             default_factory=list,
             description='List of dimensions that identify the metric, each with name and value',
         ),
+        region: Annotated[
+            str,
+            Field(
+                description='AWS region for consistency. Note: This function uses local metadata and does not make AWS API calls. Defaults to us-east-1.'
+            ),
+        ] = 'us-east-1',
     ) -> List[AlarmRecommendation]:
         """Gets recommended alarms for a CloudWatch metric.
 
@@ -666,6 +684,7 @@ class CloudWatchMetricsTools:
             namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
+            region: AWS region to query. Defaults to 'us-east-1'.
 
         Returns:
             List[AlarmRecommendation]: A list of alarm recommendations that match the

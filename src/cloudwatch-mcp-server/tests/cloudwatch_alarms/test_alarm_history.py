@@ -426,24 +426,29 @@ class TestGetAlarmHistory:
             assert 'get_alarm_history' in tool_calls
 
     def test_region_handling(self):
-        """Test region handling from environment configuration."""
+        """Test region parameter handling in _get_cloudwatch_client method."""
         with patch(
             'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
         ) as mock_session:
             mock_client = Mock()
             mock_session.return_value.client.return_value = mock_client
 
-            # Test default region when no environment variable is set
-            with patch.dict('os.environ', {}, clear=True):
-                CloudWatchAlarmsTools()
-                # Should use default us-east-1
-                mock_session.assert_called_with(region_name='us-east-1')
+            alarms_tools = CloudWatchAlarmsTools()
 
-            # Test custom region from environment
-            with patch.dict('os.environ', {'AWS_REGION': 'eu-west-1'}):
-                CloudWatchAlarmsTools()
-                # Should use environment region
-                mock_session.assert_called_with(region_name='eu-west-1')
+            # Test default region (us-east-1)
+            alarms_tools._get_cloudwatch_client('us-east-1')
+            mock_session.assert_called_with(region_name='us-east-1')
+
+            # Test custom region
+            alarms_tools._get_cloudwatch_client('eu-west-1')
+            mock_session.assert_called_with(region_name='eu-west-1')
+
+            # Test with AWS_PROFILE environment variable
+            with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile'}):
+                alarms_tools._get_cloudwatch_client('us-west-2')
+                mock_session.assert_called_with(
+                    profile_name='test-profile', region_name='us-west-2'
+                )
 
 
 class TestAlarmHistoryEdgeCases:

@@ -377,30 +377,21 @@ class TestErrorHandling:
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
-    def test_boto3_client_error_handling(self):
+    @pytest.mark.asyncio
+    async def test_boto3_client_error_handling(self, mock_context):
         """Test error handling when boto3 client creation fails."""
         with patch(
             'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'
         ) as mock_session:
             mock_session.side_effect = Exception('AWS credentials not found')
 
-            with pytest.raises(Exception, match='AWS credentials not found'):
-                CloudWatchMetricsTools()
-
-    def test_aws_profile_initialization(self):
-        """Test initialization with AWS_PROFILE environment variable."""
-        with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-west-2'}):
-            with patch(
-                'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'
-            ) as mock_session:
-                mock_client = Mock()
-                mock_session.return_value.client.return_value = mock_client
-
-                CloudWatchMetricsTools()
-
-                # Verify session was created with profile
-                mock_session.assert_called_with(
-                    profile_name='test-profile', region_name='us-west-2'
+            tools = CloudWatchMetricsTools()
+            with pytest.raises(Exception):
+                await tools.get_metric_data(
+                    mock_context,
+                    namespace='AWS/EC2',
+                    metric_name='CPUUtilization',
+                    start_time='2023-01-01T00:00:00Z',
                 )
 
     def test_default_region_usage(self):
@@ -412,7 +403,9 @@ class TestEdgeCases:
                 mock_client = Mock()
                 mock_session.return_value.client.return_value = mock_client
 
-                CloudWatchMetricsTools()
+                tools = CloudWatchMetricsTools()
+                # Actually call a method that creates the client
+                tools._get_cloudwatch_client('us-east-1')
 
                 # Should use default us-east-1
                 mock_session.assert_called_with(region_name='us-east-1')

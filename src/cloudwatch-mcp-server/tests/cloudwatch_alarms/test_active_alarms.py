@@ -181,22 +181,6 @@ class TestGetActiveAlarms:
             StateValue='ALARM', MaxRecords=50, AlarmTypes=['CompositeAlarm', 'MetricAlarm']
         )
 
-    def test_default_region_usage(self):
-        """Test that default region from environment is used."""
-        # Test that the tool uses the region from environment/initialization
-        with patch.dict('os.environ', {'AWS_REGION': 'us-west-2'}):
-            with patch(
-                'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-            ) as mock_session:
-                mock_client = Mock()
-                mock_session.return_value.client.return_value = mock_client
-
-                # Create tools instance - should use environment region
-                CloudWatchAlarmsTools()
-
-                # Verify session was created with correct region
-                mock_session.assert_called_with(region_name='us-west-2')
-
     def test_alarm_tools_registration(self):
         """Test that CloudWatchAlarmsTools registers both alarm tools."""
         # Create a mock MCP
@@ -358,38 +342,15 @@ class TestGetActiveAlarms:
             )
 
     @pytest.mark.asyncio
-    async def test_aws_profile_initialization(self, mock_context):
-        """Test initialization with AWS_PROFILE environment variable."""
-        with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-west-2'}):
-            with patch(
-                'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-            ) as mock_session:
-                mock_client = Mock()
-                mock_paginator = Mock()
-                mock_paginator.paginate.return_value = [
-                    {'MetricAlarms': [], 'CompositeAlarms': []}
-                ]
-                mock_client.get_paginator.return_value = mock_paginator
-                mock_session.return_value.client.return_value = mock_client
-
-                alarms_tools = CloudWatchAlarmsTools()
-                await alarms_tools.get_active_alarms(mock_context, max_items=50)
-
-                # Verify session was created with profile
-                mock_session.assert_called_with(
-                    profile_name='test-profile', region_name='us-west-2'
-                )
-
-    @pytest.mark.asyncio
     async def test_boto3_client_error_handling(self, mock_context):
         """Test error handling when boto3 client fails."""
         with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
-            mock_session.side_effect = Exception('AWS credentials not found')
-
+            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session',
+            side_effect=Exception('AWS credentials not found'),
+        ):
+            alarms_tools = CloudWatchAlarmsTools()
             with pytest.raises(Exception, match='AWS credentials not found'):
-                CloudWatchAlarmsTools()
+                await alarms_tools.get_active_alarms(mock_context, max_items=50)
 
     @pytest.mark.asyncio
     async def test_describe_alarms_api_error(self, mock_context):
