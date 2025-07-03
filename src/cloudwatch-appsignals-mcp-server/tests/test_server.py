@@ -1384,7 +1384,7 @@ async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
 
         # Pass None for log_group_name to test the default handling
         await search_transaction_spans(
-            log_group_name=None,
+            log_group_name=None,  # type: ignore
             start_time='2024-01-01T00:00:00+00:00',
             end_time='2024-01-01T01:00:00+00:00',
             query_string='fields @timestamp',

@@ -43,8 +43,8 @@ This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to h
    - Find the impact from the tracing dependency view
    - Return the exact error stack for LLM to suggest the actionable fixes
 
-7. **`query_service_metrics`** - Queries AppSignals metrics for the target Application Signals services
-   - Query Application Signals RED metrics to correlate OTel Spans/Traces
+7. **`query_service_metrics`** - Queries Application Signals metrics for root causing service performance issues
+   - Query Application Signals RED metrics to correlate the relevant OTel Spans/Traces for troubleshooting
 
 ## Installation
 

@@ -13,33 +13,6 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 
-@pytest.fixture(autouse=True)
-def fix_aws_config_property(request):
-    """Fix the AWSConfig.key_attributes property that gets modified by server.py."""
-    # Skip this fixture for the test that needs the original property
-    if hasattr(request, 'node') and request.node.name == 'test_key_attributes_direct_call':
-        yield
-        return
-
-    # Store original property if it exists
-    original_property = getattr(AWSConfig, 'key_attributes', None)
-
-    # Define the correct property behavior
-    def key_attributes_getter(self):
-        if hasattr(self, '_key_attributes'):
-            return self._key_attributes
-        return {'Name': self.service_name, 'Type': 'Service', 'Environment': self.region}
-
-    # Set the property
-    AWSConfig.key_attributes = property(key_attributes_getter)
-
-    yield
-
-    # Restore original if it existed
-    if original_property is not None:
-        AWSConfig.key_attributes = original_property
-
-
 class TestAWSConfig:
     """Test cases for AWSConfig class."""
 
@@ -247,10 +220,12 @@ class TestSLIReportClient:
         client = SLIReportClient(config)
 
         error_response = {
-            'Error': {'Code': 'AccessDeniedException', 'Message': 'User is not authorized'}
+            'Error': {'Code': 'AccessDeniedException', 'Message': 'User is not authorized'},
+            'ResponseMetadata': {'RequestId': '12345', 'HTTPStatusCode': 403},
         }
         mock_aws_clients['signals_client'].list_service_level_objectives.side_effect = ClientError(
-            error_response, 'ListServiceLevelObjectives'
+            error_response,  # type: ignore
+            'ListServiceLevelObjectives',
         )
 
         with pytest.raises(ClientError):
@@ -332,10 +307,12 @@ class TestSLIReportClient:
         client = SLIReportClient(config)
 
         error_response = {
-            'Error': {'Code': 'InvalidParameterValue', 'Message': 'Invalid metric query'}
+            'Error': {'Code': 'InvalidParameterValue', 'Message': 'Invalid metric query'},
+            'ResponseMetadata': {'RequestId': '12345', 'HTTPStatusCode': 400},
         }
         mock_aws_clients['cloudwatch_client'].get_metric_data.side_effect = ClientError(
-            error_response, 'GetMetricData'
+            error_response,  # type: ignore
+            'GetMetricData',
         )
 
         with pytest.raises(ClientError):

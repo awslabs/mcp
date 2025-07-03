@@ -17,9 +17,9 @@
 import boto3
 import logging
 from botocore.exceptions import ClientError
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 
 # Initialize module logger
@@ -34,17 +34,20 @@ class AWSConfig:
         region (str): AWS region identifier (default: us-west-1)
         period_in_hours (int): Time period for metrics collection (max 24 hours)
         service_name (str): Name of the AWS service to monitor
+        key_attributes (Dict[str, str]): Key attributes to identify the service
     """
 
     region: str
     period_in_hours: int
     service_name: str
+    key_attributes: Dict[str, str] = field(default_factory=dict)
 
     def __init__(
         self,
         region: str = 'us-east-1',
         period_in_hours: int = 24,
         service_name: str = 'UnknownService',
+        key_attributes: Optional[Dict[str, str]] = None,
     ):
         """Initialize AWSConfig with region, period, and service name.
 
@@ -52,15 +55,19 @@ class AWSConfig:
             region: AWS region identifier (default: us-east-1)
             period_in_hours: Time period for metrics collection, max 24 hours (default: 24)
             service_name: Name of the AWS service to monitor (default: UnknownService)
+            key_attributes: Optional key attributes to override defaults
         """
         self.region = region
         self.period_in_hours = min(period_in_hours, 24)  # Ensure period doesn't exceed 24 hours
         self.service_name = service_name
-
-    @property
-    def key_attributes(self) -> Dict[str, str]:
-        """Returns the key attributes used to identify the service in AWS."""
-        return {'Name': self.service_name, 'Type': 'Service', 'Environment': self.region}
+        if key_attributes is not None:
+            self.key_attributes = key_attributes
+        else:
+            self.key_attributes = {
+                'Name': self.service_name,
+                'Type': 'Service',
+                'Environment': self.region,
+            }
 
 
 @dataclass
@@ -209,9 +216,9 @@ class SLIReportClient:
             )
             logger.info(f'Retrieved {len(response.get("SloSummaries", []))} SLO summaries')
         except ClientError as e:
-            logger.error(
-                f'AWS ClientError getting SLO summaries: {e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
-            )
+            error_msg = e.response.get('Error', {}).get('Message', 'Unknown error')
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            logger.error(f'AWS ClientError getting SLO summaries: {error_code} - {error_msg}')
             raise
         except Exception as e:
             logger.error(f'Unexpected error getting SLO summaries: {str(e)}', exc_info=True)
@@ -223,7 +230,7 @@ class SLIReportClient:
                 arn=slo['Arn'],
                 key_attributes=slo.get('KeyAttributes', {}),
                 operation_name=slo.get('OperationName', 'N/A'),
-                created_time=slo['CreatedTime'],
+                created_time=slo.get('CreatedTime', datetime.now(timezone.utc)),
             )
             for slo in response['SloSummaries']
         ]
@@ -255,20 +262,24 @@ class SLIReportClient:
 
         try:
             response = self.cloudwatch_client.get_metric_data(
-                MetricDataQueries=queries, StartTime=start_time, EndTime=end_time
+                MetricDataQueries=queries,  # type: ignore
+                StartTime=start_time,
+                EndTime=end_time,
             )
             logger.debug(f'Retrieved {len(response.get("MetricDataResults", []))} metric results')
         except ClientError as e:
-            logger.error(
-                f'AWS ClientError getting metric data: {e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
-            )
+            error_msg = e.response.get('Error', {}).get('Message', 'Unknown error')
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            logger.error(f'AWS ClientError getting metric data: {error_code} - {error_msg}')
             raise
         except Exception as e:
             logger.error(f'Unexpected error getting metric data: {str(e)}', exc_info=True)
             raise
 
         return [
-            MetricDataResult(timestamps=result['Timestamps'], values=result['Values'])
+            MetricDataResult(
+                timestamps=result.get('Timestamps', []), values=result.get('Values', [])
+            )
             for result in response['MetricDataResults']
         ]
 

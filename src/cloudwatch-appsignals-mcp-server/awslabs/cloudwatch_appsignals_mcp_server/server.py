@@ -308,7 +308,7 @@ async def query_service_metrics(
 
     try:
         # Calculate time range
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours)
 
         # Get service details to find metrics
@@ -376,7 +376,7 @@ async def query_service_metrics(
             StartTime=start_time,
             EndTime=end_time,
             Period=period,
-            Statistics=[statistic],
+            Statistics=[statistic],  # type: ignore
             ExtendedStatistics=[extended_statistic],
         )
 
@@ -389,7 +389,7 @@ async def query_service_metrics(
             return f"No data points found for metric '{metric_name}' on service '{service_name}' in the last {hours} hour(s)."
 
         # Sort by timestamp
-        datapoints.sort(key=lambda x: x['Timestamp'])
+        datapoints.sort(key=lambda x: x.get('Timestamp', datetime.min))  # type: ignore
 
         # Build response
         result = f'Metrics for {service_name} - {metric_name}\n'
@@ -408,9 +408,9 @@ async def query_service_metrics(
 
         if standard_values:
             latest_standard = datapoints[-1].get(statistic)
-            avg_of_standard = sum(standard_values) / len(standard_values)
-            max_standard = max(standard_values)
-            min_standard = min(standard_values)
+            avg_of_standard = sum(standard_values) / len(standard_values)  # type: ignore
+            max_standard = max(standard_values)  # type: ignore
+            min_standard = min(standard_values)  # type: ignore
 
             result += f'{statistic} Statistics:\n'
             result += f'• Latest: {latest_standard:.2f}\n'
@@ -420,9 +420,9 @@ async def query_service_metrics(
 
         if extended_values:
             latest_extended = datapoints[-1].get(extended_statistic)
-            avg_extended = sum(extended_values) / len(extended_values)
-            max_extended = max(extended_values)
-            min_extended = min(extended_values)
+            avg_extended = sum(extended_values) / len(extended_values)  # type: ignore
+            max_extended = max(extended_values)  # type: ignore
+            min_extended = min(extended_values)  # type: ignore
 
             result += f'{extended_statistic} Statistics:\n'
             result += f'• Latest: {latest_extended:.2f}\n'
@@ -435,7 +435,7 @@ async def query_service_metrics(
         # Show recent values (last 10) with both metrics
         result += 'Recent Values:\n'
         for dp in datapoints[-10:]:
-            timestamp = dp['Timestamp'].strftime('%m/%d %H:%M')
+            timestamp = dp.get('Timestamp', datetime.min).strftime('%m/%d %H:%M')  # type: ignore
             unit = dp.get('Unit', '')
 
             values_str = []
@@ -453,10 +453,12 @@ async def query_service_metrics(
         return result
 
     except ClientError as e:
+        error_msg = e.response.get('Error', {}).get('Message', 'Unknown error')
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
         logger.error(
-            f"AWS ClientError in query_service_metrics for '{service_name}/{metric_name}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            f"AWS ClientError in query_service_metrics for '{service_name}/{metric_name}': {error_code} - {error_msg}"
         )
-        return f'AWS Error: {e.response["Error"]["Message"]}'
+        return f'AWS Error: {error_msg}'
     except Exception as e:
         logger.error(
             f"Unexpected error in query_service_metrics for '{service_name}/{metric_name}': {str(e)}",
@@ -577,7 +579,7 @@ async def get_slo(
         result += f'Name: {slo.get("Name", "Unknown")}\n'
         result += f'ARN: {slo.get("Arn", "Unknown")}\n'
         if slo.get('Description'):
-            result += f'Description: {slo["Description"]}\n'
+            result += f'Description: {slo.get("Description", "")}\n'
         result += f'Evaluation Type: {slo.get("EvaluationType", "Unknown")}\n'
         result += f'Created: {slo.get("CreatedTime", "Unknown")}\n'
         result += f'Last Updated: {slo.get("LastUpdatedTime", "Unknown")}\n\n'
@@ -614,8 +616,8 @@ async def get_slo(
 
                 # Operation name - essential for trace filtering
                 if sli_metric.get('OperationName'):
-                    result += f'• Operation Name: {sli_metric["OperationName"]}\n'
-                    result += f'  (Use this in trace queries: annotation[aws.local.operation]="{sli_metric["OperationName"]}")\n'
+                    result += f'• Operation Name: {sli_metric.get("OperationName", "")}\n'
+                    result += f'  (Use this in trace queries: annotation[aws.local.operation]="{sli_metric.get("OperationName", "")}")\n'
 
                 result += f'• Metric Type: {sli_metric.get("MetricType", "Unknown")}\n'
 
@@ -649,11 +651,11 @@ async def get_slo(
                             )
                             result += f'    Stat: {metric_stat.get("Stat", "Unknown")}\n'
                             if metric_stat.get('Unit'):
-                                result += f'    Unit: {metric_stat["Unit"]}\n'
+                                result += f'    Unit: {metric_stat["Unit"]}\n'  # type: ignore
 
                         # Expression if present
                         if query.get('Expression'):
-                            result += f'    Expression: {query["Expression"]}\n'
+                            result += f'    Expression: {query.get("Expression", "")}\n'
 
                         result += f'    ReturnData: {query.get("ReturnData", True)}\n'
 
@@ -691,8 +693,8 @@ async def get_slo(
 
                 # Operation name
                 if rbs_metric.get('OperationName'):
-                    result += f'• Operation Name: {rbs_metric["OperationName"]}\n'
-                    result += f'  (Use this in trace queries: annotation[aws.local.operation]="{rbs_metric["OperationName"]}")\n'
+                    result += f'• Operation Name: {rbs_metric.get("OperationName", "")}\n'
+                    result += f'  (Use this in trace queries: annotation[aws.local.operation]="{rbs_metric.get("OperationName", "")}")\n'
 
                 result += f'• Metric Type: {rbs_metric.get("MetricType", "Unknown")}\n'
 
@@ -726,11 +728,11 @@ async def get_slo(
                             )
                             result += f'    Stat: {metric_stat.get("Stat", "Unknown")}\n'
                             if metric_stat.get('Unit'):
-                                result += f'    Unit: {metric_stat["Unit"]}\n'
+                                result += f'    Unit: {metric_stat["Unit"]}\n'  # type: ignore
 
                         # Expression if present
                         if query.get('Expression'):
-                            result += f'    Expression: {query["Expression"]}\n'
+                            result += f'    Expression: {query.get("Expression", "")}\n'
 
                         result += f'    ReturnData: {query.get("ReturnData", True)}\n'
 
@@ -764,10 +766,12 @@ async def get_slo(
         return result
 
     except ClientError as e:
+        error_msg = e.response.get('Error', {}).get('Message', 'Unknown error')
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
         logger.error(
-            f"AWS ClientError in get_service_level_objective for '{slo_id}': {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            f"AWS ClientError in get_service_level_objective for '{slo_id}': {error_code} - {error_msg}"
         )
-        return f'AWS Error: {e.response["Error"]["Message"]}'
+        return f'AWS Error: {error_msg}'
     except Exception as e:
         logger.error(
             f"Unexpected error in get_service_level_objective for '{slo_id}': {str(e)}",
@@ -893,7 +897,7 @@ async def search_transaction_spans(
                     'status': status,
                     'statistics': response.get('statistics', {}),
                     'results': [
-                        {field['field']: field['value'] for field in line}
+                        {field.get('field', ''): field.get('value', '') for field in line}  # type: ignore
                         for line in response.get('results', [])
                     ],
                     'transaction_search_status': {
@@ -974,14 +978,14 @@ async def list_slis(
 
     try:
         # Calculate time range
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours)
         logger.debug(f'Time range: {start_time} to {end_time}')
 
-        # Get all services (AWS API expects Unix timestamps as integers)
+        # Get all services
         services_response = appsignals_client.list_services(
-            StartTime=int(start_time.timestamp()),
-            EndTime=int(end_time.timestamp()),
+            StartTime=start_time,  # type: ignore
+            EndTime=end_time,  # type: ignore
             MaxResults=100,
         )
         services = services_response.get('ServiceSummaries', [])
@@ -994,19 +998,15 @@ async def list_slis(
         reports = []
         logger.debug(f'Generating SLI reports for {len(services)} services')
         for service in services:
+            service_name = service['KeyAttributes'].get('Name', 'Unknown')
             try:
-                # Create config for this service
-                service_name = service['KeyAttributes'].get('Name', 'Unknown')
-
                 # Create custom config with the service's key attributes
                 config = AWSConfig(
-                    region='us-east-1', period_in_hours=hours, service_name=service_name
+                    region='us-east-1',
+                    period_in_hours=hours,
+                    service_name=service_name,
+                    key_attributes=service['KeyAttributes'],
                 )
-                # Override key_attributes to use the actual service attributes
-                config._key_attributes = service['KeyAttributes']
-
-                # Add a property to return custom key attributes
-                type(config).key_attributes = property(lambda self: self._key_attributes)
 
                 # Generate SLI report
                 client = SLIReportClient(config)
@@ -1215,7 +1215,7 @@ async def query_sampled_traces(
 
         # Default to past 3 hours if times not provided
         if not end_time:
-            end_datetime = datetime.utcnow()
+            end_datetime = datetime.now(timezone.utc)
         else:
             end_datetime = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
 
