@@ -19,12 +19,60 @@ from ...common.models import (
     ClusterModel,
     VpcSecurityGroup,
 )
+from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
 from ...common.utils import convert_datetime_to_string
 from mypy_boto3_rds.type_defs import DBClusterTypeDef
 
 
-def format_cluster_info(cluster: DBClusterTypeDef) -> ClusterModel:
-    """Format cluster information from AWS API response into a structured model.
+class ClusterSummaryModel(BaseModel):
+    """Simplified DB cluster model for list views."""
+
+    cluster_id: str = Field(description='The DB cluster identifier')
+    db_cluster_arn: Optional[str] = Field(None, description='The ARN of the DB cluster')
+    db_cluster_resource_id: Optional[str] = Field(None, description='The resource ID of the DB cluster')
+    status: str = Field(description='The current status of the DB cluster')
+    engine: str = Field(description='The database engine')
+    engine_version: Optional[str] = Field(None, description='The version of the database engine')
+    availability_zones: List[str] = Field(default_factory=list, description='The AZs where the cluster instances can be created')
+    multi_az: bool = Field(
+        description='Whether the DB cluster has instances in multiple Availability Zones'
+    )
+    tag_list: Dict[str, str] = Field(default_factory=dict, description='A list of tags')
+    resource_uri: Optional[str] = Field(None, description='The resource URI for this cluster')
+
+
+def format_cluster_summary(cluster: DBClusterTypeDef) -> ClusterSummaryModel:
+    """Format cluster information into a simplified summary model for list views.
+
+    Args:
+        cluster: Raw cluster data from AWS API response
+
+    Returns:
+        Formatted cluster summary information as a ClusterSummaryModel object
+    """
+    tags = {}
+    if cluster.get('TagList'):
+        for tag in cluster.get('TagList', []):
+            if 'Key' in tag and 'Value' in tag:
+                tags[tag['Key']] = tag['Value']
+
+    return ClusterSummaryModel(
+        cluster_id=cluster.get('DBClusterIdentifier', ''),
+        db_cluster_arn=cluster.get('DBClusterArn'),
+        db_cluster_resource_id=cluster.get('DbClusterResourceId'),
+        status=cluster.get('Status', ''),
+        engine=cluster.get('Engine', ''),
+        engine_version=cluster.get('EngineVersion'),
+        availability_zones=cluster.get('AvailabilityZones', []),
+        multi_az=cluster.get('MultiAZ', False),
+        tag_list=tags,
+        resource_uri=None,
+    )
+
+
+def format_cluster_detail(cluster: DBClusterTypeDef) -> ClusterModel:
+    """Format cluster information from AWS API response into a detailed structured model.
 
     This method transforms the raw AWS API response data into a standardized
     ClusterModel object, extracting and organizing key cluster attributes
@@ -34,7 +82,7 @@ def format_cluster_info(cluster: DBClusterTypeDef) -> ClusterModel:
         cluster: Raw cluster data from AWS API response
 
     Returns:
-        Formatted cluster information as a ClusterModel object
+        Formatted cluster information as a ClusterModel object with comprehensive details
     """
     members = []
     for member in cluster.get('DBClusterMembers', []):

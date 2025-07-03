@@ -19,7 +19,7 @@ from ...common.decorator import handle_exceptions
 from ...common.models import ClusterModel
 from ...common.server import mcp
 from ...common.utils import paginate_aws_api_call
-from .utils import format_cluster_info
+from .utils import format_cluster_summary, ClusterSummaryModel
 from loguru import logger
 from pydantic import BaseModel, Field
 from typing import List
@@ -48,7 +48,7 @@ Returns a JSON document containing:
 class ClusterListModel(BaseModel):
     """DB cluster list model."""
 
-    clusters: List[ClusterModel] = Field(default_factory=list, description='List of DB clusters')
+    clusters: List[ClusterSummaryModel] = Field(default_factory=list, description='List of DB clusters')
     count: int = Field(description='Total number of DB clusters')
     resource_uri: str = Field(description='The resource URI for the DB clusters')
 
@@ -76,8 +76,8 @@ async def list_clusters() -> ClusterListModel:
 
     clusters = await paginate_aws_api_call(
         client_function=rds_client.describe_db_clusters,
-        format_function=format_cluster_info,
-        result_key='DBClusters',
+        format_function=format_cluster_summary,
+        result_key='DBClusters'
     )
 
     result = ClusterListModel(

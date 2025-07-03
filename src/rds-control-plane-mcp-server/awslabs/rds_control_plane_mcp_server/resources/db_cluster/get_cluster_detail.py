@@ -19,7 +19,7 @@ from ...common.connection import RDSConnectionManager
 from ...common.decorator import handle_exceptions
 from ...common.models import ClusterModel
 from ...common.server import mcp
-from .utils import format_cluster_info
+from .utils import format_cluster_detail
 from loguru import logger
 from pydantic import Field
 
@@ -28,29 +28,29 @@ GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION = """Get detailed information about a sp
 
 <use_case>
 Use this resource to retrieve comprehensive details about a specific RDS database cluster
-identified by its cluster ID. This is particularly useful for monitoring the status,
-configuration, and connectivity options of an individual cluster.
+identified by its cluster ID. This provides deeper insights than the cluster list resource.
 </use_case>
 
 <important_notes>
 1. The cluster ID must exist in your AWS account and region
 2. The response contains full configuration details about the specified cluster
-3. Error responses will be returned if the cluster doesn't exist or you lack permissions
-4. The information returned includes backup and maintenance windows useful for operational planning
-5. Security group information can be used to verify network configurations
+3. This resource includes information not available in the list view such as parameter groups,
+   backup configuration, and maintenance windows
+4. Use the cluster list resource first to identify valid cluster IDs
+5. Error responses will be returned if the cluster doesn't exist or there are permission issues
 </important_notes>
 
 ## Response structure
-Returns a JSON document containing detailed cluster information including:
-- Status, engine type, and version
-- Writer and reader endpoints for connection
-- Multi-AZ deployment status
-- Backup configuration and retention periods
-- Maintenance windows
-- Creation timestamp
-- Member instances with their roles (writer/reader)
-- Security groups configuration
-- Associated tags
+Returns a JSON document containing detailed cluster information:
+- All fields from the list view plus:
+- `endpoint`: The primary endpoint for connecting to the cluster
+- `reader_endpoint`: The reader endpoint for read operations (if applicable)
+- `port`: The port the database engine is listening on
+- `parameter_group`: Database parameter group information
+- `backup_retention_period`: How long backups are retained (in days)
+- `preferred_backup_window`: When automated backups occur
+- `preferred_maintenance_window`: When maintenance operations can occur
+- `resource_uri`: The full resource URI for this specific cluster
 """
 
 
@@ -90,7 +90,6 @@ async def get_cluster_detail(
     clusters = response.get('DBClusters', [])
     if not clusters:
         raise ValueError(f'Cluster {cluster_id} not found')
-
     cluster = format_cluster_info(clusters[0])
     cluster.resource_uri = 'aws-rds://db-cluster/{cluster_id}'
 
