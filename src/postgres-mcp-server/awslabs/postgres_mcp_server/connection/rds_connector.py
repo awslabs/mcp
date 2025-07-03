@@ -151,3 +151,16 @@ class RDSDataAPIConnection(AbstractDBConnection):
         """Close the database connection."""
         # RDS Data API doesn't maintain persistent connections
         pass
+        
+    async def check_connection_health(self) -> bool:
+        """Check if the RDS Data API connection is healthy.
+        
+        Returns:
+            bool: True if the connection is healthy, False otherwise
+        """
+        try:
+            result = await self.execute_query("SELECT 1")
+            return len(result.get("records", [])) > 0
+        except Exception as e:
+            logger.error(f"RDS Data API connection health check failed: {str(e)}")
+            return False

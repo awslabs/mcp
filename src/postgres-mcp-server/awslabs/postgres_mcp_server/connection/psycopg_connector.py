@@ -36,9 +36,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
     - RDS PostgreSQL (using the instance endpoint)
     - Self-hosted PostgreSQL
     
-    It supports two authentication methods:
-    1. Direct credentials (user and password)
-    2. AWS Secrets Manager (secret_arn and region_name)
+    It uses AWS Secrets Manager (secret_arn and region) for authentication.
     """
 
     def __init__(
@@ -47,10 +45,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
         port: int,
         database: str,
         readonly: bool,
-        user: Optional[str] = None,
-        password: Optional[str] = None,
-        secret_arn: Optional[str] = None,
-        region_name: Optional[str] = None,
+        secret_arn: str,
+        region: str,
         min_size: int = 1,
         max_size: int = 10,
         is_test: bool = False
@@ -62,10 +58,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
             port: Database port
             database: Database name
             readonly: Whether connections should be read-only
-            user: Database user (optional if secret_arn is provided)
-            password: Database password (optional if secret_arn is provided)
-            secret_arn: ARN of the secret containing credentials (optional if user and password are provided)
-            region_name: AWS region for Secrets Manager (required if secret_arn is provided)
+            secret_arn: ARN of the secret containing credentials
+            region: AWS region for Secrets Manager
             min_size: Minimum number of connections in the pool
             max_size: Maximum number of connections in the pool
             is_test: Whether this is a test connection
@@ -77,17 +71,10 @@ class PsycopgPoolConnection(AbstractDBConnection):
         self.min_size = min_size
         self.max_size = max_size
         
-        # Get credentials from either direct parameters or Secrets Manager
-        if user and password:
-            logger.info("Using provided user and password credentials")
-            self.user = user
-            self.password = password
-        elif secret_arn and region_name:
-            logger.info(f"Retrieving credentials from Secrets Manager: {secret_arn}")
-            self.user, self.password = self._get_credentials_from_secret(secret_arn, region_name, is_test)
-            logger.info(f"Successfully retrieved credentials for user: {self.user}")
-        else:
-            raise ValueError("Either (user, password) or (secret_arn, region_name) must be provided")
+        # Get credentials from Secrets Manager
+        logger.info(f"Retrieving credentials from Secrets Manager: {secret_arn}")
+        self.user, self.password = self._get_credentials_from_secret(secret_arn, region, is_test)
+        logger.info(f"Successfully retrieved credentials for user: {self.user}")
         
         # Initialize the connection pool
         if not is_test:
@@ -268,12 +255,12 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 
         return result
     
-    def _get_credentials_from_secret(self, secret_arn: str, region_name: str, is_test: bool = False) -> Tuple[str, str]:
+    def _get_credentials_from_secret(self, secret_arn: str, region: str, is_test: bool = False) -> Tuple[str, str]:
         """Get database credentials from AWS Secrets Manager.
         
         Args:
             secret_arn: ARN of the secret containing credentials
-            region_name: AWS region for Secrets Manager
+            region: AWS region for Secrets Manager
             is_test: Whether this is a test connection
             
         Returns:
@@ -287,11 +274,11 @@ class PsycopgPoolConnection(AbstractDBConnection):
         
         try:
             # Create a Secrets Manager client
-            logger.info(f"Creating Secrets Manager client in region {region_name}")
+            logger.info(f"Creating Secrets Manager client in region {region}")
             session = boto3.session.Session()
             client = session.client(
                 service_name='secretsmanager',
-                region_name=region_name
+                region_name=region
             )
             
             # Get the secret value
@@ -332,3 +319,21 @@ class PsycopgPoolConnection(AbstractDBConnection):
         """Close the connection pool."""
         if hasattr(self, 'pool'):
             self.pool.close()
+            
+    async def check_connection_health(self) -> bool:
+        """Check if the connection pool is healthy."""
+        try:
+            result = await self.execute_query("SELECT 1")
+            return len(result.get("records", [])) > 0
+        except Exception as e:
+            logger.error(f"Connection health check failed: {str(e)}")
+            return False
+            
+    def get_pool_stats(self) -> Dict[str, int]:
+        """Get current connection pool statistics."""
+        return {
+            "size": self.pool.size,
+            "min_size": self.pool.min_size,
+            "max_size": self.pool.max_size,
+            "idle": self.pool.idle
+        }
