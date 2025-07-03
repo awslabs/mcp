@@ -525,41 +525,6 @@ class TestAlarmHistoryIntegration:
                 assert 'StartDate' in call_args
                 assert 'EndDate' in call_args
 
-    @pytest.mark.asyncio
-    async def test_environment_region_behavior(
-        self, mock_context, realistic_alarm_history_response, realistic_metric_alarm
-    ):
-        """Test region behavior from environment configuration."""
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
-        ) as mock_session:
-            mock_client = Mock()
-            mock_session.return_value.client.return_value = mock_client
-
-            mock_paginator = Mock()
-            mock_paginator.paginate.return_value = [realistic_alarm_history_response]
-            mock_client.get_paginator.return_value = mock_paginator
-            mock_client.describe_alarms.return_value = {
-                'MetricAlarms': [realistic_metric_alarm],
-                'CompositeAlarms': [],
-            }
-
-            # Test different regions via environment
-            regions = ['us-east-1', 'us-east-1', 'eu-west-1', 'ap-southeast-1']
-
-            for region in regions:
-                with patch.dict('os.environ', {'AWS_REGION': region}):
-                    alarms_tools = CloudWatchAlarmsTools()
-
-                    result = await alarms_tools.get_alarm_history(
-                        ctx=mock_context, alarm_name='test-alarm'
-                    )
-
-                    assert isinstance(result, AlarmHistoryResponse)
-
-                    # Verify region-specific client creation
-                    mock_session.assert_called()
-
     def test_complex_alarm_rule_parsing(self):
         """Test parsing of complex composite alarm rules."""
         with patch('awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'):

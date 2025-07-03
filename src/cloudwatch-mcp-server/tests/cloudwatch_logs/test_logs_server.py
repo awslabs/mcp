@@ -14,7 +14,6 @@
 """Tests for the CloudWatch Logs functionality in the MCP Server."""
 
 import boto3
-import os
 import pytest
 import pytest_asyncio
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.models import (
@@ -35,13 +34,7 @@ async def ctx():
 
 
 @pytest_asyncio.fixture
-async def aws_credentials():
-    """Set up AWS credentials for testing."""
-    os.environ['AWS_REGION'] = 'us-west-2'
-
-
-@pytest_asyncio.fixture
-async def logs_client(aws_credentials):
+async def logs_client():
     """Create mocked logs client."""
     with mock_aws():
         client: Any = boto3.client('logs', region_name='us-west-2')
