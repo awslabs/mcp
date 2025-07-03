@@ -250,7 +250,6 @@ async def create_table(
 
 
 @app.tool()
-@write_operation
 async def get_table_maintenance_config(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -270,7 +269,6 @@ async def get_table_maintenance_config(
 
 
 @app.tool()
-@write_operation
 async def get_maintenance_job_status(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -290,7 +288,6 @@ async def get_maintenance_job_status(
 
 
 @app.tool()
-@write_operation
 async def get_table_metadata_location(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -540,7 +537,6 @@ async def import_csv_to_table(
 
 
 @app.tool()
-@write_operation
 async def get_bucket_metadata_config(
     bucket: Annotated[
         str,

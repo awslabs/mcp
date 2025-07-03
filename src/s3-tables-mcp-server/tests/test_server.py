@@ -421,56 +421,68 @@ async def test_create_table_readonly_mode(setup_app_readonly, mock_tables):
 
 @pytest.mark.asyncio
 async def test_get_table_maintenance_config_readonly_mode(setup_app_readonly, mock_tables):
-    """Test get_table_maintenance_config tool when allow_write is disabled."""
+    """Test get_table_maintenance_config tool when allow_write is disabled (should still work)."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     region = 'us-west-2'
+    expected_response = {'status': 'success'}
 
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await get_table_maintenance_config(
-            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-        )
+    # Act
+    result = await get_table_maintenance_config(
+        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+    )
+
+    # Assert
+    assert result == expected_response
+    mock_tables.get_table_maintenance_configuration.assert_called_once_with(
+        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_maintenance_job_status_readonly_mode(setup_app_readonly, mock_tables):
-    """Test get_maintenance_job_status tool when allow_write is disabled."""
+    """Test get_maintenance_job_status tool when allow_write is disabled (should still work)."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     region = 'us-west-2'
+    expected_response = {'status': 'success'}
 
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await get_maintenance_job_status(
-            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-        )
+    # Act
+    result = await get_maintenance_job_status(
+        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+    )
+
+    # Assert
+    assert result == expected_response
+    mock_tables.get_table_maintenance_job_status.assert_called_once_with(
+        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_table_metadata_location_readonly_mode(setup_app_readonly, mock_tables):
-    """Test get_table_metadata_location tool when allow_write is disabled."""
+    """Test get_table_metadata_location tool when allow_write is disabled (should still work)."""
     # Arrange
     table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     region = 'us-west-2'
+    expected_response = {'status': 'success'}
 
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await get_table_metadata_location(
-            table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
-        )
+    # Act
+    result = await get_table_metadata_location(
+        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+    )
+
+    # Assert
+    assert result == expected_response
+    mock_tables.get_table_metadata_location.assert_called_once_with(
+        table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
+    )
 
 
 @pytest.mark.asyncio
