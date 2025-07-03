@@ -1,18 +1,15 @@
 [project]
-name = "awslabs.cost-analysis-mcp-server"
-version = "1.0.4"
-description = "An AWS Labs Model Context Protocol (MCP) server for Cost Analysis of the AWS services"
+name = "awslabs.cloudwatch-appsignals-mcp-server"
+version = "0.1.1"
+description = "An AWS Labs Model Context Protocol (MCP) server for AWS Application Signals"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp[cli]>=1.6.0",
-    "pydantic>=2.10.6",
-    "boto3>=1.36.20",
-    "bs4>=0.0.2",
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.23.0",
-    "typing-extensions>=4.8.0",
+    "boto3>=1.37.24",
+    "httpx>=0.24.0",
     "loguru>=0.7.3",
+    "mcp[cli]>=1.6.0",
+    "pydantic>=2.11.1",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -33,22 +30,25 @@ classifiers = [
 ]
 
 [project.scripts]
-"awslabs.cost-analysis-mcp-server" = "awslabs.cost_analysis_mcp_server.server:main"
+"awslabs.cloudwatch-appsignals-mcp-server" = "awslabs.cloudwatch_appsignals_mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/cost-analysis-mcp-server/"
+Documentation = "https://awslabs.github.io/mcp/servers/cloudwatch-appsignals-mcp-server/"
 Source = "https://github.com/awslabs/mcp.git"
 "Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/cost-analysis-mcp-server/CHANGELOG.md"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/cloudwatch-appsignals-mcp-server/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
-    "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
-    "ruff>=0.9.7",
+    "boto3-stubs[application-signals,cloudwatch,logs,xray]>=1.37.24",
+    "commitizen>=4.4.1",
+    "moto>=5.0.0",
+    "pre-commit>=4.2.0",
     "pyright>=1.1.398",
-    "pytest>=8.0.0",
+    "ruff>=0.11.2",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.1",
     "pytest-cov>=4.1.0",
 ]
 
@@ -103,22 +103,23 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/cost_analysis_mcp_server/__init__.py:__version__"
+    "awslabs/cloudwatch_appsignals_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
 
-[tool.pytest.ini_options]
-addopts = "--cov=awslabs.cost_analysis_mcp_server --cov-report=term-missing"
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-
 [tool.bandit]
 exclude_dirs = ["venv","tests"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["awslabs"]

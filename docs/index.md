@@ -337,6 +337,20 @@ The Prometheus MCP Server provides a robust interface for interacting with AWS M
 
 [Learn more about the AWS Managed Prometheus MCP Server](servers/prometheus-mcp-server.md)
 
+### Amazon CloudWatch Application Signals MCP Server
+
+The CloudWatch Application Signals MCP Server provides tools for monitoring and analyzing AWS services using AWS Application Signals.
+
+**Features:**
+
+- List all services monitored by AWS Application Signals
+- Get detailed information about specific services including configuration, metrics, and log groups
+- View service names, types, and key attributes
+- Access available CloudWatch metrics and dimensions
+- Find associated log groups for debugging
+
+[Learn more about the Amazon CloudWatch Application Signals MCP Server](servers/cloudwatch-appsignals-mcp-server.md)
+
 ### Amazon DynamoDB MCP Server
 
 A server for interacting with Amazon DynamoDB
@@ -483,6 +497,22 @@ A server for interacting with AWS Cost Explorer to analyze AWS costs and usage d
 - Ask natural language questions about AWS costs
 
 [Learn more about the AWS Cost Explorer MCP Server](servers/cost-explorer-mcp-server.md)
+
+### AWS HealthOmics MCP Server
+
+An AWS Labs Model Context Protocol (MCP) server for AWS HealthOmics
+
+**Features:**
+
+- Workflow Management: Create, validate, and manage genomic workflows
+- Workflow Execution: Start runs, monitor status, and manage tasks
+- Analysis and Troubleshooting: Analyze run performance and diagnose failures
+- Log Access: Retrieve run, engine, task, and manifest logs
+- Region Management: Get supported AWS regions for HealthOmics
+
+Instructions for using this aws-healthomics MCP server. This can be used by clients to improve the LLM's understanding of available tools, resources, etc. for the AWS HealthOmics service
+
+[Learn more about the aws-healthomics MCP Server](servers/aws-healthomics-mcp-server.md)
 
 ## Installation and Setup
 
