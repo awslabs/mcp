@@ -21,23 +21,30 @@ This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to h
 1. **`list_monitored_services`** - List all services monitored by AWS Application Signals
    - Get an overview of all monitored services
    - See service names, types, and key attributes
-   - Identify which services are being tracked
+   - Identify the services monitored by Application Signals
 
 2. **`get_service_detail`** - Get detailed information about a specific service
-   - Understand service configuration and deployment
-   - View available CloudWatch metrics
+   - Get Service key properties such as Hosting environment, list of APIs,etc
+   - Get the list of ApplicationSignals metrics available on service
    - Find associated log groups
 
-## Required IAM Permissions
+3. **`list_slis`** - List all SLOs and SLIs status for all services
+   - List the configured SLOs and across all services
+   - Find out all breached SLIs and status
 
-* `application-signals:List*`
-* `application-signals:Get*`
-* `xray:BatchGet*`
-* `xray:Get*`
-* `cloudwatch:GetMetricData`
-* `logs:Get*`
-* `logs:StartQuery`
-* `logs:StopQuery`
+4. **`get_slo`** - Gets the details configuration for a specific SLO
+   - Return the relevant metrics info, SLO threshold
+
+5. **`search_transaction_spans`** - Queries OTel Spans data via Transaction Search
+   - Query OTel Spans to root cause the potential problems
+   - Generate business performance insights summaries
+
+6. **`query_sampled_traces`** - Queries AWS X-Ray traces to gain deeper insights
+   - Find the impact from the tracing dependency view
+   - Return the exact error stack for LLM to suggest the actionable fixes
+
+7. **`query_service_metrics`** - Queries AppSignals metrics for the target Application Signals services
+   - Query Application Signals RED metrics to correlate OTel Spans/Traces
 
 ## Installation
 
@@ -54,10 +61,30 @@ use [`uvx`](https://docs.astral.sh/uv/guides/tools/) to directly run *awslabs.cl
 
 ### Installing for Amazon Q (Preview)
 
-- Start Q Developer from [here](https://q.aws/chat).
-- Click on "Manage Connectors" and choose MCP Client.
-- Click "Add New Context Connector," enter a name like "CloudWatch AppSignals," and enter the command in the format: `uvx awslabs.cloudwatch-appsignals-mcp-server`.
-- Verify it shows "Connected" in green under the connector.
+- Start Amazon Q Developer CLI from [here](https://github.com/aws/amazon-q-developer-cli).
+- Add the following configuration in `~/.aws/amazonq/mcp.json` file.
+```json
+{
+  "mcpServers": {
+    "awslabs.cloudwatch-appsignals-mcp-server": {
+      "autoApprove": [],
+      "disabled": false,
+      "timeout": 60,
+      "command": "uvx",
+      "args": [
+        "awslabs.cloudwatch-appsignals-mcp-server@latest"
+      ],
+      "env": {
+        "AWS_ACCESS_KEY_ID": "[AWS Access Key ID]",
+        "AWS_SECRET_ACCESS_KEY": "[AWS Access Key]",
+        "AWS_REGION": "[AWS Region]",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "transportType": "stdio"
+    }
+  }
+}
+```
 
 ### Installing via Claude Desktop
 
@@ -88,12 +115,38 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
     "mcpServers": {
       "awslabs.cloudwatch-appsignals-mcp-server": {
         "command": "uvx",
-        "args": ["awslabs.cloudwatch-appsignals-mcp-server"]
+        "args": ["awslabs.cloudwatch-appsignals-mcp-server@latest"]
       }
     }
   }
   ```
 </details>
+
+### Build and install docker image locally on the same host of your LLM client
+
+1. `git clone https://github.com/awslabs/mcp.git`
+2. Go to sub-directory 'src/cloudwatch-appsignals-mcp-server/'
+3. Run 'docker build -t awslabs/cloudwatch-appsignals-mcp-server:latest .'
+
+### Add or update your LLM client's config with following:
+```json
+{
+  "mcpServers": {
+    "awslabs.cloudwatch-appsignals-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e", "AWS_ACCESS_KEY_ID=[your data]",
+        "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
+        "-e", "AWS_REGION=[your data]",
+        "awslabs/cloudwatch-appsignals-mcp-server:latest"
+      ]
+    }
+  }
+}
+```
 
 ### Debugging
 
