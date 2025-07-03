@@ -16,11 +16,11 @@
 
 import json
 import pytest
-from unittest.mock import MagicMock, patch
+from awslabs.rds_control_plane_mcp_server.resources.db_cluster.get_cluster_detail import (
+    get_cluster_detail,
+)
 from datetime import datetime
-
-from awslabs.rds_control_plane_mcp_server.resources.db_cluster.get_cluster_detail import get_cluster_detail
-from awslabs.rds_control_plane_mcp_server.common.constants import RESOURCE_PREFIX_DB_CLUSTER
+from unittest.mock import MagicMock, patch
 
 
 @pytest.mark.asyncio
@@ -48,33 +48,23 @@ async def test_get_cluster_detail_success():
                     {
                         'DBInstanceIdentifier': 'test-instance-1',
                         'IsClusterWriter': True,
-                        'DBClusterParameterGroupStatus': 'in-sync'
+                        'DBClusterParameterGroupStatus': 'in-sync',
                     },
                     {
                         'DBInstanceIdentifier': 'test-instance-2',
                         'IsClusterWriter': False,
-                        'DBClusterParameterGroupStatus': 'in-sync'
-                    }
+                        'DBClusterParameterGroupStatus': 'in-sync',
+                    },
                 ],
-                'VpcSecurityGroups': [
-                    {
-                        'VpcSecurityGroupId': 'sg-12345',
-                        'Status': 'active'
-                    }
-                ],
-                'TagList': [
-                    {
-                        'Key': 'Environment',
-                        'Value': 'Production'
-                    }
-                ]
+                'VpcSecurityGroups': [{'VpcSecurityGroupId': 'sg-12345', 'Status': 'active'}],
+                'TagList': [{'Key': 'Environment', 'Value': 'Production'}],
             }
         ]
     }
 
     with patch(
         'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_rds_client
+        return_value=mock_rds_client,
     ):
         result = await get_cluster_detail(cluster_id)
 
@@ -88,10 +78,15 @@ async def test_get_cluster_detail_success():
         assert result_dict['status'] == 'available'
         assert result_dict['engine'] == 'aurora-mysql'
         assert result_dict['engine_version'] == '5.7.12'
-        assert result_dict['resource_uri'] == f'{RESOURCE_PREFIX_DB_CLUSTER}/{cluster_id}'
+        assert result_dict['resource_uri'] == 'aws-rds://db-cluster/' + cluster_id
 
-        assert result_dict['endpoint'] == 'test-cluster-1.cluster-abc123.us-east-1.rds.amazonaws.com'
-        assert result_dict['reader_endpoint'] == 'test-cluster-1.cluster-ro-abc123.us-east-1.rds.amazonaws.com'
+        assert (
+            result_dict['endpoint'] == 'test-cluster-1.cluster-abc123.us-east-1.rds.amazonaws.com'
+        )
+        assert (
+            result_dict['reader_endpoint']
+            == 'test-cluster-1.cluster-ro-abc123.us-east-1.rds.amazonaws.com'
+        )
 
         assert result_dict['multi_az'] is True
         assert result_dict['backup_retention'] == 7
@@ -120,13 +115,11 @@ async def test_get_cluster_detail_not_found():
     cluster_id = 'non-existent-cluster'
 
     mock_rds_client = MagicMock()
-    mock_rds_client.describe_db_clusters.return_value = {
-        'DBClusters': []
-    }
+    mock_rds_client.describe_db_clusters.return_value = {'DBClusters': []}
 
     with patch(
         'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_rds_client
+        return_value=mock_rds_client,
     ):
         result = await get_cluster_detail(cluster_id)
 
@@ -147,15 +140,15 @@ async def test_get_cluster_detail_client_error():
         {
             'Error': {
                 'Code': 'DBClusterNotFoundFault',
-                'Message': f'DBCluster {cluster_id} not found'
+                'Message': f'DBCluster {cluster_id} not found',
             }
         },
-        'DescribeDBClusters'
+        'DescribeDBClusters',
     )
 
     with patch(
         'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_rds_client
+        return_value=mock_rds_client,
     ):
         result = await get_cluster_detail(cluster_id)
 

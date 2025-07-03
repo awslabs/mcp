@@ -14,13 +14,10 @@
 
 """Resource for listing availble RDS DB Performance Reports."""
 
-import json
 from ...common.connection import PIConnectionManager
-from ...common.constants import RESOURCE_PREFIX_DB_PERFORMANCE_REPORT
 from ...common.decorator import handle_exceptions
 from ...common.server import mcp
 from ...common.utils import convert_datetime_to_string
-from ...context import Context
 from pydantic import BaseModel, Field
 from typing import List, Literal
 
@@ -109,7 +106,7 @@ async def list_performance_reports(
         ...,
         description='The resource identifier for the DB instance. This is the DbiResourceId returned by the ListDBInstances resource',
     ),
-) -> str:
+) -> PerformanceReportListModel:
     """Retrieve all performance reports for a given DB instance.
 
     Args:
@@ -122,23 +119,21 @@ async def list_performance_reports(
     reports: List[PerformanceReportSummary] = []
 
     next_token = None
-    max_results = 20 
+    max_results = 20
 
     while True:
         if next_token:
             response = pi_client.list_performance_analysis_reports(
-                ServiceType='RDS', 
-                Identifier=dbi_resource_identifier, 
+                ServiceType='RDS',
+                Identifier=dbi_resource_identifier,
                 MaxResults=max_results,
-                NextToken=next_token
+                NextToken=next_token,
             )
         else:
             response = pi_client.list_performance_analysis_reports(
-                ServiceType='RDS', 
-                Identifier=dbi_resource_identifier, 
-                MaxResults=max_results
+                ServiceType='RDS', Identifier=dbi_resource_identifier, MaxResults=max_results
             )
-        
+
         for report in response.get('AnalysisReports', []):
             reports.append(
                 PerformanceReportSummary(
@@ -149,15 +144,15 @@ async def list_performance_reports(
                     status=report.get('Status'),
                 )
             )
-            
+
         if 'NextToken' not in response:
             break
-            
+
         next_token = response.get('NextToken')
 
     result = PerformanceReportListModel(
         reports=reports,
         count=len(reports),
-        resource_uri=RESOURCE_PREFIX_DB_PERFORMANCE_REPORT.format(dbi_resource_identifier),
+        resource_uri='aws-rds://db-instance/{dbi_resource_identifier}/performance_report',
     )
-    return json.dumps(result.model_dump(), indent=2)
+    return result

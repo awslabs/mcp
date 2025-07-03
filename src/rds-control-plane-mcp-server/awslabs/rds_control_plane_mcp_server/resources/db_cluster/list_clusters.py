@@ -14,9 +14,7 @@
 
 """Resource for listing availble RDS DB Clusters."""
 
-import json
 from ...common.connection import RDSConnectionManager
-from ...common.constants import RESOURCE_PREFIX_DB_CLUSTER
 from ...common.decorator import handle_exceptions
 from ...common.models import ClusterModel
 from ...common.server import mcp
@@ -62,7 +60,7 @@ class ClusterListModel(BaseModel):
     mime_type='application/json',
 )
 @handle_exceptions
-async def list_clusters() -> str:
+async def list_clusters() -> ClusterListModel:
     """List all RDS clusters.
 
     Retrieves a complete list of all RDS database clusters in the current AWS region,
@@ -79,12 +77,11 @@ async def list_clusters() -> str:
     clusters = await paginate_aws_api_call(
         client_function=rds_client.describe_db_clusters,
         format_function=format_cluster_info,
-        result_key='DBClusters'
+        result_key='DBClusters',
     )
 
     result = ClusterListModel(
-        clusters=clusters, count=len(clusters), resource_uri=RESOURCE_PREFIX_DB_CLUSTER
+        clusters=clusters, count=len(clusters), resource_uri='aws-rds://db-cluster'
     )
 
-    model_dict = result.model_dump()
-    return json.dumps(model_dict, indent=2)
+    return result

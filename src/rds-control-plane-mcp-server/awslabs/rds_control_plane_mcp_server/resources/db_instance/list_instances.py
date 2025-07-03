@@ -14,9 +14,7 @@
 
 """Resource for listing availble RDS DB Instances."""
 
-import json
 from ...common.connection import RDSConnectionManager
-from ...common.constants import RESOURCE_PREFIX_DB_INSTANCE
 from ...common.decorator import handle_exceptions
 from ...common.models import InstanceListModel
 from ...common.server import mcp
@@ -52,7 +50,7 @@ Returns a JSON document containing:
     description=LIST_INSTANCES_RESOURCE_DESCRIPTION,
 )
 @handle_exceptions
-async def list_instances() -> str:
+async def list_instances() -> InstanceListModel:
     """Get list of all RDS instances as a resource.
 
     Returns:
@@ -64,11 +62,11 @@ async def list_instances() -> str:
     instances = await paginate_aws_api_call(
         client_function=rds_client.describe_db_instances,
         format_function=format_instance_info,
-        result_key='DBInstances'
+        result_key='DBInstances',
     )
 
     result = InstanceListModel(
-        instances=instances, count=len(instances), resource_uri=RESOURCE_PREFIX_DB_INSTANCE
+        instances=instances, count=len(instances), resource_uri='aws-rds://db-instance'
     )
 
-    return json.dumps(result.model_dump(), indent=2)
+    return result

@@ -15,26 +15,10 @@
 """General utility functions for the RDS Control Plane MCP Server."""
 
 import asyncio
-from typing import Any, Dict, List, Callable, TypeVar
+from typing import Any, Callable, Dict, List, TypeVar
+
 
 T = TypeVar('T')
-
-
-def format_aws_response(response: Dict[str, Any]) -> Dict[str, Any]:
-    """Format AWS API response for MCP.
-
-    Args:
-        response: Raw AWS API response
-
-    Returns:
-        Formatted response dictionary
-    """
-    # remove ResponseMetadata as it's not useful for LLMs
-    if 'ResponseMetadata' in response:
-        del response['ResponseMetadata']
-
-    # convert datetime objects to strings
-    return convert_datetime_to_string(response)
 
 
 def convert_datetime_to_string(obj: Any) -> Any:
@@ -61,7 +45,7 @@ async def paginate_aws_api_call(
     client_function: Callable,
     format_function: Callable[[Dict[str, Any]], T],
     result_key: str,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> List[T]:
     """Fetch all results using AWS API pagination.
 
