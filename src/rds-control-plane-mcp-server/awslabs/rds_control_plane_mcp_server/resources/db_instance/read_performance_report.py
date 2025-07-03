@@ -14,13 +14,13 @@
 
 """Resource for reading RDS Performance Reports for a RDS DB Instance."""
 
-import json
 from ...common.connection import PIConnectionManager
 from ...common.decorator import handle_exceptions
 from ...common.server import mcp
-from ...common.utils import format_aws_response
+from datetime import datetime
 from loguru import logger
-from pydantic import Field
+from pydantic import BaseModel, Field
+from typing import Any, Dict, List
 
 
 READ_PERFORMANCE_REPORT_RESOURCE_DESCRIPTION = """Read the contents of a specific performance report for a specific Amazon RDS instance.
@@ -66,6 +66,19 @@ Example usage scenarios:
 """
 
 
+class AnalysisReport(BaseModel):
+    """Model representing a complete performance analysis report."""
+
+    AnalysisReportId: str
+    Identifier: str
+    ServiceType: str
+    CreateTime: datetime
+    StartTime: datetime
+    EndTime: datetime
+    Status: str
+    Insights: List[Dict[str, Any]] = []
+
+
 @mcp.resource(
     uri='aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id}',
     name='ReadPerformanceReport',
@@ -81,7 +94,7 @@ async def read_performance_report(
     report_id: str = Field(
         ..., description='The unique identifier of the performance analysis report to retrieve'
     ),
-) -> str:
+) -> AnalysisReport:
     """Retrieve a specific performance report from AWS Performance Insights.
 
     Args:
@@ -96,23 +109,12 @@ async def read_performance_report(
     )
     pi_client = PIConnectionManager.get_connection()
 
-    try:
-        response = pi_client.get_performance_analysis_report(
-            ServiceType='RDS',
-            Identifier=dbi_resource_identifier,
-            AnalysisReportId=report_id,
-            TextFormat='MARKDOWN',
-        )
-    except Exception as e:
-        return json.dumps(
-            {
-                'error': f'Failed to retrieve performance report: {str(e)}',
-                'resource': f'aws-rds://db-instance/{dbi_resource_identifier}/performance_report/{report_id}',
-            },
-            indent=2,
-        )
+    response = pi_client.get_performance_analysis_report(
+        ServiceType='RDS',
+        Identifier=dbi_resource_identifier,
+        AnalysisReportId=report_id,
+        TextFormat='MARKDOWN',
+    )
 
-    # Convert TypedDict to Dict before formatting
-    formatted_response = format_aws_response(dict(response))
-    analysis_report = formatted_response.get('AnalysisReport', {})
-    return json.dumps(analysis_report, indent=2)
+    analysis_report = response.get('AnalysisReport', {})
+    return AnalysisReport.model_validate(analysis_report)
