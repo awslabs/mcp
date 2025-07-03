@@ -18,6 +18,7 @@ import asyncio
 import boto3
 import datetime
 import os
+import warnings
 from awslabs.cloudwatch_logs_mcp_server import MCP_SERVER_VERSION
 from awslabs.cloudwatch_logs_mcp_server.common import (
     clean_up_pattern,
@@ -40,7 +41,6 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from timeit import default_timer as timer
 from typing import Dict, List, Literal, Optional
-import warnings
 
 
 mcp = FastMCP(
@@ -124,8 +124,9 @@ async def describe_log_groups_tool(
             - logGroupArn: The Amazon Resource Name (ARN) of the log group. This version of the ARN doesn't include a trailing :* after the log group name.
         Any saved queries that are applicable to the returned log groups are also included.
     """
-    msg = "describe_log_groups tool is deprecated. Please use the describe_log_groups tool in the cloudwatch MCP server instead"
+    msg = 'describe_log_groups tool is deprecated. Please use the describe_log_groups tool in the cloudwatch MCP server instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     def describe_log_groups() -> List[LogGroupMetadata]:
         paginator = logs_client.get_paginator('describe_log_groups')
         kwargs = {
@@ -227,8 +228,9 @@ async def analyze_log_group_tool(
         - top_patterns_containing_errors: Results of the query for patterns containing error-related terms
             (error, exception, fail, timeout, fatal)
     """
-    msg = "analyze_log_group tool is deprecated. Please use the analyze_log_group tool in the cloudwatch MCP server instead"
+    msg = 'analyze_log_group tool is deprecated. Please use the analyze_log_group tool in the cloudwatch MCP server instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     def is_applicable_anomaly(anomaly: LogAnomaly) -> bool:
         # Must have overlap
         if anomaly.firstSeen > end_time or anomaly.lastSeen < start_time:
@@ -372,7 +374,7 @@ async def execute_log_insights_query_tool(
             - statistics: Query performance statistics
             - messages: Any informational messages about the query
     """
-    msg = "execute_log_insights_query tool is deprecated. Please use the execute_log_insights_query tool in the cloudwatch MCP server instead"
+    msg = 'execute_log_insights_query tool is deprecated. Please use the execute_log_insights_query tool in the cloudwatch MCP server instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
     try:
         # Start query
@@ -454,7 +456,7 @@ async def get_query_results_tool(
             - statistics: Query performance statistics
             - messages: Any informational messages about the query
     """
-    msg = "get_query_results tool is deprecated. Please use the get_logs_insight_query_results tool in the cloudwatch MCP server instead"
+    msg = 'get_query_results tool is deprecated. Please use the get_logs_insight_query_results tool in the cloudwatch MCP server instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
     try:
         response = logs_client.get_query_results(queryId=query_id)
@@ -495,7 +497,7 @@ async def cancel_query_tool(
     --------
         A CancelQueryResult with a "success" key, which is True if the query was successfully cancelled.
     """
-    msg = "cancel_query tool is deprecated. Please use the cancel_logs_insight_query tool in the cloudwatch MCP server instead"
+    msg = 'cancel_query tool is deprecated. Please use the cancel_logs_insight_query tool in the cloudwatch MCP server instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
     try:
         response = logs_client.stop_query(queryId=query_id)
