@@ -16,11 +16,9 @@
 
 import json
 import pytest
-from unittest.mock import MagicMock, patch
-from datetime import datetime
-
 from awslabs.rds_control_plane_mcp_server.resources.db_cluster.list_clusters import list_clusters
-from awslabs.rds_control_plane_mcp_server.common.constants import RESOURCE_PREFIX_DB_CLUSTER
+from datetime import datetime
+from unittest.mock import MagicMock, patch
 
 
 @pytest.mark.asyncio
@@ -47,21 +45,11 @@ async def test_list_clusters_success():
                     {
                         'DBInstanceIdentifier': 'test-instance-1',
                         'IsClusterWriter': True,
-                        'DBClusterParameterGroupStatus': 'in-sync'
+                        'DBClusterParameterGroupStatus': 'in-sync',
                     }
                 ],
-                'VpcSecurityGroups': [
-                    {
-                        'VpcSecurityGroupId': 'sg-12345',
-                        'Status': 'active'
-                    }
-                ],
-                'TagList': [
-                    {
-                        'Key': 'Environment',
-                        'Value': 'Production'
-                    }
-                ]
+                'VpcSecurityGroups': [{'VpcSecurityGroupId': 'sg-12345', 'Status': 'active'}],
+                'TagList': [{'Key': 'Environment', 'Value': 'Production'}],
             },
             {
                 'DBClusterIdentifier': 'test-cluster-2',
@@ -77,14 +65,14 @@ async def test_list_clusters_success():
                 'PreferredMaintenanceWindow': 'mon:05:00-mon:06:00',
                 'DBClusterMembers': [],
                 'VpcSecurityGroups': [],
-                'TagList': []
-            }
+                'TagList': [],
+            },
         ]
     }
 
     with patch(
         'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_rds_client
+        return_value=mock_rds_client,
     ):
         result = await list_clusters()
 
@@ -96,7 +84,7 @@ async def test_list_clusters_success():
 
         assert result_dict['count'] == 2
         assert len(result_dict['clusters']) == 2
-        assert result_dict['resource_uri'] == RESOURCE_PREFIX_DB_CLUSTER
+        assert result_dict['resource_uri'] == 'aws-rds://db-cluster/'
 
         cluster1 = result_dict['clusters'][0]
         assert cluster1['cluster_id'] == 'test-cluster-1'
@@ -104,7 +92,10 @@ async def test_list_clusters_success():
         assert cluster1['engine'] == 'aurora-mysql'
         assert cluster1['engine_version'] == '5.7.12'
         assert cluster1['endpoint'] == 'test-cluster-1.cluster-abc123.us-east-1.rds.amazonaws.com'
-        assert cluster1['reader_endpoint'] == 'test-cluster-1.cluster-ro-abc123.us-east-1.rds.amazonaws.com'
+        assert (
+            cluster1['reader_endpoint']
+            == 'test-cluster-1.cluster-ro-abc123.us-east-1.rds.amazonaws.com'
+        )
         assert cluster1['multi_az'] is True
         assert cluster1['backup_retention'] == 7
         assert len(cluster1['members']) == 1
@@ -127,20 +118,18 @@ async def test_list_clusters_success():
 async def test_list_clusters_empty():
     """Test list_clusters when no clusters exist."""
     mock_rds_client = MagicMock()
-    mock_rds_client.describe_db_clusters.return_value = {
-        'DBClusters': []
-    }
+    mock_rds_client.describe_db_clusters.return_value = {'DBClusters': []}
 
     with patch(
         'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_rds_client
+        return_value=mock_rds_client,
     ):
         result = await list_clusters()
 
         result_dict = json.loads(result)
         assert result_dict['clusters'] == []
         assert result_dict['count'] == 0
-        assert result_dict['resource_uri'] == RESOURCE_PREFIX_DB_CLUSTER
+        assert result_dict['resource_uri'] == 'aws-rds://db-cluster/'
 
 
 @pytest.mark.asyncio
@@ -159,10 +148,10 @@ async def test_list_clusters_with_pagination():
                     'ClusterCreateTime': create_time,
                     'DBClusterMembers': [],
                     'VpcSecurityGroups': [],
-                    'TagList': []
+                    'TagList': [],
                 }
             ],
-            'Marker': 'next-page'
+            'Marker': 'next-page',
         },
         {
             'DBClusters': [
@@ -173,15 +162,15 @@ async def test_list_clusters_with_pagination():
                     'ClusterCreateTime': create_time,
                     'DBClusterMembers': [],
                     'VpcSecurityGroups': [],
-                    'TagList': []
+                    'TagList': [],
                 }
             ]
-        }
+        },
     ]
 
     with patch(
         'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_rds_client
+        return_value=mock_rds_client,
     ):
         result = await list_clusters()
 
@@ -206,15 +195,15 @@ async def test_list_clusters_client_error():
         {
             'Error': {
                 'Code': 'InvalidParameterCombination',
-                'Message': 'Invalid parameter combination'
+                'Message': 'Invalid parameter combination',
             }
         },
-        'DescribeDBClusters'
+        'DescribeDBClusters',
     )
 
     with patch(
         'awslabs.rds_control_plane_mcp_server.common.connection.RDSConnectionManager.get_connection',
-        return_value=mock_rds_client
+        return_value=mock_rds_client,
     ):
         result = await list_clusters()
 

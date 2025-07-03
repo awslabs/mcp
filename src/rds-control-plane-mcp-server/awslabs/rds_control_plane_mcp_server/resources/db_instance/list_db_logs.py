@@ -14,12 +14,9 @@
 
 """Resource for listing availble RDS DB Log File."""
 
-import json
 from ...common.connection import RDSConnectionManager
-from ...common.constants import RESOURCE_PREFIX_DB_LOG_FILES
 from ...common.decorator import handle_exceptions
 from ...common.server import mcp
-from ...common.utils import convert_datetime_to_string
 from ...context import Context
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -136,7 +133,7 @@ async def list_db_log_files(
     result = DBLogFileListModel(
         log_files=log_files,
         count=len(log_files),
-        resource_uri=RESOURCE_PREFIX_DB_LOG_FILES.format(db_instance_identifier),
+        resource_uri='aws-rds://db-instance/{db_instance_identifier}/log',
     )
 
     return result

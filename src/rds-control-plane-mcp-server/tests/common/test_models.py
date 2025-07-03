@@ -15,29 +15,21 @@
 """Tests for the models module in the RDS Control Plane MCP Server."""
 
 import json
-import pytest
-from datetime import datetime
-
 from awslabs.rds_control_plane_mcp_server.common.models import (
+    ClusterListModel,
     ClusterMember,
-    VpcSecurityGroup,
     ClusterModel,
     InstanceEndpoint,
-    InstanceStorage,
-    InstanceModel,
     InstanceListModel,
-    ClusterListModel,
+    InstanceModel,
+    InstanceStorage,
+    VpcSecurityGroup,
 )
-from awslabs.rds_control_plane_mcp_server.common.constants import RESOURCE_PREFIX_DB_CLUSTER
 
 
 def test_cluster_member_model():
     """Test the ClusterMember model."""
-    member = ClusterMember(
-        instance_id='test-instance',
-        is_writer=True,
-        status='available'
-    )
+    member = ClusterMember(instance_id='test-instance', is_writer=True, status='available')
 
     member_dict = member.model_dump()
     assert member_dict['instance_id'] == 'test-instance'
@@ -51,10 +43,7 @@ def test_cluster_member_model():
 
 def test_vpc_security_group_model():
     """Test the VpcSecurityGroup model."""
-    sg = VpcSecurityGroup(
-        id='sg-12345',
-        status='active'
-    )
+    sg = VpcSecurityGroup(id='sg-12345', status='active')
 
     sg_dict = sg.model_dump()
     assert sg_dict['id'] == 'sg-12345'
@@ -75,13 +64,11 @@ def test_cluster_model():
         preferred_maintenance_window='sun:05:00-sun:06:00',
         members=[
             ClusterMember(instance_id='instance-1', is_writer=True, status='in-sync'),
-            ClusterMember(instance_id='instance-2', is_writer=False, status='in-sync')
+            ClusterMember(instance_id='instance-2', is_writer=False, status='in-sync'),
         ],
-        vpc_security_groups=[
-            VpcSecurityGroup(id='sg-12345', status='active')
-        ],
+        vpc_security_groups=[VpcSecurityGroup(id='sg-12345', status='active')],
         tags={'Environment': 'Test'},
-        resource_uri=f"{RESOURCE_PREFIX_DB_CLUSTER}/test-cluster"
+        resource_uri='aws-rds://db-cluster/' + 'test-cluster',
     )
 
     cluster_dict = cluster.model_dump()
@@ -91,7 +78,7 @@ def test_cluster_model():
     assert cluster_dict['members'][0]['instance_id'] == 'instance-1'
     assert cluster_dict['vpc_security_groups'][0]['id'] == 'sg-12345'
     assert cluster_dict['tags'] == {'Environment': 'Test'}
-    assert cluster_dict['resource_uri'] == f"{RESOURCE_PREFIX_DB_CLUSTER}/test-cluster"
+    assert cluster_dict['resource_uri'] == 'aws-rds://db-cluster/' + 'test-cluster'
 
     json_str = json.dumps(cluster_dict)
     parsed = json.loads(json_str)
@@ -106,7 +93,7 @@ def test_cluster_model_with_defaults():
         engine='aurora-postgresql',
         status='creating',
         multi_az=False,
-        backup_retention=1
+        backup_retention=1,
     )
 
     cluster_dict = cluster.model_dump()
@@ -120,9 +107,7 @@ def test_cluster_model_with_defaults():
 def test_instance_endpoint_model():
     """Test the InstanceEndpoint model."""
     endpoint = InstanceEndpoint(
-        address='db.example.com',
-        port=3306,
-        hosted_zone_id='Z2R2ITUGPM61AM'
+        address='db.example.com', port=3306, hosted_zone_id='Z2R2ITUGPM61AM'
     )
 
     endpoint_dict = endpoint.model_dump()
@@ -139,11 +124,7 @@ def test_instance_endpoint_model():
 
 def test_instance_storage_model():
     """Test the InstanceStorage model."""
-    storage = InstanceStorage(
-        type='gp2',
-        allocated=20,
-        encrypted=True
-    )
+    storage = InstanceStorage(type='gp2', allocated=20, encrypted=True)
 
     storage_dict = storage.model_dump()
     assert storage_dict['type'] == 'gp2'
@@ -171,19 +152,13 @@ def test_instance_model():
         endpoint=InstanceEndpoint(
             address='test-instance.abc123.us-east-1.rds.amazonaws.com',
             port=3306,
-            hosted_zone_id='Z2R2ITUGPM61AM'
+            hosted_zone_id='Z2R2ITUGPM61AM',
         ),
-        storage=InstanceStorage(
-            type='gp2',
-            allocated=20,
-            encrypted=True
-        ),
+        storage=InstanceStorage(type='gp2', allocated=20, encrypted=True),
         db_cluster='test-cluster',
-        vpc_security_groups=[
-            VpcSecurityGroup(id='sg-12345', status='active')
-        ],
+        vpc_security_groups=[VpcSecurityGroup(id='sg-12345', status='active')],
         tags={'Environment': 'Development'},
-        resource_uri='aws-rds://db-instance/test-instance'
+        resource_uri='aws-rds://db-instance/test-instance',
     )
 
     instance_dict = instance.model_dump()
@@ -192,7 +167,9 @@ def test_instance_model():
     assert instance_dict['engine_version'] == '8.0'
     assert instance_dict['instance_class'] == 'db.t3.medium'
     assert instance_dict['db_cluster'] == 'test-cluster'
-    assert instance_dict['endpoint']['address'] == 'test-instance.abc123.us-east-1.rds.amazonaws.com'
+    assert (
+        instance_dict['endpoint']['address'] == 'test-instance.abc123.us-east-1.rds.amazonaws.com'
+    )
     assert instance_dict['storage']['type'] == 'gp2'
     assert instance_dict['storage']['allocated'] == 20
 
@@ -210,7 +187,7 @@ def test_instance_model_with_defaults():
         engine='postgres',
         instance_class='db.t3.micro',
         multi_az=False,
-        publicly_accessible=False
+        publicly_accessible=False,
     )
 
     instance_dict = instance.model_dump()
@@ -233,7 +210,7 @@ def test_instance_list_model():
         engine='mysql',
         instance_class='db.t3.medium',
         multi_az=False,
-        publicly_accessible=True
+        publicly_accessible=True,
     )
     instance2 = InstanceModel(
         instance_id='instance-2',
@@ -241,13 +218,11 @@ def test_instance_list_model():
         engine='postgres',
         instance_class='db.t3.large',
         multi_az=True,
-        publicly_accessible=False
+        publicly_accessible=False,
     )
 
     instance_list = InstanceListModel(
-        instances=[instance1, instance2],
-        count=2,
-        resource_uri='aws-rds://db-instance'
+        instances=[instance1, instance2], count=2, resource_uri='aws-rds://db-instance'
     )
 
     list_dict = instance_list.model_dump()
@@ -257,11 +232,7 @@ def test_instance_list_model():
     assert list_dict['instances'][0]['instance_id'] == 'instance-1'
     assert list_dict['instances'][1]['instance_id'] == 'instance-2'
 
-    empty_list = InstanceListModel(
-        instances=[],
-        count=0,
-        resource_uri='aws-rds://db-instance'
-    )
+    empty_list = InstanceListModel(instances=[], count=0, resource_uri='aws-rds://db-instance')
     empty_dict = empty_list.model_dump()
     assert empty_dict['instances'] == []
     assert empty_dict['count'] == 0
@@ -274,20 +245,18 @@ def test_cluster_list_model():
         engine='aurora-mysql',
         status='available',
         multi_az=True,
-        backup_retention=7
+        backup_retention=7,
     )
     cluster2 = ClusterModel(
         cluster_id='cluster-2',
         engine='aurora-postgresql',
         status='available',
         multi_az=False,
-        backup_retention=5
+        backup_retention=5,
     )
 
     cluster_list = ClusterListModel(
-        clusters=[cluster1, cluster2],
-        count=2,
-        resource_uri='aws-rds://db-cluster'
+        clusters=[cluster1, cluster2], count=2, resource_uri='aws-rds://db-cluster'
     )
 
     list_dict = cluster_list.model_dump()

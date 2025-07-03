@@ -20,9 +20,3 @@ MCP_SERVER_VERSION = '0.1.0'
 # Error Messages
 ERROR_AWS_API = 'AWS API error: {}'
 ERROR_UNEXPECTED = 'Unexpected error: {}'
-
-# Resource URI Prefixes
-RESOURCE_PREFIX_DB_CLUSTER = 'aws-rds://db-cluster'
-RESOURCE_PREFIX_DB_INSTANCE = 'aws-rds://db-instance'
-RESOURCE_PREFIX_DB_LOG_FILES = 'aws-rds://db-instance/{}/log'
-RESOURCE_PREFIX_DB_PERFORMANCE_REPORT = 'aws-rds://db-instance/{}/performance_report/'

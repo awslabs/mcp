@@ -15,9 +15,7 @@
 """Resource for retrieving detailed information about RDS DB Instances."""
 
 import asyncio
-import json
 from ...common.connection import RDSConnectionManager
-from ...common.constants import RESOURCE_PREFIX_DB_INSTANCE
 from ...common.decorator import handle_exceptions
 from ...common.models import InstanceModel
 from ...common.server import mcp
@@ -81,6 +79,6 @@ async def get_instance_detail(
         raise ValueError(f'Instance {instance_id} not found')
 
     instance = format_instance_info(instances[0])
-    instance.resource_uri = f'{RESOURCE_PREFIX_DB_INSTANCE}/{instance_id}'
+    instance.resource_uri = 'aws-rds://db-instance/{instance_id}'
 
     return instance

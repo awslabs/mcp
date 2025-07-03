@@ -15,9 +15,7 @@
 """Resource for retrieving detailed information about RDS DB Clusters."""
 
 import asyncio
-import json
 from ...common.connection import RDSConnectionManager
-from ...common.constants import RESOURCE_PREFIX_DB_CLUSTER
 from ...common.decorator import handle_exceptions
 from ...common.models import ClusterModel
 from ...common.server import mcp
@@ -94,6 +92,6 @@ async def get_cluster_detail(
         raise ValueError(f'Cluster {cluster_id} not found')
 
     cluster = format_cluster_info(clusters[0])
-    cluster.resource_uri = f'{RESOURCE_PREFIX_DB_CLUSTER}/{cluster_id}'
+    cluster.resource_uri = 'aws-rds://db-cluster/{cluster_id}'
 
     return cluster
