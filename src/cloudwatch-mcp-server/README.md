@@ -14,7 +14,7 @@ Log Analyzer - Analyzes a CloudWatch log group for anomalies, message patterns, 
 
 Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated, recommended statistics to use for metric data retrieval
 
-Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm
+Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm settings.
 
 ## Prerequisites
 

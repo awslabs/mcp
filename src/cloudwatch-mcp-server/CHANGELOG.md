@@ -7,15 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-## [0.0.1] - 2025-06-02
+## [0.0.1] - 2025-07-02
 
-### Fixed
+### Added
 
-- Fix MCP user agent being added so users can identify requests from this server in CloudTrail
+- Added Support for CloudWatch Alarms Tools
+- Added Support for CloudWatch Metrics Tools
+- Added Support for CloudWatch Logs Tools
 
-## [0.0.0] - 2025-05-29
+## [0.0.0] - 2025-06-19
 
 ### Added
 
 - Initial project setup
-- Tools to get log groups and running log queries.

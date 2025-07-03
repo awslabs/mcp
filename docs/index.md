@@ -323,13 +323,13 @@ The CloudWatch MCP Server provides specialized tools to address common operation
 
 - Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated, recommended statistics to use for metric data retrieval
 
-- Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm
+- Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm settings.
 
 [Learn more about the Amazon CloudWatch MCP Server](servers/cloudwatch-mcp-server.md)
 
-### Amazon CloudWatch Logs MCP Server (deprecated)
+### Amazon CloudWatch Logs MCP Server (DEPRECATED)
 
->Deprecated. Please use the Amazon CloudWatch MCP Server instead.
+>DEPRECATED. Please use the Amazon CloudWatch MCP Server instead.
 
 An AWS Labs Model Context Protocol (MCP) server for Amazon Cloudwatch Logs.
 
