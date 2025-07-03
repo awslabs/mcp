@@ -76,7 +76,7 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
         "awslabs.cloudwatch-mcp-server@latest"
       ],
       "env": {
-        "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]"
+        "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "transportType": "stdio"
