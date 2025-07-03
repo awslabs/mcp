@@ -20,6 +20,7 @@ import json
 import pytest
 import sys
 import uuid
+from unittest.mock import patch, MagicMock
 from awslabs.postgres_mcp_server.server import (
     DBConnectionSingleton,
     client_error_code_key,
@@ -29,7 +30,7 @@ from awslabs.postgres_mcp_server.server import (
     unexpected_error_key,
     write_query_prohibited_key,
 )
-from conftest import DummyCtx, Mock_DBConnection, MockException
+from conftest import DummyCtx, Mock_DBConnection, MockException, Mock_PsycopgPoolConnection
 
 
 SAFE_READONLY_QUERIES = [
@@ -727,6 +728,106 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
 
     # This test of main() will succeed in parsing parameters and create connection object.
     # However, since connection object is not boto3 client with real credential, the validate of connection will fail and cause system exit
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 1
+
+
+@pytest.mark.asyncio
+async def test_run_query_with_psycopg_connection():
+    """Test that run_query works correctly with a psycopg connection."""
+    mock_db_connection = Mock_PsycopgPoolConnection(
+        host="localhost",
+        port=5432,
+        database="test_db",
+        readonly=True,
+        secret_arn="test_secret_arn",
+        region="us-east-1",
+        is_test=True
+    )
+    
+    sql_text = 'SELECT * FROM example_table'
+    ctx = DummyCtx()
+    
+    tool_response = await run_query(sql_text, ctx, mock_db_connection)
+    
+    # validate tool_response
+    assert (
+        isinstance(tool_response, (list, tuple))
+        and len(tool_response) == 1
+        and isinstance(tool_response[0], dict)
+    )
+    column_records = tool_response[0]
+    assert "column1" in column_records
+    assert "column2" in column_records
+
+
+def test_main_with_psycopg_parameters(monkeypatch, capsys):
+    """Test main function with valid psycopg command line parameters."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--hostname',
+            'localhost',
+            '--port',
+            '5432',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',
+            '--database',
+            'postgres',
+            '--region',
+            'us-west-2',
+            '--readonly',
+            'True',
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    
+    # Mock the connection so main can complete successfully
+    with patch('awslabs.postgres_mcp_server.connection.psycopg_connector.PsycopgPoolConnection') as mock_psycopg:
+        mock_conn = MagicMock()
+        mock_conn.check_connection_health.return_value = asyncio.Future()
+        mock_conn.check_connection_health.return_value.set_result(True)
+        mock_psycopg.return_value = mock_conn
+        
+        # This test of main() will succeed in parsing parameters and create connection object.
+        main()
+        
+        # Verify PsycopgPoolConnection was created with correct parameters
+        mock_psycopg.assert_called_once()
+        args, kwargs = mock_psycopg.call_args
+        assert kwargs['host'] == 'localhost'
+        assert kwargs['port'] == 5432
+        assert kwargs['database'] == 'postgres'
+        assert kwargs['readonly'] is True
+
+
+def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
+    """Test main function with invalid psycopg command line parameters."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--hostname',
+            'invalid',
+            '--port',
+            'invalid',  # Invalid port
+            '--secret_arn',
+            'invalid',
+            '--database',
+            'postgres',
+            '--region',
+            'invalid',
+            '--readonly',
+            'True',
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    
+    # This test of main() will fail due to invalid port
     with pytest.raises(SystemExit) as excinfo:
         main()
     assert excinfo.value.code == 1

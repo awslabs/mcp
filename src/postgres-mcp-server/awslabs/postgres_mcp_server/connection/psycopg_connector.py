@@ -92,13 +92,13 @@ class PsycopgPoolConnection(AbstractDBConnection):
                     min_size=min_size,
                     max_size=max_size,
                     # Configure additional pool settings
-                    timeout=5.0,  # Connection timeout in seconds
+                    timeout=15.0,  # Connection timeout in seconds
                     max_idle=60.0,  # Max idle time for connections in seconds
                     reconnect_timeout=5.0,  # Time between reconnection attempts
                 )
-                # Open the pool with a shorter timeout for faster feedback
+                # Open the pool with a timeout for feedback
                 logger.info("Opening connection pool...")
-                self.pool.open(wait=True, timeout=5.0)
+                self.pool.open(wait=True, timeout=15.0)
                 logger.info("Connection pool opened successfully")
                 
                 # If readonly, set default transaction read only for all connections
@@ -113,7 +113,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
     def _set_all_connections_readonly(self) -> None:
         """Set all connections in the pool to read-only mode."""
         try:
-            with self.pool.connection(timeout=5.0) as conn:
+            with self.pool.connection(timeout=15.0) as conn:
                 with conn.cursor() as cur:
                     cur.execute("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on;")
                     logger.info("Successfully set connection to read-only mode")

@@ -354,7 +354,7 @@ def main():
 
     logger.success('Successfully validated database connection to Postgres')
 
-    logger.info('Starting Postgres MCP server')
+    logger.info('Started Postgres MCP server')
     mcp.run()
 
 
