@@ -89,6 +89,20 @@ class PsycopgPoolConnection(AbstractDBConnection):
         """Get a database connection."""
         import psycopg
         return await psycopg.AsyncConnection.connect(self.conninfo)
+        
+    async def _set_all_connections_readonly(self):
+        """Set all connections in the pool to read-only mode."""
+        if self.pool is None:
+            logger.warning("Connection pool is not initialized, cannot set read-only mode")
+            return
+            
+        try:
+            async with self.pool.connection(timeout=15.0) as conn:
+                await conn.execute("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on")
+                logger.info("Successfully set connection to read-only mode")
+        except Exception as e:
+            logger.warning(f"Failed to set connections to read-only mode: {str(e)}")
+            logger.warning("Continuing without setting read-only mode")
     
     async def execute_query(
         self, 
