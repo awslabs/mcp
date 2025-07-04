@@ -1,0 +1,7 @@
+[project]
+name = "mcp-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["chaos-mesh>=1.2.13", "kubernetes>=32.0.1", "mcp[cli]>=1.7.1"]

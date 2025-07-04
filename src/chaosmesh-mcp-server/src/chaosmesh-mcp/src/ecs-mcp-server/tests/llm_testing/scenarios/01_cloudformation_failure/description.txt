@@ -1,1 +1,0 @@
-Tests CloudFormation infrastructure failures by creating a stack with an invalid template missing required network configuration. Tests the fetch_cloudformation_status tool.

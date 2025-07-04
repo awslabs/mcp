@@ -1,0 +1,80 @@
+---
+# ServiceAccount for Chaos Mesh MCP
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chaos-mesh-mcp
+  namespace: default
+---
+# ClusterRole with necessary permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: chaos-mesh-mcp-role
+rules:
+# Chaos Mesh CRD permissions
+- apiGroups: ["chaos-mesh.org"]
+  resources: ["*"]
+  verbs: ["*"]
+# Pod and Service permissions across all namespaces
+- apiGroups: [""]
+  resources: ["pods", "services", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+# Deployment permissions
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+# Istio VirtualService permissions (for delay fault injection)
+- apiGroups: ["networking.istio.io"]
+  resources: ["virtualservices"]
+  verbs: ["*"]
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: chaos-mesh-mcp-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: chaos-mesh-mcp-role
+subjects:
+- kind: ServiceAccount
+  name: chaos-mesh-mcp
+  namespace: default
+---
+# Additional ClusterRole for cross-namespace operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: chaos-mesh-mcp-cross-namespace-role
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+- apiGroups: ["chaos-mesh.org"]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["networking.istio.io"]
+  resources: ["virtualservices"]
+  verbs: ["*"]
+---
+# ClusterRoleBinding for cross-namespace operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: chaos-mesh-mcp-cross-namespace-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: chaos-mesh-mcp-cross-namespace-role
+subjects:
+- kind: ServiceAccount
+  name: chaos-mesh-mcp
+  namespace: default
