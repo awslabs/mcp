@@ -32,7 +32,8 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_DOCUMENTATION_PARTITION": "aws"
+        "AWS_DOCUMENTATION_PARTITION": "aws",
+        "SSL_CERT_FILE": "/path/to/cert.pem"
       },
       "disabled": false,
       "autoApprove": []
@@ -42,6 +43,8 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 ```
 
 > **Note**: Set `AWS_DOCUMENTATION_PARTITION` to `aws-cn` to query AWS China documentation instead of global AWS documentation.
+>
+> **Note**: For environments with self-signed certificates, you can set one of these environment variables to point to your certificate file: `REQUESTS_CA_BUNDLE`, `SSL_CERT_FILE`, or `CURL_CA_BUNDLE`.
 
 or docker after a successful `docker build -t mcp/aws-documentation .`:
 
@@ -58,6 +61,10 @@ or docker after a successful `docker build -t mcp/aws-documentation .`:
         "FASTMCP_LOG_LEVEL=ERROR",
         "--env",
         "AWS_DOCUMENTATION_PARTITION=aws",
+        "--env",
+        "SSL_CERT_FILE=/path/to/cert.pem",
+        "--volume",
+        "/path/to/cert.pem:/path/to/cert.pem:ro",
         "mcp/aws-documentation:latest"
       ],
       "env": {},
