@@ -98,7 +98,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             
         try:
             async with self.pool.connection(timeout=15.0) as conn:
-                await conn.execute("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on")
+                await conn.execute("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on")  # type: ignore
                 logger.info("Successfully set connection to read-only mode")
         except Exception as e:
             logger.warning(f"Failed to set connections to read-only mode: {str(e)}")
@@ -114,14 +114,14 @@ class PsycopgPoolConnection(AbstractDBConnection):
             async with await self._get_connection() as conn:
                 async with conn.transaction():
                     if self.readonly_query:
-                        await conn.execute("SET TRANSACTION READ ONLY")
+                        await conn.execute("SET TRANSACTION READ ONLY")  # type: ignore
                     
                     # Execute the query
                     if parameters:
                         params = self._convert_parameters(parameters)
-                        result = await conn.execute(sql, params)
+                        result = await conn.execute(sql, params)  # type: ignore
                     else:
-                        result = await conn.execute(sql)
+                        result = await conn.execute(sql)  # type: ignore
                     
                     # If there are results to fetch
                     if result.description:
@@ -196,7 +196,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
         try:
             # Create a Secrets Manager client
             logger.info(f"Creating Secrets Manager client in region {region}")
-            session = boto3.session.Session()
+            session = boto3.Session()
             client = session.client(
                 service_name='secretsmanager',
                 region_name=region
@@ -247,3 +247,26 @@ class PsycopgPoolConnection(AbstractDBConnection):
         except Exception as e:
             logger.error(f"Connection health check failed: {str(e)}")
             return False
+            
+    def get_pool_stats(self) -> Dict[str, int]:
+        """Get current connection pool statistics."""
+        if not hasattr(self, 'pool') or self.pool is None:
+            return {
+                "size": 0,
+                "min_size": self.min_size,
+                "max_size": self.max_size,
+                "idle": 0
+            }
+            
+        # Access pool attributes safely
+        size = getattr(self.pool, 'size', 0)
+        min_size = getattr(self.pool, 'min_size', self.min_size)
+        max_size = getattr(self.pool, 'max_size', self.max_size)
+        idle = getattr(self.pool, 'idle', 0)
+        
+        return {
+            "size": size,
+            "min_size": min_size,
+            "max_size": max_size,
+            "idle": idle
+        }
