@@ -18,6 +18,31 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
 
 
+class ClusterSummaryModel(BaseModel):
+    """Simplified DB cluster model for list views."""
+
+    cluster_id: str = Field(description='The DB cluster identifier')
+    db_cluster_arn: Optional[str] = Field(None, description='The ARN of the DB cluster')
+    db_cluster_resource_id: Optional[str] = Field(None, description='The resource ID of the DB cluster')
+    status: str = Field(description='The current status of the DB cluster')
+    engine: str = Field(description='The database engine')
+    engine_version: Optional[str] = Field(None, description='The version of the database engine')
+    availability_zones: List[str] = Field(default_factory=list, description='The AZs where the cluster instances can be created')
+    multi_az: bool = Field(
+        description='Whether the DB cluster has instances in multiple Availability Zones'
+    )
+    tag_list: Dict[str, str] = Field(default_factory=dict, description='A list of tags')
+    resource_uri: Optional[str] = Field(None, description='The resource URI for this cluster')
+
+
+class ClusterListModel(BaseModel):
+    """DB cluster list model."""
+
+    clusters: List[ClusterSummaryModel] = Field(description='List of DB clusters')
+    count: int = Field(description='Number of DB clusters')
+    resource_uri: str = Field(description='The resource URI for clusters')
+
+
 class VpcSecurityGroup(BaseModel):
     """VPC security group model."""
 
@@ -91,6 +116,23 @@ class InstanceStorage(BaseModel):
     encrypted: Optional[bool] = Field(None, description='Whether the storage is encrypted')
 
 
+class InstanceSummaryModel(BaseModel):
+    """Simplified DB instance model for list views."""
+
+    instance_id: str = Field(description='The DB instance identifier')
+    dbi_resource_id: Optional[str] = Field(None, description='The AWS Region-unique, immutable identifier for the DB instance')
+    status: str = Field(description='The current status of the DB instance')
+    engine: str = Field(description='The database engine')
+    engine_version: Optional[str] = Field(None, description='The version of the database engine')
+    instance_class: str = Field(description='The compute and memory capacity class of the DB instance')
+    availability_zone: Optional[str] = Field(None, description='The Availability Zone of the DB instance')
+    multi_az: bool = Field(description='Whether the DB instance is a Multi-AZ deployment')
+    publicly_accessible: bool = Field(description='Whether the DB instance is publicly accessible')
+    db_cluster: Optional[str] = Field(None, description='The DB cluster identifier, if this is a member of a DB cluster')
+    tag_list: Dict[str, str] = Field(default_factory=dict, description='A list of tags')
+    resource_uri: Optional[str] = Field(None, description='The resource URI for this instance')
+
+
 class InstanceModel(BaseModel):
     """DB instance model."""
 
@@ -130,3 +172,11 @@ class InstanceModel(BaseModel):
         None, description='The AWS Region-unique, immutable identifier for the DB instance'
     )
     resource_uri: Optional[str] = Field(None, description='The resource URI for this instance')
+
+
+class InstanceSummaryListModel(BaseModel):
+    """DB instance list model."""
+
+    instances: List[InstanceSummaryModel] = Field(description='List of DB instances')
+    count: int = Field(description='Number of DB instances')
+    resource_uri: str = Field(description='The resource URI for instances')
