@@ -17,8 +17,8 @@ import concurrent.futures
 import pytest
 import threading
 import time
-from awslabs.postgres_mcp_server.connection.psycopg_connector import PsycopgPoolConnection
 from unittest.mock import patch, MagicMock, AsyncMock
+from awslabs.postgres_mcp_server.connection.psycopg_connector import PsycopgPoolConnection
 
 
 class TestPsycopgConnector:

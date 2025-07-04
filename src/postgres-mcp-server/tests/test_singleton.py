@@ -14,8 +14,8 @@
 """Tests for the connection interfaces functionality."""
 
 import pytest
-from awslabs.postgres_mcp_server.connection.singleton import DBConnectionSingleton
 from unittest.mock import patch, MagicMock
+from awslabs.postgres_mcp_server.connection.singleton import DBConnectionSingleton
 
 
 class TestDBConnectionSingleton:

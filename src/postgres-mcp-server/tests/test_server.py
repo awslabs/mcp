@@ -20,6 +20,7 @@ import json
 import pytest
 import sys
 import uuid
+from unittest.mock import patch, MagicMock
 from awslabs.postgres_mcp_server.server import (
     DBConnectionSingleton,
     client_error_code_key,
@@ -30,7 +31,6 @@ from awslabs.postgres_mcp_server.server import (
     write_query_prohibited_key,
 )
 from conftest import DummyCtx, Mock_DBConnection, MockException, Mock_PsycopgPoolConnection
-from unittest.mock import patch, MagicMock
 
 
 SAFE_READONLY_QUERIES = [
