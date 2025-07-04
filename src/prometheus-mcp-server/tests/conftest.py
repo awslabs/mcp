@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs Prometheus MCP Server."""
+"""Pytest configuration for the awslabs.prometheus-mcp-server package."""
 
-__version__ = '0.2.0'
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+
+
+@pytest.fixture
+def mock_context():
+    """Create a mock Context object for testing."""
+    context = MagicMock()
+    context.error = AsyncMock()
+    context.info = AsyncMock()
+    context.warning = AsyncMock()
+    context.debug = AsyncMock()
+    return context
