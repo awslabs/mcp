@@ -1,0 +1,21 @@
+[project]
+name = "mcp-integration-with-kb"
+version = "0.1.0"
+description = "An implementation of the Model Context Protocol integrated with Amazon Bedrock Knowledge Bases"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.37.28",
+    "fastapi[standard]>=0.115.12",
+    "langchain-aws>=0.2.18",
+    "langchain-community>=0.3.21",
+    "langchain-mcp-adapters>=0.0.7",
+    "mcp>=1.6.0",
+    "streamlit>=1.44.1",
+    "uvicorn>=0.34.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.4",
+]

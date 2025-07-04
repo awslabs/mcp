@@ -1,0 +1,1 @@
+Tests ECS task exit failures by creating a task that exits with error code 1 due to missing environment variables. Tests the fetch_task_failures and fetch_task_logs troubleshooting tools.

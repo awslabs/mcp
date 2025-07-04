@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: {{ description }}
+
+Resources:
+  # S3 bucket for website content
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3000
+
+  # CloudFront Origin Access Control
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Bucket policy for CloudFront access
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Statement:
+          - Action: s3:GetObject
+            Effect: Allow
+            Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/*"
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebsiteDistribution}"
+
+  # CloudFront distribution
+  WebsiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: {% if frontend_configuration.index_document is exists %}{{ frontend_configuration.index_document }}{% else %}index.html{% endif %}
+        Origins:
+          - DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            Id: S3Origin
+            OriginAccessControlId: !GetAtt CloudFrontOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          # SPA routing support
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt RouterFunction.FunctionARN
+        PriceClass: PriceClass_100
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /{% if frontend_configuration.index_document is exists %}{{ frontend_configuration.index_document }}{% else %}index.html{% endif %}
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /{% if frontend_configuration.index_document is exists %}{{ frontend_configuration.index_document }}{% else %}index.html{% endif %}
+        {% if frontend_configuration.custom_domain is exists %}
+        Aliases:
+          - {{ frontend_configuration.custom_domain }}
+        ViewerCertificate:
+          AcmCertificateArn: {{ frontend_configuration.certificate_arn }}
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        {% else %}
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        {% endif %}
+
+  # CloudFront Function for routing
+  RouterFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${AWS::StackName}-router-function"
+      AutoPublish: true
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+
+          // Standard SPA routing
+          if (uri.includes('.')) {
+            return request;
+          }
+
+          // Rewrite to index.html for SPA routing
+          request.uri = '/{% if frontend_configuration.index_document is exists %}{{ frontend_configuration.index_document }}{% else %}index.html{% endif %}';
+
+          return request;
+        }
+      FunctionConfig:
+        Comment: "Rewrite requests for frontend routing"
+        Runtime: cloudfront-js-1.0
+
+Outputs:
+  WebsiteBucket:
+    Description: S3 bucket for website content
+    Value: !Ref WebsiteBucket
+
+  CloudFrontURL:
+    Description: CloudFront distribution URL
+    Value: !Sub "https://${WebsiteDistribution.DomainName}"
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref WebsiteDistribution
+
+  {% if frontend_configuration.custom_domain is exists %}
+  CustomDomainURL:
+    Description: Custom domain URL
+    Value: !Sub "https://{{ frontend_configuration.custom_domain }}"
+  {% endif %}

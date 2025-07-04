@@ -1,0 +1,146 @@
+[project]
+name = "awslabs.dynamodb-mcp-server"
+version = "1.0.2"
+description = "The official MCP Server for interacting with AWS DynamoDB"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "boto3>=1.28.0",
+    "loguru>=0.7.0",
+    "mcp[cli]>=1.6.0",
+    "pydantic>=2.10.6",
+    "typing-extensions>=4.0.0",
+]
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE" ]
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    {name = "Erben Mo", email="moerben@amazon.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+homepage = "https://awslabs.github.io/mcp/"
+docs = "https://awslabs.github.io/mcp/servers/dynamodb-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/dynamodb-mcp-server/"
+repository = "https://github.com/awslabs/mcp.git"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/dynamodb-mcp-server/CHANGELOG.md"
+
+[project.scripts]
+"awslabs.dynamodb-mcp-server" = "awslabs.dynamodb_mcp_server.server:main"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "moto>=5.1.4",
+    "boto3>=1.38.14",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+"awslabs/dynamodb_mcp_server/common.py" = ["D101"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+# allow using None as default without declaring field as Optional
+# declaring field as Optiona consumes tokens unnecessarily in the JSON schema
+# LLM doesn't need to be told that this field is Optional
+# because LLM already knows that the default is None
+reportArgumentType = false
+reportAssignmentType = false
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.0"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/dynamodb_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv", ".venv", "tests"]
+
+[tool.pytest.ini_options]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+testpaths = [ "tests"]
+asyncio_mode = "auto"
+markers = [
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
+]
+
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:\n    main()',
+]
+
+[tool.coverage.run]
+source = ["awslabs"]

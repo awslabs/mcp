@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="en-US"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>aws-lambda-sns - AWS Solutions Constructs</title><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="assets_root" content="/assets" /><meta name="target_state" content="aws-lambda-sns" /><meta name="default_state" content="aws-lambda-sns" /><link rel="icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="shortcut icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="canonical" href="https://docs.aws.amazon.com/solutions/latest/constructs/aws-lambda-sns.html" /><meta name="description" content="This AWS Solutions Construct implements an AWS Lambda function connected to an Amazon SNS topic. Out of the box implementation of the Construct without any override will set the following defaults: Configure limited privilege access IAM role for Lambda function to access the Firehose Delivery Stream" /><meta name="deployment_region" content="IAD" /><meta name="product" content="AWS Solutions Constructs" /><meta name="guide" content="AWS Solutions" /><meta name="abstract" content="AWS Solutions Constructs (Constructs) is an open-source extension of the AWS Cloud Development Kit (AWS CDK) that provides multi-service, well-architected patterns for quickly defining solutions in code to create predictable and repeatable infrastructure." /><meta name="guide-locale" content="en_us" /><meta name="tocs" content="toc-contents.json" /><link rel="canonical" href="https://docs.aws.amazon.com/solutions/latest/constructs/aws-lambda-sns.html" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/solutions/latest/constructs/aws-lambda-sns.html" hreflang="id-id" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/solutions/latest/constructs/aws-lambda-sns.html" hreflang="id" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/solutions/latest/constructs/aws-lambda-sns.html" hreflang="de-de" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/solutions/latest/constructs/aws-lambda-sns.html" hreflang="de" /><link rel="alternative" href="https://docs.aws.amazon.com/solutions/latest/constructs/aws-lambda-sns.html" hreflang="en-us" /><link rel="alternative" href="https://docs.aws.amazon.com/solutions/latest/constructs/aws-lambda-sns.html" hreflang="en" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/solutions/latest/constructs/aws-lambda-sns.html" hreflang="es-es" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/solutions/latest/constructs/aws-lambda-sns.html" hreflang="es" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/solutions/latest/constructs/aws-lambda-sns.html" hreflang="fr-fr" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/solutions/latest/constructs/aws-lambda-sns.html" hreflang="fr" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/solutions/latest/constructs/aws-lambda-sns.html" hreflang="it-it" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/solutions/latest/constructs/aws-lambda-sns.html" hreflang="it" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/solutions/latest/constructs/aws-lambda-sns.html" hreflang="ja-jp" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/solutions/latest/constructs/aws-lambda-sns.html" hreflang="ja" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/solutions/latest/constructs/aws-lambda-sns.html" hreflang="ko-kr" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/solutions/latest/constructs/aws-lambda-sns.html" hreflang="ko" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/solutions/latest/constructs/aws-lambda-sns.html" hreflang="pt-br" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/solutions/latest/constructs/aws-lambda-sns.html" hreflang="pt" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_cn/solutions/latest/constructs/aws-lambda-sns.html" hreflang="zh-cn" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_tw/solutions/latest/constructs/aws-lambda-sns.html" hreflang="zh-tw" /><link rel="alternative" href="https://docs.aws.amazon.com/solutions/latest/constructs/aws-lambda-sns.html" hreflang="x-default" /><meta name="feedback-folder" content="d0d12826-6281-4ee9-a76c-c30519613b8e" /><meta name="this_doc_product" content="AWS Solutions Constructs" /><meta name="this_doc_guide" content="AWS Solutions" /><script defer="" src="/assets/r/vendor4.js?version=2021.12.02"></script><script defer="" src="/assets/r/vendor3.js?version=2021.12.02"></script><script defer="" src="/assets/r/vendor1.js?version=2021.12.02"></script><script defer="" src="/assets/r/awsdocs-common.js?version=2021.12.02"></script><script defer="" src="/assets/r/awsdocs-doc-page.js?version=2021.12.02"></script><link href="/assets/r/vendor4.css?version=2021.12.02" rel="stylesheet" /><link href="/assets/r/awsdocs-common.css?version=2021.12.02" rel="stylesheet" /><link href="/assets/r/awsdocs-doc-page.css?version=2021.12.02" rel="stylesheet" /><script async="" id="awsc-panorama-bundle" type="text/javascript" src="https://prod.pa.cdn.uis.awsstatic.com/panorama-nav-init.js" data-config="{'appEntity':'aws-documentation','region':'us-east-1','service':'solutions'}"></script><meta id="panorama-serviceSubSection" value="AWS Solutions" /><meta id="panorama-serviceConsolePage" value="aws-lambda-sns" /></head><body class="awsdocs awsui"><div class="awsdocs-container"><awsdocs-header></awsdocs-header><awsui-app-layout id="app-layout" class="awsui-util-no-gutters" ng-controller="ContentController as $ctrl" header-selector="awsdocs-header" navigation-hide="false" navigation-width="$ctrl.navWidth" navigation-open="$ctrl.navOpen" navigation-change="$ctrl.onNavChange($event)" tools-hide="$ctrl.hideTools" tools-width="$ctrl.toolsWidth" tools-open="$ctrl.toolsOpen" tools-change="$ctrl.onToolsChange($event)"><div id="guide-toc" dom-region="navigation"><awsdocs-toc></awsdocs-toc></div><div id="main-column" dom-region="content" tabindex="-1"><awsdocs-view class="awsdocs-view"><div id="awsdocs-content"><head><title>aws-lambda-sns - AWS Solutions Constructs</title><meta name="pdf" content="/pdfs/solutions/latest/constructs/constructs.pdf#aws-lambda-sns" /><meta name="rss" content="solutions-constructs.rss" /><meta name="forums" content="https://repost.aws/tags/TADio961l9RyGdVm3Vj5rO6w" /><meta name="feedback" content="https://docs.aws.amazon.com/forms/aws-doc-feedback?feedback_destination_id=d0d12826-6281-4ee9-a76c-c30519613b8e&amp;topic_url=https://docs.aws.amazon.com/en_us/solutions/latest/constructs/aws-lambda-sns.html" /><meta name="feedback-yes" content="feedbackyes.html?topic_url=https://docs.aws.amazon.com/en_us/solutions/latest/constructs/aws-lambda-sns.html" /><meta name="feedback-no" content="feedbackno.html?topic_url=https://docs.aws.amazon.com/en_us/solutions/latest/constructs/aws-lambda-sns.html" /><script type="application/ld+json">
+{
+    "@context" : "https://schema.org",
+    "@type" : "BreadcrumbList",
+    "itemListElement" : [
+      {
+        "@type" : "ListItem",
+        "position" : 1,
+        "name" : "AWS",
+        "item" : "https://aws.amazon.com"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 2,
+        "name" : "AWS Solutions",
+        "item" : "https://aws.amazon.com/solutions/"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 3,
+        "name" : "AWS Solutions",
+        "item" : "https://docs.aws.amazon.com/solutions/latest/constructs"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 4,
+        "name" : "API Reference",
+        "item" : "https://docs.aws.amazon.com/solutions/latest/constructs/api-reference.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 5,
+        "name" : "aws-lambda-sns",
+        "item" : "https://docs.aws.amazon.com/solutions/latest/constructs/api-reference.html"
+      }
+    ]
+}
+</script></head><body><div id="main"><div style="display: none"><a href="/pdfs/solutions/latest/constructs/constructs.pdf#aws-lambda-sns" target="_blank" rel="noopener noreferrer" title="Open PDF"></a></div><div id="breadcrumbs" class="breadcrumb"><a href="/index.html">Documentation</a><a href="https://aws.amazon.com/solutions/">AWS Solutions</a><a href="welcome.html">AWS Solutions</a></div><div id="page-toc-src"><a href="#overview">Overview</a><a href="#pattern-construct-props">Pattern Construct Props</a><a href="#pattern-properties">Pattern Properties</a><a href="#default-settings">Default settings</a><a href="#w6aab9d129c15">Architecture</a><a href="#github">GitHub</a></div><div id="main-content" class="awsui-util-container"><div id="main-col-body"><awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner><h1 class="topictitle" id="aws-lambda-sns">aws-lambda-sns</h1><div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header><awsdocs-filter-selector id="awsdocs-filter-selector"></awsdocs-filter-selector></div><div class="mediaobject">
+
+          <img src="/images/solutions/latest/constructs/images/stable.png" class="aws-docs-img-whiteBg aws-docs-img-padding" alt="Two labels: &#34;CFN-RESOURCES&#34; in gray and &#34;STABLE&#34; in green." data-alt-text-source="generated" />
+
+    </div><div class="table-container"><div class="table-contents"><table id="w161aab9d129b4"><thead>
+          <tr>
+            <th>
+              <strong>Language</strong>
+            </th>
+            <th>
+              <strong>Package</strong>
+            </th>
+          </tr>
+        </thead>
+          <tr>
+            <td tabindex="-1">
+              <span class="inlinemediaobject">
+
+                  <img src="https://docs.aws.amazon.com/cdk/api/latest/img/python32.png" class="aws-docs-img-whiteBg aws-docs-img-xs-padding" alt="Python Logo" />
+
+
+              </span> Python
+            </td>
+            <td tabindex="-1">
+              <code class="literal">aws_solutions_constructs.aws_lambda_sns</code>
+            </td>
+          </tr>
+          <tr>
+            <td tabindex="-1">
+              <span class="inlinemediaobject">
+
+                  <img src="https://docs.aws.amazon.com/cdk/api/latest/img/typescript32.png" class="aws-docs-img-whiteBg aws-docs-img-xs-padding" alt="Typescript Logo" />
+
+
+              </span> Typescript
+            </td>
+            <td tabindex="-1">
+              <code class="literal">@aws-solutions-constructs/aws-lambda-sns</code>
+            </td>
+          </tr>
+          <tr>
+            <td tabindex="-1">
+              <span class="inlinemediaobject">
+
+                  <img src="https://docs.aws.amazon.com/cdk/api/latest/img/java32.png" class="aws-docs-img-whiteBg aws-docs-img-xs-padding" alt="Java Logo" />
+
+
+              </span> Java
+            </td>
+            <td tabindex="-1">
+              <code class="literal">software.amazon.awsconstructs.services.lambdasns</code>
+            </td>
+          </tr>
+        </table></div></div><h2 id="overview">Overview</h2>
+
+      <p>
+        This AWS Solutions Construct implements an AWS Lambda function
+        connected to an Amazon SNS topic.
+      </p>
+      <p>
+        Here is a minimal deployable pattern definition:
+      </p>
+<awsdocs-tabs><dl style="display: none">
+      <dt>Typescript</dt><dd tab-id="typescript"><pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (typescript)--><code class="typescript ">
+import <span>{</span> Construct } from 'constructs';
+import <span>{</span> Stack, StackProps } from 'aws-cdk-lib';
+import <span>{</span> LambdaToSns, LambdaToSnsProps } from "@aws-solutions-constructs/aws-lambda-sns";
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+
+new LambdaToSns(this, 'test-lambda-sns', <span>{</span>
+  lambdaFunctionProps: <span>{</span>
+    runtime: lambda.Runtime.NODEJS_20_X,
+    handler: 'index.handler',
+    code: lambda.Code.fromAsset(`lambda`)
+  }
+});
+</code></pre></dd>
+
+      <dt>Python</dt><dd tab-id="python"><pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (python)--><code class="python ">
+from aws_solutions_constructs.aws_lambda_sns import LambdaToSns
+from aws_cdk import (
+    aws_lambda as _lambda,
+    Stack
+)
+from constructs import Construct
+
+LambdaToSns(
+    self, 'test-lambda-sns-stack',
+    lambda_function_props=_lambda.FunctionProps(
+        code=_lambda.Code.from_asset('lambda'),
+        runtime=_lambda.Runtime.Python_3_11,
+        handler='index.handler'
+    )
+)
+</code></pre></dd>
+
+      <dt>Java</dt><dd tab-id="java"><pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (java)--><code class="java ">
+import software.constructs.Construct;
+
+import software.amazon.awscdk.Stack;
+import software.amazon.awscdk.StackProps;
+import software.amazon.awscdk.services.lambda.*;
+import software.amazon.awscdk.services.lambda.Runtime;
+import software.amazon.awsconstructs.services.lambdasns.*;
+
+new LambdaToSns(this, "test-lambda-sns-stack", new LambdaToSnsProps.Builder()
+        .lambdaFunctionProps(new FunctionProps.Builder()
+                .runtime(Runtime.NODEJS_20_X)
+                .code(Code.fromAsset("lambda"))
+                .handler("index.handler")
+                .build())
+        .build());
+</code></pre></dd>
+    </dl></awsdocs-tabs>
+
+    <h2 id="pattern-construct-props">Pattern Construct Props</h2>
+
+      <div class="table-container"><div class="table-contents"><table id="w161aab9d129b8b2"><thead>
+            <tr>
+              <th>
+                <strong>Name</strong>
+              </th>
+              <th>
+                <strong>Type</strong>
+              </th>
+              <th>
+                <strong>Description</strong>
+              </th>
+            </tr>
+          </thead>
+            <tr>
+              <td tabindex="-1">
+                existingLambdaObj?
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_lambda.Function.html"><code class="literal">lambda.Function</code></a>
+              </td>
+              <td tabindex="-1">
+                Existing instance of Lambda Function object, providing
+                both this and <code class="literal">lambdaFunctionProps</code>
+                will cause an error.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                lambdaFunctionProps?
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_lambda.FunctionProps.html"><code class="literal">lambda.FunctionProps</code></a>
+              </td>
+              <td tabindex="-1">
+                User provided props to override the default props for
+                the Lambda function.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                existingTopicObj?
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_lambda.Function.html"><code class="literal">sns.Topic</code></a>
+              </td>
+              <td tabindex="-1">
+                Existing instance of SNS Topic object, providing both
+                this and <code class="literal">topicProps</code> will cause an
+                error.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                topicProps?
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_sns.TopicProps.html"><code class="literal">sns.TopicProps</code></a>
+              </td>
+              <td tabindex="-1">
+                Optional user provided properties to override the
+                default properties for the SNS topic.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                existingVpc?
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.IVpc.html"><code class="literal">ec2.IVpc</code></a>
+              </td>
+              <td tabindex="-1">
+                An optional, existing VPC into which this pattern should
+                be deployed. When deployed in a VPC, the Lambda function
+                will use ENIs in the VPC to access network resources and
+                an Interface Endpoint will be created in the VPC for
+                Amazon SNS. If an existing VPC is provided, the
+                <code class="literal">deployVpc</code> property cannot be
+                <code class="literal">true</code>. This uses
+                <code class="literal">ec2.IVpc</code> to allow clients to supply
+                VPCs that exist outside the stack using the
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.Vpc.html#static-fromwbrlookupscope-id-options"><code class="literal">ec2.Vpc.fromLookup()</code></a>
+                method.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                vpcProps?
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.VpcProps.html"><code class="literal">ec2.VpcProps</code></a>
+              </td>
+              <td tabindex="-1">
+                Optional user-provided properties to override the
+                default properties for the new VPC.
+                <code class="literal">enableDnsHostnames</code>,
+                <code class="literal">enableDnsSupport</code>,
+                <code class="literal">natGateways</code> and
+                <code class="literal">subnetConfiguration</code> are set by the
+                pattern, so any values for those properties supplied
+                here will be overridden. If <code class="literal">deployVpc</code>
+                is not <code class="literal">true</code> then this property will
+                be ignored.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                deployVpc?
+              </td>
+              <td tabindex="-1">
+                <code class="literal">boolean</code>
+              </td>
+              <td tabindex="-1">
+                Whether to create a new VPC based on
+                <code class="literal">vpcProps</code> into which to deploy this
+                pattern. Setting this to true will deploy the minimal,
+                most private VPC to run the pattern:
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                topicArnEnvironmentVariableName?
+              </td>
+              <td tabindex="-1">
+                <code class="literal">string</code>
+              </td>
+              <td tabindex="-1">
+                Optional Name for the Lambda function environment
+                variable set to the arn of the topic. Default:
+                SNS_TOPIC_ARN
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                topicNameEnvironmentVariableName?
+              </td>
+              <td tabindex="-1">
+                <code class="literal">string</code>
+              </td>
+              <td tabindex="-1">
+                Optional Name for the Lambda function environment
+                variable set to the name of the topic. Default:
+                SNS_TOPIC_NAME
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                enableEncryptionWithCustomerManagedKey?
+              </td>
+              <td tabindex="-1">
+                <code class="literal">boolean</code>
+              </td>
+              <td tabindex="-1">
+                If no key is provided, this flag determines whether the
+                SNS Topic is encrypted with a new CMK or an AWS managed
+                key. This flag is ignored if any of the following are
+                defined: topicProps.masterKey, encryptionKey or
+                encryptionKeyProps.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                encryptionKey?
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_kms.Key.html"><code class="literal">kms.Key</code></a>
+              </td>
+              <td tabindex="-1">
+                An optional, imported encryption key to encrypt the SNS
+                Topic with.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                encryptionKeyProps?
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_kms.Key.html#construct-props"><code class="literal">kms.KeyProps</code></a>
+              </td>
+              <td tabindex="-1">
+                Optional user provided properties to override the
+                default properties for the KMS encryption key used to
+                encrypt the SNS Topic with.
+              </td>
+            </tr>
+          </table></div></div>
+    <h2 id="pattern-properties">Pattern Properties</h2>
+
+      <div class="table-container"><div class="table-contents"><table id="w161aab9d129c10b2"><thead>
+            <tr>
+              <th>
+                <strong>Name</strong>
+              </th>
+              <th>
+                <strong>Type</strong>
+              </th>
+              <th>
+                <strong>Description</strong>
+              </th>
+            </tr>
+          </thead>
+            <tr>
+              <td tabindex="-1">
+                lambdaFunction
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_lambda.Function.html"><code class="literal">lambda.Function</code></a>
+              </td>
+              <td tabindex="-1">
+                Returns an instance of the Lambda function created by
+                the pattern.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                snsTopic
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_sns.Topic.html"><code class="literal">sns.Topic</code></a>
+              </td>
+              <td tabindex="-1">
+                Returns an instance of the SNS topic created by the
+                pattern.
+              </td>
+            </tr>
+            <tr>
+              <td tabindex="-1">
+                vpc?
+              </td>
+              <td tabindex="-1">
+                <a href="https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_ec2.IVpc.html"><code class="literal">ec2.IVpc</code></a>
+              </td>
+              <td tabindex="-1">
+                Returns an interface on the VPC used by the pattern (if
+                any). This may be a VPC created by the pattern or the
+                VPC supplied to the pattern constructor.
+              </td>
+            </tr>
+          </table></div></div>
+    <h2 id="default-settings">Default settings</h2>
+
+      <p>
+        Out of the box implementation of the Construct without any
+        override will set the following defaults:
+      </p>
+      <h3 id="aws-lambda-function">AWS Lambda Function</h3>
+
+        <div class="itemizedlist">
+
+
+
+
+        <ul class="itemizedlist"><li class="listitem">
+            <p>
+              Configure limited privilege access IAM role for Lambda
+              function to access the Firehose Delivery Stream
+            </p>
+          </li><li class="listitem">
+            <p>
+              Enable reusing connections with Keep-Alive for NodeJs
+              Lambda function
+            </p>
+          </li><li class="listitem">
+            <p>
+              Enable X-Ray Tracing
+            </p>
+          </li><li class="listitem">
+            <p>
+              Set Environment Variables
+            </p>
+            <div class="itemizedlist">
+
+
+
+            <ul class="itemizedlist"><li class="listitem">
+                <p>
+                  (default) SNS_TOPIC_NAME
+                </p>
+              </li><li class="listitem">
+                <p>
+                  (default) SNS_TOPIC_ARN
+                </p>
+              </li><li class="listitem">
+                <p>
+                  AWS_NODEJS_CONNECTION_REUSE_ENABLED (for Node 10.x and
+                  higher functions)
+                </p>
+              </li></ul></div>
+          </li></ul></div>
+
+      <h3 id="amazon-sns-topic">Amazon SNS Topic</h3>
+
+        <div class="itemizedlist">
+
+
+
+        <ul class="itemizedlist"><li class="listitem">
+            <p>
+              Configure least privilege access permissions for SNS Topic
+            </p>
+          </li><li class="listitem">
+            <p>
+              Enable server-side encryption forSNS Topic using AWS
+              managed KMS Key
+            </p>
+          </li><li class="listitem">
+            <p>
+              Enforce encryption of data in transit
+            </p>
+          </li></ul></div>
+
+
+      <h2 id="w6aab9d129c15">Architecture</h2>
+      <div class="mediaobject">
+
+          <img src="/images/solutions/latest/constructs/images/aws-lambda-sns.png" class="aws-docs-img-whiteBg aws-docs-img-padding" alt="AWS Lambda connected to Amazon Simple Notification Service with IAM role below Lambda." data-alt-text-source="generated" style="max-width:100%" />
+
+      </div>
+
+    <h2 id="github">GitHub</h2>
+    <div class="table-container"><div class="table-contents"><table id="w161aab9d129c16b3"><thead>
+          <tr>
+            <th colspan="2" align="left" style="text-align: left;">
+              <b>To view the code for this pattern, create/view issues and pull requests, and more:</b>
+            </th>
+          </tr>
+        </thead>
+          <tr>
+            <td tabindex="-1">
+              <div class="mediaobject">
+
+                  <img src="/images/solutions/latest/constructs/images/GitHub-Mark-32px.png" class="aws-docs-img-whiteBg aws-docs-img-padding" alt="Circular icon with a graduation cap symbol representing education or learning." data-alt-text-source="generated" style="max-width:100%" />
+
+              </div>
+            </td>
+            <td tabindex="-1">
+              <a href="https://github.com/awslabs/aws-solutions-constructs/tree/master/source/patterns/%40aws-solutions-constructs/aws-lambda-sns" rel="noopener noreferrer" target="_blank"><span>@aws-solutions-constructs/aws-lambda-sns</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>
+            </td>
+          </tr>
+        </table></div></div>
+  <awsdocs-copyright class="copyright-print"></awsdocs-copyright><awsdocs-thumb-feedback right-edge="{{$ctrl.thumbFeedbackRightEdge}}"></awsdocs-thumb-feedback></div><noscript><div><div><div><div id="js_error_message"><p><img src="https://d1ge0kk1l5kms0.cloudfront.net/images/G/01/webservices/console/warning.png" alt="Warning" /> <strong>Javascript is disabled or is unavailable in your browser.</strong></p><p>To use the Amazon Web Services Documentation, Javascript must be enabled. Please refer to your browser's Help pages for instructions.</p></div></div></div></div></noscript><div id="main-col-footer" class="awsui-util-font-size-0"><div id="doc-conventions"><a target="_top" href="/general/latest/gr/docconventions.html">Document Conventions</a></div><div class="prev-next"><div id="previous" class="prev-link" accesskey="p" href="./aws-lambda-secretsmanager.html">aws-lambda-secretsmanager</div><div id="next" class="next-link" accesskey="n" href="./aws-lambda-sqs-lambda.html">aws-lambda-sqs-lambda</div></div></div><awsdocs-page-utilities></awsdocs-page-utilities></div><div id="quick-feedback-yes" style="display: none;"><div class="title">Did this page help you? - Yes</div><div class="content"><p>Thanks for letting us know we're doing a good job!</p><p>If you've got a moment, please tell us what we did right so we can do more of it.</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="Feedback" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?feedback_destination_id=d0d12826-6281-4ee9-a76c-c30519613b8e&amp;topic_url=https://docs.aws.amazon.com/en_us/solutions/latest/constructs/aws-lambda-sns.html"></awsui-button></p></div></div><div id="quick-feedback-no" style="display: none;"><div class="title">Did this page help you? - No</div><div class="content"><p>Thanks for letting us know this page needs work. We're sorry we let you down.</p><p>If you've got a moment, please tell us how we can make the documentation better.</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="Feedback" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?feedback_destination_id=d0d12826-6281-4ee9-a76c-c30519613b8e&amp;topic_url=https://docs.aws.amazon.com/en_us/solutions/latest/constructs/aws-lambda-sns.html"></awsui-button></p></div></div></div></body></div></awsdocs-view><div class="page-loading-indicator" id="page-loading-indicator"><awsui-spinner size="large"></awsui-spinner></div></div><div id="tools-panel" dom-region="tools"><awsdocs-tools-panel id="awsdocs-tools-panel"></awsdocs-tools-panel></div></awsui-app-layout><awsdocs-cookie-banner class="doc-cookie-banner"></awsdocs-cookie-banner></div></body></html>

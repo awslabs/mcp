@@ -1,0 +1,1 @@
+Tests ECS service network configuration failures by creating a service with overly restrictive security groups that prevent network connectivity. Tests the fetch_service_events and get_ecs_troubleshooting_guidance tools.
