@@ -23,7 +23,7 @@ purposes only and are not meant for production use cases.
 import os
 import re
 import sys
-from awslabs.finch_mcp_server.consts import LOG_FILE, SERVER_NAME
+from awslabs.finch_mcp_server.consts import SERVER_NAME
 
 # Import Pydantic models for input validation
 from awslabs.finch_mcp_server.models import Result
@@ -136,20 +136,10 @@ def sensitive_data_filter(record):
 # Remove all default handlers then add our own
 logger.remove()
 
-log_level = os.environ.get('FASTMCP_LOG_LEVEL', 'INFO').upper()
-logger.add(
-    LOG_FILE,
-    rotation='10 MB',
-    retention=7,
-    level=log_level,
-    format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}',
-    filter=sensitive_data_filter,
-)
-
-# Add a handler for stderr
+# Standard MCP logging pattern - only log to stderr
 logger.add(
     sys.stderr,
-    level=log_level,
+    level=os.environ.get('FASTMCP_LOG_LEVEL', 'INFO'),
     format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}',
     filter=sensitive_data_filter,
 )
@@ -438,7 +428,6 @@ def main(enable_aws_resource_write: bool = False):
     set_enable_aws_resource_write(enable_aws_resource_write)
 
     logger.info('Starting Finch MCP server')
-    logger.info(f'Logs will be written to: {LOG_FILE}')
     mcp.run(transport='stdio')
 
 
