@@ -1,21 +1,27 @@
 [project]
-name = "awslabs.cloudwatch-logs-mcp-server"
-version = "0.0.3"
-description = "An AWS Labs Model Context Protocol (MCP) server for cloudwatch-logs"
+name = "awslabs.aws-dataprocessing-mcp-server"
+
+# NOTE: "Patch"=9223372036854775807 bumps next release to zero.
+version = "0.1.1"
+
+description = "An AWS Labs Model Context Protocol (MCP) server for dataprocessing"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.38.22",
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
+    "boto3>=1.34.0",
+    "requests>=2.31.0",
+    "pyyaml>=6.0.0",
+    "cachetools>=5.3.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Isaiah Lemmon", email="ilemmon@amazon.com"},
+    {name = "linliyu", email="linliyu@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -30,13 +36,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/cloudwatch-logs-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/cloudwatch-logs-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/aws-dataprocessing-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/aws-dataprocessing-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/cloudwatch-logs-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-dataprocessing-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.cloudwatch-logs-mcp-server" = "awslabs.cloudwatch_logs_mcp_server.server:main"
+"awslabs.aws-dataprocessing-mcp-server" = "awslabs.aws_dataprocessing_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -48,7 +54,6 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
-    "moto>=5.1.4",
 ]
 
 [build-system]
@@ -97,8 +102,13 @@ line-ending = "auto"
 docstring-code-format = true
 
 [tool.pyright]
-include = ["awslabs", "tests"]
-exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+include = ["awslabs"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build", "tests"]
+reportArgumentType = true
+reportAttributeAccessIssue = true
+reportCallIssue = false
+reportOptionalSubscript = false
+
 
 [tool.commitizen]
 name = "cz_conventional_commits"
@@ -106,7 +116,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/cloudwatch_logs_mcp_server/__init__.py:__version__"
+    "awslabs/aws_dataprocessing_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
