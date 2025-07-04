@@ -24,27 +24,16 @@ import boto3
 import json
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple, Union, cast, TypeVar
-from typing_extensions import LiteralString
 
-# Import psycopg types for type checking
 try:
-    from psycopg.sql import SQL as PsycopgSQL
-    from psycopg.sql import Composed as PsycopgComposed
-    from psycopg_pool import AsyncConnectionPool as PsycopgAsyncConnectionPool
-    
-    # Use the actual classes
-    SQL = PsycopgSQL
-    Composed = PsycopgComposed
-    AsyncConnectionPool = PsycopgAsyncConnectionPool
-    Query = Union[LiteralString, bytes, PsycopgSQL, PsycopgComposed]
+    from psycopg.sql import SQL
+    from psycopg_pool import AsyncConnectionPool
 except ImportError:
     # For type checking only
     class SQL:
         def __init__(self, query: str): 
             self.query = query
-    class Composed: pass
     class AsyncConnectionPool: pass
-    Query = Union[str, bytes, 'SQL', 'Composed']
 
 from awslabs.postgres_mcp_server.connection.abstract_class import AbstractDBConnection
 
@@ -134,7 +123,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             
         try:
             async with self.pool.connection(timeout=15.0) as conn:
-                await conn.execute(SQL("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on"))
+                await conn.execute("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on")
                 logger.info("Successfully set connection to read-only mode")
         except Exception as e:
             logger.warning(f"Failed to set connections to read-only mode: {str(e)}")
