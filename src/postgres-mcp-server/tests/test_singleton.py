@@ -31,7 +31,7 @@ class TestDBConnectionSingleton:
         # Initialize singleton
         DBConnectionSingleton.initialize(
             resource_arn="test_resource_arn",
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             database="test_db",
             region="us-east-1",
             readonly=True
@@ -44,7 +44,7 @@ class TestDBConnectionSingleton:
         mock_rds_connection.assert_called_once()
         args, kwargs = mock_rds_connection.call_args
         assert kwargs['cluster_arn'] == "test_resource_arn"
-        assert kwargs['secret_arn'] == "test_secret_arn"
+        assert kwargs['secret_arn'] == "test_secret_arn" # pragma: allowlist secret
         assert kwargs['database'] == "test_db"
         assert kwargs['region'] == "us-east-1"
         assert kwargs['readonly'] is True
@@ -59,7 +59,7 @@ class TestDBConnectionSingleton:
         with pytest.raises(ValueError) as excinfo:
             DBConnectionSingleton.initialize(
                 resource_arn="",
-                secret_arn="test_secret_arn",
+                secret_arn="test_secret_arn", # pragma: allowlist secret
                 database="test_db",
                 region="us-east-1",
                 readonly=True
@@ -86,7 +86,7 @@ class TestDBConnectionSingleton:
         # Initialize singleton
         DBConnectionSingleton.initialize(
             resource_arn="test_resource_arn",
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             database="test_db",
             region="us-east-1",
             readonly=True,

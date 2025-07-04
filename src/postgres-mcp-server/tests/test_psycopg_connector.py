@@ -40,7 +40,7 @@ class TestPsycopgConnector:
             port=5432,
             database="test_db",
             readonly=True,
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             region="us-east-1",
             is_test=True
         )
@@ -76,7 +76,7 @@ class TestPsycopgConnector:
             port=5432,
             database="test_db",
             readonly=True,
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             region="us-east-1",
             is_test=True
         )
@@ -132,7 +132,7 @@ class TestPsycopgConnector:
             port=5432,
             database="test_db",
             readonly=True,
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             region="us-east-1",
             is_test=True
         )
@@ -163,7 +163,7 @@ class TestPsycopgConnector:
             port=5432,
             database="test_db",
             readonly=True,
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             region="us-east-1",
             min_size=5,
             is_test=True
@@ -191,7 +191,7 @@ class TestPsycopgConnector:
             port=5432,
             database="test_db",
             readonly=True,
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             region="us-east-1",
             max_size=10,
             is_test=True
@@ -243,7 +243,7 @@ class TestPsycopgConnector:
             port=5432,
             database="test_db",
             readonly=True,
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             region="us-east-1",
             min_size=1,
             max_size=10,
@@ -307,7 +307,7 @@ class TestPsycopgConnector:
             port=5432,
             database="test_db",
             readonly=True,
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             region="us-east-1",
             min_size=1,
             max_size=5,
@@ -373,7 +373,7 @@ class TestPsycopgConnector:
             port=5432,
             database="test_db",
             readonly=True,
-            secret_arn="test_secret_arn",
+            secret_arn="test_secret_arn", # pragma: allowlist secret
             region="us-east-1",
             min_size=1,
             max_size=3,

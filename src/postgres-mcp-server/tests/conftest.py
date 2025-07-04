@@ -466,7 +466,7 @@ class Mock_PsycopgPoolConnection:
             port: Database port
             database: Database name
             readonly: Whether the connection is read-only
-            secret_arn: Secret ARN
+            secret_arn: Secret ARN 
             region: AWS region
             min_size: Minimum pool size
             max_size: Maximum pool size
@@ -476,7 +476,7 @@ class Mock_PsycopgPoolConnection:
         self.port = port
         self.database = database
         self.readonly = readonly
-        self.secret_arn = secret_arn
+        self.secret_arn = secret_arn # pragma: allowlist secret
         self.region = region
         self.min_size = min_size
         self.max_size = max_size
@@ -563,7 +563,7 @@ def mock_PsycopgPoolConnection():
         port=5432,
         database="test_db",
         readonly=True,
-        secret_arn="test_secret_arn",
+        secret_arn="test_secret_arn", # pragma: allowlist secret
         region="us-east-1",
         is_test=True
     )

@@ -674,8 +674,8 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
             'server.py',
             '--resource_arn',
             'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
-            '--secret_arn',
-            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',
+            '--secret_arn', # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123', # pragma: allowlist secret
             '--database',
             'postgres',
             '--region',
@@ -714,7 +714,7 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
             'server.py',
             '--resource_arn',
             'invalid',
-            '--secret_arn',
+            '--secret_arn', # pragma: allowlist secret
             'invalid',
             '--database',
             'postgres',
@@ -741,7 +741,7 @@ async def test_run_query_with_psycopg_connection():
         port=5432,
         database="test_db",
         readonly=True,
-        secret_arn="test_secret_arn",
+        secret_arn="test_secret_arn", # pragma: allowlist secret
         region="us-east-1",
         is_test=True
     )
@@ -773,8 +773,8 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
             'localhost',
             '--port',
             '5432',
-            '--secret_arn',
-            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',
+            '--secret_arn', # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123', # pragma: allowlist secret
             '--database',
             'postgres',
             '--region',
@@ -830,7 +830,7 @@ def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
             'invalid',
             '--port',
             'invalid',  # Invalid port
-            '--secret_arn',
+            '--secret_arn', # pragma: allowlist secret
             'invalid',
             '--database',
             'postgres',
