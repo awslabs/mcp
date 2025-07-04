@@ -23,20 +23,28 @@ import asyncio
 import boto3
 import json
 from loguru import logger
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast, TypeVar
 from typing_extensions import LiteralString
 
 # Import psycopg types for type checking
 try:
-    from psycopg.sql import SQL, Composed
-    from psycopg_pool import AsyncConnectionPool
-    Query = Union[LiteralString, bytes, SQL, Composed]
+    from psycopg.sql import SQL as PsycopgSQL
+    from psycopg.sql import Composed as PsycopgComposed
+    from psycopg_pool import AsyncConnectionPool as PsycopgAsyncConnectionPool
+    
+    # Use the actual classes
+    SQL = PsycopgSQL
+    Composed = PsycopgComposed
+    AsyncConnectionPool = PsycopgAsyncConnectionPool
+    Query = Union[LiteralString, bytes, PsycopgSQL, PsycopgComposed]
 except ImportError:
     # For type checking only
-    class SQL: pass
+    class SQL:
+        def __init__(self, query: str): 
+            self.query = query
     class Composed: pass
     class AsyncConnectionPool: pass
-    Query = Union[str, bytes, SQL, Composed]
+    Query = Union[str, bytes, 'SQL', 'Composed']
 
 from awslabs.postgres_mcp_server.connection.abstract_class import AbstractDBConnection
 
@@ -126,7 +134,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             
         try:
             async with self.pool.connection(timeout=15.0) as conn:
-                await conn.execute(SQL("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on;"))
+                await conn.execute(SQL("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on"))
                 logger.info("Successfully set connection to read-only mode")
         except Exception as e:
             logger.warning(f"Failed to set connections to read-only mode: {str(e)}")
@@ -148,19 +156,15 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 async with conn.transaction():
                     if self.readonly_query:
                         # Set transaction to read-only
-                        await conn.execute(SQL("SET TRANSACTION READ ONLY"))
+                        await conn.execute("SET TRANSACTION READ ONLY")
                     
                     # Execute the query
                     if parameters:
                         # Convert parameters to the format expected by psycopg
                         params = self._convert_parameters(parameters)
-                        # Cast to SQL to satisfy type checker
-                        sql_obj = SQL(sql)
-                        result = await conn.execute(sql_obj, params)
+                        result = await conn.execute(sql, params)
                     else:
-                        # Cast to SQL to satisfy type checker
-                        sql_obj = SQL(sql)
-                        result = await conn.execute(sql_obj)
+                        result = await conn.execute(sql)
                     
                     # If there are results to fetch
                     if result.description:

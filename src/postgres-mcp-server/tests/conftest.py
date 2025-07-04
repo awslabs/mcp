@@ -499,7 +499,7 @@ class Mock_PsycopgPoolConnection:
         """
         return self.readonly
     
-    async def execute_query(self, sql: str, parameters: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def execute_query(self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Execute a SQL query.
         
         Args:
