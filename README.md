@@ -282,6 +282,7 @@ Interact with AWS HealthAI services.
 ##### Data Operations & ETL
 
 - **[Amazon Athena MCP Server](src/athena-mcp-server/)** - Execute SQL queries against data in S3 and other data sources
+- **[Amazon Data Processing MCP Server](src/dataprocessing-mcp-server/)** - Comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2
 - **[Amazon DynamoDB MCP Server](src/dynamodb-mcp-server/)** - NoSQL database operations and table management
 - **[Amazon Aurora PostgreSQL MCP Server](src/postgres-mcp-server/)** - PostgreSQL operations via RDS Data API
 - **[Amazon Aurora MySQL MCP Server](src/mysql-mcp-server/)** - MySQL operations via RDS Data API
