@@ -1,0 +1,20 @@
+{
+  "version": "1",
+  "schemas": {
+    "AWS::S3::Bucket": {
+      "last_updated": "2025-07-02T18:09:46.414309",
+      "file_path": "/Users/novekm/Documents/Development/github-projects/novekm-forks/mcp/src/cfn-mcp-server/awslabs/cfn_mcp_server/.schemas/AWS_S3_Bucket.json",
+      "source": "cloudformation_api"
+    },
+    "AWS::KMS::Key": {
+      "last_updated": "2025-07-04T06:06:40.207096",
+      "file_path": "/Users/novekm/Documents/Development/github-projects/novekm-forks/mcp/src/ccapi-mcp-server/awslabs/ccapi_mcp_server/.schemas/AWS_KMS_Key.json",
+      "source": "cloudformation_api"
+    },
+    "AWS::S3::BucketPolicy": {
+      "last_updated": "2025-07-04T07:07:12.215750",
+      "file_path": "/Users/novekm/Documents/Development/github-projects/novekm-forks/mcp/src/ccapi-mcp-server/awslabs/ccapi_mcp_server/.schemas/AWS_S3_BucketPolicy.json",
+      "source": "cloudformation_api"
+    }
+  }
+}
