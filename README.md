@@ -159,6 +159,7 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries with openCypher and Gremlin
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
+- **[AWS S3 Tables MCP Server](src/s3-tables-mcp-server/)** - Manage AWS S3 Tables for table storage and operations
 - **[Amazon Redshift MCP Server](src/redshift-mcp-server/)** - Provides tools to discover, explore, and query Amazon Redshift clusters and serverless workgroups
 
 ##### Search & Analytics

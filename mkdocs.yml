@@ -62,6 +62,7 @@ nav:
     - Amazon CloudWatch MCP Server: servers/cloudwatch-mcp-server.md
     - Amazon CloudWatch Application Signals MCP Server: servers/cloudwatch-appsignals-mcp-server.md
     - Amazon Timestream for InfluxDB MCP Server: servers/timestream-for-influxdb-mcp-server.md
+    - S3 Tables MCP Server: servers/s3-tables-mcp-server.md
     - Amazon Redshift MCP Server: servers/redshift-mcp-server.md
     - AWS HealthOmics MCP Server: servers/aws-healthomics-mcp-server.md
 
