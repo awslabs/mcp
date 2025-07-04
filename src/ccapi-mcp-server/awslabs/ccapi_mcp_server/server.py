@@ -37,6 +37,9 @@ from pydantic import Field
 from typing import Any, Literal
 
 
+# Module-level store for properties validation
+_properties_store: dict[str, dict] = {}
+
 mcp = FastMCP(
     'awslabs.ccapi-mcp-server',
     instructions="""
@@ -57,6 +60,11 @@ mcp = FastMCP(
   2. run_checkov() with the security_check_token
   3. create_resource() with aws_session_info and checkov_validation_token
 • AWS session info must be passed to resource creation/modification tools
+• BEFORE calling create_resource() or update_resource(): Inform user that these default tags will be automatically added:
+  - MANAGED_BY: CCAPI-MCP-SERVER
+  - MCP_SERVER_SOURCE_CODE: https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server
+  - MCP_SERVER_VERSION: 1.0.0
+  Ask if they want additional custom tags
 • If dedicated MCP server tools fail:
   1. Explain to the user that falling back to direct AWS API calls would bypass integrated security
 scanning
@@ -161,11 +169,11 @@ async def list_resources(
         raise handle_aws_api_error(e)
 
     resource_identifiers = [response['Identifier'] for response in results]
-    response = {'resources': resource_identifiers}
+    response: dict[str, Any] = {'resources': resource_identifiers}
 
     # Perform security analysis if requested
     if analyze_security and resource_identifiers:
-        security_analyses = {}
+        security_analyses: dict[str, Any] = {}
         # Limit the number of resources to analyze to avoid excessive processing
         resources_to_analyze = resource_identifiers[:max_resources_to_analyze]
 
@@ -180,9 +188,10 @@ async def list_resources(
                 )
 
                 if 'security_analysis' in resource_info:
+                    # type: ignore
                     security_analyses[identifier] = resource_info['security_analysis']
             except Exception as e:
-                security_analyses[identifier] = {'error': str(e)}
+                security_analyses[identifier] = {'error': str(e)}  # type: ignore
 
         response['security_analysis'] = security_analyses
         if len(resource_identifiers) > max_resources_to_analyze:
@@ -211,9 +220,6 @@ async def generate_infrastructure_code(
     region: str | None = Field(
         description='The AWS region that the operation should be performed in', default=None
     ),
-    disable_default_tags: bool = Field(
-        default=False, description='Whether to disable default tags'
-    ),
     aws_session_info: dict = Field(
         description='Result from get_aws_session_info() to ensure AWS credentials are valid'
     ),
@@ -223,11 +229,8 @@ async def generate_infrastructure_code(
     This tool requires a valid AWS session token and generates a security check token
     that must be used with run_checkov() before creating or updating resources.
 
-    IMPORTANT: If DEFAULT_TAGS is enabled (default), these default tags will be automatically added:
-    - MANAGED_BY: CCAPI-MCP-SERVER
-    - MCP_SERVER_SOURCE_CODE: https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server
-    - MCP_SERVER_VERSION: (current package version)
-    Always inform the user that these default tags will be applied unless disable_default_tags=True.
+    This tool prepares resource properties and generates CloudFormation templates for security scanning only.
+    No actual resources are created or modified by this tool.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket")
@@ -235,7 +238,6 @@ async def generate_infrastructure_code(
         identifier: The primary identifier for update operations
         patch_document: JSON Patch operations for updates
         region: AWS region to use
-        disable_default_tags: Whether to disable default tags
         aws_session_info: Result from get_aws_session_info() to ensure AWS credentials are valid
 
     Returns:
@@ -247,23 +249,32 @@ async def generate_infrastructure_code(
             'Valid AWS credentials are required. Please run get_aws_session_info() first.'
         )
 
+    # V1: Always add required MCP server identification tags
+    # Inform user about default tags and ask if they want additional ones
+
     # Generate infrastructure code using the existing implementation
     result = await generate_infrastructure_code_impl(
         resource_type=resource_type,
         properties=properties,
         identifier=identifier,
         patch_document=patch_document,
-        region=region or aws_session_info.get('region'),
-        disable_default_tags=disable_default_tags,
+        region=region or aws_session_info.get('region') or 'us-east-1',
     )
 
     # Generate a security check token that must be used with run_checkov
     security_check_token = str(uuid.uuid4())
 
-    # Store the token and associated data for validation
+    # Generate a properties token that enforces using the exact scanned properties
+    properties_token = str(uuid.uuid4())
+
+    # Store the tokens and associated data for validation
     # In a production system, this would be stored in a secure session store
     result['security_check_token'] = security_check_token
+    result['properties_token'] = properties_token
     result['aws_session_info'] = aws_session_info
+
+    # Store the exact properties that were scanned for security validation
+    _properties_store[properties_token] = result['properties']
 
     return {
         **result,
@@ -319,26 +330,41 @@ async def get_resource(
 
         # Perform security analysis if requested
         if analyze_security:
-            # Generate infrastructure code
-            code = await generate_infrastructure_code(
-                resource_type=resource_type,
-                identifier=identifier,
-                region=region,
-            )
+            try:
+                # Get AWS session info for security analysis
+                env_check = await check_environment_variables()
+                if env_check['properly_configured']:
+                    aws_session_info = await get_aws_session_info(env_check_result=env_check)
 
-            # Run security scan
-            security_result = await run_checkov(
-                content=json.dumps(code['cloudformation_template']),
-                file_type='json',
-                framework='cloudformation',
-                resource_type=resource_type,
-            )
+                    # Generate infrastructure code
+                    code = await generate_infrastructure_code(
+                        resource_type=resource_type,
+                        identifier=identifier,
+                        region=region,
+                        aws_session_info=aws_session_info,
+                    )
 
-            # Add security analysis to the result
-            resource_info['security_analysis'] = {
-                'security_result': security_result,
-                'template': code['cloudformation_template'],
-            }
+                    # Run security scan
+                    security_result = await run_checkov(
+                        content=json.dumps(code['cloudformation_template']),
+                        file_type='json',
+                        framework='cloudformation',
+                        resource_type=resource_type,
+                    )
+
+                    # Add security analysis to the result
+                    resource_info['security_analysis'] = {
+                        'security_result': security_result,
+                        'template': code['cloudformation_template'],
+                    }
+                else:
+                    resource_info['security_analysis'] = {
+                        'error': 'AWS credentials not properly configured for security analysis'
+                    }
+            except Exception as e:
+                resource_info['security_analysis'] = {
+                    'error': f'Security analysis failed: {str(e)}'
+                }
 
         return resource_info
     except Exception as e:
@@ -365,6 +391,9 @@ async def update_resource(
     checkov_validation_token: str = Field(
         description='Validation token from run_checkov() to ensure security checks were performed'
     ),
+    properties_token: str = Field(
+        description='Properties token from generate_infrastructure_code() to ensure exact scanned properties are used'
+    ),
     skip_security_check: bool = Field(False, description='Skip security checks (not recommended)'),
 ) -> dict:
     """Update an AWS resource.
@@ -385,12 +414,7 @@ async def update_resource(
     - Resource: "*" (wildcard resources)
     - Public read/write access without explicit business justification
 
-    IMPORTANT: If DEFAULT_TAGS is enabled (default), this tool will automatically add these default tags:
-    - MANAGED_BY: CCAPI-MCP-SERVER
-    - MCP_SERVER_SOURCE_CODE: https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server
-    - MCP_SERVER_VERSION: (current package version)
-    - MCP_DEPLOYMENT_ID: (unique 8-character ID for grouping related resources)
-    Always inform the user that these default tags will be applied unless they explicitly disable them.
+    This tool automatically adds default identification tags to resources for support and troubleshooting purposes.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket")
@@ -440,6 +464,15 @@ async def update_resource(
         raise ClientError(
             'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
         )
+
+    # CRITICAL SECURITY: Validate properties token and get properties from validated token only
+    if properties_token not in _properties_store:
+        raise ClientError(
+            'Invalid properties token: properties must come from generate_infrastructure_code()'
+        )
+
+    # Clean up used token (properties not needed for update operations)
+    del _properties_store[properties_token]
 
     validate_patch(patch_document)
     cloudcontrol_client = get_aws_client('cloudcontrol', region)
@@ -673,7 +706,6 @@ async def create_resource(
     resource_type: str = Field(
         description='The AWS resource type (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")'
     ),
-    properties: dict = Field(description='A dictionary of properties for the resource'),
     region: str | None = Field(
         description='The AWS region that the operation should be performed in', default=None
     ),
@@ -682,6 +714,9 @@ async def create_resource(
     ),
     checkov_validation_token: str = Field(
         description='Validation token from run_checkov() to ensure security checks were performed'
+    ),
+    properties_token: str = Field(
+        description='Properties token from generate_infrastructure_code() - properties will be retrieved from this token'
     ),
     skip_security_check: bool = Field(False, description='Skip security checks (not recommended)'),
 ) -> dict:
@@ -703,10 +738,7 @@ async def create_resource(
     - Resource: "*" (wildcard resources)
     - Public read/write access without explicit business justification
 
-    IMPORTANT: If DEFAULT_TAGS is enabled (default), this tool will automatically add these default tags:
-    - MANAGED_BY: CCAPI-MCP-SERVER
-    - MCP_SERVER_SOURCE_CODE: https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server
-    Always inform the user that these default tags will be applied unless they explicitly disable them.
+    This tool automatically adds default identification tags to all resources for support and troubleshooting purposes.
 
     Parameters:
         resource_type: The AWS resource type (e.g., "AWS::S3::Bucket")
@@ -729,16 +761,28 @@ async def create_resource(
         }
     """
     # Basic input validation
-    if not resource_type or not properties:
-        raise ClientError('Resource type and properties are required')
+    if not resource_type:
+        raise ClientError('Resource type is required')
 
     # Token-based workflow validation (tokens validate the workflow was followed)
     if not skip_security_check and not checkov_validation_token:
         raise ClientError('Security validation token required (run run_checkov() first)')
 
-    # Read-only mode check
+    # Read-only mode check (before properties validation)
     if Context.readonly_mode() or aws_session_info.get('readonly_mode', False):
         raise ClientError('Server is in read-only mode')
+
+    # CRITICAL SECURITY: Get properties from validated token only
+    if properties_token not in _properties_store:
+        raise ClientError(
+            'Invalid properties token: properties must come from generate_infrastructure_code()'
+        )
+
+    # Use ONLY the properties that were scanned - no manual override possible
+    properties = _properties_store[properties_token]
+
+    # Clean up used token
+    del _properties_store[properties_token]
 
     cloudcontrol_client = get_aws_client('cloudcontrol', region)
     try:
@@ -904,6 +948,22 @@ async def create_template(
     that are not already managed by CloudFormation. The template generation process is
     asynchronous, so you can check the status of the process and retrieve the template
     once it's complete. You can pass up to 500 resources at a time.
+
+    IMPORTANT FOR LLMs: This tool only generates CloudFormation templates. If users request
+    other IaC formats (Terraform, CDK, etc.), follow this workflow:
+    1. Use create_template() to generate CloudFormation template from existing resources
+    2. Convert the CloudFormation to the requested format using your native capabilities
+    3. For Terraform specifically: Create both resource definitions AND import blocks
+       so users can import existing resources into Terraform state
+       ⚠️ ALWAYS USE TERRAFORM IMPORT BLOCKS (NOT TERRAFORM IMPORT COMMANDS) ⚠️
+    4. Provide both the original CloudFormation and converted IaC to the user
+
+    Example workflow for "create Terraform import for these resources":
+    1. create_template() → get CloudFormation template
+    2. Convert to Terraform resource blocks
+    3. Generate corresponding Terraform import blocks (NOT terraform import commands)
+       Example: import { to = aws_s3_bucket.example, id = "my-bucket" }
+    4. Provide complete Terraform configuration with import blocks
 
     Examples:
     1. Start template generation for an S3 bucket:

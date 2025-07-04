@@ -81,12 +81,13 @@ The MCP server supports several environment variables to control its behavior:
 
 ### AWS Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AWS_REGION` | *(see priority below)* | AWS region for operations |
-| `AWS_PROFILE` | *(empty)* | AWS profile name to use for authentication |
+| Variable      | Default                | Description                                |
+| ------------- | ---------------------- | ------------------------------------------ |
+| `AWS_REGION`  | _(see priority below)_ | AWS region for operations                  |
+| `AWS_PROFILE` | _(empty)_              | AWS profile name to use for authentication |
 
 **Region Selection Priority:**
+
 1. `AWS_REGION` environment variable (if set)
 2. Region from AWS profile configuration (if using profiles)
 3. Region from `~/.aws/config` default profile
@@ -94,6 +95,7 @@ The MCP server supports several environment variables to control its behavior:
 5. Boto3's default region resolution (for other cases)
 
 **When to set AWS_REGION:**
+
 - **To override region**: When you want to use a different region than the default
 - **With environment variables**: When using `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` and don't want `us-east-1`
 - **With profiles/SSO**: When you want to override the profile's configured region
@@ -102,6 +104,7 @@ The MCP server supports several environment variables to control its behavior:
 ### AWS Credential Chain
 
 The server uses boto3's standard credential chain automatically:
+
 1. Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
 2. AWS profile from `~/.aws/credentials` or `~/.aws/config`
 3. IAM roles (EC2 instance, ECS task, EKS pod)
@@ -111,22 +114,24 @@ The server uses boto3's standard credential chain automatically:
 
 ### Server Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEFAULT_TAGS` | `enabled` | Controls automatic resource tagging |
-| `FASTMCP_LOG_LEVEL` | *(not set)* | Logging level (ERROR, WARN, INFO, DEBUG) |
+| Variable            | Default     | Description                              |
+| ------------------- | ----------- | ---------------------------------------- |
+| `FASTMCP_LOG_LEVEL` | _(not set)_ | Logging level (ERROR, WARN, INFO, DEBUG) |
 
 ### Default Tagging
 
-When `DEFAULT_TAGS=enabled` (default), the server automatically adds these tags to supported resources:
-- `MANAGED_BY`: `ccapi-mcp-server`
-- `MCP_SERVER_SOURCE_CODE`: `https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server`
+The server automatically adds these identification tags to all supported resources:
 
-To disable default tagging, set `DEFAULT_TAGS=disabled`.
+- `MANAGED_BY`: `CCAPI-MCP-SERVER`
+- `MCP_SERVER_SOURCE_CODE`: `https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server`
+- `MCP_SERVER_VERSION`: `1.0.0` (current version)
+
+These tags help identify resources created by the MCP server for support and troubleshooting purposes. Users can add additional custom tags through conversation with the LLM.
 
 ### AWS Account Information Display
 
 The server automatically displays AWS account information on startup:
+
 - **AWS Profile**: The profile being used (if any)
 - **AWS Account ID**: The AWS account ID
 - **AWS Region**: The region where resources will be created
@@ -137,6 +142,7 @@ This ensures you always know which AWS account and region will be affected by op
 ## Installation
 
 **Before installation, configure AWS credentials using one of these methods:**
+
 - **AWS Profile**: Run `aws configure` and set `AWS_PROFILE` environment variable (region from profile used automatically)
 - **Environment Variables**: Export `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (defaults to `us-east-1`, set `AWS_REGION` to override)
 - **AWS SSO**: Configure SSO profile and set `AWS_PROFILE` (region from profile used automatically)
@@ -156,7 +162,6 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "args": ["awslabs.ccapi-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-named-profile",
-        "DEFAULT_TAGS": "enabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
@@ -165,11 +170,13 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   }
 }
 ```
-*Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-west-2"` to override.*
+
+_Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-west-2"` to override._
 
 **Alternative configurations:**
 
 **Using Environment Variables for Credentials:**
+
 ```json
 {
   "mcpServers": {
@@ -177,16 +184,17 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "command": "uvx",
       "args": ["awslabs.ccapi-mcp-server@latest"],
       "env": {
-        "AWS_REGION": "us-west-2",
-        "DEFAULT_TAGS": "enabled"
+        "AWS_REGION": "us-west-2"
       }
     }
   }
 }
 ```
-*Note: Ensure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are exported in your shell*
+
+_Note: Ensure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are exported in your shell_
 
 **Using AWS SSO:**
+
 ```json
 {
   "mcpServers": {
@@ -200,7 +208,8 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   }
 }
 ```
-*Note: Run `aws sso login --profile your-sso-profile` before starting the MCP server*
+
+_Note: Run `aws sso login --profile your-sso-profile` before starting the MCP server_
 
 **Read-Only Mode (Security Feature):**
 
@@ -214,7 +223,6 @@ To prevent the MCP server from performing any mutating actions (Create/Update/De
       "args": ["awslabs.ccapi-mcp-server@latest", "--readonly"],
       "env": {
         "AWS_PROFILE": "your-named-profile",
-        "DEFAULT_TAGS": "enabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
@@ -257,47 +265,106 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
 
 NOTE: Your credentials will need to be kept refreshed from your host
 
-## Tools
+## Available MCP Tools
 
-### create_resource
+**Tool Ordering & Workflow Enforcement**: These tools are designed with parameter dependencies that enforce proper workflow order. LLMs must follow the logical sequence: environment setup → security validation → resource operations. This prevents security bypasses and ensures proper credential validation.
 
-Creates an AWS resource using the AWS Cloud Control API with a declarative approach.
-**Example**: Create an S3 bucket with versioning and encryption enabled.
+### check_environment_variables()
 
-### get_resource
+**Requirements**: None (starting point)
 
-Gets details of a specific AWS resource using the AWS Cloud Control API.
-**Example**: Get the configuration of an EC2 instance.
+Checks if AWS credentials are properly configured through AWS_PROFILE or environment variables.
+**Example**: Verify that AWS credentials are available before performing operations.
 
-### update_resource
+### get_aws_session_info()
 
-Updates an AWS resource using the AWS Cloud Control API with a declarative approach.
-**Example**: Update an RDS instance's storage capacity.
+**Requirements**: `env_check_result` parameter from `check_environment_variables()`
 
-### delete_resource
+Provides detailed information about the current AWS session including account ID, region, and credential source.
+**Example**: Display which AWS account and region will be affected by operations.
+**Use when**: You need detailed session info and have already called `check_environment_variables()`.
 
-Deletes an AWS resource using the AWS Cloud Control API.
-**Example**: Remove an unused NAT gateway.
+### get_aws_account_info()
 
-### list_resources
+**Requirements**: None (calls `check_environment_variables()` internally)
 
-Lists AWS resources of a specified type using AWS Cloud Control API.
-**Example**: List all EC2 instances in a region.
+Convenience tool that automatically calls `check_environment_variables()` internally, then `get_aws_session_info()`. Returns the same information but requires no parameters.
+**Example**: "What AWS account am I using?" - Quick one-step account info.
+**Use when**: You want account info quickly without calling `check_environment_variables()` first.
 
-### get_resource_schema_information
+### generate_infrastructure_code()
+
+**Requirements**: `aws_session_info` parameter from `get_aws_session_info()`
+
+Prepares resource properties for Cloud Control API operations and generates a CloudFormation-format template solely for security scanning. **Important**: The CloudFormation service is never involved - the template is only used by Checkov for security analysis.
+
+**Consistency guarantee**: The exact same properties object is used for both the CF template (for Checkov scanning) and passed to `create_resource()`/`update_resource()` (for CCAPI operations). This ensures what gets security-scanned is identical to what gets deployed.
+
+**Example**: Process S3 bucket properties, apply default tags, create CF-format template for Checkov, then use the same properties for CCAPI resource creation.
+**Workflow**: generate_infrastructure_code() → run_checkov() (scans template) → create_resource() (uses same properties via CCAPI).
+
+### run_checkov()
+
+**Requirements**: `security_check_token` from `generate_infrastructure_code()` (enforced by default)
+
+Runs Checkov security and compliance scanner on the infrastructure code generated by `generate_infrastructure_code()`. Scans the generated resource configuration code for security vulnerabilities before actual resource creation/update. **Security validation is mandatory** - `create_resource()` and `update_resource()` will not proceed without a `checkov_validation_token` from this tool.
+**Example**: Scan the generated infrastructure code for security issues before executing Cloud Control API operations.
+
+### get_resource_schema_information()
+
+**Requirements**: None
 
 Get schema information for an AWS CloudFormation resource.
 **Example**: Get the schema for AWS::S3::Bucket to understand all available properties.
 
-### get_request_status
+### create_resource()
+
+**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `checkov_validation_token` from `run_checkov()`
+
+Creates an AWS resource using the AWS Cloud Control API with a declarative approach.
+**Example**: Create an S3 bucket with versioning and encryption enabled.
+
+### get_resource()
+
+**Requirements**: None
+
+Gets details of a specific AWS resource using the AWS Cloud Control API.
+**Example**: Get the configuration of an EC2 instance.
+
+### update_resource()
+
+**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `checkov_validation_token` from `run_checkov()`
+
+Updates an AWS resource using the AWS Cloud Control API with a declarative approach.
+**Example**: Update an RDS instance's storage capacity.
+
+### delete_resource()
+
+**Requirements**: `aws_session_info` from `get_aws_session_info()`
+
+Deletes an AWS resource using the AWS Cloud Control API.
+**Example**: Remove an unused NAT gateway.
+
+### list_resources()
+
+**Requirements**: None
+
+Lists AWS resources of a specified type using AWS Cloud Control API.
+**Example**: List all EC2 instances in a region.
+
+### get_resource_request_status()
+
+**Requirements**: `request_token` from create/update/delete operations
 
 Get the status of a mutation that was initiated by create/update/delete resource.
 **Example**: Give me the status of the last request I made.
 
-### create_tempalte
+### create_template()
 
-Create a Cloudformation template from created or listed resources.
-**Example**: Create a YAML template for those resources.
+**Requirements**: None (but typically used after resource operations)
+
+Creates CloudFormation templates from existing AWS resources using AWS CloudFormation's IaC Generator API. **Currently only generates CloudFormation templates** in JSON or YAML format. While this MCP tool doesn't directly generate other IaC formats like Terraform or CDK, LLMs can use their native capabilities to convert the generated CloudFormation template to other formats - though this conversion happens outside the MCP server's scope.
+**Example**: Generate a CloudFormation YAML template from existing S3 buckets and EC2 instances, then ask the LLM to convert it to Terraform HCL.
 
 ## Basic Usage
 

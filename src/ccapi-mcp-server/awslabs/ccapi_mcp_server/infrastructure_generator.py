@@ -28,7 +28,6 @@ async def generate_infrastructure_code(
     identifier: str = '',
     patch_document: List = [],
     region: str = '',
-    disable_default_tags: bool = False,
 ) -> Dict:
     """Generate infrastructure code for security scanning before resource creation or update."""
     if not resource_type:
@@ -75,14 +74,8 @@ async def generate_infrastructure_code(
         if not properties:
             raise ClientError('Please provide the properties for the desired resource')
 
-        # Apply default tags if enabled and not explicitly disabled
-        if disable_default_tags:
-            properties_with_tags = properties
-            print(
-                'Warning: Default tags are disabled. It is highly recommended to add custom tags to identify resources managed by this MCP server.'
-            )
-        else:
-            properties_with_tags = add_default_tags(properties, schema)
+        # V1: Always add required MCP server identification tags
+        properties_with_tags = add_default_tags(properties, schema)
 
         operation = 'create'
 

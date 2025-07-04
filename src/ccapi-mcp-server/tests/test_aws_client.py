@@ -23,22 +23,24 @@ from unittest.mock import patch
 class TestClient:
     """Tests on the aws_client module."""
 
-    @patch('awslabs.ccapi_mcp_server.aws_client.session')
+    @patch('awslabs.ccapi_mcp_server.aws_client.Session')
     @patch('awslabs.ccapi_mcp_server.aws_client.environ')
-    async def test_happy_path(self, mock_environ, mock_session):
+    async def test_happy_path(self, mock_environ, mock_session_class):
         """Testing happy path."""
         client = {}
+        mock_session = mock_session_class.return_value
         mock_session.client.return_value = client
 
         result = get_aws_client('cloudcontrol', 'us-east-1')
 
         assert result == client
 
-    @patch('awslabs.ccapi_mcp_server.aws_client.session')
+    @patch('awslabs.ccapi_mcp_server.aws_client.Session')
     @patch('awslabs.ccapi_mcp_server.aws_client.environ')
-    async def test_happy_path_no_region(self, mock_environ, mock_session):
+    async def test_happy_path_no_region(self, mock_environ, mock_session_class):
         """Testing no region."""
         client = {}
+        mock_session = mock_session_class.return_value
         mock_session.client.return_value = client
         mock_environ.get.return_value = 'us-east-1'
 
@@ -46,32 +48,74 @@ class TestClient:
 
         assert result == client
 
-    @patch('awslabs.ccapi_mcp_server.aws_client.session')
+    @patch('awslabs.ccapi_mcp_server.aws_client.Session')
     @patch('awslabs.ccapi_mcp_server.aws_client.environ')
-    async def test_expired_token(self, mock_environ, mock_session):
+    async def test_expired_token(self, mock_environ, mock_session_class):
         """Testing token is expired."""
+        mock_session = mock_session_class.return_value
         mock_session.client.side_effect = Exception('ExpiredToken')
         mock_environ.get.return_value = 'us-east-1'
 
         with pytest.raises(ClientError):
             get_aws_client('cloudcontrol')
 
-    @patch('awslabs.ccapi_mcp_server.aws_client.session')
+    @patch('awslabs.ccapi_mcp_server.aws_client.Session')
     @patch('awslabs.ccapi_mcp_server.aws_client.environ')
-    async def test_no_providers(self, mock_environ, mock_session):
+    async def test_no_providers(self, mock_environ, mock_session_class):
         """Testing no providers given."""
+        mock_session = mock_session_class.return_value
         mock_session.client.side_effect = Exception('NoCredentialProviders')
         mock_environ.get.return_value = 'us-east-1'
 
         with pytest.raises(ClientError):
             get_aws_client('cloudcontrol')
 
-    @patch('awslabs.ccapi_mcp_server.aws_client.session')
+    @patch('awslabs.ccapi_mcp_server.aws_client.Session')
     @patch('awslabs.ccapi_mcp_server.aws_client.environ')
-    async def test_other_error(self, mock_environ, mock_session):
+    async def test_other_error(self, mock_environ, mock_session_class):
         """Testing error."""
+        mock_session = mock_session_class.return_value
         mock_session.client.side_effect = Exception('UNRELATED')
         mock_environ.get.return_value = 'us-east-1'
 
         with pytest.raises(ClientError):
             get_aws_client('cloudcontrol')
+
+    @patch('awslabs.ccapi_mcp_server.aws_client.Session')
+    @patch('awslabs.ccapi_mcp_server.aws_client.environ')
+    async def test_profile_region_fallback(self, mock_environ, mock_session_class):
+        """Test profile region fallback - covers line 57 type annotation."""
+        client = {}
+        mock_session = mock_session_class.return_value
+        mock_session.client.return_value = client
+        mock_session.profile_name = 'test-profile'
+        mock_session.get_config_variable.return_value = 'us-west-2'
+        mock_environ.get.return_value = None  # No AWS_REGION env var
+
+        result = get_aws_client('cloudcontrol')
+
+        assert result == client
+        # Verify the type annotation line was executed
+        mock_session.get_config_variable.assert_called_with('region')
+        call_args = mock_session.client.call_args
+        assert call_args[0] == ('cloudcontrol',)
+        assert call_args[1]['region_name'] == 'us-west-2'
+
+    @patch('awslabs.ccapi_mcp_server.aws_client.Session')
+    @patch('awslabs.ccapi_mcp_server.aws_client.environ')
+    async def test_profile_region_with_exception_handling(self, mock_environ, mock_session_class):
+        """Test profile region with exception - covers line 57 type annotation."""
+        client = {}
+        mock_session = mock_session_class.return_value
+        mock_session.client.return_value = client
+        mock_session.profile_name = 'test-profile'
+        # This should hit the type annotation line 57: profile_region = session.get_config_variable('region')  # type: ignore
+        mock_session.get_config_variable.side_effect = Exception('Config error')
+        mock_environ.get.return_value = None
+
+        # Should still work despite the exception
+        result = get_aws_client('cloudcontrol')
+        assert result == client
+
+        # Verify the type annotation line was executed
+        mock_session.get_config_variable.assert_called_with('region')

@@ -40,7 +40,6 @@ ENV/
 .coverage.*
 htmlcov/
 .pytest_cache/
-awslabs/cfn_mcp_server/.schemas/
 
 # Ruff
 .ruff_cache/
@@ -58,3 +57,6 @@ target/
 
 # PyPI
 .pypirc
+
+# Auto-generated schema cache directories
+.schemas/

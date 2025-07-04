@@ -98,3 +98,15 @@ class TestErrors:
         error = Exception('none of the above')
         mapped = handle_aws_api_error(error)
         assert mapped.message.startswith('An error occurred')  # pyright: ignore[reportAttributeAccessIssue]
+
+    async def test_handle_boto3_error(self):
+        """Test handling boto3 error with response - line 33."""
+        from botocore.exceptions import ClientError as BotoClientError
+
+        error = BotoClientError(
+            error_response={'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            operation_name='TestOperation',
+        )
+
+        mapped = handle_aws_api_error(error)
+        assert mapped.message.startswith('Access denied')  # pyright: ignore[reportAttributeAccessIssue]

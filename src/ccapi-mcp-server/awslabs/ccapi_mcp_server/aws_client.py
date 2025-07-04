@@ -54,7 +54,7 @@ def get_aws_client(service_name, region_name=None):
         # If still no region, try to get from session (profile)
         if not region_name:
             try:
-                profile_region = session.get_config_variable('region')
+                profile_region = session.get_config_variable('region')  # type: ignore
                 if profile_region:
                     region_name = profile_region
             except Exception:

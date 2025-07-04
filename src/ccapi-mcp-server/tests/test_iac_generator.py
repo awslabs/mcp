@@ -220,3 +220,31 @@ async def test_create_template_api_error(mock_get_aws_client, mock_cfn_client):
             )
 
         mock_handle_error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_template_failed_status(mock_get_aws_client, mock_cfn_client):
+    """Test handling of failed template generation."""
+    mock_get_aws_client.return_value = mock_cfn_client
+    mock_cfn_client.describe_generated_template.return_value = {
+        'Status': 'FAILED',
+        'StatusReason': 'Template generation failed',
+    }
+
+    result = await create_template(template_id='test-template-id')
+
+    assert result['status'] == 'FAILED'
+    assert 'Template generation failed' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_create_template_file_write_error(mock_get_aws_client, mock_cfn_client):
+    """Test handling of file write errors."""
+    mock_get_aws_client.return_value = mock_cfn_client
+    mock_cfn_client.describe_generated_template.return_value = {'Status': 'COMPLETE'}
+    mock_cfn_client.get_generated_template.return_value = {'TemplateBody': 'content'}
+
+    with pytest.raises(ClientError):
+        await create_template(
+            template_id='test-template-id', save_to_file='/invalid/path/template.yaml'
+        )

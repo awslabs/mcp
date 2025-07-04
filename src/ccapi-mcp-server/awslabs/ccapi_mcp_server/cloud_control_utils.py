@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from awslabs.ccapi_mcp_server.errors import ClientError
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 
 def add_default_tags(properties: Dict, schema: Dict) -> Dict:
@@ -22,10 +21,7 @@ def add_default_tags(properties: Dict, schema: Dict) -> Dict:
     if not properties:
         return {}
 
-    # Check if default tagging is enabled via environment variable
-    default_tagging_enabled = os.environ.get('DEFAULT_TAGS', '').lower() == 'enabled'
-    if not default_tagging_enabled:
-        return properties.copy()
+    # V1: Always add required MCP server identification tags
 
     properties_with_tags = properties.copy()
     supports_tagging = 'Tags' in schema.get('properties', {})
@@ -60,8 +56,11 @@ def add_default_tags(properties: Dict, schema: Dict) -> Dict:
     return properties_with_tags
 
 
-def validate_patch(patch_document: List):
+def validate_patch(patch_document: Any):
     """A best effort check that makes sure that the format of a patch document is valid before sending it to CloudControl."""
+    if not isinstance(patch_document, list):
+        raise ClientError('Patch document must be a list')
+
     for patch_op in patch_document:
         if not isinstance(patch_op, dict):
             raise ClientError('Each patch operation must be a dictionary')
