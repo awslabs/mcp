@@ -15,7 +15,7 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from awslabs.postgres_mcp_server.connection.connection_factory import DBConnectionSingleton
+from awslabs.postgres_mcp_server.connection.singleton import DBConnectionSingleton
 
 
 class TestDBConnectionSingleton:

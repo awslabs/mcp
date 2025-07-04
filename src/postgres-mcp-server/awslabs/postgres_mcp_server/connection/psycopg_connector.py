@@ -25,7 +25,7 @@ import json
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from awslabs.postgres_mcp_server.connection.connection_factory import AbstractDBConnection
+from awslabs.postgres_mcp_server.connection.abstract_class import AbstractDBConnection
 
 
 class PsycopgPoolConnection(AbstractDBConnection):
