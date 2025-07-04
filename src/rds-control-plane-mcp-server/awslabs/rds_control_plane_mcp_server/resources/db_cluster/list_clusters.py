@@ -19,7 +19,7 @@ from ...common.decorator import handle_exceptions
 from ...common.models import ClusterModel, ClusterListModel
 from ...common.server import mcp
 from ...common.utils import handle_paginated_aws_api_call
-from .utils import ClusterSummaryModel, format_cluster_summary
+from .utils import format_cluster_summary
 from loguru import logger
 
 

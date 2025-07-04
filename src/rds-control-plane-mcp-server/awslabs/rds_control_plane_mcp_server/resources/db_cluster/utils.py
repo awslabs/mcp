@@ -17,29 +17,14 @@
 from ...common.models import (
     ClusterMember,
     ClusterModel,
+    ClusterSummaryModel,
     VpcSecurityGroup,
 )
-from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+from pydantic import BaseModel
+from typing import Dict
 from ...common.utils import convert_datetime_to_string
 from mypy_boto3_rds.type_defs import DBClusterTypeDef
 
-
-class ClusterSummaryModel(BaseModel):
-    """Simplified DB cluster model for list views."""
-
-    cluster_id: str = Field(description='The DB cluster identifier')
-    db_cluster_arn: Optional[str] = Field(None, description='The ARN of the DB cluster')
-    db_cluster_resource_id: Optional[str] = Field(None, description='The resource ID of the DB cluster')
-    status: str = Field(description='The current status of the DB cluster')
-    engine: str = Field(description='The database engine')
-    engine_version: Optional[str] = Field(None, description='The version of the database engine')
-    availability_zones: List[str] = Field(default_factory=list, description='The AZs where the cluster instances can be created')
-    multi_az: bool = Field(
-        description='Whether the DB cluster has instances in multiple Availability Zones'
-    )
-    tag_list: Dict[str, str] = Field(default_factory=dict, description='A list of tags')
-    resource_uri: Optional[str] = Field(None, description='The resource URI for this cluster')
 
 
 def format_cluster_summary(cluster: DBClusterTypeDef) -> ClusterSummaryModel:
