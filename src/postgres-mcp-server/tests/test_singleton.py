@@ -21,34 +21,37 @@ from awslabs.postgres_mcp_server.connection.singleton import DBConnectionSinglet
 class TestDBConnectionSingleton:
     """Tests for the DBConnectionSingleton class."""
     
-    @patch('awslabs.postgres_mcp_server.connection.rds_connector.RDSDataAPIConnection')
-    def test_singleton_initialization(self, mock_rds_connection):
+    def test_singleton_initialization(self):
         """Test that the singleton initializes correctly."""
+        # Reset singleton
+        DBConnectionSingleton._instance = None
+        
         # Setup mock
-        mock_conn = MagicMock()
-        mock_rds_connection.return_value = mock_conn
-        
-        # Initialize singleton
-        DBConnectionSingleton.initialize(
-            resource_arn="test_resource_arn",
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            database="test_db",
-            region="us-east-1",
-            readonly=True
-        )
-        
-        # Get the singleton instance
-        instance = DBConnectionSingleton.get()
-        
-        # Verify RDSDataAPIConnection was created
-        mock_rds_connection.assert_called_once()
-        args, kwargs = mock_rds_connection.call_args
-        assert kwargs['cluster_arn'] == "test_resource_arn"
-        assert kwargs['secret_arn'] == "test_secret_arn" # pragma: allowlist secret
-        assert kwargs['database'] == "test_db"
-        assert kwargs['region'] == "us-east-1"
-        assert kwargs['readonly'] is True
-        assert instance.db_connection == mock_conn
+        with patch('awslabs.postgres_mcp_server.connection.rds_connector.RDSDataAPIConnection') as mock_rds_connection:
+            mock_conn = MagicMock()
+            mock_rds_connection.return_value = mock_conn
+            
+            # Initialize singleton
+            DBConnectionSingleton.initialize(
+                resource_arn="test_resource_arn",
+                secret_arn="test_secret_arn", # pragma: allowlist secret
+                database="test_db",
+                region="us-east-1",
+                readonly=True
+            )
+            
+            # Get the singleton instance
+            instance = DBConnectionSingleton.get()
+            
+            # Verify RDSDataAPIConnection was created
+            mock_rds_connection.assert_called_once()
+            args, kwargs = mock_rds_connection.call_args
+            assert kwargs['cluster_arn'] == "test_resource_arn"
+            assert kwargs['secret_arn'] == "test_secret_arn" # pragma: allowlist secret
+            assert kwargs['database'] == "test_db"
+            assert kwargs['region'] == "us-east-1"
+            assert kwargs['readonly'] is True
+            assert instance.db_connection == mock_conn
     
     def test_singleton_validation_missing_params(self):
         """Test that the singleton validates the parameters correctly."""
@@ -76,31 +79,34 @@ class TestDBConnectionSingleton:
             DBConnectionSingleton.get()
         assert "DBConnectionSingleton is not initialized" in str(excinfo.value)
     
-    @patch('awslabs.postgres_mcp_server.connection.rds_connector.RDSDataAPIConnection')
-    def test_singleton_cleanup(self, mock_rds_connection):
+    def test_singleton_cleanup(self):
         """Test that cleanup() correctly closes the connection."""
+        # Reset singleton
+        DBConnectionSingleton._instance = None
+        
         # Setup mock
-        mock_conn = MagicMock()
-        mock_rds_connection.return_value = mock_conn
-        
-        # Initialize singleton
-        DBConnectionSingleton.initialize(
-            resource_arn="test_resource_arn",
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            database="test_db",
-            region="us-east-1",
-            readonly=True,
-            is_test=True
-        )
-        
-        # Mock asyncio.get_event_loop() and loop.is_running()
-        with patch('asyncio.get_event_loop') as mock_get_loop:
-            mock_loop = MagicMock()
-            mock_loop.is_running.return_value = False
-            mock_get_loop.return_value = mock_loop
+        with patch('awslabs.postgres_mcp_server.connection.rds_connector.RDSDataAPIConnection') as mock_rds_connection:
+            mock_conn = MagicMock()
+            mock_rds_connection.return_value = mock_conn
             
-            # Call cleanup
-            DBConnectionSingleton.cleanup()
+            # Initialize singleton
+            DBConnectionSingleton.initialize(
+                resource_arn="test_resource_arn",
+                secret_arn="test_secret_arn", # pragma: allowlist secret
+                database="test_db",
+                region="us-east-1",
+                readonly=True,
+                is_test=True
+            )
             
-            # Verify close() was called
-            mock_loop.run_until_complete.assert_called_once()
+            # Mock asyncio.get_event_loop() and loop.is_running()
+            with patch('asyncio.get_event_loop') as mock_get_loop:
+                mock_loop = MagicMock()
+                mock_loop.is_running.return_value = False
+                mock_get_loop.return_value = mock_loop
+                
+                # Call cleanup
+                DBConnectionSingleton.cleanup()
+                
+                # Verify close() was called
+                mock_loop.run_until_complete.assert_called_once()
