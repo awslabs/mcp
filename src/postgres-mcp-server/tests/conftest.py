@@ -193,7 +193,7 @@ class Mock_DBConnection:
         """
         return self.readonly
         
-    async def execute_query(self, sql: str, parameters=None) -> dict:
+    async def execute_query(self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None) -> dict:
         """Execute a SQL query.
         
         Args:

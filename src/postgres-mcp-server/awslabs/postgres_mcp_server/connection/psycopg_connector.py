@@ -23,7 +23,20 @@ import asyncio
 import boto3
 import json
 from loguru import logger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing_extensions import LiteralString
+
+# Import psycopg types for type checking
+try:
+    from psycopg.sql import SQL, Composed
+    from psycopg_pool import AsyncConnectionPool
+    Query = Union[LiteralString, bytes, SQL, Composed]
+except ImportError:
+    # For type checking only
+    class SQL: pass
+    class Composed: pass
+    class AsyncConnectionPool: pass
+    Query = Union[str, bytes, SQL, Composed]
 
 from awslabs.postgres_mcp_server.connection.abstract_class import AbstractDBConnection
 
@@ -107,9 +120,13 @@ class PsycopgPoolConnection(AbstractDBConnection):
     
     async def _set_all_connections_readonly(self):
         """Set all connections in the pool to read-only mode."""
+        if self.pool is None:
+            logger.warning("Connection pool is not initialized, cannot set read-only mode")
+            return
+            
         try:
             async with self.pool.connection(timeout=15.0) as conn:
-                await conn.execute("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on;")
+                await conn.execute(SQL("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on;"))
                 logger.info("Successfully set connection to read-only mode")
         except Exception as e:
             logger.warning(f"Failed to set connections to read-only mode: {str(e)}")
@@ -123,20 +140,27 @@ class PsycopgPoolConnection(AbstractDBConnection):
         """Execute a SQL query using the async connection pool."""
         await self._ensure_pool()
         
+        if self.pool is None:
+            raise RuntimeError("Connection pool initialization failed")
+            
         try:
             async with self.pool.connection() as conn:
                 async with conn.transaction():
                     if self.readonly_query:
                         # Set transaction to read-only
-                        await conn.execute("SET TRANSACTION READ ONLY")
+                        await conn.execute(SQL("SET TRANSACTION READ ONLY"))
                     
                     # Execute the query
                     if parameters:
                         # Convert parameters to the format expected by psycopg
                         params = self._convert_parameters(parameters)
-                        result = await conn.execute(sql, params)
+                        # Cast to SQL to satisfy type checker
+                        sql_obj = SQL(sql)
+                        result = await conn.execute(sql_obj, params)
                     else:
-                        result = await conn.execute(sql)
+                        # Cast to SQL to satisfy type checker
+                        sql_obj = SQL(sql)
+                        result = await conn.execute(sql_obj)
                     
                     # If there are results to fetch
                     if result.description:
@@ -239,7 +263,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
         try:
             # Create a Secrets Manager client
             logger.info(f"Creating Secrets Manager client in region {region}")
-            session = boto3.session.Session()
+            session = boto3.Session()
             client = session.client(
                 service_name='secretsmanager',
                 region_name=region
@@ -281,7 +305,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
     
     async def close(self) -> None:
         """Close the connection pool asynchronously."""
-        if hasattr(self, 'pool'):
+        if hasattr(self, 'pool') and self.pool is not None:
             await self.pool.close()
             
     async def check_connection_health(self) -> bool:
@@ -295,9 +319,23 @@ class PsycopgPoolConnection(AbstractDBConnection):
             
     def get_pool_stats(self) -> Dict[str, int]:
         """Get current connection pool statistics."""
+        if not hasattr(self, 'pool') or self.pool is None:
+            return {
+                "size": 0,
+                "min_size": self.min_size,
+                "max_size": self.max_size,
+                "idle": 0
+            }
+            
+        # Access pool attributes safely
+        size = getattr(self.pool, 'size', 0)
+        min_size = getattr(self.pool, 'min_size', self.min_size)
+        max_size = getattr(self.pool, 'max_size', self.max_size)
+        idle = getattr(self.pool, 'idle', 0)
+        
         return {
-            "size": self.pool.size,
-            "min_size": self.pool.min_size,
-            "max_size": self.pool.max_size,
-            "idle": self.pool.idle
+            "size": size,
+            "min_size": min_size,
+            "max_size": max_size,
+            "idle": idle
         }

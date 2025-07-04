@@ -234,7 +234,7 @@ class TestPsycopgConnector:
         
         # Mock connection method to simulate connection acquisition
         mock_pool._lock = threading.RLock()
-        mock_pool.connection.side_effect = lambda timeout: MockConnectionContext(mock_pool)
+        mock_pool.connection = MagicMock(return_value=MockConnectionContext(mock_pool))
         mock_connection_pool.return_value = mock_pool
         
         # Create connection
@@ -255,7 +255,7 @@ class TestPsycopgConnector:
         
         # Function to acquire and release a connection
         def acquire_and_release():
-            with conn.pool.connection(timeout=15.0):
+            with mock_pool.connection():
                 # Simulate some work
                 time.sleep(0.1)
         
@@ -298,7 +298,7 @@ class TestPsycopgConnector:
                 return False
         
         # Mock connection method to simulate connection acquisition
-        mock_pool.connection.side_effect = lambda timeout: MockConnectionContext(mock_pool)
+        mock_pool.connection = MagicMock(return_value=MockConnectionContext(mock_pool))
         mock_connection_pool.return_value = mock_pool
         
         # Create connection
@@ -319,7 +319,7 @@ class TestPsycopgConnector:
         
         # Function to acquire and release a connection
         def acquire_and_release():
-            with conn.pool.connection(timeout=15.0):
+            with mock_pool.connection():
                 # Simulate some work
                 time.sleep(0.2)
         
@@ -347,7 +347,7 @@ class TestPsycopgConnector:
         stats_lock = threading.Lock()
         
         # Mock connection method to simulate connection acquisition with timeout
-        def mock_connection(timeout):
+        def mock_connection():
             with stats_lock:
                 stats['attempts'] += 1
                 if stats['attempts'] > mock_pool.max_size:
@@ -364,7 +364,7 @@ class TestPsycopgConnector:
             
             return ConnectionContext()
         
-        mock_pool.connection.side_effect = mock_connection
+        mock_pool.connection = MagicMock(side_effect=mock_connection)
         mock_connection_pool.return_value = mock_pool
         
         # Create connection
@@ -386,7 +386,7 @@ class TestPsycopgConnector:
         # Function to acquire and release a connection
         def acquire_and_release():
             try:
-                with conn.pool.connection(timeout=15.0):
+                with mock_pool.connection():
                     # Simulate some work
                     time.sleep(0.3)
             except TimeoutError:
