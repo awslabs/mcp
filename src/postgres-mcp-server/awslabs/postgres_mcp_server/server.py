@@ -17,11 +17,11 @@
 import argparse
 import asyncio
 import sys
+from awslabs.postgres_mcp_server.connection import DBConnectionSingleton
 from awslabs.postgres_mcp_server.mutable_sql_detector import (
     check_sql_injection_risk,
     detect_mutating_keywords,
 )
-from awslabs.postgres_mcp_server.connection import DBConnectionSingleton
 from botocore.exceptions import BotoCoreError, ClientError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP

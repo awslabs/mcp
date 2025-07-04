@@ -13,14 +13,12 @@
 # limitations under the License.
 """Tests for the psycopg connector functionality."""
 
-import asyncio
+import concurrent.futures
 import pytest
 import threading
 import time
-import concurrent.futures
-from unittest.mock import patch, MagicMock, AsyncMock
 from awslabs.postgres_mcp_server.connection.psycopg_connector import PsycopgPoolConnection
-from conftest import DummyCtx, Mock_PsycopgPoolConnection
+from unittest.mock import patch, MagicMock, AsyncMock
 
 
 class TestPsycopgConnector:

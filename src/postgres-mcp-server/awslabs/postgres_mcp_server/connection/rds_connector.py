@@ -16,10 +16,9 @@
 
 import asyncio
 import boto3
+from awslabs.postgres_mcp_server.connection.abstract_class import AbstractDBConnection
 from loguru import logger
 from typing import Any, Dict, List, Optional
-
-from awslabs.postgres_mcp_server.connection.abstract_class import AbstractDBConnection
 
 
 class RDSDataAPIConnection(AbstractDBConnection):
