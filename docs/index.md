@@ -487,6 +487,19 @@ time-series data using InfluxDB.
 
 [Learn more about the Amazon Timestream for InfluxDB MCP Server](servers/timestream-for-influxdb-mcp-server.md)
 
+### Amazon Data Processing MCP Server
+
+The AWS DataProcessing MCP server provides AI code assistants with comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2.
+
+**Features:**
+
+- Data Catalog Management: Explore, create, and manage databases, tables, and partitions through natural language requests
+- AWS Glue Integration: Manage AWS Glue Data Catalog operations including databases, tables, connections, and partitions
+- Secure Operations: Configurable read-only mode and sensitive data access controls
+- Comprehensive ETL Support: Streamline ETL job creation with intelligent code generation and best practice recommendations
+
+[Learn more about the Amazon Data Processing MCP Server](servers/dataprocessing-mcp-server.md)
+
 ### Amazon Rekognition MCP Server
 
 A Model Context Protocol (MCP) server for Amazon Rekognition that enables AI assistants to analyze images using Amazon Rekognition's powerful computer vision capabilities.
