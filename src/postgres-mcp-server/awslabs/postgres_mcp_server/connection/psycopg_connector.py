@@ -23,17 +23,10 @@ import asyncio
 import boto3
 import json
 from loguru import logger
-from typing import Any, Dict, List, Optional, Tuple, Union, cast, TypeVar
+from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 
-try:
-    from psycopg.sql import SQL
+if TYPE_CHECKING:
     from psycopg_pool import AsyncConnectionPool
-except ImportError:
-    # For type checking only
-    class SQL:
-        def __init__(self, query: str): 
-            self.query = query
-    class AsyncConnectionPool: pass
 
 from awslabs.postgres_mcp_server.connection.abstract_class import AbstractDBConnection
 
@@ -80,76 +73,37 @@ class PsycopgPoolConnection(AbstractDBConnection):
         self.database = database
         self.min_size = min_size
         self.max_size = max_size
+        self.pool: Optional["AsyncConnectionPool[Any]"] = None
         
         # Get credentials from Secrets Manager
         logger.info(f"Retrieving credentials from Secrets Manager: {secret_arn}")
         self.user, self.password = self._get_credentials_from_secret(secret_arn, region, is_test)
         logger.info(f"Successfully retrieved credentials for user: {self.user}")
         
-        # Store connection info for lazy initialization
-        self.pool = None
+        # Store connection info
         if not is_test:
             self.conninfo = f"host={host} port={port} dbname={database} user={self.user} password={self.password}"
-            logger.info("Connection parameters stored for lazy initialization")
+            logger.info("Connection parameters stored")
     
-    async def _ensure_pool(self):
-        """Ensure the connection pool is created and opened."""
-        if self.pool is None:
-            from psycopg_pool import AsyncConnectionPool
-            
-            logger.info("Creating async connection pool...")
-            self.pool = AsyncConnectionPool(
-                conninfo=self.conninfo,
-                min_size=self.min_size,
-                max_size=self.max_size,
-                timeout=15.0,
-                max_idle=60.0,
-                reconnect_timeout=5.0,
-            )
-            
-            await self.pool.open(wait=True, timeout=15.0)
-            logger.info("Async connection pool opened successfully")
-            
-            # If readonly, set default transaction read only for all connections
-            if self.readonly_query:
-                logger.info("Setting connections to read-only mode")
-                await self._set_all_connections_readonly()
-    
-    async def _set_all_connections_readonly(self):
-        """Set all connections in the pool to read-only mode."""
-        if self.pool is None:
-            logger.warning("Connection pool is not initialized, cannot set read-only mode")
-            return
-            
-        try:
-            async with self.pool.connection(timeout=15.0) as conn:
-                await conn.execute("ALTER ROLE CURRENT_USER SET default_transaction_read_only = on")
-                logger.info("Successfully set connection to read-only mode")
-        except Exception as e:
-            logger.warning(f"Failed to set connections to read-only mode: {str(e)}")
-            logger.warning("Continuing without setting read-only mode")
+    async def _get_connection(self):
+        """Get a database connection."""
+        import psycopg
+        return await psycopg.AsyncConnection.connect(self.conninfo)
     
     async def execute_query(
         self, 
         sql: str, 
         parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
-        """Execute a SQL query using the async connection pool."""
-        await self._ensure_pool()
-        
-        if self.pool is None:
-            raise RuntimeError("Connection pool initialization failed")
-            
+        """Execute a SQL query using async connection."""
         try:
-            async with self.pool.connection() as conn:
+            async with await self._get_connection() as conn:
                 async with conn.transaction():
                     if self.readonly_query:
-                        # Set transaction to read-only
                         await conn.execute("SET TRANSACTION READ ONLY")
                     
                     # Execute the query
                     if parameters:
-                        # Convert parameters to the format expected by psycopg
                         params = self._convert_parameters(parameters)
                         result = await conn.execute(sql, params)
                     else:
@@ -198,23 +152,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             raise e
 
     def _convert_parameters(self, parameters: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Convert query parameters from RDS Data API format to psycopg format.
-        
-        The RDS Data API uses a structured format with type information:
-        [{'name': 'param1', 'value': {'stringValue': 'value1'}}, ...]
-        
-        Psycopg uses a simpler dictionary format:
-        {'param1': 'value1', ...}
-        
-        This method handles the conversion between these formats to maintain
-        a consistent parameter interface across both connection types.
-        
-        Args:
-            parameters: List of parameter dictionaries in RDS Data API format
-            
-        Returns:
-            Dictionary of parameters in psycopg format
-        """
+        """Convert query parameters from RDS Data API format to psycopg format."""
         result = {}
         for param in parameters:
             name = param.get('name')
@@ -237,26 +175,14 @@ class PsycopgPoolConnection(AbstractDBConnection):
         return result
     
     def _get_credentials_from_secret(self, secret_arn: str, region: str, is_test: bool = False) -> Tuple[str, str]:
-        """Get database credentials from AWS Secrets Manager.
-        
-        Args:
-            secret_arn: ARN of the secret containing credentials
-            region: AWS region for Secrets Manager
-            is_test: Whether this is a test connection
-            
-        Returns:
-            Tuple containing (username, password)
-            
-        Raises:
-            ValueError: If the secret cannot be retrieved or doesn't contain the required fields
-        """
+        """Get database credentials from AWS Secrets Manager."""
         if is_test:
             return "test_user", "test_password"
         
         try:
             # Create a Secrets Manager client
             logger.info(f"Creating Secrets Manager client in region {region}")
-            session = boto3.Session()
+            session = boto3.session.Session()
             client = session.client(
                 service_name='secretsmanager',
                 region_name=region
@@ -275,7 +201,6 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 logger.info(f"Secret keys: {', '.join(secret.keys())}")
                 
                 # Extract username and password
-                # The keys can vary depending on how the secret was created
                 username = secret.get('username') or secret.get('user') or secret.get('Username')
                 password = secret.get('password') or secret.get('Password')
                 
@@ -297,38 +222,14 @@ class PsycopgPoolConnection(AbstractDBConnection):
             raise ValueError(f"Failed to retrieve credentials from Secrets Manager: {str(e)}")
     
     async def close(self) -> None:
-        """Close the connection pool asynchronously."""
-        if hasattr(self, 'pool') and self.pool is not None:
-            await self.pool.close()
+        """Close connections."""
+        pass
             
     async def check_connection_health(self) -> bool:
-        """Check if the connection pool is healthy."""
+        """Check if the connection is healthy."""
         try:
             result = await self.execute_query("SELECT 1")
             return len(result.get("records", [])) > 0
         except Exception as e:
             logger.error(f"Connection health check failed: {str(e)}")
             return False
-            
-    def get_pool_stats(self) -> Dict[str, int]:
-        """Get current connection pool statistics."""
-        if not hasattr(self, 'pool') or self.pool is None:
-            return {
-                "size": 0,
-                "min_size": self.min_size,
-                "max_size": self.max_size,
-                "idle": 0
-            }
-            
-        # Access pool attributes safely
-        size = getattr(self.pool, 'size', 0)
-        min_size = getattr(self.pool, 'min_size', self.min_size)
-        max_size = getattr(self.pool, 'max_size', self.max_size)
-        idle = getattr(self.pool, 'idle', 0)
-        
-        return {
-            "size": size,
-            "min_size": min_size,
-            "max_size": max_size,
-            "idle": idle
-        }
