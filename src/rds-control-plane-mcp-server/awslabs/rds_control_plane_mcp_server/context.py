@@ -61,5 +61,4 @@ class Context:
         """
         return {
             'MaxItems': cls._max_items,
-            'PageSize': 20,
         }

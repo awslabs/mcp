@@ -14,11 +14,12 @@
 
 """General utility functions for the RDS Control Plane MCP Server."""
 
-import asyncio
+from ..context import Context
+from botocore.client import BaseClient
 from typing import Any, Callable, Dict, List, TypeVar
 
 
-T = TypeVar('T')
+T = TypeVar('T', bound=object)
 
 
 def convert_datetime_to_string(obj: Any) -> Any:
@@ -41,33 +42,31 @@ def convert_datetime_to_string(obj: Any) -> Any:
     return obj
 
 
-async def paginate_aws_api_call(
-    client_function: Callable,
-    format_function: Callable[[Dict[str, Any]], T],
+def handle_paginated_aws_api_call(
+    client: BaseClient,
+    paginator_name: str,
+    operation_parameters: Dict[str, Any],
+    format_function: Callable[[Any], T],
     result_key: str,
-    **kwargs: Any,
 ) -> List[T]:
     """Fetch all results using AWS API pagination.
 
     Args:
-        client_function: Boto3 client function to call (e.g. rds_client.describe_db_clusters)
+        client: Boto3 client to use for the API call
+        paginator_name: Name of the paginator to use (e.g. 'describe_db_clusters')
+        operation_parameters: Parameters to pass to the paginator
         format_function: Function to format each item in the result
         result_key: Key in the response that contains the list of items
-        **kwargs: Additional arguments to pass to the client function
 
     Returns:
         List of formatted results
     """
     results = []
-    response = await asyncio.to_thread(client_function, **kwargs)
-
-    for item in response.get(result_key, []):
-        results.append(format_function(item))
-
-    while 'Marker' in response:
-        kwargs['Marker'] = response['Marker']
-        response = await asyncio.to_thread(client_function, **kwargs)
-        for item in response.get(result_key, []):
+    paginator = client.get_paginator(paginator_name)
+    operation_parameters['PaginationConfig'] = Context.get_pagination_config()
+    page_iterator = paginator.paginate(**operation_parameters)
+    for page in page_iterator:
+        for item in page.get(result_key, []):
             results.append(format_function(item))
 
     return results

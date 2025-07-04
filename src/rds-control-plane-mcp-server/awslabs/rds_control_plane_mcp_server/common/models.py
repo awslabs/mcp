@@ -71,14 +71,6 @@ class ClusterModel(BaseModel):
     resource_uri: Optional[str] = Field(None, description='The resource URI for this cluster')
 
 
-class ClusterListModel(BaseModel):
-    """DB cluster list model."""
-
-    clusters: List[ClusterModel] = Field(default_factory=list, description='List of DB clusters')
-    count: int = Field(description='Total number of DB clusters')
-    resource_uri: str = Field(description='The resource URI for the DB clusters')
-
-
 class InstanceEndpoint(BaseModel):
     """DB instance endpoint model."""
 
@@ -138,13 +130,3 @@ class InstanceModel(BaseModel):
         None, description='The AWS Region-unique, immutable identifier for the DB instance'
     )
     resource_uri: Optional[str] = Field(None, description='The resource URI for this instance')
-
-
-class InstanceListModel(BaseModel):
-    """DB instance list model."""
-
-    instances: List[InstanceModel] = Field(
-        default_factory=list, description='List of DB instances'
-    )
-    count: int = Field(description='Total number of DB instances')
-    resource_uri: str = Field(description='The resource URI for the DB instances')

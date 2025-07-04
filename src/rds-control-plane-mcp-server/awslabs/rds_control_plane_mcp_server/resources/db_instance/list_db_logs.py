@@ -17,7 +17,7 @@
 from ...common.connection import RDSConnectionManager
 from ...common.decorator import handle_exceptions
 from ...common.server import mcp
-from ...context import Context
+from ...common.utils import handle_paginated_aws_api_call
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import List
@@ -110,25 +110,17 @@ async def list_db_log_files(
     """
     rds_client = RDSConnectionManager.get_connection()
 
-    paginator = rds_client.get_paginator('describe_db_log_files')
-    # Do not include empty database log files
-    page_iterator = paginator.paginate(
-        DBInstanceIdentifier=db_instance_identifier,
-        FileSize=1,
-        PaginationConfig=Context.get_pagination_config(),
+    log_files = handle_paginated_aws_api_call(
+        client=rds_client,
+        paginator_name='describe_db_log_files',
+        operation_parameters={'DBInstanceIdentifier': db_instance_identifier},
+        format_function=lambda x: DBLogFileSummary(
+            log_file_name=x.get('LogFileName', ''),
+            last_written=datetime.fromtimestamp(x.get('LastWritten', 0) / 1000),
+            size=x.get('Size', 0),
+        ),
+        result_key='DescribeDBLogFiles',
     )
-
-    log_files: List[DBLogFileSummary] = []
-    for response in page_iterator:
-        for log_file in response.get('DescribeDBLogFiles', []):
-            # Convert AWS response to DBLogFileOverview objects
-            log_files.append(
-                DBLogFileSummary(
-                    log_file_name=log_file.get('LogFileName', ''),
-                    last_written=datetime.fromtimestamp(log_file.get('LastWritten', 0) / 1000),
-                    size=log_file.get('Size', 0),
-                )
-            )
 
     result = DBLogFileListModel(
         log_files=log_files,

@@ -90,7 +90,7 @@ async def get_instance_detail(
     if not instances:
         raise ValueError(f'Instance {instance_id} not found')
 
-    instance = format_instance_info(instances[0])
-    instance.resource_uri = 'aws-rds://db-instance/{instance_id}'
+    instance = format_instance_detail(instances[0])
+    instance.resource_uri = f'aws-rds://db-instance/{instance_id}'
 
     return instance

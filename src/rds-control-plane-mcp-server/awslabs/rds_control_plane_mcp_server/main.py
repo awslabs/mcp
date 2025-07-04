@@ -18,9 +18,13 @@ import argparse
 from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
 from awslabs.rds_control_plane_mcp_server.common.server import mcp
 from awslabs.rds_control_plane_mcp_server.context import Context
-from awslabs.rds_control_plane_mcp_server.resources import (  # noqa: F401 - imported for side effects to register resources
-    db_cluster,
-    db_instance,
+from awslabs.rds_control_plane_mcp_server.resources.db_cluster import get_cluster_detail, list_clusters
+from awslabs.rds_control_plane_mcp_server.resources.db_instance import (
+    get_instance_detail, 
+    list_instances,
+    list_performance_reports,
+    read_performance_report,
+    list_db_log_files
 )
 from loguru import logger
 

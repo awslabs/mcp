@@ -20,8 +20,8 @@ from ...common.models import (
     InstanceStorage,
     VpcSecurityGroup,
 )
-from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
+from pydantic import BaseModel, Field
 from mypy_boto3_rds.type_defs import DBInstanceTypeDef
 
 
@@ -42,21 +42,25 @@ class InstanceSummaryModel(BaseModel):
     resource_uri: Optional[str] = Field(None, description='The resource URI for this instance')
 
 
+
 def format_instance_summary(instance: DBInstanceTypeDef) -> InstanceSummaryModel:
-    """Format instance information into a simplified summary model for list views.
+    """Format instance information into a simplified model for list views.
+    
+    This returns a simplified InstanceSummaryModel with only essential fields
+    to provide a high-level overview of instances.
 
     Args:
         instance: Raw instance data from AWS API response
 
     Returns:
-        Formatted instance summary information as an InstanceSummaryModel object
+        Formatted instance information as an InstanceSummaryModel object
     """
     tags = {}
     if instance.get('TagList'):
         for tag in instance.get('TagList', []):
             if 'Key' in tag and 'Value' in tag:
                 tags[tag['Key']] = tag['Value']
-
+                
     return InstanceSummaryModel(
         instance_id=instance.get('DBInstanceIdentifier', ''),
         dbi_resource_id=instance.get('DbiResourceId'),
