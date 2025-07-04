@@ -1,0 +1,147 @@
+{
+  "cli_patterns": {
+    "cluster_creation": {
+      "basic": "rosa create cluster --cluster-name=<name> --region=<region>",
+      "production": "rosa create cluster --cluster-name=<name> --region=<region> --multi-az --enable-autoscaling --min-replicas=3 --max-replicas=10",
+      "private": "rosa create cluster --cluster-name=<name> --private-link --subnets=<subnet-ids>",
+      "options": {
+        "--multi-az": "Deploy across multiple availability zones for HA",
+        "--private-link": "Use AWS PrivateLink for private clusters",
+        "--sts": "Use STS mode (recommended for security)",
+        "--machine-type": "EC2 instance type (default: m5.xlarge)",
+        "--compute-nodes": "Number of worker nodes",
+        "--enable-autoscaling": "Enable cluster autoscaler"
+      }
+    },
+    "identity_providers": {
+      "github": {
+        "command": "rosa create idp --type=github --cluster=<cluster-name>",
+        "required": [
+          "--client-id",
+          "--client-secret",
+          "--organizations"
+        ]
+      },
+      "ldap": {
+        "command": "rosa create idp --type=ldap --cluster=<cluster-name>",
+        "required": [
+          "--ldap-url",
+          "--ldap-bind-dn",
+          "--ldap-bind-password"
+        ]
+      }
+    }
+  },
+  "networking": {
+    "private_clusters": {
+      "requirements": [
+        "VPC with private subnets",
+        "NAT Gateway or Transit Gateway",
+        "VPC endpoints for AWS services",
+        "DNS resolution for cluster domain"
+      ],
+      "security_groups": {
+        "control_plane": [
+          "Port 6443 from worker nodes",
+          "Port 22623 from worker nodes"
+        ],
+        "worker_nodes": [
+          "All traffic within security group",
+          "Egress to internet for images"
+        ]
+      }
+    },
+    "ingress_patterns": {
+      "public": {
+        "type": "Classic or NLB",
+        "annotations": {
+          "service.beta.kubernetes.io/aws-load-balancer-type": "nlb"
+        }
+      },
+      "private": {
+        "type": "Internal load balancer",
+        "annotations": {
+          "service.beta.kubernetes.io/aws-load-balancer-internal": "true"
+        }
+      }
+    }
+  },
+  "operations": {
+    "cluster_sizing": {
+      "small": {
+        "workers": 3,
+        "instance_type": "m5.large",
+        "use_case": "Development, testing"
+      },
+      "medium": {
+        "workers": 6,
+        "instance_type": "m5.xlarge",
+        "use_case": "Staging, small production"
+      },
+      "large": {
+        "workers": 9,
+        "instance_type": "m5.2xlarge",
+        "use_case": "Production workloads",
+        "multi_az": true
+      }
+    },
+    "autoscaling": {
+      "cluster_autoscaler": {
+        "min_nodes": 3,
+        "max_nodes": 100,
+        "scale_down_delay": "10m"
+      },
+      "machine_pool_autoscaling": {
+        "enabled": true,
+        "min_replicas": 1,
+        "max_replicas": 10
+      }
+    },
+    "monitoring": {
+      "cloudwatch": {
+        "namespace": "ContainerInsights",
+        "metrics": [
+          "cpu_usage",
+          "memory_usage",
+          "disk_usage",
+          "network_usage"
+        ]
+      },
+      "recommended_alerts": [
+        "Node CPU > 80%",
+        "Node Memory > 85%",
+        "Pod restart rate > 5/min",
+        "API server latency > 1s"
+      ]
+    }
+  },
+  "cost_optimization": {
+    "instance_recommendations": {
+      "general_purpose": [
+        "m5.large",
+        "m5.xlarge",
+        "m5a.large"
+      ],
+      "compute_optimized": [
+        "c5.xlarge",
+        "c5.2xlarge"
+      ],
+      "memory_optimized": [
+        "r5.large",
+        "r5.xlarge"
+      ],
+      "cost_optimized": [
+        "t3.large",
+        "t3.xlarge",
+        "m5a series"
+      ]
+    },
+    "strategies": [
+      "Use spot instances for non-critical workloads",
+      "Enable cluster autoscaler to scale down during off-hours",
+      "Use reserved instances for baseline capacity",
+      "Implement pod resource limits to prevent over-provisioning",
+      "Use node selectors to optimize instance utilization"
+    ]
+  }
+}
