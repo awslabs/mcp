@@ -16,9 +16,10 @@
 
 from ...common.connection import RDSConnectionManager
 from ...common.decorator import handle_exceptions
+from ...common.models import InstanceSummaryListModel
 from ...common.server import mcp
 from ...common.utils import handle_paginated_aws_api_call
-from .utils import format_instance_summary, InstanceSummaryModel
+from .utils import format_instance_summary
 from loguru import logger
 from pydantic import BaseModel, Field
 from typing import List

@@ -18,28 +18,12 @@ from ...common.models import (
     InstanceEndpoint,
     InstanceModel,
     InstanceStorage,
+    InstanceSummaryModel,
     VpcSecurityGroup,
 )
-from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Dict
 from mypy_boto3_rds.type_defs import DBInstanceTypeDef
 
-
-class InstanceSummaryModel(BaseModel):
-    """Simplified DB instance model for list views."""
-
-    instance_id: str = Field(description='The DB instance identifier')
-    dbi_resource_id: Optional[str] = Field(None, description='The AWS Region-unique, immutable identifier for the DB instance')
-    status: str = Field(description='The current status of the DB instance')
-    engine: str = Field(description='The database engine')
-    engine_version: Optional[str] = Field(None, description='The version of the database engine')
-    instance_class: str = Field(description='The compute and memory capacity class of the DB instance')
-    availability_zone: Optional[str] = Field(None, description='The Availability Zone of the DB instance')
-    multi_az: bool = Field(description='Whether the DB instance is a Multi-AZ deployment')
-    publicly_accessible: bool = Field(description='Whether the DB instance is publicly accessible')
-    db_cluster: Optional[str] = Field(None, description='The DB cluster identifier, if this is a member of a DB cluster')
-    tag_list: Dict[str, str] = Field(default_factory=dict, description='A list of tags')
-    resource_uri: Optional[str] = Field(None, description='The resource URI for this instance')
 
 
 
