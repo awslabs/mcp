@@ -570,3 +570,6 @@ src/openapi-mcp-server/*.txt
 src/openapi-mcp-server/*-coverage.xml
 src/openapi-mcp-server/junit.xml
 executive-summary.md
+
+# Trivy Results
+trivy-results.sarif

@@ -9,7 +9,9 @@
       "**/site-packages/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt"
+      "**/*requirements.txt",
+      "**/trivy-results.sarif",
+      "**/py.typed"
     ],
     "include": [
       "**/*.py",
@@ -36,7 +38,9 @@
       ".venv/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt"
+      "**/*requirements.txt",
+      "**/trivy-results.sarif",
+      "**/py.typed"
     ]
   }
 ]
