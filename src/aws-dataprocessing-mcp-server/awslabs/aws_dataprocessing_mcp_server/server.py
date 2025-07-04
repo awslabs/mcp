@@ -24,6 +24,15 @@ Environment Variables:
 """
 
 import argparse
+from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_data_catalog_handler import (
+    AthenaDataCatalogHandler,
+)
+from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_query_handler import (
+    AthenaQueryHandler,
+)
+from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_workgroup_handler import (
+    AthenaWorkGroupHandler,
+)
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_catalog_handler import (
     GlueDataCatalogHandler,
 )
@@ -65,11 +74,29 @@ It enables you to create, manage, and monitor data processing workflows.
 2. Update table schema: `manage_aws_glue_tables(operation='update-table', database_name='my-database', table_name='my-table', table_input={'StorageDescriptor': {'Columns': [{'Name': 'id', 'Type': 'int'}, {'Name': 'name', 'Type': 'string'}, {'Name': 'email', 'Type': 'string'}]}})`
 3. Update connection properties: `manage_aws_glue_connections(operation='update-connection', connection_name='my-connection', connection_input={'ConnectionProperties': {'JDBC_CONNECTION_URL': 'jdbc:mysql://new-host:port/db'}})`
 
-### Cleaning Up Resources
+### Cleaning Up Data Catalog Resources
 1. Delete a partition: `manage_aws_glue_partitions(operation='delete-partition', database_name='my-database', table_name='my-table', partition_values=['2023-01'])`
 2. Delete a table: `manage_aws_glue_tables(operation='delete-table', database_name='my-database', table_name='my-table')`
 3. Delete a connection: `manage_aws_glue_connections(operation='delete-connection', connection_name='my-connection')`
 4. Delete a database: `manage_aws_glue_databases(operation='delete-database', database_name='my-database')`
+
+### Running Athena Queries
+1. Execute a query: `manage_aws_athena_queries(operation='start-query-execution', query='SELECT * FROM my_table', work_group='my-workgroup')`
+2. Get query results: `manage_aws_athena_queries(operation='get-query-results', query_execution_id='query-id')`
+3. Get query execution details: `manage_aws_athena_queries(operation='get-query-execution', query_execution_id='query-id')`
+4. Stop a running query: `manage_aws_athena_queries(operation='stop-query-execution', query_execution_id='query-id')`
+5. Get query runtime statistics: `manage_aws_athena_queries(operation='get-query-runtime-statistics', query_execution_id='query-id')`
+
+### Creating Athena Named Queries
+1. Create a named query: `manage_aws_athena_named_queries(operation='create-named-query', name='my-query', database='my-database', query_string='SELECT * FROM my_table', work_group='my-workgroup')`
+2. Get a named query: `manage_aws_athena_named_queries(operation='get-named-query', named_query_id='query-id')`
+3. Delete a named query: `manage_aws_athena_named_queries(operation='delete-named-query', named_query_id='query-id')`
+4. List named queries: `manage_aws_athena_named_queries(operation='list-named-queries', work_group='my-workgroup')`
+5. Update a named query: `manage_aws_athena_named_queries(operation='update-named-query', named_query_id='query-id', name='updated-name', query_string='SELECT * FROM my_table LIMIT 10')`
+
+### Athena Workgroup and Data Catalog
+1. Create a workgroup: `manage_aws_athena_workgroups(operation='create-work-group', work_group_name='my-workgroup', configuration={...})`
+2. Manage data catalogs: `manage_aws_athena_data_catalogs(operation='create-data-catalog', name='my-catalog', type='GLUE', parameters={...})`
 
 """
 
@@ -135,6 +162,23 @@ def main():
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
     GlueDataCatalogHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+
+    AthenaQueryHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+
+    AthenaDataCatalogHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+    AthenaWorkGroupHandler(
         mcp,
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,
