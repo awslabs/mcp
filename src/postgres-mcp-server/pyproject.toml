@@ -29,12 +29,15 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 
+[project.optional-dependencies]
+postgres = ["psycopg2-binary>=2.9.9"]
+
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/postgres-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/postgresql-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/postgresql-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/postgres-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/postgresql-mcp-server/CHANGELOG.md"
 
 [project.scripts]
 "awslabs.postgres-mcp-server" = "awslabs.postgres_mcp_server.server:main"
@@ -51,12 +54,33 @@ dev = [
     "pytest-mock>=3.12.0",
 ]
 
+# uv-specific configuration for better development workflow
+test = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+# uv configuration
+[tool.uv]
+dev-dependencies = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+]
 
 [tool.ruff]
 line-length = 99
@@ -77,7 +101,7 @@ force-exclude = true
 [tool.ruff.lint]
 exclude = ["__init__.py"]
 select = ["C", "D", "E", "F", "I", "W"]
-ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106", "D203", "D211", "D203", "D212"]
 
 [tool.ruff.lint.isort]
 lines-after-imports = 2
@@ -122,6 +146,7 @@ python_classes = "Test*"
 python_functions = "test_*"
 testpaths = [ "tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"
