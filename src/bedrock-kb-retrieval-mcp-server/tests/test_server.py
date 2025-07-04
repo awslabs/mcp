@@ -18,6 +18,7 @@ import json
 import pytest
 from awslabs.bedrock_kb_retrieval_mcp_server.server import (
     knowledgebases_resource,
+    list_knowledge_bases_tool,
     main,
     mcp,
     query_knowledge_bases_tool,
@@ -65,6 +66,55 @@ class TestKnowledgebasesResource:
 
         # Call the function
         result = await knowledgebases_resource()
+
+        # Parse the result as JSON
+        kb_mapping = json.loads(result)
+
+        # Check that the result is correct
+        assert len(kb_mapping) == 2
+        assert 'kb-12345' in kb_mapping
+        assert 'kb-67890' in kb_mapping
+        assert kb_mapping['kb-12345']['name'] == 'Test Knowledge Base'
+        assert kb_mapping['kb-67890']['name'] == 'Another Knowledge Base'
+        assert len(kb_mapping['kb-12345']['data_sources']) == 2
+        assert len(kb_mapping['kb-67890']['data_sources']) == 1
+        assert kb_mapping['kb-12345']['data_sources'][0]['id'] == 'ds-12345'
+        assert kb_mapping['kb-12345']['data_sources'][0]['name'] == 'Test Data Source'
+        assert kb_mapping['kb-12345']['data_sources'][1]['id'] == 'ds-67890'
+        assert kb_mapping['kb-12345']['data_sources'][1]['name'] == 'Another Data Source'
+        assert kb_mapping['kb-67890']['data_sources'][0]['id'] == 'ds-12345'
+        assert kb_mapping['kb-67890']['data_sources'][0]['name'] == 'Test Data Source'
+
+        # Check that discover_knowledge_bases was called with the correct arguments
+        mock_discover_knowledge_bases.assert_called_once()
+
+
+class TestListKnowledgeBasesTool:
+    """Tests for the list_knowledge_bases_tool function."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.discover_knowledge_bases')
+    async def test_list_knowledge_bases_tool(self, mock_discover_knowledge_bases):
+        """Test the list_knowledge_bases_tool function."""
+        # Set up the mock
+        mock_discover_knowledge_bases.return_value = {
+            'kb-12345': {
+                'name': 'Test Knowledge Base',
+                'data_sources': [
+                    {'id': 'ds-12345', 'name': 'Test Data Source'},
+                    {'id': 'ds-67890', 'name': 'Another Data Source'},
+                ],
+            },
+            'kb-67890': {
+                'name': 'Another Knowledge Base',
+                'data_sources': [
+                    {'id': 'ds-12345', 'name': 'Test Data Source'},
+                ],
+            },
+        }
+
+        # Call the function
+        result = await list_knowledge_bases_tool()
 
         # Parse the result as JSON
         kb_mapping = json.loads(result)
@@ -184,6 +234,13 @@ class TestServerIntegration:
         assert len(kb_mapping['kb-12345']['data_sources']) == 1
         assert kb_mapping['kb-12345']['data_sources'][0]['id'] == 'ds-12345'
         assert kb_mapping['kb-12345']['data_sources'][0]['name'] == 'Test Data Source'
+
+        # Call the list knowledge bases tool function
+        list_kb_result = await list_knowledge_bases_tool()
+        list_kb_mapping = json.loads(list_kb_result)
+
+        # Check that the list knowledge bases tool returns the same result as the resource
+        assert list_kb_mapping == kb_mapping
 
         # Call the tool function
         tool_result = await query_knowledge_bases_tool(

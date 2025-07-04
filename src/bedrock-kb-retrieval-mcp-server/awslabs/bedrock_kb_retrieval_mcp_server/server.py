@@ -73,7 +73,7 @@ mcp = FastMCP(
     The AWS Labs Bedrock Knowledge Bases Retrieval MCP Server provides access to Amazon Bedrock Knowledge Bases for retrieving relevant information through natural language queries.
 
     ## Usage Workflow:
-    1. ALWAYS start by accessing the `resource://knowledgebases` resource to discover available knowledge bases and their data sources
+    1. ALWAYS start by accessing the `resource://knowledgebases` resource or using the ListKnowledgeBases tool to discover available knowledge bases and their data sources
     2. Use the QueryKnowledgeBases tool to search specific knowledge bases with your natural language queries
     3. You can make multiple calls to QueryKnowledgeBases with different queries or targeting different knowledge bases
 
@@ -124,6 +124,44 @@ async def knowledgebases_resource() -> str:
     return json.dumps(await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key))
 
 
+@mcp.tool(name='ListKnowledgeBases')
+async def list_knowledge_bases_tool() -> str:
+    """List all available Amazon Bedrock Knowledge Bases and their data sources.
+
+    This tool returns a mapping of knowledge base IDs to their details, including:
+    - name: The human-readable name of the knowledge base
+    - data_sources: A list of data sources within the knowledge base, each with:
+      - id: The unique identifier of the data source
+      - name: The human-readable name of the data source
+
+    ## Example response structure:
+    ```json
+    {
+        "kb-12345": {
+            "name": "Customer Support KB",
+            "data_sources": [
+                {"id": "ds-abc123", "name": "Technical Documentation"},
+                {"id": "ds-def456", "name": "FAQs"}
+            ]
+        },
+        "kb-67890": {
+            "name": "Product Information KB",
+            "data_sources": [
+                {"id": "ds-ghi789", "name": "Product Specifications"}
+            ]
+        }
+    }
+    ```
+
+    ## How to use this information:
+    1. Extract the knowledge base IDs (like "kb-12345") for use with the QueryKnowledgeBases tool
+    2. Note the data source IDs if you want to filter queries to specific data sources
+    3. Use the names to determine which knowledge base and data source(s) are most relevant to the user's query
+    """
+    knowledge_bases = await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key)
+    return json.dumps(knowledge_bases)
+
+
 @mcp.tool(name='QueryKnowledgeBases')
 async def query_knowledge_bases_tool(
     query: str = Field(
@@ -153,7 +191,7 @@ async def query_knowledge_bases_tool(
     """Query an Amazon Bedrock Knowledge Base using natural language.
 
     ## Usage Requirements
-    - You MUST first use the `resource://knowledgebases` resource to get valid knowledge base IDs
+    - You MUST first use the `resource://knowledgebases` resource or the ListKnowledgeBases tool to get valid knowledge base IDs
     - You can query different knowledge bases or make multiple queries to the same knowledge base
 
     ## Query Tips
