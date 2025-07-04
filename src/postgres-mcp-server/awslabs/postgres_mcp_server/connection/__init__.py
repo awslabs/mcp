@@ -15,8 +15,5 @@
 """Connection package for postgres MCP Server."""
 
 from awslabs.postgres_mcp_server.connection.connection_factory import (
-    AbstractDBConnection,
-    ConnectionType,
-    DBConnectionFactory,
     DBConnectionSingleton,
 )

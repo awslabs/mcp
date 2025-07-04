@@ -147,8 +147,8 @@ class RDSDataAPIConnection(AbstractDBConnection):
                 )
             raise e
     
-    def close(self) -> None:
-        """Close the database connection."""
+    async def close(self) -> None:
+        """Close the database connection asynchronously."""
         # RDS Data API doesn't maintain persistent connections
         pass
         

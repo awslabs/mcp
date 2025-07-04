@@ -266,7 +266,7 @@ def mock_DBConnection():
 # Mock classes for psycopg testing
 
 class MockConnectionPool:
-    """Mock implementation of psycopg_pool.ConnectionPool for testing purposes."""
+    """Mock implementation of psycopg_pool.AsyncConnectionPool for testing purposes."""
     
     def __init__(self, conninfo=None, min_size=1, max_size=10, timeout=15.0, max_idle=60.0, reconnect_timeout=5.0):
         """Initialize the mock connection pool.
@@ -290,8 +290,8 @@ class MockConnectionPool:
         self._open = False
         self._connections = []
     
-    def open(self, wait=True, timeout=15.0):
-        """Open the connection pool.
+    async def open(self, wait=True, timeout=15.0):
+        """Open the connection pool asynchronously.
         
         Args:
             wait: Whether to wait for connections to be established
@@ -305,8 +305,8 @@ class MockConnectionPool:
         self.idle = self.min_size
         return None
     
-    def close(self):
-        """Close the connection pool.
+    async def close(self):
+        """Close the connection pool asynchronously.
         
         Returns:
             None
@@ -316,8 +316,8 @@ class MockConnectionPool:
         self.idle = 0
         return None
     
-    def connection(self, timeout=15.0):
-        """Get a connection from the pool.
+    async def connection(self, timeout=15.0):
+        """Get a connection from the pool asynchronously.
         
         Args:
             timeout: Timeout in seconds
@@ -325,16 +325,16 @@ class MockConnectionPool:
         Returns:
             ConnectionContext: A context manager for a connection
         """
-        # Mock context manager for connection
+        # Mock async context manager for connection
         class ConnectionContext:
             def __init__(self, pool):
                 self.pool = pool
                 self.pool.idle -= 1
             
-            def __enter__(self):
-                return MockConnection()
+            async def __aenter__(self):
+                return MockAsyncConnection()
             
-            def __exit__(self, exc_type, exc_val, exc_tb):
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
                 self.pool.idle += 1
                 return False
         
@@ -406,6 +406,55 @@ class MockConnection:
         return CursorContext()
 
 
+class MockAsyncConnection:
+    """Mock implementation of psycopg.AsyncConnection for testing purposes."""
+    
+    def __init__(self):
+        """Initialize the mock async connection."""
+        pass
+    
+    async def transaction(self):
+        """Start a transaction asynchronously.
+        
+        Returns:
+            AsyncTransactionContext: An async context manager for a transaction
+        """
+        # Mock async context manager for transaction
+        class AsyncTransactionContext:
+            async def __aenter__(self):
+                return None
+            
+            async def __aexit__(self, exc_type, exc_val, exc_tb):
+                return False
+        
+        return AsyncTransactionContext()
+    
+    async def execute(self, query, params=None):
+        """Execute a query asynchronously.
+        
+        Args:
+            query: The SQL query to execute
+            params: Query parameters
+            
+        Returns:
+            AsyncCursorResult: A mock cursor result
+        """
+        class AsyncCursorResult:
+            def __init__(self):
+                self.description = [("column1",), ("column2",)]
+                self.rowcount = 1
+            
+            async def fetchall(self):
+                """Fetch all rows asynchronously.
+                
+                Returns:
+                    list: List of rows
+                """
+                return [("value1", "value2")]
+        
+        return AsyncCursorResult()
+
+
 class Mock_PsycopgPoolConnection:
     """Mock implementation of PsycopgPoolConnection for testing purposes."""
     
@@ -471,14 +520,14 @@ class Mock_PsycopgPoolConnection:
             ]
         }
     
-    def close(self):
+    async def close(self):
         """Close the connection.
         
         Returns:
             None
         """
         if hasattr(self, 'pool'):
-            self.pool.close()
+            await self.pool.close()
     
     async def check_connection_health(self):
         """Check the connection health.
