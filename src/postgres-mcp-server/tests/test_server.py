@@ -787,9 +787,24 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
     
     # Mock the connection so main can complete successfully
     with patch('awslabs.postgres_mcp_server.connection.psycopg_connector.PsycopgPoolConnection') as mock_psycopg:
+        from unittest.mock import AsyncMock
         mock_conn = MagicMock()
-        mock_conn.check_connection_health.return_value = asyncio.Future()
-        mock_conn.check_connection_health.return_value.set_result(True)
+        # Create a Future with a proper event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        future = asyncio.Future(loop=loop)
+        future.set_result(True)
+        mock_conn.check_connection_health.return_value = future
+        
+        # Mock the execute_query method to be awaitable
+        mock_conn.execute_query = AsyncMock(return_value={
+            "columnMetadata": [{"name": "column1"}],
+            "records": [[{"stringValue": "1"}]]
+        })
+        
+        # Set readonly_query property
+        mock_conn.readonly_query = True
+        
         mock_psycopg.return_value = mock_conn
         
         # This test of main() will succeed in parsing parameters and create connection object.
@@ -830,7 +845,7 @@ def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
     # This test of main() will fail due to invalid port
     with pytest.raises(SystemExit) as excinfo:
         main()
-    assert excinfo.value.code == 1
+    assert excinfo.value.code == 2  # argparse exits with code 2 for invalid arguments
 
 
 if __name__ == '__main__':

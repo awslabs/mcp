@@ -192,6 +192,52 @@ class Mock_DBConnection:
             bool: True if the connection is read-only, False otherwise
         """
         return self.readonly
+        
+    async def execute_query(self, sql: str, parameters=None) -> dict:
+        """Execute a SQL query.
+        
+        Args:
+            sql: The SQL query to execute
+            parameters: Optional parameters for the query
+            
+        Returns:
+            dict: Query results with column metadata and records
+        """
+        if self.error == MockException.Client:
+            error_response = {
+                'Error': {
+                    'Code': 'AccessDeniedException',
+                    'Message': 'User is not authorized to perform rds-data:execute_statement',
+                }
+            }
+            raise ClientError(error_response, operation_name='execute_statement')
+
+        if self.error == MockException.Unexpected:
+            error_response = {
+                'Error': {
+                    'Code': 'UnexpectedException',
+                    'Message': 'UnexpectedException',
+                }
+            }
+            raise Exception(error_response)
+            
+        # Use the data_client to execute the statement
+        if self.readonly:
+            # Begin read-only transaction
+            tx_id = self.data_client.begin_transaction()['transactionId']
+            
+            # Set transaction to read-only
+            self.data_client.execute_statement(sql='SET TRANSACTION READ ONLY', transactionId=tx_id)
+            
+            # Execute the query
+            result = self.data_client.execute_statement(sql=sql, parameters=parameters, transactionId=tx_id)
+            
+            # Commit the transaction
+            self.data_client.commit_transaction(transactionId=tx_id)
+            return result
+        else:
+            # Execute the query directly
+            return self.data_client.execute_statement(sql=sql, parameters=parameters)
 
 
 class DummyCtx:
