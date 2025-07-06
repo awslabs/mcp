@@ -69,8 +69,10 @@ async def test_server_initialization():
         assert 'Setting Up a Data Catalog' in instructions_str
         assert 'Exploring the Data Catalog' in instructions_str
         assert 'Updating Data Catalog Resources' in instructions_str
-        assert 'Cleaning Up Resources' in instructions_str
-
+        assert 'Cleaning Up Data Catalog Resource' in instructions_str
+        assert 'Running Athena Queries' in instructions_str
+        assert 'Creating Athena Named Queries' in instructions_str
+        assert 'Athena Workgroup and Data Catalog' in instructions_str
         # Test that the server has the correct dependencies
         assert 'pydantic' in server.dependencies
         assert 'loguru' in server.dependencies
