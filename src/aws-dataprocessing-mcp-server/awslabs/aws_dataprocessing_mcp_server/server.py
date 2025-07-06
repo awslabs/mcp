@@ -63,6 +63,9 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.interactive_sessions_ha
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.worklows_handler import (
     GlueWorkflowAndTriggerHandler,
 )
+from awslabs.aws_dataprocessing_mcp_server.handlers.lakeformation.governance_handler import (
+    GovernanceHandler,
+)
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -222,7 +225,7 @@ It enables you to create, manage, and monitor data processing workflows.
 6. Update a classifier: `manage_aws_glue_classifiers(operation='update-classifier', classifier_definition={...})`
 7. Delete a classifier: `manage_aws_glue_classifiers(operation='delete-classifier', classifier_name='my-classifier')`
 8. List all classifiers: `manage_aws_glue_classifiers(operation='get-classifiers')`
-9. Manage crawler schedules: `manage_aws_glue_crawler_management(operation='update-crawler-schedule', crawler_name='my-crawler', schedule='cron(0 0 * * ? *)')`
+9. Manage crawler schedules: `manage_aws_glue_crawler_management(operation='update-crawler-schedule', crawler_name='my-crawler', schedule='cron(0 12 * * ? *)')`
 10. Get crawler metrics: `manage_aws_glue_crawler_management(operation='get-crawler-metrics', crawler_name_list=['my-crawler'])`
 
 ### IAM Role Management
@@ -373,6 +376,11 @@ def main():
         allow_sensitive_data_access=allow_sensitive_data_access,
     )
     CommonResourceHandler(mcp, allow_write=allow_write)
+    GovernanceHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
 
     # Run server
     mcp.run()
