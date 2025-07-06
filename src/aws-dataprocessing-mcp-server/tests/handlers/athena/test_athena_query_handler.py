@@ -14,7 +14,7 @@
 
 
 import pytest
-from awslabs.dataprocessing_mcp_server.handlers.athena.athena_query_handler import (
+from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_query_handler import (
     AthenaQueryHandler,
 )
 from botocore.exceptions import ClientError
@@ -32,7 +32,7 @@ def mock_athena_client():
 def mock_aws_helper():
     """Create a mock AwsHelper instance for testing."""
     with patch(
-        'awslabs.dataprocessing_mcp_server.handlers.athena.athena_query_handler.AwsHelper'
+        'awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_query_handler.AwsHelper'
     ) as mock:
         mock.create_boto3_client.return_value = Mock()
         yield mock

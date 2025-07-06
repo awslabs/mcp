@@ -15,7 +15,7 @@
 
 import json
 import pytest
-from awslabs.dataprocessing_mcp_server.handlers.athena.athena_data_catalog_handler import (
+from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_data_catalog_handler import (
     AthenaDataCatalogHandler,
 )
 from botocore.exceptions import ClientError
@@ -33,7 +33,7 @@ def mock_athena_client():
 def mock_aws_helper():
     """Create a mock AwsHelper instance for testing."""
     with patch(
-        'awslabs.dataprocessing_mcp_server.handlers.athena.athena_data_catalog_handler.AwsHelper'
+        'awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_data_catalog_handler.AwsHelper'
     ) as mock:
         mock.create_boto3_client.return_value = Mock()
         mock.prepare_resource_tags.return_value = {'ManagedBy': 'MCP'}
