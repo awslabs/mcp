@@ -1,46 +1,84 @@
 # AWS Labs opensearch MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for opensearch
+An AWS Labs Model Context Protocol (MCP) server for opensearch.
 
 ## Instructions
 
 Instructions for using this opensearch MCP server. This can be used by clients to improve the LLM's understanding of available tools, resources, etc. It can be thought of like a 'hint' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.
 
-## TODO (REMOVE AFTER COMPLETING)
+## Installation
 
-* [ ] Optionally add an ["RFC issue"](https://github.com/awslabs/mcp/issues) for the community to review
-* [ ] Generate a `uv.lock` file with `uv sync` -> See [Getting Started](https://docs.astral.sh/uv/getting-started/)
-* [ ] Remove the example tools in `./awslabs/opensearch_mcp_server/server.py`
-* [ ] Add your own tool(s) following the [DESIGN_GUIDELINES.md](https://github.com/awslabs/mcp/blob/main/DESIGN_GUIDELINES.md)
-* [ ] Keep test coverage at or above the `main` branch - NOTE: GitHub Actions run this command for CodeCov metrics `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
-* [ ] Document the MCP Server in this "README.md"
-* [ ] Add a section for this opensearch MCP Server at the top level of this repository "../../README.md"
-* [ ] Create the "../../doc/servers/opensearch-mcp-server.md" file with these contents:
+```bash
+# Install using uv (recommended)
+uv tool install awslabs.opensearch-mcp-server
 
-    ```markdown
-    ---
-    title: opensearch MCP Server
-    ---
+# Or install using pip
+pip install awslabs.opensearch-mcp-server
+```
 
-    {% include "../../src/opensearch-mcp-server/README.md" %}
-    ```
 
-* [ ] Reference within the "../../doc/index.md" like this:
+## Amazon Q
 
-    ```markdown
-    ### opensearch MCP Server
+Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 
-    An AWS Labs Model Context Protocol (MCP) server for opensearch
+```json
+{
+  "mcpServers": {
+    "awslabs.opensearch-mcp-server": {
+      "autoApprove": [],
+      "disabled": false,
+      "command": "uvx",
+      "args": [
+        "awslabs.opensearch-mcp-server@latest"
+      ],
+      "env": {
+        "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
+        "AWS_REGION": "[The AWS region to run in]",
+      },
+      "transportType": "stdio"
+    }
+  }
+}
+```
 
-    **Features:**
+## Development
 
-    - Feature one
-    - Feature two
-    - ...
+### Running Tests
+```bash
+# Install development dependencies
+uv sync --dev
 
-    Instructions for using this opensearch MCP server. This can be used by clients to improve the LLM's understanding of available tools, resources, etc. It can be thought of like a 'hint' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.
+# Run tests
+uv run pytest
 
-    [Learn more about the opensearch MCP Server](servers/opensearch-mcp-server.md)
-    ```
+# Run tests with coverage
+uv run pytest --cov=awslabs.opensearch_mcp_server
+```
 
-* [ ] Submit a PR and pass all the checks
+### Local Development
+```bash
+# Install in development mode
+uv pip install -e .
+
+# Run the server directly
+python -m awslabs.opensearch_mcp_server.server
+```
+
+## Contributing
+
+Contributions are welcome! Please see the main repository's [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For issues and questions:
+1. Check the [AWS OpenSearch documentation](https://docs.aws.amazon.com/opensearch-service/?icmpid=docs_homepage_analytics)
+2. Review the [MCP specification](https://modelcontextprotocol.io/)
+3. Open an issue in the [GitHub repository](https://github.com/awslabs/mcp)
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
