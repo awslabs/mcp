@@ -33,6 +33,15 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_query_handler 
 from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_workgroup_handler import (
     AthenaWorkGroupHandler,
 )
+from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_cluster_handler import (
+    EMREc2ClusterHandler,
+)
+from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_instance_handler import (
+    EMREc2InstanceHandler,
+)
+from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_steps_handler import (
+    EMREc2StepsHandler,
+)
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_catalog_handler import (
     GlueDataCatalogHandler,
 )
@@ -79,6 +88,35 @@ It enables you to create, manage, and monitor data processing workflows.
 2. Delete a table: `manage_aws_glue_tables(operation='delete-table', database_name='my-database', table_name='my-table')`
 3. Delete a connection: `manage_aws_glue_connections(operation='delete-connection', connection_name='my-connection')`
 4. Delete a database: `manage_aws_glue_databases(operation='delete-database', database_name='my-database')`
+
+
+### Setup EMR EC2 Cluster
+1. Create a cluster: `manage_aws_emr_clusters(operation='create-cluster', name='SparkCluster', release_label='emr-7.9.0', applications=[{'Name': 'Spark'}], instances={'InstanceGroups': [{'Name': 'Master', 'InstanceRole': 'MASTER', 'InstanceType': 'm5.xlarge', 'InstanceCount': 1}, {'Name': 'Core', 'InstanceRole': 'CORE', 'InstanceType': 'm5.xlarge', 'InstanceCount': 2}], 'Ec2KeyName': 'my-key-pair', 'KeepJobFlowAliveWhenNoSteps': true})`
+2. Describe a cluster: `manage_aws_emr_clusters(operation='describe-cluster', cluster_id='j-123ABC456DEF')`
+3. Modify cluster concurrency: `manage_aws_emr_clusters(operation='modify-cluster', cluster_id='j-123ABC456DEF', step_concurrency_level=5)`
+4. Modify cluster attributes: `manage_aws_emr_clusters(operation='modify-cluster-attributes', cluster_id='j-123ABC456DEF', termination_protected=true)`
+5. Terminate clusters: `manage_aws_emr_clusters(operation='terminate-clusters', cluster_ids=['j-123ABC456DEF'])`
+6. List clusters: `manage_aws_emr_clusters(operation='list-clusters', cluster_states=['RUNNING', 'WAITING'])`
+7. Create security configuration: `manage_aws_emr_clusters(operation='create-security-configuration', security_configuration_name='my-sec-config', security_configuration_json={'EncryptionConfiguration': {'EnableInTransitEncryption': true}})`
+8. Delete security configuration: `manage_aws_emr_clusters(operation='delete-security-configuration', security_configuration_name='my-sec-config')`
+9. Describe security configuration: `manage_aws_emr_clusters(operation='describe-security-configuration', security_configuration_name='my-sec-config')`
+10. List security configurations: `manage_aws_emr_clusters(operation='list-security-configurations')`
+
+### Run EMR EC2 Steps
+1. Add steps: `manage_aws_emr_ec2_steps(operation='add-steps', cluster_id='j-123ABC456DEF', steps=[{'Name': 'MyStep', 'ActionOnFailure': 'CONTINUE', 'HadoopJarStep': {'Jar': 'command-runner.jar', 'Args': ['echo', 'hello']}}])`
+2. Cancel steps: `manage_aws_emr_ec2_steps(operation='cancel-steps', cluster_id='j-123ABC456DEF', step_ids=['s-123ABC456DEF'])`
+3. Describe step: `manage_aws_emr_ec2_steps(operation='describe-step', cluster_id='j-123ABC456DEF', step_id='s-123ABC456DEF')`
+4. List steps: `manage_aws_emr_ec2_steps(operation='list-steps', cluster_id='j-123ABC456DEF')`
+5. List steps with filters: `manage_aws_emr_ec2_steps(operation='list-steps', cluster_id='j-123ABC456DEF', step_states=['RUNNING', 'COMPLETED'])`
+
+### Manage EMR EC2 Instance Resources
+1. Add instance fleet: `manage_aws_emr_ec2_instances(operation='add-instance-fleet', cluster_id='j-123ABC456DEF', instance_fleet={'InstanceFleetType': 'TASK', 'TargetOnDemandCapacity': 2})`
+2. Add instance groups: `manage_aws_emr_ec2_instances(operation='add-instance-groups', cluster_id='j-123ABC456DEF', instance_groups=[{'InstanceRole': 'TASK', 'InstanceType': 'm5.xlarge', 'InstanceCount': 2}])`
+3. List instance fleets: `manage_aws_emr_ec2_instances(operation='list-instance-fleets', cluster_id='j-123ABC456DEF')`
+4. List instances: `manage_aws_emr_ec2_instances(operation='list-instances', cluster_id='j-123ABC456DEF')`
+5. List supported instance types: `manage_aws_emr_ec2_instances(operation='list-supported-instance-types', release_label='emr-6.10.0')`
+6. Modify instance fleet: `manage_aws_emr_ec2_instances(operation='modify-instance-fleet', cluster_id='j-123ABC456DEF', instance_fleet_id='if-123ABC', instance_fleet_config={'TargetOnDemandCapacity': 4})`
+7. Modify instance groups: `manage_aws_emr_ec2_instances(operation='modify-instance-groups', instance_group_configs=[{'InstanceGroupId': 'ig-123ABC', 'InstanceCount': 3}])`
 
 ### Running Athena Queries
 1. Execute a query: `manage_aws_athena_queries(operation='start-query-execution', query='SELECT * FROM my_table', work_group='my-workgroup')`
@@ -172,13 +210,30 @@ def main():
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,
     )
-
     AthenaDataCatalogHandler(
         mcp,
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,
     )
     AthenaWorkGroupHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+
+    EMREc2ClusterHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+
+    EMREc2StepsHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+
+    EMREc2InstanceHandler(
         mcp,
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,
