@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Connection package for postgres MCP Server."""
+"""awslabs.postgres-mcp-server"""
 
 from awslabs.postgres_mcp_server.connection.singleton import DBConnectionSingleton
 from awslabs.postgres_mcp_server.connection.abstract_class import AbstractDBConnection
