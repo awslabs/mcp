@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from typing import Any, Callable, Dict, Optional
 from unittest.mock import Mock, patch
 
+
 # Set up AWS environment variables at module level to ensure they're available during import
 os.environ.setdefault('AWS_ACCESS_KEY_ID', 'testing')
 os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'testing')
