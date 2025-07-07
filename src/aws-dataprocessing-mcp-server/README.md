@@ -59,6 +59,23 @@ For read operations, the following permissions are required:
         "emr:ListStudios",
         "emr:DescribeNotebookExecution",
         "emr:ListNotebookExecutions",
+        "athena:BatchGetQueryExecution",
+        "athena:GetQueryExecution",
+        "athena:GetQueryResults",
+        "athena:GetQueryRuntimeStatistics",
+        "athena:ListQueryExecutions",
+        "athena:BatchGetNamedQuery",
+        "athena:GetNamedQuery",
+        "athena:ListNamedQueries",
+        "athena:GetDataCatalog",
+        "athena:ListDataCatalogs",
+        "athena:GetDatabase",
+        "athena:GetTableMetadata",
+        "athena:ListDatabases",
+        "athena:ListTableMetadata",
+        "athena:GetWorkGroup",
+        "athena:ListWorkGroups"
+        "sts:GetCallerIdentity"
       ],
       "Resource": "*"
     }
@@ -250,6 +267,26 @@ Specifies the AWS region where Glue,EMR clusters or Athena are managed, which wi
 | Tool Name | Description | Key Operations | Requirements |
 |-----------|-------------|----------------|--------------|
 | manage_aws_emr_ec2_steps | Manage Amazon EMR steps for processing data on EMR clusters | add-steps, cancel-steps, describe-step, list-steps | --allow-write flag for add/cancel operations, appropriate AWS permissions |
+=======
+### Athena Query Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_athena_query_executions | Execute and manage AWS Athena SQL queries | batch-get-query-execution, get-query-execution, get-query-results, get-query-runtime-statistics, list-query-executions, start-query-execution, stop-query-execution | --allow-write flag for start/stop operations, appropriate AWS permissions |
+| manage_aws_athena_named_queries | Manage saved SQL queries in AWS Athena | batch-get-named-query, create-named-query, delete-named-query, get-named-query, list-named-queries, update-named-query | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
+
+### Athena Data Catalog Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_athena_data_catalogs | Manage AWS Athena data catalogs | create-data-catalog, delete-data-catalog, get-data-catalog, list-data-catalogs, update-data-catalog | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
+| manage_aws_athena_databases_and_tables | Manage AWS Athena databases and tables | get-database, get-table-metadata, list-databases, list-table-metadata | Appropriate AWS permissions for Athena database operations |
+
+### Athena WorkGroup Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_athena_workgroups | Manage AWS Athena workgroups | create-work-group, delete-work-group, get-work-group, list-work-groups, update-work-group | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
 
 
 ## Version

@@ -238,6 +238,128 @@ class TestAwsHelper:
             assert tags['tag1'] == 'value1'
             assert tags['tag2'] == 'value2'
 
+    def test_convert_tags_to_aws_format_key_value(self):
+        """Test that convert_tags_to_aws_format correctly formats tags in key_value format."""
+        # Test with key_value format (default)
+        tags = {'tag1': 'value1', 'tag2': 'value2'}
+        formatted_tags = AwsHelper.convert_tags_to_aws_format(tags)
+
+        # Verify the format
+        assert len(formatted_tags) == 2
+        assert {'Key': 'tag1', 'Value': 'value1'} in formatted_tags
+        assert {'Key': 'tag2', 'Value': 'value2'} in formatted_tags
+
+    def test_convert_tags_to_aws_format_tag_key_value(self):
+        """Test that convert_tags_to_aws_format correctly formats tags in tag_key_value format."""
+        # Test with tag_key_value format
+        tags = {'tag1': 'value1', 'tag2': 'value2'}
+        formatted_tags = AwsHelper.convert_tags_to_aws_format(tags, format_type='tag_key_value')
+
+        # Verify the format
+        assert len(formatted_tags) == 2
+        assert {'TagKey': 'tag1', 'TagValue': 'value1'} in formatted_tags
+        assert {'TagKey': 'tag2', 'TagValue': 'value2'} in formatted_tags
+
+    def test_get_resource_tags_athena_workgroup_success(self):
+        """Test that get_resource_tags_athena_workgroup returns tags when successful."""
+        # Mock the Athena client
+        mock_athena_client = MagicMock()
+        mock_athena_client.list_tags_for_resource.return_value = {
+            'Tags': [{'Key': 'tag1', 'Value': 'value1'}, {'Key': 'tag2', 'Value': 'value2'}]
+        }
+
+        # Mock the AWS account ID and region
+        with patch.object(AwsHelper, 'get_aws_account_id', return_value='123456789012'):
+            with patch.object(AwsHelper, 'get_aws_region', return_value='us-west-2'):
+                # Test with a workgroup name
+                tags = AwsHelper.get_resource_tags_athena_workgroup(
+                    mock_athena_client, 'test-workgroup'
+                )
+
+                # Verify the result
+                assert len(tags) == 2
+                assert {'Key': 'tag1', 'Value': 'value1'} in tags
+                assert {'Key': 'tag2', 'Value': 'value2'} in tags
+
+                # Verify the ARN was constructed correctly
+                mock_athena_client.list_tags_for_resource.assert_called_once_with(
+                    ResourceARN='arn:aws:athena:us-west-2:123456789012:workgroup/test-workgroup'
+                )
+
+    def test_get_resource_tags_athena_workgroup_client_error(self):
+        """Test that get_resource_tags_athena_workgroup returns empty list on ClientError."""
+        # Mock the Athena client to raise a ClientError
+        mock_athena_client = MagicMock()
+        mock_athena_client.list_tags_for_resource.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'}},
+            'ListTagsForResource',
+        )
+
+        # Test with a workgroup name
+        tags = AwsHelper.get_resource_tags_athena_workgroup(mock_athena_client, 'test-workgroup')
+
+        # Verify the result is an empty list
+        assert tags == []
+        mock_athena_client.list_tags_for_resource.assert_called_once()
+
+    def test_verify_resource_managed_by_mcp_key_value_true(self):
+        """Test that verify_resource_managed_by_mcp returns True when the resource is managed (key_value format)."""
+        # Test with key_value format (default) and managed resource
+        tags = [
+            {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
+            {'Key': 'tag2', 'Value': 'value2'},
+        ]
+
+        result = AwsHelper.verify_resource_managed_by_mcp(tags)
+        assert result is True
+
+    def test_verify_resource_managed_by_mcp_key_value_false(self):
+        """Test that verify_resource_managed_by_mcp returns False when the resource is not managed (key_value format)."""
+        # Test with key_value format (default) and unmanaged resource
+        tags = [
+            {'Key': MCP_MANAGED_TAG_KEY, 'Value': 'wrong-value'},
+            {'Key': 'tag2', 'Value': 'value2'},
+        ]
+
+        result = AwsHelper.verify_resource_managed_by_mcp(tags)
+        assert result is False
+
+    def test_verify_resource_managed_by_mcp_tag_key_value_true(self):
+        """Test that verify_resource_managed_by_mcp returns True when the resource is managed (tag_key_value format)."""
+        # Test with tag_key_value format and managed resource
+        tags = [
+            {'TagKey': MCP_MANAGED_TAG_KEY, 'TagValue': MCP_MANAGED_TAG_VALUE},
+            {'TagKey': 'tag2', 'TagValue': 'value2'},
+        ]
+
+        result = AwsHelper.verify_resource_managed_by_mcp(tags, tag_format='tag_key_value')
+        assert result is True
+
+    def test_verify_resource_managed_by_mcp_tag_key_value_false(self):
+        """Test that verify_resource_managed_by_mcp returns False when the resource is not managed (tag_key_value format)."""
+        # Test with tag_key_value format and unmanaged resource
+        tags = [
+            {'TagKey': MCP_MANAGED_TAG_KEY, 'TagValue': 'wrong-value'},
+            {'TagKey': 'tag2', 'TagValue': 'value2'},
+        ]
+
+        result = AwsHelper.verify_resource_managed_by_mcp(tags, tag_format='tag_key_value')
+        assert result is False
+
+    def test_verify_resource_managed_by_mcp_empty_tags(self):
+        """Test that verify_resource_managed_by_mcp returns False when tags are empty."""
+        # Test with empty tags
+        result = AwsHelper.verify_resource_managed_by_mcp([])
+        assert result is False
+
+    def test_verify_resource_managed_by_mcp_missing_tag(self):
+        """Test that verify_resource_managed_by_mcp returns False when the MCP managed tag is missing."""
+        # Test with tags that don't include the MCP managed tag
+        tags = [{'Key': 'tag1', 'Value': 'value1'}, {'Key': 'tag2', 'Value': 'value2'}]
+
+        result = AwsHelper.verify_resource_managed_by_mcp(tags)
+        assert result is False
+
     def test_is_resource_mcp_managed_with_tags(self):
         """Test that is_resource_mcp_managed returns True when the resource has the MCP managed tag."""
         # Mock the Glue client
