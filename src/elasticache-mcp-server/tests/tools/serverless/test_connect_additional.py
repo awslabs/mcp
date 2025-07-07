@@ -312,7 +312,7 @@ async def test_create_jump_host_serverless_vpc_mismatch():
             return_value=mock_elasticache,
         ),
     ):
-        result = await create_jump_host_serverless('cache-1', 'subnet-123', 'sg-123', 'test-key')
+        result = await create_jump_host_serverless('cache-1', 'test-key', 'subnet-123', 'sg-123')
         assert 'error' in result
         assert (
             'Subnet VPC (vpc-456) does not match serverless cache VPC (vpc-123)' in result['error']
@@ -356,12 +356,12 @@ async def test_create_jump_host_serverless_main_route_table():
             return_value=mock_elasticache,
         ),
     ):
-        result = await create_jump_host_serverless('cache-1', 'subnet-123', 'sg-123', 'test-key')
+        result = await create_jump_host_serverless('cache-1', 'test-key', 'subnet-123', 'sg-123')
 
         # Should fail because subnet is not public
         assert 'error' in result
         assert (
-            'Subnet subnet-123 is not public (no route to internet gateway found)'
+            'Subnet subnet-123 is not public (no route to internet gateway found and not a default subnet in default VPC)'
             in result['error']
         )
 
@@ -486,7 +486,7 @@ async def test_create_jump_host_serverless_missing_key_name():
             return_value=mock_elasticache,
         ),
     ):
-        result = await create_jump_host_serverless('cache-1', 'subnet-123', 'sg-123', '')
+        result = await create_jump_host_serverless('cache-1', '', 'subnet-123', 'sg-123')
         assert 'error' in result
         assert 'key_name is required' in result['error']
 

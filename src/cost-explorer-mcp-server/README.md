@@ -11,17 +11,28 @@ MCP server for analyzing AWS costs and usage data through the AWS Cost Explorer 
 - Query historical cost data for specific time periods
 - Filter costs by various dimensions, tags, and cost categories
 
+
+### Compare costs between time periods
+
+- **NEW AWS Feature**: Leverage AWS Cost Explorer's new [Cost Comparison feature](https://docs.aws.amazon.com/cost-management/latest/userguide/ce-cost-comparison.html)
+- Compare costs between two time periods to identify changes and trends
+- Analyze cost drivers to understand what caused cost increases or decreases
+- Get detailed insights into the top 10 most significant cost change drivers automatically
+- Identify specific usage types, discount changes, and infrastructure changes affecting costs
+
+### Forecast future costs
+
+- Generate cost forecasts based on historical usage patterns
+- Get predictions with confidence intervals (80% or 95%)
+- Support for daily and monthly forecast granularity
+- Plan budgets and anticipate future AWS spending
+
 ### Query cost data with natural language
 
 - Ask questions about your AWS costs in plain English
 - Get instant answers about your AWS spending patterns
 - Retrieve historical cost data with simple queries
 
-### Generate cost reports and insights
-
-- Generate comprehensive cost reports based on your AWS Cost Explorer data
-- Get cost breakdowns by various dimensions (service, region, account, etc.)
-- Analyze usage patterns and spending trends
 
 ## Prerequisites
 
@@ -119,6 +130,9 @@ The following IAM permissions are required for this MCP server:
 - ce:GetCostAndUsage
 - ce:GetDimensionValues
 - ce:GetTags
+- ce:GetCostForecast
+- ce:GetCostAndUsageComparisons
+- ce:GetCostComparisonDrivers
 
 
 
@@ -130,26 +144,39 @@ The Cost Explorer MCP Server provides the following tools:
 2. `get_dimension_values` - Get available values for a specific dimension (e.g., SERVICE, REGION)
 3. `get_tag_values` - Get available values for a specific tag key
 4. `get_cost_and_usage` - Retrieve AWS cost and usage data with filtering and grouping options
+5. `get_cost_and_usage_comparisons` - Compare costs between two time periods to identify changes and trends
+6. `get_cost_comparison_drivers` - Analyze what drove cost changes between periods (top 10 most significant drivers)
+7. `get_cost_forecast` - Generate cost forecasts based on historical usage patterns
 
 ## Example Usage
 
-Here are some examples of how to use the Cost Explorer MCP Server:
+Here are some examples of how to use the Cost Explorer MCP Server through natural language queries:
 
-
-### Get dimension values
-
-```
-What AWS services did I use last month?
-```
-
-### Generate a cost report
+### Cost Analysis Examples
 
 ```
 Show me my AWS costs for the last 3 months grouped by service in us-east-1 region
+Break down my S3 costs by storage class for Q1 2025
+Show me costs for production resources tagged with Environment=prod
+What were my costs for reserved instances vs on-demand in May?
+What was my EC2 instance usage by instance type?
 ```
 
+### Cost Comparison Examples
+
 ```
-What were my EC2 costs excluding us-east-2 for January 2025?
+Compare my AWS costs between April and May 2025
+How did my EC2 costs change from last month to this month?
+Why did my AWS bill increase in June compared to May?
+What caused the spike in my S3 costs last month?
+```
+
+### Forecasting Examples
+
+```
+Forecast my AWS costs for next month
+Predict my EC2 spending for the next quarter
+What will my total AWS bill be for the rest of 2025?
 ```
 
 ## License

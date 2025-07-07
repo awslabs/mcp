@@ -34,14 +34,22 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_EMPTY_TABLE_NAME_PASSED_TO_SCHEMA,
     ERROR_EXECUTE_QUERY,
     ERROR_GET_SCHEMA,
+    ERROR_QUERY_INJECTION_RISK,
     ERROR_READONLY_QUERY,
     ERROR_ROLLBACK_TRANSACTION,
     ERROR_TRANSACT,
     ERROR_TRANSACT_INVOKED_IN_READ_ONLY_MODE,
+    ERROR_TRANSACTION_BYPASS_ATTEMPT,
+    ERROR_WRITE_QUERY_PROHIBITED,
     GET_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
     ROLLBACK_TRANSACTION_SQL,
+)
+from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
+    check_sql_injection_risk,
+    detect_mutating_keywords,
+    detect_transaction_bypass_attempt,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -126,6 +134,31 @@ async def readonly_query(
     if not sql:
         await ctx.error(ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY)
         raise ValueError(ERROR_EMPTY_SQL_PASSED_TO_READONLY_QUERY)
+
+    # Security checks for read-only mode
+    # Check for mutating keywords that shouldn't be allowed in read-only queries
+    mutating_matches = detect_mutating_keywords(sql)
+    if mutating_matches:
+        logger.warning(
+            f'readonly_query rejected due to mutating keywords: {mutating_matches}, SQL: {sql}'
+        )
+        await ctx.error(ERROR_WRITE_QUERY_PROHIBITED)
+        raise Exception(ERROR_WRITE_QUERY_PROHIBITED)
+
+    # Check for SQL injection risks
+    injection_issues = check_sql_injection_risk(sql)
+    if injection_issues:
+        logger.warning(
+            f'readonly_query rejected due to injection risks: {injection_issues}, SQL: {sql}'
+        )
+        await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+        raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
+
+    # Check for transaction bypass attempts (the main vulnerability)
+    if detect_transaction_bypass_attempt(sql):
+        logger.warning(f'readonly_query rejected due to transaction bypass attempt, SQL: {sql}')
+        await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
+        raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
 
     try:
         conn = await get_connection(ctx)

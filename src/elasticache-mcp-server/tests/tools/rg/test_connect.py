@@ -277,7 +277,7 @@ async def test_create_jump_host_rg_success():
         ),
     ):
         result = await create_jump_host_rg(
-            'rg-test', 'subnet-123', 'sg-123', 'test-key', 't3.small'
+            'rg-test', 'test-key', 'subnet-123', 'sg-123', 't3.small'
         )
 
     # Verify response
@@ -317,6 +317,9 @@ async def test_create_jump_host_rg_private_subnet():
         def describe_route_tables(self):
             pass
 
+        def describe_vpcs(self):
+            pass
+
         def describe_instances(self):
             pass
 
@@ -344,8 +347,11 @@ async def test_create_jump_host_rg_private_subnet():
 
     # Set up mocks for EC2
     mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
-    mock_ec2.describe_subnets.return_value = {'Subnets': [{'VpcId': 'vpc-123'}]}
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [{'VpcId': 'vpc-123', 'DefaultForAz': False, 'MapPublicIpOnLaunch': False}]
+    }
     mock_ec2.describe_route_tables.return_value = {'RouteTables': [{'Routes': []}]}
+    mock_ec2.describe_vpcs.return_value = {'Vpcs': [{'IsDefault': False}]}
     mock_ec2.describe_images.return_value = {
         'Images': [{'ImageId': 'ami-123', 'CreationDate': '2023-01-01'}]
     }
@@ -375,10 +381,10 @@ async def test_create_jump_host_rg_private_subnet():
             return_value=mock_elasticache,
         ),
     ):
-        result = await create_jump_host_rg('rg-test', 'subnet-123', 'sg-123', 'test-key')
+        result = await create_jump_host_rg('rg-test', 'test-key', 'subnet-123', 'sg-123')
         assert 'error' in result
         assert (
-            'Subnet subnet-123 is not public (no route to internet gateway found). The subnet must be public to allow SSH access to the jump host.'
+            'Subnet subnet-123 is not public (no route to internet gateway found and not a default subnet in default VPC). The subnet must be public to allow SSH access to the jump host.'
             in result['error']
         )
 
@@ -459,6 +465,152 @@ async def test_create_jump_host_rg_invalid_key():
             return_value=mock_elasticache,
         ),
     ):
-        result = await create_jump_host_rg('rg-test', 'subnet-123', 'sg-123', 'invalid-key')
+        result = await create_jump_host_rg('rg-test', 'invalid-key', 'subnet-123', 'sg-123')
         assert 'error' in result
         assert "Key pair 'invalid-key' not found" in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_rg_default_vpc_default_subnet():
+    """Test jump host creation with default subnet in default VPC."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock EC2 responses for default VPC scenario
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [
+            {
+                'VpcId': 'vpc-123',
+                'DefaultForAz': True,  # This is a default subnet
+                'MapPublicIpOnLaunch': True,
+            }
+        ]
+    }
+    mock_ec2.describe_route_tables.return_value = {'RouteTables': [{'Routes': []}]}  # No IGW route
+    mock_ec2.describe_vpcs.return_value = {'Vpcs': [{'IsDefault': True}]}  # Default VPC
+    mock_ec2.describe_images.return_value = {
+        'Images': [{'ImageId': 'ami-123', 'CreationDate': '2023-01-01'}]
+    }
+    mock_ec2.describe_security_groups.return_value = {'SecurityGroups': [{'IpPermissions': []}]}
+    mock_ec2.run_instances.return_value = {'Instances': [{'InstanceId': 'i-new'}]}
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [{'Instances': [{'PublicIpAddress': '1.2.3.4'}]}]
+    }
+
+    # Mock ElastiCache responses
+    mock_elasticache.describe_replication_groups.return_value = {
+        'ReplicationGroups': [{'MemberClusters': ['cluster-1']}]
+    }
+    mock_elasticache.describe_cache_clusters.return_value = {
+        'CacheClusters': [
+            {
+                'CacheSubnetGroupName': 'subnet-group-1',
+            }
+        ]
+    }
+    mock_elasticache.describe_cache_subnet_groups.return_value = {
+        'CacheSubnetGroups': [{'VpcId': 'vpc-123'}]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.tools.rg.connect._configure_security_groups',
+            return_value=(True, 'vpc-123', 6379),
+        ),
+    ):
+        result = await create_jump_host_rg(
+            'rg-test', 'test-key', 'subnet-123', 'sg-123', 't3.small'
+        )
+
+    # Verify successful creation despite no IGW route (because it's default subnet in default VPC)
+    assert result['InstanceId'] == 'i-new'
+    assert result['PublicIpAddress'] == '1.2.3.4'
+    assert result['InstanceType'] == 't3.small'
+    assert result['SubnetId'] == 'subnet-123'
+    assert result['SecurityGroupId'] == 'sg-123'
+    assert result['ReplicationGroupId'] == 'rg-test'
+    assert result['SecurityGroupsConfigured'] is True
+    assert result['CachePort'] == 6379
+    assert result['VpcId'] == 'vpc-123'
+
+
+@pytest.mark.asyncio
+async def test_create_jump_host_rg_default_vpc_map_public_ip():
+    """Test jump host creation with MapPublicIpOnLaunch=True in default VPC."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    # Mock EC2 responses for default VPC scenario with MapPublicIpOnLaunch
+    mock_ec2.describe_key_pairs.return_value = {'KeyPairs': [{'KeyName': 'test-key'}]}
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [
+            {
+                'VpcId': 'vpc-123',
+                'DefaultForAz': False,  # Not a default subnet
+                'MapPublicIpOnLaunch': True,  # But has MapPublicIpOnLaunch=True
+            }
+        ]
+    }
+    mock_ec2.describe_route_tables.return_value = {'RouteTables': [{'Routes': []}]}  # No IGW route
+    mock_ec2.describe_vpcs.return_value = {'Vpcs': [{'IsDefault': True}]}  # Default VPC
+    mock_ec2.describe_images.return_value = {
+        'Images': [{'ImageId': 'ami-123', 'CreationDate': '2023-01-01'}]
+    }
+    mock_ec2.describe_security_groups.return_value = {'SecurityGroups': [{'IpPermissions': []}]}
+    mock_ec2.run_instances.return_value = {'Instances': [{'InstanceId': 'i-new'}]}
+    mock_ec2.describe_instances.return_value = {
+        'Reservations': [{'Instances': [{'PublicIpAddress': '1.2.3.4'}]}]
+    }
+
+    # Mock ElastiCache responses
+    mock_elasticache.describe_replication_groups.return_value = {
+        'ReplicationGroups': [{'MemberClusters': ['cluster-1']}]
+    }
+    mock_elasticache.describe_cache_clusters.return_value = {
+        'CacheClusters': [
+            {
+                'CacheSubnetGroupName': 'subnet-group-1',
+            }
+        ]
+    }
+    mock_elasticache.describe_cache_subnet_groups.return_value = {
+        'CacheSubnetGroups': [{'VpcId': 'vpc-123'}]
+    }
+
+    with (
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.EC2ConnectionManager.get_connection',
+            return_value=mock_ec2,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_elasticache,
+        ),
+        patch(
+            'awslabs.elasticache_mcp_server.tools.rg.connect._configure_security_groups',
+            return_value=(True, 'vpc-123', 6379),
+        ),
+    ):
+        result = await create_jump_host_rg(
+            'rg-test', 'test-key', 'subnet-123', 'sg-123', 't3.small'
+        )
+
+    # Verify successful creation despite no IGW route (because MapPublicIpOnLaunch=True in default VPC)
+    assert result['InstanceId'] == 'i-new'
+    assert result['PublicIpAddress'] == '1.2.3.4'
+    assert result['InstanceType'] == 't3.small'
+    assert result['SubnetId'] == 'subnet-123'
+    assert result['SecurityGroupId'] == 'sg-123'
+    assert result['ReplicationGroupId'] == 'rg-test'
+    assert result['SecurityGroupsConfigured'] is True
+    assert result['CachePort'] == 6379
+    assert result['VpcId'] == 'vpc-123'
