@@ -27,7 +27,7 @@ from awslabs.aws_dataprocessing_mcp_server import __version__
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 class AwsHelper:
@@ -163,6 +163,70 @@ class AwsHelper:
             tags.update(additional_tags)
 
         return tags
+
+    @staticmethod
+    def convert_tags_to_aws_format(
+        tags: Dict[str, str], format_type: str = 'key_value'
+    ) -> List[Dict[str, str]]:
+        """Convert tags dictionary to AWS API format.
+
+        Args:
+            tags: Dictionary of tag key-value pairs
+            format_type: Format type - 'key_value' for [{'Key': 'k', 'Value': 'v'}] or 'tag_key_value' for [{'TagKey': 'k', 'TagValue': 'v'}]
+
+        Returns:
+            List of tag dictionaries in AWS API format
+        """
+        if format_type == 'tag_key_value':
+            return [{'TagKey': key, 'TagValue': value} for key, value in tags.items()]
+        else:
+            return [{'Key': key, 'Value': value} for key, value in tags.items()]
+
+    @staticmethod
+    def get_resource_tags_athena_workgroup(
+        athena_client: Any, workgroup_name: str
+    ) -> List[Dict[str, str]]:
+        """Get tags for an Athena workgroup.
+
+        Args:
+            athena_client: Athena boto3 client
+            workgroup_name: Athena workgroup name
+
+        Returns:
+            List of tag dictionaries
+        """
+        try:
+            response = athena_client.list_tags_for_resource(
+                ResourceARN=f'arn:aws:athena:{AwsHelper.get_aws_region()}:{AwsHelper.get_aws_account_id()}:workgroup/{workgroup_name}'
+            )
+            return response.get('Tags', [])
+        except ClientError:
+            return []
+
+    @staticmethod
+    def verify_resource_managed_by_mcp(
+        tags: List[Dict[str, str]], tag_format: str = 'key_value'
+    ) -> bool:
+        """Verify if a resource is managed by the MCP server based on its tags.
+
+        Args:
+            tags: List of tag dictionaries from AWS API
+            tag_format: Format of the tags - 'key_value' or 'tag_key_value'
+
+        Returns:
+            True if the resource is managed by MCP server, False otherwise
+        """
+        if not tags:
+            return False
+
+        # Convert tags to dictionary for easier lookup
+        tag_dict = {}
+        if tag_format == 'tag_key_value':
+            tag_dict = {tag.get('TagKey', ''): tag.get('TagValue', '') for tag in tags}
+        else:
+            tag_dict = {tag.get('Key', ''): tag.get('Value', '') for tag in tags}
+
+        return tag_dict.get(MCP_MANAGED_TAG_KEY) == MCP_MANAGED_TAG_VALUE
 
     @staticmethod
     def is_resource_mcp_managed(
