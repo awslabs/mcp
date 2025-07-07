@@ -35,14 +35,12 @@ from awslabs.s3_tables_mcp_server import (
 )
 from awslabs.s3_tables_mcp_server.constants import (
     NAMESPACE_NAME_FIELD,
-    OUTPUT_LOCATION_FIELD,
     QUERY_FIELD,
     REGION_NAME_FIELD,
     S3_URL_FIELD,
     TABLE_BUCKET_ARN_FIELD,
     TABLE_BUCKET_NAME_PATTERN,
     TABLE_NAME_FIELD,
-    WORKGROUP_FIELD,
 )
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -391,83 +389,43 @@ async def update_table_metadata_location(
 
 @app.tool()
 async def query_database(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
+    warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
+    region: Annotated[str, Field(..., description='AWS region for Glue/Iceberg REST endpoint')],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     query: Annotated[str, QUERY_FIELD],
-    output_location: Annotated[Optional[str], OUTPUT_LOCATION_FIELD] = None,
-    workgroup: Annotated[str, WORKGROUP_FIELD] = 'primary',
+    uri: Annotated[
+        str, Field(..., description='REST URI for Iceberg catalog')
+    ] = 'https://glue.us-west-2.amazonaws.com/iceberg',
+    catalog_name: Annotated[
+        str, Field('s3tablescatalog', description='Catalog name')
+    ] = 's3tablescatalog',
+    rest_signing_name: Annotated[str, Field('glue', description='REST signing name')] = 'glue',
+    rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
 ):
-    """Execute SQL queries against S3 Tables using Athena.
+    """Execute SQL queries against S3 Tables using PyIceberg/Daft.
 
-    This tool provides a secure interface to run read-only SQL queries against your S3 Tables data.
-    It leverages Athena for query execution and supports standard SQL operations including SELECT,
-    SHOW, DESCRIBE, and Common Table Expressions (CTEs). If a write operation is detected, the tool will return an error.
+    This tool provides a secure interface to run read-only SQL queries against your S3 Tables data using the PyIceberg and Daft engine.
 
-    The tool automatically handles query execution, result retrieval, and proper formatting of the
-    response.
-
-    Examples:
-    - SELECT c.customer_id, c.first_name, c.last_name, c.email, t.transaction_id, t.product_name, t.total_amount, t.transaction_date FROM customers c INNER JOIN transactions t ON CONCAT('CUST-', CAST(c.customer_id AS VARCHAR)) = t.customer_id
-    - SELECT * FROM customers ORDER BY customer_id LIMIT 10
-    - DESCRIBE transactions
-
-    Permissions:
-    You must have the necessary Athena permissions to execute queries, including:
-    - Access to the specified workgroup
-    - GetDataCatalog permission for external catalogs
-    - Appropriate IAM permissions for the S3 locations
+    Example input values:
+        warehouse: '123456789012:s3tablescatalog/customer-data-bucket'
+        region: 'us-west-2'
+        namespace: 'retail_data'
+        query: 'SELECT * FROM customers LIMIT 10'
+        uri: 'https://glue.us-west-2.amazonaws.com/iceberg'
+        catalog_name: 's3tablescatalog'
+        rest_signing_name: 'glue'
+        rest_sigv4_enabled: 'true'
     """
-    try:
-        return await database.query_database_resource(
-            table_bucket_arn=table_bucket_arn,
-            namespace=namespace,
-            query=query,
-            output_location=output_location,
-            workgroup=workgroup,
-        )
-    except Exception as e:
-        return {'status': 'error', 'error': str(e)}
-
-
-@app.tool()
-@write_operation
-async def modify_database(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
-    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    query: Annotated[str, QUERY_FIELD],
-    output_location: Annotated[Optional[str], OUTPUT_LOCATION_FIELD] = None,
-    workgroup: Annotated[str, WORKGROUP_FIELD] = 'primary',
-):
-    """Execute SQL queries against S3 Tables using Athena, including write operations.
-
-    This tool provides a secure interface to run SQL queries against your S3 Tables data,
-    including write operations like INSERT, UPDATE, etc. It leverages Athena for
-    query execution and supports all standard SQL operations except destructive ones like DELETE, DROP, MERGE, REPLACE, TRUNCATE, VACUUM.
-
-    The tool automatically handles query execution, result retrieval, and proper formatting of the
-    response.
-
-    Examples:
-    - INSERT INTO customers (customer_id, first_name, last_name, email) VALUES (1, 'John', 'Doe', 'john.doe@example.com')
-    - UPDATE customers SET email = 'john.doe@example.com' WHERE customer_id = 1
-
-    Permissions:
-    You must have the necessary Athena permissions to execute queries, including:
-    - Access to the specified workgroup
-    - GetDataCatalog permission for external catalogs
-    - Appropriate IAM permissions for the S3 locations
-    - Write permissions for the target table
-    """
-    try:
-        return await database.modify_database_resource(
-            table_bucket_arn=table_bucket_arn,
-            namespace=namespace,
-            query=query,
-            output_location=output_location,
-            workgroup=workgroup,
-        )
-    except Exception as e:
-        return {'status': 'error', 'error': str(e)}
+    return await database.query_database_resource(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        query=query,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+    )
 
 
 @app.tool()
@@ -593,6 +551,53 @@ async def get_bucket_metadata_config(
     """
     return await s3_operations.get_bucket_metadata_table_configuration(
         bucket=bucket, region_name=region_name
+    )
+
+
+@app.tool()
+@write_operation
+async def append_rows_to_table(
+    warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
+    region: Annotated[str, Field(..., description='AWS region for Glue/Iceberg REST endpoint')],
+    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
+    table_name: Annotated[str, TABLE_NAME_FIELD],
+    rows: Annotated[list[dict], Field(..., description='List of rows to append, each as a dict')],
+    uri: Annotated[
+        str, Field(..., description='REST URI for Iceberg catalog')
+    ] = 'https://glue.us-west-2.amazonaws.com/iceberg',
+    catalog_name: Annotated[
+        str, Field('s3tablescatalog', description='Catalog name')
+    ] = 's3tablescatalog',
+    rest_signing_name: Annotated[str, Field('glue', description='REST signing name')] = 'glue',
+    rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
+) -> dict:
+    """Append rows to an Iceberg table using PyIceberg/Daft.
+
+    This tool appends data rows to an existing Iceberg table using the PyIceberg engine.
+    The rows parameter must be a list of dictionaries, each representing a row.
+    Check the schema of the table before appending rows.
+
+    Example input values:
+        warehouse: '123456789012:s3tablescatalog/customer-data-bucket'
+        region: 'us-west-2'
+        namespace: 'retail_data'
+        table_name: 'customers'
+        rows: [{"customer_id": 1, "customer_name": "Alice"}, ...]
+        uri: 'https://glue.us-west-2.amazonaws.com/iceberg'
+        catalog_name: 's3tablescatalog'
+        rest_signing_name: 'glue'
+        rest_sigv4_enabled: 'true'
+    """
+    return await database.append_rows_to_table_resource(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        rows=rows,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
     )
 
 

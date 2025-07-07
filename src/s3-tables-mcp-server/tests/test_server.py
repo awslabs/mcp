@@ -34,7 +34,6 @@ from awslabs.s3_tables_mcp_server.server import (
     list_namespaces,
     list_table_buckets,
     list_tables,
-    modify_database,
     rename_table,
     update_table_metadata_location,
 )
@@ -483,27 +482,6 @@ async def test_get_table_metadata_location_readonly_mode(setup_app_readonly, moc
     mock_tables.get_table_metadata_location.assert_called_once_with(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region
     )
-
-
-@pytest.mark.asyncio
-async def test_modify_database_readonly_mode(setup_app_readonly):
-    """Test modify_database tool when allow_write is disabled."""
-    # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
-    namespace = 'test-namespace'
-    query = 'INSERT INTO test_table VALUES (1, "test")'
-    region = 'us-west-2'
-
-    # Act & Assert
-    with pytest.raises(
-        ValueError, match='Operation not permitted: Server is configured in read-only mode'
-    ):
-        await modify_database(
-            table_bucket_arn=table_bucket_arn,
-            namespace=namespace,
-            query=query,
-            region_name=region,
-        )
 
 
 @pytest.mark.asyncio

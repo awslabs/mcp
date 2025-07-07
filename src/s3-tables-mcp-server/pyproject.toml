@@ -15,6 +15,7 @@ dependencies = [
     "pyiceberg>=0.9.1",
     "pyarrow>=20.0.0",
     "sqlparse>=0.4.0",
+    "daft",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

@@ -28,7 +28,7 @@ The S3 Tables MCP Server simplifies the management of S3-based tables by providi
 - **Policy Management**: Manage resource policies for tables and buckets
 - **Metadata Management**: Handle table metadata and locations
 - **Read-Only Mode**: Optional security feature to restrict operations to read-only operations
-- **Athena Integration**: Execute SQL queries directly against S3 Tables using Amazon Athena for seamless data analysis and reporting
+- **SQL Query Support**: Execute **read-only** SQL queries directly against S3 Tables for seamless data analysis and reporting. For write operations, only **append data** is supported (i.e., inserting new rows); updates or deletes via SQL are not supported.
 - **CSV to Table Conversion**: Automatically generate S3 Tables from CSV files uploaded to S3 buckets, streamlining data ingestion workflows
 - **Metadata Discovery**: Access comprehensive table metadata through the S3 Metadata Table for enhanced data governance and cataloging
 
@@ -100,7 +100,7 @@ The AWS S3 Tables MCP Server supports several command-line arguments that can be
 Enables tools that create or modify resources in the user's AWS account. When this flag is not enabled, the server runs in read-only mode that only allows read operations. This enhances security by preventing any modifications to the tables. In read-only mode:
 
 - Read operations (`list_table_buckets`, `list_namespaces`, `list_tables`) work normally
-- Write operations (`create_table_bucket`, `delete_table_bucket`, `INSERT, UPDATE sql statements`, etc.) are blocked and return a permission error
+- Write operations (`create_table_bucket`, `delete_table_bucket`, `append data`, etc.) are blocked and return a permission error
 
 This mode is particularly useful for:
 - Demonstration environments
@@ -132,12 +132,12 @@ Example:
 | Prompt | Description |
 |--------|-------------|
 | `Query all available metadata about test-bucket` | Retrieves comprehensive metadata information for a specific table bucket, including namespaces, tables, and configuration details |
-| `Find top 3 customers by spending in the transactions table` | Executes a SQL query using Athena to analyze customer transaction data and identify the highest-spending customers |
+| `Find top 3 customers by spending in the transactions table` | Executes a SQL query to analyze customer transaction data and identify the highest-spending customers |
 | `Create a table bucket with name hello-world` | Creates a new S3 Tables bucket for organizing and managing table data with the specified name |
 | `Create an s3 table from s3://my-bucket/data.csv` | Automatically generates an S3 Table from an existing CSV file in S3, enabling immediate querying and analysis of the data |
 | `List all tables in the sales namespace` | Displays all available tables within a specific namespace for data discovery and exploration |
 | `Show the schema for customer_data table` | Retrieves the table structure and column definitions to understand the data format and types |
-| `Run a query to find monthly revenue trends` | Performs data analysis using SQL queries to extract business insights from stored table data |
+| `Run a query to find monthly revenue trends` | Performs data analysis using **read-only** SQL queries to extract business insights from stored table data. For write operations, only appending new data (inserts) is supported; updates and deletes are not available via SQL. |
 
 ## Security Considerations
 

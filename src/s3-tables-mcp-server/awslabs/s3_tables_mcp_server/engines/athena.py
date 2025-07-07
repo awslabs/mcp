@@ -14,8 +14,18 @@
 
 import time
 from ..utils import get_athena_client
-from .config import AthenaConfig
-from typing import Any, Dict
+from pydantic import BaseModel
+from typing import Any, Dict, Optional
+
+
+class AthenaConfig(BaseModel):
+    """Configuration for Athena connection."""
+
+    output_location: str  # The S3 location where Athena query results will be stored (required)
+    workgroup: Optional[str] = None  # The Athena workgroup to use for queries
+    region: Optional[str] = None  # The AWS region where Athena is running
+    database: Optional[str] = None  # The Athena database to use
+    catalog: Optional[str] = None  # The Athena catalog to use
 
 
 class AthenaEngine:

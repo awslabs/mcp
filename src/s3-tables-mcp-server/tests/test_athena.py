@@ -15,8 +15,7 @@
 """Tests for the Athena engine module."""
 
 import pytest
-from awslabs.s3_tables_mcp_server.engines.athena import AthenaEngine
-from awslabs.s3_tables_mcp_server.engines.config import AthenaConfig
+from awslabs.s3_tables_mcp_server.engines.athena import AthenaConfig, AthenaEngine
 from unittest.mock import MagicMock, patch
 
 
