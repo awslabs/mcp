@@ -48,29 +48,29 @@ class TestDomainManagement:
         self, mcp_server_with_tools, tool_extractor, sample_domain_data
     ):
         """Test successful domain creation."""
-        create_domain = tool_extractor(mcp_server_with_tools, "create_domain")
+        create_domain = tool_extractor(mcp_server_with_tools, 'create_domain')
 
         result = await create_domain(
-            name=sample_domain_data["name"],
-            domain_execution_role=sample_domain_data["domain_execution_role"],
-            service_role=sample_domain_data["service_role"],
-            domain_version=sample_domain_data["domain_version"],
-            description=sample_domain_data["description"],
+            name=sample_domain_data['name'],
+            domain_execution_role=sample_domain_data['domain_execution_role'],
+            service_role=sample_domain_data['service_role'],
+            domain_version=sample_domain_data['domain_version'],
+            description=sample_domain_data['description'],
         )
 
         # Verify the result
         assert result is not None
-        assert result["name"] == "New Test Domain"
-        assert result["status"] == "CREATING"
-        assert "id" in result
-        assert "arn" in result
+        assert result['name'] == 'New Test Domain'
+        assert result['status'] == 'CREATING'
+        assert 'id' in result
+        assert 'arn' in result
 
         # Verify the mock was called correctly
         mcp_server_with_tools._mock_client.create_domain.assert_called_once()
         call_args = mcp_server_with_tools._mock_client.create_domain.call_args[1]
-        assert call_args["name"] == sample_domain_data["name"]
-        assert call_args["domainExecutionRole"] == sample_domain_data["domain_execution_role"]
-        assert call_args["serviceRole"] == sample_domain_data["service_role"]
+        assert call_args['name'] == sample_domain_data['name']
+        assert call_args['domainExecutionRole'] == sample_domain_data['domain_execution_role']
+        assert call_args['serviceRole'] == sample_domain_data['service_role']
 
     @pytest.mark.asyncio
     async def test_create_domain_conflict(

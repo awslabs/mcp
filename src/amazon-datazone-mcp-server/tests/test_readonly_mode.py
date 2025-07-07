@@ -86,7 +86,7 @@ class TestReadOnlyMode:
                 await create_domain_unit(
                     domain_identifier=test_data_helper.get_domain_id(),
                     name='Test Unit',
-                    parent_domain_unit_identifier='parent_unit_123'
+                    parent_domain_unit_identifier='parent_unit_123',
                 )
 
             assert 'read-only mode' in str(exc_info.value)
@@ -109,8 +109,7 @@ class TestReadOnlyMode:
 
             with pytest.raises(ValueError) as exc_info:
                 await create_project(
-                    domain_identifier=test_data_helper.get_domain_id(),
-                    name='Test Project'
+                    domain_identifier=test_data_helper.get_domain_id(), name='Test Project'
                 )
 
             assert 'read-only mode' in str(exc_info.value)
@@ -136,7 +135,7 @@ class TestReadOnlyMode:
                     domain_identifier=test_data_helper.get_domain_id(),
                     name='Test Asset',
                     type_identifier='amazon.datazone.S3Asset',
-                    owning_project_identifier=test_data_helper.get_project_id()
+                    owning_project_identifier=test_data_helper.get_project_id(),
                 )
 
             assert 'read-only mode' in str(exc_info.value)
@@ -161,7 +160,7 @@ class TestReadOnlyMode:
                 await create_glossary(
                     domain_identifier=test_data_helper.get_domain_id(),
                     name='Test Glossary',
-                    owning_project_identifier=test_data_helper.get_project_id()
+                    owning_project_identifier=test_data_helper.get_project_id(),
                 )
 
             assert 'read-only mode' in str(exc_info.value)

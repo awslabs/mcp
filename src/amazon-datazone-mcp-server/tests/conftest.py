@@ -8,6 +8,13 @@ from mcp.server.fastmcp import FastMCP
 from typing import Any, Callable, Dict, Optional
 from unittest.mock import Mock, patch
 
+# Set up AWS environment variables at module level to ensure they're available during import
+os.environ.setdefault('AWS_ACCESS_KEY_ID', 'testing')
+os.environ.setdefault('AWS_SECRET_ACCESS_KEY', 'testing')
+os.environ.setdefault('AWS_SECURITY_TOKEN', 'testing')
+os.environ.setdefault('AWS_SESSION_TOKEN', 'testing')
+os.environ.setdefault('AWS_DEFAULT_REGION', 'us-east-1')
+
 
 @pytest.fixture(scope='session')
 def event_loop():
@@ -198,8 +205,12 @@ def sample_domain_data():
     return {
         'name': 'Test Domain',
         'description': 'Test domain description',
-        'domain_execution_role': os.getenv('DOMAIN_EXECUTION_ROLE', 'arn:aws:iam::123456789012:role/test-domain-execution-role'),
-        'service_role': os.getenv('SERVICE_ROLE', 'arn:aws:iam::123456789012:role/test-service-role'),
+        'domain_execution_role': os.getenv(
+            'DOMAIN_EXECUTION_ROLE', 'arn:aws:iam::123456789012:role/test-domain-execution-role'
+        ),
+        'service_role': os.getenv(
+            'SERVICE_ROLE', 'arn:aws:iam::123456789012:role/test-service-role'
+        ),
         'domain_version': 'V2',
     }
 

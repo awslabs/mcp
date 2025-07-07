@@ -156,7 +156,7 @@ When configuring with MCP clients, you can enable writes by adding the argument:
     "amazon-datazone": {
       "command": "python",
       "args": [
-        "-m", 
+        "-m",
         "awslabs.amazon_datazone_mcp_server.server",
         "--allow-writes"
       ]
