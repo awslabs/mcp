@@ -38,13 +38,14 @@ NOTICE                                @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/cdk-mcp-server                     @jimini55                        @awslabs/mcp-admins
 /src/cfn-mcp-server                     @karamvsingh                     @awslabs/mcp-admins # @5herlocked @peternigh
-/src/cloudwatch-appsignals-mcp-server   @yiyuan-he @mxiamxia             @awslabs/mcp-admins
+/src/cloudwatch-appsignals-mcp-server   @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque   @awslabs/mcp-admins
 /src/cloudwatch_logs_mcp_server         @lemmoi @shri-tambe              @awslabs/mcp-admins
 /src/cloudwatch_mcp_server              @gcacace @shri-tambe @agiuliano @goranmod     @awslabs/mcp-admins
 /src/code-doc-gen-mcp-server            @jimini55                        @awslabs/mcp-admins
 /src/core-mcp-server                    @PaulVincent707                  @awslabs/mcp-admins
 #/src/cost-analysis-mcp-server          @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/cost-explorer-mcp-server           @Fedayizada                      @awslabs/mcp-admins
+/src/dataprocessing-mcp-server          @naikvaib                        @awslabs/mcp-admins
 #/src/documentdb-mcp-server             @awslabs/mcp-maintainers         @awslabs/mcp-admin
 /src/dynamodb-mcp-server                @erbenmo                         @awslabs/mcp-admins
 /src/ecs-mcp-server                     @karanbokil @matthewgoodman13    @awslabs/mcp-admins
@@ -55,7 +56,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/git-repo-research-mcp-server       @jonslo                          @awslabs/mcp-admins
 /src/iam-mcp-server                     @oshardik                        @awslabs/mcp-admins
 /src/lambda-tool-mcp-server             @danilop @jsamuel1               @awslabs/mcp-admins
-/src/mcp-lambda-handler                 @mikegc-aws                      @awslabs/mcp-admins
+/src/mcp-lambda-handler                 @mikegc-aws @Lukas-Xue           @awslabs/mcp-admins
 /src/memcached-mcp-server               @seaofawareness                  @awslabs/mcp-admins
 /src/mysql-mcp-server                   @kennthhz                        @awslabs/mcp-admins
 /src/nova-canvas-mcp-server             @awslabs/mcp-maintainers         @awslabs/mcp-admins
