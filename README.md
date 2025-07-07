@@ -13,7 +13,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Table of Contents](#table-of-contents)
   - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
   - [Server Sent Events Support Removal](#server-sent-events-support-removal)
-    - [Why AWS MCP Servers?](#why-aws-mcp-servers)
+  - [Why AWS MCP Servers?](#why-aws-mcp-servers)
   - [Available MCP Servers](#available-mcp-servers)
     - [Browse by What You're Building](#browse-by-what-youre-building)
       - [📚 Real-time access to official AWS documentation](#-real-time-access-to-official-aws-documentation)
@@ -215,7 +215,7 @@ Interact with AWS HealthAI services.
 
 #### 👨‍💻 Vibe Coding & Development
 
-_AI coding assistants like Amazon Q Developer CLI, Cline, Cursor, and Claude Code helping you build faster_
+*AI coding assistants like Amazon Q Developer CLI, Cline, Cursor, and Claude Code helping you build faster*
 
 ##### Core Development Workflow
 
@@ -253,7 +253,7 @@ _AI coding assistants like Amazon Q Developer CLI, Cline, Cursor, and Claude Cod
 
 #### 💬 Conversational Assistants
 
-_Customer-facing chatbots, business agents, and interactive Q&A systems_
+*Customer-facing chatbots, business agents, and interactive Q&A systems*
 
 ##### Knowledge & Search
 
@@ -276,7 +276,7 @@ _Customer-facing chatbots, business agents, and interactive Q&A systems_
 
 #### 🤖 Autonomous Background Agents
 
-_Headless automation, ETL pipelines, and operational systems_
+*Headless automation, ETL pipelines, and operational systems*
 
 ##### Data Operations & ETL
 
@@ -344,14 +344,18 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
   "mcpServers": {
     "awslabs.core-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
+      "args": [
+        "awslabs.core-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.nova-canvas-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.nova-canvas-mcp-server@latest"],
+      "args": [
+        "awslabs.nova-canvas-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -360,7 +364,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.bedrock-kb-retrieval-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.bedrock-kb-retrieval-mcp-server@latest"],
+      "args": [
+        "awslabs.bedrock-kb-retrieval-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -369,7 +375,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cost-analysis-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.cost-analysis-mcp-server@latest"],
+      "args": [
+        "awslabs.cost-analysis-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -377,14 +385,18 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cdk-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.cdk-mcp-server@latest"],
+      "args": [
+        "awslabs.cdk-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "args": [
+        "awslabs.aws-documentation-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -393,7 +405,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.lambda-tool-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.lambda-tool-mcp-server@latest"],
+      "args": [
+        "awslabs.lambda-tool-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -405,7 +419,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.terraform-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.terraform-mcp-server@latest"],
+      "args": [
+        "awslabs.terraform-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -414,7 +430,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.frontend-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.frontend-mcp-server@latest"],
+      "args": [
+        "awslabs.frontend-mcp-server@latest"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -423,7 +441,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.valkey-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.valkey-mcp-server@latest"],
+      "args": [
+        "awslabs.valkey-mcp-server@latest"
+      ],
       "env": {
         "VALKEY_HOST": "127.0.0.1",
         "VALKEY_PORT": "6379",
@@ -434,7 +454,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.aws-location-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-location-mcp-server@latest"],
+      "args": [
+        "awslabs.aws-location-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -445,7 +467,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.memcached-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.memcached-mcp-server@latest"],
+      "args": [
+        "awslabs.memcached-mcp-server@latest"
+      ],
       "env": {
         "MEMCACHED_HOST": "127.0.0.1",
         "MEMCACHED_PORT": "11211",
@@ -456,7 +480,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.git-repo-research-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.git-repo-research-mcp-server@latest"],
+      "args": [
+        "awslabs.git-repo-research-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -468,7 +494,9 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cloudformation": {
       "command": "uvx",
-      "args": ["awslabs.cfn-mcp-server@latest"],
+      "args": [
+        "awslabs.cfn-mcp-server@latest"
+      ],
       "env": {
         "AWS_PROFILE": "your-aws-profile"
       },
@@ -496,16 +524,16 @@ usage: awslabs.mysql-mcp-server [-h] --resource_arn RESOURCE_ARN --secret_arn SE
 awslabs.mysql-mcp-server: error: the following arguments are required: --resource_arn, --secret_arn, --database, --region, --readonly
 ```
 
-**Note about performance when using `uvx` _"@latest"_ suffix:**
+**Note about performance when using `uvx` *"@latest"* suffix:**
 
-Using the _"@latest"_ suffix checks and downloads the latest MCP server package from pypi every time you start your MCP clients, but it comes with a cost of increased initial load times. If you want to minimize the initial load time, remove _"@latest"_ and manage your uv cache yourself using one of these approaches:
+Using the *"@latest"* suffix checks and downloads the latest MCP server package from pypi every time you start your MCP clients, but it comes with a cost of increased initial load times. If you want to minimize the initial load time, remove *"@latest"* and manage your uv cache yourself using one of these approaches:
 
 - `uv cache clean <tool>`: where {tool} is the mcp server you want to delete from cache and install again (e.g.: "awslabs.lambda-tool-mcp-server") (remember to remove the '<>').
 - `uvx <tool>@latest`: this will refresh the tool with the latest version and add it to the uv cache.
 
 ### Running MCP servers in containers
 
-_This example uses docker with the "awslabs.nova-canvas-mcp-server and can be repeated for each MCP server_
+*This example uses docker with the "awslabs.nova-canvas-mcp-server and can be repeated for each MCP server*
 
 - Build and tag the image
 
@@ -577,42 +605,42 @@ _This example uses docker with the "awslabs.nova-canvas-mcp-server and can be re
    <img src="./docs/images/root-readme/configure-mcp-servers.png" width="500" height="800"  />
  <p>
 
-5.  In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use some of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
+ 5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use some of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
 
 #### `cline_mcp_settings.json`
 
-```json
-{
-  "mcpServers": {
-    "awslabs.core-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "MCP_SETTINGS_PATH": "path to your mcp settings file"
-      }
-    },
-    "awslabs.nova-canvas-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.nova-canvas-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awslabs.terraform-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.terraform-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
+ ```json
+ {
+   "mcpServers": {
+     "awslabs.core-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.core-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR",
+         "MCP_SETTINGS_PATH": "path to your mcp settings file"
+       }
+     },
+     "awslabs.nova-canvas-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "env": {
+         "AWS_PROFILE": "your-aws-profile",
+         "AWS_REGION": "us-east-1",
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       }
+     },
+     "awslabs.terraform-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
     }
   }
-}
-```
+ ```
 
 6. Once installed, you should see a list of your MCP Servers under the MCP Server Installed tab, and they should have a green slider to show that they are enabled. See the following for an example with two of the possible AWS MCP Servers. Click **Done** when finished. You should now see the Cline chat interface.
 
@@ -657,7 +685,6 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 12. Now you can begin asking questions and testing out the functionality of your installed AWS MCP Servers. The default option in the chat interface is is `Plan` which will provide the output for you to take manual action on (e.g. providing you a sample configuration that you copy and paste into a file). However, you can optionally toggle this to `Act` which will allow Cline to act on your behalf (e.g. searching for content using a web browser, cloning a repository, executing code, etc). You can optionally toggle on the "Auto-approve" section to avoid having to click to approve the suggestions, however we recommend leaving this off during testing, especially if you have the Act toggle selected.
 
 **Note:** For the best results, please prompt Cline to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
-
 </details>
 
 ### Getting Started with Cursor
@@ -669,14 +696,18 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 
 2. You can place MCP configuration in two locations, depending on your use case:
 
-A. **Project Configuration** - For tools specific to a project, create a `.cursor/mcp.json` file in your project directory. - This allows you to define MCP servers that are only available within that specific project.
+  A. **Project Configuration**
+    - For tools specific to a project, create a `.cursor/mcp.json` file in your project directory.
+    - This allows you to define MCP servers that are only available within that specific project.
 
-B. **Global Configuration** - For tools that you want to use across all projects, create a `~/.cursor/mcp.json` file in your home directory. - This makes MCP servers available in all your Cursor workspaces.
+  B. **Global Configuration**
+    - For tools that you want to use across all projects, create a `~/.cursor/mcp.json` file in your home directory.
+    - This makes MCP servers available in all your Cursor workspaces.
 
 #### `.cursor/mcp.json`
 
 ```json
-{
+ {
   "mcpServers": {
     "awslabs.core-mcp-server": {
       "command": "uvx",
@@ -740,55 +771,55 @@ B. **Global Configuration** - For tools that you want to use across all projects
       }
     },
     "awslabs.terraform-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.terraform-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    },
+       "command": "uvx",
+       "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
     "awslabs.frontend-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.frontend-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
+       "command": "uvx",
+       "args": ["awslabs.frontend-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
+      "awslabs.valkey-mcp-server": {
+        "command": "uvx",
+        "args": ["awslabs.valkey-mcp-server@latest"],
+        "env": {
+          "VALKEY_HOST": "127.0.0.1",
+          "VALKEY_PORT": "6379",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
       },
-      "disabled": false,
-      "autoApprove": []
-    },
-    "awslabs.valkey-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.valkey-mcp-server@latest"],
-      "env": {
-        "VALKEY_HOST": "127.0.0.1",
-        "VALKEY_PORT": "6379",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "autoApprove": [],
-      "disabled": false
-    },
     "awslabs.aws-location-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.aws-location-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
+       "command": "uvx",
+       "args": ["awslabs.aws-location-mcp-server@latest"],
+       "env": {
+         "AWS_PROFILE": "your-aws-profile",
+         "AWS_REGION": "us-east-1",
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
     },
     "awslabs.memcached-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.memcached-mcp-server@latest"],
-      "env": {
-        "MEMCACHED_HOST": "127.0.0.1",
-        "MEMCACHED_PORT": "11211",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "autoApprove": [],
-      "disabled": false
+        "command": "uvx",
+        "args": ["awslabs.memcached-mcp-server@latest"],
+        "env": {
+          "MEMCACHED_HOST": "127.0.0.1",
+          "MEMCACHED_PORT": "11211",
+          "FASTMCP_LOG_LEVEL": "ERROR"
+        },
+        "autoApprove": [],
+        "disabled": false
     },
     "awslabs.git-repo-research-mcp-server": {
       "command": "uvx",
@@ -829,12 +860,10 @@ B. **Global Configuration** - For tools that you want to use across all projects
 1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
 
 2. **Access MCP Settings**
-
    - Navigate to Windsurf - Settings > Advanced Settings or use the Command Palette > Open Windsurf Settings Page
    - Look for the "Model Context Protocol (MCP) Servers" section
 
 3. **Add MCP Servers**
-
    - Click "Add Server" to add a new MCP server
    - You can choose from available templates like GitHub, Puppeteer, PostgreSQL, etc.
    - Alternatively, click "Add custom server" to configure your own server
@@ -844,38 +873,38 @@ B. **Global Configuration** - For tools that you want to use across all projects
 
 #### `~/.codeium/windsurf/mcp_config.json`
 
-```json
-{
-  "mcpServers": {
-    "awslabs.core-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.core-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "MCP_SETTINGS_PATH": "path to your mcp settings file"
-      }
-    },
-    "awslabs.nova-canvas-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.nova-canvas-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awslabs.terraform-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.terraform-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
+ ```json
+ {
+   "mcpServers": {
+     "awslabs.core-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.core-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR",
+         "MCP_SETTINGS_PATH": "path to your mcp settings file"
+       }
+     },
+     "awslabs.nova-canvas-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "env": {
+         "AWS_PROFILE": "your-aws-profile",
+         "AWS_REGION": "us-east-1",
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       }
+     },
+     "awslabs.terraform-mcp-server": {
+       "command": "uvx",
+       "args": ["awslabs.terraform-mcp-server@latest"],
+       "env": {
+         "FASTMCP_LOG_LEVEL": "ERROR"
+       },
+       "disabled": false,
+       "autoApprove": []
+     },
     }
   }
-}
-```
+ ```
 
 </details>
 
