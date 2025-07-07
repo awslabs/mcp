@@ -36,7 +36,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 
 class EMREc2InstanceHandler:
@@ -61,58 +61,84 @@ class EMREc2InstanceHandler:
     async def manage_aws_emr_ec2_instances(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: add-instance-fleet, add-instance-groups, modify-instance-fleet, modify-instance-groups, list-instance-fleets, list-instances, list-supported-instance-types. Choose read-only operations when write access is disabled.',
-        ),
-        cluster_id: Optional[str] = Field(
-            None,
-            description='ID of the EMR cluster (required for all operations except list-supported-instance-types).',
-        ),
-        instance_fleet_id: Optional[str] = Field(
-            None,
-            description='ID of the instance fleet (required for modify-instance-fleet).',
-        ),
-        instance_fleet: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Instance fleet configuration (required for add-instance-fleet). Must include InstanceFleetType and can include Name, TargetOnDemandCapacity, TargetSpotCapacity, InstanceTypeConfigs, LaunchSpecifications, and ResizeSpecifications.',
-        ),
-        instance_groups: Optional[List[Dict[str, Any]]] = Field(
-            None,
-            description='List of instance group configurations (required for add-instance-groups). Each must include InstanceRole, InstanceType, InstanceCount, and can include Name, Market, BidPrice, Configurations, EbsConfiguration, AutoScalingPolicy, and CustomAmiId.',
-        ),
-        instance_group_configs: Optional[List[Dict[str, Any]]] = Field(
-            None,
-            description='List of instance group configurations for modification (required for modify-instance-groups). Each must include InstanceGroupId and can include InstanceCount, EC2InstanceIdsToTerminate, ShrinkPolicy, ReconfigurationType, and Configurations.',
-        ),
-        instance_fleet_config: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Instance fleet configuration for modification (required for modify-instance-fleet). Can include TargetOnDemandCapacity, TargetSpotCapacity, ResizeSpecifications, InstanceTypeConfigs, and Context.',
-        ),
-        instance_group_ids: Optional[List[str]] = Field(
-            None,
-            description='List of instance group IDs (optional for list-instances).',
-        ),
-        instance_states: Optional[List[str]] = Field(
-            None,
-            description='List of instance states to filter by (optional for list-instances). Valid values: AWAITING_FULFILLMENT, PROVISIONING, BOOTSTRAPPING, RUNNING, TERMINATED.',
-        ),
-        instance_group_types: Optional[List[str]] = Field(
-            None,
-            description='List of instance group types to filter by (optional for list-instances). Valid values: MASTER, CORE, TASK.',
-        ),
-        instance_fleet_type: Optional[str] = Field(
-            None,
-            description='Instance fleet type to filter by (optional for list-instances). Valid values: MASTER, CORE, TASK.',
-        ),
-        release_label: Optional[str] = Field(
-            None,
-            description='EMR release label (required for list-supported-instance-types). Format: emr-x.x.x (e.g., emr-6.10.0).',
-        ),
-        marker: Optional[str] = Field(
-            None,
-            description='Pagination token for list operations.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: add-instance-fleet, add-instance-groups, modify-instance-fleet, modify-instance-groups, list-instance-fleets, list-instances, list-supported-instance-types. Choose read-only operations when write access is disabled.',
+            ),
+        ],
+        cluster_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the EMR cluster (required for all operations except list-supported-instance-types).',
+            ),
+        ] = None,
+        instance_fleet_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the instance fleet (required for modify-instance-fleet).',
+            ),
+        ] = None,
+        instance_fleet: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Instance fleet configuration (required for add-instance-fleet). Must include InstanceFleetType and can include Name, TargetOnDemandCapacity, TargetSpotCapacity, InstanceTypeConfigs, LaunchSpecifications, and ResizeSpecifications.',
+            ),
+        ] = None,
+        instance_groups: Annotated[
+            Optional[List[Dict[str, Any]]],
+            Field(
+                description='List of instance group configurations (required for add-instance-groups). Each must include InstanceRole, InstanceType, InstanceCount, and can include Name, Market, BidPrice, Configurations, EbsConfiguration, AutoScalingPolicy, and CustomAmiId.',
+            ),
+        ] = None,
+        instance_group_configs: Annotated[
+            Optional[List[Dict[str, Any]]],
+            Field(
+                description='List of instance group configurations for modification (required for modify-instance-groups). Each must include InstanceGroupId and can include InstanceCount, EC2InstanceIdsToTerminate, ShrinkPolicy, ReconfigurationType, and Configurations.',
+            ),
+        ] = None,
+        instance_fleet_config: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Instance fleet configuration for modification (required for modify-instance-fleet). Can include TargetOnDemandCapacity, TargetSpotCapacity, ResizeSpecifications, InstanceTypeConfigs, and Context.',
+            ),
+        ] = None,
+        instance_group_ids: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of instance group IDs (optional for list-instances).',
+            ),
+        ] = None,
+        instance_states: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of instance states to filter by (optional for list-instances). Valid values: AWAITING_FULFILLMENT, PROVISIONING, BOOTSTRAPPING, RUNNING, TERMINATED.',
+            ),
+        ] = None,
+        instance_group_types: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of instance group types to filter by (optional for list-instances). Valid values: MASTER, CORE, TASK.',
+            ),
+        ] = None,
+        instance_fleet_type: Annotated[
+            Optional[str],
+            Field(
+                description='Instance fleet type to filter by (optional for list-instances). Valid values: MASTER, CORE, TASK.',
+            ),
+        ] = None,
+        release_label: Annotated[
+            Optional[str],
+            Field(
+                description='EMR release label (required for list-supported-instance-types). Format: emr-x.x.x (e.g., emr-6.10.0).',
+            ),
+        ] = None,
+        marker: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for list operations.',
+            ),
+        ] = None,
     ) -> Union[
         AddInstanceFleetResponse,
         AddInstanceGroupsResponse,

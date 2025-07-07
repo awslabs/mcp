@@ -39,7 +39,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from mcp.server.fastmcp import Context
 from mcp.types import Content, TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 
 class EMREc2ClusterHandler:
@@ -110,150 +110,222 @@ class EMREc2ClusterHandler:
     async def manage_aws_emr_clusters(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-cluster, describe-cluster, modify-cluster, modify-cluster-attributes, terminate-clusters, list-clusters, create-security-configuration, delete-security-configuration, describe-security-configuration, list-security-configurations. Choose read-only operations when write access is disabled.',
-        ),
-        cluster_id: Optional[str] = Field(
-            None,
-            description='ID of the EMR cluster (required for describe-cluster, modify-cluster, modify-cluster-attributes).',
-        ),
-        cluster_ids: Optional[List[str]] = Field(
-            None,
-            description='List of EMR cluster IDs (required for terminate-clusters).',
-        ),
-        name: Optional[str] = Field(
-            None,
-            description='Name of the EMR cluster (required for create-cluster). Cannot contain <, >, $, |, or ` (backtick).',
-        ),
-        log_uri: Optional[str] = Field(
-            None,
-            description='The path to the Amazon S3 location where logs for the cluster are stored (optional for create-cluster).',
-        ),
-        log_encryption_kms_key_id: Optional[str] = Field(
-            None,
-            description='The KMS key used for encrypting log files. Available with EMR 5.30.0 and later, excluding EMR 6.0.0 (optional for create-cluster).',
-        ),
-        release_label: Optional[str] = Field(
-            None,
-            description='The Amazon EMR release label, which determines the version of open-source application packages installed on the cluster (required for create-cluster). Format: emr-x.x.x',
-        ),
-        applications: Optional[List[Dict[str, str]]] = Field(
-            None,
-            description='The applications to be installed on the cluster (optional for create-cluster). Example: [{"Name": "Hadoop"}, {"Name": "Spark"}]',
-        ),
-        instances: Optional[Dict[str, Any]] = Field(
-            None,
-            description='A specification of the number and type of Amazon EC2 instances (required for create-cluster). Must include instance groups or instance fleets configuration.',
-        ),
-        steps: Optional[List[Dict[str, Any]]] = Field(
-            None,
-            description='A list of steps to run on the cluster (optional for create-cluster). Each step contains Name, ActionOnFailure, and HadoopJarStep properties.',
-        ),
-        bootstrap_actions: Optional[List[Dict[str, Any]]] = Field(
-            None,
-            description='A list of bootstrap actions to run on the cluster (optional for create-cluster). Each action contains Name, ScriptBootstrapAction properties.',
-        ),
-        configurations: Optional[List[Dict[str, Any]]] = Field(
-            None,
-            description='A list of configurations to apply to the cluster (optional for create-cluster). Applies only to EMR releases 4.x and later.',
-        ),
-        visible_to_all_users: Optional[bool] = Field(
-            None,
-            description='Whether the cluster is visible to all IAM users of the AWS account (optional for create-cluster, default: true).',
-        ),
-        service_role: Optional[str] = Field(
-            None,
-            description='The IAM role that Amazon EMR assumes to access AWS resources on your behalf (optional for create-cluster).',
-        ),
-        job_flow_role: Optional[str] = Field(
-            None,
-            description='The IAM role for EC2 instances running the job flow (required for create-cluster when using temporary credentials).',
-        ),
-        security_configuration: Optional[str] = Field(
-            None,
-            description='The name of a security configuration to apply to the cluster (optional for create-cluster).',
-        ),
-        auto_scaling_role: Optional[str] = Field(
-            None,
-            description='An IAM role for automatic scaling policies (optional for create-cluster). Default role is EMR_AutoScaling_DefaultRole.',
-        ),
-        scale_down_behavior: Optional[str] = Field(
-            None,
-            description='The way that individual Amazon EC2 instances terminate when an automatic scale-in activity occurs (optional for create-cluster). Values: TERMINATE_AT_INSTANCE_HOUR, TERMINATE_AT_TASK_COMPLETION.',
-        ),
-        custom_ami_id: Optional[str] = Field(
-            None,
-            description='A custom Amazon Linux AMI for the cluster (optional for create-cluster). Available only in EMR releases 5.7.0 and later.',
-        ),
-        ebs_root_volume_size: Optional[int] = Field(
-            None,
-            description='The size, in GiB, of the EBS root device volume of the Linux AMI (optional for create-cluster). Available in EMR releases 4.x and later.',
-        ),
-        ebs_root_volume_iops: Optional[int] = Field(
-            None,
-            description='The IOPS of the EBS root device volume of the Linux AMI (optional for create-cluster). Available in EMR releases 6.15.0 and later.',
-        ),
-        ebs_root_volume_throughput: Optional[int] = Field(
-            None,
-            description='The throughput, in MiB/s, of the EBS root device volume of the Linux AMI (optional for create-cluster). Available in EMR releases 6.15.0 and later.',
-        ),
-        repo_upgrade_on_boot: Optional[str] = Field(
-            None,
-            description='Applies only when CustomAmiID is used. Specifies the type of updates that are applied from the Amazon Linux AMI package repositories when an instance boots (optional for create-cluster).',
-        ),
-        kerberos_attributes: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Attributes for Kerberos configuration when Kerberos authentication is enabled (optional for create-cluster).',
-        ),
-        step_concurrency_level: Optional[int] = Field(
-            None,
-            description='The number of steps that can be executed concurrently (required for modify-cluster). Range: 1-256.',
-        ),
-        auto_terminate: Optional[bool] = Field(
-            None,
-            description='Whether the cluster should auto-terminate after completing steps (optional for modify-cluster-attributes).',
-        ),
-        termination_protected: Optional[bool] = Field(
-            None,
-            description='Whether the cluster is protected from termination (optional for modify-cluster-attributes).',
-        ),
-        unhealthy_node_replacement: Optional[bool] = Field(
-            None,
-            description='Whether Amazon EMR should gracefully replace Amazon EC2 core instances that have degraded within the cluster (optional for create-cluster).',
-        ),
-        os_release_label: Optional[str] = Field(
-            None,
-            description='The Amazon Linux release for the cluster (optional for create-cluster).',
-        ),
-        placement_groups: Optional[List[Dict[str, Any]]] = Field(
-            None,
-            description='Placement group configuration for the cluster (optional for create-cluster).',
-        ),
-        cluster_states: Optional[List[str]] = Field(
-            None,
-            description='The cluster state filters to apply when listing clusters (optional for list-clusters).',
-        ),
-        created_after: Optional[str] = Field(
-            None,
-            description='The creation date and time beginning value filter for listing clusters (optional for list-clusters).',
-        ),
-        created_before: Optional[str] = Field(
-            None,
-            description='The creation date and time end value filter for listing clusters (optional for list-clusters).',
-        ),
-        marker: Optional[str] = Field(
-            None,
-            description='The pagination token for list-clusters operation.',
-        ),
-        security_configuration_name: Optional[str] = Field(
-            None,
-            description='Name of the security configuration (required for create-security-configuration, delete-security-configuration, describe-security-configuration).',
-        ),
-        security_configuration_json: Optional[Dict[str, Any]] = Field(
-            None,
-            description='JSON format security configuration (required for create-security-configuration).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-cluster, describe-cluster, modify-cluster, modify-cluster-attributes, terminate-clusters, list-clusters, create-security-configuration, delete-security-configuration, describe-security-configuration, list-security-configurations. Choose read-only operations when write access is disabled.',
+            ),
+        ],
+        cluster_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the EMR cluster (required for describe-cluster, modify-cluster, modify-cluster-attributes).',
+            ),
+        ] = None,
+        cluster_ids: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of EMR cluster IDs (required for terminate-clusters).',
+            ),
+        ] = None,
+        name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the EMR cluster (required for create-cluster). Cannot contain <, >, $, |, or ` (backtick).',
+            ),
+        ] = None,
+        log_uri: Annotated[
+            Optional[str],
+            Field(
+                description='The path to the Amazon S3 location where logs for the cluster are stored (optional for create-cluster).',
+            ),
+        ] = None,
+        log_encryption_kms_key_id: Annotated[
+            Optional[str],
+            Field(
+                description='The KMS key used for encrypting log files. Available with EMR 5.30.0 and later, excluding EMR 6.0.0 (optional for create-cluster).',
+            ),
+        ] = None,
+        release_label: Annotated[
+            Optional[str],
+            Field(
+                description='The Amazon EMR release label, which determines the version of open-source application packages installed on the cluster (required for create-cluster). Format: emr-x.x.x',
+            ),
+        ] = None,
+        applications: Annotated[
+            Optional[List[Dict[str, str]]],
+            Field(
+                description='The applications to be installed on the cluster (optional for create-cluster). Example: [{"Name": "Hadoop"}, {"Name": "Spark"}]',
+            ),
+        ] = None,
+        instances: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='A specification of the number and type of Amazon EC2 instances (required for create-cluster). Must include instance groups or instance fleets configuration.',
+            ),
+        ] = None,
+        steps: Annotated[
+            Optional[List[Dict[str, Any]]],
+            Field(
+                description='A list of steps to run on the cluster (optional for create-cluster). Each step contains Name, ActionOnFailure, and HadoopJarStep properties.',
+            ),
+        ] = None,
+        bootstrap_actions: Annotated[
+            Optional[List[Dict[str, Any]]],
+            Field(
+                description='A list of bootstrap actions to run on the cluster (optional for create-cluster). Each action contains Name, ScriptBootstrapAction properties.',
+            ),
+        ] = None,
+        configurations: Annotated[
+            Optional[List[Dict[str, Any]]],
+            Field(
+                description='A list of configurations to apply to the cluster (optional for create-cluster). Applies only to EMR releases 4.x and later.',
+            ),
+        ] = None,
+        visible_to_all_users: Annotated[
+            Optional[bool],
+            Field(
+                description='Whether the cluster is visible to all IAM users of the AWS account (optional for create-cluster, default: true).',
+            ),
+        ] = None,
+        service_role: Annotated[
+            Optional[str],
+            Field(
+                description='The IAM role that Amazon EMR assumes to access AWS resources on your behalf (optional for create-cluster).',
+            ),
+        ] = None,
+        job_flow_role: Annotated[
+            Optional[str],
+            Field(
+                description='The IAM role for EC2 instances running the job flow (required for create-cluster when using temporary credentials).',
+            ),
+        ] = None,
+        security_configuration: Annotated[
+            Optional[str],
+            Field(
+                description='The name of a security configuration to apply to the cluster (optional for create-cluster).',
+            ),
+        ] = None,
+        auto_scaling_role: Annotated[
+            Optional[str],
+            Field(
+                description='An IAM role for automatic scaling policies (optional for create-cluster). Default role is EMR_AutoScaling_DefaultRole.',
+            ),
+        ] = None,
+        scale_down_behavior: Annotated[
+            Optional[str],
+            Field(
+                description='The way that individual Amazon EC2 instances terminate when an automatic scale-in activity occurs (optional for create-cluster). Values: TERMINATE_AT_INSTANCE_HOUR, TERMINATE_AT_TASK_COMPLETION.',
+            ),
+        ] = None,
+        custom_ami_id: Annotated[
+            Optional[str],
+            Field(
+                description='A custom Amazon Linux AMI for the cluster (optional for create-cluster). Available only in EMR releases 5.7.0 and later.',
+            ),
+        ] = None,
+        ebs_root_volume_size: Annotated[
+            Optional[int],
+            Field(
+                description='The size, in GiB, of the EBS root device volume of the Linux AMI (optional for create-cluster). Available in EMR releases 4.x and later.',
+            ),
+        ] = None,
+        ebs_root_volume_iops: Annotated[
+            Optional[int],
+            Field(
+                description='The IOPS of the EBS root device volume of the Linux AMI (optional for create-cluster). Available in EMR releases 6.15.0 and later.',
+            ),
+        ] = None,
+        ebs_root_volume_throughput: Annotated[
+            Optional[int],
+            Field(
+                description='The throughput, in MiB/s, of the EBS root device volume of the Linux AMI (optional for create-cluster). Available in EMR releases 6.15.0 and later.',
+            ),
+        ] = None,
+        repo_upgrade_on_boot: Annotated[
+            Optional[str],
+            Field(
+                description='Applies only when CustomAmiID is used. Specifies the type of updates that are applied from the Amazon Linux AMI package repositories when an instance boots (optional for create-cluster).',
+            ),
+        ] = None,
+        kerberos_attributes: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Attributes for Kerberos configuration when Kerberos authentication is enabled (optional for create-cluster).',
+            ),
+        ] = None,
+        step_concurrency_level: Annotated[
+            Optional[int],
+            Field(
+                description='The number of steps that can be executed concurrently (required for modify-cluster). Range: 1-256.',
+            ),
+        ] = None,
+        auto_terminate: Annotated[
+            Optional[bool],
+            Field(
+                description='Whether the cluster should auto-terminate after completing steps (optional for modify-cluster-attributes).',
+            ),
+        ] = None,
+        termination_protected: Annotated[
+            Optional[bool],
+            Field(
+                description='Whether the cluster is protected from termination (optional for modify-cluster-attributes).',
+            ),
+        ] = None,
+        unhealthy_node_replacement: Annotated[
+            Optional[bool],
+            Field(
+                description='Whether Amazon EMR should gracefully replace Amazon EC2 core instances that have degraded within the cluster (optional for create-cluster).',
+            ),
+        ] = None,
+        os_release_label: Annotated[
+            Optional[str],
+            Field(
+                description='The Amazon Linux release for the cluster (optional for create-cluster).',
+            ),
+        ] = None,
+        placement_groups: Annotated[
+            Optional[List[Dict[str, Any]]],
+            Field(
+                description='Placement group configuration for the cluster (optional for create-cluster).',
+            ),
+        ] = None,
+        cluster_states: Annotated[
+            Optional[List[str]],
+            Field(
+                description='The cluster state filters to apply when listing clusters (optional for list-clusters).',
+            ),
+        ] = None,
+        created_after: Annotated[
+            Optional[str],
+            Field(
+                description='The creation date and time beginning value filter for listing clusters (optional for list-clusters).',
+            ),
+        ] = None,
+        created_before: Annotated[
+            Optional[str],
+            Field(
+                description='The creation date and time end value filter for listing clusters (optional for list-clusters).',
+            ),
+        ] = None,
+        marker: Annotated[
+            Optional[str],
+            Field(
+                description='The pagination token for list-clusters operation.',
+            ),
+        ] = None,
+        security_configuration_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the security configuration (required for create-security-configuration, delete-security-configuration, describe-security-configuration).',
+            ),
+        ] = None,
+        security_configuration_json: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='JSON format security configuration (required for create-security-configuration).',
+            ),
+        ] = None,
     ) -> Union[
         CreateClusterResponse,
         DescribeClusterResponse,

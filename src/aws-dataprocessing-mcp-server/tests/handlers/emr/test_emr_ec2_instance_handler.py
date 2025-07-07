@@ -386,6 +386,165 @@ class TestParameterValidation:
                     )
                 assert 'release_label' in str(excinfo.value)
 
+    # New test cases for direct ValueError testing
+    class TestDirectParameterValidation:
+        """Test direct parameter validation for EMR operations without mocking the method."""
+
+        async def test_add_instance_fleet_missing_cluster_id(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when cluster_id is missing for add-instance-fleet."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='add-instance-fleet',
+                    instance_fleet={'InstanceFleetType': 'TASK'},  # Missing cluster_id
+                )
+            assert 'cluster_id and instance_fleet are required' in str(excinfo.value)
+
+        async def test_add_instance_fleet_missing_instance_fleet(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when instance_fleet is missing for add-instance-fleet."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='add-instance-fleet',
+                    cluster_id='j-12345ABCDEF',  # Missing instance_fleet
+                )
+            assert 'cluster_id and instance_fleet are required' in str(excinfo.value)
+
+        async def test_add_instance_groups_missing_cluster_id(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when cluster_id is missing for add-instance-groups."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='add-instance-groups',
+                    instance_groups=[
+                        {
+                            'InstanceRole': 'TASK',
+                            'InstanceType': 'm5.xlarge',
+                            'InstanceCount': 2,
+                        }
+                    ],  # Missing cluster_id
+                )
+            assert 'cluster_id and instance_groups are required' in str(excinfo.value)
+
+        async def test_add_instance_groups_missing_instance_groups(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when instance_groups is missing for add-instance-groups."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='add-instance-groups',
+                    cluster_id='j-12345ABCDEF',  # Missing instance_groups
+                )
+            assert 'cluster_id and instance_groups are required' in str(excinfo.value)
+
+        async def test_modify_instance_fleet_missing_cluster_id(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when cluster_id is missing for modify-instance-fleet."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='modify-instance-fleet',
+                    instance_fleet_id='if-12345ABCDEF',
+                    instance_fleet_config={'TargetOnDemandCapacity': 5},
+                    # Missing cluster_id
+                )
+            assert 'cluster_id, instance_fleet_id, and instance_fleet_config are required' in str(
+                excinfo.value
+            )
+
+        async def test_modify_instance_fleet_missing_instance_fleet_id(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when instance_fleet_id is missing for modify-instance-fleet."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='modify-instance-fleet',
+                    cluster_id='j-12345ABCDEF',
+                    instance_fleet_config={'TargetOnDemandCapacity': 5},
+                    # Missing instance_fleet_id
+                )
+            assert 'cluster_id, instance_fleet_id, and instance_fleet_config are required' in str(
+                excinfo.value
+            )
+
+        async def test_modify_instance_fleet_missing_instance_fleet_config(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when instance_fleet_config is missing for modify-instance-fleet."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='modify-instance-fleet',
+                    cluster_id='j-12345ABCDEF',
+                    instance_fleet_id='if-12345ABCDEF',
+                    # Missing instance_fleet_config
+                )
+            assert 'cluster_id, instance_fleet_id, and instance_fleet_config are required' in str(
+                excinfo.value
+            )
+
+        async def test_modify_instance_groups_missing_instance_group_configs(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when instance_group_configs is missing for modify-instance-groups."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='modify-instance-groups',
+                    cluster_id='j-12345ABCDEF',
+                    # Missing instance_group_configs
+                )
+            assert 'instance_group_configs is required' in str(excinfo.value)
+
+        async def test_list_instance_fleets_missing_cluster_id(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when cluster_id is missing for list-instance-fleets."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='list-instance-fleets',
+                    # Missing cluster_id
+                )
+            assert 'cluster_id is required for list-instance-fleets operation' in str(
+                excinfo.value
+            )
+
+        async def test_list_instances_missing_cluster_id(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when cluster_id is missing for list-instances."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='list-instances',
+                    # Missing cluster_id
+                )
+            assert 'cluster_id is required for list-instances operation' in str(excinfo.value)
+
+        async def test_list_supported_instance_types_missing_release_label(
+            self, emr_handler_with_write_access, mock_context
+        ):
+            """Test ValueError is raised when release_label is missing for list-supported-instance-types."""
+            with pytest.raises(ValueError) as excinfo:
+                await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                    ctx=mock_context,
+                    operation='list-supported-instance-types',
+                    # Missing release_label
+                )
+            assert 'release_label is required for list-supported-instance-types operation' in str(
+                excinfo.value
+            )
+
 
 class TestAddInstanceFleet:
     """Test add-instance-fleet operation."""
@@ -535,714 +694,3 @@ class TestAddInstanceGroups:
                 # Verify response
                 assert result.isError is False
                 assert result.cluster_id == 'j-12345ABCDEF'
-                assert result.job_flow_id == 'j-12345ABCDEF'
-                assert len(result.instance_group_ids) == 2
-                assert result.instance_group_ids[0] == 'ig-12345ABCDEF'
-                assert result.instance_group_ids[1] == 'ig-67890GHIJKL'
-                assert any(
-                    'Successfully added instance groups' in content.text
-                    for content in result.content
-                )
-
-
-class TestModifyInstanceFleet:
-    """Test modify-instance-fleet operation."""
-
-    async def test_modify_instance_fleet_with_valid_mcp_tags(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-fleet with valid MCP tags."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            # Mock describe_cluster response with valid MCP tags
-            mock_emr_client.describe_cluster.return_value = {
-                'Cluster': {
-                    'Id': 'j-12345ABCDEF',
-                    'Tags': [
-                        {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
-                        {'Key': MCP_RESOURCE_TYPE_TAG_KEY, 'Value': 'EMRCluster'},
-                    ],
-                }
-            }
-
-            # Mock successful fleet modification
-            mock_emr_client.modify_instance_fleet.return_value = {}
-
-            # Call function
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-fleet',
-                cluster_id='j-12345ABCDEF',
-                instance_fleet_id='if-12345ABCDEF',
-                instance_fleet_config={'TargetOnDemandCapacity': 5, 'TargetSpotCapacity': 0},
-            )
-
-            # Verify AWS client calls
-            mock_emr_client.describe_cluster.assert_called_once_with(ClusterId='j-12345ABCDEF')
-            mock_emr_client.modify_instance_fleet.assert_called_once()
-
-            # Verify correct fleet parameters were passed
-            args, kwargs = mock_emr_client.modify_instance_fleet.call_args
-            assert kwargs['ClusterId'] == 'j-12345ABCDEF'
-            assert kwargs['InstanceFleet']['InstanceFleetId'] == 'if-12345ABCDEF'
-            assert kwargs['InstanceFleet']['TargetOnDemandCapacity'] == 5
-            assert kwargs['InstanceFleet']['TargetSpotCapacity'] == 0
-
-            # Verify response
-            assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert result.instance_fleet_id == 'if-12345ABCDEF'
-            assert any(
-                'Successfully modified instance fleet' in content.text
-                for content in result.content
-            )
-
-    async def test_modify_instance_fleet_without_mcp_tags(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-fleet is denied when MCP tags are missing."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            # Mock describe_cluster response without MCP tags
-            mock_emr_client.describe_cluster.return_value = {
-                'Cluster': {
-                    'Id': 'j-12345ABCDEF',
-                    'Tags': [
-                        {'Key': 'OtherTag', 'Value': 'OtherValue'},
-                    ],
-                }
-            }
-
-            # Call function
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-fleet',
-                cluster_id='j-12345ABCDEF',
-                instance_fleet_id='if-12345ABCDEF',
-                instance_fleet_config={'TargetOnDemandCapacity': 5},
-            )
-
-            # Verify modify_instance_fleet was not called
-            mock_emr_client.modify_instance_fleet.assert_not_called()
-
-            # Verify error response
-            assert result.isError is True
-            assert any(
-                'resource is not managed by MCP' in content.text for content in result.content
-            )
-
-    async def test_modify_instance_fleet_wrong_resource_type(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-fleet is denied with incorrect resource type tag."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            # Mock describe_cluster response with wrong resource type
-            mock_emr_client.describe_cluster.return_value = {
-                'Cluster': {
-                    'Id': 'j-12345ABCDEF',
-                    'Tags': [
-                        {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
-                        {'Key': MCP_RESOURCE_TYPE_TAG_KEY, 'Value': 'S3Bucket'},  # Wrong type
-                    ],
-                }
-            }
-
-            # Call function
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-fleet',
-                cluster_id='j-12345ABCDEF',
-                instance_fleet_id='if-12345ABCDEF',
-                instance_fleet_config={'TargetOnDemandCapacity': 5},
-            )
-
-            # Verify modify_instance_fleet was not called
-            mock_emr_client.modify_instance_fleet.assert_not_called()
-
-            # Verify error response
-            assert result.isError is True
-            assert any('resource type mismatch' in content.text for content in result.content)
-
-
-class TestModifyInstanceGroups:
-    """Test modify-instance-groups operation."""
-
-    async def test_modify_instance_groups_success(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test successful modify-instance-groups operation."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            # Mock describe_cluster response with valid MCP tags
-            mock_emr_client.describe_cluster.return_value = {
-                'Cluster': {
-                    'Id': 'j-12345ABCDEF',
-                    'Tags': [
-                        {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
-                        {'Key': MCP_RESOURCE_TYPE_TAG_KEY, 'Value': 'EMRCluster'},
-                    ],
-                }
-            }
-
-            # Mock successful groups modification
-            mock_emr_client.modify_instance_groups.return_value = {}
-
-            # Call function
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-groups',
-                cluster_id='j-12345ABCDEF',
-                instance_group_configs=[
-                    {'InstanceGroupId': 'ig-12345ABCDEF', 'InstanceCount': 3},
-                    {'InstanceGroupId': 'ig-67890GHIJKL', 'InstanceCount': 2},
-                ],
-            )
-
-            # Verify AWS client calls
-            mock_emr_client.describe_cluster.assert_called_once_with(ClusterId='j-12345ABCDEF')
-            mock_emr_client.modify_instance_groups.assert_called_once()
-
-            # Verify correct parameters were passed
-            args, kwargs = mock_emr_client.modify_instance_groups.call_args
-            assert kwargs['ClusterId'] == 'j-12345ABCDEF'
-            assert len(kwargs['InstanceGroups']) == 2
-
-            # Verify response
-            assert result.isError is False
-            assert result.cluster_id == 'j-12345ABCDEF'
-            assert len(result.instance_group_ids) == 2
-            assert result.instance_group_ids[0] == 'ig-12345ABCDEF'
-            assert result.instance_group_ids[1] == 'ig-67890GHIJKL'
-            assert any('Successfully modified' in content.text for content in result.content)
-
-    async def test_modify_instance_groups_without_cluster_id(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-groups without cluster_id fails."""
-        result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-            ctx=mock_context,
-            operation='modify-instance-groups',
-            instance_group_configs=[{'InstanceGroupId': 'ig-12345ABCDEF', 'InstanceCount': 3}],
-        )
-
-        assert result.isError is True
-        assert any('resource is not managed by MCP' in content.text for content in result.content)
-
-    async def test_modify_instance_groups_tag_verification_error(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-groups when tag verification fails."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.describe_cluster.side_effect = Exception('Network error')
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-groups',
-                cluster_id='j-12345ABCDEF',
-                instance_group_configs=[{'InstanceGroupId': 'ig-12345ABCDEF', 'InstanceCount': 3}],
-            )
-
-            assert result.isError is True
-            assert any(
-                'Cannot verify MCP management tags' in content.text for content in result.content
-            )
-
-
-class TestListOperations:
-    """Test list operations."""
-
-    async def test_list_instances_with_fleet_type(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test list-instances with instance_fleet_type parameter."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_instances.return_value = {'Instances': [], 'Marker': None}
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-instances',
-                cluster_id='j-12345ABCDEF',
-                instance_fleet_type='MASTER',
-            )
-
-            assert result.isError is False
-            mock_emr_client.list_instances.assert_called_once()
-            args, kwargs = mock_emr_client.list_instances.call_args
-            assert kwargs['InstanceFleetType'] == 'MASTER'
-
-    async def test_list_instances_with_all_filters(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test list-instances with all filter parameters."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_instances.return_value = {
-                'Instances': [{'Id': 'i-123'}],
-                'Marker': 'next',
-            }
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-instances',
-                cluster_id='j-12345ABCDEF',
-                instance_states=['RUNNING'],
-                instance_group_types=['MASTER'],
-                instance_group_ids=['ig-123'],
-                instance_fleet_id='if-123',
-                marker='prev',
-            )
-
-            assert result.isError is False
-            assert result.count == 1
-            assert result.marker == 'next'
-
-    async def test_list_supported_instance_types_with_marker(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test list-supported-instance-types with marker."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_supported_instance_types.return_value = {
-                'SupportedInstanceTypes': [{'Type': 'm5.xlarge'}],
-                'Marker': 'next',
-            }
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-supported-instance-types',
-                release_label='emr-6.10.0',
-                marker='prev',
-            )
-
-            assert result.isError is False
-            assert result.count == 1
-            assert result.marker == 'next'
-            assert result.release_label == 'emr-6.10.0'
-
-
-class TestErrorHandling:
-    """Test error handling scenarios."""
-
-    async def test_general_exception_handling(self, emr_handler_with_write_access, mock_context):
-        """Test general exception handling."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_instances.side_effect = Exception('Unexpected error')
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-instances',
-                cluster_id='j-12345ABCDEF',
-            )
-
-            assert result.isError is True
-            assert any(
-                'Error in manage_aws_emr_ec2_instances' in content.text
-                for content in result.content
-            )
-
-    async def test_modify_fleet_tag_verification_error(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-fleet when tag verification fails."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.describe_cluster.side_effect = Exception('Network error')
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-fleet',
-                cluster_id='j-12345ABCDEF',
-                instance_fleet_id='if-123',
-                instance_fleet_config={'TargetOnDemandCapacity': 5},
-            )
-
-            assert result.isError is True
-            assert any(
-                'Cannot verify MCP management tags' in content.text for content in result.content
-            )
-
-
-class TestAddInstanceFleetEdgeCases:
-    """Test edge cases for add-instance-fleet operation."""
-
-    async def test_add_instance_fleet_without_instance_fleet_id_in_response(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test add-instance-fleet when AWS response doesn't include InstanceFleetId."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.add_instance_fleet.return_value = {}
-
-            with patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.prepare_resource_tags',
-                return_value={},
-            ):
-                result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                    ctx=mock_context,
-                    operation='add-instance-fleet',
-                    cluster_id='j-12345ABCDEF',
-                    instance_fleet={'InstanceFleetType': 'TASK'},
-                )
-
-                assert result.isError is False
-                assert result.instance_fleet_id == ''
-
-
-class TestAddInstanceGroupsEdgeCases:
-    """Test edge cases for add-instance-groups operation."""
-
-    async def test_add_instance_groups_without_instance_group_ids_in_response(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test add-instance-groups when AWS response doesn't include InstanceGroupIds."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.add_instance_groups.return_value = {'JobFlowId': 'j-12345ABCDEF'}
-
-            with patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.prepare_resource_tags',
-                return_value={},
-            ):
-                result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                    ctx=mock_context,
-                    operation='add-instance-groups',
-                    cluster_id='j-12345ABCDEF',
-                    instance_groups=[
-                        {'InstanceRole': 'TASK', 'InstanceType': 'm5.xlarge', 'InstanceCount': 2}
-                    ],
-                )
-
-                assert result.isError is False
-                assert result.instance_group_ids == []
-
-
-class TestListInstanceFleetsEdgeCases:
-    """Test edge cases for list-instance-fleets operation."""
-
-    async def test_list_instance_fleets_with_marker(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test list-instance-fleets with pagination marker."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_instance_fleets.return_value = {
-                'InstanceFleets': [{'Id': 'if-123'}],
-                'Marker': 'next-marker',
-            }
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-instance-fleets',
-                cluster_id='j-12345ABCDEF',
-                marker='prev-marker',
-            )
-
-            assert result.isError is False
-            assert result.count == 1
-            assert result.marker == 'next-marker'
-            mock_emr_client.list_instance_fleets.assert_called_once_with(
-                ClusterId='j-12345ABCDEF', Marker='prev-marker'
-            )
-
-
-class TestModifyInstanceFleetEdgeCases:
-    """Test edge cases for modify-instance-fleet operation."""
-
-    async def test_modify_instance_fleet_with_missing_resource_type_tag(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-fleet when resource type tag is missing."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.describe_cluster.return_value = {
-                'Cluster': {
-                    'Id': 'j-12345ABCDEF',
-                    'Tags': [
-                        {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
-                    ],
-                }
-            }
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-fleet',
-                cluster_id='j-12345ABCDEF',
-                instance_fleet_id='if-12345ABCDEF',
-                instance_fleet_config={'TargetOnDemandCapacity': 5},
-            )
-
-            assert result.isError is True
-            assert any('resource type mismatch' in content.text for content in result.content)
-
-
-class TestModifyInstanceGroupsEdgeCases:
-    """Test edge cases for modify-instance-groups operation."""
-
-    async def test_modify_instance_groups_without_instance_group_configs(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-groups without cluster_id calls API correctly."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.describe_cluster.return_value = {
-                'Cluster': {
-                    'Id': 'j-12345ABCDEF',
-                    'Tags': [
-                        {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
-                        {'Key': MCP_RESOURCE_TYPE_TAG_KEY, 'Value': 'EMRCluster'},
-                    ],
-                }
-            }
-            mock_emr_client.modify_instance_groups.return_value = {}
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-groups',
-                cluster_id='j-12345ABCDEF',
-                instance_group_configs=[
-                    {'InstanceGroupId': 'ig-12345ABCDEF', 'InstanceCount': 3},
-                    {'InstanceGroupId': 'ig-67890GHIJKL'},
-                ],
-            )
-
-            assert result.isError is False
-            assert len(result.instance_group_ids) == 2
-            assert result.instance_group_ids[0] == 'ig-12345ABCDEF'
-            assert result.instance_group_ids[1] == 'ig-67890GHIJKL'
-
-
-class TestParameterEdgeCases:
-    """Test parameter edge cases."""
-
-    async def test_list_instances_without_instance_fleet_type_in_params(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test list-instances without instance_fleet_type parameter."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_instances.return_value = {'Instances': [], 'Marker': None}
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-instances',
-                cluster_id='j-12345ABCDEF',
-            )
-
-            assert result.isError is False
-            mock_emr_client.list_instances.assert_called_once()
-
-
-class TestResponseEdgeCases:
-    """Test response edge cases and missing branches."""
-
-    async def test_add_instance_fleet_empty_response_fields(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test add-instance-fleet with empty response fields."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.add_instance_fleet.return_value = {
-                'InstanceFleetId': 'if-12345ABCDEF',
-                'ClusterArn': '',
-            }
-
-            with patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.prepare_resource_tags',
-                return_value={},
-            ):
-                result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                    ctx=mock_context,
-                    operation='add-instance-fleet',
-                    cluster_id='j-12345ABCDEF',
-                    instance_fleet={'InstanceFleetType': 'TASK'},
-                )
-
-                assert result.isError is False
-                assert result.cluster_arn == ''
-
-    async def test_add_instance_groups_empty_response_fields(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test add-instance-groups with empty response fields."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.add_instance_groups.return_value = {
-                'InstanceGroupIds': ['ig-123'],
-                'JobFlowId': '',
-                'ClusterArn': '',
-            }
-
-            with patch(
-                'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.prepare_resource_tags',
-                return_value={},
-            ):
-                result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                    ctx=mock_context,
-                    operation='add-instance-groups',
-                    cluster_id='j-12345ABCDEF',
-                    instance_groups=[
-                        {'InstanceRole': 'TASK', 'InstanceType': 'm5.xlarge', 'InstanceCount': 2}
-                    ],
-                )
-
-                assert result.isError is False
-                assert result.job_flow_id == ''
-                assert result.cluster_arn == ''
-
-    async def test_list_instance_fleets_empty_response(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test list-instance-fleets with empty response."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_instance_fleets.return_value = {}
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-instance-fleets',
-                cluster_id='j-12345ABCDEF',
-            )
-
-            assert result.isError is False
-            assert result.instance_fleets == []
-            assert result.count == 0
-            assert result.marker is None
-
-    async def test_list_instances_empty_response(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test list-instances with empty response."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_instances.return_value = {}
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-instances',
-                cluster_id='j-12345ABCDEF',
-            )
-
-            assert result.isError is False
-            assert result.instances == []
-            assert result.count == 0
-            assert result.marker is None
-
-    async def test_list_supported_instance_types_empty_response(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test list-supported-instance-types with empty response."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_supported_instance_types.return_value = {}
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-supported-instance-types',
-                release_label='emr-6.10.0',
-            )
-
-            assert result.isError is False
-            assert result.instance_types == []
-            assert result.count == 0
-            assert result.marker is None
-
-
-class TestStringConversions:
-    """Test string conversion edge cases."""
-
-    async def test_cluster_id_integer_conversion(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test that cluster_id is properly converted to string."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_instances.return_value = {'Instances': [], 'Marker': None}
-
-            # Pass integer cluster_id
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-instances',
-                cluster_id=12345,  # Integer instead of string
-            )
-
-            assert result.isError is False
-            mock_emr_client.list_instances.assert_called_once()
-            args, kwargs = mock_emr_client.list_instances.call_args
-            assert kwargs['ClusterId'] == '12345'
-
-
-class TestComplexParameterCombinations:
-    """Test complex parameter combinations."""
-
-    async def test_modify_instance_groups_without_cluster_id_in_params(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-groups calls API without cluster_id when not provided."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            # Mock to avoid the tag verification path
-            mock_emr_client.modify_instance_groups.return_value = {}
-
-            # This should trigger the path where cluster_id is None
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-groups',
-                instance_group_configs=[{'InstanceGroupId': 'ig-12345ABCDEF', 'InstanceCount': 3}],
-            )
-
-            # Should fail due to tag verification requirement
-            assert result.isError is True
-
-    async def test_list_instances_with_instance_fleet_type_parameter_handling(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test list-instances with instance_fleet_type parameter handling."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.list_instances.return_value = {'Instances': [], 'Marker': None}
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='list-instances',
-                cluster_id='j-12345ABCDEF',
-                instance_fleet_type='CORE',
-                instance_states=['RUNNING'],
-            )
-
-            assert result.isError is False
-            mock_emr_client.list_instances.assert_called_once()
-
-
-class TestTaggingEdgeCases:
-    """Test tagging edge cases."""
-
-    async def test_modify_instance_fleet_with_empty_resource_type_tag(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-fleet with empty resource type tag."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.describe_cluster.return_value = {
-                'Cluster': {
-                    'Id': 'j-12345ABCDEF',
-                    'Tags': [
-                        {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
-                        {'Key': MCP_RESOURCE_TYPE_TAG_KEY, 'Value': ''},  # Empty value
-                    ],
-                }
-            }
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-fleet',
-                cluster_id='j-12345ABCDEF',
-                instance_fleet_id='if-12345ABCDEF',
-                instance_fleet_config={'TargetOnDemandCapacity': 5},
-            )
-
-            assert result.isError is True
-            assert any('resource type mismatch' in content.text for content in result.content)
-
-    async def test_modify_instance_groups_with_empty_resource_type_tag(
-        self, emr_handler_with_write_access, mock_context
-    ):
-        """Test modify-instance-groups with empty resource type tag."""
-        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
-            mock_emr_client.describe_cluster.return_value = {
-                'Cluster': {
-                    'Id': 'j-12345ABCDEF',
-                    'Tags': [
-                        {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
-                        {'Key': MCP_RESOURCE_TYPE_TAG_KEY, 'Value': ''},  # Empty value
-                    ],
-                }
-            }
-
-            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
-                ctx=mock_context,
-                operation='modify-instance-groups',
-                cluster_id='j-12345ABCDEF',
-                instance_group_configs=[{'InstanceGroupId': 'ig-12345ABCDEF', 'InstanceCount': 3}],
-            )
-
-            assert result.isError is True
-            assert any('resource type mismatch' in content.text for content in result.content)

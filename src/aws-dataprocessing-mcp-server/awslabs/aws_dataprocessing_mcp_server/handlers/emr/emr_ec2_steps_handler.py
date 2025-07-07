@@ -32,7 +32,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 
 class EMREc2StepsHandler:
@@ -57,38 +57,54 @@ class EMREc2StepsHandler:
     async def manage_aws_emr_ec2_steps(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: add-steps, cancel-steps, describe-step, list-steps. Choose read-only operations when write access is disabled.',
-        ),
-        cluster_id: str = Field(
-            ...,
-            description='ID of the EMR cluster.',
-        ),
-        step_id: Optional[str] = Field(
-            None,
-            description='ID of the EMR step (required for describe-step).',
-        ),
-        step_ids: Optional[List[str]] = Field(
-            None,
-            description='List of EMR step IDs (required for cancel-steps, optional for list-steps).',
-        ),
-        steps: Optional[List[Dict[str, Any]]] = Field(
-            None,
-            description='List of steps to add to the cluster (required for add-steps). Each step should include Name, ActionOnFailure, and HadoopJarStep.',
-        ),
-        step_states: Optional[List[str]] = Field(
-            None,
-            description='The step state filters to apply when listing steps (optional for list-steps). Valid values: PENDING, CANCEL_PENDING, RUNNING, COMPLETED, CANCELLED, FAILED, INTERRUPTED.',
-        ),
-        marker: Optional[str] = Field(
-            None,
-            description='The pagination token for list-steps operation.',
-        ),
-        step_cancellation_option: Optional[str] = Field(
-            None,
-            description='Option for canceling steps. Valid values: SEND_INTERRUPT, TERMINATE_PROCESS. Default is SEND_INTERRUPT.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: add-steps, cancel-steps, describe-step, list-steps. Choose read-only operations when write access is disabled.',
+            ),
+        ],
+        cluster_id: Annotated[
+            str,
+            Field(
+                description='ID of the EMR cluster.',
+            ),
+        ],
+        step_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the EMR step (required for describe-step).',
+            ),
+        ] = None,
+        step_ids: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of EMR step IDs (required for cancel-steps, optional for list-steps).',
+            ),
+        ] = None,
+        steps: Annotated[
+            Optional[List[Dict[str, Any]]],
+            Field(
+                description='List of steps to add to the cluster (required for add-steps). Each step should include Name, ActionOnFailure, and HadoopJarStep.',
+            ),
+        ] = None,
+        step_states: Annotated[
+            Optional[List[str]],
+            Field(
+                description='The step state filters to apply when listing steps (optional for list-steps). Valid values: PENDING, CANCEL_PENDING, RUNNING, COMPLETED, CANCELLED, FAILED, INTERRUPTED.',
+            ),
+        ] = None,
+        marker: Annotated[
+            Optional[str],
+            Field(
+                description='The pagination token for list-steps operation.',
+            ),
+        ] = None,
+        step_cancellation_option: Annotated[
+            Optional[str],
+            Field(
+                description='Option for canceling steps. Valid values: SEND_INTERRUPT, TERMINATE_PROCESS. Default is SEND_INTERRUPT.',
+            ),
+        ] = None,
     ) -> Union[
         AddStepsResponse,
         CancelStepsResponse,
