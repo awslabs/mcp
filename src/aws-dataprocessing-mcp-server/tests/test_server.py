@@ -73,6 +73,10 @@ async def test_server_initialization():
         assert 'Running Athena Queries' in instructions_str
         assert 'Creating Athena Named Queries' in instructions_str
         assert 'Athena Workgroup and Data Catalog' in instructions_str
+        assert 'Setup EMR EC2 Cluster' in instructions_str
+        assert 'Run EMR EC2 Steps' in instructions_str
+        assert 'Manage EMR EC2 Instance Resources' in instructions_str
+
         # Test that the server has the correct dependencies
         assert 'pydantic' in server.dependencies
         assert 'loguru' in server.dependencies
