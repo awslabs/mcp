@@ -1,7 +1,7 @@
+import pytest
 from botocore.exceptions import ClientError
 from enum import Enum
 from typing import Any, Dict, List, Optional
-import pytest
 
 
 class MockException(Enum):

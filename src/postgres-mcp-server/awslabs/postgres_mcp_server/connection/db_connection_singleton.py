@@ -14,6 +14,8 @@
 
 """Database connection singleton for postgres MCP Server."""
 
+import asyncio
+from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
 from loguru import logger
 
 
@@ -44,9 +46,6 @@ class DBConnectionSingleton:
                 'Missing required connection parameters for RDS Data API. '
                 'Please provide resource_arn, secret_arn, database, and region.'
             )
-        
-        # Import here to avoid circular imports
-        from awslabs.postgres_mcp_server.connection.rds_connector import RDSDataAPIConnection
         
         self._db_connection = RDSDataAPIConnection(
             cluster_arn=resource_arn,
@@ -103,7 +102,6 @@ class DBConnectionSingleton:
         if cls._instance and cls._instance._db_connection:
             # Handle calling async close method from sync context
             try:
-                import asyncio
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     # If we're in an async context, create a task

@@ -18,6 +18,7 @@ import argparse
 import asyncio
 import sys
 from awslabs.postgres_mcp_server.connection import DBConnectionSingleton
+from awslabs.postgres_mcp_server.connection.psycogp_pool_connection import PsycopgPoolConnection
 from awslabs.postgres_mcp_server.mutable_sql_detector import (
     check_sql_injection_risk,
     detect_mutating_keywords,
@@ -318,11 +319,8 @@ def main():
                 sys.exit(1)
                 
         else:
-            # Use direct PostgreSQL connection with connection pool
+            # Use Direct PostgreSQL connection using psycopg connection pool
             try:
-                # Import here to avoid circular imports
-                from awslabs.postgres_mcp_server.connection.psycopg_connector import PsycopgPoolConnection
-                
                 # Create a direct PostgreSQL connection pool
                 db_connection = PsycopgPoolConnection(
                     host=args.hostname,

@@ -21,13 +21,14 @@ parameters (host, port, database, user, password) or via AWS Secrets Manager.
 
 import boto3
 import json
+import psycopg
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
+from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+
 if TYPE_CHECKING:
     from psycopg_pool import AsyncConnectionPool
-
-from awslabs.postgres_mcp_server.connection.abstract_class import AbstractDBConnection
 
 
 class PsycopgPoolConnection(AbstractDBConnection):
@@ -86,7 +87,6 @@ class PsycopgPoolConnection(AbstractDBConnection):
     
     async def _get_connection(self):
         """Get a database connection."""
-        import psycopg
         return await psycopg.AsyncConnection.connect(self.conninfo)
         
     async def _set_all_connections_readonly(self):
