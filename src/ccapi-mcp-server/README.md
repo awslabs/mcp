@@ -366,6 +366,72 @@ Get the status of a mutation that was initiated by create/update/delete resource
 Creates CloudFormation templates from existing AWS resources using AWS CloudFormation's IaC Generator API. **Currently only generates CloudFormation templates** in JSON or YAML format. While this MCP tool doesn't directly generate other IaC formats like Terraform or CDK, LLMs can use their native capabilities to convert the generated CloudFormation template to other formats - though this conversion happens outside the MCP server's scope.
 **Example**: Generate a CloudFormation YAML template from existing S3 buckets and EC2 instances, then ask the LLM to convert it to Terraform HCL.
 
+## LLM Tool Selection Guidelines
+
+**Important**: When using multiple MCP servers, LLMs may choose tools from any available server without consideration for which is most appropriate. MCP has no built-in orchestration or enforcement mechanisms at this time - LLMs can use any tool from any server at will.
+
+### Common Tool Selection Conflicts
+
+- **Multiple Infrastructure MCP Servers**: Using CCAPI MCP server alongside other MCP servers that perform similar functions (such as Terraform MCP, CDK MCP, CFN MCP) may cause LLMs to randomly choose between them
+- **Built-in Tools**: LLMs may choose built-in tools instead of this MCP server's tools:
+  - Amazon Q Developer CLI: `use_aws`, `execute_bash`, `fs_read`, `fs_write`
+  - Other tools may have similar built-in AWS or system capabilities
+
+#### The `use_aws` Problem
+
+**Most Problematic**: The `use_aws` tool (part of Amazon Q Developer CLI) is particularly problematic because it directly competes with this MCP server's AWS operations but operates separately, meaning it won't use any of the helpful features available in this MCP server such as Checkov security scanning.
+
+**What happens when LLM uses `use_aws`:**
+
+- ❌ No Checkov security scanning
+- ❌ No workflow validation
+- ❌ No credential verification display
+- ❌ No resource tagging
+- ❌ CCAPI MCP Server is not involved at all
+
+**If this happens:**
+
+1. Tell the LLM: "Please use the CCAPI MCP Server instead for AWS operations"
+2. Experiment with prompts like "Using the CCAPI MCP server, create..."
+3. For a scalable solution, implement the rules/instructions mentioned below
+
+**Note**: This is not a limitation of the CCAPI MCP Server - it's a current MCP protocol limitation. MCP has no native tool ordering concept or functionality, allowing LLMs to choose any available MCP server/tool. This flexibility is both good (choice) and problematic (undesirable sever/tool selection).
+
+### Recommendation
+
+Consult your LLM tool's documentation (Cursor, Cline, Amazon Q Developer, etc.) for how to provide rules/context/instructions to guide MCP server/tool selection. Most support some form of instruction mechanism.
+
+**Example instruction content:**
+
+```markdown
+# AWS Tool Selection Rules - MANDATORY FOR ALL LLM RESPONSES
+
+## STEP 1: Always Use CCAPI MCP Server First
+
+**TRIGGER CONDITIONS:**
+
+- ANY mention of AWS services or resources
+- ANY request involving AWS infrastructure, applications, or services
+- When in doubt, default to offering CCAPI MCP Server
+
+**REQUIRED ACTION:**
+ASK: "This seems like a good fit for the AWS Cloud Control API MCP server. Would you like to use the CCAPI MCP server for this?"
+
+## STEP 2: Only If CCAPI MCP Server Fails
+
+**IF ERROR OCCURS:**
+
+1. Show exact error message to user
+2. Explain: "⚠️ SECURITY WARNING: Fallback tools (use_aws, aws_cli) will bypass ALL security scanning and the CCAPI MCP Server entirely."
+3. Ask: "How do you want to proceed: (a) troubleshoot CCAPI MCP, (b) use unsecured AWS CLI, or (c) generate template?"
+4. Wait for explicit user choice before proceeding
+
+## FORBIDDEN ACTIONS
+
+- Never use use_aws, aws_cli, or executeBash for AWS operations without trying CCAPI MCP Server first
+- Never skip the user confirmation steps
+```
+
 ## Basic Usage
 
 Examples of how to use the AWS Infrastructure as Code MCP Server:
