@@ -41,6 +41,7 @@ version = "0.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
+    { name = "daft" },
     { name = "loguru" },
     { name = "mcp", extra = ["cli"] },
     { name = "pyarrow" },
@@ -64,6 +65,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.34.0" },
+    { name = "daft", specifier = ">=0.5.8" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.6.0" },
     { name = "pyarrow", specifier = ">=20.0.0" },
@@ -311,6 +313,24 @@ wheels = [
 [package.optional-dependencies]
 toml = [
     { name = "tomli", marker = "python_full_version <= '3.11'" },
+]
+
+[[package]]
+name = "daft"
+version = "0.5.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fsspec" },
+    { name = "pyarrow" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f1/44/6b5df8ee41c785d97f824a9d9ac3aba16520f100f48c28876e4bbdb8c15c/daft-0.5.8.tar.gz", hash = "sha256:563bddf3a7ff74a6393d9499585f488c584db6ea80427bbeea17fbc87274cf29", size = 4935051, upload-time = "2025-07-03T19:11:31.558Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/04/03/04424f84318f494a1adc56cae05a6c5588dc465317538642e1b2b6f22329/daft-0.5.8-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d303a2756bb6d5ffe0c6341a781135c2625af1b8d64d59ab035b579f9f2f3082", size = 44108304, upload-time = "2025-07-03T19:11:05.669Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/1d/64260a515890c6ea4e1e693c9eb2ff7fa9c5f8164ea4eee64fa0e54806d3/daft-0.5.8-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:ae299ff189698dc462f22b7449011ed23d1dd46d841f592a73936e49645d510c", size = 40317331, upload-time = "2025-07-03T19:11:09.046Z" },
+    { url = "https://files.pythonhosted.org/packages/76/d6/1fc0e2eaa2ea0d32a072843b7c32264a4fdd731673939f3979af903912d2/daft-0.5.8-cp39-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:5c6b93b27ebd8cbcbb087f801094b8177537c07c7f60a18c39ac2f5644cb034a", size = 41427234, upload-time = "2025-07-03T19:11:12.35Z" },
+    { url = "https://files.pythonhosted.org/packages/76/b5/1df0484023415ac98c9ddfd2955fc7b9bd25686c58e10eec69b24354ea45/daft-0.5.8-cp39-abi3-manylinux_2_24_x86_64.whl", hash = "sha256:13c1ee1f6b2812ca1da95f25c86cfca533816a6d2c725a3f90578758df34cf1d", size = 44344921, upload-time = "2025-07-03T19:11:15.661Z" },
+    { url = "https://files.pythonhosted.org/packages/00/c1/957f20425a24f695730af4a22519a8eafa083022970ab527e6e1fdbed75d/daft-0.5.8-cp39-abi3-win_amd64.whl", hash = "sha256:434a8ad2869ce2138c6c3478d8e7f4c705f8b4d7145c02b3fff2ba6e8cf804ad", size = 42866738, upload-time = "2025-07-03T19:11:18.974Z" },
 ]
 
 [[package]]
@@ -1314,6 +1334,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cc/18/0bbf3884e9eaa38819ebe46a7bd25dcd56b67434402b66a58c4b8e552575/tomlkit-0.13.3.tar.gz", hash = "sha256:430cf247ee57df2b94ee3fbe588e71d362a941ebb545dec29b53961d61add2a1", size = 185207, upload-time = "2025-06-05T07:13:44.947Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bd/75/8539d011f6be8e29f339c42e633aae3cb73bffa95dd0f9adec09b9c58e85/tomlkit-0.13.3-py3-none-any.whl", hash = "sha256:c89c649d79ee40629a9fda55f8ace8c6a1b42deb912b2a8fd8d942ddadb606b0", size = 38901, upload-time = "2025-06-05T07:13:43.546Z" },
+]
+
+[[package]]
+name = "tqdm"
+version = "4.67.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a8/4b/29b4ef32e036bb34e4ab51796dd745cdba7ed47ad142a9f4a1eb8e0c744d/tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2", size = 169737, upload-time = "2024-11-24T20:12:22.481Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2", size = 78540, upload-time = "2024-11-24T20:12:19.698Z" },
 ]
 
 [[package]]

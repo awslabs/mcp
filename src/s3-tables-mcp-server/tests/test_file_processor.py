@@ -14,7 +14,6 @@
 
 """Tests for the file processor module."""
 
-import os
 import pytest
 import uuid
 from awslabs.s3_tables_mcp_server.file_processor import (
@@ -498,15 +497,11 @@ class TestImportCsvToTable:
     @pytest.mark.asyncio
     async def test_successful_import(self, mock_s3_client, mock_catalog, mock_table, mock_schema):
         """Test successful CSV import."""
-        # Mock CSV content
         csv_content = 'id,name\n1,John\n2,Jane'
-
         mock_s3_response = MagicMock()
         mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
         mock_s3_client.get_object.return_value = mock_s3_response
-
         mock_table.schema.return_value = mock_schema
-
         with (
             patch(
                 'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
@@ -520,30 +515,28 @@ class TestImportCsvToTable:
             mock_load_catalog.return_value = mock_catalog
             mock_catalog.load_table.return_value = mock_table
             mock_process_chunk.return_value = {'status': 'success', 'message': 'Processed chunk'}
-
-            with patch.dict(os.environ, {'AWS_REGION': 'us-west-2'}):
-                result = await import_csv_to_table(
-                    table_bucket_arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-                    namespace='test_namespace',
-                    name='test_table',
-                    s3_url='s3://source-bucket/data.csv',
-                )
-
-                assert result['status'] == 'success'
-                assert result['rows_processed'] == 2
-                assert result['file_processed'] == 'data.csv'
-                assert result['csv_headers'] == ['id', 'name']
+            result = await import_csv_to_table(
+                warehouse='dummy-warehouse',
+                region='us-west-2',
+                namespace='test_namespace',
+                table_name='test_table',
+                s3_url='s3://source-bucket/data.csv',
+            )
+            assert result['status'] == 'success'
+            assert result['rows_processed'] == 2
+            assert result['file_processed'] == 'data.csv'
+            assert result['csv_headers'] == ['id', 'name']
 
     @pytest.mark.asyncio
     async def test_invalid_s3_url(self):
         """Test import with invalid S3 URL."""
         result = await import_csv_to_table(
-            table_bucket_arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            warehouse='dummy-warehouse',
+            region='us-west-2',
             namespace='test_namespace',
-            name='test_table',
+            table_name='test_table',
             s3_url='invalid-url',
         )
-
         assert result['status'] == 'error'
         assert 'Invalid URL scheme' in result['error']
 
@@ -551,43 +544,25 @@ class TestImportCsvToTable:
     async def test_non_csv_file(self):
         """Test import of non-CSV file."""
         result = await import_csv_to_table(
-            table_bucket_arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            warehouse='dummy-warehouse',
+            region='us-west-2',
             namespace='test_namespace',
-            name='test_table',
+            table_name='test_table',
             s3_url='s3://source-bucket/data.txt',
         )
-
         assert result['status'] == 'error'
         assert 'is not a CSV file' in result['error']
-
-    @pytest.mark.asyncio
-    async def test_missing_aws_region(self):
-        """Test import when AWS_REGION is not set."""
-        with patch.dict(os.environ, {}, clear=True):
-            result = await import_csv_to_table(
-                table_bucket_arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-                namespace='test_namespace',
-                name='test_table',
-                s3_url='s3://source-bucket/data.csv',
-            )
-
-            assert result['status'] == 'error'
-            assert 'AWS_REGION environment variable must be set' in result['error']
 
     @pytest.mark.asyncio
     async def test_csv_missing_required_columns(
         self, mock_s3_client, mock_catalog, mock_table, mock_schema
     ):
         """Test import when CSV is missing required columns."""
-        # Mock CSV content missing required column
         csv_content = 'id\n1\n2'
-
         mock_s3_response = MagicMock()
         mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
         mock_s3_client.get_object.return_value = mock_s3_response
-
         mock_table.schema.return_value = mock_schema
-
         with (
             patch(
                 'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
@@ -597,30 +572,24 @@ class TestImportCsvToTable:
             mock_get_s3_client.return_value = mock_s3_client
             mock_load_catalog.return_value = mock_catalog
             mock_catalog.load_table.return_value = mock_table
-
-            with patch.dict(os.environ, {'AWS_REGION': 'us-west-2'}):
-                result = await import_csv_to_table(
-                    table_bucket_arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-                    namespace='test_namespace',
-                    name='test_table',
-                    s3_url='s3://source-bucket/data.csv',
-                )
-
-                assert result['status'] == 'error'
-                assert 'CSV is missing required columns: name' in result['error']
+            result = await import_csv_to_table(
+                warehouse='dummy-warehouse',
+                region='us-west-2',
+                namespace='test_namespace',
+                table_name='test_table',
+                s3_url='s3://source-bucket/data.csv',
+            )
+            assert result['status'] == 'error'
+            assert 'CSV is missing required columns: name' in result['error']
 
     @pytest.mark.asyncio
     async def test_csv_no_headers(self, mock_s3_client, mock_catalog, mock_table, mock_schema):
         """Test import when CSV has no headers."""
-        # Mock CSV content
         csv_content = '1,John\n2,Jane'
-
         mock_s3_response = MagicMock()
         mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
         mock_s3_client.get_object.return_value = mock_s3_response
-
         mock_table.schema.return_value = mock_schema
-
         with (
             patch(
                 'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
@@ -633,37 +602,29 @@ class TestImportCsvToTable:
             mock_get_s3_client.return_value = mock_s3_client
             mock_load_catalog.return_value = mock_catalog
             mock_catalog.load_table.return_value = mock_table
-
-            # Mock DictReader to return None for fieldnames (simulating no headers)
             mock_reader = MagicMock()
             mock_reader.fieldnames = None
             mock_dict_reader.return_value = mock_reader
-
-            with patch.dict(os.environ, {'AWS_REGION': 'us-west-2'}):
-                result = await import_csv_to_table(
-                    table_bucket_arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-                    namespace='test_namespace',
-                    name='test_table',
-                    s3_url='s3://source-bucket/data.csv',
-                )
-
-                assert result['status'] == 'error'
-                assert 'CSV file has no headers' in result['error']
+            result = await import_csv_to_table(
+                warehouse='dummy-warehouse',
+                region='us-west-2',
+                namespace='test_namespace',
+                table_name='test_table',
+                s3_url='s3://source-bucket/data.csv',
+            )
+            assert result['status'] == 'error'
+            assert 'CSV file has no headers' in result['error']
 
     @pytest.mark.asyncio
     async def test_required_field_missing_in_row(
         self, mock_s3_client, mock_catalog, mock_table, mock_schema
     ):
         """Test import when a required field is missing in a row."""
-        # Mock CSV content with missing required field
-        csv_content = 'id,name\n1,John\n2,'  # Missing name in second row
-
+        csv_content = 'id,name\n1,John\n2,'
         mock_s3_response = MagicMock()
         mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
         mock_s3_client.get_object.return_value = mock_s3_response
-
         mock_table.schema.return_value = mock_schema
-
         with (
             patch(
                 'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
@@ -673,32 +634,26 @@ class TestImportCsvToTable:
             mock_get_s3_client.return_value = mock_s3_client
             mock_load_catalog.return_value = mock_catalog
             mock_catalog.load_table.return_value = mock_table
-
-            with patch.dict(os.environ, {'AWS_REGION': 'us-west-2'}):
-                result = await import_csv_to_table(
-                    table_bucket_arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-                    namespace='test_namespace',
-                    name='test_table',
-                    s3_url='s3://source-bucket/data.csv',
-                )
-
-                assert result['status'] == 'error'
-                assert 'Required field name is missing or empty in row 2' in result['error']
+            result = await import_csv_to_table(
+                warehouse='dummy-warehouse',
+                region='us-west-2',
+                namespace='test_namespace',
+                table_name='test_table',
+                s3_url='s3://source-bucket/data.csv',
+            )
+            assert result['status'] == 'error'
+            assert 'Required field name is missing or empty in row 2' in result['error']
 
     @pytest.mark.asyncio
     async def test_value_conversion_error(
         self, mock_s3_client, mock_catalog, mock_table, mock_schema
     ):
         """Test import when value conversion fails."""
-        # Mock CSV content with invalid integer
-        csv_content = 'id,name\n1,John\nabc,Jane'  # Invalid integer in first column
-
+        csv_content = 'id,name\n1,John\nabc,Jane'
         mock_s3_response = MagicMock()
         mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
         mock_s3_client.get_object.return_value = mock_s3_response
-
         mock_table.schema.return_value = mock_schema
-
         with (
             patch(
                 'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
@@ -708,34 +663,26 @@ class TestImportCsvToTable:
             mock_get_s3_client.return_value = mock_s3_client
             mock_load_catalog.return_value = mock_catalog
             mock_catalog.load_table.return_value = mock_table
-
-            with patch.dict(os.environ, {'AWS_REGION': 'us-west-2'}):
-                result = await import_csv_to_table(
-                    table_bucket_arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-                    namespace='test_namespace',
-                    name='test_table',
-                    s3_url='s3://source-bucket/data.csv',
-                )
-
-                assert result['status'] == 'error'
-                assert 'Error converting value for field id in row 2' in result['error']
+            result = await import_csv_to_table(
+                warehouse='dummy-warehouse',
+                region='us-west-2',
+                namespace='test_namespace',
+                table_name='test_table',
+                s3_url='s3://source-bucket/data.csv',
+            )
+            assert result['status'] == 'error'
+            assert 'Error converting value for field id in row 2' in result['error']
 
     @pytest.mark.asyncio
     async def test_chunk_processing_error(
         self, mock_s3_client, mock_catalog, mock_table, mock_schema
     ):
         """Test import when chunk processing fails."""
-        # Mock CSV content
-        csv_content = (
-            'id,name\n1,John\n2,Jane\n3,Bob\n4,Alice\n5,Charlie'  # 5 rows to trigger chunking
-        )
-
+        csv_content = 'id,name\n1,John\n2,Jane\n3,Bob\n4,Alice\n5,Charlie'
         mock_s3_response = MagicMock()
         mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
         mock_s3_client.get_object.return_value = mock_s3_response
-
         mock_table.schema.return_value = mock_schema
-
         with (
             patch(
                 'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
@@ -752,17 +699,15 @@ class TestImportCsvToTable:
                 'status': 'error',
                 'error': 'Chunk processing failed',
             }
-
-            with patch.dict(os.environ, {'AWS_REGION': 'us-west-2'}):
-                result = await import_csv_to_table(
-                    table_bucket_arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
-                    namespace='test_namespace',
-                    name='test_table',
-                    s3_url='s3://source-bucket/data.csv',
-                )
-
-                assert result['status'] == 'error'
-                assert 'Chunk processing failed' in result['error']
+            result = await import_csv_to_table(
+                warehouse='dummy-warehouse',
+                region='us-west-2',
+                namespace='test_namespace',
+                table_name='test_table',
+                s3_url='s3://source-bucket/data.csv',
+            )
+            assert result['status'] == 'error'
+            assert 'Chunk processing failed' in result['error']
 
     @pytest.mark.asyncio
     async def test_custom_region_parameter(
@@ -770,13 +715,10 @@ class TestImportCsvToTable:
     ):
         """Test import with custom region parameter."""
         csv_content = 'id,name\n1,John'
-
         mock_s3_response = MagicMock()
         mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
         mock_s3_client.get_object.return_value = mock_s3_response
-
         mock_table.schema.return_value = mock_schema
-
         with (
             patch(
                 'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
@@ -790,19 +732,14 @@ class TestImportCsvToTable:
             mock_load_catalog.return_value = mock_catalog
             mock_catalog.load_table.return_value = mock_table
             mock_process_chunk.return_value = {'status': 'success', 'message': 'Processed chunk'}
-
-            # Test with custom region parameter
             result = await import_csv_to_table(
-                table_bucket_arn='arn:aws:s3tables:us-east-1:123456789012:bucket/test-bucket',
+                warehouse='dummy-warehouse',
+                region='us-east-1',
                 namespace='test_namespace',
-                name='test_table',
+                table_name='test_table',
                 s3_url='s3://source-bucket/data.csv',
-                region_name='us-east-1',
             )
-
             assert result['status'] == 'success'
-
-            # Verify load_catalog was called with correct region
             mock_load_catalog.assert_called_once()
             call_args = mock_load_catalog.call_args[1]
             assert call_args['rest.signing-region'] == 'us-east-1'

@@ -330,11 +330,15 @@ def process_chunk(chunk: List[Dict], table, chunk_name: str = 'Chunk') -> Dict:
 
 
 async def import_csv_to_table(
-    table_bucket_arn: str,
+    warehouse: str,
+    region: str,
     namespace: str,
-    name: str,
+    table_name: str,
     s3_url: str,
-    region_name: Optional[str] = None,
+    uri: str = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
+    catalog_name: str = 's3tablescatalog',
+    rest_signing_name: str = 's3tables',
+    rest_sigv4_enabled: str = 'true',
 ) -> Dict:
     """Import data from a CSV file into an S3 table.
 
@@ -343,11 +347,15 @@ async def import_csv_to_table(
     before attempting to import the data.
 
     Args:
-        table_bucket_arn: The ARN of the table bucket containing the table
+        warehouse: Warehouse string for Iceberg catalog
+        region: AWS region for S3Tables/Iceberg REST endpoint
         namespace: The namespace containing the table
-        name: The name of the table to import data into
+        table_name: The name of the table to import data into
         s3_url: The S3 URL of the CSV file (format: s3://bucket-name/key)
-        region_name: Optional AWS region name
+        uri: REST URI for Iceberg catalog
+        catalog_name: Catalog name
+        rest_signing_name: REST signing name
+        rest_sigv4_enabled: Enable SigV4 signing
 
     Returns:
         A dictionary containing:
@@ -370,11 +378,9 @@ async def import_csv_to_table(
     if not is_valid:
         return {'status': 'error', 'error': error_msg}
 
-    # At this point, bucket and key are guaranteed to be non-None strings
     if bucket is None or key is None:
         return {'status': 'error', 'error': 'Invalid S3 URL: bucket or key is None'}
 
-    # Check if file has .csv extension
     if not key.lower().endswith('.csv'):
         return {
             'status': 'error',
@@ -382,45 +388,24 @@ async def import_csv_to_table(
         }
 
     try:
-        # Get region from parameter or environment variable
-        region = region_name or os.getenv('AWS_REGION')
-        if not region:
-            return {'status': 'error', 'error': 'AWS_REGION environment variable must be set'}
-
-        # Extract bucket name and account ID from ARN
-        # Format: arn:aws:s3tables:region:account-id:bucket/bucket-name
-        arn_parts = table_bucket_arn.split(':')
-        bucket_owner_account_id = arn_parts[4]  # The account ID is the 5th part
-        bucket_name = arn_parts[-1].split('/')[-1]  # Get the last part after 'bucket/'
-
-        # Load catalog with AWS Glue Iceberg REST endpoint
+        # Load catalog using provided parameters (see pyiceberg.py style)
         catalog = load_catalog(
-            's3tablescatalog',
+            catalog_name,
             **{
                 'type': 'rest',
-                'warehouse': f'{bucket_owner_account_id}:s3tablescatalog/{bucket_name}',
-                'uri': f'https://glue.{region}.amazonaws.com/iceberg',
-                'rest.sigv4-enabled': 'true',
-                'rest.signing-name': 'glue',
+                'warehouse': warehouse,
+                'uri': uri,
                 'rest.signing-region': region,
+                'rest.signing-name': rest_signing_name,
+                'rest.sigv4-enabled': rest_sigv4_enabled,
             },
         )
 
         # Load existing table
-        table = catalog.load_table(f'{namespace}.{name}')
+        table = catalog.load_table(f'{namespace}.{table_name}')
 
         # Get schema information
         schema = table.schema()
-        schema_info = []
-
-        for field in schema.fields:
-            field_info = {
-                'name': field.name,
-                'type': str(field.field_type),
-                'required': field.required,
-                'doc': field.doc if hasattr(field, 'doc') else None,
-            }
-            schema_info.append(field_info)
 
         # Get S3 client
         s3_client = get_s3_client()
@@ -447,7 +432,7 @@ async def import_csv_to_table(
             }
 
         # Process rows in chunks
-        chunk_size = 5000  # Process 1000 rows at a time
+        chunk_size = 5000
         rows_processed = 0
         current_chunk = []
 

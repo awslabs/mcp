@@ -390,16 +390,20 @@ async def update_table_metadata_location(
 @app.tool()
 async def query_database(
     warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
-    region: Annotated[str, Field(..., description='AWS region for Glue/Iceberg REST endpoint')],
+    region: Annotated[
+        str, Field(..., description='AWS region for S3Tables/Iceberg REST endpoint')
+    ],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     query: Annotated[str, QUERY_FIELD],
     uri: Annotated[
         str, Field(..., description='REST URI for Iceberg catalog')
-    ] = 'https://glue.us-west-2.amazonaws.com/iceberg',
+    ] = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
     catalog_name: Annotated[
         str, Field('s3tablescatalog', description='Catalog name')
     ] = 's3tablescatalog',
-    rest_signing_name: Annotated[str, Field('glue', description='REST signing name')] = 'glue',
+    rest_signing_name: Annotated[
+        str, Field('s3tables', description='REST signing name')
+    ] = 's3tables',
     rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
 ):
     """Execute SQL queries against S3 Tables using PyIceberg/Daft.
@@ -407,13 +411,13 @@ async def query_database(
     This tool provides a secure interface to run read-only SQL queries against your S3 Tables data using the PyIceberg and Daft engine.
 
     Example input values:
-        warehouse: '123456789012:s3tablescatalog/customer-data-bucket'
+        warehouse: 'arn:aws:s3tables:<Region>:<accountID>:bucket/<bucketname>'
         region: 'us-west-2'
         namespace: 'retail_data'
         query: 'SELECT * FROM customers LIMIT 10'
-        uri: 'https://glue.us-west-2.amazonaws.com/iceberg'
+        uri: 'https://s3tables.us-west-2.amazonaws.com/iceberg'
         catalog_name: 's3tablescatalog'
-        rest_signing_name: 'glue'
+        rest_signing_name: 's3tables'
         rest_sigv4_enabled: 'true'
     """
     return await database.query_database_resource(
@@ -454,11 +458,23 @@ async def preview_csv_file(
 @app.tool()
 @write_operation
 async def import_csv_to_table(
-    table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
+    warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
+    region: Annotated[
+        str, Field(..., description='AWS region for S3Tables/Iceberg REST endpoint')
+    ],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
-    name: Annotated[str, TABLE_NAME_FIELD],
+    table_name: Annotated[str, TABLE_NAME_FIELD],
     s3_url: Annotated[str, S3_URL_FIELD],
-    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
+    uri: Annotated[
+        str, Field(..., description='REST URI for Iceberg catalog')
+    ] = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
+    catalog_name: Annotated[
+        str, Field('s3tablescatalog', description='Catalog name')
+    ] = 's3tablescatalog',
+    rest_signing_name: Annotated[
+        str, Field('s3tables', description='REST signing name')
+    ] = 's3tables',
+    rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
 ) -> dict:
     """Import data from a CSV file into an S3 table.
 
@@ -477,20 +493,35 @@ async def import_csv_to_table(
         - CSV headers don't match table schema
         - Any other error occurs
 
+    Example input values:
+        warehouse: 'arn:aws:s3tables:<Region>:<accountID>:bucket/<bucketname>'
+        region: 'us-west-2'
+        namespace: 'retail_data'
+        table_name: 'customers'
+        s3_url: 's3://bucket-name/path/to/file.csv'
+        uri: 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+        catalog_name: 's3tablescatalog'
+        rest_signing_name: 's3tables'
+        rest_sigv4_enabled: 'true'
+
     Permissions:
     You must have:
     - s3:GetObject permission for the CSV file
-    - glue:GetCatalog permission to access the Glue catalog
-    - glue:GetDatabase and glue:GetDatabases permissions to access database information
-    - glue:GetTable and glue:GetTables permissions to access table information
-    - glue:CreateTable and glue:UpdateTable permissions to modify table metadata
+    - s3tables:GetCatalog permission to access the S3Tables catalog
+    - s3tables:GetDatabase and s3tables:GetDatabases permissions to access database information
+    - s3tables:GetTable and s3tables:GetTables permissions to access table information
+    - s3tables:CreateTable and s3tables:UpdateTable permissions to modify table metadata
     """
     return await file_processor.import_csv_to_table(
-        table_bucket_arn=table_bucket_arn,
+        warehouse=warehouse,
+        region=region,
         namespace=namespace,
-        name=name,
+        table_name=table_name,
         s3_url=s3_url,
-        region_name=region_name,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
     )
 
 
@@ -558,17 +589,21 @@ async def get_bucket_metadata_config(
 @write_operation
 async def append_rows_to_table(
     warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
-    region: Annotated[str, Field(..., description='AWS region for Glue/Iceberg REST endpoint')],
+    region: Annotated[
+        str, Field(..., description='AWS region for S3Tables/Iceberg REST endpoint')
+    ],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
     table_name: Annotated[str, TABLE_NAME_FIELD],
     rows: Annotated[list[dict], Field(..., description='List of rows to append, each as a dict')],
     uri: Annotated[
         str, Field(..., description='REST URI for Iceberg catalog')
-    ] = 'https://glue.us-west-2.amazonaws.com/iceberg',
+    ] = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
     catalog_name: Annotated[
         str, Field('s3tablescatalog', description='Catalog name')
     ] = 's3tablescatalog',
-    rest_signing_name: Annotated[str, Field('glue', description='REST signing name')] = 'glue',
+    rest_signing_name: Annotated[
+        str, Field('s3tables', description='REST signing name')
+    ] = 's3tables',
     rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
 ) -> dict:
     """Append rows to an Iceberg table using PyIceberg/Daft.
@@ -578,14 +613,14 @@ async def append_rows_to_table(
     Check the schema of the table before appending rows.
 
     Example input values:
-        warehouse: '123456789012:s3tablescatalog/customer-data-bucket'
+        warehouse: 'arn:aws:s3tables:<Region>:<accountID>:bucket/<bucketname>'
         region: 'us-west-2'
         namespace: 'retail_data'
         table_name: 'customers'
         rows: [{"customer_id": 1, "customer_name": "Alice"}, ...]
-        uri: 'https://glue.us-west-2.amazonaws.com/iceberg'
+        uri: 'https://s3tables.us-west-2.amazonaws.com/iceberg'
         catalog_name: 's3tablescatalog'
-        rest_signing_name: 'glue'
+        rest_signing_name: 's3tables'
         rest_sigv4_enabled: 'true'
     """
     return await database.append_rows_to_table_resource(
