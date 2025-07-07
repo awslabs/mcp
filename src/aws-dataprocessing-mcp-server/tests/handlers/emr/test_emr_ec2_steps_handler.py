@@ -205,17 +205,12 @@ class TestAddSteps:
     async def test_add_steps_missing_steps_parameter(
         self, steps_handler_with_write_access, mock_context
     ):
-        """Test add-steps with missing steps parameter."""
-        result = await steps_handler_with_write_access.manage_aws_emr_ec2_steps(
-            ctx=mock_context, operation='add-steps', cluster_id='j-12345ABCDEF'
-        )
-
-        assert result.isError is True
-        error_text = ' '.join(content.text for content in result.content)
-        assert (
-            'steps is required for add-steps operation' in error_text
-            or 'Error in manage_aws_emr_ec2_steps' in error_text
-        )
+        """Test add-steps with missing steps parameter raises ValueError."""
+        with pytest.raises(ValueError) as excinfo:
+            await steps_handler_with_write_access.manage_aws_emr_ec2_steps(
+                ctx=mock_context, operation='add-steps', cluster_id='j-12345ABCDEF'
+            )
+        assert 'steps is required for add-steps operation' in str(excinfo.value)
 
 
 class TestCancelSteps:
@@ -271,17 +266,12 @@ class TestCancelSteps:
     async def test_cancel_steps_missing_step_ids(
         self, steps_handler_with_write_access, mock_context
     ):
-        """Test cancel-steps with missing step_ids parameter."""
-        result = await steps_handler_with_write_access.manage_aws_emr_ec2_steps(
-            ctx=mock_context, operation='cancel-steps', cluster_id='j-12345ABCDEF'
-        )
-
-        assert result.isError is True
-        error_text = ' '.join(content.text for content in result.content)
-        assert (
-            'step_ids is required for cancel-steps operation' in error_text
-            or 'Error in manage_aws_emr_ec2_steps' in error_text
-        )
+        """Test cancel-steps with missing step_ids parameter raises ValueError."""
+        with pytest.raises(ValueError) as excinfo:
+            await steps_handler_with_write_access.manage_aws_emr_ec2_steps(
+                ctx=mock_context, operation='cancel-steps', cluster_id='j-12345ABCDEF'
+            )
+        assert 'step_ids is required for cancel-steps operation' in str(excinfo.value)
 
     async def test_cancel_steps_invalid_step_id(
         self, steps_handler_with_write_access, mock_context
