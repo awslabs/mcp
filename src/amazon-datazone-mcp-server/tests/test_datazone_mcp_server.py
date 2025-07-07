@@ -42,7 +42,7 @@ class TestDatazoneMCPServer:
             mock_mcp.run = Mock()
 
             # Test normal execution
-            main()
+            main([])
 
             # Verify mcp.run was called with correct transport
             mock_mcp.run.assert_called_once_with(transport='stdio')
@@ -57,7 +57,7 @@ class TestDatazoneMCPServer:
 
             # Mock sys.exit to prevent actual exit
             with patch('sys.exit') as mock_exit:
-                main()
+                main([])
                 # Should exit with code 0 on KeyboardInterrupt
                 mock_exit.assert_called_once_with(0)
 
@@ -71,7 +71,7 @@ class TestDatazoneMCPServer:
 
             # Mock sys.exit and print to capture output
             with patch('sys.exit') as mock_exit, patch('builtins.print') as mock_print:
-                main()
+                main([])
 
                 # Should exit with code 1 on general exception
                 mock_exit.assert_called_once_with(1)

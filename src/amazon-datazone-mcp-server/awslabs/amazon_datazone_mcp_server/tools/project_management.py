@@ -13,8 +13,8 @@
 # limitations under the License.
 """Project management tools for Amazon DataZone."""
 
-from .common import USER_AGENT, ClientError, _get_param_value, datazone_client, httpx, logger
 from ..context import Context
+from .common import USER_AGENT, ClientError, _get_param_value, datazone_client, httpx, logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional

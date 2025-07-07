@@ -52,4 +52,4 @@ class Context:
             raise ValueError(
                 f'Operation "{operation_name}" not allowed: Server is configured in read-only mode. '
                 'To enable write operations, restart the server with --allow-writes parameter.'
-            ) 
+            )

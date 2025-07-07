@@ -13,8 +13,8 @@
 # limitations under the License.
 """Data management tools for Amazon DataZone."""
 
-from .common import ClientError, _get_param_value, datazone_client, logger
 from ..context import Context
+from .common import ClientError, _get_param_value, datazone_client, logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -196,6 +196,8 @@ def register_tools(mcp: FastMCP):
                 - Listing status
                 - Time series data points
         """
+        # Check write permissions
+        Context.check_write_permission('create_asset')
         try:
             # Handle optional parameters
             description_value = _get_param_value(description)

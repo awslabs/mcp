@@ -142,6 +142,7 @@ def mcp_server_with_tools(mock_datazone_client):
 
         importlib.reload(common)  # This will recreate datazone_client with our mock
 
+        from awslabs.amazon_datazone_mcp_server.context import Context
         from awslabs.amazon_datazone_mcp_server.tools import (
             data_management,
             domain_management,
@@ -149,6 +150,9 @@ def mcp_server_with_tools(mock_datazone_client):
             glossary,
             project_management,
         )
+
+        # Initialize Context to allow write operations in tests
+        Context.initialize(readonly=False)
 
         # Reload the tool modules to pick up the new common module
         importlib.reload(domain_management)
@@ -194,8 +198,8 @@ def sample_domain_data():
     return {
         'name': 'Test Domain',
         'description': 'Test domain description',
-        'domain_execution_role': os.getenv('DOMAIN_EXECUTION_ROLE'),
-        'service_role': os.getenv('SERVICE_ROLE'),
+        'domain_execution_role': os.getenv('DOMAIN_EXECUTION_ROLE', 'arn:aws:iam::123456789012:role/test-domain-execution-role'),
+        'service_role': os.getenv('SERVICE_ROLE', 'arn:aws:iam::123456789012:role/test-service-role'),
         'domain_version': 'V2',
     }
 

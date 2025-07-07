@@ -33,7 +33,7 @@ class TestMCPServer:
         mock_run.return_value = None
 
         # Act & Assert (should not raise)
-        main()
+        main([])
 
         # Verify MCP was called with correct transport
         mock_run.assert_called_once_with(transport='stdio')
@@ -49,7 +49,7 @@ class TestMCPServer:
         mock_run.side_effect = Exception('Test error')
 
         # Act
-        main()
+        main([])
 
         # Assert
         mock_exit.assert_called_once_with(1)
@@ -70,7 +70,7 @@ class TestMCPServer:
         mock_run.side_effect = RuntimeError('Runtime error occurred')
 
         # Act
-        main()
+        main([])
 
         # Assert
         mock_exit.assert_called_once_with(1)
@@ -89,7 +89,7 @@ class TestMCPServer:
         mock_run.side_effect = KeyboardInterrupt()
 
         # Act
-        main()
+        main([])
 
         # Assert
         mock_print.assert_called_with(
@@ -108,7 +108,7 @@ class TestMCPServer:
         mock_run.side_effect = ValueError('Test value error')
 
         # Act
-        main()
+        main([])
 
         # Assert
         printed_output = mock_print.call_args[0][0]
@@ -257,7 +257,7 @@ class TestCommandLineInterface:
         from awslabs.amazon_datazone_mcp_server import server
 
         # Execute the main function directly to cover line 76
-        server.main()
+        server.main([])
 
         mock_run.assert_called_once_with(transport='stdio')
 
@@ -307,7 +307,7 @@ class TestServerEntryPointErrorHandling:
         mock_mcp.run.side_effect = KeyboardInterrupt()
 
         with patch('sys.stderr.write'):
-            main()
+            main([])
 
         mock_exit.assert_called_once_with(0)
 
@@ -321,7 +321,7 @@ class TestServerEntryPointErrorHandling:
         test_exception = Exception('Test error')
         mock_mcp.run.side_effect = test_exception
 
-        main()
+        main([])
 
         # Verify error response was printed
         mock_print.assert_called_once()
@@ -368,7 +368,7 @@ class TestServerMainFunctionHandling:
         monkeypatch.setattr(sys, 'exit', mock_exit)
 
         # Call main function
-        main()
+        main([])
 
         # Verify exception handling behavior
         assert len(exit_calls) == 1

@@ -43,34 +43,34 @@ class TestDomainManagement:
 
         assert 'Error getting domain dzd_nonexistent' in str(exc_info.value)
 
-    # @pytest.mark.asyncio
-    # async def test_create_domain_success(
-    #     self, mcp_server_with_tools, tool_extractor, sample_domain_data
-    # ):
-    #     """Test successful domain creation."""
-    #     create_domain = tool_extractor(mcp_server_with_tools, "create_domain")
+    @pytest.mark.asyncio
+    async def test_create_domain_success(
+        self, mcp_server_with_tools, tool_extractor, sample_domain_data
+    ):
+        """Test successful domain creation."""
+        create_domain = tool_extractor(mcp_server_with_tools, "create_domain")
 
-    #     result = await create_domain(
-    #         name=sample_domain_data["name"],
-    #         domain_execution_role=sample_domain_data["domain_execution_role"],
-    #         service_role=sample_domain_data["service_role"],
-    #         domain_version=sample_domain_data["domain_version"],
-    #         description=sample_domain_data["description"],
-    #     )
+        result = await create_domain(
+            name=sample_domain_data["name"],
+            domain_execution_role=sample_domain_data["domain_execution_role"],
+            service_role=sample_domain_data["service_role"],
+            domain_version=sample_domain_data["domain_version"],
+            description=sample_domain_data["description"],
+        )
 
-    #     # Verify the result
-    #     assert result is not None
-    #     assert result["name"] == "New Test Domain"
-    #     assert result["status"] == "CREATING"
-    #     assert "id" in result
-    #     assert "arn" in result
+        # Verify the result
+        assert result is not None
+        assert result["name"] == "New Test Domain"
+        assert result["status"] == "CREATING"
+        assert "id" in result
+        assert "arn" in result
 
-    #     # Verify the mock was called correctly
-    #     mcp_server_with_tools._mock_client.create_domain.assert_called_once()
-    #     call_args = mcp_server_with_tools._mock_client.create_domain.call_args[1]
-    #     assert call_args["name"] == sample_domain_data["name"]
-    #     assert call_args["domainExecutionRole"] == sample_domain_data["domain_execution_role"]
-    #     assert call_args["serviceRole"] == sample_domain_data["service_role"]
+        # Verify the mock was called correctly
+        mcp_server_with_tools._mock_client.create_domain.assert_called_once()
+        call_args = mcp_server_with_tools._mock_client.create_domain.call_args[1]
+        assert call_args["name"] == sample_domain_data["name"]
+        assert call_args["domainExecutionRole"] == sample_domain_data["domain_execution_role"]
+        assert call_args["serviceRole"] == sample_domain_data["service_role"]
 
     @pytest.mark.asyncio
     async def test_create_domain_conflict(
@@ -113,6 +113,35 @@ class TestDomainManagement:
         assert f'Access denied while creating domain {sample_domain_data["name"]}' in str(
             exc_info.value
         )
+
+    @pytest.mark.asyncio
+    async def test_create_domain_read_only_mode(
+        self, mcp_server_with_tools, tool_extractor, sample_domain_data
+    ):
+        """Test that create_domain is blocked in read-only mode."""
+        from awslabs.amazon_datazone_mcp_server.context import Context
+
+        # Temporarily enable read-only mode
+        original_readonly = Context._readonly
+        Context.initialize(readonly=True)
+
+        try:
+            create_domain = tool_extractor(mcp_server_with_tools, 'create_domain')
+
+            with pytest.raises(ValueError) as exc_info:
+                await create_domain(
+                    name=sample_domain_data['name'],
+                    domain_execution_role=sample_domain_data['domain_execution_role'],
+                    service_role=sample_domain_data['service_role'],
+                )
+
+            # Verify the error message mentions read-only mode
+            assert 'read-only mode' in str(exc_info.value)
+            assert '--allow-writes' in str(exc_info.value)
+
+        finally:
+            # Restore original state
+            Context.initialize(readonly=original_readonly)
 
     @pytest.mark.asyncio
     async def test_list_domain_units_success(
