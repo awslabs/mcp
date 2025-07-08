@@ -42,6 +42,13 @@ async def generate_infrastructure_code(
 
     # Check if resource supports tagging
     supports_tagging = 'Tags' in schema.get('properties', {})
+    
+    # Fallback: Known AWS resources that support tagging even if schema doesn't show it
+    if not supports_tagging and resource_type in ['AWS::S3::Bucket', 'AWS::EC2::Instance', 'AWS::RDS::DBInstance']:
+        supports_tagging = True
+        print(f"Schema for {resource_type} doesn't show Tags property, but we know it supports tagging")
+    
+
 
     if is_update:
         # This is an update operation
@@ -58,15 +65,52 @@ async def generate_infrastructure_code(
         except Exception as e:
             raise handle_aws_api_error(e)
 
-        # If patch_document is provided, validate it
+        # Apply patch document or merge properties
         if patch_document:
-            validate_patch(patch_document)
-            # Note: In a real implementation, you would apply the patch to current_properties
-            # For simplicity, we'll just use the current properties
-            properties_with_tags = current_properties
+            # Apply patch operations to current properties
+            import copy
+            update_properties = copy.deepcopy(current_properties)
+            for patch_op in patch_document:
+                if patch_op['op'] == 'add' and patch_op['path'] in ['/Tags', '/Tags/-']:
+                    # For Tags, merge with existing tags instead of replacing
+                    existing_tags = update_properties.get('Tags', [])
+                    if patch_op['path'] == '/Tags/-':
+                        # Append single tag to array
+                        new_tag = patch_op['value']
+                        if isinstance(new_tag, dict) and 'Key' in new_tag and 'Value' in new_tag:
+                            existing_tags.append(new_tag)
+                            update_properties['Tags'] = existing_tags
+                    else:
+                        # Replace/merge entire tags array
+                        new_tags = patch_op['value'] if isinstance(patch_op['value'], list) else []
+                        # Combine tags (new tags will override existing ones with same key)
+                        tag_dict = {tag['Key']: tag['Value'] for tag in existing_tags}
+                        for tag in new_tags:
+                            tag_dict[tag['Key']] = tag['Value']
+                        update_properties['Tags'] = [{'Key': k, 'Value': v} for k, v in tag_dict.items()]
+                elif patch_op['op'] == 'replace' and patch_op['path'] == '/Tags':
+                    # Replace tags completely
+                    update_properties['Tags'] = patch_op['value']
+                # Add other patch operations as needed
+        elif properties:
+            # Start with current properties and merge user properties
+            update_properties = current_properties.copy()
+            for key, value in properties.items():
+                if key == 'Tags':
+                    # Merge tags instead of replacing
+                    existing_tags = update_properties.get('Tags', [])
+                    new_tags = value if isinstance(value, list) else []
+                    tag_dict = {tag['Key']: tag['Value'] for tag in existing_tags}
+                    for tag in new_tags:
+                        tag_dict[tag['Key']] = tag['Value']
+                    update_properties['Tags'] = [{'Key': k, 'Value': v} for k, v in tag_dict.items()]
+                else:
+                    update_properties[key] = value
         else:
-            # If properties are provided directly for update
-            properties_with_tags = properties if properties else current_properties
+            update_properties = current_properties
+
+        # V1: Always add required MCP server identification tags for updates too
+        properties_with_tags = add_default_tags(update_properties, schema)
 
         operation = 'update'
     else:
@@ -85,11 +129,25 @@ async def generate_infrastructure_code(
         'Resources': {'Resource': {'Type': resource_type, 'Properties': properties_with_tags}},
     }
 
-    return {
+    # For updates, also generate the proper patch document with default tags
+    patch_document_with_tags = None
+    if is_update and 'Tags' in properties_with_tags:
+        patch_document_with_tags = [{
+            "op": "replace",
+            "path": "/Tags", 
+            "value": properties_with_tags['Tags']
+        }]
+
+    result = {
         'resource_type': resource_type,
         'operation': operation,
-        'properties': properties_with_tags,
+        'properties': properties_with_tags,  # Show user exactly what will be created
         'region': region,
         'cloudformation_template': cf_template,
         'supports_tagging': supports_tagging,
     }
+    
+    if patch_document_with_tags:
+        result['recommended_patch_document'] = patch_document_with_tags
+        
+    return result

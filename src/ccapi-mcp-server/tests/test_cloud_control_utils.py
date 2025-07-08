@@ -205,6 +205,12 @@ class TestUtils:
         assert len(result['Tags']) == 3
         tag_keys = {tag['Key'] for tag in result['Tags']}
         assert tag_keys == {'MANAGED_BY', 'MCP_SERVER_SOURCE_CODE', 'MCP_SERVER_VERSION'}
+        
+        # Verify actual values
+        tag_dict = {tag['Key']: tag['Value'] for tag in result['Tags']}
+        assert tag_dict['MANAGED_BY'] == 'CCAPI-MCP-SERVER'
+        assert tag_dict['MCP_SERVER_SOURCE_CODE'] == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
+        assert tag_dict['MCP_SERVER_VERSION'] == '1.1.0'
 
     def test_add_default_tags_no_properties(self):
         """Test add_default_tags with no properties."""
@@ -248,24 +254,22 @@ class TestUtils:
         validate_patch([{'op': 'copy', 'path': '/test', 'from': '/source'}])
 
     def test_add_default_tags_no_tags_property(self):
-        """Test add_default_tags without Tags property - covers lines 70, 104."""
-        import os
+        """Test add_default_tags without Tags property - V1 always adds tags."""
         from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
-
-        # Test with DEFAULT_TAGS enabled but no Tags property in schema
-        os.environ['DEFAULT_TAGS'] = 'enabled'
 
         properties = {'BucketName': 'test-bucket'}
         schema = {'properties': {'BucketName': {'type': 'string'}}}  # No Tags property
 
         result = add_default_tags(properties, schema)
 
-        # Should return original properties since no Tags property
-        assert result == properties
-
-        # Clean up
-        if 'DEFAULT_TAGS' in os.environ:
-            del os.environ['DEFAULT_TAGS']
+        # V1 behavior: Always adds tags regardless of schema
+        assert 'Tags' in result
+        assert len(result['Tags']) == 3
+        assert result['BucketName'] == 'test-bucket'
+        
+        # Verify default tags are present
+        tag_keys = {tag['Key'] for tag in result['Tags']}
+        assert tag_keys == {'MANAGED_BY', 'MCP_SERVER_SOURCE_CODE', 'MCP_SERVER_VERSION'}
 
     def test_add_default_tags_with_tags_property(self):
         """Test add_default_tags with Tags property in schema."""
@@ -285,6 +289,34 @@ class TestUtils:
         # Clean up
         if 'DEFAULT_TAGS' in os.environ:
             del os.environ['DEFAULT_TAGS']
+
+    def test_add_default_tags_with_existing_user_tags(self):
+        """Test add_default_tags preserves user tags and adds default tags."""
+        from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
+
+        properties = {
+            'BucketName': 'test-bucket',
+            'Tags': [
+                {'Key': 'user-tag', 'Value': 'user-value'},
+                {'Key': 'another-tag', 'Value': 'another-value'}
+            ]
+        }
+        schema = {'properties': {'Tags': {'type': 'array'}}}
+
+        result = add_default_tags(properties, schema)
+
+        # Should have user tags + 3 default tags = 5 total
+        assert len(result['Tags']) == 5
+        
+        # Check user tags are preserved
+        tag_dict = {tag['Key']: tag['Value'] for tag in result['Tags']}
+        assert tag_dict['user-tag'] == 'user-value'
+        assert tag_dict['another-tag'] == 'another-value'
+        
+        # Check default tags are added
+        assert tag_dict['MANAGED_BY'] == 'CCAPI-MCP-SERVER'
+        assert tag_dict['MCP_SERVER_SOURCE_CODE'] == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
+        assert tag_dict['MCP_SERVER_VERSION'] == '1.1.0'
 
     def test_progress_event_with_error_code(self):
         """Test progress event with error code."""

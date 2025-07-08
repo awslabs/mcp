@@ -82,30 +82,38 @@ class SchemaManager:
 
     async def get_schema(self, resource_type: str, region: str | None = None) -> dict:
         """Get schema for a resource type, downloading it if necessary."""
-        # Check if schema is in registry and not forced to refresh
+        # Check if schema is in registry
         if resource_type in self.schema_registry:
-            # Check if schema needs to be updated based on last update time
-            if resource_type in self.metadata['schemas']:
-                schema_metadata = self.metadata['schemas'][resource_type]
-                last_updated_str = schema_metadata.get('last_updated')
-
-                if last_updated_str:
-                    try:
-                        last_updated = datetime.fromisoformat(last_updated_str)
-                        if datetime.now() - last_updated < SCHEMA_UPDATE_INTERVAL:
-                            # Schema is recent enough, use cached version
-                            return self.schema_registry[resource_type]
-                        else:
-                            print(
-                                f'Schema for {resource_type} is older than {SCHEMA_UPDATE_INTERVAL.days} days, refreshing...'
-                            )
-                    except ValueError:
-                        print(f'Invalid timestamp format for {resource_type}: {last_updated_str}')
+            cached_schema = self.schema_registry[resource_type]
+            
+            # If cached schema is corrupted (empty properties), force reload
+            if not cached_schema.get('properties'):
+                print(f'Cached schema for {resource_type} is corrupted (empty properties), reloading...')
+                # Remove from registry to force reload
+                del self.schema_registry[resource_type]
             else:
-                # No metadata for this schema, use cached version
-                return self.schema_registry[resource_type]
+                # Check if schema needs to be updated based on last update time
+                if resource_type in self.metadata['schemas']:
+                    schema_metadata = self.metadata['schemas'][resource_type]
+                    last_updated_str = schema_metadata.get('last_updated')
 
-        # Download schema
+                    if last_updated_str:
+                        try:
+                            last_updated = datetime.fromisoformat(last_updated_str)
+                            if datetime.now() - last_updated < SCHEMA_UPDATE_INTERVAL:
+                                # Schema is recent enough and valid, use cached version
+                                return cached_schema
+                            else:
+                                print(
+                                    f'Schema for {resource_type} is older than {SCHEMA_UPDATE_INTERVAL.days} days, refreshing...'
+                                )
+                        except ValueError:
+                            print(f'Invalid timestamp format for {resource_type}: {last_updated_str}')
+                else:
+                    # No metadata for this schema but it's valid, use cached version
+                    return cached_schema
+
+        # Download schema (either not cached, expired, or corrupted)
         schema = await self._download_resource_schema(resource_type, region)
         return schema
 
@@ -129,35 +137,70 @@ class SchemaManager:
             )
 
         # If no local spec file or it failed to load, try CloudFormation API
-        try:
-            print(f'Downloading schema for {resource_type} using CloudFormation API')
-            cfn_client = get_aws_client('cloudformation', region)
-            resp = cfn_client.describe_type(Type='RESOURCE', TypeName=resource_type)
-            schema_str = resp['Schema']
-            spec = json.loads(schema_str)
+        # Retry logic for schema download
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                print(f'Downloading schema for {resource_type} using CloudFormation API (attempt {attempt + 1}/{max_retries})')
+                cfn_client = get_aws_client('cloudformation', region)
+                resp = cfn_client.describe_type(Type='RESOURCE', TypeName=resource_type)
+                schema_str = resp['Schema']
+                
+                if not schema_str or len(schema_str) < 100:  # Basic sanity check
+                    raise ClientError(f'Schema response too short: {len(schema_str)} characters')
+                    
+                spec = json.loads(schema_str)
+                
+                # Validate that the schema has properties (not empty)
+                if not spec.get('properties'):
+                    raise ClientError(f'Downloaded schema for {resource_type} has no properties - API may have failed')
+                
+                # For known taggable resources, verify Tags property exists
+                if resource_type in ['AWS::S3::Bucket', 'AWS::EC2::Instance', 'AWS::RDS::DBInstance']:
+                    if 'Tags' not in spec.get('properties', {}):
+                        print(f'Warning: {resource_type} schema missing Tags property, but resource should support tagging')
+                
+                # Save schema to cache only if it's valid
+                schema_file = self.cache_dir / f'{resource_type.replace("::", "_")}.json'
+                with open(schema_file, 'w') as f:
+                    f.write(schema_str)
+                
+                # Update registry with the valid schema
+                self.schema_registry[resource_type] = spec
 
-            # Save schema to cache
-            schema_file = self.cache_dir / f'{resource_type.replace("::", "_")}.json'
-            with open(schema_file, 'w') as f:
-                f.write(schema_str)
+                # Update metadata
+                self.metadata['schemas'][resource_type] = {
+                    'last_updated': datetime.now().isoformat(),
+                    'file_path': str(schema_file),
+                    'source': 'cloudformation_api',
+                }
 
-            # Update metadata
-            self.metadata['schemas'][resource_type] = {
-                'last_updated': datetime.now().isoformat(),
-                'file_path': str(schema_file),
-                'source': 'cloudformation_api',
-            }
+                with open(self.metadata_file, 'w') as f:
+                    json.dump(self.metadata, f, indent=2)
 
-            with open(self.metadata_file, 'w') as f:
-                json.dump(self.metadata, f, indent=2)
-
-            print(f'Processed and cached schema for {resource_type}')
-            return spec
-        except Exception as e:
-            raise ClientError(f'Error downloading the schema for {resource_type}: {str(e)}')
+                print(f'Processed and cached schema for {resource_type}')
+                return spec
+                
+            except Exception as e:
+                print(f'Schema download attempt {attempt + 1} failed: {str(e)}')
+                if attempt == max_retries - 1:  # Last attempt
+                    raise ClientError(f'Failed to download valid schema for {resource_type} after {max_retries} attempts: {str(e)}')
+                # Wait before retry
+                import time
+                time.sleep(1)
+        
+        # Should never reach here
+        raise ClientError(f'Failed to download schema for {resource_type}')
 
 
 _schema_manager_instance = SchemaManager()
+
+# Clear any corrupted schemas from memory on module load
+if 'AWS::S3::Bucket' in _schema_manager_instance.schema_registry:
+    cached_s3_schema = _schema_manager_instance.schema_registry['AWS::S3::Bucket']
+    if not cached_s3_schema.get('properties'):
+        print('Clearing corrupted S3 schema from memory cache')
+        del _schema_manager_instance.schema_registry['AWS::S3::Bucket']
 
 
 # used to load a single instance of the schema manager

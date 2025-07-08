@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for schema_manager."""
 
+import json
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -91,8 +92,8 @@ class TestSchemaManager:
         from datetime import datetime
 
         sm = schema_manager()
-        # Add a fake recent schema to registry
-        test_schema = {'typeName': 'AWS::Test::Resource', 'properties': {}}
+        # Add a fake recent schema to registry with proper properties
+        test_schema = {'typeName': 'AWS::Test::Resource', 'properties': {'TestProp': {'type': 'string'}}}
         sm.schema_registry['AWS::Test::Resource'] = test_schema
         sm.metadata['schemas']['AWS::Test::Resource'] = {
             'last_updated': datetime.now().isoformat()
@@ -108,15 +109,21 @@ class TestSchemaManager:
         from awslabs.ccapi_mcp_server.schema_manager import schema_manager
 
         mock_cfn_client = MagicMock()
+        # Provide a schema with properties to pass validation
+        schema_content = {
+            'properties': {'BucketName': {'type': 'string'}}, 
+            'readOnlyProperties': [], 
+            'primaryIdentifier': []
+        }
         mock_cfn_client.describe_type.return_value = {
-            'Schema': '{"properties": {}, "readOnlyProperties": [], "primaryIdentifier": []}'
+            'Schema': json.dumps(schema_content)
         }
         mock_client.return_value = mock_cfn_client
 
         sm = schema_manager()
         result = await sm._download_resource_schema('AWS::S3::Bucket')
 
-        assert result['properties'] == {}
+        assert 'BucketName' in result['properties']
         mock_cfn_client.describe_type.assert_called_once_with(
             Type='RESOURCE', TypeName='AWS::S3::Bucket'
         )

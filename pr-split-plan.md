@@ -50,7 +50,7 @@ git checkout ccapi-mcp-server-default-tagging
 # - Remove Checkov code/imports/tests
 # - Update tests for base + tagging functionality
 
-# Commit changes  
+# Commit changes
 git add .
 git commit -m "Add default tagging support to ccapi-mcp-server"
 
@@ -75,7 +75,7 @@ git add .
 git commit -m "Add optional Checkov security validation to ccapi-mcp-server"
 
 # Check against upstream
-git fetch upstream  
+git fetch upstream
 git log --oneline upstream/main..HEAD
 ```
 
@@ -90,7 +90,7 @@ git rebase upstream/main
 # Handle conflicts if any, then update PR #2
 
 # After PR #2 merges:
-git checkout ccapi-mcp-server-checkov-support  
+git checkout ccapi-mcp-server-checkov-support
 git fetch upstream
 git rebase upstream/main
 # Handle conflicts if any, then update PR #3
@@ -98,5 +98,5 @@ git rebase upstream/main
 
 ## Branch Status Tracker
 - [ ] ccapi-mcp-server-clean (PR #1) - Base server
-- [ ] ccapi-mcp-server-default-tagging (PR #2) - + Default tagging  
+- [ ] ccapi-mcp-server-default-tagging (PR #2) - + Default tagging
 - [ ] ccapi-mcp-server-checkov-support (PR #3) - + Optional Checkov
