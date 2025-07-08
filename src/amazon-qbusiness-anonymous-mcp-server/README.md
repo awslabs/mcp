@@ -31,6 +31,7 @@ An AWS Labs Model Context Protocol (MCP) server for Amazon Q Business anonymous 
 
 ### Installation
 
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=awslabs.amazon-qbusiness-anonymous-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMucWJ1c2luZXNzLWFub255bW91cy1tY3Atc2VydmVyIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IiLCJRQlVTSU5FU1NfQVBQTElDQVRJT05fSUQiOiJbWW91ciBBbWF6b24gUSBCdXNpbmVzcyBhcHBsaWNhdGlvbiBpZF0iLCJBV1NfUFJPRklMRSI6IltZb3VyIEFXUyBQcm9maWxlIE5hbWVdIiwiQVdTX1JFR0lPTiI6IltSZWdpb24gd2hlcmUgeW91ciBBbWF6b24gUSBCdXNpbmVzcyBhcHBsaWNhdGlvbiByZXNpZGVzXSJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json

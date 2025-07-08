@@ -15,6 +15,8 @@
 import boto3
 import os
 import secrets
+from awslabs.amazon_qbusiness_anonymous_mcp_server import __version__
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from mypy_boto3_qbusiness.client import QBusinessClient
 from mypy_boto3_qbusiness.type_defs import ChatSyncOutputTypeDef
@@ -40,9 +42,12 @@ def get_qbiz_client() -> QBusinessClient:
             raise ValueError('AWS_REGION environment variable is not set')
         AWS_PROFILE = os.environ.get('AWS_PROFILE')
         if AWS_PROFILE:
+            config = Config(
+                user_agent_extra=f'awslabs/mcp/amazon_qbusiness_anonymous_mcp_server/{__version__}'
+            )
             aq_client: QBusinessClient = boto3.Session(
                 profile_name=AWS_PROFILE, region_name=region
-            ).client('qbusiness')
+            ).client('qbusiness', config=config)
             return aq_client
 
         aq_client: QBusinessClient = boto3.client('qbusiness', region_name=region)

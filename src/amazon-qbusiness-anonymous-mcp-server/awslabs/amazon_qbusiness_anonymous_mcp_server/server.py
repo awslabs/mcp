@@ -16,6 +16,7 @@
 
 from awslabs.amazon_qbusiness_anonymous_mcp_server.clients import get_qbiz_client, make_query
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 
 """
@@ -43,7 +44,11 @@ mcp = FastMCP(
 
 
 @mcp.tool(name='QBusinessQueryTool')
-async def qbiz_local_query(query: str) -> str:
+async def qbiz_local_query(
+    query: str = Field(
+        description='User query, question or request to the Amazon Q Business application'
+    ),
+) -> str:
     """MCP tool to query Amazon Q Business and return a formatted response.
 
     This tool provides a Model Context Protocol interface for querying Amazon Q Business.
