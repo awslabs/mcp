@@ -80,6 +80,15 @@ The Amazon Q index MCP Server enables AI assistants to search through enterprise
 
 [Learn more about the Amazon Q index MCP Server](servers/amazon-qindex-mcp-server.md)
 
+### Amazon Q Business anonymous mode MCP server
+
+This is a simple MCP server for Amazon Q Business, and it supports Amazon Q Business application created using [anonymous mode access](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/create-anonymous-application.html). Use this MCP server to query the Amazon Q Business application created using anonymous mode to get responses based on the content you have ingested in it.
+
+**Features**
+- QBusinessQueryTool - Use this tool to send a question, query or request to your Amazon Q Business application and get response based on the content you have indexed in it.
+
+[Learn more about the Amazon Q index MCP Server](servers/amazon-qbusiness-anonymous-mcp-server.md)
+
 ### Amazon Bedrock Knowledge Base Retrieval MCP Server
 
 The Bedrock Knowledge Base Retrieval MCP Server enables AI assistants to retrieve information from Amazon Bedrock Knowledge Bases.

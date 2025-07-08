@@ -3,7 +3,7 @@
 An AWS Labs Model Context Protocol (MCP) server for Amazon Q Business anonymous mode application. This is a simple MCP server for Amazon Q Business, and it supports Amazon Q Business application created using [anonymous mode access](https://docs.aws.amazon.com/amazonq/latest/qbusiness-ug/create-anonymous-application.html). Use this MCP server to query the Amazon Q Business application created using anonymous mode to get responses based on the content you have ingested in it.
 
 ## Features
-- [x] You can use this MCP server from your local machine with your
+- [x] You can use this MCP server from your local machine
 - [x] Query Amazon Q Business application created using anonymous mode to get responses based on the content you have ingested in it.
 
 ## Prerequisites

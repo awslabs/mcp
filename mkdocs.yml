@@ -40,6 +40,7 @@ nav:
     - Cost Explorer MCP Server: servers/cost-explorer-mcp-server.md
     - Amazon Nova Canvas MCP Server: servers/nova-canvas-mcp-server.md
     - Amazon Q index MCP Server: servers/amazon-qindex-mcp-server.md
+    - Amazon Q Business anonymous mode MCP server: servers/amazon-qbusiness-anonymous-mcp-server.md
     - Amazon Rekognition MCP Server: servers/amazon-rekognition-mcp-server.md
     - AWS Data Processing MCP Server: servers/aws-dataprocessing-mcp-server.md
     - AWS Documentation MCP Server: servers/aws-documentation-mcp-server.md
