@@ -131,6 +131,4 @@ def re_sp(g: int) -> str:
 
 # We consider `(END|COMMIT|ROLLBACK|ABORT) [WORK|TRANSACTION]` as a breaker for the `BEGIN READ ONLY; {sql}; END;`
 # guarding wrapper, having there might be variations of whitespaces and comments in the construct.
-SUSPICIOUS_QUERY_REGEXP = (
-    rf'(?im)^{re_sp(1)}*(END|COMMIT|ROLLBACK|ABORT)({re_sp(2)}+(WORK|TRANSACTION))?{re_sp(3)}*;'
-)
+SUSPICIOUS_QUERY_REGEXP = rf'(?im)(^|;){re_sp(1)}*(END|COMMIT|ROLLBACK|ABORT)({re_sp(2)}+(WORK|TRANSACTION))?{re_sp(3)}*;'
