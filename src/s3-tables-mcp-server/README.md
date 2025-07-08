@@ -127,6 +127,35 @@ Example:
 }
 ```
 
+### `--log-dir`
+
+Specifies the directory where the server writes its log files. If not provided, the default log directory depends on the operating system:
+
+- **macOS**: `~/Library/Logs`
+- **Windows**: `~/AppData/Local/Logs`
+- **Linux/Other**: `~/.local/share/s3-tables-mcp-server/logs/`
+
+You can override the default by providing the `--log-dir` flag with a custom path. Example:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.s3-tables-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.s3-tables-mcp-server@latest",
+        "--log-dir",
+        "/tmp/s3-tables-logs"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
 ## Usage Examples
 
 | Prompt | Description |
