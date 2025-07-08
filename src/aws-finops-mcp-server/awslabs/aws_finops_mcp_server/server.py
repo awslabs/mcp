@@ -18,20 +18,42 @@ import os
 
 # Use absolute imports instead of relative imports
 from awslabs.aws_finops_mcp_server.boto3_tools import Boto3ToolRegistry
+from awslabs.aws_finops_mcp_server.consts import (
+    ENV_STORAGE_LENS_MANIFEST_LOCATION,
+    ENV_STORAGE_LENS_OUTPUT_LOCATION,
+    MCP_SERVER_DEPENDENCIES,
+    MCP_SERVER_INSTRUCTIONS,
+    MCP_SERVER_NAME,
+    STORAGE_LENS_DEFAULT_DATABASE,
+    STORAGE_LENS_DEFAULT_TABLE,
+)
+from awslabs.aws_finops_mcp_server.models import (
+    ServerConfig,
+    StorageLensQueryRequest,
+)
 from awslabs.aws_finops_mcp_server.storage_lens import StorageLensQueryTool
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Awaitable, Callable, Dict
 
 
+# Create server configuration
+server_config = ServerConfig(
+    server_name=MCP_SERVER_NAME,
+    server_instructions=MCP_SERVER_INSTRUCTIONS,
+    dependencies=MCP_SERVER_DEPENDENCIES,
+    default_aws_region='us-east-1',
+    storage_lens_default_database=STORAGE_LENS_DEFAULT_DATABASE,
+    storage_lens_default_table=STORAGE_LENS_DEFAULT_TABLE,
+    athena_max_retries=100,
+    athena_retry_delay_seconds=1,
+)
+
+# Initialize FastMCP with server configuration
 mcp = FastMCP(
-    'awslabs.aws-finops-mcp-server',
-    instructions='The AWS FinOps MCP Server is designed to make AWS cost optimization recommendations and insights easily accessible to Large Language Models (LLMs) through the Model Context Protocol (MCP). It wraps boto3 SDK functions for AWS cost optimization services, allowing LLMs to directly interact with AWS cost optimization tools.',
-    dependencies=[
-        'pydantic',
-        'loguru',
-        'boto3',
-    ],
+    server_config.server_name,
+    instructions=server_config.server_instructions,
+    dependencies=server_config.dependencies,
 )
 
 
@@ -64,7 +86,7 @@ def register_boto3_tools():
         tool_function = create_tool_function(registry, tool_name)
 
         # Register the tool with FastMCP
-        mcp.tool(name=tool_name, description=tool_info['docstring'])(tool_function)
+        mcp.tool(name=tool_name, description=tool_info.docstring)(tool_function)
 
 
 # Register all boto3 tools
@@ -92,9 +114,9 @@ def register_storage_lens_tools():
     storage_lens_tool = StorageLensQueryTool()
 
     # Get manifest location from environment variable
-    manifest_location = os.environ.get('STORAGE_LENS_MANIFEST_LOCATION')
+    manifest_location = os.environ.get(ENV_STORAGE_LENS_MANIFEST_LOCATION)
     if not manifest_location:
-        logger.warning('STORAGE_LENS_MANIFEST_LOCATION environment variable not set')
+        logger.warning(f'{ENV_STORAGE_LENS_MANIFEST_LOCATION} environment variable not set')
 
     # Register the tool with FastMCP
     @mcp.tool(name='storage_lens_run_query', description=metrics_reference)
@@ -119,19 +141,26 @@ def register_storage_lens_tools():
         logger.info(f'Running Storage Lens query: {query}')
 
         # Get output location from environment variable (optional)
-        output_location = os.environ.get('STORAGE_LENS_OUTPUT_LOCATION')
+        output_location = os.environ.get(ENV_STORAGE_LENS_OUTPUT_LOCATION)
 
-        # Use default values for database and table names
-        database_name = 'storage_lens_db'
-        table_name = 'storage_lens_metrics'
+        try:
+            # Create a validated request object
+            request = StorageLensQueryRequest(
+                manifest_location=manifest_location,
+                query=query,
+                output_location=output_location,
+                database_name=server_config.storage_lens_default_database,
+                table_name=server_config.storage_lens_default_table,
+            )
 
-        return await storage_lens_tool.query_storage_lens(
-            manifest_location=manifest_location,
-            query=query,
-            output_location=output_location,
-            database_name=database_name,
-            table_name=table_name,
-        )
+            # Pass the request object directly to query_storage_lens
+            result = await storage_lens_tool.query_storage_lens(request)
+
+            # Return the Pydantic model directly
+            return result
+        except Exception as e:
+            logger.error(f'Error in storage_lens_run_query: {str(e)}')
+            return {'error': str(e), 'message': 'Failed to execute Storage Lens query'}
 
 
 # Register Storage Lens tools

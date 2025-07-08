@@ -2,6 +2,13 @@
 
 import pytest
 from .fixtures import CSV_MANIFEST
+from awslabs.aws_finops_mcp_server.models import (
+    AthenaQueryExecution,
+    ColumnDefinition,
+    SchemaFormat,
+    SchemaInfo,
+    StorageLensQueryRequest,
+)
 from awslabs.aws_finops_mcp_server.storage_lens.query_tool import StorageLensQueryTool
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,8 +22,8 @@ class TestStorageLensQueryTool:
         return StorageLensQueryTool()
 
     @pytest.mark.asyncio
-    @patch('storage_lens.query_tool.ManifestHandler')
-    @patch('storage_lens.query_tool.AthenaHandler')
+    @patch('awslabs.aws_finops_mcp_server.storage_lens.query_tool.ManifestHandler')
+    @patch('awslabs.aws_finops_mcp_server.storage_lens.query_tool.AthenaHandler')
     async def test_query_storage_lens(
         self, mock_athena_handler_class, mock_manifest_handler_class, query_tool
     ):
@@ -32,9 +39,12 @@ class TestStorageLensQueryTool:
         # Mock async methods with AsyncMock
         mock_manifest_handler.get_manifest = AsyncMock(return_value=CSV_MANIFEST)
         mock_athena_handler.setup_table = AsyncMock()
+
+        # Create a Pydantic model for the query execution
         mock_athena_handler.execute_query = AsyncMock(
-            return_value={'query_execution_id': 'test-id', 'status': 'STARTED'}
+            return_value=AthenaQueryExecution(query_execution_id='test-id', status='STARTED')
         )
+
         mock_athena_handler.wait_for_query_completion = AsyncMock(
             return_value={
                 'Status': {'State': 'SUCCEEDED'},
@@ -54,22 +64,23 @@ class TestStorageLensQueryTool:
 
         # Mock regular methods
         mock_manifest_handler.extract_data_location.return_value = 's3://test-bucket/data/'
-        mock_manifest_handler.parse_schema.return_value = {
-            'format': 'CSV',
-            'columns': [{'name': 'test_column', 'type': 'STRING'}],
-            'skip_header': True,
-        }
+        mock_manifest_handler.parse_schema.return_value = SchemaInfo(
+            format=SchemaFormat.CSV,
+            columns=[ColumnDefinition(name='test_column', type='STRING')],
+            skip_header=True,
+        )
         mock_athena_handler.determine_output_location.return_value = (
             's3://test-bucket/athena-results/'
         )
 
         # Call the method
-        result = await query_tool.query_storage_lens(
+        request = StorageLensQueryRequest(
             manifest_location='s3://test-bucket/manifest.json',
             query='SELECT * FROM {table}',
             database_name='test_db',
             table_name='test_table',
         )
+        result = await query_tool.query_storage_lens(request)
 
         # Assertions
         mock_manifest_handler.get_manifest.assert_awaited_once_with(
@@ -83,13 +94,14 @@ class TestStorageLensQueryTool:
             'SELECT * FROM test_db.test_table', 'test_db', 's3://test-bucket/athena-results/'
         )
 
-        assert 'statistics' in result
-        assert 'query' in result
-        assert result['query'] == 'SELECT * FROM test_db.test_table'
+        # Check that the result is a QueryResult object with the expected attributes
+        assert hasattr(result, 'statistics')
+        assert hasattr(result, 'query')
+        assert result.query == 'SELECT * FROM test_db.test_table'
 
     @pytest.mark.asyncio
-    @patch('storage_lens.query_tool.ManifestHandler')
-    @patch('storage_lens.query_tool.AthenaHandler')
+    @patch('awslabs.aws_finops_mcp_server.storage_lens.query_tool.ManifestHandler')
+    @patch('awslabs.aws_finops_mcp_server.storage_lens.query_tool.AthenaHandler')
     async def test_query_storage_lens_with_default_params(
         self, mock_athena_handler_class, mock_manifest_handler_class, query_tool
     ):
@@ -105,9 +117,12 @@ class TestStorageLensQueryTool:
         # Mock async methods with AsyncMock
         mock_manifest_handler.get_manifest = AsyncMock(return_value=CSV_MANIFEST)
         mock_athena_handler.setup_table = AsyncMock()
+
+        # Create a Pydantic model for the query execution
         mock_athena_handler.execute_query = AsyncMock(
-            return_value={'query_execution_id': 'test-id', 'status': 'STARTED'}
+            return_value=AthenaQueryExecution(query_execution_id='test-id', status='STARTED')
         )
+
         mock_athena_handler.wait_for_query_completion = AsyncMock(
             return_value={
                 'Status': {'State': 'SUCCEEDED'},
@@ -127,19 +142,20 @@ class TestStorageLensQueryTool:
 
         # Mock regular methods
         mock_manifest_handler.extract_data_location.return_value = 's3://test-bucket/data/'
-        mock_manifest_handler.parse_schema.return_value = {
-            'format': 'CSV',
-            'columns': [{'name': 'test_column', 'type': 'STRING'}],
-            'skip_header': True,
-        }
+        mock_manifest_handler.parse_schema.return_value = SchemaInfo(
+            format=SchemaFormat.CSV,
+            columns=[ColumnDefinition(name='test_column', type='STRING')],
+            skip_header=True,
+        )
         mock_athena_handler.determine_output_location.return_value = (
             's3://test-bucket/athena-results/'
         )
 
         # Call the method with minimal parameters
-        result = await query_tool.query_storage_lens(
+        request = StorageLensQueryRequest(
             manifest_location='s3://test-bucket/manifest.json', query='SELECT * FROM {table}'
         )
+        result = await query_tool.query_storage_lens(request)
 
         # Assertions
         mock_manifest_handler.get_manifest.assert_awaited_once_with(
@@ -152,6 +168,7 @@ class TestStorageLensQueryTool:
             's3://test-bucket/athena-results/',
         )
 
-        assert 'statistics' in result
-        assert 'query' in result
-        assert result['query'] == 'SELECT * FROM storage_lens_db.storage_lens_metrics'
+        # Check that the result is a QueryResult object with the expected attributes
+        assert hasattr(result, 'statistics')
+        assert hasattr(result, 'query')
+        assert result.query == 'SELECT * FROM storage_lens_db.storage_lens_metrics'

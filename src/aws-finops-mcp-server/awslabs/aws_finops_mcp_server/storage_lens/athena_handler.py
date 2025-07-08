@@ -20,6 +20,9 @@ This module provides functionality to create and query Athena tables for S3 Stor
 import boto3
 import logging
 import time
+from awslabs.aws_finops_mcp_server.consts import ATHENA_MAX_RETRIES, ATHENA_RETRY_DELAY_SECONDS
+from awslabs.aws_finops_mcp_server.models import AthenaQueryExecution, SchemaInfo
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 
@@ -34,37 +37,36 @@ class AthenaHandler:
         """Initialize the Athena client."""
         self.athena_client = boto3.client('athena')
 
-    async def create_database(self, database_name, output_location):
+    async def create_database(self, database_name: str, output_location: str) -> None:
         """Create an Athena database if it doesn't exist.
 
         Args:
-            database_name (str): Name of the database to create
-            output_location (str): S3 location for query results
-
-        Returns:
-            None
+            database_name: Name of the database to create
+            output_location: S3 location for query results
         """
         create_db_query = f'CREATE DATABASE IF NOT EXISTS {database_name}'
         await self.execute_query(create_db_query, 'default', output_location)
 
     async def create_table_for_csv(
-        self, database_name, table_name, schema_info, data_location, output_location
-    ):
+        self,
+        database_name: str,
+        table_name: str,
+        schema_info: SchemaInfo,
+        data_location: str,
+        output_location: str,
+    ) -> None:
         """Create an Athena table for CSV data.
 
         Args:
-            database_name (str): Name of the database
-            table_name (str): Name of the table to create
-            schema_info (dict): Schema information from manifest
-            data_location (str): S3 location of the data files
-            output_location (str): S3 location for query results
-
-        Returns:
-            None
+            database_name: Name of the database
+            table_name: Name of the table to create
+            schema_info: Schema information from manifest
+            data_location: S3 location of the data files
+            output_location: S3 location for query results
         """
         column_definitions = []
-        for column in schema_info['columns']:
-            column_definitions.append(f'`{column["name"]}` {column["type"]}')
+        for column in schema_info.columns:
+            column_definitions.append(f'`{column.name}` {column.type}')
 
         create_table_query = f"""
         CREATE EXTERNAL TABLE IF NOT EXISTS {database_name}.{table_name} (
@@ -80,23 +82,25 @@ class AthenaHandler:
         await self.execute_query(create_table_query, database_name, output_location)
 
     async def create_table_for_parquet(
-        self, database_name, table_name, schema_info, data_location, output_location
-    ):
+        self,
+        database_name: str,
+        table_name: str,
+        schema_info: SchemaInfo,
+        data_location: str,
+        output_location: str,
+    ) -> None:
         """Create an Athena table for Parquet data.
 
         Args:
-            database_name (str): Name of the database
-            table_name (str): Name of the table to create
-            schema_info (dict): Schema information from manifest
-            data_location (str): S3 location of the data files
-            output_location (str): S3 location for query results
-
-        Returns:
-            None
+            database_name: Name of the database
+            table_name: Name of the table to create
+            schema_info: Schema information from manifest
+            data_location: S3 location of the data files
+            output_location: S3 location for query results
         """
         column_definitions = []
-        for column in schema_info['columns']:
-            column_definitions.append(f'`{column["name"]}` {column["type"]}')
+        for column in schema_info.columns:
+            column_definitions.append(f'`{column.name}` {column.type}')
 
         create_table_query = f"""
         CREATE EXTERNAL TABLE IF NOT EXISTS {database_name}.{table_name} (
@@ -109,30 +113,34 @@ class AthenaHandler:
         await self.execute_query(create_table_query, database_name, output_location)
 
     async def setup_table(
-        self, database_name, table_name, schema_info, data_location, output_location
-    ):
+        self,
+        database_name: str,
+        table_name: str,
+        schema_info: SchemaInfo,
+        data_location: str,
+        output_location: str,
+    ) -> None:
         """Set up an Athena table based on the schema information.
 
         Args:
-            database_name (str): Name of the database
-            table_name (str): Name of the table to create
-            schema_info (dict): Schema information from manifest
-            data_location (str): S3 location of the data files
-            output_location (str): S3 location for query results
-
-        Returns:
-            None
+            database_name: Name of the database
+            table_name: Name of the table to create
+            schema_info: Schema information from manifest
+            data_location: S3 location of the data files
+            output_location: S3 location for query results
         """
         logger.info(f'Setting up Athena table {database_name}.{table_name}')
         logger.info(f'Data location: {data_location}')
-        logger.info(f'Schema format: {schema_info["format"]}')
-        logger.info(f'Columns: {[col["name"] for col in schema_info["columns"]]}')
+        logger.info(f'Schema format: {schema_info.format}')
+        logger.info(f'Columns: {[col.name for col in schema_info.columns]}')
 
         # Create database if it doesn't exist
         await self.create_database(database_name, output_location)
 
         # Create table based on format
-        if schema_info['format'] == 'CSV':
+        from awslabs.aws_finops_mcp_server.models import SchemaFormat
+
+        if schema_info.format == SchemaFormat.CSV:
             logger.info('Creating table for CSV format')
             await self.create_table_for_csv(
                 database_name, table_name, schema_info, data_location, output_location
@@ -143,16 +151,18 @@ class AthenaHandler:
                 database_name, table_name, schema_info, data_location, output_location
             )
 
-    async def execute_query(self, query, database_name, output_location):
+    async def execute_query(
+        self, query: str, database_name: str, output_location: str
+    ) -> AthenaQueryExecution:
         """Execute an Athena query.
 
         Args:
-            query (str): SQL query to execute
-            database_name (str): Athena database name to use
-            output_location (str): S3 location for Athena query results
+            query: SQL query to execute
+            database_name: Athena database name to use
+            output_location: S3 location for Athena query results
 
         Returns:
-            dict: Query execution ID and status
+            AthenaQueryExecution: Query execution ID and status
         """
         try:
             logger.info(f'Executing Athena query on database {database_name}:')
@@ -168,21 +178,24 @@ class AthenaHandler:
 
             query_execution_id = response['QueryExecutionId']
             logger.info(f'Query execution ID: {query_execution_id}')
-            return {'query_execution_id': query_execution_id, 'status': 'STARTED'}
+
+            return AthenaQueryExecution(query_execution_id=query_execution_id, status='STARTED')
 
         except Exception as e:
             logger.error(f'Error starting Athena query: {str(e)}')
             raise Exception(f'Error starting Athena query: {str(e)}')
 
-    async def wait_for_query_completion(self, query_execution_id, max_retries=100):
+    async def wait_for_query_completion(
+        self, query_execution_id: str, max_retries: int = ATHENA_MAX_RETRIES
+    ) -> Dict[str, Any]:
         """Wait for an Athena query to complete.
 
         Args:
-            query_execution_id (str): Query execution ID
-            max_retries (int): Maximum number of retries
+            query_execution_id: Query execution ID
+            max_retries: Maximum number of retries
 
         Returns:
-            dict: Query execution status
+            Dict[str, Any]: Query execution status
         """
         state = 'RUNNING'  # Initial state assumption
         retries = 0
@@ -207,7 +220,7 @@ class AthenaHandler:
                 return response['QueryExecution']
 
             # Wait before checking again
-            time.sleep(1)
+            time.sleep(ATHENA_RETRY_DELAY_SECONDS)
             retries += 1
 
         if retries >= max_retries:
@@ -216,14 +229,14 @@ class AthenaHandler:
 
         return None
 
-    async def get_query_results(self, query_execution_id):
+    async def get_query_results(self, query_execution_id: str) -> Dict[str, Any]:
         """Get the results of a completed Athena query.
 
         Args:
-            query_execution_id (str): Query execution ID
+            query_execution_id: Query execution ID
 
         Returns:
-            dict: Query results and metadata
+            Dict[str, Any]: Query results and metadata
         """
         try:
             # Get query results
@@ -253,12 +266,14 @@ class AthenaHandler:
         except Exception as e:
             raise Exception(f'Error getting query results: {str(e)}')
 
-    def determine_output_location(self, data_location, output_location=None):
+    def determine_output_location(
+        self, data_location: str, output_location: Optional[str] = None
+    ) -> str:
         """Determine the output location for Athena query results.
 
         Args:
-            data_location (str): S3 location of the data files
-            output_location (str, optional): User-provided output location
+            data_location: S3 location of the data files
+            output_location: User-provided output location
 
         Returns:
             str: S3 location for Athena query results

@@ -28,7 +28,7 @@ def test_register_boto3_tools_with_real_mcp(registry):
         tool_function = create_tool_function(registry, tool_name)
 
         # Register the tool with FastMCP
-        mcp.tool(name=tool_name, description=tool_info['docstring'])(tool_function)
+        mcp.tool(name=tool_name, description=tool_info.docstring)(tool_function)
 
     # Verify that tools were registered
     # FastMCP doesn't expose a way to count registered tools directly,

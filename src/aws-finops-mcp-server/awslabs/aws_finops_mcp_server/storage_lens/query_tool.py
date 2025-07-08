@@ -19,6 +19,11 @@ This module provides the main query tool that integrates manifest handling and A
 
 from .athena_handler import AthenaHandler
 from .manifest_handler import ManifestHandler
+from awslabs.aws_finops_mcp_server.models import (
+    QueryResult,
+    QueryStatistics,
+    StorageLensQueryRequest,
+)
 
 
 class StorageLensQueryTool:
@@ -31,69 +36,69 @@ class StorageLensQueryTool:
 
     async def query_storage_lens(
         self,
-        manifest_location,
-        query,
-        output_location=None,
-        database_name='storage_lens_db',
-        table_name='storage_lens_metrics',
-    ):
+        request: StorageLensQueryRequest,
+    ) -> QueryResult:
         """Query S3 Storage Lens metrics using Athena.
 
         Args:
-            manifest_location (str): S3 URI to manifest file or folder containing manifest files
-            query (str): SQL query to execute against the data
-            output_location (str, optional): S3 location for Athena query results
-            database_name (str, optional): Athena database name to use
-            table_name (str, optional): Table name to create/use for the data
+            request: StorageLensQueryRequest object containing all query parameters
 
         Returns:
-            dict: Query results and metadata
+            QueryResult: Query results and metadata
         """
+        # Input parameters are already validated by the Pydantic model
+
         # 1. Locate and parse manifest file
-        manifest = await self.manifest_handler.get_manifest(manifest_location)
+        manifest = await self.manifest_handler.get_manifest(request.manifest_location)
 
         # 2. Extract data location and schema information
         data_location = self.manifest_handler.extract_data_location(manifest)
         schema_info = self.manifest_handler.parse_schema(manifest)
 
         # 3. Determine output location if not provided
+        output_location = request.output_location
         if not output_location:
             output_location = self.athena_handler.determine_output_location(data_location)
 
         # 4. Setup Athena database and table if needed
         await self.athena_handler.setup_table(
-            database_name, table_name, schema_info, data_location, output_location
+            request.database_name, request.table_name, schema_info, data_location, output_location
         )
 
         # 5. Replace {table} placeholder in query with actual table name
-        formatted_query = query.replace('{table}', f'{database_name}.{table_name}')
+        formatted_query = request.query.replace(
+            '{table}', f'{request.database_name}.{request.table_name}'
+        )
 
         # 6. Execute query
         query_result = await self.athena_handler.execute_query(
-            formatted_query, database_name, output_location
+            formatted_query, request.database_name, output_location
         )
 
         # 7. Wait for query to complete
         execution_details = await self.athena_handler.wait_for_query_completion(
-            query_result['query_execution_id']
+            query_result.query_execution_id
         )
 
         # 8. Get query results
-        results = await self.athena_handler.get_query_results(query_result['query_execution_id'])
+        results = await self.athena_handler.get_query_results(query_result.query_execution_id)
 
         # 9. Add query statistics and metadata
         stats = execution_details['Statistics']
-        results.update(
-            {
-                'statistics': {
-                    'engine_execution_time_ms': stats.get('EngineExecutionTimeInMillis', 0),
-                    'data_scanned_bytes': stats.get('DataScannedInBytes', 0),
-                    'total_execution_time_ms': stats.get('TotalExecutionTimeInMillis', 0),
-                },
-                'query': formatted_query,
-                'manifest_location': manifest_location,
-                'data_location': data_location,
-            }
+
+        # Create QueryStatistics model
+        statistics = QueryStatistics(
+            engine_execution_time_ms=stats.get('EngineExecutionTimeInMillis', 0),
+            data_scanned_bytes=stats.get('DataScannedInBytes', 0),
+            total_execution_time_ms=stats.get('TotalExecutionTimeInMillis', 0),
         )
 
-        return results
+        # Create and return QueryResult model
+        return QueryResult(
+            columns=results['columns'],
+            rows=results['rows'],
+            statistics=statistics,
+            query=formatted_query,
+            manifest_location=request.manifest_location,
+            data_location=data_location,
+        )

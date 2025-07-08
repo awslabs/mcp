@@ -46,7 +46,7 @@ def register_all_prompts(mcp: FastMCP) -> None:
     registered_count = 0
     for module_name in prompt_files:
         # Import the module
-        module_path = f'prompts.{module_name}'
+        module_path = f'awslabs.aws_finops_mcp_server.prompts.{module_name}'
         try:
             module = importlib.import_module(module_path)
 

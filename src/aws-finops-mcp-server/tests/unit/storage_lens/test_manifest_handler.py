@@ -3,6 +3,7 @@
 import json
 import pytest
 from .fixtures import CSV_MANIFEST, PARQUET_MANIFEST
+from awslabs.aws_finops_mcp_server.models import SchemaFormat
 from awslabs.aws_finops_mcp_server.storage_lens.manifest_handler import ManifestHandler
 from unittest.mock import MagicMock, patch
 
@@ -90,10 +91,10 @@ class TestManifestHandler:
         result = manifest_handler.parse_schema(CSV_MANIFEST)
 
         # Assertions
-        assert result['format'] == 'CSV'
-        assert len(result['columns']) == 11
-        assert result['columns'][0]['name'] == 'version_number'
-        assert result['columns'][0]['type'] == 'STRING'
+        assert result.format == SchemaFormat.CSV
+        assert len(result.columns) == 11
+        assert result.columns[0].name == 'version_number'
+        assert result.columns[0].type == 'STRING'
 
     def test_parse_schema_parquet(self, manifest_handler):
         """Test parsing Parquet schema from manifest."""
@@ -101,9 +102,9 @@ class TestManifestHandler:
         result = manifest_handler.parse_schema(PARQUET_MANIFEST)
 
         # Assertions
-        assert result['format'] == 'PARQUET'
-        assert len(result['columns']) == 11
-        assert result['columns'][0]['name'] == 'version_number'
-        assert result['columns'][0]['type'] == 'STRING'
-        assert result['columns'][10]['name'] == 'metric_value'
-        assert result['columns'][10]['type'] == 'BIGINT'
+        assert result.format == SchemaFormat.PARQUET
+        assert len(result.columns) == 11
+        assert result.columns[0].name == 'version_number'
+        assert result.columns[0].type == 'STRING'
+        assert result.columns[10].name == 'metric_value'
+        assert result.columns[10].type == 'BIGINT'

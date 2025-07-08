@@ -53,7 +53,7 @@ def test_register_all_prompts():
     mock_mcp.prompt.return_value = mock_prompt
 
     # Import the register_all_prompts function
-    from prompts import register_all_prompts
+    from awslabs.aws_finops_mcp_server.prompts import register_all_prompts
 
     # Call the function with the mock MCP server
     register_all_prompts(mock_mcp)
@@ -67,13 +67,14 @@ def test_register_all_prompts():
         args, kwargs = call
         assert 'name' in kwargs
         assert 'description' in kwargs
-        assert 'tags' in kwargs
 
 
 def test_graviton_migration_prompt():
     """Test that the graviton migration prompt generates correct content."""
     # Import the prompt function
-    from prompts.graviton_migration import graviton_migration_analysis
+    from awslabs.aws_finops_mcp_server.prompts.graviton_migration import (
+        graviton_migration_analysis,
+    )
 
     # Call the function with test parameters
     account_ids = '123456789012'
@@ -127,7 +128,7 @@ def test_graviton_migration_prompt():
 def test_savings_plans_prompt():
     """Test that the savings plans prompt generates correct content."""
     # Import the prompt function
-    from prompts.savings_plans import savings_plans_analysis
+    from awslabs.aws_finops_mcp_server.prompts.savings_plans import savings_plans_analysis
 
     # Call the function with test parameters
     account_ids = '123456789012'

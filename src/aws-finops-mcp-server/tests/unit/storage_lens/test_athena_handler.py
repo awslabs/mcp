@@ -1,6 +1,7 @@
 """Unit tests for the AthenaHandler class."""
 
 import pytest
+from awslabs.aws_finops_mcp_server.models import ColumnDefinition, SchemaFormat, SchemaInfo
 from awslabs.aws_finops_mcp_server.storage_lens.athena_handler import AthenaHandler
 from unittest.mock import patch
 
@@ -36,8 +37,8 @@ class TestAthenaHandler:
             QueryExecutionContext={'Database': 'test_database'},
             ResultConfiguration={'OutputLocation': 's3://test-bucket/athena-results/'},
         )
-        assert result['query_execution_id'] == 'test-execution-id'
-        assert result['status'] == 'STARTED'
+        assert result.query_execution_id == 'test-execution-id'
+        assert result.status == 'STARTED'
 
     @pytest.mark.asyncio
     async def test_wait_for_query_completion(self, athena_handler):
@@ -107,7 +108,9 @@ class TestAthenaHandler:
 
         # Mock execute_query as an async function
         async def mock_execute_query(*args, **kwargs):
-            return {'query_execution_id': 'test-id', 'status': 'STARTED'}
+            from awslabs.aws_finops_mcp_server.models import AthenaQueryExecution
+
+            return AthenaQueryExecution(query_execution_id='test-id', status='STARTED')
 
         # Replace the method with our mock
         athena_handler.execute_query = mock_execute_query
@@ -133,20 +136,22 @@ class TestAthenaHandler:
 
         # Mock execute_query as an async function
         async def mock_execute_query(*args, **kwargs):
-            return {'query_execution_id': 'test-id', 'status': 'STARTED'}
+            from awslabs.aws_finops_mcp_server.models import AthenaQueryExecution
+
+            return AthenaQueryExecution(query_execution_id='test-id', status='STARTED')
 
         # Replace the method with our mock
         athena_handler.execute_query = mock_execute_query
 
         # Call the method
-        schema_info = {
-            'format': 'CSV',
-            'columns': [
-                {'name': 'column1', 'type': 'STRING'},
-                {'name': 'column2', 'type': 'BIGINT'},
+        schema_info = SchemaInfo(
+            format=SchemaFormat.CSV,
+            columns=[
+                ColumnDefinition(name='column1', type='STRING'),
+                ColumnDefinition(name='column2', type='BIGINT'),
             ],
-            'skip_header': True,
-        }
+            skip_header=True,
+        )
 
         # We'll patch the method and check if it's called with the right SQL
         with patch.object(

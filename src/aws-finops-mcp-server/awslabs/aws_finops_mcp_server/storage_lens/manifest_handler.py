@@ -20,6 +20,14 @@ This module provides functionality to locate and parse S3 Storage Lens manifest 
 import boto3
 import json
 import logging
+import re
+from awslabs.aws_finops_mcp_server.models import (
+    ColumnDefinition,
+    ManifestFile,
+    SchemaFormat,
+    SchemaInfo,
+)
+from typing import Any, Dict
 from urllib.parse import urlparse
 
 
@@ -35,15 +43,15 @@ class ManifestHandler:
         """Initialize the S3 client."""
         self.s3_client = boto3.client('s3')
 
-    async def get_manifest(self, manifest_location):
+    async def get_manifest(self, manifest_location: str) -> Dict[str, Any]:
         """Locate and parse the manifest file from S3.
 
         Args:
-            manifest_location (str): S3 URI to manifest file or folder containing manifest files
+            manifest_location: S3 URI to manifest file or folder containing manifest files
                 (e.g., 's3://bucket-name/path/to/manifest.json' or 's3://bucket-name/path/to/folder/')
 
         Returns:
-            dict: Parsed manifest JSON content
+            Dict[str, Any]: Parsed manifest JSON content
         """
         # Parse the S3 URI to get bucket and key
         parsed_uri = urlparse(manifest_location)
@@ -55,15 +63,15 @@ class ManifestHandler:
         else:
             return await self._find_latest_manifest(bucket, key)
 
-    async def _read_manifest_file(self, bucket, key):
+    async def _read_manifest_file(self, bucket: str, key: str) -> Dict[str, Any]:
         """Read and parse a manifest file from S3.
 
         Args:
-            bucket (str): S3 bucket name
-            key (str): S3 object key for the manifest file
+            bucket: S3 bucket name
+            key: S3 object key for the manifest file
 
         Returns:
-            dict: Parsed manifest JSON content
+            Dict[str, Any]: Parsed manifest JSON content
         """
         try:
             response = self.s3_client.get_object(Bucket=bucket, Key=key)
@@ -72,15 +80,15 @@ class ManifestHandler:
         except Exception as e:
             raise Exception(f'Failed to read manifest file at s3://{bucket}/{key}: {str(e)}')
 
-    async def _find_latest_manifest(self, bucket, key):
+    async def _find_latest_manifest(self, bucket: str, key: str) -> Dict[str, Any]:
         """Find the latest manifest.json file in the specified S3 location.
 
         Args:
-            bucket (str): S3 bucket name
-            key (str): S3 prefix to search for manifest files
+            bucket: S3 bucket name
+            key: S3 prefix to search for manifest files
 
         Returns:
-            dict: Parsed manifest JSON content
+            Dict[str, Any]: Parsed manifest JSON content
         """
         # Ensure key ends with a slash
         if not key.endswith('/'):
@@ -98,34 +106,36 @@ class ManifestHandler:
                 if 'Contents' in page:
                     for obj in page['Contents']:
                         if obj['Key'].endswith('manifest.json'):
-                            manifest_files.append(
-                                {'key': obj['Key'], 'last_modified': obj['LastModified']}
+                            # Use the ManifestFile model
+                            manifest_file = ManifestFile(
+                                key=obj['Key'], last_modified=obj['LastModified']
                             )
+                            manifest_files.append(manifest_file)
 
             if not manifest_files:
                 raise Exception(f'No manifest.json files found at s3://{bucket}/{key}')
 
             # Sort by last modified date to get the latest
-            latest_manifest = sorted(
-                manifest_files, key=lambda x: x['last_modified'], reverse=True
-            )[0]
+            latest_manifest = sorted(manifest_files, key=lambda x: x.last_modified, reverse=True)[
+                0
+            ]
 
             # Log only the selected latest manifest file
             logger.info(
-                f'Selected latest manifest: s3://{bucket}/{latest_manifest["key"]} (Last Modified: {latest_manifest["last_modified"]})'
+                f'Selected latest manifest: s3://{bucket}/{latest_manifest.key} (Last Modified: {latest_manifest.last_modified})'
             )
 
             # Get the content of the latest manifest file
-            return await self._read_manifest_file(bucket, latest_manifest['key'])
+            return await self._read_manifest_file(bucket, latest_manifest.key)
 
         except Exception as e:
             raise Exception(f'Failed to locate manifest file in s3://{bucket}/{key}: {str(e)}')
 
-    def extract_data_location(self, manifest):
+    def extract_data_location(self, manifest: Dict[str, Any]) -> str:
         """Extract the S3 location of the data files from the manifest.
 
         Args:
-            manifest (dict): Parsed manifest JSON content
+            manifest: Parsed manifest JSON content
 
         Returns:
             str: S3 URI to the data files
@@ -154,14 +164,14 @@ class ManifestHandler:
         # Return the directory containing the data files
         return '/'.join(data_location.split('/')[:-1])
 
-    def parse_schema(self, manifest):
+    def parse_schema(self, manifest: Dict[str, Any]) -> SchemaInfo:
         """Parse the schema information from the manifest.
 
         Args:
-            manifest (dict): Parsed manifest JSON content
+            manifest: Parsed manifest JSON content
 
         Returns:
-            dict: Schema information including format, column definitions, etc.
+            SchemaInfo: Schema information including format, column definitions, etc.
         """
         report_format = manifest.get('reportFormat', 'CSV')
         report_schema = manifest.get('reportSchema', '')
@@ -173,16 +183,16 @@ class ManifestHandler:
 
             for column in columns:
                 # Default to string type for all columns
-                column_definitions.append({'name': column.strip(), 'type': 'STRING'})
+                column_definitions.append(ColumnDefinition(name=column.strip(), type='STRING'))
 
-            return {'format': 'CSV', 'columns': column_definitions, 'skip_header': True}
+            return SchemaInfo(
+                format=SchemaFormat.CSV, columns=column_definitions, skip_header=True
+            )
         else:  # Parquet format
             # For Parquet, we need to parse the message schema
             schema_str = report_schema
 
             # Extract field definitions from the Parquet message schema
-            import re
-
             field_pattern = r'required\s+(\w+)\s+(\w+);'
             matches = re.findall(field_pattern, schema_str)
 
@@ -199,6 +209,8 @@ class ManifestHandler:
                 else:
                     athena_type = 'STRING'  # Default to STRING for unknown types
 
-                column_definitions.append({'name': field_name, 'type': athena_type})
+                column_definitions.append(ColumnDefinition(name=field_name, type=athena_type))
 
-            return {'format': 'PARQUET', 'columns': column_definitions, 'skip_header': False}
+            return SchemaInfo(
+                format=SchemaFormat.PARQUET, columns=column_definitions, skip_header=False
+            )

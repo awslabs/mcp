@@ -16,7 +16,18 @@ import boto3
 import logging
 import os
 from .boto3_docstrings import boto3_docstrings
+from awslabs.aws_finops_mcp_server.consts import (
+    AWS_SERVICE_NAME_MAP,
+    DEFAULT_AWS_REGION,
+    ENV_AWS_DEFAULT_REGION,
+    ENV_AWS_REGION,
+)
+from awslabs.aws_finops_mcp_server.models import (
+    AWSServiceNameMap,
+    Boto3ToolInfo,
+)
 from dotenv import load_dotenv
+from typing import Any, Dict
 
 
 # Load environment variables from .env file
@@ -25,57 +36,67 @@ load_dotenv()
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Map our service names to boto3 service names
-SERVICE_NAME_MAP = {
-    'cost_optimization_hub': 'cost-optimization-hub',
-    'compute_optimizer': 'compute-optimizer',
-    'cost_explorer': 'ce',  # Cost Explorer's actual service name in boto3 is "ce"
-}
-
-# Default region to use if no region is found
-DEFAULT_REGION = 'us-east-1'
-
 
 class Boto3ToolRegistry:
     """Registry for boto3 tools that can be exposed through the MCP server."""
 
     def __init__(self):
         """Initialize the registry with an empty tools dictionary."""
-        self.tools = {}
+        self.tools: Dict[str, Boto3ToolInfo] = {}
+        self.service_map = AWSServiceNameMap()
 
-    def register_all_tools(self):
+    def register_all_tools(self) -> None:
         """Register all tools from boto3_docstrings."""
         for service_name, methods in boto3_docstrings.items():
             for method_name, docstring in methods.items():
                 # Clean up the docstring by removing extra whitespace
                 clean_docstring = '\n'.join(line.strip() for line in docstring.strip().split('\n'))
-                self.register_tool(service_name, method_name, clean_docstring)
 
-    def register_tool(self, service_name: str, method_name: str, docstring: str):
-        """Register a new tool in the registry."""
-        tool_name = f'{service_name}_{method_name}'
-        self.tools[tool_name] = {
-            'service': service_name,
-            'method': method_name,
-            'docstring': docstring,
-        }
+                # Create a Boto3ToolInfo object
+                tool_info = Boto3ToolInfo(
+                    service=service_name,
+                    method=method_name,
+                    docstring=clean_docstring,
+                )
 
-    async def generic_handler(self, tool_name: str, **kwargs):
-        """Generic handler for all boto3 tools."""
+                # Register the tool with the object
+                self.register_tool(tool_info)
+
+    def register_tool(self, tool_info: Boto3ToolInfo) -> None:
+        """Register a new tool in the registry.
+
+        Args:
+            tool_info: Boto3ToolInfo object containing service, method, and docstring
+        """
+        tool_name = f'{tool_info.service}_{tool_info.method}'
+        self.tools[tool_name] = tool_info
+
+    async def generic_handler(self, tool_name: str, **kwargs) -> Dict[str, Any]:
+        """Generic handler for all boto3 tools.
+
+        Args:
+            tool_name: Name of the tool to call
+            **kwargs: Parameters to pass to the boto3 method
+
+        Returns:
+            Dict[str, Any]: Response from the boto3 method or error information
+        """
         if tool_name not in self.tools:
             logger.error(f'Tool {tool_name} not found in registry')
             return {'error': f'Tool {tool_name} not found in registry'}
 
         tool_info = self.tools[tool_name]
-        service_name = tool_info['service']
-        method_name = tool_info['method']
+        service_name = tool_info.service
+        method_name = tool_info.method
 
         # Map our service name to boto3 service name
-        boto3_service_name = SERVICE_NAME_MAP.get(service_name, service_name)
+        boto3_service_name = AWS_SERVICE_NAME_MAP.get(service_name, service_name)
 
         # Get region from environment variables or use default
         region = (
-            os.environ.get('AWS_DEFAULT_REGION') or os.environ.get('AWS_REGION') or DEFAULT_REGION
+            os.environ.get(ENV_AWS_DEFAULT_REGION)
+            or os.environ.get(ENV_AWS_REGION)
+            or DEFAULT_AWS_REGION
         )
         logger.info(f'Using region: {region}')
 

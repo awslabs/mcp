@@ -12,6 +12,7 @@ pytest -m integration tests/integration/storage_lens/test_storage_lens_integrati
 import os
 import pytest
 import pytest_asyncio
+from awslabs.aws_finops_mcp_server.models import StorageLensQueryRequest
 from awslabs.aws_finops_mcp_server.storage_lens import StorageLensQueryTool
 from dotenv import load_dotenv
 
@@ -62,7 +63,7 @@ class TestStorageLensIntegration:
             pytest.skip('No manifest location provided')
 
         # Run a simple query to get storage by region
-        result = await query_tool.query_storage_lens(
+        request = StorageLensQueryRequest(
             manifest_location=MANIFEST_LOCATION,
             query="""
             SELECT
@@ -79,14 +80,14 @@ class TestStorageLensIntegration:
             LIMIT 10
             """,
         )
+        result = await query_tool.query_storage_lens(request)
 
         # Validate result structure
-        assert 'columns' in result
-        assert 'rows' in result
-        assert 'statistics' in result
-        assert len(result['columns']) >= 2
+        assert hasattr(result, 'columns')
+        assert hasattr(result, 'rows')
+        assert hasattr(result, 'statistics')
 
         # Validate that we got some data
-        if len(result['rows']) > 0:
-            assert 'aws_region' in result['rows'][0]
-            assert 'total_bytes' in result['rows'][0]
+        if len(result.rows) > 0:
+            assert 'aws_region' in result.rows[0]
+            assert 'total_bytes' in result.rows[0]

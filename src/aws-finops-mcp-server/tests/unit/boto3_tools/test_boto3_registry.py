@@ -2,6 +2,7 @@
 
 import pytest
 from awslabs.aws_finops_mcp_server.boto3_tools import Boto3ToolRegistry
+from awslabs.aws_finops_mcp_server.models import Boto3ToolInfo
 from unittest.mock import MagicMock, patch
 
 
@@ -11,14 +12,19 @@ def test_register_tool():
     # Create a registry
     registry = Boto3ToolRegistry()
 
+    # Create a Boto3ToolInfo object
+    tool_info = Boto3ToolInfo(
+        service='test_service', method='test_method', docstring='Test docstring'
+    )
+
     # Register a tool
-    registry.register_tool('test_service', 'test_method', 'Test docstring')
+    registry.register_tool(tool_info)
 
     # Verify the tool was registered
     assert 'test_service_test_method' in registry.tools
-    assert registry.tools['test_service_test_method']['service'] == 'test_service'
-    assert registry.tools['test_service_test_method']['method'] == 'test_method'
-    assert registry.tools['test_service_test_method']['docstring'] == 'Test docstring'
+    assert registry.tools['test_service_test_method'].service == 'test_service'
+    assert registry.tools['test_service_test_method'].method == 'test_method'
+    assert registry.tools['test_service_test_method'].docstring == 'Test docstring'
 
 
 @pytest.mark.unit
@@ -41,8 +47,13 @@ async def test_generic_handler_service_name_mapping(mock_boto3_client):
     # Create a registry
     registry = Boto3ToolRegistry()
 
+    # Create a Boto3ToolInfo object
+    tool_info = Boto3ToolInfo(
+        service='cost_explorer', method='test_method', docstring='Test docstring'
+    )
+
     # Register a tool
-    registry.register_tool('cost_explorer', 'test_method', 'Test docstring')
+    registry.register_tool(tool_info)
 
     # Mock the boto3 client and its method
     mock_client = MagicMock()
@@ -64,8 +75,13 @@ async def test_generic_handler_parameter_transformation(mock_boto3_client):
     # Create a registry
     registry = Boto3ToolRegistry()
 
+    # Create a Boto3ToolInfo object
+    tool_info = Boto3ToolInfo(
+        service='cost_explorer', method='test_method', docstring='Test docstring'
+    )
+
     # Register a tool
-    registry.register_tool('cost_explorer', 'test_method', 'Test docstring')
+    registry.register_tool(tool_info)
 
     # Mock the boto3 client and its method
     mock_client = MagicMock()
@@ -93,8 +109,13 @@ async def test_generic_handler_error_handling(mock_boto3_client):
     # Create a registry
     registry = Boto3ToolRegistry()
 
+    # Create a Boto3ToolInfo object
+    tool_info = Boto3ToolInfo(
+        service='test_service', method='test_method', docstring='Test docstring'
+    )
+
     # Register a tool
-    registry.register_tool('test_service', 'test_method', 'Test docstring')
+    registry.register_tool(tool_info)
 
     # Mock the boto3 client and its method to raise an exception
     mock_client = MagicMock()

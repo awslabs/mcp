@@ -13,7 +13,8 @@
 # limitations under the License.
 
 # boto3_tools/__init__.py
-from .boto3_registry import Boto3ToolRegistry, SERVICE_NAME_MAP
+from .boto3_registry import Boto3ToolRegistry
 from .boto3_docstrings import boto3_docstrings
+from awslabs.aws_finops_mcp_server.consts import AWS_SERVICE_NAME_MAP as SERVICE_NAME_MAP
 
 __all__ = ['Boto3ToolRegistry', 'SERVICE_NAME_MAP', 'boto3_docstrings']
