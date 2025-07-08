@@ -15,12 +15,12 @@
 """Engine for interacting with Iceberg tables using pyiceberg and daft (read-only)."""
 
 import pyarrow as pa
+from ..utils import pyiceberg_load_catalog
 from daft import Catalog as DaftCatalog
 from daft.session import Session
 from pydantic import BaseModel
 
 # pyiceberg and daft imports
-from pyiceberg.catalog import load_catalog
 from typing import Any, Dict, Optional
 
 
@@ -52,16 +52,13 @@ class PyIcebergEngine:
 
     def _initialize_connection(self):
         try:
-            self._catalog = load_catalog(
+            self._catalog = pyiceberg_load_catalog(
                 self.config.catalog_name,
-                **{
-                    'type': 'rest',
-                    'warehouse': self.config.warehouse,
-                    'uri': self.config.uri,
-                    'rest.sigv4-enabled': self.config.rest_sigv4_enabled,
-                    'rest.signing-name': self.config.rest_signing_name,
-                    'rest.signing-region': self.config.region,
-                },
+                self.config.warehouse,
+                self.config.uri,
+                self.config.region,
+                self.config.rest_signing_name,
+                self.config.rest_sigv4_enabled,
             )
             self._session = Session()
             self._session.attach(DaftCatalog.from_iceberg(self._catalog))

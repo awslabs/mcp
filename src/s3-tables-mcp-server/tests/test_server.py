@@ -100,6 +100,13 @@ def mock_tables():
         yield mock
 
 
+@pytest.fixture(autouse=True)
+def patch_log_tool_call():
+    """Patch the log_tool_call function for all tests to suppress logging side effects."""
+    with patch('awslabs.s3_tables_mcp_server.server.log_tool_call'):
+        yield
+
+
 # Resource Tests
 @pytest.mark.asyncio
 async def test_list_table_buckets(mock_resources):

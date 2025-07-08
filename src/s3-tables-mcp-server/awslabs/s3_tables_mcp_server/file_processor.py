@@ -23,11 +23,10 @@ import os
 import pyarrow as pa
 import re
 import uuid
-from .utils import get_s3_client
+from .utils import get_s3_client, pyiceberg_load_catalog
 from datetime import date, datetime, time
 from decimal import Decimal
 from io import StringIO
-from pyiceberg.catalog import load_catalog
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -389,16 +388,13 @@ async def import_csv_to_table(
 
     try:
         # Load catalog using provided parameters (see pyiceberg.py style)
-        catalog = load_catalog(
+        catalog = pyiceberg_load_catalog(
             catalog_name,
-            **{
-                'type': 'rest',
-                'warehouse': warehouse,
-                'uri': uri,
-                'rest.signing-region': region,
-                'rest.signing-name': rest_signing_name,
-                'rest.sigv4-enabled': rest_sigv4_enabled,
-            },
+            warehouse,
+            uri,
+            region,
+            rest_signing_name,
+            rest_sigv4_enabled,
         )
 
         # Load existing table

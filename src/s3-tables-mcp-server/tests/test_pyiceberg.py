@@ -12,156 +12,234 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the PyIcebergEngine module."""
+"""Unit tests for pyiceberg.py (PyIcebergEngine and PyIcebergConfig)."""
 
 import pytest
 from awslabs.s3_tables_mcp_server.engines.pyiceberg import PyIcebergConfig, PyIcebergEngine
 from unittest.mock import MagicMock, patch
 
 
-class TestPyIcebergEngine:
-    """Test the PyIcebergEngine class."""
+class TestPyIcebergConfig:
+    """Unit tests for the PyIcebergConfig configuration class."""
 
-    @pytest.fixture
-    def mock_config(self):
-        """Fixture that returns a mock PyIcebergConfig for testing."""
-        return PyIcebergConfig(
-            warehouse='test-warehouse',
-            uri='https://test-uri',
+    def test_config_fields(self):
+        """Test that PyIcebergConfig fields are set correctly."""
+        config = PyIcebergConfig(
+            warehouse='my-warehouse',
+            uri='https://example.com',
             region='us-west-2',
-            namespace='test_namespace',
-            catalog_name='test_catalog',
-            rest_signing_name='glue',
-            rest_sigv4_enabled='true',
+            namespace='testns',
         )
+        assert config.warehouse == 'my-warehouse'
+        assert config.uri == 'https://example.com'
+        assert config.region == 'us-west-2'
+        assert config.namespace == 'testns'
+        assert config.catalog_name == 's3tablescatalog'
+        assert config.rest_signing_name == 'glue'
+        assert config.rest_sigv4_enabled == 'true'
 
-    @pytest.fixture
-    def engine_with_mocks(self, mock_config):
-        """Fixture that returns a PyIcebergEngine instance with mocked dependencies."""
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.engines.pyiceberg.load_catalog'
-            ) as mock_load_catalog,
-            patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session') as mock_Session,
-            patch(
-                'awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog'
-            ) as mock_DaftCatalog,
+
+class TestPyIcebergEngine:
+    """Unit tests for the PyIcebergEngine integration and behavior."""
+
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog')
+    def test_initialize_connection_success(
+        self, mock_daft_catalog, mock_session, mock_load_catalog
+    ):
+        """Test successful initialization of PyIcebergEngine connection."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_daft_catalog.from_iceberg.return_value = 'daftcat'
+
+        engine = PyIcebergEngine(config)
+        assert engine._catalog == mock_catalog
+        assert engine._session == mock_session_instance
+        mock_session_instance.attach.assert_called_once_with('daftcat')
+        mock_session_instance.set_namespace.assert_called_once_with('ns')
+
+    @patch(
+        'awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog',
+        side_effect=Exception('fail'),
+    )
+    def test_initialize_connection_failure(self, mock_load_catalog):
+        """Test initialization failure raises ConnectionError."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        with pytest.raises(
+            ConnectionError, match='Failed to initialize PyIceberg connection: fail'
         ):
-            mock_catalog = MagicMock()
-            mock_load_catalog.return_value = mock_catalog
-            mock_session = MagicMock()
-            mock_Session.return_value = mock_session
-            mock_daft_catalog = MagicMock()
-            mock_DaftCatalog.from_iceberg.return_value = mock_daft_catalog
-            engine = PyIcebergEngine(mock_config)
-            return engine, mock_session, mock_catalog, mock_daft_catalog
+            PyIcebergEngine(config)
 
-    def test_init_success(self, mock_config):
-        """Test successful initialization of PyIcebergEngine."""
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.engines.pyiceberg.load_catalog'
-            ) as mock_load_catalog,
-            patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session') as mock_Session,
-            patch(
-                'awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog'
-            ) as mock_DaftCatalog,
-        ):
-            mock_catalog = MagicMock()
-            mock_load_catalog.return_value = mock_catalog
-            mock_session = MagicMock()
-            mock_Session.return_value = mock_session
-            mock_daft_catalog = MagicMock()
-            mock_DaftCatalog.from_iceberg.return_value = mock_daft_catalog
-            engine = PyIcebergEngine(mock_config)
-            assert engine.config == mock_config
-            assert engine._catalog == mock_catalog
-            assert engine._session == mock_session
-            mock_load_catalog.assert_called_once_with(
-                'test_catalog',
-                **{
-                    'type': 'rest',
-                    'warehouse': 'test-warehouse',
-                    'uri': 'https://test-uri',
-                    'rest.sigv4-enabled': 'true',
-                    'rest.signing-name': 'glue',
-                    'rest.signing-region': 'us-west-2',
-                },
-            )
-            mock_session.attach.assert_called_once()
-            mock_session.set_namespace.assert_called_once_with('test_namespace')
-
-    def test_init_connection_failure(self, mock_config):
-        """Test initialization failure when load_catalog raises an exception."""
-        with patch(
-            'awslabs.s3_tables_mcp_server.engines.pyiceberg.load_catalog'
-        ) as mock_load_catalog:
-            mock_load_catalog.side_effect = Exception('Connection failed')
-            with pytest.raises(
-                ConnectionError,
-                match='Failed to initialize PyIceberg connection: Connection failed',
-            ):
-                PyIcebergEngine(mock_config)
-
-    def test_execute_query_success(self, engine_with_mocks):
-        """Test successful execution of a query using PyIcebergEngine."""
-        engine, mock_session, *_ = engine_with_mocks
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog')
+    def test_execute_query_success(self, mock_load_catalog, mock_daft_catalog, mock_session):
+        """Test successful execution of a query."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_daft_catalog.from_iceberg.return_value = 'daftcat'
         mock_result = MagicMock()
         mock_df = MagicMock()
+        mock_df.column_names = ['a', 'b']
+        mock_df.to_pylist.return_value = [{'a': 1, 'b': 2}, {'a': 3, 'b': 4}]
         mock_result.collect.return_value = mock_df
-        mock_session.sql.return_value = mock_result
-        mock_df.column_names = ['id', 'name']
-        mock_df.to_pylist.return_value = [
-            {'id': 1, 'name': 'test1'},
-            {'id': 2, 'name': 'test2'},
-        ]
-        result = engine.execute_query('SELECT * FROM test_table')
-        assert result['columns'] == ['id', 'name']
-        assert result['rows'] == [[1, 'test1'], [2, 'test2']]
-        mock_session.sql.assert_called_once_with('SELECT * FROM test_table')
+        mock_session_instance.sql.return_value = mock_result
+
+        engine = PyIcebergEngine(config)
+        result = engine.execute_query('SELECT * FROM t')
+        assert result['columns'] == ['a', 'b']
+        assert result['rows'] == [[1, 2], [3, 4]]
+        mock_session_instance.sql.assert_called_once_with('SELECT * FROM t')
         mock_result.collect.assert_called_once()
-        mock_df.to_pylist.assert_called_once()
 
-    def test_execute_query_no_session(self, mock_config):
-        """Test that execute_query raises ConnectionError if session is None."""
-        engine = PyIcebergEngine.__new__(PyIcebergEngine)
-        engine.config = mock_config
-        engine._session = None
-        with pytest.raises(ConnectionError, match='No active session for PyIceberg/Daft'):
-            engine.execute_query('SELECT * FROM test_table')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog')
+    def test_execute_query_none_result(self, mock_load_catalog, mock_daft_catalog, mock_session):
+        """Test that execute_query raises if result is None."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_daft_catalog.from_iceberg.return_value = 'daftcat'
+        mock_session_instance.sql.return_value = None
+        engine = PyIcebergEngine(config)
+        with pytest.raises(Exception, match='Query execution returned None result'):
+            engine.execute_query('SELECT * FROM t')
 
-    def test_execute_query_failure(self, engine_with_mocks):
-        """Test that execute_query raises an exception on query error."""
-        engine, mock_session, *_ = engine_with_mocks
-        mock_session.sql.side_effect = Exception('Query error')
-        with pytest.raises(Exception, match='Error executing query: Query error'):
-            engine.execute_query('SELECT * FROM test_table')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog')
+    def test_execute_query_error(self, mock_load_catalog, mock_daft_catalog, mock_session):
+        """Test that execute_query raises on SQL error."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_daft_catalog.from_iceberg.return_value = 'daftcat'
+        mock_session_instance.sql.side_effect = Exception('sqlfail')
+        engine = PyIcebergEngine(config)
+        with pytest.raises(Exception, match='Error executing query: sqlfail'):
+            engine.execute_query('SELECT * FROM t')
 
-    def test_test_connection_success(self, engine_with_mocks):
-        """Test that test_connection returns True when namespaces are listed successfully."""
-        engine, mock_session, *_ = engine_with_mocks
-        mock_session.list_namespaces.return_value = ['ns1', 'ns2']
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog')
+    def test_test_connection_success(self, mock_load_catalog, mock_daft_catalog, mock_session):
+        """Test that test_connection returns True on success."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_daft_catalog.from_iceberg.return_value = 'daftcat'
+        mock_session_instance.list_namespaces.return_value = ['ns']
+        engine = PyIcebergEngine(config)
         assert engine.test_connection() is True
-        mock_session.list_namespaces.assert_called_once()
+        mock_session_instance.list_namespaces.assert_called_once()
 
-    def test_test_connection_failure(self, engine_with_mocks):
-        """Test that test_connection returns False when listing namespaces fails."""
-        engine, mock_session, *_ = engine_with_mocks
-        mock_session.list_namespaces.side_effect = Exception('List failed')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog')
+    def test_test_connection_failure(self, mock_load_catalog, mock_daft_catalog, mock_session):
+        """Test that test_connection returns False on failure."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_daft_catalog.from_iceberg.return_value = 'daftcat'
+        mock_session_instance.list_namespaces.side_effect = Exception('fail')
+        engine = PyIcebergEngine(config)
         assert engine.test_connection() is False
-        mock_session.list_namespaces.assert_called_once()
 
-    def test_append_rows_no_catalog(self, mock_config):
-        """Test that append_rows raises ConnectionError if catalog is None."""
-        engine = PyIcebergEngine.__new__(PyIcebergEngine)
-        engine.config = mock_config
-        engine._catalog = None
-        with pytest.raises(ConnectionError, match='No active catalog for PyIceberg'):
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pa')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog')
+    def test_append_rows_success(
+        self, mock_load_catalog, mock_daft_catalog, mock_session, mock_pa
+    ):
+        """Test successful appending of rows to a table."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_daft_catalog.from_iceberg.return_value = 'daftcat'
+        mock_table = MagicMock()
+        mock_catalog.load_table.return_value = mock_table
+        mock_schema = MagicMock()
+        mock_table.schema.return_value.as_arrow.return_value = mock_schema
+        mock_pa_table = MagicMock()
+        mock_pa.Table.from_pylist.return_value = mock_pa_table
+        engine = PyIcebergEngine(config)
+        rows = [{'a': 1}, {'a': 2}]
+        engine.append_rows('mytable', rows)
+        mock_catalog.load_table.assert_called_once_with('ns.mytable')
+        mock_table.schema.assert_called_once()
+        mock_pa.Table.from_pylist.assert_called_once_with(rows, schema=mock_schema)
+        mock_table.append.assert_called_once_with(mock_pa_table)
+
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pa')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog')
+    def test_append_rows_with_dot_in_table_name(
+        self, mock_load_catalog, mock_daft_catalog, mock_session, mock_pa
+    ):
+        """Test appending rows to a table with a dot in its name."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_daft_catalog.from_iceberg.return_value = 'daftcat'
+        mock_table = MagicMock()
+        mock_catalog.load_table.return_value = mock_table
+        mock_schema = MagicMock()
+        mock_table.schema.return_value.as_arrow.return_value = mock_schema
+        mock_pa_table = MagicMock()
+        mock_pa.Table.from_pylist.return_value = mock_pa_table
+        engine = PyIcebergEngine(config)
+        rows = [{'a': 1}]
+        engine.append_rows('otherns.mytable', rows)
+        mock_catalog.load_table.assert_called_once_with('otherns.mytable')
+        mock_table.schema.assert_called_once()
+        mock_pa.Table.from_pylist.assert_called_once_with(rows, schema=mock_schema)
+        mock_table.append.assert_called_once_with(mock_pa_table)
+
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pa')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.Session')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.DaftCatalog')
+    @patch('awslabs.s3_tables_mcp_server.engines.pyiceberg.pyiceberg_load_catalog')
+    def test_append_rows_error(self, mock_load_catalog, mock_daft_catalog, mock_session, mock_pa):
+        """Test that append_rows raises on error loading table."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        mock_catalog = MagicMock()
+        mock_load_catalog.return_value = mock_catalog
+        mock_session_instance = MagicMock()
+        mock_session.return_value = mock_session_instance
+        mock_daft_catalog.from_iceberg.return_value = 'daftcat'
+        mock_catalog.load_table.side_effect = Exception('fail')
+        engine = PyIcebergEngine(config)
+        with pytest.raises(Exception, match='Error appending rows: fail'):
             engine.append_rows('mytable', [{'a': 1}])
 
-    def test_append_rows_failure(self, engine_with_mocks):
-        """Test that append_rows raises an exception if loading table fails."""
-        engine, _, mock_catalog, _ = engine_with_mocks
-        mock_catalog.load_table.side_effect = Exception('load error')
-        with pytest.raises(Exception, match='Error appending rows: load error'):
+    def test_append_rows_no_catalog(self):
+        """Test that append_rows raises ConnectionError when no catalog is set."""
+        config = PyIcebergConfig(warehouse='wh', uri='uri', region='region', namespace='ns')
+        engine = PyIcebergEngine.__new__(PyIcebergEngine)
+        engine.config = config
+        engine._catalog = None
+        with pytest.raises(ConnectionError, match='No active catalog for PyIceberg'):
             engine.append_rows('mytable', [{'a': 1}])

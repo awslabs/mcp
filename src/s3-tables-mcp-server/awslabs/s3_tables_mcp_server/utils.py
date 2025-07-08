@@ -98,3 +98,29 @@ def get_athena_client(region_name: Optional[str] = None) -> BaseClient:
     config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
     session = boto3.Session()
     return session.client('athena', region_name=region, config=config)
+
+
+def pyiceberg_load_catalog(
+    catalog_name: str,
+    warehouse: str,
+    uri: str,
+    region: str,
+    rest_signing_name: str = 'glue',
+    rest_sigv4_enabled: str = 'true',
+):
+    """Load a PyIceberg catalog with the given parameters."""
+    from pyiceberg.catalog import load_catalog
+
+    catalog = load_catalog(
+        catalog_name,
+        **{
+            'type': 'rest',
+            'warehouse': warehouse,
+            'uri': uri,
+            'rest.sigv4-enabled': rest_sigv4_enabled,
+            'rest.signing-name': rest_signing_name,
+            'rest.signing-region': region,
+        },
+    )
+    catalog._session.headers['User-Agent'] = f'awslabs/mcp/s3-tables-mcp-server/{__version__}'  # type: ignore[attr-defined]
+    return catalog

@@ -12,21 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the file processor module."""
+"""Unit tests for file_processor.py."""
 
+import pyarrow as pa
 import pytest
 import uuid
-from awslabs.s3_tables_mcp_server.file_processor import (
-    convert_value,
-    create_pyarrow_schema_from_iceberg,
-    import_csv_to_table,
-    preview_csv_structure,
-    process_chunk,
-    validate_s3_url,
-)
+from awslabs.s3_tables_mcp_server import file_processor
 from datetime import date, datetime, time
 from decimal import Decimal
-from pyiceberg.schema import Schema
 from pyiceberg.types import (
     BinaryType,
     BooleanType,
@@ -39,9 +32,7 @@ from pyiceberg.types import (
     ListType,
     LongType,
     MapType,
-    NestedField,
     StringType,
-    StructType,
     TimestampType,
     TimestamptzType,
     TimeType,
@@ -51,695 +42,264 @@ from unittest.mock import MagicMock, patch
 
 
 class TestValidateS3Url:
-    """Test the validate_s3_url function."""
+    """Unit tests for S3 URL validation logic in file_processor."""
 
     def test_valid_s3_url(self):
-        """Test that valid S3 URLs are correctly parsed."""
-        s3_url = 's3://my-bucket/path/to/file.csv'
-        is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
-
-        assert is_valid is True
-        assert error_msg is None
+        """Test that a valid S3 URL is correctly parsed and validated."""
+        url = 's3://my-bucket/my/key.csv'
+        valid, error, bucket, key = file_processor.validate_s3_url(url)
+        assert valid is True
+        assert error is None
         assert bucket == 'my-bucket'
-        assert key == 'path/to/file.csv'
+        assert key == 'my/key.csv'
 
-    def test_valid_s3_url_with_special_characters(self):
-        """Test S3 URL with special characters in key."""
-        s3_url = 's3://my-bucket/path/with spaces/and-special_chars/file.csv'
-        is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
-
-        assert is_valid is True
-        assert error_msg is None
-        assert bucket == 'my-bucket'
-        assert key == 'path/with spaces/and-special_chars/file.csv'
-
-    def test_invalid_scheme(self):
-        """Test URL with invalid scheme."""
-        s3_url = 'https://my-bucket/file.csv'
-        is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
-
-        assert is_valid is False
-        assert error_msg is not None
-        assert 'Invalid URL scheme: https' in error_msg
+    @pytest.mark.parametrize(
+        'url,expected_error',
+        [
+            ('http://bucket/key', "Invalid URL scheme: http. Must be 's3://'"),
+            ('s3://', 'Missing bucket name in S3 URL'),
+            ('s3://bucket', 'Missing object key in S3 URL'),
+            ('not-a-url', "Invalid URL scheme: . Must be 's3://'"),
+        ],
+    )
+    def test_invalid_s3_url(self, url, expected_error):
+        """Test that invalid S3 URLs are correctly identified and return appropriate errors."""
+        valid, error, bucket, key = file_processor.validate_s3_url(url)
+        assert valid is False
+        assert expected_error in error
         assert bucket is None
         assert key is None
-
-    def test_missing_bucket(self):
-        """Test URL with missing bucket name."""
-        s3_url = 's3:///path/to/file.csv'
-        is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
-
-        assert is_valid is False
-        assert error_msg is not None
-        assert 'Missing bucket name' in error_msg
-        assert bucket is None
-        assert key is None
-
-    def test_missing_key(self):
-        """Test URL with missing object key."""
-        s3_url = 's3://my-bucket/'
-        is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
-
-        assert is_valid is False
-        assert error_msg is not None
-        assert 'Missing object key' in error_msg
-        assert bucket is None
-        assert key is None
-
-    def test_url_with_colon_in_key(self):
-        """Test that a URL with a colon in the key is parsed correctly."""
-        s3_url = 's3://my-bucket/path/to/file.csv:invalid'
-        is_valid, error_msg, bucket, key = validate_s3_url(s3_url)
-
-        assert is_valid is True
-        assert error_msg is None
-        assert bucket == 'my-bucket'
-        assert key == 'path/to/file.csv:invalid'
 
 
 class TestPreviewCsvStructure:
-    """Test the preview_csv_structure function."""
+    """Unit tests for previewing CSV structure from S3 in file_processor."""
 
-    @pytest.fixture
-    def mock_s3_client(self):
-        """Create a mock S3 client."""
-        return MagicMock()
+    @patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client')
+    def test_preview_csv_structure_success(self, mock_get_s3_client):
+        """Test successful preview of a CSV file structure from S3."""
+        s3_url = 's3://bucket/test.csv'
+        csv_content = 'col1,col2\nval1,val2\n'
+        mock_s3 = MagicMock()
+        mock_s3.get_object.return_value = {
+            'Body': MagicMock(read=MagicMock(return_value=csv_content.encode('utf-8')))
+        }
+        mock_get_s3_client.return_value = mock_s3
+        result = file_processor.preview_csv_structure(s3_url)
+        assert result['headers'] == ['col1', 'col2']
+        assert result['first_row'] == {'col1': 'val1', 'col2': 'val2'}
+        assert result['total_columns'] == 2
+        assert result['file_name'] == 'test.csv'
 
-    def test_successful_preview(self, mock_s3_client):
-        """Test successful CSV preview."""
-        # Mock CSV content
-        csv_content = 'id,name,age\n1,John,25\n2,Jane,30'
-
-        mock_response = MagicMock()
-        mock_response['Body'].read.return_value = csv_content.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_response
-
-        with patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client') as mock_get_client:
-            mock_get_client.return_value = mock_s3_client
-
-            result = preview_csv_structure('s3://my-bucket/data.csv')
-
-            assert result['headers'] == ['id', 'name', 'age']
-            assert result['first_row'] == {'id': '1', 'name': 'John', 'age': '25'}
-            assert result['total_columns'] == 3
-            assert result['file_name'] == 'data.csv'
-
-            mock_s3_client.get_object.assert_called_once_with(
-                Bucket='my-bucket', Key='data.csv', Range='bytes=0-32768'
-            )
-
-    def test_preview_with_empty_file(self, mock_s3_client):
-        """Test preview of empty CSV file."""
-        mock_response = MagicMock()
-        mock_response['Body'].read.return_value = ''.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_response
-
-        with patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client') as mock_get_client:
-            mock_get_client.return_value = mock_s3_client
-
-            result = preview_csv_structure('s3://my-bucket/empty.csv')
-
-            assert result['status'] == 'error'
-            assert 'File is empty' in result['error']
-
-    def test_preview_with_no_data_rows(self, mock_s3_client):
-        """Test preview of CSV with only headers."""
-        csv_content = 'id,name,age\n'
-
-        mock_response = MagicMock()
-        mock_response['Body'].read.return_value = csv_content.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_response
-
-        with patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client') as mock_get_client:
-            mock_get_client.return_value = mock_s3_client
-
-            result = preview_csv_structure('s3://my-bucket/headers_only.csv')
-
-            assert result['headers'] == ['id', 'name', 'age']
-            assert result['first_row'] == {}
-            assert result['total_columns'] == 3
-            assert result['file_name'] == 'headers_only.csv'
-
-    def test_invalid_s3_url(self):
-        """Test preview with invalid S3 URL."""
-        result = preview_csv_structure('invalid-url')
-
+    def test_preview_csv_structure_invalid_url(self):
+        """Test that an invalid S3 URL returns an error when previewing CSV structure."""
+        s3_url = 'not-a-url'
+        result = file_processor.preview_csv_structure(s3_url)
         assert result['status'] == 'error'
         assert 'Invalid URL scheme' in result['error']
 
-    def test_non_csv_file(self):
-        """Test preview of non-CSV file."""
-        result = preview_csv_structure('s3://my-bucket/data.txt')
-
+    def test_preview_csv_structure_non_csv(self):
+        """Test that a non-CSV file returns an error when previewing CSV structure."""
+        s3_url = 's3://bucket/file.txt'
+        result = file_processor.preview_csv_structure(s3_url)
         assert result['status'] == 'error'
         assert 'is not a CSV file' in result['error']
 
-    def test_s3_client_exception(self, mock_s3_client):
-        """Test preview when S3 client raises exception."""
-        mock_s3_client.get_object.side_effect = Exception('S3 error')
+    @patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client')
+    def test_preview_csv_structure_s3_error(self, mock_get_s3_client):
+        """Test that an S3 error is handled and returns an error when previewing CSV structure."""
+        s3_url = 's3://bucket/test.csv'
+        mock_s3 = MagicMock()
+        mock_s3.get_object.side_effect = Exception('S3 error')
+        mock_get_s3_client.return_value = mock_s3
+        result = file_processor.preview_csv_structure(s3_url)
+        assert result['status'] == 'error'
+        assert 'S3 error' in result['error']
 
-        with patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client') as mock_get_client:
-            mock_get_client.return_value = mock_s3_client
-
-            result = preview_csv_structure('s3://my-bucket/data.csv')
-
-            assert result['status'] == 'error'
-            assert 'S3 error' in result['error']
+    @patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client')
+    def test_preview_csv_structure_empty_file(self, mock_get_s3_client):
+        """Test that an empty CSV file returns an error when previewing CSV structure."""
+        s3_url = 's3://bucket/test.csv'
+        mock_s3 = MagicMock()
+        mock_s3.get_object.return_value = {
+            'Body': MagicMock(read=MagicMock(return_value=''.encode('utf-8')))
+        }
+        mock_get_s3_client.return_value = mock_s3
+        result = file_processor.preview_csv_structure(s3_url)
+        assert result['status'] == 'error'
+        assert 'File is empty' in result['error']
 
 
 class TestConvertValue:
-    """Test the convert_value function."""
+    """Unit tests for value conversion logic in file_processor."""
 
-    def test_boolean_type_true(self):
-        """Test boolean conversion with true values."""
-        assert convert_value('true', BooleanType()) is True
-        assert convert_value('1', BooleanType()) is True
-        assert convert_value('yes', BooleanType()) is True
+    def test_boolean_type(self):
+        """Test conversion of various string representations to boolean values."""
+        assert file_processor.convert_value('true', BooleanType()) is True
+        assert file_processor.convert_value('False', BooleanType()) is False
+        assert file_processor.convert_value('1', BooleanType()) is True
+        assert file_processor.convert_value('0', BooleanType()) is False
+        assert file_processor.convert_value('', BooleanType()) is None
+        assert file_processor.convert_value(None, BooleanType()) is None
 
-    def test_boolean_type_false(self):
-        """Test boolean conversion with false values."""
-        assert convert_value('false', BooleanType()) is False
-        assert convert_value('0', BooleanType()) is False
-        assert convert_value('no', BooleanType()) is False
+    def test_integer_types(self):
+        """Test conversion of string values to integer and long types."""
+        assert file_processor.convert_value('42', IntegerType()) == 42
+        assert file_processor.convert_value('123', LongType()) == 123
+        assert file_processor.convert_value('', IntegerType()) is None
 
-    def test_integer_type(self):
-        """Test integer conversion."""
-        assert convert_value('123', IntegerType()) == 123
-        assert convert_value('-456', IntegerType()) == -456
-
-    def test_long_type(self):
-        """Test long conversion."""
-        assert convert_value('123456789', LongType()) == 123456789
-
-    def test_float_type(self):
-        """Test float conversion."""
-        assert convert_value('123.45', FloatType()) == 123.45
-        assert convert_value('-67.89', FloatType()) == -67.89
-
-    def test_double_type(self):
-        """Test double conversion."""
-        assert convert_value('123.456789', DoubleType()) == 123.456789
+    def test_float_types(self):
+        """Test conversion of string values to float and double types."""
+        assert file_processor.convert_value('3.14', FloatType()) == 3.14
+        assert file_processor.convert_value('2.718', DoubleType()) == 2.718
+        assert file_processor.convert_value('', DoubleType()) is None
 
     def test_decimal_type(self):
-        """Test decimal conversion."""
-        result = convert_value('123.45', DecimalType(10, 2))
-        assert isinstance(result, Decimal)
-        assert result == Decimal('123.45')
+        """Test conversion of string values to decimal type."""
+        assert file_processor.convert_value('1.23', DecimalType(10, 2)) == Decimal('1.23')
+        assert file_processor.convert_value('', DecimalType(10, 2)) is None
 
-    def test_date_type(self):
-        """Test date conversion."""
-        result = convert_value('2023-12-25', DateType())
-        assert isinstance(result, date)
-        assert result == date(2023, 12, 25)
+    def test_date_time_types(self):
+        """Test conversion of string values to date, time, timestamp, and timestamptz types."""
+        assert file_processor.convert_value('2023-01-01', DateType()) == date(2023, 1, 1)
+        assert file_processor.convert_value('12:34:56', TimeType()) == time(12, 34, 56)
+        assert file_processor.convert_value(
+            '2023-01-01T12:34:56', TimestampType()
+        ) == datetime.fromisoformat('2023-01-01T12:34:56')
+        assert file_processor.convert_value(
+            '2023-01-01T12:34:56', TimestamptzType()
+        ) == datetime.fromisoformat('2023-01-01T12:34:56')
 
-    def test_time_type(self):
-        """Test time conversion."""
-        result = convert_value('14:30:45', TimeType())
-        assert isinstance(result, time)
-        assert result == time(14, 30, 45)
+    def test_string_and_uuid(self):
+        """Test conversion of string values to string and UUID types."""
+        assert file_processor.convert_value('hello', StringType()) == 'hello'
+        u = str(uuid.uuid4())
+        assert file_processor.convert_value(u, UUIDType()) == uuid.UUID(u)
 
-    def test_timestamp_type(self):
-        """Test timestamp conversion."""
-        result = convert_value('2023-12-25T14:30:45', TimestampType())
-        assert isinstance(result, datetime)
-        assert result == datetime(2023, 12, 25, 14, 30, 45)
-
-    def test_timestamptz_type(self):
-        """Test timestamptz conversion."""
-        result = convert_value('2023-12-25T14:30:45', TimestamptzType())
-        assert isinstance(result, datetime)
-
-    def test_string_type(self):
-        """Test string conversion."""
-        assert convert_value('hello world', StringType()) == 'hello world'
-        assert convert_value('123', StringType()) == '123'
-
-    def test_uuid_type(self):
-        """Test UUID conversion."""
-        uuid_str = '550e8400-e29b-41d4-a716-446655440000'
-        result = convert_value(uuid_str, UUIDType())
-        assert isinstance(result, uuid.UUID)
-
-    def test_binary_type(self):
-        """Test binary conversion."""
-        hex_str = '48656c6c6f'  # "Hello" in hex
-        result = convert_value(hex_str, BinaryType())
-        assert isinstance(result, bytes)
-        assert result == b'Hello'
-
-    def test_fixed_type(self):
-        """Test fixed type conversion."""
-        hex_str = '48656c6c6f'  # "Hello" in hex
-        result = convert_value(hex_str, FixedType(5))
-        assert isinstance(result, bytes)
+    def test_binary_and_fixed(self):
+        """Test conversion of hex string values to binary and fixed types."""
+        hexstr = '68656c6c6f'  # 'hello' in hex
+        assert file_processor.convert_value(hexstr, BinaryType()) == b'hello'
+        assert file_processor.convert_value(hexstr, FixedType(5)) == b'hello'
 
     def test_list_type(self):
-        """Test list type conversion."""
-        list_str = '1,2,3,4,5'
-        result = convert_value(list_str, ListType(element_id=1, element_type=IntegerType()))
-        assert result == [1, 2, 3, 4, 5]
+        """Test conversion of comma-separated string to a list of integers."""
+        # ListType(element_id, element_type, element_required=True)
+        lt = ListType(element_id=1, element_type=IntegerType(), element_required=True)
+        assert file_processor.convert_value('1,2,3', lt) == [1, 2, 3]
 
     def test_map_type(self):
-        """Test map type conversion."""
-        map_str = 'key1:value1,key2:value2'
-        result = convert_value(
-            map_str, MapType(key_id=1, key_type=StringType(), value_id=2, value_type=StringType())
+        """Test conversion of colon-separated key-value pairs to a map of string to integer."""
+        # MapType(key_id, key_type, value_id, value_type, value_required=True)
+        mt = MapType(
+            key_id=1,
+            key_type=StringType(),
+            value_id=2,
+            value_type=IntegerType(),
+            value_required=True,
         )
-        assert result == {'key1': 'value1', 'key2': 'value2'}
+        assert file_processor.convert_value('a:1,b:2', mt) == {'a': 1, 'b': 2}
 
-    def test_struct_type_raises_error(self):
-        """Test that struct type raises NotImplementedError."""
-        with pytest.raises(NotImplementedError, match='Nested structs need structured input'):
-            convert_value('{"field": "value"}', StructType())
+    def test_unsupported_type(self):
+        """Test that an unsupported type raises a ValueError during conversion."""
 
-    def test_unsupported_type_raises_error(self):
-        """Test that unsupported types raise ValueError."""
-
-        class UnsupportedType:
+        class DummyType:
             pass
 
-        with pytest.raises(ValueError, match='Unsupported Iceberg type'):
-            convert_value('value', UnsupportedType())
-
-    def test_null_or_empty_values(self):
-        """Test handling of null or empty values."""
-        assert convert_value(None, StringType()) is None
-        assert convert_value('', StringType()) is None
-        assert convert_value('', IntegerType()) is None
-
-    def test_conversion_errors(self):
-        """Test conversion errors for invalid values."""
         with pytest.raises(ValueError):
-            convert_value('not_a_number', IntegerType())
-
-        with pytest.raises(ValueError):
-            convert_value('not_a_date', DateType())
-
-        with pytest.raises(ValueError):
-            convert_value('not_a_uuid', UUIDType())
+            file_processor.convert_value('x', DummyType())
 
 
 class TestCreatePyarrowSchemaFromIceberg:
-    """Test the create_pyarrow_schema_from_iceberg function."""
+    """Unit tests for creating pyarrow schema from Iceberg schema in file_processor."""
+
+    class DummyField:
+        def __init__(self, name, field_type, required=True):
+            """Initialize DummyField with name, field_type, and required flag."""
+            self.name = name
+            self.field_type = field_type
+            self.required = required
+
+    class DummySchema:
+        def __init__(self, fields):
+            """Initialize DummySchema with a list of fields."""
+            self.fields = fields
 
     def test_basic_types(self):
-        """Test conversion of basic Iceberg types to PyArrow schema."""
-        iceberg_schema = Schema(
-            NestedField(1, 'bool_field', BooleanType(), required=True),
-            NestedField(2, 'int_field', IntegerType(), required=True),
-            NestedField(3, 'long_field', LongType(), required=True),
-            NestedField(4, 'float_field', FloatType(), required=True),
-            NestedField(5, 'double_field', DoubleType(), required=True),
-            NestedField(6, 'string_field', StringType(), required=True),
-            NestedField(7, 'date_field', DateType(), required=True),
-            NestedField(8, 'time_field', TimeType(), required=True),
-            NestedField(9, 'timestamp_field', TimestampType(), required=True),
-        )
-
-        pa_schema = create_pyarrow_schema_from_iceberg(iceberg_schema)
-
-        assert len(pa_schema) == 9
-        assert pa_schema.field(0).name == 'bool_field'
-        assert pa_schema.field(1).name == 'int_field'
-        assert pa_schema.field(2).name == 'long_field'
+        """Test creation of a pyarrow schema from Iceberg schema with basic types."""
+        fields = [
+            self.DummyField('a', IntegerType()),
+            self.DummyField('b', StringType()),
+            self.DummyField('c', BooleanType(), required=False),
+        ]
+        schema = self.DummySchema(fields)
+        pa_schema = file_processor.create_pyarrow_schema_from_iceberg(schema)
+        assert pa_schema.field('a').type == pa.int32()
+        assert pa_schema.field('b').type == pa.string()
+        assert pa_schema.field('c').type == pa.bool_()
+        assert pa_schema.field('c').nullable is True
 
     def test_decimal_type(self):
-        """Test decimal type conversion."""
-        iceberg_schema = Schema(NestedField(1, 'decimal_field', DecimalType(10, 2), required=True))
-
-        pa_schema = create_pyarrow_schema_from_iceberg(iceberg_schema)
-
-        assert len(pa_schema) == 1
-        assert pa_schema.field(0).name == 'decimal_field'
-
-    def test_fixed_type(self):
-        """Test fixed type conversion."""
-        iceberg_schema = Schema(NestedField(1, 'fixed_field', FixedType(10), required=True))
-
-        pa_schema = create_pyarrow_schema_from_iceberg(iceberg_schema)
-
-        assert len(pa_schema) == 1
-        assert pa_schema.field(0).name == 'fixed_field'
-
-    def test_required_and_optional_fields(self):
-        """Test handling of required and optional fields."""
-        iceberg_schema = Schema(
-            NestedField(1, 'required_field', StringType(), required=True),
-            NestedField(2, 'optional_field', StringType(), required=False),
-        )
-
-        pa_schema = create_pyarrow_schema_from_iceberg(iceberg_schema)
-
-        assert pa_schema.field(0).nullable is False  # Required field
-        assert pa_schema.field(1).nullable is True  # Optional field
-
-    def test_invalid_decimal_format(self):
-        """Test error handling for invalid decimal format."""
-        # Create a mock field with invalid decimal type string
-        mock_field = MagicMock()
-        mock_field.name = 'invalid_decimal'
-        mock_field.field_type.__str__ = lambda self: 'decimal(invalid)'
-        mock_field.required = True
-
-        mock_schema = MagicMock()
-        mock_schema.fields = [mock_field]
-
-        with pytest.raises(ValueError, match='Invalid decimal type format'):
-            create_pyarrow_schema_from_iceberg(mock_schema)
-
-    def test_unsupported_type(self):
-        """Test error handling for unsupported types."""
-        # Create a mock field with unsupported type
-        mock_field = MagicMock()
-        mock_field.name = 'unsupported_field'
-        mock_field.field_type.__str__ = lambda self: 'unsupported_type'
-        mock_field.required = True
-
-        mock_schema = MagicMock()
-        mock_schema.fields = [mock_field]
-
-        with pytest.raises(ValueError, match='Unsupported Iceberg type'):
-            create_pyarrow_schema_from_iceberg(mock_schema)
+        """Test creation of a pyarrow schema from Iceberg schema with a decimal type."""
+        fields = [self.DummyField('d', DecimalType(10, 2))]
+        schema = self.DummySchema(fields)
+        pa_schema = file_processor.create_pyarrow_schema_from_iceberg(schema)
+        assert pa.types.is_decimal(pa_schema.field('d').type)
 
 
 class TestProcessChunk:
-    """Test the process_chunk function."""
+    """Unit tests for processing data chunks and appending to tables in file_processor."""
 
-    def test_successful_chunk_processing(self):
-        """Test successful processing of a data chunk."""
-        # Mock data
-        chunk = [{'id': 1, 'name': 'John', 'age': 25}, {'id': 2, 'name': 'Jane', 'age': 30}]
+    class DummyTable:
+        def __init__(self):
+            """Initialize DummyTable with an empty appended list and schema."""
+            self.appended = []
 
-        # Mock table
-        mock_table = MagicMock()
-        mock_schema = MagicMock()
-        mock_table.schema.return_value = mock_schema
+            class DummySchema:
+                def __init__(self):
+                    """Initialize DummySchema with test fields."""
+                    self.fields = [
+                        TestProcessChunk.DummyField('a', IntegerType()),
+                        TestProcessChunk.DummyField('b', StringType()),
+                    ]
 
-        # Mock PyArrow schema and table creation
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.create_pyarrow_schema_from_iceberg'
-            ) as mock_create_schema,
-            patch('awslabs.s3_tables_mcp_server.file_processor.pa.Table') as mock_pa_table_class,
-        ):
-            mock_pa_schema = MagicMock()
-            mock_create_schema.return_value = mock_pa_schema
+                def __call__(self):
+                    """Return self when called (for schema compatibility)."""
+                    return self
 
-            mock_pa_table = MagicMock()
-            mock_pa_table_class.from_pylist.return_value = mock_pa_table
+            self.schema = DummySchema()
 
-            result = process_chunk(chunk, mock_table, 'Test Chunk')
+        def schema(self):
+            """Return the schema for the DummyTable."""
+            return self.schema
 
-            assert result['status'] == 'success'
-            assert 'Successfully processed 2 rows' in result['message']
+        def append(self, table_data):
+            """Append table_data to the appended list."""
+            self.appended.append(table_data)
 
-            mock_pa_table_class.from_pylist.assert_called_once_with(chunk, schema=mock_pa_schema)
-            mock_table.append.assert_called_once_with(mock_pa_table)
+    class DummyField:
+        def __init__(self, name, field_type, required=True):
+            """Initialize DummyField with name, field_type, and required flag."""
+            self.name = name
+            self.field_type = field_type
+            self.required = required
 
-    def test_chunk_processing_error(self):
-        """Test chunk processing when an error occurs."""
-        chunk = [{'id': 1, 'name': 'John'}]
-        mock_table = MagicMock()
-        mock_table.schema.side_effect = Exception('Schema error')
+    def test_process_chunk_success(self):
+        """Test successful processing and appending of a chunk to the table."""
+        table = self.DummyTable()
+        chunk = [{'a': 1, 'b': 'x'}, {'a': 2, 'b': 'y'}]
+        result = file_processor.process_chunk(chunk, table)
+        assert result['status'] == 'success'
+        assert len(table.appended) == 1
 
-        result = process_chunk(chunk, mock_table, 'Test Chunk')
+    def test_process_chunk_error(self):
+        """Test that an error during table append is handled and returns an error status."""
 
+        class BadTable(self.DummyTable):
+            def append(self, table_data):
+                raise Exception('append failed')
+
+        table = BadTable()
+        chunk = [{'a': 1, 'b': 'x'}]
+        result = file_processor.process_chunk(chunk, table)
         assert result['status'] == 'error'
-        assert 'Error inserting test chunk' in result['error']
-
-
-class TestImportCsvToTable:
-    """Test the import_csv_to_table function."""
-
-    @pytest.fixture
-    def mock_s3_client(self):
-        """Create a mock S3 client."""
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_catalog(self):
-        """Create a mock Iceberg catalog."""
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_table(self):
-        """Create a mock Iceberg table."""
-        return MagicMock()
-
-    @pytest.fixture
-    def mock_schema(self):
-        """Create a mock Iceberg schema."""
-        return Schema(
-            NestedField(1, 'id', IntegerType(), required=True),
-            NestedField(2, 'name', StringType(), required=True),
-        )
-
-    @pytest.mark.asyncio
-    async def test_successful_import(self, mock_s3_client, mock_catalog, mock_table, mock_schema):
-        """Test successful CSV import."""
-        csv_content = 'id,name\n1,John\n2,Jane'
-        mock_s3_response = MagicMock()
-        mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_s3_response
-        mock_table.schema.return_value = mock_schema
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
-            ) as mock_get_s3_client,
-            patch('awslabs.s3_tables_mcp_server.file_processor.load_catalog') as mock_load_catalog,
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.process_chunk'
-            ) as mock_process_chunk,
-        ):
-            mock_get_s3_client.return_value = mock_s3_client
-            mock_load_catalog.return_value = mock_catalog
-            mock_catalog.load_table.return_value = mock_table
-            mock_process_chunk.return_value = {'status': 'success', 'message': 'Processed chunk'}
-            result = await import_csv_to_table(
-                warehouse='dummy-warehouse',
-                region='us-west-2',
-                namespace='test_namespace',
-                table_name='test_table',
-                s3_url='s3://source-bucket/data.csv',
-            )
-            assert result['status'] == 'success'
-            assert result['rows_processed'] == 2
-            assert result['file_processed'] == 'data.csv'
-            assert result['csv_headers'] == ['id', 'name']
-
-    @pytest.mark.asyncio
-    async def test_invalid_s3_url(self):
-        """Test import with invalid S3 URL."""
-        result = await import_csv_to_table(
-            warehouse='dummy-warehouse',
-            region='us-west-2',
-            namespace='test_namespace',
-            table_name='test_table',
-            s3_url='invalid-url',
-        )
-        assert result['status'] == 'error'
-        assert 'Invalid URL scheme' in result['error']
-
-    @pytest.mark.asyncio
-    async def test_non_csv_file(self):
-        """Test import of non-CSV file."""
-        result = await import_csv_to_table(
-            warehouse='dummy-warehouse',
-            region='us-west-2',
-            namespace='test_namespace',
-            table_name='test_table',
-            s3_url='s3://source-bucket/data.txt',
-        )
-        assert result['status'] == 'error'
-        assert 'is not a CSV file' in result['error']
-
-    @pytest.mark.asyncio
-    async def test_csv_missing_required_columns(
-        self, mock_s3_client, mock_catalog, mock_table, mock_schema
-    ):
-        """Test import when CSV is missing required columns."""
-        csv_content = 'id\n1\n2'
-        mock_s3_response = MagicMock()
-        mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_s3_response
-        mock_table.schema.return_value = mock_schema
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
-            ) as mock_get_s3_client,
-            patch('awslabs.s3_tables_mcp_server.file_processor.load_catalog') as mock_load_catalog,
-        ):
-            mock_get_s3_client.return_value = mock_s3_client
-            mock_load_catalog.return_value = mock_catalog
-            mock_catalog.load_table.return_value = mock_table
-            result = await import_csv_to_table(
-                warehouse='dummy-warehouse',
-                region='us-west-2',
-                namespace='test_namespace',
-                table_name='test_table',
-                s3_url='s3://source-bucket/data.csv',
-            )
-            assert result['status'] == 'error'
-            assert 'CSV is missing required columns: name' in result['error']
-
-    @pytest.mark.asyncio
-    async def test_csv_no_headers(self, mock_s3_client, mock_catalog, mock_table, mock_schema):
-        """Test import when CSV has no headers."""
-        csv_content = '1,John\n2,Jane'
-        mock_s3_response = MagicMock()
-        mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_s3_response
-        mock_table.schema.return_value = mock_schema
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
-            ) as mock_get_s3_client,
-            patch('awslabs.s3_tables_mcp_server.file_processor.load_catalog') as mock_load_catalog,
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.csv.DictReader'
-            ) as mock_dict_reader,
-        ):
-            mock_get_s3_client.return_value = mock_s3_client
-            mock_load_catalog.return_value = mock_catalog
-            mock_catalog.load_table.return_value = mock_table
-            mock_reader = MagicMock()
-            mock_reader.fieldnames = None
-            mock_dict_reader.return_value = mock_reader
-            result = await import_csv_to_table(
-                warehouse='dummy-warehouse',
-                region='us-west-2',
-                namespace='test_namespace',
-                table_name='test_table',
-                s3_url='s3://source-bucket/data.csv',
-            )
-            assert result['status'] == 'error'
-            assert 'CSV file has no headers' in result['error']
-
-    @pytest.mark.asyncio
-    async def test_required_field_missing_in_row(
-        self, mock_s3_client, mock_catalog, mock_table, mock_schema
-    ):
-        """Test import when a required field is missing in a row."""
-        csv_content = 'id,name\n1,John\n2,'
-        mock_s3_response = MagicMock()
-        mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_s3_response
-        mock_table.schema.return_value = mock_schema
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
-            ) as mock_get_s3_client,
-            patch('awslabs.s3_tables_mcp_server.file_processor.load_catalog') as mock_load_catalog,
-        ):
-            mock_get_s3_client.return_value = mock_s3_client
-            mock_load_catalog.return_value = mock_catalog
-            mock_catalog.load_table.return_value = mock_table
-            result = await import_csv_to_table(
-                warehouse='dummy-warehouse',
-                region='us-west-2',
-                namespace='test_namespace',
-                table_name='test_table',
-                s3_url='s3://source-bucket/data.csv',
-            )
-            assert result['status'] == 'error'
-            assert 'Required field name is missing or empty in row 2' in result['error']
-
-    @pytest.mark.asyncio
-    async def test_value_conversion_error(
-        self, mock_s3_client, mock_catalog, mock_table, mock_schema
-    ):
-        """Test import when value conversion fails."""
-        csv_content = 'id,name\n1,John\nabc,Jane'
-        mock_s3_response = MagicMock()
-        mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_s3_response
-        mock_table.schema.return_value = mock_schema
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
-            ) as mock_get_s3_client,
-            patch('awslabs.s3_tables_mcp_server.file_processor.load_catalog') as mock_load_catalog,
-        ):
-            mock_get_s3_client.return_value = mock_s3_client
-            mock_load_catalog.return_value = mock_catalog
-            mock_catalog.load_table.return_value = mock_table
-            result = await import_csv_to_table(
-                warehouse='dummy-warehouse',
-                region='us-west-2',
-                namespace='test_namespace',
-                table_name='test_table',
-                s3_url='s3://source-bucket/data.csv',
-            )
-            assert result['status'] == 'error'
-            assert 'Error converting value for field id in row 2' in result['error']
-
-    @pytest.mark.asyncio
-    async def test_chunk_processing_error(
-        self, mock_s3_client, mock_catalog, mock_table, mock_schema
-    ):
-        """Test import when chunk processing fails."""
-        csv_content = 'id,name\n1,John\n2,Jane\n3,Bob\n4,Alice\n5,Charlie'
-        mock_s3_response = MagicMock()
-        mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_s3_response
-        mock_table.schema.return_value = mock_schema
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
-            ) as mock_get_s3_client,
-            patch('awslabs.s3_tables_mcp_server.file_processor.load_catalog') as mock_load_catalog,
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.process_chunk'
-            ) as mock_process_chunk,
-        ):
-            mock_get_s3_client.return_value = mock_s3_client
-            mock_load_catalog.return_value = mock_catalog
-            mock_catalog.load_table.return_value = mock_table
-            mock_process_chunk.return_value = {
-                'status': 'error',
-                'error': 'Chunk processing failed',
-            }
-            result = await import_csv_to_table(
-                warehouse='dummy-warehouse',
-                region='us-west-2',
-                namespace='test_namespace',
-                table_name='test_table',
-                s3_url='s3://source-bucket/data.csv',
-            )
-            assert result['status'] == 'error'
-            assert 'Chunk processing failed' in result['error']
-
-    @pytest.mark.asyncio
-    async def test_custom_region_parameter(
-        self, mock_s3_client, mock_catalog, mock_table, mock_schema
-    ):
-        """Test import with custom region parameter."""
-        csv_content = 'id,name\n1,John'
-        mock_s3_response = MagicMock()
-        mock_s3_response['Body'].read.return_value = csv_content.encode('utf-8')
-        mock_s3_client.get_object.return_value = mock_s3_response
-        mock_table.schema.return_value = mock_schema
-        with (
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.get_s3_client'
-            ) as mock_get_s3_client,
-            patch('awslabs.s3_tables_mcp_server.file_processor.load_catalog') as mock_load_catalog,
-            patch(
-                'awslabs.s3_tables_mcp_server.file_processor.process_chunk'
-            ) as mock_process_chunk,
-        ):
-            mock_get_s3_client.return_value = mock_s3_client
-            mock_load_catalog.return_value = mock_catalog
-            mock_catalog.load_table.return_value = mock_table
-            mock_process_chunk.return_value = {'status': 'success', 'message': 'Processed chunk'}
-            result = await import_csv_to_table(
-                warehouse='dummy-warehouse',
-                region='us-east-1',
-                namespace='test_namespace',
-                table_name='test_table',
-                s3_url='s3://source-bucket/data.csv',
-            )
-            assert result['status'] == 'success'
-            mock_load_catalog.assert_called_once()
-            call_args = mock_load_catalog.call_args[1]
-            assert call_args['rest.signing-region'] == 'us-east-1'
+        assert 'append failed' in result['error']

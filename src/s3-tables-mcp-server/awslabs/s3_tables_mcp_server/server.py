@@ -125,7 +125,11 @@ def log_tool_call(tool_name, *args, **kwargs):
         with open(log_file, 'a') as f:
             f.write(json.dumps(log_entry) + '\n')
     except Exception as e:
-        print(f'Failed to write log: {e}')
+        print(
+            f"ERROR: Failed to create or write to log file in directory '{app.log_dir}': {e}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 @app.tool()
