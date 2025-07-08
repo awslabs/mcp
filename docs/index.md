@@ -310,7 +310,26 @@ A server for Aurora MySql.
 
 [Learn more about the Amazon Aurora MySql MCP Server](servers/mysql-mcp-server.md)
 
-### Amazon CloudWatch Logs MCP Server
+### Amazon CloudWatch MCP Server
+
+This AWS Labs Model Context Protocol (MCP) server for CloudWatch enables your troubleshooting agents to use CloudWatch data to do AI-powered root cause analysis and provide recommendations. It offers comprehensive observability tools that simplify monitoring, reduce context switching, and help teams quickly diagnose and resolve service issues. This server will provide AI agents with seamless access to CloudWatch telemetry data through standardized MCP interfaces, eliminating the need for custom API integrations and reducing context switching during troubleshooting workflows. By consolidating access to all CloudWatch capabilities, we enable powerful cross-service correlations and insights that accelerate incident resolution and improve operational visibility.
+
+**Features:**
+The CloudWatch MCP Server provides specialized tools to address common operational scenarios including alarm troubleshooting, understand metrics definitions, alarm recommendations and log analysis. Each tool encapsulates one or multiple CloudWatch APIs into task-oriented operations.
+
+- Alarm Based Troubleshooting - Identifies active alarms, retrieves related metrics and logs, and analyzes historical alarm patterns to determine root causes of triggered alerts. Provides context-aware recommendations for remediation.
+
+- Log Analyzer - Analyzes a CloudWatch log group for anomalies, message patterns, and error patterns within a specified time window.
+
+- Metric Definition Analyzer - Provides comprehensive descriptions of what metrics represent, how they're calculated, recommended statistics to use for metric data retrieval
+
+- Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm settings.
+
+[Learn more about the Amazon CloudWatch MCP Server](servers/cloudwatch-mcp-server.md)
+
+### Amazon CloudWatch Logs MCP Server (DEPRECATED)
+
+>DEPRECATED. Please use the Amazon CloudWatch MCP Server instead.
 
 An AWS Labs Model Context Protocol (MCP) server for Amazon Cloudwatch Logs.
 
@@ -336,6 +355,20 @@ The Prometheus MCP Server provides a robust interface for interacting with AWS M
 - AWS SigV4 authentication for secure access
 
 [Learn more about the AWS Managed Prometheus MCP Server](servers/prometheus-mcp-server.md)
+
+### Amazon CloudWatch Application Signals MCP Server
+
+The CloudWatch Application Signals MCP Server provides tools for monitoring and analyzing AWS services using AWS Application Signals.
+
+**Features:**
+
+- List all services monitored by AWS Application Signals
+- Get detailed information about specific services including configuration, metrics, and log groups
+- View service names, types, and key attributes
+- Access available CloudWatch metrics and dimensions
+- Find associated log groups for debugging
+
+[Learn more about the Amazon CloudWatch Application Signals MCP Server](servers/cloudwatch-appsignals-mcp-server.md)
 
 ### Amazon DynamoDB MCP Server
 
@@ -454,6 +487,19 @@ time-series data using InfluxDB.
 
 [Learn more about the Amazon Timestream for InfluxDB MCP Server](servers/timestream-for-influxdb-mcp-server.md)
 
+### Amazon Data Processing MCP Server
+
+The AWS DataProcessing MCP server provides AI code assistants with comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2.
+
+**Features:**
+
+- Data Catalog Management: Explore, create, and manage databases, tables, and partitions through natural language requests
+- AWS Glue Integration: Manage AWS Glue Data Catalog operations including databases, tables, connections, and partitions
+- Secure Operations: Configurable read-only mode and sensitive data access controls
+- Comprehensive ETL Support: Streamline ETL job creation with intelligent code generation and best practice recommendations
+
+[Learn more about the Amazon Data Processing MCP Server](servers/dataprocessing-mcp-server.md)
+
 ### Amazon Rekognition MCP Server
 
 A Model Context Protocol (MCP) server for Amazon Rekognition that enables AI assistants to analyze images using Amazon Rekognition's powerful computer vision capabilities.
@@ -483,6 +529,22 @@ A server for interacting with AWS Cost Explorer to analyze AWS costs and usage d
 - Ask natural language questions about AWS costs
 
 [Learn more about the AWS Cost Explorer MCP Server](servers/cost-explorer-mcp-server.md)
+
+### AWS HealthOmics MCP Server
+
+An AWS Labs Model Context Protocol (MCP) server for AWS HealthOmics
+
+**Features:**
+
+- Workflow Management: Create, validate, and manage genomic workflows
+- Workflow Execution: Start runs, monitor status, and manage tasks
+- Analysis and Troubleshooting: Analyze run performance and diagnose failures
+- Log Access: Retrieve run, engine, task, and manifest logs
+- Region Management: Get supported AWS regions for HealthOmics
+
+Instructions for using this aws-healthomics MCP server. This can be used by clients to improve the LLM's understanding of available tools, resources, etc. for the AWS HealthOmics service
+
+[Learn more about the aws-healthomics MCP Server](servers/aws-healthomics-mcp-server.md)
 
 ## Installation and Setup
 
