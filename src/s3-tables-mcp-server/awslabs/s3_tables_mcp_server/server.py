@@ -67,6 +67,8 @@ class S3TablesMCPServer(FastMCP):
 
         if platform.system() == 'Darwin':
             self.log_dir = os.path.expanduser('~/Library/Logs')
+        elif platform.system() == 'Windows':
+            self.log_dir = os.path.expanduser('~/AppData/Local/Logs')
         else:
             self.log_dir = '/var/logs'
 
@@ -718,13 +720,7 @@ def main():
 
     # Determine log directory
     if args.log_dir:
-        log_dir = os.path.expanduser(args.log_dir)
-    else:
-        if platform.system() == 'Darwin':
-            log_dir = os.path.expanduser('~/Library/Logs')
-        else:
-            log_dir = '/var/logs'
-    app.log_dir = log_dir
+        app.log_dir = os.path.expanduser(args.log_dir)
 
     # Log program startup details
     log_tool_call(
