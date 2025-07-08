@@ -335,6 +335,7 @@ class DataCatalogDatabaseManager:
 
             response = self.glue_client.get_databases(**kwargs)
             databases = response.get('DatabaseList', [])
+            next_token = response.get('NextToken', None)  # Capture the next token for paginatio
 
             log_with_request_id(
                 ctx, LogLevel.INFO, f'Successfully listed {len(databases)} databases'
@@ -358,6 +359,7 @@ class DataCatalogDatabaseManager:
                 count=len(databases),
                 catalog_id=catalog_id,
                 operation='list-databases',
+                next_token=next_token,
                 content=[TextContent(type='text', text=success_msg)],
             )
 

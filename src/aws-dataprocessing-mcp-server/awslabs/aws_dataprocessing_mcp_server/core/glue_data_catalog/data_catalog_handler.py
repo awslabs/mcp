@@ -30,6 +30,8 @@ from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
     GetCatalogResponse,
     GetConnectionResponse,
     GetPartitionResponse,
+    ImportCatalogResponse,
+    ListCatalogsResponse,
     ListConnectionsResponse,
     ListPartitionsResponse,
     PartitionSummary,
@@ -1248,4 +1250,141 @@ class DataCatalogManager:
                 description='',
                 create_time='',
                 update_time='',
+            )
+
+    async def import_catalog_to_glue(
+        self,
+        ctx: Context,
+        catalog_id: str,
+    ) -> ImportCatalogResponse:
+        """Import metadata from an external source into the AWS Glue Data Catalog.
+
+        Imports metadata from external sources such as Hive metastores, Apache Spark,
+        or other compatible metadata repositories into the AWS Glue Data Catalog.
+        This operation can be used to migrate metadata from on-premises systems to AWS.
+
+        Args:
+            ctx: MCP context containing request information
+            catalog_id: ID of the catalog to import into
+
+        Returns:
+            ImportCatalogResponse with the result of the operation
+        """
+        try:
+            # Prepare import parameters
+            import_params = {
+                'CatalogId': catalog_id,
+            }
+
+            # Start the import process
+            self.glue_client.import_catalog_to_glue(**import_params)
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully initiated catalog import Athena Data Catalog {catalog_id} to Glue',
+            )
+
+            success_msg = f'Successfully initiated catalog import from Athena Data Catalog {catalog_id} to Glue'
+            return ImportCatalogResponse(
+                isError=False,
+                catalog_id=catalog_id,
+                operation='import-catalog-to-glue',
+                content=[TextContent(type='text', text=success_msg)],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to import Athena data catalog {catalog_id} to Glue: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return ImportCatalogResponse(
+                isError=True,
+                catalog_id=catalog_id,
+                operation='import-catalog-to-glue',
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def list_catalogs(
+        self,
+        ctx: Context,
+        max_results: Optional[int] = None,
+        next_token: Optional[str] = None,
+        parent_catalog_id: Optional[str] = None,
+    ) -> ListCatalogsResponse:
+        """List all catalogs in AWS Glue.
+
+        Retrieves a list of all catalogs with their basic properties. Supports
+        pagination through the next_token parameter.
+
+        Args:
+            ctx: MCP context containing request information
+            max_results: Optional maximum number of results to return
+            next_token: Optional pagination token for retrieving the next set of results
+            parent_catalog_id: Optional parent catalog which the catalog resides
+
+        Returns:
+            ListCatalogsResponse with the list of catalogs
+        """
+        try:
+            kwargs: Dict[str, Any] = {}
+            if max_results:
+                kwargs['MaxResults'] = max_results
+            if next_token:
+                kwargs['NextToken'] = next_token
+            if parent_catalog_id:
+                kwargs['ParentCatalogId'] = parent_catalog_id
+
+            response = self.glue_client.get_catalogs(**kwargs)
+            catalogs = response.get('CatalogList', [])
+            next_token_response = response.get('NextToken', None)
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully listed {len(catalogs)} catalogs',
+            )
+
+            success_msg = f'Successfully listed {len(catalogs)} catalogs'
+            return ListCatalogsResponse(
+                isError=False,
+                catalogs=[
+                    {
+                        'catalog_id': catalog.get('CatalogId', ''),
+                        'name': catalog.get('Name', ''),
+                        'description': catalog.get('Description', ''),
+                        'parameters': catalog.get('Parameters', {}),
+                        'create_time': (
+                            catalog.get('CreateTime', '').isoformat()
+                            if catalog.get('CreateTime')
+                            else ''
+                        ),
+                        'update_time': (
+                            catalog.get('UpdateTime', '').isoformat()
+                            if catalog.get('UpdateTime')
+                            else ''
+                        ),
+                    }
+                    for catalog in catalogs
+                ],
+                count=len(catalogs),
+                next_token=next_token_response,
+                operation='list-catalogs',
+                content=[TextContent(type='text', text=success_msg)],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = (
+                f'Failed to list catalogs: {error_code} - {e.response["Error"]["Message"]}'
+            )
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return ListCatalogsResponse(
+                isError=True,
+                catalogs=[],
+                count=0,
+                next_token=None,
+                operation='list-catalogs',
+                content=[TextContent(type='text', text=error_message)],
             )
