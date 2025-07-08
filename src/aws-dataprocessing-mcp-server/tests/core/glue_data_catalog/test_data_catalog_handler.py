@@ -723,11 +723,11 @@ class TestDataCatalogManager:
             mock_ctx,
             next_token=next_token,
             max_results=max_results,
+            parent_catalog_id='parent-catalog-id',
         )
 
         mock_glue_client.get_catalogs.assert_called_once_with(
-            NextToken=next_token,
-            MaxResults=max_results,
+            NextToken=next_token, MaxResults=max_results, ParentCatalogId='parent-catalog-id'
         )
 
         assert isinstance(result, ListCatalogsResponse)
