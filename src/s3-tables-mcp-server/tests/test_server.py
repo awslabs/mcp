@@ -14,7 +14,9 @@
 
 """Tests for the S3 Tables MCP Server."""
 
+import os
 import pytest
+import sys
 from awslabs.s3_tables_mcp_server.models import (
     IcebergMetadata,
     IcebergSchema,
@@ -679,3 +681,99 @@ def test_append_rows_to_table_readonly_mode(setup_app_readonly, mock_database):
                 rest_sigv4_enabled=rest_sigv4_enabled,
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_query_database_default_uri(mock_database):
+    """Test query_database uses default uri if None."""
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    query = 'SELECT * FROM test-table'
+    await query_database(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        query=query,
+        uri=None,
+        catalog_name='s3tablescatalog',
+        rest_signing_name='s3tables',
+        rest_sigv4_enabled='true',
+    )
+    args, kwargs = mock_database.query_database_resource.call_args
+    assert kwargs['uri'] == 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+
+
+@pytest.mark.asyncio
+async def test_import_csv_to_table_default_uri(monkeypatch, setup_app):
+    """Test import_csv_to_table uses default uri if None."""
+    import awslabs.s3_tables_mcp_server.server as server_mod
+
+    monkeypatch.setattr(
+        server_mod.file_processor,
+        'import_csv_to_table',
+        AsyncMock(return_value={'status': 'success'}),
+    )
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    table_name = 'test-table'
+    s3_url = 's3://bucket/file.csv'
+    await server_mod.import_csv_to_table(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        s3_url=s3_url,
+        uri=None,
+        catalog_name='s3tablescatalog',
+        rest_signing_name='s3tables',
+        rest_sigv4_enabled='true',
+    )
+    args, kwargs = server_mod.file_processor.import_csv_to_table.call_args  # type: ignore
+    assert kwargs['uri'] == 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+
+
+@pytest.mark.asyncio
+async def test_append_rows_to_table_default_uri(mock_database):
+    """Test append_rows_to_table uses default uri if None."""
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    table_name = 'test-table'
+    rows = [{'id': 1, 'name': 'Alice'}]
+    await append_rows_to_table(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        rows=rows,
+        uri=None,
+        catalog_name='s3tablescatalog',
+        rest_signing_name='s3tables',
+        rest_sigv4_enabled='true',
+    )
+    args, kwargs = mock_database.append_rows_to_table_resource.call_args
+    assert kwargs['uri'] == 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+
+
+def test_main_sets_log_dir(monkeypatch):
+    """Test main sets log_dir if --log-dir is provided."""
+    import awslabs.s3_tables_mcp_server.server as server_mod
+
+    monkeypatch.setattr(sys, 'argv', ['prog', '--allow-write', '--log-dir', '~/mylogs'])
+    monkeypatch.setattr(server_mod.app, 'run', lambda: None)
+    monkeypatch.setattr(server_mod, 'log_tool_call', lambda *a, **k: None)
+    server_mod.main()
+    assert server_mod.app.log_dir == os.path.expanduser('~/mylogs')
+
+
+def test_main_entry(monkeypatch):
+    """Test main entrypoint logic is callable and triggers app.run."""
+    import awslabs.s3_tables_mcp_server.server as server_mod
+
+    monkeypatch.setattr(server_mod.app, 'run', lambda: setattr(server_mod, '_main_called', True))
+    monkeypatch.setattr(server_mod, 'log_tool_call', lambda *a, **k: None)
+    monkeypatch.setattr(sys, 'argv', ['prog'])
+    server_mod.main()
+    assert getattr(server_mod, '_main_called', False)
