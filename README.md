@@ -207,6 +207,7 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 Interact with AWS HealthAI services.
 
+- **[AWS HealthLake MCP Server](src/aws-healthlake-mcp-server/)** - Manage HealthLake datastores and FHIR data operations
 - **[AWS HealthOmics MCP Server](src/aws-healthomics-mcp-server/)** - Generate, run, debug and optimize lifescience workflows on AWS HealthOmics
 
 ---
@@ -249,6 +250,7 @@ Interact with AWS HealthAI services.
 
 ##### Lifesciences Workflow Development
 
+- **[AWS HealthLake MCP Server](/src/aws-healthlake-mcp-server/)** - Manage HealthLake datastores and FHIR data operations
 - **[AWS HealthOmics MCP Server](/src/aws-healthomics-mcp-server/)** - Generate, deploy, run and debug WDL, Nextflow and CWL workflows
 
 #### 💬 Conversational Assistants
