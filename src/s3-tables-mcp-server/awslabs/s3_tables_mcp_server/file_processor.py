@@ -130,7 +130,7 @@ def preview_csv_structure(s3_url: str) -> Dict:
         response = s3_client.get_object(
             Bucket=bucket,
             Key=key,
-            Range='bytes=0-8192',  # First 8KB
+            Range='bytes=0-32768',  # First 32KB
         )
 
         # Read the CSV content

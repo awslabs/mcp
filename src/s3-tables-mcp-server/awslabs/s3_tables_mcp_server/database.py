@@ -27,6 +27,7 @@ WRITE_OPERATIONS = {
     'ADD',
     'ALTER',
     'ANALYZE',
+    'BEGIN',
     'COMMIT',
     'COPY',
     'CREATE',

@@ -145,7 +145,7 @@ class TestPreviewCsvStructure:
             assert result['file_name'] == 'data.csv'
 
             mock_s3_client.get_object.assert_called_once_with(
-                Bucket='my-bucket', Key='data.csv', Range='bytes=0-8192'
+                Bucket='my-bucket', Key='data.csv', Range='bytes=0-32768'
             )
 
     def test_preview_with_empty_file(self, mock_s3_client):

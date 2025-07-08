@@ -409,6 +409,7 @@ async def query_database(
     """Execute SQL queries against S3 Tables using PyIceberg/Daft.
 
     This tool provides a secure interface to run read-only SQL queries against your S3 Tables data using the PyIceberg and Daft engine.
+    Use a correct region for warehouse, region, and uri.
 
     Example input values:
         warehouse: 'arn:aws:s3tables:<Region>:<accountID>:bucket/<bucketname>'
