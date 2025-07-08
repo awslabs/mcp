@@ -24,9 +24,11 @@ from awslabs.s3_tables_mcp_server.models import (
 )
 from awslabs.s3_tables_mcp_server.server import (
     app,
+    append_rows_to_table,
     create_namespace,
     create_table,
     create_table_bucket,
+    get_bucket_metadata_config,
     get_maintenance_job_status,
     get_table_maintenance_config,
     get_table_metadata_location,
@@ -34,10 +36,12 @@ from awslabs.s3_tables_mcp_server.server import (
     list_namespaces,
     list_table_buckets,
     list_tables,
+    preview_csv_file,
+    query_database,
     rename_table,
     update_table_metadata_location,
 )
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 
 # Fixtures
@@ -105,6 +109,33 @@ def patch_log_tool_call():
     """Patch the log_tool_call function for all tests to suppress logging side effects."""
     with patch('awslabs.s3_tables_mcp_server.server.log_tool_call'):
         yield
+
+
+@pytest.fixture
+def mock_database():
+    """Mock database module."""
+    with patch('awslabs.s3_tables_mcp_server.server.database') as mock:
+        mock.query_database_resource = AsyncMock(return_value={'status': 'success'})
+        mock.append_rows_to_table_resource = AsyncMock(return_value={'status': 'success'})
+        yield mock
+
+
+@pytest.fixture
+def mock_file_processor():
+    """Mock file_processor module."""
+    with patch('awslabs.s3_tables_mcp_server.server.file_processor') as mock:
+        mock.preview_csv_structure = Mock(return_value={'headers': ['a', 'b'], 'rows': [[1, 2]]})
+        yield mock
+
+
+@pytest.fixture
+def mock_s3_operations():
+    """Mock s3_operations module."""
+    with patch('awslabs.s3_tables_mcp_server.server.s3_operations') as mock:
+        mock.get_bucket_metadata_table_configuration = AsyncMock(
+            return_value={'status': 'success'}
+        )
+        yield mock
 
 
 # Resource Tests
@@ -511,4 +542,140 @@ async def test_import_csv_to_table_readonly_mode(setup_app_readonly):
             name=name,
             s3_url=s3_url,
             region_name=region,
+        )
+
+
+# New tests for uncovered tools
+
+
+@pytest.mark.asyncio
+async def test_query_database(mock_database):
+    """Test query_database tool."""
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    query = 'SELECT * FROM test-table'
+    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+    catalog_name = 's3tablescatalog'
+    rest_signing_name = 's3tables'
+    rest_sigv4_enabled = 'true'
+    expected_response = {'status': 'success'}
+
+    result = await query_database(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        query=query,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+    )
+    assert result == expected_response
+    mock_database.query_database_resource.assert_called_once_with(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        query=query,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+    )
+
+
+@pytest.mark.asyncio
+async def test_preview_csv_file(mock_file_processor):
+    """Test preview_csv_file tool."""
+    s3_url = 's3://bucket/file.csv'
+    expected_response = {'headers': ['a', 'b'], 'rows': [[1, 2]]}
+
+    result = await preview_csv_file(s3_url=s3_url)
+    assert result == expected_response
+    mock_file_processor.preview_csv_structure.assert_called_once_with(s3_url)
+
+
+@pytest.mark.asyncio
+async def test_get_bucket_metadata_config(mock_s3_operations):
+    """Test get_bucket_metadata_config tool."""
+    bucket = 'test-bucket'
+    region = 'us-west-2'
+    expected_response = {'status': 'success'}
+
+    result = await get_bucket_metadata_config(bucket=bucket, region_name=region)
+    assert result == expected_response
+    mock_s3_operations.get_bucket_metadata_table_configuration.assert_called_once_with(
+        bucket=bucket, region_name=region
+    )
+
+
+@pytest.mark.asyncio
+async def test_append_rows_to_table(mock_database):
+    """Test append_rows_to_table tool."""
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    table_name = 'test-table'
+    rows = [{'id': 1, 'name': 'Alice'}]
+    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+    catalog_name = 's3tablescatalog'
+    rest_signing_name = 's3tables'
+    rest_sigv4_enabled = 'true'
+    expected_response = {'status': 'success'}
+
+    result = await append_rows_to_table(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        rows=rows,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+    )
+    assert result == expected_response
+    mock_database.append_rows_to_table_resource.assert_called_once_with(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        rows=rows,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+    )
+
+
+def test_append_rows_to_table_readonly_mode(setup_app_readonly, mock_database):
+    """Test append_rows_to_table tool when allow_write is disabled."""
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    table_name = 'test-table'
+    rows = [{'id': 1, 'name': 'Alice'}]
+    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+    catalog_name = 's3tablescatalog'
+    rest_signing_name = 's3tables'
+    rest_sigv4_enabled = 'true'
+
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        # Must be awaited in an event loop
+        import asyncio
+
+        asyncio.get_event_loop().run_until_complete(
+            append_rows_to_table(
+                warehouse=warehouse,
+                region=region,
+                namespace=namespace,
+                table_name=table_name,
+                rows=rows,
+                uri=uri,
+                catalog_name=catalog_name,
+                rest_signing_name=rest_signing_name,
+                rest_sigv4_enabled=rest_sigv4_enabled,
+            )
         )

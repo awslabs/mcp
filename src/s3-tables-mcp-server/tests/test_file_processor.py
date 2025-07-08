@@ -303,3 +303,285 @@ class TestProcessChunk:
         result = file_processor.process_chunk(chunk, table)
         assert result['status'] == 'error'
         assert 'append failed' in result['error']
+
+
+class TestImportCsvToTable:
+    """Unit tests for import_csv_to_table in file_processor."""
+
+    @pytest.mark.asyncio
+    @patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client')
+    @patch('awslabs.s3_tables_mcp_server.file_processor.pyiceberg_load_catalog')
+    async def test_import_csv_to_table_success(self, mock_load_catalog, mock_get_s3_client):
+        """Test successful import of a valid CSV file into a table."""
+        # Arrange
+        warehouse = 's3://warehouse/'
+        region = 'us-west-2'
+        namespace = 'ns'
+        table_name = 'tbl'
+        s3_url = 's3://bucket/file.csv'
+        csv_content = 'id,name\n1,Alice\n2,Bob\n'
+        # Mock S3
+        mock_s3 = MagicMock()
+        mock_s3.get_object.return_value = {
+            'Body': MagicMock(read=MagicMock(return_value=csv_content.encode('utf-8')))
+        }
+        mock_get_s3_client.return_value = mock_s3
+
+        # Mock Iceberg table
+        class DummyField:
+            def __init__(self, name, field_type, required=True):
+                self.name = name
+                self.field_type = field_type
+                self.required = required
+
+        class DummySchema:
+            def __init__(self):
+                self.fields = [DummyField('id', IntegerType()), DummyField('name', StringType())]
+
+        class DummyTable:
+            def __init__(self):
+                self.appended = []
+
+            def schema(self):
+                return DummySchema()
+
+            def append(self, table_data):
+                self.appended.append(table_data)
+
+        class DummyCatalog:
+            def load_table(self, full_name):
+                return DummyTable()
+
+        mock_load_catalog.return_value = DummyCatalog()
+        # Act
+        result = await file_processor.import_csv_to_table(
+            warehouse, region, namespace, table_name, s3_url
+        )
+        # Assert
+        assert result['status'] == 'success'
+        assert result['rows_processed'] == 2
+        assert result['file_processed'] == 'file.csv'
+        assert result['csv_headers'] == ['id', 'name']
+
+    @pytest.mark.asyncio
+    async def test_import_csv_to_table_invalid_s3_url(self):
+        """Test that an invalid S3 URL returns an error when importing CSV to table."""
+        # Act
+        result = await file_processor.import_csv_to_table('w', 'r', 'ns', 'tbl', 'not-a-url')
+        # Assert
+        assert result['status'] == 'error'
+        assert 'Invalid URL scheme' in result['error']
+
+    @pytest.mark.asyncio
+    async def test_import_csv_to_table_non_csv(self):
+        """Test that a non-CSV file returns an error when importing CSV to table."""
+        # Act
+        result = await file_processor.import_csv_to_table(
+            'w', 'r', 'ns', 'tbl', 's3://bucket/file.txt'
+        )
+        # Assert
+        assert result['status'] == 'error'
+        assert 'is not a CSV file' in result['error']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client')
+    @patch('awslabs.s3_tables_mcp_server.file_processor.pyiceberg_load_catalog')
+    async def test_import_csv_to_table_missing_required_column(
+        self, mock_load_catalog, mock_get_s3_client
+    ):
+        """Test that missing required columns in the CSV returns an error when importing."""
+        # Arrange
+        s3_url = 's3://bucket/file.csv'
+        csv_content = 'id\n1\n2\n'
+        mock_s3 = MagicMock()
+        mock_s3.get_object.return_value = {
+            'Body': MagicMock(read=MagicMock(return_value=csv_content.encode('utf-8')))
+        }
+        mock_get_s3_client.return_value = mock_s3
+
+        class DummyField:
+            def __init__(self, name, field_type, required=True):
+                self.name = name
+                self.field_type = field_type
+                self.required = required
+
+        class DummySchema:
+            def __init__(self):
+                self.fields = [DummyField('id', IntegerType()), DummyField('name', StringType())]
+
+        class DummyTable:
+            def schema(self):
+                return DummySchema()
+
+        class DummyCatalog:
+            def load_table(self, full_name):
+                return DummyTable()
+
+        mock_load_catalog.return_value = DummyCatalog()
+        # Act
+        result = await file_processor.import_csv_to_table('w', 'r', 'ns', 'tbl', s3_url)
+        # Assert
+        assert result['status'] == 'error'
+        assert 'missing required columns' in result['error'].lower()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client')
+    @patch('awslabs.s3_tables_mcp_server.file_processor.pyiceberg_load_catalog')
+    async def test_import_csv_to_table_missing_required_field_in_row(
+        self, mock_load_catalog, mock_get_s3_client
+    ):
+        """Test that missing required field in a row returns an error when importing."""
+        # Arrange
+        s3_url = 's3://bucket/file.csv'
+        csv_content = 'id,name\n1,\n2,Bob\n'
+        mock_s3 = MagicMock()
+        mock_s3.get_object.return_value = {
+            'Body': MagicMock(read=MagicMock(return_value=csv_content.encode('utf-8')))
+        }
+        mock_get_s3_client.return_value = mock_s3
+
+        class DummyField:
+            def __init__(self, name, field_type, required=True):
+                self.name = name
+                self.field_type = field_type
+                self.required = required
+
+        class DummySchema:
+            def __init__(self):
+                self.fields = [DummyField('id', IntegerType()), DummyField('name', StringType())]
+
+        class DummyTable:
+            def schema(self):
+                return DummySchema()
+
+        class DummyCatalog:
+            def load_table(self, full_name):
+                return DummyTable()
+
+        mock_load_catalog.return_value = DummyCatalog()
+        # Act
+        result = await file_processor.import_csv_to_table('w', 'r', 'ns', 'tbl', s3_url)
+        # Assert
+        assert result['status'] == 'error'
+        assert 'required field name is missing' in result['error'].lower()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client')
+    @patch('awslabs.s3_tables_mcp_server.file_processor.pyiceberg_load_catalog')
+    async def test_import_csv_to_table_type_conversion_error(
+        self, mock_load_catalog, mock_get_s3_client
+    ):
+        """Test that a type conversion error in the CSV returns an error when importing."""
+        # Arrange
+        s3_url = 's3://bucket/file.csv'
+        csv_content = 'id,name\nnot_an_int,Alice\n'
+        mock_s3 = MagicMock()
+        mock_s3.get_object.return_value = {
+            'Body': MagicMock(read=MagicMock(return_value=csv_content.encode('utf-8')))
+        }
+        mock_get_s3_client.return_value = mock_s3
+
+        class DummyField:
+            def __init__(self, name, field_type, required=True):
+                self.name = name
+                self.field_type = field_type
+                self.required = required
+
+        class DummySchema:
+            def __init__(self):
+                self.fields = [DummyField('id', IntegerType()), DummyField('name', StringType())]
+
+        class DummyTable:
+            def schema(self):
+                return DummySchema()
+
+        class DummyCatalog:
+            def load_table(self, full_name):
+                return DummyTable()
+
+        mock_load_catalog.return_value = DummyCatalog()
+        # Act
+        result = await file_processor.import_csv_to_table('w', 'r', 'ns', 'tbl', s3_url)
+        # Assert
+        assert result['status'] == 'error'
+        assert 'error converting value for field id' in result['error'].lower()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client')
+    @patch('awslabs.s3_tables_mcp_server.file_processor.pyiceberg_load_catalog')
+    async def test_import_csv_to_table_s3_error(self, mock_load_catalog, mock_get_s3_client):
+        """Test that an S3 error is handled and returns an error when importing CSV to table."""
+        # Arrange
+        s3_url = 's3://bucket/file.csv'
+        mock_s3 = MagicMock()
+        mock_s3.get_object.side_effect = Exception('S3 error')
+        mock_get_s3_client.return_value = mock_s3
+
+        class DummyField:
+            def __init__(self, name, field_type, required=True):
+                self.name = name
+                self.field_type = field_type
+                self.required = required
+
+        class DummySchema:
+            def __init__(self):
+                self.fields = [DummyField('id', IntegerType()), DummyField('name', StringType())]
+
+        class DummyTable:
+            def schema(self):
+                return DummySchema()
+
+        class DummyCatalog:
+            def load_table(self, full_name):
+                return DummyTable()
+
+        mock_load_catalog.return_value = DummyCatalog()
+        # Act
+        result = await file_processor.import_csv_to_table('w', 'r', 'ns', 'tbl', s3_url)
+        # Assert
+        assert result['status'] == 'error'
+        assert 's3 error' in result['error'].lower()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.s3_tables_mcp_server.file_processor.get_s3_client')
+    @patch('awslabs.s3_tables_mcp_server.file_processor.pyiceberg_load_catalog')
+    async def test_import_csv_to_table_table_append_error(
+        self, mock_load_catalog, mock_get_s3_client
+    ):
+        """Test that an error during table append is handled and returns an error when importing."""
+        # Arrange
+        s3_url = 's3://bucket/file.csv'
+        csv_content = 'id,name\n1,Alice\n'
+        mock_s3 = MagicMock()
+        mock_s3.get_object.return_value = {
+            'Body': MagicMock(read=MagicMock(return_value=csv_content.encode('utf-8')))
+        }
+        mock_get_s3_client.return_value = mock_s3
+
+        class DummyField:
+            def __init__(self, name, field_type, required=True):
+                self.name = name
+                self.field_type = field_type
+                self.required = required
+
+        class DummySchema:
+            def __init__(self):
+                self.fields = [DummyField('id', IntegerType()), DummyField('name', StringType())]
+
+        class BadTable:
+            def schema(self):
+                return DummySchema()
+
+            def append(self, table_data):
+                raise Exception('append failed')
+
+        class DummyCatalog:
+            def load_table(self, full_name):
+                return BadTable()
+
+        mock_load_catalog.return_value = DummyCatalog()
+        # Act
+        result = await file_processor.import_csv_to_table('w', 'r', 'ns', 'tbl', s3_url)
+        # Assert
+        assert result['status'] == 'error'
+        assert 'append failed' in result['error'].lower()
