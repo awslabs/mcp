@@ -11,9 +11,7 @@ async def test_compute_optimizer_get_auto_scaling_group_recommendations(
 ):
     """Test the compute_optimizer_get_auto_scaling_group_recommendations tool."""
     # Create the tool function
-    tool_function = tool_function_factory(
-        'compute_optimizer_get_auto_scaling_group_recommendations'
-    )
+    tool_function = tool_function_factory('co_get_asg_recs')
 
     try:
         # Call the tool function with minimal parameters
@@ -37,7 +35,7 @@ async def test_compute_optimizer_get_auto_scaling_group_recommendations(
 async def test_compute_optimizer_get_ebs_volume_recommendations(tool_function_factory):
     """Test the compute_optimizer_get_ebs_volume_recommendations tool."""
     # Create the tool function
-    tool_function = tool_function_factory('compute_optimizer_get_ebs_volume_recommendations')
+    tool_function = tool_function_factory('co_get_ebs_recs')
 
     try:
         # Call the tool function with minimal parameters
@@ -61,7 +59,7 @@ async def test_compute_optimizer_get_ebs_volume_recommendations(tool_function_fa
 async def test_compute_optimizer_get_ec2_instance_recommendations(tool_function_factory):
     """Test the compute_optimizer_get_ec2_instance_recommendations tool."""
     # Create the tool function
-    tool_function = tool_function_factory('compute_optimizer_get_ec2_instance_recommendations')
+    tool_function = tool_function_factory('co_get_ec2_recs')
 
     try:
         # Call the tool function with minimal parameters
@@ -85,7 +83,7 @@ async def test_compute_optimizer_get_ec2_instance_recommendations(tool_function_
 async def test_compute_optimizer_get_ecs_service_recommendations(tool_function_factory):
     """Test the compute_optimizer_get_ecs_service_recommendations tool."""
     # Create the tool function
-    tool_function = tool_function_factory('compute_optimizer_get_ecs_service_recommendations')
+    tool_function = tool_function_factory('co_get_ecs_recs')
 
     try:
         # Call the tool function with minimal parameters
@@ -109,7 +107,7 @@ async def test_compute_optimizer_get_ecs_service_recommendations(tool_function_f
 async def test_compute_optimizer_get_rds_database_recommendations(tool_function_factory):
     """Test the compute_optimizer_get_rds_database_recommendations tool."""
     # Create the tool function
-    tool_function = tool_function_factory('compute_optimizer_get_rds_database_recommendations')
+    tool_function = tool_function_factory('co_get_rds_recs')
 
     try:
         # Call the tool function with minimal parameters
@@ -137,7 +135,7 @@ async def test_compute_optimizer_get_lambda_function_recommendations(
 ):
     """Test the compute_optimizer_get_lambda_function_recommendations tool."""
     # Create the tool function
-    tool_function = tool_function_factory('compute_optimizer_get_lambda_function_recommendations')
+    tool_function = tool_function_factory('co_get_lambda_recs')
 
     try:
         # Call the tool function with minimal parameters
@@ -161,7 +159,7 @@ async def test_compute_optimizer_get_lambda_function_recommendations(
 async def test_compute_optimizer_get_idle_recommendations(tool_function_factory):
     """Test the compute_optimizer_get_idle_recommendations tool."""
     # Create the tool function
-    tool_function = tool_function_factory('compute_optimizer_get_idle_recommendations')
+    tool_function = tool_function_factory('co_get_idle_recs')
 
     try:
         # Call the tool function with minimal parameters

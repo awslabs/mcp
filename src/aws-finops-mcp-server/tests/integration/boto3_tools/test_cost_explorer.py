@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 async def test_cost_explorer_get_cost_and_usage(tool_function_factory):
     """Test the cost_explorer_get_cost_and_usage tool."""
     # Create the tool function
-    tool_function = tool_function_factory('cost_explorer_get_cost_and_usage')
+    tool_function = tool_function_factory('ce_get_cost_usage')
 
     # Call the tool function with real parameters
     # Using a small date range to minimize data transfer
@@ -40,7 +40,7 @@ async def test_cost_explorer_get_cost_and_usage(tool_function_factory):
 async def test_cost_explorer_get_reservation_purchase_recommendation(tool_function_factory):
     """Test the cost_explorer_get_reservation_purchase_recommendation tool."""
     # Create the tool function
-    tool_function = tool_function_factory('cost_explorer_get_reservation_purchase_recommendation')
+    tool_function = tool_function_factory('ce_get_ri_recs')
 
     # Call the tool function with real parameters
     params = {
@@ -71,9 +71,7 @@ async def test_cost_explorer_get_savings_plans_purchase_recommendation(
 ):
     """Test the cost_explorer_get_savings_plans_purchase_recommendation tool."""
     # Create the tool function
-    tool_function = tool_function_factory(
-        'cost_explorer_get_savings_plans_purchase_recommendation'
-    )
+    tool_function = tool_function_factory('ce_get_sp_recs')
 
     # Call the tool function with real parameters
     params = {

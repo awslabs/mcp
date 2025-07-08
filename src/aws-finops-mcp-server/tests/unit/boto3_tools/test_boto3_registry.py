@@ -20,7 +20,8 @@ def test_register_tool():
     # Register a tool
     registry.register_tool(tool_info)
 
-    # Verify the tool was registered
+    # Verify the tool was registered with the shortened name
+    # Since this is not in our mapping, it will use the original name
     assert 'test_service_test_method' in registry.tools
     assert registry.tools['test_service_test_method'].service == 'test_service'
     assert registry.tools['test_service_test_method'].method == 'test_method'
@@ -33,10 +34,10 @@ def test_register_all_tools(registry):
     # Verify tools were registered
     assert len(registry.tools) > 0
 
-    # Check for specific tools we know should be there
-    assert 'cost_explorer_get_cost_and_usage' in registry.tools
-    assert 'compute_optimizer_get_ec2_instance_recommendations' in registry.tools
-    assert 'cost_optimization_hub_get_recommendation' in registry.tools
+    # Check for specific tools we know should be there with shortened names
+    assert 'ce_get_cost_usage' in registry.tools
+    assert 'co_get_ec2_recs' in registry.tools
+    assert 'coh_get_rec' in registry.tools
 
 
 @pytest.mark.unit
@@ -55,13 +56,20 @@ async def test_generic_handler_service_name_mapping(mock_boto3_client):
     # Register a tool
     registry.register_tool(tool_info)
 
+    # Get the shortened tool name
+    tool_name = next(
+        name
+        for name, info in registry.tools.items()
+        if info.service == 'cost_explorer' and info.method == 'test_method'
+    )
+
     # Mock the boto3 client and its method
     mock_client = MagicMock()
     mock_boto3_client.return_value = mock_client
     mock_client.test_method.return_value = {'result': 'success'}
 
-    # Call the generic_handler
-    await registry.generic_handler('cost_explorer_test_method')
+    # Call the generic_handler with the shortened name
+    await registry.generic_handler(tool_name)
 
     # Verify the service name was mapped correctly
     mock_boto3_client.assert_called_once_with('ce', region_name='us-east-1')
@@ -83,6 +91,13 @@ async def test_generic_handler_parameter_transformation(mock_boto3_client):
     # Register a tool
     registry.register_tool(tool_info)
 
+    # Get the shortened tool name
+    tool_name = next(
+        name
+        for name, info in registry.tools.items()
+        if info.service == 'cost_explorer' and info.method == 'test_method'
+    )
+
     # Mock the boto3 client and its method
     mock_client = MagicMock()
     mock_boto3_client.return_value = mock_client
@@ -90,7 +105,7 @@ async def test_generic_handler_parameter_transformation(mock_boto3_client):
 
     # Call the generic_handler with camelCase parameters
     await registry.generic_handler(
-        'cost_explorer_test_method',
+        tool_name,
         timePeriod={'start': '2023-01-01', 'end': '2023-01-31'},
         granularity='MONTHLY',
     )

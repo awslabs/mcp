@@ -9,8 +9,8 @@ from botocore.exceptions import ClientError
 async def test_cost_optimization_hub_get_recommendation(registry, tool_function_factory):
     """Test the cost_optimization_hub_get_recommendation tool."""
     # Create the tool functions
-    tool_function = tool_function_factory('cost_optimization_hub_get_recommendation')
-    list_tool_function = tool_function_factory('cost_optimization_hub_list_recommendations')
+    tool_function = tool_function_factory('coh_get_rec')
+    list_tool_function = tool_function_factory('coh_list_recs')
 
     try:
         # First, list recommendations to get a valid ID
@@ -44,7 +44,7 @@ async def test_cost_optimization_hub_get_recommendation(registry, tool_function_
 async def test_cost_optimization_hub_list_recommendations(registry, tool_function_factory):
     """Test the cost_optimization_hub_list_recommendations tool."""
     # Create the tool function
-    tool_function = tool_function_factory('cost_optimization_hub_list_recommendations')
+    tool_function = tool_function_factory('coh_list_recs')
 
     try:
         # Call the tool function with minimal parameters
@@ -74,7 +74,7 @@ async def test_cost_optimization_hub_list_recommendation_summaries(
 ):
     """Test the cost_optimization_hub_list_recommendation_summaries tool."""
     # Create the tool function
-    tool_function = tool_function_factory('cost_optimization_hub_list_recommendation_summaries')
+    tool_function = tool_function_factory('coh_list_rec_summaries')
 
     try:
         # Call the tool function with required parameters

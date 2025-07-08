@@ -26,6 +26,7 @@ from awslabs.aws_finops_mcp_server.models import (
     AWSServiceNameMap,
     Boto3ToolInfo,
 )
+from awslabs.aws_finops_mcp_server.tool_names import get_short_tool_name
 from dotenv import load_dotenv
 from typing import Any, Dict
 
@@ -68,14 +69,17 @@ class Boto3ToolRegistry:
         Args:
             tool_info: Boto3ToolInfo object containing service, method, and docstring
         """
-        tool_name = f'{tool_info.service}_{tool_info.method}'
-        self.tools[tool_name] = tool_info
+        # Get the shortened tool name using the get_short_tool_name function
+        short_tool_name = get_short_tool_name(tool_info.service, tool_info.method)
+
+        # Store the tool with the shortened name
+        self.tools[short_tool_name] = tool_info
 
     async def generic_handler(self, tool_name: str, **kwargs) -> Dict[str, Any]:
         """Generic handler for all boto3 tools.
 
         Args:
-            tool_name: Name of the tool to call
+            tool_name: Name of the tool to call (shortened version)
             **kwargs: Parameters to pass to the boto3 method
 
         Returns:

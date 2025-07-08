@@ -28,7 +28,7 @@ async def _test_cost_explorer_get_cost_and_usage():
     async with Client('awslabs/aws_finops_mcp_server/server.py') as client:
         # Call the cost_explorer_get_cost_and_usage tool
         response = await client.call_tool(
-            'cost_explorer_get_cost_and_usage',
+            'ce_get_cost_usage',
             {
                 'params': {
                     'TimePeriod': {'Start': start_date_str, 'End': end_date_str},

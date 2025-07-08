@@ -19,7 +19,7 @@ organized by functionality and purpose.
 """
 
 # MCP Server configuration
-MCP_SERVER_NAME = 'awslabs.aws-finops-mcp-server'
+MCP_SERVER_NAME = 'aws_finops'
 MCP_SERVER_INSTRUCTIONS = 'The AWS FinOps MCP Server is designed to make AWS cost optimization recommendations and insights easily accessible to Large Language Models (LLMs) through the Model Context Protocol (MCP). It wraps boto3 SDK functions for AWS cost optimization services, allowing LLMs to directly interact with AWS cost optimization tools.'
 MCP_SERVER_DEPENDENCIES = [
     'pydantic',
@@ -33,6 +33,34 @@ AWS_SERVICE_NAME_MAP = {
     'cost_optimization_hub': 'cost-optimization-hub',
     'compute_optimizer': 'compute-optimizer',
     'cost_explorer': 'ce',  # Cost Explorer's actual service name in boto3 is "ce"
+}
+
+# Service name abbreviations for tool names
+SERVICE_ABBR = {
+    'cost_optimization_hub': 'coh',
+    'compute_optimizer': 'co',
+    'cost_explorer': 'ce',
+}
+
+# Method name abbreviations for tool names
+METHOD_ABBR = {
+    # Cost Optimization Hub
+    'list_recommendations': 'list_recs',
+    'list_recommendation_summaries': 'list_rec_summaries',
+    'get_recommendation': 'get_rec',
+    # Compute Optimizer
+    'get_auto_scaling_group_recommendations': 'get_asg_recs',
+    'get_ebs_volume_recommendations': 'get_ebs_recs',
+    'get_ec2_instance_recommendations': 'get_ec2_recs',
+    'get_ecs_service_recommendations': 'get_ecs_recs',
+    'get_rds_database_recommendations': 'get_rds_recs',
+    'get_lambda_function_recommendations': 'get_lambda_recs',
+    'get_idle_recommendations': 'get_idle_recs',
+    'get_effective_recommendation_preferences': 'get_rec_prefs',
+    # Cost Explorer
+    'get_reservation_purchase_recommendation': 'get_ri_recs',
+    'get_savings_plans_purchase_recommendation': 'get_sp_recs',
+    'get_cost_and_usage': 'get_cost_usage',
 }
 
 # AWS configuration
