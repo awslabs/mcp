@@ -85,10 +85,12 @@ class SchemaManager:
         # Check if schema is in registry
         if resource_type in self.schema_registry:
             cached_schema = self.schema_registry[resource_type]
-            
+
             # If cached schema is corrupted (empty properties), force reload
             if not cached_schema.get('properties'):
-                print(f'Cached schema for {resource_type} is corrupted (empty properties), reloading...')
+                print(
+                    f'Cached schema for {resource_type} is corrupted (empty properties), reloading...'
+                )
                 # Remove from registry to force reload
                 del self.schema_registry[resource_type]
             else:
@@ -108,7 +110,9 @@ class SchemaManager:
                                     f'Schema for {resource_type} is older than {SCHEMA_UPDATE_INTERVAL.days} days, refreshing...'
                                 )
                         except ValueError:
-                            print(f'Invalid timestamp format for {resource_type}: {last_updated_str}')
+                            print(
+                                f'Invalid timestamp format for {resource_type}: {last_updated_str}'
+                            )
                 else:
                     # No metadata for this schema but it's valid, use cached version
                     return cached_schema
@@ -141,30 +145,40 @@ class SchemaManager:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                print(f'Downloading schema for {resource_type} using CloudFormation API (attempt {attempt + 1}/{max_retries})')
+                print(
+                    f'Downloading schema for {resource_type} using CloudFormation API (attempt {attempt + 1}/{max_retries})'
+                )
                 cfn_client = get_aws_client('cloudformation', region)
                 resp = cfn_client.describe_type(Type='RESOURCE', TypeName=resource_type)
                 schema_str = resp['Schema']
-                
+
                 if not schema_str or len(schema_str) < 100:  # Basic sanity check
                     raise ClientError(f'Schema response too short: {len(schema_str)} characters')
-                    
+
                 spec = json.loads(schema_str)
-                
+
                 # Validate that the schema has properties (not empty)
                 if not spec.get('properties'):
-                    raise ClientError(f'Downloaded schema for {resource_type} has no properties - API may have failed')
-                
+                    raise ClientError(
+                        f'Downloaded schema for {resource_type} has no properties - API may have failed'
+                    )
+
                 # For known taggable resources, verify Tags property exists
-                if resource_type in ['AWS::S3::Bucket', 'AWS::EC2::Instance', 'AWS::RDS::DBInstance']:
+                if resource_type in [
+                    'AWS::S3::Bucket',
+                    'AWS::EC2::Instance',
+                    'AWS::RDS::DBInstance',
+                ]:
                     if 'Tags' not in spec.get('properties', {}):
-                        print(f'Warning: {resource_type} schema missing Tags property, but resource should support tagging')
-                
+                        print(
+                            f'Warning: {resource_type} schema missing Tags property, but resource should support tagging'
+                        )
+
                 # Save schema to cache only if it's valid
                 schema_file = self.cache_dir / f'{resource_type.replace("::", "_")}.json'
                 with open(schema_file, 'w') as f:
                     f.write(schema_str)
-                
+
                 # Update registry with the valid schema
                 self.schema_registry[resource_type] = spec
 
@@ -180,15 +194,18 @@ class SchemaManager:
 
                 print(f'Processed and cached schema for {resource_type}')
                 return spec
-                
+
             except Exception as e:
                 print(f'Schema download attempt {attempt + 1} failed: {str(e)}')
                 if attempt == max_retries - 1:  # Last attempt
-                    raise ClientError(f'Failed to download valid schema for {resource_type} after {max_retries} attempts: {str(e)}')
+                    raise ClientError(
+                        f'Failed to download valid schema for {resource_type} after {max_retries} attempts: {str(e)}'
+                    )
                 # Wait before retry
                 import time
+
                 time.sleep(1)
-        
+
         # Should never reach here
         raise ClientError(f'Failed to download schema for {resource_type}')
 

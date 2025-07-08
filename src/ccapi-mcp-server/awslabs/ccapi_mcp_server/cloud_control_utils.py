@@ -22,12 +22,12 @@ def add_default_tags(properties: Dict, schema: Dict) -> Dict:
         return {}
 
     properties_with_tags = properties.copy()
-    
+
     # Always try to add tags - don't check schema since it can be unreliable
     # Ensure Tags array exists
     if 'Tags' not in properties_with_tags:
         properties_with_tags['Tags'] = []
-    
+
     tags = properties_with_tags['Tags']
     # Add default tags if they don't exist
     managed_by_exists = any(tag.get('Key') == 'MANAGED_BY' for tag in tags)
@@ -45,6 +45,7 @@ def add_default_tags(properties: Dict, schema: Dict) -> Dict:
         )
     if not version_exists:
         from awslabs.ccapi_mcp_server import __version__
+
         tags.append({'Key': 'MCP_SERVER_VERSION', 'Value': __version__})
 
     properties_with_tags['Tags'] = tags

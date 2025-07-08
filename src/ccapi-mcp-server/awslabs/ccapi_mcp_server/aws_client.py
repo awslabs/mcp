@@ -20,7 +20,7 @@ from os import environ
 
 
 session_config = botocore.config.Config(
-    user_agent_extra='cfn-mcp-server/1.0.0',
+    user_agent_extra='ccapi-mcp-server/1.1.0',
 )
 
 

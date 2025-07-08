@@ -93,7 +93,10 @@ class TestSchemaManager:
 
         sm = schema_manager()
         # Add a fake recent schema to registry with proper properties
-        test_schema = {'typeName': 'AWS::Test::Resource', 'properties': {'TestProp': {'type': 'string'}}}
+        test_schema = {
+            'typeName': 'AWS::Test::Resource',
+            'properties': {'TestProp': {'type': 'string'}},
+        }
         sm.schema_registry['AWS::Test::Resource'] = test_schema
         sm.metadata['schemas']['AWS::Test::Resource'] = {
             'last_updated': datetime.now().isoformat()
@@ -111,13 +114,11 @@ class TestSchemaManager:
         mock_cfn_client = MagicMock()
         # Provide a schema with properties to pass validation
         schema_content = {
-            'properties': {'BucketName': {'type': 'string'}}, 
-            'readOnlyProperties': [], 
-            'primaryIdentifier': []
+            'properties': {'BucketName': {'type': 'string'}},
+            'readOnlyProperties': [],
+            'primaryIdentifier': [],
         }
-        mock_cfn_client.describe_type.return_value = {
-            'Schema': json.dumps(schema_content)
-        }
+        mock_cfn_client.describe_type.return_value = {'Schema': json.dumps(schema_content)}
         mock_client.return_value = mock_cfn_client
 
         sm = schema_manager()

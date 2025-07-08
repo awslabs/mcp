@@ -37,109 +37,115 @@ from typing import Any
 _properties_store: dict[str, dict] = {}
 
 
-def _generate_explanation(content: Any, context: str, operation: str, format: str, user_intent: str) -> str:
+def _generate_explanation(
+    content: Any, context: str, operation: str, format: str, user_intent: str
+) -> str:
     """Generate comprehensive explanation for any type of content."""
     content_type = type(content).__name__
-    
+
     # Build header
     if context:
-        header = f"## {context} - {operation.title()} Operation" if operation != "analyze" else f"## {context} Analysis"
+        header = (
+            f'## {context} - {operation.title()} Operation'
+            if operation != 'analyze'
+            else f'## {context} Analysis'
+        )
     else:
-        header = f"## Data Analysis ({content_type})"
-    
+        header = f'## Data Analysis ({content_type})'
+
     if user_intent:
-        header += f"\n\n**User Intent:** {user_intent}"
-    
-    explanation = header + "\n\n"
-    
+        header += f'\n\n**User Intent:** {user_intent}'
+
+    explanation = header + '\n\n'
+
     # Handle different content types
     if isinstance(content, dict):
         explanation += _explain_dict(content, format)
     elif isinstance(content, list):
         explanation += _explain_list(content, format)
     elif isinstance(content, str):
-        explanation += f"**Content:** {content[:500]}{'...' if len(content) > 500 else ''}"
+        explanation += f'**Content:** {content[:500]}{"..." if len(content) > 500 else ""}'
     elif isinstance(content, (int, float, bool)):
-        explanation += f"**Value:** {content} ({content_type})"
+        explanation += f'**Value:** {content} ({content_type})'
     else:
-        explanation += f"**Content Type:** {content_type}\n**Value:** {str(content)[:500]}"
-    
+        explanation += f'**Content Type:** {content_type}\n**Value:** {str(content)[:500]}'
+
     # Add operation-specific notes
     if operation in ['create', 'update', 'delete']:
-        explanation += "\n\n**Infrastructure Operation Notes:**"
-        explanation += "\n• This operation will modify AWS resources"
-        explanation += "\n• Default management tags will be applied for tracking"
-        explanation += "\n• Changes will be applied to the specified AWS region"
-    
+        explanation += '\n\n**Infrastructure Operation Notes:**'
+        explanation += '\n• This operation will modify AWS resources'
+        explanation += '\n• Default management tags will be applied for tracking'
+        explanation += '\n• Changes will be applied to the specified AWS region'
+
     return explanation
 
 
 def _explain_dict(data: dict, format: str) -> str:
     """Explain dictionary content comprehensively."""
-    explanation = f"**Configuration Summary:** Dictionary with {len(data)} properties\n\n"
-    
+    explanation = f'**Configuration Summary:** Dictionary with {len(data)} properties\n\n'
+
     for key, value in data.items():
         if key.startswith('_'):
             continue
-            
+
         if key == 'Tags' and isinstance(value, list):
             # Special handling for AWS tags
-            explanation += f"**{key}:** ({len(value)} tags)\n"
+            explanation += f'**{key}:** ({len(value)} tags)\n'
             default_tags = []
             user_tags = []
-            
+
             for tag in value:
                 if isinstance(tag, dict):
                     tag_key = tag.get('Key', '')
                     tag_value = tag.get('Value', '')
                     if tag_key in ['MANAGED_BY', 'MCP_SERVER_SOURCE_CODE', 'MCP_SERVER_VERSION']:
-                        default_tags.append(f"  • {tag_key}: {tag_value} (DEFAULT)")
+                        default_tags.append(f'  • {tag_key}: {tag_value} (DEFAULT)')
                     else:
-                        user_tags.append(f"  • {tag_key}: {tag_value}")
-            
+                        user_tags.append(f'  • {tag_key}: {tag_value}')
+
             if user_tags:
-                explanation += "  *User Tags:*\n" + "\n".join(user_tags) + "\n"
+                explanation += '  *User Tags:*\n' + '\n'.join(user_tags) + '\n'
             if default_tags:
-                explanation += "  *Management Tags:*\n" + "\n".join(default_tags) + "\n"
-                
+                explanation += '  *Management Tags:*\n' + '\n'.join(default_tags) + '\n'
+
         elif isinstance(value, dict):
-            explanation += f"**{key}:** (Nested configuration with {len(value)} properties)\n"
-            if format == "detailed":
+            explanation += f'**{key}:** (Nested configuration with {len(value)} properties)\n'
+            if format == 'detailed':
                 for sub_key, sub_value in list(value.items())[:5]:
-                    explanation += f"  • {sub_key}: {_format_value(sub_value)}\n"
+                    explanation += f'  • {sub_key}: {_format_value(sub_value)}\n'
                 if len(value) > 5:
-                    explanation += f"  • ... and {len(value) - 5} more properties\n"
-                    
+                    explanation += f'  • ... and {len(value) - 5} more properties\n'
+
         elif isinstance(value, list):
-            explanation += f"**{key}:** (List with {len(value)} items)\n"
-            if format == "detailed" and value:
+            explanation += f'**{key}:** (List with {len(value)} items)\n'
+            if format == 'detailed' and value:
                 for i, item in enumerate(value[:3]):
-                    explanation += f"  • Item {i+1}: {_format_value(item)}\n"
+                    explanation += f'  • Item {i + 1}: {_format_value(item)}\n'
                 if len(value) > 3:
-                    explanation += f"  • ... and {len(value) - 3} more items\n"
-                    
+                    explanation += f'  • ... and {len(value) - 3} more items\n'
+
         else:
-            explanation += f"**{key}:** {_format_value(value)}\n"
-        
-        explanation += "\n"
-    
+            explanation += f'**{key}:** {_format_value(value)}\n'
+
+        explanation += '\n'
+
     return explanation
 
 
 def _explain_list(data: list, format: str) -> str:
     """Explain list content comprehensively."""
-    explanation = f"**List Summary:** {len(data)} items\n\n"
-    
-    if format == "detailed":
+    explanation = f'**List Summary:** {len(data)} items\n\n'
+
+    if format == 'detailed':
         for i, item in enumerate(data[:10]):  # Limit to first 10
-            explanation += f"**Item {i+1}:** {_format_value(item)}\n"
+            explanation += f'**Item {i + 1}:** {_format_value(item)}\n'
         if len(data) > 10:
-            explanation += f"\n... and {len(data) - 10} more items\n"
+            explanation += f'\n... and {len(data) - 10} more items\n'
     else:
-        explanation += f"Items: {[type(item).__name__ for item in data[:5]]}\n"
+        explanation += f'Items: {[type(item).__name__ for item in data[:5]]}\n'
         if len(data) > 5:
-            explanation += f"... and {len(data) - 5} more\n"
-    
+            explanation += f'... and {len(data) - 5} more\n'
+
     return explanation
 
 
@@ -150,11 +156,12 @@ def _format_value(value: Any) -> str:
     elif isinstance(value, (int, float, bool)):
         return str(value)
     elif isinstance(value, dict):
-        return f"{{dict with {len(value)} keys}}"
+        return f'{{dict with {len(value)} keys}}'
     elif isinstance(value, list):
-        return f"[list with {len(value)} items]"
+        return f'[list with {len(value)} items]'
     else:
-        return f"{type(value).__name__} object"
+        return f'{type(value).__name__} object'
+
 
 mcp = FastMCP(
     'awslabs.ccapi-mcp-server',
@@ -178,7 +185,7 @@ mcp = FastMCP(
   4. create_resource() with aws_session_info and execution_token
 • ALWAYS follow this exact sequence for resource updates:
   1. generate_infrastructure_code() with identifier and patch_document → returns properties_token
-  2. explain() with properties_token → returns explanation + execution_token  
+  2. explain() with properties_token → returns explanation + execution_token
   3. IMMEDIATELY show the user the complete explanation from step 2 in detail
   4. update_resource() with execution_token
 • For deletions: get_resource() → explain() with content and operation="delete" → show explanation → delete_resource()
@@ -362,35 +369,50 @@ async def generate_infrastructure_code(
         **result,
         'message': 'Infrastructure code generated successfully. You can now create resources with create_resource().',
         'next_step': 'Use explain() tool with these properties, then create_resource() with the execution_token.',
-        'properties_for_explanation': result['properties']  # Make properties visible for explain() tool
+        'properties_for_explanation': result[
+            'properties'
+        ],  # Make properties visible for explain() tool
     }
 
 
 @mcp.tool()
 async def explain(
-    content: Any = Field(default=None, description="Any data to explain - infrastructure properties, JSON, dict, list, etc."),
-    properties_token: str = Field(default="", description="Properties token from generate_infrastructure_code (for infrastructure operations)"),
-    context: str = Field(default="", description="Context about what this data represents (e.g., 'KMS key creation', 'S3 bucket update')"),
-    operation: str = Field(default="analyze", description="Operation type: create, update, delete, analyze"),
-    format: str = Field(default="detailed", description="Explanation format: detailed, summary, technical"),
-    user_intent: str = Field(default="", description="Optional: User's stated purpose")
+    content: Any = Field(
+        default=None,
+        description='Any data to explain - infrastructure properties, JSON, dict, list, etc.',
+    ),
+    properties_token: str = Field(
+        default='',
+        description='Properties token from generate_infrastructure_code (for infrastructure operations)',
+    ),
+    context: str = Field(
+        default='',
+        description="Context about what this data represents (e.g., 'KMS key creation', 'S3 bucket update')",
+    ),
+    operation: str = Field(
+        default='analyze', description='Operation type: create, update, delete, analyze'
+    ),
+    format: str = Field(
+        default='detailed', description='Explanation format: detailed, summary, technical'
+    ),
+    user_intent: str = Field(default='', description="Optional: User's stated purpose"),
 ) -> dict:
     """MANDATORY: Explain any data in clear, human-readable format.
-    
+
     For infrastructure operations (create/update/delete):
     - CONSUMES properties_token and returns execution_token
     - You MUST immediately display the returned explanation to user
     - You MUST use the returned execution_token for create/update/delete operations
-    
+
     For general data explanation:
     - Pass any data in 'content' parameter
     - Provides comprehensive explanation of the data structure
-    
+
     This tool can explain:
     - Infrastructure configurations (single or multiple resources)
     - CloudFormation templates, API responses, configuration files
     - Any JSON/YAML data, lists, dictionaries, complex nested structures
-    
+
     Parameters:
         content: Any data to explain
         properties_token: Token from generate_infrastructure_code (infrastructure only)
@@ -398,67 +420,75 @@ async def explain(
         operation: Operation being performed
         format: Level of detail in explanation
         user_intent: User's stated purpose
-    
+
     Returns:
         explanation: Comprehensive explanation you MUST display to user
         execution_token: New token for infrastructure operations (if applicable)
     """
     execution_token = None
-    
+
     # Handle infrastructure operations with token workflow
     if properties_token:
         # Infrastructure operation - consume properties_token
         if properties_token not in _properties_store:
-            raise ClientError("Invalid properties token")
-        
+            raise ClientError('Invalid properties token')
+
         explanation_content = _properties_store[properties_token]
-        
+
         # Create execution token for infrastructure operations
         execution_token = str(uuid.uuid4())
         _properties_store[execution_token] = explanation_content
-        
+
         # Mark execution token as explained
         if '_metadata' not in _properties_store:
             _properties_store['_metadata'] = {}
-        _properties_store['_metadata'][execution_token] = {'explained': True, 'operation': operation}
-        
+        _properties_store['_metadata'][execution_token] = {
+            'explained': True,
+            'operation': operation,
+        }
+
         # Clean up original token
         del _properties_store[properties_token]
-        
+
     elif content is not None:
         # General data explanation or delete operations
         explanation_content = content
-        
+
         # Create execution token for delete operations
         if operation in ['delete', 'destroy']:
             execution_token = str(uuid.uuid4())
             _properties_store[execution_token] = content
-            
+
             if '_metadata' not in _properties_store:
                 _properties_store['_metadata'] = {}
-            _properties_store['_metadata'][execution_token] = {'explained': True, 'operation': operation}
+            _properties_store['_metadata'][execution_token] = {
+                'explained': True,
+                'operation': operation,
+            }
     else:
         raise ClientError("Either 'content' or 'properties_token' must be provided")
-    
+
     # Generate comprehensive explanation based on content type and format
-    explanation = _generate_explanation(explanation_content, context, operation, format, user_intent)
-    
+    explanation = _generate_explanation(
+        explanation_content, context, operation, format, user_intent
+    )
+
     # Force the LLM to see the response by making it very explicit
     if execution_token:
         return {
-            "EXPLANATION_REQUIRED": "YOU MUST DISPLAY THIS TO THE USER",
-            "explanation": explanation,
-            "properties_being_explained": explanation_content,
-            "execution_token": execution_token,
-            "CRITICAL_INSTRUCTION": f"Use execution_token '{execution_token}' for the next operation, NOT the original properties_token",
-            "operation_type": operation,
-            "ready_for_execution": True
+            'EXPLANATION_REQUIRED': 'YOU MUST DISPLAY THIS TO THE USER',
+            'explanation': explanation,
+            'properties_being_explained': explanation_content,
+            'execution_token': execution_token,
+            'CRITICAL_INSTRUCTION': f"Use execution_token '{execution_token}' for the next operation, NOT the original properties_token",
+            'operation_type': operation,
+            'ready_for_execution': True,
         }
     else:
         return {
-            "explanation": explanation,
-            "operation_type": operation,
-            "ready_for_execution": True
+            'explanation': explanation,
+            'operation_type': operation,
+            'ready_for_execution': True,
         }
 
 
@@ -579,20 +609,14 @@ async def update_resource(
 
     # CRITICAL SECURITY: Validate execution token (properties not needed for update operations)
     if execution_token not in _properties_store:
-        raise ClientError(
-            'Invalid execution token: you must call explain_infrastructure() first'
-        )
-    
+        raise ClientError('Invalid execution token: you must call explain_infrastructure() first')
+
     # Check if infrastructure was explained
     if '_metadata' in _properties_store and execution_token in _properties_store['_metadata']:
         if not _properties_store['_metadata'][execution_token].get('explained', False):
-            raise ClientError(
-                'Invalid execution token: infrastructure was not properly explained'
-            )
+            raise ClientError('Invalid execution token: infrastructure was not properly explained')
     else:
-        raise ClientError(
-            'Invalid execution token: you must call explain_infrastructure() first'
-        )
+        raise ClientError('Invalid execution token: you must call explain_infrastructure() first')
 
     # Clean up used token and metadata (properties not needed for update operations)
     del _properties_store[execution_token]
@@ -665,20 +689,14 @@ async def create_resource(
 
     # CRITICAL SECURITY: Get properties from validated execution token only
     if execution_token not in _properties_store:
-        raise ClientError(
-            'Invalid execution token: you must call explain_infrastructure() first'
-        )
-    
+        raise ClientError('Invalid execution token: you must call explain_infrastructure() first')
+
     # Check if infrastructure was explained
     if '_metadata' in _properties_store and execution_token in _properties_store['_metadata']:
         if not _properties_store['_metadata'][execution_token].get('explained', False):
-            raise ClientError(
-                'Invalid execution token: infrastructure was not properly explained'
-            )
+            raise ClientError('Invalid execution token: infrastructure was not properly explained')
     else:
-        raise ClientError(
-            'Invalid execution token: you must call explain_infrastructure() first'
-        )
+        raise ClientError('Invalid execution token: you must call explain_infrastructure() first')
 
     # Use ONLY the properties that were explained - no manual override possible
     properties = _properties_store[execution_token]
@@ -748,27 +766,23 @@ async def delete_resource(
         raise ClientError(
             'Please confirm the deletion by setting confirmed=True to proceed with resource deletion.'
         )
-    
+
     # CRITICAL SECURITY: Validate execution token to ensure deletion was explained
     if execution_token not in _properties_store:
         raise ClientError(
             'Invalid execution token: you must call explain_infrastructure() first to review what will be deleted'
         )
-    
+
     # Check if infrastructure was explained
     if '_metadata' in _properties_store and execution_token in _properties_store['_metadata']:
         if not _properties_store['_metadata'][execution_token].get('explained', False):
-            raise ClientError(
-                'Invalid execution token: deletion was not properly explained'
-            )
+            raise ClientError('Invalid execution token: deletion was not properly explained')
         if _properties_store['_metadata'][execution_token].get('operation') != 'delete':
             raise ClientError(
                 'Invalid execution token: token was not generated for delete operation'
             )
     else:
-        raise ClientError(
-            'Invalid execution token: you must call explain_infrastructure() first'
-        )
+        raise ClientError('Invalid execution token: you must call explain_infrastructure() first')
 
     # Enforce that aws_session_info comes from get_aws_session_info
     if not aws_session_info or not isinstance(aws_session_info, dict):
@@ -792,7 +806,7 @@ async def delete_resource(
         )
     except Exception as e:
         raise handle_aws_api_error(e)
-    
+
     # Clean up used execution token
     del _properties_store[execution_token]
     if '_metadata' in _properties_store and execution_token in _properties_store['_metadata']:

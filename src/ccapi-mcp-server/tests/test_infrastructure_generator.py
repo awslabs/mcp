@@ -234,7 +234,9 @@ class TestInfrastructureGenerator:
         # Mock schema with Tags support
         mock_instance = MagicMock()
         mock_instance.get_schema = AsyncMock(
-            return_value={'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}}
+            return_value={
+                'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+            }
         )
         mock_schema_manager.return_value = mock_instance
 
@@ -259,70 +261,75 @@ class TestInfrastructureGenerator:
         assert len(patch_doc) == 1
         assert patch_doc[0]['op'] == 'replace'
         assert patch_doc[0]['path'] == '/Tags'
-        
+
         # Should have existing tag + user tag + 3 default tags = 5 total
         tags = patch_doc[0]['value']
         assert len(tags) == 5
-        
+
         tag_dict = {tag['Key']: tag['Value'] for tag in tags}
         assert tag_dict['existing'] == 'tag'  # Existing tag preserved
         assert tag_dict['user-tag'] == 'user-value'  # User tag added
         assert tag_dict['MANAGED_BY'] == 'CCAPI-MCP-SERVER'  # Default tags added
-        assert tag_dict['MCP_SERVER_SOURCE_CODE'] == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
+        assert (
+            tag_dict['MCP_SERVER_SOURCE_CODE']
+            == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
+        )
         assert tag_dict['MCP_SERVER_VERSION'] == '1.1.0'
 
     async def test_real_s3_schema_supports_tagging(self):
         """Test that real S3 schema from schema_manager supports tagging."""
         from awslabs.ccapi_mcp_server.schema_manager import schema_manager
-        
+
         # Get the actual S3 schema
         sm = schema_manager()
         try:
             schema = await sm.get_schema('AWS::S3::Bucket', 'us-east-1')
-            
+
             # Check if schema supports tagging
             supports_tagging = 'Tags' in schema.get('properties', {})
             schema_properties = list(schema.get('properties', {}).keys())
-            
-            print(f"S3 Schema supports tagging: {supports_tagging}")
-            print(f"S3 Schema properties: {schema_properties}")
-            
+
+            print(f'S3 Schema supports tagging: {supports_tagging}')
+            print(f'S3 Schema properties: {schema_properties}')
+
             # This should be True for S3 buckets
-            assert supports_tagging, f"S3 schema should support Tags. Properties: {schema_properties}"
-            
+            assert supports_tagging, (
+                f'S3 schema should support Tags. Properties: {schema_properties}'
+            )
+
         except Exception as e:
             # If we can't get the real schema, skip this test
-            pytest.skip(f"Could not get real S3 schema: {e}")
+            pytest.skip(f'Could not get real S3 schema: {e}')
 
     async def test_add_default_tags_with_real_schema(self):
         """Test add_default_tags with real S3 schema."""
-        from awslabs.ccapi_mcp_server.schema_manager import schema_manager
         from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
-        
+        from awslabs.ccapi_mcp_server.schema_manager import schema_manager
+
         # Get the actual S3 schema
         sm = schema_manager()
         try:
             schema = await sm.get_schema('AWS::S3::Bucket', 'us-east-1')
-            
+
             # Test properties like what the MCP server receives
             properties = {
                 'BucketName': 'test-bucket',
-                'Tags': [
-                    {'Key': 'user-tag', 'Value': 'user-value'}
-                ]
+                'Tags': [{'Key': 'user-tag', 'Value': 'user-value'}],
             }
-            
+
             result = add_default_tags(properties, schema)
-            
+
             # Should have user tag + 3 default tags = 4 total
-            assert len(result['Tags']) == 4, f"Expected 4 tags, got {len(result['Tags'])}: {result['Tags']}"
-            
+            assert len(result['Tags']) == 4, (
+                f'Expected 4 tags, got {len(result["Tags"])}: {result["Tags"]}'
+            )
+
             tag_dict = {tag['Key']: tag['Value'] for tag in result['Tags']}
             assert 'user-tag' in tag_dict
             assert 'MANAGED_BY' in tag_dict
             assert 'MCP_SERVER_SOURCE_CODE' in tag_dict
             assert 'MCP_SERVER_VERSION' in tag_dict
-            
+
         except Exception as e:
             # If we can't get the real schema, skip this test
-            pytest.skip(f"Could not get real S3 schema: {e}")
+            pytest.skip(f'Could not get real S3 schema: {e}')

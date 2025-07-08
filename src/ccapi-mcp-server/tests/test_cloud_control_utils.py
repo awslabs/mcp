@@ -205,11 +205,14 @@ class TestUtils:
         assert len(result['Tags']) == 3
         tag_keys = {tag['Key'] for tag in result['Tags']}
         assert tag_keys == {'MANAGED_BY', 'MCP_SERVER_SOURCE_CODE', 'MCP_SERVER_VERSION'}
-        
+
         # Verify actual values
         tag_dict = {tag['Key']: tag['Value'] for tag in result['Tags']}
         assert tag_dict['MANAGED_BY'] == 'CCAPI-MCP-SERVER'
-        assert tag_dict['MCP_SERVER_SOURCE_CODE'] == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
+        assert (
+            tag_dict['MCP_SERVER_SOURCE_CODE']
+            == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
+        )
         assert tag_dict['MCP_SERVER_VERSION'] == '1.1.0'
 
     def test_add_default_tags_no_properties(self):
@@ -266,7 +269,7 @@ class TestUtils:
         assert 'Tags' in result
         assert len(result['Tags']) == 3
         assert result['BucketName'] == 'test-bucket'
-        
+
         # Verify default tags are present
         tag_keys = {tag['Key'] for tag in result['Tags']}
         assert tag_keys == {'MANAGED_BY', 'MCP_SERVER_SOURCE_CODE', 'MCP_SERVER_VERSION'}
@@ -298,8 +301,8 @@ class TestUtils:
             'BucketName': 'test-bucket',
             'Tags': [
                 {'Key': 'user-tag', 'Value': 'user-value'},
-                {'Key': 'another-tag', 'Value': 'another-value'}
-            ]
+                {'Key': 'another-tag', 'Value': 'another-value'},
+            ],
         }
         schema = {'properties': {'Tags': {'type': 'array'}}}
 
@@ -307,15 +310,18 @@ class TestUtils:
 
         # Should have user tags + 3 default tags = 5 total
         assert len(result['Tags']) == 5
-        
+
         # Check user tags are preserved
         tag_dict = {tag['Key']: tag['Value'] for tag in result['Tags']}
         assert tag_dict['user-tag'] == 'user-value'
         assert tag_dict['another-tag'] == 'another-value'
-        
+
         # Check default tags are added
         assert tag_dict['MANAGED_BY'] == 'CCAPI-MCP-SERVER'
-        assert tag_dict['MCP_SERVER_SOURCE_CODE'] == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
+        assert (
+            tag_dict['MCP_SERVER_SOURCE_CODE']
+            == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
+        )
         assert tag_dict['MCP_SERVER_VERSION'] == '1.1.0'
 
     def test_progress_event_with_error_code(self):

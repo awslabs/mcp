@@ -28,11 +28,11 @@ def add_default_tags(properties: Dict, schema: Dict) -> Dict:
         return {}
 
     properties_with_tags = properties.copy()
-    
+
     # Always try to add tags - don't check schema since it can be unreliable
     if 'Tags' not in properties_with_tags:
         properties_with_tags['Tags'] = []
-    
+
     tags = properties_with_tags['Tags']
     # Add default tags if they don't exist
     managed_by_exists = any(tag.get('Key') == 'MANAGED_BY' for tag in tags)
@@ -67,10 +67,10 @@ def add_default_tags(properties: Dict, schema: Dict) -> Dict:
 # In the UPDATE operation section:
 if is_update:
     # ... existing logic to get current_properties and apply patches ...
-    
+
     # V1: Always add required MCP server identification tags for updates too
     properties_with_tags = add_default_tags(update_properties, schema)
-    
+
     operation = 'update'
 else:
     # CREATE operation - should already have this:
@@ -93,7 +93,7 @@ async def explain_infrastructure(
     user_intent: str = Field(default="", description="Optional: User's stated purpose for this infrastructure")
 ) -> dict:
     """Explain infrastructure in clear, human-readable format.
-    
+
     This tool forces the LLM to provide a clear explanation of what infrastructure
     will be created, updated, or deleted. Always highlight default management tags.
     """
@@ -101,30 +101,30 @@ async def explain_infrastructure(
         # Get properties from token
         if properties_token not in _properties_store:
             raise ClientError("Invalid properties token")
-        
+
         properties = _properties_store[properties_token]
         # Mark as explained
         if not hasattr(_properties_store, '_metadata'):
             _properties_store._metadata = {}
         _properties_store._metadata[properties_token] = {'explained': True, 'operation': operation}
-        
+
         explanation_content = properties
     else:
         # Use provided content
         explanation_content = content
-    
+
     instruction = f"""You MUST provide a clear, bulleted explanation of this {operation} operation.
-    
+
 Highlight:
 • What resources will be {operation}d
 • All tags (especially default management tags: MANAGED_BY, MCP_SERVER_SOURCE_CODE, MCP_SERVER_VERSION)
 • Key configuration details
 • Any security or compliance considerations
 """
-    
+
     if user_intent:
         instruction += f"\n• How this serves the user's intent: {user_intent}"
-    
+
     return {
         "infrastructure_content": explanation_content,
         "operation": operation,
@@ -207,7 +207,7 @@ if hasattr(_properties_store, '_metadata') and properties_token in _properties_s
 
 ### UPDATE Flow:
 ```
-1. generate_infrastructure_code(identifier, patch_document) → properties_token  
+1. generate_infrastructure_code(identifier, patch_document) → properties_token
 2. explain_infrastructure(properties_token, "update") → LLM explains changes
 3. run_checkov(security_check_token) → security scan
 4. update_resource(properties_token) → updates resource with default tags
@@ -225,7 +225,7 @@ if hasattr(_properties_store, '_metadata') and properties_token in _properties_s
 
 After implementation, test:
 1. CREATE operation includes 3 default management tags
-2. UPDATE operation includes 3 default management tags  
+2. UPDATE operation includes 3 default management tags
 3. `explain_infrastructure` shows all tags clearly
 4. Checkov scans show default tags in CloudFormation template
 5. Skipping `explain_infrastructure` causes clear error messages

@@ -71,7 +71,9 @@ class TestTools:
         from awslabs.ccapi_mcp_server.server import delete_resource
 
         with pytest.raises(ClientError):
-            await delete_resource(resource_type=None, identifier='id', execution_token='token', confirmed=True)
+            await delete_resource(
+                resource_type=None, identifier='id', execution_token='token', confirmed=True
+            )
 
     @pytest.mark.asyncio
     async def test_basic_imports(self):
@@ -183,7 +185,8 @@ class TestTools:
                 resource_type='AWS::S3::Bucket',
                 identifier='test',
                 aws_session_info={'account_id': 'test'},
-                confirmed=True, execution_token='token',
+                confirmed=True,
+                execution_token='token',
             )
 
     @pytest.mark.asyncio
@@ -316,7 +319,9 @@ class TestTools:
         from awslabs.ccapi_mcp_server.server import delete_resource
 
         with pytest.raises(ClientError):
-            await delete_resource(resource_type='', identifier='test', execution_token='token', confirmed=True)
+            await delete_resource(
+                resource_type='', identifier='test', execution_token='token', confirmed=True
+            )
 
     @pytest.mark.asyncio
     async def test_get_aws_session_info_invalid_env_check(self):
@@ -393,13 +398,17 @@ class TestTools:
         from awslabs.ccapi_mcp_server.server import delete_resource
 
         with patch('awslabs.ccapi_mcp_server.server.Context.readonly_mode', return_value=True):
-            with patch('awslabs.ccapi_mcp_server.server._properties_store', {'token': {}, '_metadata': {'token': {'explained': True, 'operation': 'delete'}}}):
+            with patch(
+                'awslabs.ccapi_mcp_server.server._properties_store',
+                {'token': {}, '_metadata': {'token': {'explained': True, 'operation': 'delete'}}},
+            ):
                 with pytest.raises(ClientError, match='readonly mode'):
                     await delete_resource(
                         resource_type='AWS::S3::Bucket',
                         identifier='test',
                         aws_session_info={'account_id': 'test', 'region': 'us-east-1'},
-                        confirmed=True, execution_token='token',
+                        confirmed=True,
+                        execution_token='token',
                     )
 
     @patch('awslabs.ccapi_mcp_server.server.get_aws_client')
@@ -457,7 +466,8 @@ class TestTools:
                     resource_type='AWS::S3::Bucket',
                     identifier='test',
                     aws_session_info={'account_id': 'test', 'region': 'us-east-1'},
-                    confirmed=True, execution_token='token',
+                    confirmed=True,
+                    execution_token='token',
                 )
 
     @patch('awslabs.ccapi_mcp_server.server.get_aws_client')
@@ -601,7 +611,9 @@ class TestTools:
                 pass  # Expected
 
             try:
-                await delete_resource(resource_type=case, identifier=case, execution_token='token', confirmed=True)
+                await delete_resource(
+                    resource_type=case, identifier=case, execution_token='token', confirmed=True
+                )
             except ClientError:
                 pass  # Expected
 
@@ -643,7 +655,8 @@ class TestTools:
                 resource_type='AWS::S3::Bucket',
                 identifier='test',
                 aws_session_info='invalid',
-                confirmed=True, execution_token='token',
+                confirmed=True,
+                execution_token='token',
             )
 
     @pytest.mark.asyncio
@@ -684,7 +697,8 @@ class TestTools:
                 resource_type='AWS::S3::Bucket',
                 identifier='test',
                 aws_session_info={'account_id': 'test', 'region': 'us-east-1'},
-                confirmed=False, execution_token='token',
+                confirmed=False,
+                execution_token='token',
             )
 
     @patch('awslabs.ccapi_mcp_server.server.generate_infrastructure_code_impl')
@@ -737,7 +751,9 @@ class TestTools:
             )
 
         with pytest.raises(ClientError):
-            await delete_resource(resource_type=False, identifier=None, execution_token='token', confirmed=True)
+            await delete_resource(
+                resource_type=False, identifier=None, execution_token='token', confirmed=True
+            )
 
     @pytest.mark.asyncio
     async def test_create_resource_missing_properties(self):

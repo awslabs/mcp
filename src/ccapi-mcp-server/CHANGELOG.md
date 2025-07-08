@@ -5,7 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2025-01-XX
+## [1.1.0] - 2025-07-08
+
+### Added
+
+- Added support for default tagging to ease resource visibility post-deployment
+- Added `explain()` tool to enforce explanation of resources between CREATE/UPDATE/DELETE updates, similar to an execution plan
+
+## [1.0.0] - 2025-07-08
 
 ### Added
 

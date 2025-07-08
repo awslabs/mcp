@@ -49,7 +49,7 @@ _properties_store = {
         "properties": {...},
         "metadata": {
             "explained": True,
-            "operation": "create", 
+            "operation": "create",
             "timestamp": "2025-01-07T10:30:00Z",
             "resource_type": "AWS::S3::Bucket",
             "user_intent": "Store application logs"
@@ -109,7 +109,7 @@ _properties_store = {
                 },
                 {
                     "execution_token": "def456",
-                    "operation": "update", 
+                    "operation": "update",
                     "timestamp": "2025-01-07T11:15:00Z",
                     "user": "novekm",
                     "aws_session": "arn:aws:iam::123456789012:user/novekm",
@@ -118,7 +118,7 @@ _properties_store = {
                         "Tags": [{"Key": "MANAGED_BY", "Value": "CCAPI-MCP-SERVER"}]
                     },
                     "properties_after": {
-                        "BucketName": "my-bucket", 
+                        "BucketName": "my-bucket",
                         "Tags": [
                             {"Key": "Environment", "Value": "prod"},
                             {"Key": "MANAGED_BY", "Value": "CCAPI-MCP-SERVER"}
@@ -172,11 +172,11 @@ _properties_store = {
 @mcp.tool()
 async def save_state():
     """Persist current state to disk after operations"""
-    
+
 @mcp.tool()
 async def load_state():
     """Load state from disk on startup"""
-    
+
 @mcp.tool()
 async def show_resource_history(identifier: str):
     """Show complete lineage for a resource"""
@@ -196,7 +196,7 @@ async def detect_drift(
     auto_fix: bool = Field(False, description="Automatically fix detected drift")
 ):
     """Compare stored state vs actual AWS state"""
-    
+
 @mcp.tool()
 async def refresh_state(identifier: str):
     """Update stored state to match current AWS state"""
@@ -217,11 +217,11 @@ async def rollback_resource(
     execution_token: str = Field(description="Token of state to rollback to")
 ):
     """Rollback resource to previous state"""
-    
+
 @mcp.tool()
 async def analyze_change_impact(execution_token: str):
     """Analyze impact of proposed changes before applying"""
-    
+
 @mcp.tool()
 async def show_dependency_graph(identifier: str):
     """Show resource dependencies and dependents"""
@@ -243,11 +243,11 @@ async def create_stack(
     user_intent: str = Field(description="Purpose of this stack")
 ):
     """Deploy multiple resources as a coordinated stack"""
-    
+
 @mcp.tool()
 async def update_stack(stack_name: str, changes: list):
     """Update entire stack with dependency-aware ordering"""
-    
+
 @mcp.tool()
 async def destroy_stack(stack_name: str, execution_token: str):
     """Safely destroy stack in reverse dependency order"""
@@ -273,9 +273,9 @@ async def detect_resource_drift(identifier: str):
     """
     stored_state = load_resource_state(identifier)
     current_state = await get_resource(stored_state.resource_type, identifier)
-    
+
     drift = compare_states(stored_state.current_properties, current_state.properties)
-    
+
     return {
         "drift_detected": len(drift) > 0,
         "changes": drift,
@@ -304,11 +304,11 @@ async def resolve_dependencies(resources: list):
 class StateLock:
     def __init__(self, lock_file="~/.aws/ccapi-mcp-server/state.lock"):
         self.lock_file = lock_file
-    
+
     async def __aenter__(self):
         # Acquire exclusive lock
         pass
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # Release lock
         pass
@@ -358,7 +358,7 @@ class StateLock:
 
 ### For Users
 - **Complete Audit Trail**: Every change tracked with context
-- **Drift Protection**: Automatic detection of unauthorized changes  
+- **Drift Protection**: Automatic detection of unauthorized changes
 - **Easy Rollback**: Point-in-time recovery using execution tokens
 - **Impact Analysis**: Understand change effects before applying
 - **Stack Management**: Deploy related resources together

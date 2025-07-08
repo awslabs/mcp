@@ -16,7 +16,7 @@
 
 import json
 from awslabs.ccapi_mcp_server.aws_client import get_aws_client
-from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags, validate_patch
+from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
 from awslabs.ccapi_mcp_server.errors import ClientError, handle_aws_api_error
 from awslabs.ccapi_mcp_server.schema_manager import schema_manager
 from typing import Dict, List
@@ -42,13 +42,17 @@ async def generate_infrastructure_code(
 
     # Check if resource supports tagging
     supports_tagging = 'Tags' in schema.get('properties', {})
-    
-    # Fallback: Known AWS resources that support tagging even if schema doesn't show it
-    if not supports_tagging and resource_type in ['AWS::S3::Bucket', 'AWS::EC2::Instance', 'AWS::RDS::DBInstance']:
-        supports_tagging = True
-        print(f"Schema for {resource_type} doesn't show Tags property, but we know it supports tagging")
-    
 
+    # Fallback: Known AWS resources that support tagging even if schema doesn't show it
+    if not supports_tagging and resource_type in [
+        'AWS::S3::Bucket',
+        'AWS::EC2::Instance',
+        'AWS::RDS::DBInstance',
+    ]:
+        supports_tagging = True
+        print(
+            f"Schema for {resource_type} doesn't show Tags property, but we know it supports tagging"
+        )
 
     if is_update:
         # This is an update operation
@@ -69,6 +73,7 @@ async def generate_infrastructure_code(
         if patch_document:
             # Apply patch operations to current properties
             import copy
+
             update_properties = copy.deepcopy(current_properties)
             for patch_op in patch_document:
                 if patch_op['op'] == 'add' and patch_op['path'] in ['/Tags', '/Tags/-']:
@@ -87,7 +92,9 @@ async def generate_infrastructure_code(
                         tag_dict = {tag['Key']: tag['Value'] for tag in existing_tags}
                         for tag in new_tags:
                             tag_dict[tag['Key']] = tag['Value']
-                        update_properties['Tags'] = [{'Key': k, 'Value': v} for k, v in tag_dict.items()]
+                        update_properties['Tags'] = [
+                            {'Key': k, 'Value': v} for k, v in tag_dict.items()
+                        ]
                 elif patch_op['op'] == 'replace' and patch_op['path'] == '/Tags':
                     # Replace tags completely
                     update_properties['Tags'] = patch_op['value']
@@ -103,7 +110,9 @@ async def generate_infrastructure_code(
                     tag_dict = {tag['Key']: tag['Value'] for tag in existing_tags}
                     for tag in new_tags:
                         tag_dict[tag['Key']] = tag['Value']
-                    update_properties['Tags'] = [{'Key': k, 'Value': v} for k, v in tag_dict.items()]
+                    update_properties['Tags'] = [
+                        {'Key': k, 'Value': v} for k, v in tag_dict.items()
+                    ]
                 else:
                     update_properties[key] = value
         else:
@@ -132,11 +141,9 @@ async def generate_infrastructure_code(
     # For updates, also generate the proper patch document with default tags
     patch_document_with_tags = None
     if is_update and 'Tags' in properties_with_tags:
-        patch_document_with_tags = [{
-            "op": "replace",
-            "path": "/Tags", 
-            "value": properties_with_tags['Tags']
-        }]
+        patch_document_with_tags = [
+            {'op': 'replace', 'path': '/Tags', 'value': properties_with_tags['Tags']}
+        ]
 
     result = {
         'resource_type': resource_type,
@@ -146,8 +153,8 @@ async def generate_infrastructure_code(
         'cloudformation_template': cf_template,
         'supports_tagging': supports_tagging,
     }
-    
+
     if patch_document_with_tags:
         result['recommended_patch_document'] = patch_document_with_tags
-        
+
     return result
