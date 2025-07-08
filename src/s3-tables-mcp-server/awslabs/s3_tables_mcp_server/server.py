@@ -65,12 +65,13 @@ class S3TablesMCPServer(FastMCP):
         super().__init__(*args, **kwargs)
         self.allow_write: bool = False
 
-        if platform.system() == 'Darwin':
+        os_name = platform.system().lower()
+        if os_name == 'darwin':
             self.log_dir = os.path.expanduser('~/Library/Logs')
-        elif platform.system() == 'Windows':
+        elif os_name == 'windows':
             self.log_dir = os.path.expanduser('~/AppData/Local/Logs')
         else:
-            self.log_dir = '/var/logs'
+            self.log_dir = os.path.expanduser('~/.local/share/s3-tables-mcp-server/logs/')
 
 
 # Initialize FastMCP app
@@ -111,16 +112,16 @@ def log_tool_call(tool_name, *args, **kwargs):
         *args: Positional arguments passed to the tool.
         **kwargs: Keyword arguments passed to the tool.
     """
-    os.makedirs(app.log_dir, exist_ok=True)
-    log_file = os.path.join(app.log_dir, 'mcp-server-awslabs.s3-tables-mcp-server.log')
-    log_entry = {
-        'timestamp': datetime.now(timezone.utc).isoformat(),
-        'tool': tool_name,
-        'args': args,
-        'kwargs': kwargs,
-        'mcp_version': __version__,
-    }
     try:
+        os.makedirs(app.log_dir, exist_ok=True)
+        log_file = os.path.join(app.log_dir, 'mcp-server-awslabs.s3-tables-mcp-server.log')
+        log_entry = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'tool': tool_name,
+            'args': args,
+            'kwargs': kwargs,
+            'mcp_version': __version__,
+        }
         with open(log_file, 'a') as f:
             f.write(json.dumps(log_entry) + '\n')
     except Exception as e:
