@@ -122,6 +122,7 @@ Build, deploy, and manage cloud infrastructure with Infrastructure as Code best 
 ##### Container Platforms
 
 - **[Amazon EKS MCP Server](src/eks-mcp-server/)** - Kubernetes cluster management and application deployment
+- **[Red Hat OpenShift Service on AWS (ROSA) MCP Server](src/rosa-mcp-server/)** - Managed OpenShift cluster operations and deployment
 - **[Amazon ECS MCP Server](src/ecs-mcp-server/)** - Container orchestration and ECS application deployment
 - **[Finch MCP Server](src/finch-mcp-server/)** - Local container building with ECR integration
 
@@ -239,6 +240,7 @@ Interact with AWS HealthAI services.
 ##### Container & Serverless Development
 
 - **[Amazon EKS MCP Server](src/eks-mcp-server/)** - Kubernetes cluster management and app deployment
+- **[Red Hat OpenShift Service on AWS (ROSA) MCP Server](src/rosa-mcp-server/)** - OpenShift cluster management and deployment
 - **[Amazon ECS MCP Server](src/ecs-mcp-server/)** - Containerize and deploy applications to ECS
 - **[Finch MCP Server](src/finch-mcp-server/)** - Local container building with ECR push
 - **[AWS Serverless MCP Server](src/aws-serverless-mcp-server/)** - Full serverless app lifecycle with SAM CLI
