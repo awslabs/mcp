@@ -10,8 +10,9 @@ Integrating the DataProcessing MCP server into AI code assistants transforms dat
 ### AWS Glue Integration
 
 * Data Catalog Management: Enables users to explore, create, and manage databases, tables, and partitions through natural language requests, automatically translating them into appropriate AWS Glue Data Catalog operations.
+* Commons: Enables users to create and manage usage profiles, security configurations, catalog encryption settings and resource policies, which provide users with the ability to manage the configuration and encryption of several Glue resources like ETL jobs, catalogs, etc.
+* ETL Job Orchestration: Provides the ability to create, monitor, and manage Glue ETL jobs with automatic script generation, job scheduling, and workflow coordination based on user-defined data transformation requirements.
 * Crawler Management: Enables intelligent data discovery through automated crawler configuration, scheduling, and metadata extraction from various data sources.
-
 
 ### Amazon EMR Integration
 
@@ -293,6 +294,20 @@ Specifies the AWS region where Glue,EMR clusters or Athena are managed, which wi
 |-----------|-------------|----------------|--------------|
 | manage_aws_athena_workgroups | Manage AWS Athena workgroups | create-work-group, delete-work-group, get-work-group, list-work-groups, update-work-group | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
 
+### Glue Commons Handler Tools
+
+| Tool Name | Description                                                                 | Key Operations | Requirements                                                                        |
+|-----------|-----------------------------------------------------------------------------|----------------|-------------------------------------------------------------------------------------|
+| manage_aws_glue_usage_profiles | Manage AWS Glue Usage Profiles for resource allocation and cost management  | create-profile, delete-profile, get-profile, update-profile | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
+| manage_aws_glue_security_configurations | Manage AWS Glue Security Configurations for data encryption                 | create-security-configuration, delete-security-configuration, get-security-configuration | --allow-write flag for create/delete operations, appropriate AWS permissions        |
+| manage_aws_glue_encryption | Manage AWS Glue catalog encryption settings                                 | get-catalog-encryption-settings, put-catalog-encryption-settings | --allow-write flag for put operations, appropriate AWS permissions                  |
+| manage_aws_glue_resource_policies | Manage resource policies for AWS Glue catalogs, databases and tables | get-resource-policy, put-resource-policy, delete-resource-policy | --allow-write flag for put/delete operations, appropriate AWS permissions           |
+
+### Glue ETL Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_glue_jobs | Manage AWS Glue ETL jobs and job runs | create-job, delete-job, get-job, get-jobs, update-job, start-job-run, stop-job-run, get-job-run, get-job-runs, batch-stop-job-run, get-job-bookmark, reset-job-bookmark | --allow-write flag for create/delete/update/start/stop operations, appropriate AWS permissions |
 
 ### Glue Crawler Handler Tools
 
