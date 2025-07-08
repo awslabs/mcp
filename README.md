@@ -199,6 +199,7 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 
 - **[Cost Analysis MCP Server](src/cost-analysis-mcp-server/)** - Pre-deployment cost estimation and optimization
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and reporting
+- **[AWS FinOps MCP Server](src/aws-finops-mcp-server/)** - AWS cost optimization recommendations and insights
 - **[Amazon CloudWatch MCP Server](src/cloudwatch-mcp-server/)** - Metrics, Alarms, and Logs analysis and operational troubleshooting
 - **[Amazon CloudWatch Logs MCP Server (deprecated)](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
@@ -308,6 +309,7 @@ Interact with AWS HealthAI services.
 - **[Amazon CloudWatch Logs MCP Server (deprecated)](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[Amazon CloudWatch Application Signals MCP Server](src/cloudwatch-appsignals-mcp-server/)** - Application monitoring and performance insights
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Cost monitoring and spend analysis
+- **[AWS FinOps MCP Server](src/aws-finops-mcp-server/)** - Cost optimization recommendations and resource efficiency insights
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
 
 ## MCP AWS Lambda Handler Module
