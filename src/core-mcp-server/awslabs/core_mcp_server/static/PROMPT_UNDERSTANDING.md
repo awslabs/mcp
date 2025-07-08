@@ -47,8 +47,7 @@ When a user presents a query, follow these steps to break it down:
 #### Cost Analysis MCP Server
 - Use `awslabs.aws-pricing-mcp-server` for analyzing AWS service costs:
   - analyze_cdk_project: Analyze a CDK project to identify AWS services used
-  - get_pricing_from_web: Get pricing information from AWS pricing webpage
-  - get_pricing_from_api: Get pricing information from AWS Price List API
+  - get_pricing: Get pricing information from AWS Price List API
   - get_bedrock_patterns: Get architecture patterns for Amazon Bedrock applications
   - generate_cost_report: Generate a detailed cost analysis report based on pricing data
 
@@ -279,10 +278,10 @@ Get pricing information for AWS services:
 # Getting pricing information
 <use_mcp_tool>
 <server_name>awslabs.aws-pricing-mcp-server</server_name>
-<tool_name>get_pricing_from_web</tool_name>
+<tool_name>get_pricing</tool_name>
 <arguments>
 {
-  "service_code": "lambda"
+  "service_code": "AWSLambda"
 }
 </arguments>
 </use_mcp_tool>
