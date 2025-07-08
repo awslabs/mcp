@@ -81,7 +81,7 @@ mcp = FastMCP(
     - Knowledge bases contain structured data from various data sources (documents, websites, databases)
     - Each knowledge base has a unique ID that must be used when querying
     - You can filter by specific data sources within a knowledge base using data_source_ids
-    - Always verify that the knowledge base ID exists in the resource response before querying
+    - Always verify that the knowledge base ID exists in the ListKnowledgeBases tool response before querying
     """,
     dependencies=['boto3'],
 )
