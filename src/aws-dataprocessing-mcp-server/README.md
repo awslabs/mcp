@@ -11,6 +11,12 @@ Integrating the DataProcessing MCP server into AI code assistants transforms dat
 
 * Data Catalog Management: Enables users to explore, create, and manage databases, tables, and partitions through natural language requests, automatically translating them into appropriate AWS Glue Data Catalog operations.
 
+### Amazon EMR Integration
+
+* Cluster Management: Enables users to create, configure, monitor, and terminate EMR clusters with comprehensive control over instance types, applications, and configurations through natural language requests.
+* Instance Management: Provides the ability to add, modify, and monitor instance fleets and instance groups within EMR clusters, supporting both on-demand and spot instances with auto-scaling capabilities.
+* Step Execution: Orchestrates data processing workflows through EMR steps, allowing users to submit, monitor, and manage Hadoop, Spark, and other application jobs on running clusters.
+* Security Configuration: Manages EMR security settings including encryption, authentication, and authorization policies to ensure secure data processing environments.
 
 ## Prerequisites
 
@@ -43,6 +49,33 @@ For read operations, the following permissions are required:
         "cloudwatch:GetMetricData",
         "logs:DescribeLogGroups",
         "logs:DescribeLogStreams",
+        "emr:DescribeCluster",
+        "emr:ListClusters",
+        "emr:DescribeStep",
+        "emr:ListSteps",
+        "emr:ListInstances",
+        "emr:GetManagedScalingPolicy",
+        "emr:DescribeStudio",
+        "emr:ListStudios",
+        "emr:DescribeNotebookExecution",
+        "emr:ListNotebookExecutions",
+        "athena:BatchGetQueryExecution",
+        "athena:GetQueryExecution",
+        "athena:GetQueryResults",
+        "athena:GetQueryRuntimeStatistics",
+        "athena:ListQueryExecutions",
+        "athena:BatchGetNamedQuery",
+        "athena:GetNamedQuery",
+        "athena:ListNamedQueries",
+        "athena:GetDataCatalog",
+        "athena:ListDataCatalogs",
+        "athena:GetDatabase",
+        "athena:GetTableMetadata",
+        "athena:ListDatabases",
+        "athena:ListTableMetadata",
+        "athena:GetWorkGroup",
+        "athena:ListWorkGroups"
+        "sts:GetCallerIdentity"
       ],
       "Resource": "*"
     }
@@ -216,6 +249,44 @@ Specifies the AWS region where Glue,EMR clusters or Athena are managed, which wi
 | manage_aws_glue_connections | Manage AWS Glue Data Catalog connections | create-connection, delete-connection, get-connection, list-connections, update-connection | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
 | manage_aws_glue_partitions | Manage AWS Glue Data Catalog partitions | create-partition, delete-partition, get-partition, list-partitions, update-partition | --allow-write flag for create/delete/update operations, database and table must exist, appropriate AWS permissions |
 | manage_aws_glue_catalog | Manage AWS Glue Data Catalog | create-catalog, delete-catalog, get-catalog, list-catalogs, import-catalog-to-glue | --allow-write flag for create/delete/import operations, appropriate AWS permissions |
+
+### EMR Cluster Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_emr_clusters | Manage Amazon EMR clusters with comprehensive control over cluster lifecycle | create-cluster, describe-cluster, modify-cluster, modify-cluster-attributes, terminate-clusters, list-clusters, create-security-configuration, delete-security-configuration, describe-security-configuration, list-security-configurations | --allow-write flag for create/modify/terminate operations, appropriate AWS permissions |
+
+### EMR Instance Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_emr_ec2_instances | Manage Amazon EMR EC2 instances with both read and write operations | add-instance-fleet, add-instance-groups, modify-instance-fleet, modify-instance-groups, list-instance-fleets, list-instances, list-supported-instance-types | --allow-write flag for add/modify operations, appropriate AWS permissions |
+
+### EMR Steps Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_emr_ec2_steps | Manage Amazon EMR steps for processing data on EMR clusters | add-steps, cancel-steps, describe-step, list-steps | --allow-write flag for add/cancel operations, appropriate AWS permissions |
+=======
+### Athena Query Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_athena_query_executions | Execute and manage AWS Athena SQL queries | batch-get-query-execution, get-query-execution, get-query-results, get-query-runtime-statistics, list-query-executions, start-query-execution, stop-query-execution | --allow-write flag for start/stop operations, appropriate AWS permissions |
+| manage_aws_athena_named_queries | Manage saved SQL queries in AWS Athena | batch-get-named-query, create-named-query, delete-named-query, get-named-query, list-named-queries, update-named-query | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
+
+### Athena Data Catalog Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_athena_data_catalogs | Manage AWS Athena data catalogs | create-data-catalog, delete-data-catalog, get-data-catalog, list-data-catalogs, update-data-catalog | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
+| manage_aws_athena_databases_and_tables | Manage AWS Athena databases and tables | get-database, get-table-metadata, list-databases, list-table-metadata | Appropriate AWS permissions for Athena database operations |
+
+### Athena WorkGroup Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_athena_workgroups | Manage AWS Athena workgroups | create-work-group, delete-work-group, get-work-group, list-work-groups, update-work-group | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
 
 
 ## Version
