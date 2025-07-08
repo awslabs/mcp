@@ -272,7 +272,7 @@ class TestGetPricingFromApi:
     async def test_get_pricing_client_creation_error(self, mock_context):
         """Test handling of client creation errors."""
         with patch(
-            'awslabs.cost_analysis_mcp_server.server.create_pricing_client',
+            'awslabs.aws_pricing_mcp_server.server.create_pricing_client',
             side_effect=Exception('Client creation failed'),
         ):
             result = await get_pricing_from_api(mock_context, 'AWSLambda', 'us-west-2')
