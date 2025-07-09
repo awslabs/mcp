@@ -12,22 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs MCP Cost Analysis mcp server implementation.
+"""awslabs MCP AWS Pricing mcp server implementation.
 
 This server provides tools for analyzing AWS service costs across different user tiers.
 """
 
 import os
 import sys
-import warnings
-from awslabs.cost_analysis_mcp_server import consts
-from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
-from awslabs.cost_analysis_mcp_server.models import ErrorResponse, PricingFilters
-from awslabs.cost_analysis_mcp_server.pricing_client import create_pricing_client
-from awslabs.cost_analysis_mcp_server.static.patterns import BEDROCK
-from awslabs.cost_analysis_mcp_server.terraform_analyzer import analyze_terraform_project
-from bs4 import BeautifulSoup
-from httpx import AsyncClient
+from awslabs.aws_pricing_mcp_server import consts
+from awslabs.aws_pricing_mcp_server.cdk_analyzer import analyze_cdk_project
+from awslabs.aws_pricing_mcp_server.models import ErrorResponse, PricingFilters
+from awslabs.aws_pricing_mcp_server.pricing_client import create_pricing_client
+from awslabs.aws_pricing_mcp_server.static.patterns import BEDROCK
+from awslabs.aws_pricing_mcp_server.terraform_analyzer import analyze_terraform_project
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -60,24 +57,21 @@ async def create_error_response(
 
 
 mcp = FastMCP(
-    name='awslabs.cost-analysis-mcp-server',
-    instructions="""IMPORTANT: This server is deprecated. Please use the AWS Pricing MCP Server instead. Use this server for analyzing AWS service costs, with a focus on serverless services.
+    name='awslabs.aws-pricing-mcp-server',
+    instructions="""Use this server for analyzing AWS service costs, with a focus on serverless services.
 
     REQUIRED WORKFLOW:
     Analyze costs of AWS services by following these steps in order:
 
-    1. Primary Data Source:
-       - MUST first invoke get_pricing_from_web() to scrape pricing from AWS pricing page
+    1. Data Source:
+       - MUST use get_pricing() to fetch data via AWS Pricing API
 
-    2. Fallback Mechanism 1:
-       - If web scraping fails, MUST use get_pricing_from_api() to fetch data via AWS Pricing API
-
-    3. For Bedrock Services:
+    2. For Bedrock Services:
        - When analyzing Amazon Bedrock services, MUST also use get_bedrock_patterns()
        - This provides critical architecture patterns, component relationships, and cost considerations
        - Especially important for Knowledge Base, Agent, Guardrails, and Data Automation services
 
-    4. Report Generation:
+    3. Report Generation:
        - MUST generate cost analysis report using retrieved data via generate_cost_report()
        - The report includes sections for:
          * Service Overview
@@ -115,7 +109,7 @@ logger.info(f'Using AWS profile {profile_name}')
 
 @mcp.tool(
     name='analyze_cdk_project',
-    description='IMPORTANT: This tool is deprecated. Please use the analyze_cdk_project tool in the AWS Pricing MCP Server instead. Analyze a CDK project to identify AWS services used. This tool dynamically extracts service information from CDK constructs without relying on hardcoded service mappings.',
+    description='Analyze a CDK project to identify AWS services used. This tool dynamically extracts service information from CDK constructs without relying on hardcoded service mappings.',
 )
 async def analyze_cdk_project_wrapper(
     ctx: Context,
@@ -150,7 +144,7 @@ async def analyze_cdk_project_wrapper(
 
 @mcp.tool(
     name='analyze_terraform_project',
-    description='IMPORTANT: This tool is deprecated. Please use the analyze_terraform_project tool in the AWS Pricing MCP Server instead. Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
+    description='Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
 )
 async def analyze_terraform_project_wrapper(
     ctx: Context,
@@ -184,72 +178,8 @@ async def analyze_terraform_project_wrapper(
 
 
 @mcp.tool(
-    name='get_pricing_from_web',
-    description='IMPORTANT: This tool is deprecated. Please use the get_pricing tool in the AWS Pricing MCP Server instead. Get pricing information from AWS pricing webpage. Service codes typically use lowercase with hyphens format (e.g., "opensearch-service" for both OpenSearch and OpenSearch Serverless, "api-gateway", "lambda"). Note that some services like OpenSearch Serverless are part of broader service codes (use "opensearch-service" not "opensearch-serverless"). Important: Web service codes differ from API service codes (e.g., use "opensearch-service" for web but "AmazonES" for API). When retrieving foundation model pricing, always use the latest models for comparison rather than specific named ones that may become outdated.',
-)
-async def get_pricing_from_web(
-    ctx: Context,
-    service_code: str = Field(
-        ...,
-        description='AWS service code for web pricing (lowercase with hyphens, e.g., "opensearch-service", "lambda")',
-    ),
-) -> Optional[Dict]:
-    """Get pricing information from AWS pricing webpage.
-
-    Args:
-        service_code: The service code (e.g., 'opensearch-service' for both OpenSearch and OpenSearch Serverless)
-        ctx: MCP context for logging and state management
-
-    Returns:
-        Dict: Dictionary containing the pricing information retrieved from the AWS pricing webpage
-    """
-    try:
-        for prefix in ['Amazon', 'AWS']:
-            if service_code.startswith(prefix):
-                service_code = service_code[len(prefix) :].lower()
-        service_code = service_code.lower().strip()
-        url = f'https://aws.amazon.com/{service_code}/pricing'
-        async with AsyncClient() as client:
-            response = await client.get(url, follow_redirects=True, timeout=10.0)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            # Remove script and style elements
-            for script in soup(['script', 'style']):
-                script.decompose()
-
-            # Extract text content
-            text = soup.get_text()
-
-            # Break into lines and remove leading and trailing space on each
-            lines = (line.strip() for line in text.splitlines())
-
-            # Break multi-headlines into a line each
-            chunks = (phrase.strip() for line in lines for phrase in line.split('  '))
-
-            # Drop blank lines
-            text = '\n'.join(chunk for chunk in chunks if chunk)
-
-            result = {
-                'status': 'success',
-                'service_name': service_code,
-                'data': text,
-                'message': f'Retrieved pricing for {service_code} from AWS Pricing url',
-            }
-
-            # No need to store in context, just return the result
-
-            return result
-
-    except Exception as e:
-        await ctx.error(f'Failed to get pricing from web: {e}')
-        return None
-
-
-@mcp.tool(
-    name='get_pricing_from_api',
-    description="""IMPORTANT: This tool is deprecated. Please use the get_pricing tool in the AWS Pricing MCP Server instead.
+    name='get_pricing',
+    description="""
     Get detailed pricing information from AWS Price List API with optional filters.
 
     Service codes for API often differ from web URLs.
@@ -281,7 +211,7 @@ async def get_pricing_from_web(
 
     **Step 2: Execute Query**
     ```python
-    pricing = get_pricing_from_api('AmazonEC2', 'us-east-1', filters)
+    pricing = get_pricing('AmazonEC2', 'us-east-1', filters)
     ```
 
     **COMMON USE CASES:**
@@ -343,8 +273,8 @@ async def get_pricing_from_web(
     ```python
     # Compare same configuration across regions
     filters = {"filters": [{"Field": "instanceType", "Value": "m5.large", "Type": "TERM_MATCH"}]}
-    us_pricing = get_pricing_from_api('AmazonEC2', 'us-east-1', filters)
-    eu_pricing = get_pricing_from_api('AmazonEC2', 'eu-west-1', filters)
+    us_pricing = get_pricing('AmazonEC2', 'us-east-1', filters)
+    eu_pricing = get_pricing('AmazonEC2', 'eu-west-1', filters)
     ```
 
     **3. Research/Analysis Example:**
@@ -353,7 +283,7 @@ async def get_pricing_from_web(
     memory_tiers = ["4 GiB", "8 GiB", "16 GiB"]
     for memory in memory_tiers:
        filters = {"filters": [{"Field": "memory", "Value": memory, "Type": "TERM_MATCH"}]}
-       pricing = get_pricing_from_api('AmazonEC2', 'us-east-1', filters)
+       pricing = get_pricing('AmazonEC2', 'us-east-1', filters)
     ```
 
     **FILTERING STRATEGY:**
@@ -368,7 +298,7 @@ async def get_pricing_from_web(
     ✅ For cost optimization: tested all qualifying combinations and proved optimality
     """,
 )
-async def get_pricing_from_api(
+async def get_pricing(
     ctx: Context,
     service_code: str = Field(
         ..., description='AWS service code (e.g., "AmazonEC2", "AmazonS3", "AmazonES")'
@@ -468,14 +398,14 @@ async def get_pricing_from_api(
 
 @mcp.tool(
     name='get_bedrock_patterns',
-    description='IMPORTANT: This tool is deprecated. Please use the get_bedrock_patterns tool in the AWS Pricing MCP Server instead. Get architecture patterns for Amazon Bedrock applications, including component relationships and cost considerations',
+    description='Get architecture patterns for Amazon Bedrock applications, including component relationships and cost considerations',
 )
 async def get_bedrock_patterns(ctx: Optional[Context] = None) -> str:
     """Get architecture patterns for Amazon Bedrock applications.
 
     This tool provides architecture patterns, component relationships, and cost considerations
     for Amazon Bedrock applications. It does not include specific pricing information, which
-    should be obtained using get_pricing_from_web or get_pricing_from_api.
+    should be obtained using get_pricing.
 
     Returns:
         String containing the architecture patterns in markdown format
@@ -508,7 +438,7 @@ Focus on the most impactful recommendations first. Do not limit yourself to a sp
 
 @mcp.tool(
     name='generate_cost_report',
-    description="""IMPORTANT: This tool is deprecated. Please use the generate_cost_report tool in the AWS Pricing MCP Server instead. Generate a detailed cost analysis report based on pricing data for one or more AWS services.
+    description="""Generate a detailed cost analysis report based on pricing data for one or more AWS services.
 
 This tool requires AWS pricing data and provides options for adding detailed cost information.
 
@@ -528,7 +458,7 @@ Example usage:
 {
   // Required parameters
   "pricing_data": {
-    // This should contain pricing data retrieved from get_pricing_from_web or get_pricing_from_api
+    // This should contain pricing data retrieved from get_pricing
     "status": "success",
     "service_name": "bedrock",
     "data": "... pricing information ...",
@@ -677,7 +607,7 @@ async def generate_cost_report_wrapper(
         str: The generated document in markdown format
     """
     # Import and call the implementation from report_generator.py
-    from awslabs.cost_analysis_mcp_server.report_generator import (
+    from awslabs.aws_pricing_mcp_server.report_generator import (
         generate_cost_report,
     )
 
@@ -742,11 +672,6 @@ async def generate_cost_report_wrapper(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    warnings.simplefilter('error', DeprecationWarning)
-    warnings.warn(
-        message='This server is deprecated. Please use the `awslabs.aws-pricing-mcp-server` instead.',
-        category=DeprecationWarning,
-    )
     mcp.run()
 
 

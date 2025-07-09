@@ -15,7 +15,7 @@
 """Tests for the pricing client module."""
 
 import pytest
-from awslabs.cost_analysis_mcp_server.pricing_client import (
+from awslabs.aws_pricing_mcp_server.pricing_client import (
     create_pricing_client,
     get_pricing_region,
 )
@@ -63,7 +63,7 @@ class TestGetPricingRegion:
     )
     def test_uses_aws_region_env_var(self, env_region, expected, monkeypatch):
         """Test AWS_REGION env var is used when no region specified."""
-        monkeypatch.setattr('awslabs.cost_analysis_mcp_server.consts.AWS_REGION', env_region)
+        monkeypatch.setattr('awslabs.aws_pricing_mcp_server.consts.AWS_REGION', env_region)
         assert get_pricing_region() == expected
 
 
@@ -80,7 +80,7 @@ class TestCreatePricingClient:
             (None, 'us-east-1', None, 'us-east-1'),  # Direct pricing region
         ],
     )
-    @patch('awslabs.cost_analysis_mcp_server.pricing_client.boto3.Session')
+    @patch('awslabs.aws_pricing_mcp_server.pricing_client.boto3.Session')
     def test_create_client_parameters(
         self, mock_session, profile, region, expected_profile, expected_region
     ):
@@ -109,10 +109,10 @@ class TestCreatePricingClient:
 
         assert result == mock_client
 
-    @patch('awslabs.cost_analysis_mcp_server.pricing_client.boto3.Session')
+    @patch('awslabs.aws_pricing_mcp_server.pricing_client.boto3.Session')
     def test_uses_env_profile_when_none_specified(self, mock_session, monkeypatch):
         """Test that AWS_PROFILE environment variable is used when no profile specified."""
-        monkeypatch.setattr('awslabs.cost_analysis_mcp_server.consts.AWS_PROFILE', 'env-profile')
+        monkeypatch.setattr('awslabs.aws_pricing_mcp_server.consts.AWS_PROFILE', 'env-profile')
 
         mock_session_instance = Mock()
         mock_session.return_value = mock_session_instance

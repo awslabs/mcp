@@ -11,6 +11,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""awslabs.cost-analysis-mcp-server"""
 
-__version__ = '0.0.0'
+"""Tests for the aws-pricing-mcp-server."""
