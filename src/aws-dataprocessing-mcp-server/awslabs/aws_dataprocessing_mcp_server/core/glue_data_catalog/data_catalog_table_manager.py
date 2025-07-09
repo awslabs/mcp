@@ -395,6 +395,7 @@ class DataCatalogTableManager:
 
             response = self.glue_client.get_tables(**kwargs)
             tables = response.get('TableList', [])
+            next_token_response = response.get('NextToken', None)
 
             log_with_request_id(
                 ctx,
@@ -433,6 +434,7 @@ class DataCatalogTableManager:
                 ],
                 count=len(tables),
                 operation='list-tables',
+                next_token=next_token_response,
                 content=[TextContent(type='text', text=success_msg)],
             )
 
