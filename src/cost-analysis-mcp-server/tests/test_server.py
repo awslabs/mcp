@@ -23,8 +23,19 @@ from awslabs.cost_analysis_mcp_server.server import (
     get_bedrock_patterns,
     get_pricing_from_api,
     get_pricing_from_web,
+    main,
 )
 from unittest.mock import MagicMock, patch
+
+
+class TestMain:
+    """Tests for main function."""
+
+    def test_main_deprecation_warning(self):
+        """Test that main() raises a DeprecationWarning."""
+
+    with pytest.raises(DeprecationWarning, match='This server is deprecated'):
+        main()
 
 
 class TestAnalyzeCdkProject:

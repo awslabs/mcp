@@ -19,6 +19,7 @@ This server provides tools for analyzing AWS service costs across different user
 
 import os
 import sys
+import warnings
 from awslabs.cost_analysis_mcp_server import consts
 from awslabs.cost_analysis_mcp_server.cdk_analyzer import analyze_cdk_project
 from awslabs.cost_analysis_mcp_server.models import ErrorResponse, PricingFilters
@@ -741,6 +742,11 @@ async def generate_cost_report_wrapper(
 
 def main():
     """Run the MCP server with CLI argument support."""
+    warnings.simplefilter('error', DeprecationWarning)
+    warnings.warn(
+        message='This server is deprecated. Please use the `awslabs.aws-pricing-mcp-server` instead.',
+        category=DeprecationWarning,
+    )
     mcp.run()
 
 
