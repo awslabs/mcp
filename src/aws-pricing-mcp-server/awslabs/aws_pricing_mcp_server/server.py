@@ -109,7 +109,7 @@ logger.info(f'Using AWS profile {profile_name}')
 
 @mcp.tool(
     name='analyze_cdk_project',
-    description='IMPORTANT: This tool is deprecated. Please use the analyze_cdk_project tool in the AWS Pricing MCP Server instead. Analyze a CDK project to identify AWS services used. This tool dynamically extracts service information from CDK constructs without relying on hardcoded service mappings.',
+    description='Analyze a CDK project to identify AWS services used. This tool dynamically extracts service information from CDK constructs without relying on hardcoded service mappings.',
 )
 async def analyze_cdk_project_wrapper(
     ctx: Context,
@@ -144,7 +144,7 @@ async def analyze_cdk_project_wrapper(
 
 @mcp.tool(
     name='analyze_terraform_project',
-    description='IMPORTANT: This tool is deprecated. Please use the analyze_terraform_project tool in the AWS Pricing MCP Server instead. Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
+    description='Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
 )
 async def analyze_terraform_project_wrapper(
     ctx: Context,
@@ -398,7 +398,7 @@ async def get_pricing(
 
 @mcp.tool(
     name='get_bedrock_patterns',
-    description='IMPORTANT: This tool is deprecated. Please use the get_bedrock_patterns tool in the AWS Pricing MCP Server instead. Get architecture patterns for Amazon Bedrock applications, including component relationships and cost considerations',
+    description='Get architecture patterns for Amazon Bedrock applications, including component relationships and cost considerations',
 )
 async def get_bedrock_patterns(ctx: Optional[Context] = None) -> str:
     """Get architecture patterns for Amazon Bedrock applications.
@@ -438,7 +438,7 @@ Focus on the most impactful recommendations first. Do not limit yourself to a sp
 
 @mcp.tool(
     name='generate_cost_report',
-    description="""IMPORTANT: This tool is deprecated. Please use the generate_cost_report tool in the AWS Pricing MCP Server instead. Generate a detailed cost analysis report based on pricing data for one or more AWS services.
+    description="""Generate a detailed cost analysis report based on pricing data for one or more AWS services.
 
 This tool requires AWS pricing data and provides options for adding detailed cost information.
 
