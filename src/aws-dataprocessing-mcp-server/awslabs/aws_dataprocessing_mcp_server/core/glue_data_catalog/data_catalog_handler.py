@@ -236,7 +236,7 @@ class DataCatalogManager:
         ctx: Context,
         connection_name: str,
         catalog_id: Optional[str] = None,
-        hide_password: bool = False,
+        hide_password: Optional[bool] = None,
         apply_override_for_compute_environment: Optional[str] = None,
     ) -> GetConnectionResponse:
         """Get details of a connection from the AWS Glue Data Catalog.
@@ -255,11 +255,11 @@ class DataCatalogManager:
             GetConnectionResponse with the connection details
         """
         try:
-            kwargs = {'Name': connection_name}
+            kwargs: Dict[str, Any] = {'Name': connection_name}
             if catalog_id:
                 kwargs['CatalogId'] = catalog_id
             if hide_password:
-                kwargs['HidePassword'] = str(hide_password).lower()
+                kwargs['HidePassword'] = hide_password
             if apply_override_for_compute_environment:
                 kwargs['ApplyOverrideForComputeEnvironment'] = (
                     apply_override_for_compute_environment
@@ -333,7 +333,7 @@ class DataCatalogManager:
         ctx: Context,
         catalog_id: Optional[str] = None,
         filter_dict: Optional[Dict[str, Any]] = None,
-        hide_password: bool = False,
+        hide_password: Optional[bool] = None,
         next_token: Optional[str] = None,
         max_results: Optional[int] = None,
     ) -> ListConnectionsResponse:
@@ -842,7 +842,7 @@ class DataCatalogManager:
             if catalog_id:
                 kwargs['CatalogId'] = catalog_id
             if max_results:
-                kwargs['MaxResults'] = str(max_results)
+                kwargs['MaxResults'] = max_results
             if expression:
                 kwargs['Expression'] = expression
             if segment:

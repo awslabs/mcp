@@ -207,6 +207,7 @@ class SearchTablesResponse(CallToolResult):
     search_text: str = Field(..., description='Search text used for matching')
     count: int = Field(..., description='Number of tables found')
     operation: str = Field(default='search', description='Operation performed')
+    next_token: Optional[str] = Field('', description='Token for pagination')
 
 
 # Connection Response Models

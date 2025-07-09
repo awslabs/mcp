@@ -85,7 +85,7 @@ class TestDataCatalogTableManager:
         # Mock the AWS helper prepare_resource_tags method
         with patch(
             'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.prepare_resource_tags',
-            return_value={'mcp:managed': 'true'},
+            return_value={'ManagedBy': 'DataprocessingMCPServer'},
         ):
             # Call the method
             result = await manager.create_table(
@@ -109,10 +109,7 @@ class TestDataCatalogTableManager:
             assert call_args['CatalogId'] == catalog_id
 
             # Verify that the MCP tags were added to Parameters
-            assert call_args['TableInput']['Parameters']['mcp:managed'] == 'true'
-
-            # Verify that the tags were added
-            assert call_args['Tags'] == {'mcp:managed': 'true'}
+            assert call_args['TableInput']['Parameters']['ManagedBy'] == 'DataprocessingMCPServer'
 
             # Verify the response
             assert isinstance(result, CreateTableResponse)

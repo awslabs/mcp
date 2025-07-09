@@ -574,6 +574,10 @@ class GlueDataCatalogHandler:
         next_token: Optional[str] = Field(
             None, description='A continuation token, if this is a continuation call.'
         ),
+        hide_password: Optional[bool] = Field(
+            True,
+            description='Flag to retrieve the connection metadata without returning the password(for get-connection and list-connections operation).',
+        ),
     ) -> Union[
         CreateConnectionResponse,
         DeleteConnectionResponse,
@@ -613,6 +617,7 @@ class GlueDataCatalogHandler:
             catalog_id: Catalog ID for the connection
             max_results: Maximum results to return
             next_token: A continuation string token, if this is a continuation call
+            hide_password: The boolean flag to control connection password in return value for get-connection and list-connections operation
 
         Returns:
             Union of response types specific to the operation performed
@@ -716,12 +721,19 @@ class GlueDataCatalogHandler:
                 if connection_name is None:
                     raise ValueError('connection_name is required for get operation')
                 return await self.data_catalog_manager.get_connection(
-                    ctx=ctx, connection_name=connection_name, catalog_id=catalog_id
+                    ctx=ctx,
+                    connection_name=connection_name,
+                    catalog_id=catalog_id,
+                    hide_password=hide_password,
                 )
 
             elif operation == 'list-connections':
                 return await self.data_catalog_manager.list_connections(
-                    ctx=ctx, catalog_id=catalog_id, max_results=max_results, next_token=next_token
+                    ctx=ctx,
+                    catalog_id=catalog_id,
+                    max_results=max_results,
+                    next_token=next_token,
+                    hide_password=hide_password,
                 )
 
             elif operation == 'update-connection':
