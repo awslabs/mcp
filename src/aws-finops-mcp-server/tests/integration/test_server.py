@@ -8,10 +8,32 @@ from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fastmcp import Client
+from fastmcp.client.transports import PythonStdioTransport
 
 
 # Load environment variables from .env file
 load_dotenv()
+
+
+def create_mcp_client():
+    """Create an MCP client with proper environment variable passing.
+
+    This helper function ensures that AWS credentials and other environment
+    variables are properly passed to the MCP server subprocess, which is
+    especially important on Windows where subprocess environment inheritance
+    can be problematic.
+
+    Returns:
+        Client: Configured FastMCP client with proper environment variables
+    """
+    # Get AWS and Storage Lens environment variables
+    aws_env = {k: v for k, v in os.environ.items() if k.startswith(('AWS_', 'STORAGE_LENS_'))}
+
+    transport = PythonStdioTransport(
+        script_path='awslabs/aws_finops_mcp_server/server.py', env=aws_env
+    )
+
+    return Client(transport)
 
 
 async def _test_cost_explorer_get_cost_and_usage():
@@ -24,8 +46,8 @@ async def _test_cost_explorer_get_cost_and_usage():
     start_date_str = start_date.strftime('%Y-%m-%d')
     end_date_str = end_date.strftime('%Y-%m-%d')
 
-    # Use the client within an async context manager with the correct path
-    async with Client('awslabs/aws_finops_mcp_server/server.py') as client:
+    # Use the client with proper environment variable passing
+    async with create_mcp_client() as client:
         # Call the cost_explorer_get_cost_and_usage tool
         response = await client.call_tool(
             'ce_get_cost_usage',
@@ -75,8 +97,8 @@ async def _test_storage_lens_run_query():
     # Define test query
     query = "SELECT storage_class, SUM(CAST(metric_value AS DOUBLE)) as total_bytes FROM {table} WHERE metric_name = 'StorageBytes' GROUP BY storage_class"
 
-    # Use the client within an async context manager with the correct path
-    async with Client('awslabs/aws_finops_mcp_server/server.py') as client:
+    # Use the client with proper environment variable passing
+    async with create_mcp_client() as client:
         # Call the storage_lens_run_query tool with only the query parameter
         response = await client.call_tool(
             'storage_lens_run_query',
@@ -116,8 +138,8 @@ async def _test_storage_lens_run_query():
 
 async def _test_prompt_registration():
     """Test that prompts are correctly registered and accessible."""
-    # Use the client within an async context manager with the correct path
-    async with Client('awslabs/aws_finops_mcp_server/server.py') as client:
+    # Use the client with proper environment variable passing
+    async with create_mcp_client() as client:
         # Get the available prompts
         prompts = await client.list_prompts()
 
@@ -135,8 +157,8 @@ async def _test_prompt_registration():
 
 async def _test_graviton_prompt_execution():
     """Test that the Graviton migration prompt can be executed."""
-    # Use the client within an async context manager with the correct path
-    async with Client('awslabs/aws_finops_mcp_server/server.py') as client:
+    # Use the client with proper environment variable passing
+    async with create_mcp_client() as client:
         # Call the prompt with string arguments
         response = await client.get_prompt(
             'analyze_graviton_opportunities',
@@ -173,8 +195,8 @@ async def _test_graviton_prompt_execution():
 
 async def _test_savings_plans_prompt_execution():
     """Test that the Savings Plans prompt can be executed."""
-    # Use the client within an async context manager with the correct path
-    async with Client('awslabs/aws_finops_mcp_server/server.py') as client:
+    # Use the client with proper environment variable passing
+    async with create_mcp_client() as client:
         # Call the prompt with string arguments
         response = await client.get_prompt(
             'analyze_savings_plans_opportunities',
