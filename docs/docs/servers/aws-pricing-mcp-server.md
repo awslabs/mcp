@@ -2,7 +2,7 @@
 title: Cost Analysis MCP Server
 ---
 
-import ReadmeContent from "../../../src/cost-analysis-mcp-server/README.md";
+import ReadmeContent from "../../../src/aws-pricing-mcp-server/README.md";
 
 <div className="readme-content">
   <style>

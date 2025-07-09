@@ -109,7 +109,7 @@ const sidebars: SidebarsConfig = {
           type: 'category',
           label: 'Cost & Operations',
           items: [
-            'servers/cost-analysis-mcp-server',
+            'servers/aws-pricing-mcp-server',
             'servers/cost-explorer-mcp-server',
           ],
         },

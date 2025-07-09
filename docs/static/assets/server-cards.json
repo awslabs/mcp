@@ -817,9 +817,9 @@
       "category": "Cost & Operations",
       "description": "Pre-deployment cost estimation and optimization",
       "icon": "\ud83d\udcb0",
-      "id": "cost-analysis-mcp-server",
-      "name": "Cost Analysis MCP Server",
-      "source_path": "src/cost-analysis-mcp-server/",
+      "id": "aws-pricing-mcp-server",
+      "name": "AWS Pricing MCP Server",
+      "source_path": "src/aws-pricing-mcp-server/",
       "subcategory": "Cost Analysis",
       "tags": [
         "cost-operations",
