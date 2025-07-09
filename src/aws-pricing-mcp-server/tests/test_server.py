@@ -12,30 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the server module of the cost-analysis-mcp-server."""
+"""Tests for the server module of the aws-pricing-mcp-server."""
 
 import json
 import pytest
-from awslabs.cost_analysis_mcp_server.models import PricingFilter, PricingFilters
-from awslabs.cost_analysis_mcp_server.server import (
+from awslabs.aws_pricing_mcp_server.models import PricingFilter, PricingFilters
+from awslabs.aws_pricing_mcp_server.server import (
     analyze_cdk_project_wrapper,
     generate_cost_report_wrapper,
     get_bedrock_patterns,
-    get_pricing_from_api,
-    get_pricing_from_web,
-    main,
+    get_pricing,
 )
-from unittest.mock import MagicMock, patch
-
-
-class TestMain:
-    """Tests for main function."""
-
-    def test_main_deprecation_warning(self):
-        """Test that main() raises a DeprecationWarning."""
-
-    with pytest.raises(DeprecationWarning, match='This server is deprecated'):
-        main()
+from unittest.mock import patch
 
 
 class TestAnalyzeCdkProject:
@@ -79,67 +67,14 @@ class TestAnalyzeCdkProject:
         assert len(result['services']) == 0  # Nonexistent path returns success with empty services
 
 
-class TestGetPricingFromWeb:
-    """Tests for the get_pricing_from_web function."""
-
-    @pytest.mark.asyncio
-    @patch('httpx.AsyncClient.get')
-    async def test_get_valid_pricing(self, mock_get, mock_context):
-        """Test getting pricing for a valid service."""
-        mock_response = MagicMock()
-        mock_response.text = """
-        AWS Lambda Pricing
-        Lambda lets you run code without provisioning servers.
-        Pricing:
-        - $0.20 per 1M requests
-        - $0.0000166667 per GB-second
-        Free Tier:
-        - 1M requests free per month
-        """
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
-
-        result = await get_pricing_from_web(mock_context, 'lambda')
-
-        assert result is not None
-        assert result['status'] == 'success'
-        assert result['service_name'] == 'lambda'
-        assert 'data' in result
-        assert '$0.20 per 1M requests' in result['data']
-
-    @pytest.mark.asyncio
-    @patch('httpx.AsyncClient.get')
-    async def test_get_pricing_connection_error(self, mock_get, mock_context):
-        """Test handling of connection errors."""
-        mock_get.side_effect = Exception('Connection failed')
-
-        result = await get_pricing_from_web(mock_context, 'lambda')
-
-        assert result is None
-        mock_context.error.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch('httpx.AsyncClient.get')
-    async def test_get_pricing_invalid_service(self, mock_get, mock_context):
-        """Test getting pricing for an invalid service."""
-        mock_response = MagicMock()
-        mock_response.raise_for_status.side_effect = Exception('404 Not Found')
-        mock_get.return_value = mock_response
-
-        result = await get_pricing_from_web(mock_context, 'invalid-service')
-
-        assert result is None
-        mock_context.error.assert_called_once()
-
-
 class TestGetPricingFromApi:
-    """Tests for the get_pricing_from_api function."""
+    """Tests for the get_pricing function."""
 
     @pytest.mark.asyncio
     async def test_get_valid_pricing(self, mock_boto3, mock_context):
         """Test getting pricing for a valid service."""
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_from_api(mock_context, 'AWSLambda', 'us-west-2')
+            result = await get_pricing(mock_context, 'AWSLambda', 'us-west-2')
 
         assert result is not None
         assert result['status'] == 'success'
@@ -163,7 +98,7 @@ class TestGetPricingFromApi:
         )
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1', filters)
+            result = await get_pricing(mock_context, 'AmazonEC2', 'us-east-1', filters)
 
         assert result is not None
         assert result['status'] == 'success'
@@ -218,7 +153,7 @@ class TestGetPricingFromApi:
         }
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1')
+            result = await get_pricing(mock_context, 'AmazonEC2', 'us-east-1')
 
         # Validate top-level response structure
         assert result['status'] == 'success'
@@ -249,7 +184,7 @@ class TestGetPricingFromApi:
         pricing_client.get_products.return_value = {'PriceList': []}
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_from_api(mock_context, 'InvalidService', 'us-west-2')
+            result = await get_pricing(mock_context, 'InvalidService', 'us-west-2')
 
         assert result is not None
         assert result['status'] == 'error'
@@ -268,7 +203,7 @@ class TestGetPricingFromApi:
         pricing_client.get_products.side_effect = Exception('API Error')
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_from_api(mock_context, 'AWSLambda', 'us-west-2')
+            result = await get_pricing(mock_context, 'AWSLambda', 'us-west-2')
 
         assert result is not None
         assert result['status'] == 'error'
@@ -283,10 +218,10 @@ class TestGetPricingFromApi:
     async def test_get_pricing_client_creation_error(self, mock_context):
         """Test handling of client creation errors."""
         with patch(
-            'awslabs.cost_analysis_mcp_server.server.create_pricing_client',
+            'awslabs.aws_pricing_mcp_server.server.create_pricing_client',
             side_effect=Exception('Client creation failed'),
         ):
-            result = await get_pricing_from_api(mock_context, 'AWSLambda', 'us-west-2')
+            result = await get_pricing(mock_context, 'AWSLambda', 'us-west-2')
 
         assert result is not None
         assert result['status'] == 'error'
@@ -419,21 +354,16 @@ class TestServerIntegration:
     @pytest.mark.asyncio
     async def test_pricing_workflow(self, mock_context, mock_boto3):
         """Test the complete pricing analysis workflow."""
-        # 1. Get pricing from web
-        web_pricing = await get_pricing_from_web(mock_context, 'lambda')
-        assert web_pricing is not None
-        assert web_pricing['status'] == 'success'
-
-        # 2. Get pricing from API as fallback
+        # 1. Get pricing from API
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            api_pricing = await get_pricing_from_api(mock_context, 'AWSLambda', 'us-west-2')
+            api_pricing = await get_pricing(mock_context, 'AWSLambda', 'us-west-2')
         assert api_pricing is not None
         assert api_pricing['status'] == 'success'
 
-        # 3. Generate cost report
+        # 2. Generate cost report
         report = await generate_cost_report_wrapper(
             mock_context,
-            pricing_data=web_pricing,
+            pricing_data=api_pricing,
             service_name='AWS Lambda',
             pricing_model='ON DEMAND',
             related_services=None,

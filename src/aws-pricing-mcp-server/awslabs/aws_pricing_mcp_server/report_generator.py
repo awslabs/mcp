@@ -21,8 +21,8 @@ It supports both markdown and CSV output formats with detailed cost breakdowns.
 import csv
 import io
 import re
-from awslabs.cost_analysis_mcp_server.helpers import CostAnalysisHelper
-from awslabs.cost_analysis_mcp_server.static import COST_REPORT_TEMPLATE
+from awslabs.aws_pricing_mcp_server.helpers import CostAnalysisHelper
+from awslabs.aws_pricing_mcp_server.static import COST_REPORT_TEMPLATE
 from dataclasses import dataclass
 from mcp.server.fastmcp import Context
 from pathlib import Path

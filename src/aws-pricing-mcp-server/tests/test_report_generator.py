@@ -16,8 +16,8 @@
 
 import os
 import pytest
-from awslabs.cost_analysis_mcp_server.helpers import CostAnalysisHelper
-from awslabs.cost_analysis_mcp_server.report_generator import (
+from awslabs.aws_pricing_mcp_server.helpers import CostAnalysisHelper
+from awslabs.aws_pricing_mcp_server.report_generator import (
     ServiceInfo,
     _create_cost_calculation_table,
     _create_free_tier_info,

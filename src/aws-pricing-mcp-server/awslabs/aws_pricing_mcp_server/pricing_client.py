@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs MCP Cost Analysis mcp server pricing client.
+"""awslabs MCP AWS Pricing mcp server pricing client.
 
 This module provides utilities for creating boto3 pricing clients.
 """
 
 import boto3
 import sys
-from awslabs.cost_analysis_mcp_server import __version__, consts
+from awslabs.aws_pricing_mcp_server import __version__, consts
 from botocore.config import Config
 from loguru import logger
 from typing import Any, Optional
