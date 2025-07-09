@@ -47,6 +47,7 @@ The servers are organized into these main categories:
 - **🛠️ Developer Tools & Support**: Accelerate development with code analysis and testing utilities
 - **📡 Integration & Messaging**: Connect systems with messaging, workflows, and location services
 - **💰 Cost & Operations**: Monitor, optimize, and manage your AWS infrastructure and costs
+- **🧬 Healthcare & Lifesciences**: Interact with AWS HealthAI services.
 
 import ServerCards from '@site/src/components/ServerCards';
 

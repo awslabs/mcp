@@ -1,8 +1,8 @@
 ---
-title: AWS Pricing MCP Server
+title: CloudWatch MCP Server
 ---
 
-import ReadmeContent from "../../../src/aws-pricing-mcp-server/README.md";
+import ReadmeContent from "../../../src/cloudwatch-mcp-server/README.md";
 
 <div className="readme-content">
   <style>

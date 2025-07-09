@@ -77,6 +77,8 @@ const sidebars: SidebarsConfig = {
             'servers/aurora-dsql-mcp-server',
             'servers/mysql-mcp-server',
             'servers/postgres-mcp-server',
+            'servers/aws-dataprocessing-mcp-server',
+            'servers/redshift-mcp-server',
           ],
         },
         {
@@ -90,6 +92,7 @@ const sidebars: SidebarsConfig = {
             'servers/prometheus-mcp-server',
             'servers/code-doc-gen-mcp-server',
             'servers/frontend-mcp-server',
+            'servers/iam-mcp-server',
             'servers/kendra-index-mcp-server',
             'servers/syntheticdata-mcp-server',
             'servers/cloudwatch-logs-mcp-server',
@@ -111,6 +114,15 @@ const sidebars: SidebarsConfig = {
           items: [
             'servers/aws-pricing-mcp-server',
             'servers/cost-explorer-mcp-server',
+            'servers/cloudwatch-mcp-server',
+            'servers/cloudwatch-appsignals-mcp-server',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Healthcare & Lifesciences',
+          items: [
+            'servers/aws-healthomics-mcp-server',
           ],
         },
       ],

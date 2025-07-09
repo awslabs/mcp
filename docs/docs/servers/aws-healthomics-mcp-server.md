@@ -1,8 +1,8 @@
 ---
-title: AWS Pricing MCP Server
+title: AWS Health Omics MCP Server
 ---
 
-import ReadmeContent from "../../../src/aws-pricing-mcp-server/README.md";
+import ReadmeContent from "../../../src/aws-healthomics-mcp-server/README.md";
 
 <div className="readme-content">
   <style>

@@ -43,6 +43,12 @@
       "name": "Cost & Operations"
     },
     {
+      "description": "Interact with AWS HealthAI services",
+      "icon": "\ud83e\uddc0",
+      "id": "healthcare-lifesciences",
+      "name": "Healthcare & Lifesciences"
+    },
+    {
       "description": "Essential orchestration and planning capabilities",
       "icon": "\u26a1",
       "id": "core",
@@ -917,6 +923,135 @@
       ],
       "workflows": [
         "vibe-coding"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2",
+      "icon": "\ud83d\udcca",
+      "id": "aws-dataprocessing-mcp-server",
+      "name": "Amazon Data Processing MCP Server",
+      "source_path": "src/aws-dataprocessing-mcp-server/",
+      "subcategory": "Data Operations & ETL",
+      "tags": [
+        "data-analytics",
+        "glue",
+        "emr",
+        "data-processing",
+        "etl",
+        "pipeline",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Healthcare & Lifesciences",
+      "description": "Generate, run, debug and optimize lifescience workflows on AWS HealthOmics",
+      "icon": "\ud83e\uddc0",
+      "id": "aws-healthomics-mcp-server",
+      "name": "AWS HealthOmics MCP Server",
+      "source_path": "src/aws-healthomics-mcp-server/",
+      "subcategory": "Lifesciences Workflow Development",
+      "tags": [
+        "healthcare",
+        "lifesciences",
+        "healthomics",
+        "workflows",
+        "genomics",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "Application monitoring and performance insights",
+      "icon": "\ud83d\udcb0",
+      "id": "cloudwatch-appsignals-mcp-server",
+      "name": "Amazon CloudWatch Application Signals MCP Server",
+      "source_path": "src/cloudwatch-appsignals-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "cloudwatch",
+        "application-signals",
+        "monitoring",
+        "performance",
+        "insights",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "Metrics, Alarms, and Logs analysis and operational troubleshooting",
+      "icon": "\ud83d\udcb0",
+      "id": "cloudwatch-mcp-server",
+      "name": "Amazon CloudWatch MCP Server",
+      "source_path": "src/cloudwatch-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "cloudwatch",
+        "metrics",
+        "alarms",
+        "logs",
+        "analysis",
+        "troubleshooting",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Comprehensive IAM user, role, group, and policy management with security best practices",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "iam-mcp-server",
+      "name": "AWS IAM MCP Server",
+      "source_path": "src/iam-mcp-server/",
+      "subcategory": "Security & Access",
+      "tags": [
+        "developer-tools",
+        "iam",
+        "security",
+        "access-management",
+        "policies",
+        "best-practices",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Provides tools to discover, explore, and query Amazon Redshift clusters and serverless workgroups",
+      "icon": "\ud83d\udcca",
+      "id": "redshift-mcp-server",
+      "name": "Amazon Redshift MCP Server",
+      "source_path": "src/redshift-mcp-server/",
+      "subcategory": "Search & Analytics",
+      "tags": [
+        "data-analytics",
+        "redshift",
+        "data-warehouse",
+        "query",
+        "analytics",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
       ]
     }
   ],
