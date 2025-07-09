@@ -1,6 +1,6 @@
 # AWS Pricing MCP Server
 
-MCP server for generating upfront AWS service cost estimates and providing cost insights. (DEPRECATED). Please use the AWS Pricing MCP Server for AWS service pricing related tools.
+MCP server for generating upfront AWS service cost estimates and providing cost insights
 
 **Important Note**: This server provides estimated pricing based on AWS pricing APIs and web pages. These estimates are for pre-deployment planning purposes and do not reflect the actual expenses of deployed cloud services.
 
