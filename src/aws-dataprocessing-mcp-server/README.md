@@ -23,6 +23,14 @@ Integrating the DataProcessing MCP server into AI code assistants transforms dat
 * Step Execution: Orchestrates data processing workflows through EMR steps, allowing users to submit, monitor, and manage Hadoop, Spark, and other application jobs on running clusters.
 * Security Configuration: Manages EMR security settings including encryption, authentication, and authorization policies to ensure secure data processing environments.
 
+### Amazon Athena Integration
+
+* Query Execution: Enables users to execute, monitor, and manage SQL queries with comprehensive control over query lifecycle, including starting queries, retrieving results, monitoring performance statistics, and canceling running queries through natural language requests.
+* Named Query Management: Provides the ability to create, update, retrieve, and delete saved SQL queries, enabling users to build reusable query libraries with proper organization and team collaboration capabilities.
+* Data Catalog Operations: Manages Athena data catalogs with support for multiple catalog types (LAMBDA, GLUE, HIVE, FEDERATED), enabling users to create, configure, and maintain data source connections for cross-platform querying.
+* Database and Table Discovery: Facilitates data exploration through comprehensive database and table metadata retrieval, allowing users to discover available data sources, understand schema structures, and navigate data catalogs efficiently.
+* Workgroup Administration: Orchestrates query execution environments through workgroup management, providing cost control, access management, and query result configuration with support for different user groups and organizational policies.
+
 ## Prerequisites
 
 * [Install Python 3.10+](https://www.python.org/downloads/release/python-3100/)
