@@ -46,7 +46,7 @@ mcp = FastMCP(
 @mcp.tool(name='QBusinessQueryTool')
 async def qbiz_local_query(
     query: str = Field(
-        description='User query, question or request to the Amazon Q Business application'
+        ..., description='User query, question or request to the Amazon Q Business application'
     ),
 ) -> str:
     """MCP tool to query Amazon Q Business and return a formatted response.
