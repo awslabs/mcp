@@ -3,11 +3,6 @@ slug: /
 title: Welcome to AWS MCP Servers
 ---
 
----
-slug: /
-title: Welcome to AWS MCP Servers
----
-
 # Welcome to AWS MCP Servers
 
 Get started with AWS MCP Servers and learn core features.
