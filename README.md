@@ -197,7 +197,7 @@ Connect systems with messaging, workflows, and location services.
 
 Monitor, optimize, and manage your AWS infrastructure and costs.
 
-- **[Cost Analysis MCP Server](src/cost-analysis-mcp-server/)** - Pre-deployment cost estimation and optimization
+- **[Cost Analysis MCP Server (DEPRECATED)](src/cost-analysis-mcp-server/)** - Pre-deployment cost estimation and optimization: replaced by [AWS Pricing MCP Server](src/aws-pricing-mcp-server).
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and reporting
 - **[Amazon CloudWatch MCP Server](src/cloudwatch-mcp-server/)** - Metrics, Alarms, and Logs analysis and operational troubleshooting
 - **[Amazon CloudWatch Logs MCP Server (deprecated)](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
@@ -271,7 +271,7 @@ Interact with AWS HealthAI services.
 ##### Business Services
 
 - **[Amazon Location Service MCP Server](src/aws-location-mcp-server/)** - Location search, geocoding, and business hours
-- **[Cost Analysis MCP Server](src/cost-analysis-mcp-server/)** - Answer cost questions and provide estimates
+- **[Cost Analysis MCP Server (DEPRECATED)](src/cost-analysis-mcp-server/)** - Answer cost questions and provide estimates
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and spend reports
 
 #### 🤖 Autonomous Background Agents
