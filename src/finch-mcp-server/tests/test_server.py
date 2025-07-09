@@ -1,12 +1,13 @@
 """Tests for the Finch MCP server."""
 
 import pytest
-from awslabs.finch_mcp_server.consts import STATUS_ERROR, STATUS_SUCCESS
+from awslabs.finch_mcp_server.consts import LOG_FILE, STATUS_ERROR, STATUS_SUCCESS
 from awslabs.finch_mcp_server.server import (
     ensure_vm_running,
     finch_build_container_image,
     finch_create_ecr_repo,
     finch_push_image,
+    main,
     sensitive_data_filter,
     set_enable_aws_resource_write,
 )
@@ -846,3 +847,98 @@ class TestFinchTools:
                 mock_push_image.assert_not_called()
             finally:
                 set_enable_aws_resource_write(False)
+
+
+class TestMainFunction:
+    """Tests for the main function."""
+
+    @patch('awslabs.finch_mcp_server.server.mcp.run')
+    @patch('awslabs.finch_mcp_server.server.logger')
+    @patch('awslabs.finch_mcp_server.server.set_enable_aws_resource_write')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_with_enable_aws_resource_write_true(
+        self,
+        mock_parse_args,
+        mock_set_enable_aws_resource_write,
+        mock_logger,
+        mock_mcp_run,
+    ):
+        """Test main function with --enable-aws-resource-write flag set to True."""
+        # Mock argparse to return args with enable_aws_resource_write=True
+        mock_args = MagicMock()
+        mock_args.enable_aws_resource_write = True
+        mock_parse_args.return_value = mock_args
+
+        # Call main function
+        main()
+
+        # Verify that set_enable_aws_resource_write was called with True
+        mock_set_enable_aws_resource_write.assert_called_once_with(True)
+
+        # Verify logger calls
+        mock_logger.info.assert_any_call('Starting Finch MCP server')
+        mock_logger.info.assert_any_call(f'Logs will be written to: {LOG_FILE}')
+
+        # Verify MCP server starts
+        mock_mcp_run.assert_called_once_with(transport='stdio')
+
+    @patch('awslabs.finch_mcp_server.server.mcp.run')
+    @patch('awslabs.finch_mcp_server.server.logger')
+    @patch('awslabs.finch_mcp_server.server.set_enable_aws_resource_write')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_with_enable_aws_resource_write_false(
+        self,
+        mock_parse_args,
+        mock_set_enable_aws_resource_write,
+        mock_logger,
+        mock_mcp_run,
+    ):
+        """Test main function with --enable-aws-resource-write flag set to False (default)."""
+        # Mock argparse to return args with enable_aws_resource_write=False
+        mock_args = MagicMock()
+        mock_args.enable_aws_resource_write = False
+        mock_parse_args.return_value = mock_args
+
+        # Call main function
+        main()
+
+        # Verify that set_enable_aws_resource_write was called with False
+        mock_set_enable_aws_resource_write.assert_called_once_with(False)
+
+        # Verify logger calls
+        mock_logger.info.assert_any_call('Starting Finch MCP server')
+        mock_logger.info.assert_any_call(f'Logs will be written to: {LOG_FILE}')
+
+        # Verify MCP server starts
+        mock_mcp_run.assert_called_once_with(transport='stdio')
+
+    @patch('awslabs.finch_mcp_server.server.mcp.run')
+    @patch('awslabs.finch_mcp_server.server.logger')
+    @patch('awslabs.finch_mcp_server.server.set_enable_aws_resource_write')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_function_execution_flow(
+        self,
+        mock_parse_args,
+        mock_set_enable_aws_resource_write,
+        mock_logger,
+        mock_mcp_run,
+    ):
+        """Test main function execution flow and all logged messages."""
+        # Mock argparse to return args
+        mock_args = MagicMock()
+        mock_args.enable_aws_resource_write = True
+        mock_parse_args.return_value = mock_args
+
+        # Call main function
+        main()
+
+        # Verify the order of operations
+        mock_set_enable_aws_resource_write.assert_called_once_with(True)
+
+        # Verify both logger calls were made
+        assert mock_logger.info.call_count == 2
+        mock_logger.info.assert_any_call('Starting Finch MCP server')
+        mock_logger.info.assert_any_call(f'Logs will be written to: {LOG_FILE}')
+
+        # Verify MCP server run was called last
+        mock_mcp_run.assert_called_once_with(transport='stdio')
