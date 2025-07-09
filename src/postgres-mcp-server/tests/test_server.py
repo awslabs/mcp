@@ -786,7 +786,7 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
     
     # Mock the connection so main can complete successfully
-    with patch('awslabs.postgres_mcp_server.connection.psycogp_pool_connection.PsycopgPoolConnection') as mock_psycopg:
+    with patch('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection') as mock_psycopg:
         from unittest.mock import AsyncMock
         mock_conn = MagicMock()
         # Create a Future with a proper event loop
