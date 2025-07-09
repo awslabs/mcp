@@ -130,7 +130,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
                         # Fetch all rows
                         rows = await result.fetchall()
                         
-                        # Format the response similar to RDS Data API
+                        # Structure the response to match the interface contract required by server.py
                         column_metadata = [{"name": col} for col in columns]
                         records = []
                         
@@ -165,7 +165,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             raise e
 
     def _convert_parameters(self, parameters: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Convert query parameters from RDS Data API format to psycopg format."""
+        """Transform structured parameter format to psycopg's native parameter format."""
         result = {}
         for param in parameters:
             name = param.get('name')
