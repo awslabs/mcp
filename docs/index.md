@@ -532,6 +532,17 @@ A server for interacting with AWS Cost Explorer to analyze AWS costs and usage d
 
 [Learn more about the AWS Cost Explorer MCP Server](servers/cost-explorer-mcp-server.md)
 
+# AWS FIS MCP Server
+
+An MCP server for designing and running controlled chaos engineering experiments on your AWS resources, helping you build more resilient cloud applications.
+
+**Features:**
+
+- **FIS Experiment Management**: List, retrieve, and execute AWS FIS experiments with real-time status monitoring
+- **Experiment Template Operations**: Create and manage experiment templates with comprehensive configuration options
+- **Resource Discovery**: Find potential targets for fault injection across CloudFormation stacks and AWS Resource Explorer
+- **Safety Controls**: Built-in stop conditions and experiment validation to prevent unintended impact
+
 ### AWS HealthOmics MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for AWS HealthOmics

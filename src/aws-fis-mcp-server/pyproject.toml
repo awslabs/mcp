@@ -1,0 +1,97 @@
+[project]
+name = "awslabs.aws-fis-mcp-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "argparse>=1.4.0",
+    "asyncio>=3.4.3",
+    "aws-cdk-lib>=2.200.1",
+    "boto3>=1.38.32",
+    "chromadb==1.0.7",
+    "dotenv>=0.9.9",
+    "langchain-community>=0.3.24",
+    "langchain-text-splitters>=0.3.8",
+    "loguru>=0.7.3",
+    "mcp[cli]>=1.9.3",
+    "pathlib>=1.0.1",
+    "pre-commit>=4.2.0",
+    "pydantic>=2.11.5",
+    "pypdf>=5.6.0",
+    "pytest-cov>=6.2.1",
+    "sentence-transformers>=4.1.0",
+]
+
+[project.scripts]
+"aws-fis-mcp-server" = "awslabs.aws_fis_mcp_server.server:main"
+
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/aws-documentation-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-documentation-mcp-server/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.1",
+    "pytest-asyncio>=0.26.0",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/aws-fis-mcp-server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.pytest.ini_options]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+testpaths = [ "tests"]
+asyncio_mode = "auto"
+markers = [
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
+]
+
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:\n    main()',
+    'def __repr__',
+    'raise NotImplementedError',
+    'pass',
+    'raise ImportError',
+    'except ImportError',
+]
+omit = [
+    "*/aws_fis_mcp_server/models.py",
+    "*/aws_fis_mcp_server/consts.py",
+]
+
+[tool.coverage.run]
+source = ["awslabs"]
+
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv"]
+typeCheckingMode = "basic"
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportUnboundVariable = true
+reportCallIssue = "warning"
+
+[tool.uv]
+package = true
