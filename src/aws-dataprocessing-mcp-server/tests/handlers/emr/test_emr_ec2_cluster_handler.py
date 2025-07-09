@@ -732,6 +732,7 @@ async def test_create_cluster_all_optional_params(handler, mock_context):
         name='TestCluster',
         release_label='emr-7.9.0',
         instances={'InstanceGroups': []},
+        # noqa: security-scan-false-positive - Test ARN with dummy values
         log_encryption_kms_key_id='arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012',
         steps=[{'Name': 'test-step'}],
         configurations=[{'Classification': 'spark'}],
@@ -755,6 +756,7 @@ async def test_create_cluster_all_optional_params(handler, mock_context):
     call_args = handler.emr_client.run_job_flow.call_args[1]
     assert (
         call_args['LogEncryptionKmsKeyId']
+        # noqa: security-scan-false-positive - Test ARN with dummy values
         == 'arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012'
     )
     assert call_args['Steps'] == [{'Name': 'test-step'}]
