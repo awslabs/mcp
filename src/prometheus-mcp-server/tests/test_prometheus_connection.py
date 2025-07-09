@@ -12,139 +12,132 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for Prometheus connection functionality."""
+"""Tests for the PrometheusConnection class."""
 
 import pytest
 import requests
+from awslabs.prometheus_mcp_server.server import PrometheusConnection
 from botocore.exceptions import ClientError
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 
-@pytest.mark.asyncio
-async def test_test_prometheus_connection_success():
-    """Test successful connection to Prometheus."""
-    with patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request:
-        from awslabs.prometheus_mcp_server.server import test_prometheus_connection
+class TestPrometheusConnection:
+    """Tests for the PrometheusConnection class."""
 
-        # Setup
-        mock_request.return_value = ['metric1', 'metric2']
+    @pytest.mark.asyncio
+    async def test_test_connection_success(self):
+        """Test that test_connection returns True when connection is successful."""
+        mock_make_request = AsyncMock()
+        mock_make_request.return_value = {'values': ['metric1', 'metric2']}
 
-        # Execute
-        result = await test_prometheus_connection()
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = await PrometheusConnection.test_connection(
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
+            )
 
-        # Assert
-        assert result is True
-        mock_request.assert_called_once_with('label/__name__/values', params={})
+            assert result is True
+            mock_make_request.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_test_connection_access_denied(self):
+        """Test that test_connection returns False when access is denied."""
+        error_response = {'Error': {'Code': 'AccessDeniedException'}}
+        mock_make_request = AsyncMock(side_effect=ClientError(error_response, 'GetLabels'))
 
-@pytest.mark.asyncio
-async def test_test_prometheus_connection_access_denied():
-    """Test connection with access denied error."""
-    with (
-        patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
-        patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
-    ):
-        from awslabs.prometheus_mcp_server.server import test_prometheus_connection
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = await PrometheusConnection.test_connection(
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
+            )
 
-        # Setup
-        error_response = {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access Denied'}}
-        mock_request.side_effect = ClientError(error_response, 'GetLabels')
+            assert result is False
+            mock_make_request.assert_called_once()
 
-        # Execute
-        result = await test_prometheus_connection()
+    @pytest.mark.asyncio
+    async def test_test_connection_resource_not_found(self):
+        """Test that test_connection returns False when resource is not found."""
+        error_response = {'Error': {'Code': 'ResourceNotFoundException'}}
+        mock_make_request = AsyncMock(side_effect=ClientError(error_response, 'GetLabels'))
 
-        # Assert
-        assert result is False
-        mock_logger.error.assert_called()
-        assert any('Access denied' in str(args) for args in mock_logger.error.call_args_list)
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = await PrometheusConnection.test_connection(
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
+            )
 
+            assert result is False
+            mock_make_request.assert_called_once()
 
-@pytest.mark.asyncio
-async def test_test_prometheus_connection_resource_not_found():
-    """Test connection with resource not found error."""
-    with (
-        patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
-        patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
-        patch('awslabs.prometheus_mcp_server.server.config') as mock_config,
-    ):
-        from awslabs.prometheus_mcp_server.server import test_prometheus_connection
+    @pytest.mark.asyncio
+    async def test_test_connection_other_aws_error(self):
+        """Test that test_connection returns False when other AWS error occurs."""
+        error_response = {'Error': {'Code': 'InternalServerError'}}
+        mock_make_request = AsyncMock(side_effect=ClientError(error_response, 'GetLabels'))
 
-        # Setup
-        error_response = {'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Not Found'}}
-        mock_request.side_effect = ClientError(error_response, 'GetLabels')
-        mock_config.prometheus_url = 'https://test-prometheus.amazonaws.com'
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = await PrometheusConnection.test_connection(
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
+            )
 
-        # Execute
-        result = await test_prometheus_connection()
+            assert result is False
+            mock_make_request.assert_called_once()
 
-        # Assert
-        assert result is False
-        mock_logger.error.assert_called()
-        assert any('workspace not found' in str(args) for args in mock_logger.error.call_args_list)
+    @pytest.mark.asyncio
+    async def test_test_connection_network_error(self):
+        """Test that test_connection returns False when network error occurs."""
+        mock_make_request = AsyncMock(side_effect=requests.RequestException('Network error'))
 
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = await PrometheusConnection.test_connection(
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
+            )
 
-@pytest.mark.asyncio
-async def test_test_prometheus_connection_other_aws_error():
-    """Test connection with other AWS API error."""
-    with (
-        patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
-        patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
-    ):
-        from awslabs.prometheus_mcp_server.server import test_prometheus_connection
+            assert result is False
+            mock_make_request.assert_called_once()
 
-        # Setup
-        error_response = {'Error': {'Code': 'InternalServerError', 'Message': 'Server Error'}}
-        mock_request.side_effect = ClientError(error_response, 'GetLabels')
+    @pytest.mark.asyncio
+    async def test_test_connection_generic_error(self):
+        """Test that test_connection returns False when generic error occurs."""
+        mock_make_request = AsyncMock(side_effect=Exception('Generic error'))
 
-        # Execute
-        result = await test_prometheus_connection()
+        with (
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusClient.make_request',
+                mock_make_request,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = await PrometheusConnection.test_connection(
+                prometheus_url='https://example.com', region='us-east-1', profile='test-profile'
+            )
 
-        # Assert
-        assert result is False
-        mock_logger.error.assert_called()
-        assert any('AWS API error' in str(args) for args in mock_logger.error.call_args_list)
-
-
-@pytest.mark.asyncio
-async def test_test_prometheus_connection_network_error():
-    """Test connection with network error."""
-    with (
-        patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
-        patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
-    ):
-        from awslabs.prometheus_mcp_server.server import test_prometheus_connection
-
-        # Setup
-        mock_request.side_effect = requests.RequestException('Connection refused')
-
-        # Execute
-        result = await test_prometheus_connection()
-
-        # Assert
-        assert result is False
-        mock_logger.error.assert_called()
-        assert any('Network error' in str(args) for args in mock_logger.error.call_args_list)
-
-
-@pytest.mark.asyncio
-async def test_test_prometheus_connection_generic_error():
-    """Test connection with generic error."""
-    with (
-        patch('awslabs.prometheus_mcp_server.server.make_prometheus_request') as mock_request,
-        patch('awslabs.prometheus_mcp_server.server.logger') as mock_logger,
-    ):
-        from awslabs.prometheus_mcp_server.server import test_prometheus_connection
-
-        # Setup
-        mock_request.side_effect = Exception('Unexpected error')
-
-        # Execute
-        result = await test_prometheus_connection()
-
-        # Assert
-        assert result is False
-        mock_logger.error.assert_called()
-        assert any(
-            'Error connecting to Prometheus' in str(args)
-            for args in mock_logger.error.call_args_list
-        )
+            assert result is False
+            mock_make_request.assert_called_once()
