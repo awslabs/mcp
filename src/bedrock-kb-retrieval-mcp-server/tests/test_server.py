@@ -17,7 +17,7 @@
 import json
 import pytest
 from awslabs.bedrock_kb_retrieval_mcp_server.server import (
-    knowledgebases_resource,
+    list_knowledge_bases_tool,
     main,
     mcp,
     query_knowledge_bases_tool,
@@ -39,13 +39,13 @@ class TestMCPServer:
         assert 'boto3' in mcp.dependencies
 
 
-class TestKnowledgebasesResource:
-    """Tests for the knowledgebases_resource function."""
+class TestListKnowledgeBasesTool:
+    """Tests for the list_knowledge_bases_tool function."""
 
     @pytest.mark.asyncio
     @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.discover_knowledge_bases')
-    async def test_knowledgebases_resource(self, mock_discover_knowledge_bases):
-        """Test the knowledgebases_resource function."""
+    async def test_list_knowledge_bases_tool(self, mock_discover_knowledge_bases):
+        """Test the list_knowledge_bases_tool function."""
         # Set up the mock
         mock_discover_knowledge_bases.return_value = {
             'kb-12345': {
@@ -64,7 +64,7 @@ class TestKnowledgebasesResource:
         }
 
         # Call the function
-        result = await knowledgebases_resource()
+        result = await list_knowledge_bases_tool()
 
         # Parse the result as JSON
         kb_mapping = json.loads(result)
@@ -173,11 +173,11 @@ class TestServerIntegration:
             }
         )
 
-        # Call the resource function
-        kb_result = await knowledgebases_resource()
+        # Call the list knowledge bases tool function
+        kb_result = await list_knowledge_bases_tool()
         kb_mapping = json.loads(kb_result)
 
-        # Check that the resource function returns the correct result
+        # Check that the list knowledge bases tool function returns the correct result
         assert len(kb_mapping) == 1
         assert 'kb-12345' in kb_mapping
         assert kb_mapping['kb-12345']['name'] == 'Test Knowledge Base'

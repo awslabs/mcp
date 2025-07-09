@@ -525,7 +525,8 @@ def main(enable_aws_resource_write: bool = False):
     mcp.run(transport='stdio')
 
 
-if __name__ == '__main__':
+# TODO: Add tests for the command-line argument parsing functionality
+if __name__ == '__main__':  # pragma: no cover
     import argparse
 
     parser = argparse.ArgumentParser(description='Run the Finch MCP server')

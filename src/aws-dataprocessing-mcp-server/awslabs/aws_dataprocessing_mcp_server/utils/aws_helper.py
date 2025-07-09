@@ -229,6 +229,23 @@ class AwsHelper:
         return tag_dict.get(MCP_MANAGED_TAG_KEY) == MCP_MANAGED_TAG_VALUE
 
     @staticmethod
+    def get_resource_tags_glue_job(glue_client: Any, job_name: str) -> Dict[str, str]:
+        """Get tags for a Glue job.
+
+        Args:
+            glue_client: Glue boto3 client
+            job_name: Glue job name
+
+        Returns:
+            Dictionary of tags
+        """
+        try:
+            response = glue_client.get_tags(ResourceArn=f'arn:aws:glue:*:*:job/{job_name}')
+            return response.get('Tags', {})
+        except ClientError:
+            return {}
+
+    @staticmethod
     def is_resource_mcp_managed(
         glue_client: Any, resource_arn: str, parameters: Optional[Dict[str, str]] = None
     ) -> bool:

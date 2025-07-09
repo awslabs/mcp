@@ -93,7 +93,9 @@ The Bedrock Knowledge Base Retrieval MCP Server enables AI assistants to retriev
 
 [Learn more about the Bedrock Knowledge Base Retrieval MCP Server](servers/bedrock-kb-retrieval-mcp-server.md)
 
-### Cost Analysis MCP Server
+### Cost Analysis MCP Server (DEPRECATED)
+
+>DEPRECATED. Please use the AWS Pricing MCP Server instead.
 
 The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS services.
 
@@ -498,7 +500,7 @@ The AWS DataProcessing MCP server provides AI code assistants with comprehensive
 - Secure Operations: Configurable read-only mode and sensitive data access controls
 - Comprehensive ETL Support: Streamline ETL job creation with intelligent code generation and best practice recommendations
 
-[Learn more about the Amazon Data Processing MCP Server](servers/dataprocessing-mcp-server.md)
+[Learn more about the Amazon Data Processing MCP Server](servers/aws-dataprocessing-mcp-server.md)
 
 ### Amazon Rekognition MCP Server
 

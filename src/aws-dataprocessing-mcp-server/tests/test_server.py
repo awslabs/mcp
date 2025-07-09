@@ -17,6 +17,11 @@
 import argparse
 import pytest
 import sys
+
+# Import the modules that will be mocked
+from awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler import (
+    CrawlerHandler,
+)
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_catalog_handler import (
     GlueDataCatalogHandler,
 )
@@ -35,10 +40,45 @@ class MockContext:
     pass
 
 
+# Create a proper TextContent class for type checking
+class MockTextContent:
+    """Mock TextContent class for testing."""
+
+    def __init__(self, type='text', text=''):
+        """Initialize the MockTextContent class.
+
+        Args:
+            type (str, optional): The content type. Defaults to 'text'.
+            text (str, optional): The text content. Defaults to ''.
+        """
+        self.type = type
+        self.text = text
+
+
+# Create a proper CallToolResult class for type checking
+class MockCallToolResult:
+    """Mock CallToolResult class for testing."""
+
+    def __init__(self, isError=False, content=None, **kwargs):
+        """Initialize the MockCallToolResult class.
+
+        Args:
+            isError (bool, optional): Whether the result is an error. Defaults to False.
+            content (list, optional): The content of the result. Defaults to None.
+            **kwargs: Additional attributes to set on the result.
+        """
+        self.isError = isError
+        self.content = content or []
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+# Set up mocks before importing any modules that use them
 sys.modules['mcp.server.fastmcp'] = MagicMock()
 sys.modules['mcp.server.fastmcp'].Context = MockContext
 sys.modules['mcp.types'] = MagicMock()
-sys.modules['mcp.types'].TextContent = MagicMock()
+sys.modules['mcp.types'].TextContent = MockTextContent
+sys.modules['mcp.types'].CallToolResult = MockCallToolResult
 
 
 @pytest.mark.asyncio
@@ -137,19 +177,27 @@ async def test_command_line_args():
                 with patch(
                     'awslabs.aws_dataprocessing_mcp_server.server.GlueDataCatalogHandler'
                 ) as mock_glue_data_catalog_handler:
-                    # Call the main function
-                    main()
+                    with patch(
+                        'awslabs.aws_dataprocessing_mcp_server.server.CrawlerHandler'
+                    ) as mock_crawler_handler:
+                        # Call the main function
+                        main()
 
-                    # Verify that parse_args was called
-                    mock_parse_args.assert_called_once()
+                        # Verify that parse_args was called
+                        mock_parse_args.assert_called_once()
 
-                    # Verify that the handlers were initialized with correct parameters
-                    mock_glue_data_catalog_handler.assert_called_once_with(
-                        mock_server, allow_write=True, allow_sensitive_data_access=False
-                    )
+                        # Verify that the handlers were initialized with correct parameters
+                        mock_glue_data_catalog_handler.assert_called_once_with(
+                            mock_server, allow_write=True, allow_sensitive_data_access=False
+                        )
+                        mock_crawler_handler.assert_called_once_with(
+                            mock_server,
+                            allow_write=True,
+                            allow_sensitive_data_access=False,
+                        )
 
-                    # Verify that run was called
-                    mock_server.run.assert_called_once()
+                        # Verify that run was called
+                        mock_server.run.assert_called_once()
 
     # Test with sensitive data access enabled
     with patch.object(argparse.ArgumentParser, 'parse_args') as mock_parse_args:
@@ -171,19 +219,28 @@ async def test_command_line_args():
                 with patch(
                     'awslabs.aws_dataprocessing_mcp_server.server.GlueDataCatalogHandler'
                 ) as mock_glue_data_catalog_handler:
-                    # Call the main function
-                    main()
+                    with patch(
+                        'awslabs.aws_dataprocessing_mcp_server.server.CrawlerHandler'
+                    ) as mock_crawler_handler:
+                        # Call the main function
+                        main()
 
-                    # Verify that parse_args was called
-                    mock_parse_args.assert_called_once()
+                        # Verify that parse_args was called
+                        mock_parse_args.assert_called_once()
 
-                    # Verify that the handlers were initialized with correct parameters
-                    mock_glue_data_catalog_handler.assert_called_once_with(
-                        mock_server, allow_write=False, allow_sensitive_data_access=True
-                    )
+                        # Verify that the handlers were initialized with correct parameters
+                        mock_glue_data_catalog_handler.assert_called_once_with(
+                            mock_server, allow_write=False, allow_sensitive_data_access=True
+                        )
 
-                    # Verify that run was called
-                    mock_server.run.assert_called_once()
+                        mock_crawler_handler.assert_called_once_with(
+                            mock_server,
+                            allow_write=False,
+                            allow_sensitive_data_access=True,
+                        )
+
+                        # Verify that run was called
+                        mock_server.run.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -212,6 +269,33 @@ async def test_glue_data_catalog_handler_initialization():
         # Verify that expected tools are registered
         assert 'manage_aws_glue_databases' in tool_names
         assert 'manage_aws_glue_tables' in tool_names
+
+
+@pytest.mark.asyncio
+async def test_glue_data_crawler_handler_initialization():
+    """Test that the Glue Crawler handler is initialized correctly and registers tools."""
+    # Create a mock MCP server
+    mock_mcp = MagicMock()
+
+    # Mock the AWS helper's create_boto3_client method to avoid boto3 client creation
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.create_boto3_client',
+        return_value=MagicMock(),
+    ):
+        # Initialize the Glue Data Catalog handler with the mock MCP server
+        CrawlerHandler(mock_mcp)
+
+        # Verify that the tools were registered
+        assert mock_mcp.tool.call_count > 0
+
+        # Get all call args
+        call_args_list = mock_mcp.tool.call_args_list
+
+        # Get all tool names that were registered
+        tool_names = [call_args[1]['name'] for call_args in call_args_list]
+
+        # Verify that expected tools are registered
+        assert 'manage_aws_glue_crawlers' in tool_names
 
 
 @pytest.mark.asyncio

@@ -60,7 +60,7 @@ async def create_error_response(
 
 mcp = FastMCP(
     name='awslabs.cost-analysis-mcp-server',
-    instructions="""Use this server for analyzing AWS service costs, with a focus on serverless services.
+    instructions="""IMPORTANT: This server is deprecated. Please use the AWS Pricing MCP Server instead. Use this server for analyzing AWS service costs, with a focus on serverless services.
 
     REQUIRED WORKFLOW:
     Analyze costs of AWS services by following these steps in order:
@@ -114,7 +114,7 @@ logger.info(f'Using AWS profile {profile_name}')
 
 @mcp.tool(
     name='analyze_cdk_project',
-    description='Analyze a CDK project to identify AWS services used. This tool dynamically extracts service information from CDK constructs without relying on hardcoded service mappings.',
+    description='IMPORTANT: This tool is deprecated. Please use the analyze_cdk_project tool in the AWS Pricing MCP Server instead. Analyze a CDK project to identify AWS services used. This tool dynamically extracts service information from CDK constructs without relying on hardcoded service mappings.',
 )
 async def analyze_cdk_project_wrapper(
     ctx: Context,
@@ -149,7 +149,7 @@ async def analyze_cdk_project_wrapper(
 
 @mcp.tool(
     name='analyze_terraform_project',
-    description='Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
+    description='IMPORTANT: This tool is deprecated. Please use the analyze_terraform_project tool in the AWS Pricing MCP Server instead. Analyze a Terraform project to identify AWS services used. This tool dynamically extracts service information from Terraform resource declarations.',
 )
 async def analyze_terraform_project_wrapper(
     ctx: Context,
@@ -184,7 +184,7 @@ async def analyze_terraform_project_wrapper(
 
 @mcp.tool(
     name='get_pricing_from_web',
-    description='Get pricing information from AWS pricing webpage. Service codes typically use lowercase with hyphens format (e.g., "opensearch-service" for both OpenSearch and OpenSearch Serverless, "api-gateway", "lambda"). Note that some services like OpenSearch Serverless are part of broader service codes (use "opensearch-service" not "opensearch-serverless"). Important: Web service codes differ from API service codes (e.g., use "opensearch-service" for web but "AmazonES" for API). When retrieving foundation model pricing, always use the latest models for comparison rather than specific named ones that may become outdated.',
+    description='IMPORTANT: This tool is deprecated. Please use the get_pricing tool in the AWS Pricing MCP Server instead. Get pricing information from AWS pricing webpage. Service codes typically use lowercase with hyphens format (e.g., "opensearch-service" for both OpenSearch and OpenSearch Serverless, "api-gateway", "lambda"). Note that some services like OpenSearch Serverless are part of broader service codes (use "opensearch-service" not "opensearch-serverless"). Important: Web service codes differ from API service codes (e.g., use "opensearch-service" for web but "AmazonES" for API). When retrieving foundation model pricing, always use the latest models for comparison rather than specific named ones that may become outdated.',
 )
 async def get_pricing_from_web(
     ctx: Context,
@@ -248,7 +248,7 @@ async def get_pricing_from_web(
 
 @mcp.tool(
     name='get_pricing_from_api',
-    description="""
+    description="""IMPORTANT: This tool is deprecated. Please use the get_pricing tool in the AWS Pricing MCP Server instead.
     Get detailed pricing information from AWS Price List API with optional filters.
 
     Service codes for API often differ from web URLs.
@@ -467,7 +467,7 @@ async def get_pricing_from_api(
 
 @mcp.tool(
     name='get_bedrock_patterns',
-    description='Get architecture patterns for Amazon Bedrock applications, including component relationships and cost considerations',
+    description='IMPORTANT: This tool is deprecated. Please use the get_bedrock_patterns tool in the AWS Pricing MCP Server instead. Get architecture patterns for Amazon Bedrock applications, including component relationships and cost considerations',
 )
 async def get_bedrock_patterns(ctx: Optional[Context] = None) -> str:
     """Get architecture patterns for Amazon Bedrock applications.
@@ -507,7 +507,7 @@ Focus on the most impactful recommendations first. Do not limit yourself to a sp
 
 @mcp.tool(
     name='generate_cost_report',
-    description="""Generate a detailed cost analysis report based on pricing data for one or more AWS services.
+    description="""IMPORTANT: This tool is deprecated. Please use the generate_cost_report tool in the AWS Pricing MCP Server instead. Generate a detailed cost analysis report based on pricing data for one or more AWS services.
 
 This tool requires AWS pricing data and provides options for adding detailed cost information.
 
