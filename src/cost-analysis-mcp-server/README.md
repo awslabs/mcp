@@ -1,6 +1,6 @@
-# Cost Analysis MCP Server
+# Cost Analysis MCP Server (DEPRECATED)
 
-MCP server for generating upfront AWS service cost estimates and providing cost insights
+MCP server for generating upfront AWS service cost estimates and providing cost insights. (DEPRECATED). Please use the AWS Pricing MCP Server for AWS service pricing related tools.
 
 **Important Note**: This server provides estimated pricing based on AWS pricing APIs and web pages. These estimates are for pre-deployment planning purposes and do not reflect the actual expenses of deployed cloud services.
 
@@ -35,6 +35,8 @@ MCP server for generating upfront AWS service cost estimates and providing cost 
    - Ensure your IAM role/user has permissions to access AWS Pricing API
 
 ## Installation
+
+(DEPRECATED). Please use the AWS Pricing MCP Server for AWS service pricing related tools.
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.cost-analysis-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuY29zdC1hbmFseXNpcy1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
 
