@@ -93,9 +93,9 @@ The Bedrock Knowledge Base Retrieval MCP Server enables AI assistants to retriev
 
 [Learn more about the Bedrock Knowledge Base Retrieval MCP Server](servers/bedrock-kb-retrieval-mcp-server.md)
 
-### Cost Analysis MCP Server
+### AWS Pricing MCP Server
 
-The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS services.
+The AWS Pricing MCP Server enables AI assistants to analyze the cost of AWS services.
 
 **Features:**
 
@@ -103,7 +103,7 @@ The Cost Analysis MCP Server enables AI assistants to analyze the cost of AWS se
 - Query cost data with natural language
 - Generate cost reports and insights
 
-[Learn more about the Cost Analysis MCP Server](servers/cost-analysis-mcp-server.md)
+[Learn more about the AWS Pricing MCP Server](servers/aws-pricing-mcp-server.md)
 
 ### AWS Lambda Tool MCP Server
 
