@@ -10,7 +10,7 @@ Each server has specific installation instructions. Generally, you can:
 Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 
 ```json
-`{
+{
   "mcpServers": {
     "awslabs.cost-analysis-mcp-server": {
       "command": "uvx",
@@ -20,36 +20,36 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "FASTMCP_LOG_LEVEL": "ERROR"
-      }`
+      }
     },
-    "awslabs.cdk-mcp-server": `{
+    "awslabs.cdk-mcp-server": {
       "command": "uvx",
       "args": [
         "awslabs.cdk-mcp-server@latest"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
-      }`
+      }
     },
-    "awslabs.aws-documentation-mcp-server": `{
+    "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
       "args": [
         "awslabs.aws-documentation-mcp-server@latest"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
-      }`,
+      },
       "disabled": false,
       "autoApprove": []
     },
-    "awslabs.terraform-mcp-server": `{
+    "awslabs.terraform-mcp-server": {
       "command": "uvx",
       "args": [
         "awslabs.terraform-mcp-server@latest"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
-      }`,
+      },
       "disabled": false,
       "autoApprove": []
     }
@@ -104,7 +104,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 - Use the docker options: `--env`, `--env-file`, and `--volume` as needed because the `"env": `{}`` are not available within the container.
 
   ```json
-  `{
+  {
     "mcpServers": {
       "awslabs.nova-canvas-mcp-server": {
         "command": "docker",
@@ -122,7 +122,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
           "/full/path/to/.aws:/app/.aws",
           "awslabs/nova-canvas-mcp-server:latest"
         ],
-        "env": {}`
+        "env": {}
       }
     }
   }
@@ -141,7 +141,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 #### `cline_mcp_settings.json`
 
  ```json
- `{
+  {
    "mcpServers": {
      "awslabs.nova-canvas-mcp-server": {
        "command": "uvx",
@@ -150,7 +150,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
          "AWS_PROFILE": "your-aws-profile",
          "AWS_REGION": "us-east-1",
          "FASTMCP_LOG_LEVEL": "ERROR"
-       }`
+       }
      }
     }
   }
@@ -183,7 +183,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 #### `.cursor/mcp.json`
 
 ```json
- `{
+ {
   "mcpServers": {
     "awslabs.nova-canvas-mcp-server": {
        "command": "uvx",
@@ -192,7 +192,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
          "AWS_PROFILE": "your-aws-profile",
          "AWS_REGION": "us-east-1",
          "FASTMCP_LOG_LEVEL": "ERROR"
-       }`
+       }
      }
   }
 }
@@ -222,7 +222,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 #### `~/.codeium/windsurf/mcp_config.json`
 
  ```json
- `{
+  {
    "mcpServers": {
      "awslabs.nova-canvas-mcp-server": {
        "command": "uvx",
@@ -231,7 +231,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
          "AWS_PROFILE": "your-aws-profile",
          "AWS_REGION": "us-east-1",
          "FASTMCP_LOG_LEVEL": "ERROR"
-       }`
+       }
      }
     }
   }

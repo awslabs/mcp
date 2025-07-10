@@ -28,12 +28,12 @@ jobs:
       - name: Install dependencies
         run: cd docusaurus && npm ci
       - name: Build website
-        run: cd docs && npm run build
+        run: cd docusaurus && npm run build
 
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: docs/build
+          path: docusaurus/build
 
   deploy:
     name: Deploy to GitHub Pages
