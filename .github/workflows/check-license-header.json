@@ -21,7 +21,6 @@
   {
     "include": [
       "**/*.md",
-      "mkdocs.yml",
       "**/LICENSE",
       "**/NOTICE",
       "**/uv.lock",
