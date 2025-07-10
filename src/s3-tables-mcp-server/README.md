@@ -21,16 +21,16 @@ The S3 Tables MCP Server simplifies the management of S3-based tables by providi
 
 ## Features
 
-- **Table Bucket Management**: Create, delete, and manage table buckets
-- **Namespace Management**: Create and delete namespaces within table buckets
-- **Table Management**: Create, delete, rename, and manage individual tables
-- **Maintenance Configuration**: Set up and manage maintenance configurations for tables and buckets
-- **Policy Management**: Manage resource policies for tables and buckets
-- **Metadata Management**: Handle table metadata and locations
-- **Read-Only Mode**: Optional security feature to restrict operations to read-only operations
-- **SQL Query Support**: Execute **read-only** SQL queries directly against S3 Tables for seamless data analysis and reporting. For write operations, only **append data** is supported (i.e., inserting new rows); updates or deletes via SQL are not supported.
-- **CSV to Table Conversion**: Automatically generate S3 Tables from CSV files uploaded to S3 buckets, streamlining data ingestion workflows
-- **Metadata Discovery**: Access comprehensive table metadata through the S3 Metadata Table for enhanced data governance and cataloging
+- **Table Bucket Management**: Create and list S3 Table Buckets to organize your tabular data at scale. (No delete or update operations supported.)
+- **Namespace Management**: Define and list namespaces within table buckets for logical data separation and organization. (No delete or update operations supported.)
+- **Table Management**: Create, rename, and list individual tables within namespaces for flexible data modeling. (No delete or general update operations; only renaming is supported.)
+- **Maintenance Configuration**: Retrieve maintenance settings for tables and buckets. (Read-only; no update or delete.)
+- **Policy Management**: Access resource policies for tables and buckets to control access and security. (Read-only; no update or delete.)
+- **Metadata Management**: View detailed table metadata, including schema and storage information. Metadata file can be updated.
+- **Read-Only Mode**: Enable an optional security mode that restricts all operations to read-only, preventing any modifications.
+- **SQL Query Support**: Run **read-only** SQL queries directly against S3 Tables for seamless data analysis and reporting. For write operations, only **appending new data** (inserts) is supported; updates and deletes via SQL are not available.
+- **CSV to Table Conversion**: Automatically create S3 Tables from CSV files uploaded to S3, streamlining data ingestion and onboarding. (No delete or update of tables via this operation.)
+- **Metadata Discovery**: Discover and access comprehensive bucket metadata through the S3 Metadata Table for enhanced data governance and cataloging. (Read-only.)
 
 ## Prerequisites
 
