@@ -8,7 +8,6 @@ title: Welcome to AWS MCP Servers
 Get started with AWS MCP Servers and learn core features.
 
 The AWS MCP Servers are a suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
-The AWS MCP Servers are a suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
 ## What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?
 

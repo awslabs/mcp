@@ -1,5 +1,5 @@
 ---
-title: Syntheticdata MCP Server
+title: Synthetic Data MCP Server
 ---
 
 import ReadmeContent from "../../../src/syntheticdata-mcp-server/README.md";

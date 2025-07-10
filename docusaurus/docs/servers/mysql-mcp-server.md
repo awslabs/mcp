@@ -1,5 +1,5 @@
 ---
-title: Amazon Aurora MySql MCP Server
+title: Amazon Aurora MySQL MCP Server
 ---
 
 import ReadmeContent from "../../../src/mysql-mcp-server/README.md";
