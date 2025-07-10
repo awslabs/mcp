@@ -105,7 +105,7 @@ def pyiceberg_load_catalog(
     warehouse: str,
     uri: str,
     region: str,
-    rest_signing_name: str = 'glue',
+    rest_signing_name: str = 's3tables',
     rest_sigv4_enabled: str = 'true',
 ):
     """Load a PyIceberg catalog with the given parameters."""

@@ -90,9 +90,9 @@ async def query_database_resource(
     region: str,
     namespace: str,
     query: str,
-    uri: str = 'https://glue.us-west-2.amazonaws.com/iceberg',
+    uri: str = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
     catalog_name: str = 's3tablescatalog',
-    rest_signing_name: str = 'glue',
+    rest_signing_name: str = 's3tables',
     rest_sigv4_enabled: str = 'true',
 ) -> Dict[str, Any]:
     """Execute a read-only query against a database using PyIceberg."""
@@ -120,9 +120,9 @@ async def append_rows_to_table_resource(
     namespace: str,
     table_name: str,
     rows: list,
-    uri: str = 'https://glue.us-west-2.amazonaws.com/iceberg',
+    uri: str = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
     catalog_name: str = 's3tablescatalog',
-    rest_signing_name: str = 'glue',
+    rest_signing_name: str = 's3tables',
     rest_sigv4_enabled: str = 'true',
 ) -> Dict[str, Any]:
     """Append rows to an Iceberg table using PyIceberg."""

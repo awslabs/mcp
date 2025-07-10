@@ -35,7 +35,7 @@ class TestPyIcebergConfig:
         assert config.region == 'us-west-2'
         assert config.namespace == 'testns'
         assert config.catalog_name == 's3tablescatalog'
-        assert config.rest_signing_name == 'glue'
+        assert config.rest_signing_name == 's3tables'
         assert config.rest_sigv4_enabled == 'true'
 
 

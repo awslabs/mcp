@@ -27,12 +27,12 @@ from typing import Any, Dict, Optional
 class PyIcebergConfig(BaseModel):
     """Configuration for PyIceberg/Daft connection."""
 
-    warehouse: str  # e.g. '484907528679:s3tablescatalog/customer-data-bucket'
-    uri: str  # e.g. 'https://glue.us-west-2.amazonaws.com/iceberg'
+    warehouse: str  # e.g. 'arn:aws:s3tables:us-west-2:484907528679:bucket/customer-data-bucket'
+    uri: str  # e.g. 'https://s3tables.us-west-2.amazonaws.com/iceberg'
     region: str  # e.g. 'us-west-2'
     namespace: str  # e.g. 'retail_data'
     catalog_name: str = 's3tablescatalog'  # default
-    rest_signing_name: str = 'glue'
+    rest_signing_name: str = 's3tables'
     rest_sigv4_enabled: str = 'true'
 
 
