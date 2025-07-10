@@ -1,5 +1,5 @@
 ---
-title: Amazon Q index MCP Server
+title: Amazon Q Index MCP Server
 ---
 
 import ReadmeContent from "../../../src/amazon-qindex-mcp-server/README.md";

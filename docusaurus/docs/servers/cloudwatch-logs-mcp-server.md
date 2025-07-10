@@ -1,5 +1,5 @@
 ---
-title: cloudwatch-logs MCP Server
+title: Cloudwatch Logs MCP Server
 ---
 
 import ReadmeContent from "../../../src/cloudwatch-logs-mcp-server/README.md";

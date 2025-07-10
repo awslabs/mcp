@@ -1,5 +1,5 @@
 ---
-title: AWS Health Omics MCP Server
+title: AWS HealthOmics MCP Server
 ---
 
 import ReadmeContent from "../../../src/aws-healthomics-mcp-server/README.md";
