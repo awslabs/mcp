@@ -48,6 +48,7 @@ from awslabs.dynamodb_mcp_server.common import (
 )
 from botocore.config import Config
 from mcp.server.fastmcp import FastMCP
+from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Union
 
@@ -55,6 +56,9 @@ from typing import Any, Dict, List, Literal, Union
 app = FastMCP(
     name='dynamodb-server',
     instructions="""The official MCP Server for interacting with AWS DynamoDB
+
+This server provides comprehensive DynamoDB capabilities with over 30 operational tools for managing DynamoDB tables,
+items, indexes, backups, and more, plus expert data modeling guidance through The DynamoDB Architect system
 
 IMPORTANT: DynamoDB Attribute Value Format
 -----------------------------------------
@@ -97,8 +101,12 @@ Common usage examples:
 - Composite key: {"userId": {"S": "user123"}, "timestamp": {"N": "1612345678"}}
 - Expression attribute values: {":minScore": {"N": "100"}, ":active": {"BOOL": true}}
 - Complete item: {"userId": {"S": "user123"}, "score": {"N": "100"}, "data": {"B": "binarydata=="}}
+
+Use the `dynamodb_data_modeling` tool to access enterprise-level DynamoDB design expertise.
+This tool provides systematic methodology for creating production-ready multi-table design with
+advanced optimizations, cost analysis, and integration patterns.
 """,
-    version='0.1.2',
+    version='0.1.3',
 )
 
 
@@ -157,6 +165,20 @@ billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = Field(
     description='Specifies if billing is PAY_PER_REQUEST or by provisioned throughput',
 )
 resource_arn: str = Field(description='The Amazon Resource Name (ARN) of the DynamoDB resource')
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_modeling() -> str:
+    """Launch The DynamoDB Architect - an enterprise-level expert system for systematic DynamoDB data modeling.
+
+    Transforms application requirements into production-ready multi-table designs with advanced optimizations, cost analysis, and integration patterns.
+    Supports enterprise-scale patterns including hot partition analysis, write sharding, sparse GSIs, and OpenSearch integration.
+    No parameters required.
+    """
+    prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_architect.md'
+    architect_prompt = prompt_file.read_text(encoding='utf-8')
+    return architect_prompt
 
 
 @app.tool()
