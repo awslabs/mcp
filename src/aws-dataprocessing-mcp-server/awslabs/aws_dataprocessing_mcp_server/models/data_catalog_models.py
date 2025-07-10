@@ -99,7 +99,8 @@ class CatalogSummary(BaseModel):
     name: Optional[str] = Field(None, description='Name of the catalog')
     description: Optional[str] = Field(None, description='Description of the catalog')
     parameters: Dict[str, str] = Field(default_factory=dict, description='Catalog parameters')
-    creation_time: Optional[str] = Field(None, description='Creation timestamp in ISO format')
+    create_time: Optional[str] = Field(None, description='Creation timestamp in ISO format')
+    update_time: Optional[str] = Field(None, description='Last update timestamp in ISO format')
 
 
 # Database Response Models
@@ -136,6 +137,7 @@ class ListDatabasesResponse(CallToolResult):
     count: int = Field(..., description='Number of databases found')
     catalog_id: Optional[str] = Field(None, description='Catalog ID used for listing')
     operation: str = Field(default='list', description='Operation performed')
+    next_token: Optional[str] = Field(None, description='Token for the next page of results')
 
 
 class UpdateDatabaseResponse(CallToolResult):
@@ -205,6 +207,7 @@ class SearchTablesResponse(CallToolResult):
     search_text: str = Field(..., description='Search text used for matching')
     count: int = Field(..., description='Number of tables found')
     operation: str = Field(default='search', description='Operation performed')
+    next_token: Optional[str] = Field('', description='Token for pagination')
 
 
 # Connection Response Models
@@ -373,8 +376,6 @@ class ImportCatalogResponse(CallToolResult):
     """Response model for import catalog operation."""
 
     catalog_id: str = Field(..., description='ID of the catalog being imported to')
-    import_status: str = Field(..., description='Status of the import operation')
-    import_source: str = Field(..., description='Source of the import operation')
     operation: str = Field(default='import', description='Operation performed')
 
 
