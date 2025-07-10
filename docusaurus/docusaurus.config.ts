@@ -28,20 +28,8 @@ const config: Config = {
   onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
 
-  // Add search plugin and other plugins
-  plugins: [
-    [
-      require.resolve('@easyops-cn/docusaurus-search-local'),
-      {
-        // Options for the search plugin
-        hashed: true, // Generate search-index.json for client-side search
-        language: ['en'], // Language
-        indexDocs: true,
-        indexPages: true,
-        docsRouteBasePath: '/',
-      },
-    ],
-  ],
+  // Add plugins
+  plugins: [],
 
   // Add scripts to be loaded in the client
   scripts: [
