@@ -65,15 +65,12 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
           editUrl:
             'https://github.com/awslabs/mcp/tree/main/',
           routeBasePath: '/', // Serve docs at the site's root
           remarkPlugins: [],
           rehypePlugins: [],
         },
-        blog: false, // Disable blog
         theme: {
           customCss: ['./src/css/custom.css', './src/css/doc-override.css'],
         },

@@ -8,7 +8,7 @@
       "**/*venv/**",
       "**/site-packages/**",
       ".github/**",
-      "docs/**",
+      "docusaurus/**",
       "**/*requirements.txt"
     ],
     "include": [
@@ -35,7 +35,7 @@
       "**/tests/**",
       ".venv/**",
       ".github/**",
-      "docs/**",
+      "docusaurus/**",
       "**/*requirements.txt",
       "**/*.js",
       "**/*.html",
