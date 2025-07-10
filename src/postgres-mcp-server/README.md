@@ -1,97 +1,180 @@
-# AWS Labs postgres MCP Server
+# PostgreSQL MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for Aurora Postgres
+An AWS Labs Model Context Protocol (MCP) server for PostgreSQL databases with comprehensive analysis capabilities.
 
-## Features
+## Overview
 
-### Natural language to Postgres SQL query
+This MCP server provides 10 tools for PostgreSQL database interaction and analysis:
 
-- Converting human-readable questions and commands into structured Postgres-compatible SQL queries and executing them against the configured Aurora Postgres database.
+**Core Tools:**
+- `run_query` - Execute SQL queries with injection protection
+- `get_table_schema` - Fetch table schema information
+- `health_check` - Check server and database connectivity
+- `analyze_database_structure` - Analyze schemas, tables, and indexes
 
-## Prerequisites
+**Analysis Tools:**
+- `show_postgresql_settings` - View PostgreSQL configuration
+- `identify_slow_queries` - Find slow-running queries (requires pg_stat_statements)
+- `analyze_table_fragmentation` - Analyze table bloat and fragmentation
+- `analyze_query_performance` - Query optimization with EXPLAIN plans
+- `analyze_vacuum_stats` - Vacuum statistics and maintenance recommendations
+- `recommend_indexes` - Index recommendations based on query patterns
 
-1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python using `uv python install 3.10`
-3. Aurora Postgres Cluster with Postgres username and password stored in AWS Secrets Manager
-4. Enable RDS Data API for your Aurora Postgres Cluster, see [instructions here](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html)
-5. This MCP server can only be run locally on the same host as your LLM client.
-6. Docker runtime
-7. Set up AWS credentials with access to AWS services
-   - You need an AWS account with appropriate permissions
-   - Configure AWS credentials with `aws configure` or environment variables
+## Quick Start
 
-## Installation
+### Prerequisites
+- Python 3.10+
+- PostgreSQL database with credentials in AWS Secrets Manager
+- AWS credentials configured (profiles recommended)
+- `uv` package manager ([installation guide](https://docs.astral.sh/uv/getting-started/installation/))
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.postgres-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMucG9zdGdyZXMtbWNwLXNlcnZlckBsYXRlc3QgLS1yZXNvdXJjZV9hcm4gW3lvdXIgZGF0YV0gLS1zZWNyZXRfYXJuIFt5b3VyIGRhdGFdIC0tZGF0YWJhc2UgW3lvdXIgZGF0YV0gLS1yZWdpb24gW3lvdXIgZGF0YV0gLS1yZWFkb25seSBUcnVlIiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
+### Installation
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+# Clone and setup
+git clone <repository>
+cd src/postgres-mcp-server
+
+# Basic installation (RDS Data API only)
+uv sync
+
+# Full installation with direct PostgreSQL support
+uv sync --extra postgres
+```
+
+### Running the Server
+
+#### Method 1: RDS Data API (Aurora PostgreSQL)
+```bash
+uv run python -m awslabs.postgres_mcp_server.server \
+  --resource_arn "<Your Resource ARN>" \
+  --secret_arn "<Your Secret ARN>" \
+  --database "your-database-name" \
+  --region "us-west-2" \
+  --readonly "true"
+```
+
+#### Method 2: Direct PostgreSQL Connection
+```bash
+uv run python -m awslabs.postgres_mcp_server.server \
+  --hostname "your-db-host.amazonaws.com" \
+  --port 5432 \
+  --secret_arn "<Your Secret ARN>" \
+  --database "your-database-name" \
+  --region "us-west-2" \
+  --readonly "true"
+```
+
+#### Method 3: Docker
+```bash
+docker build -t postgres-mcp-server .
+docker run -p 8000:8000 \
+  -v ~/.aws:/root/.aws:ro \
+  -e AWS_PROFILE=your-profile-name \
+  postgres-mcp-server \
+  --resource_arn <Your Resource ARN> \
+  --secret_arn <Your Secret ARN> \
+  --database "your-database" \
+  --region "us-west-2" \
+  --readonly "true"
+```
+
+## Testing
+
+```bash
+# Run comprehensive test suite
+uv run python tests/test_all_tools_comprehensive.py
+
+# Run all tests with pytest
+uv run pytest
+
+# Run specific tests
+uv run pytest tests/test_connection_pool.py -v
+```
+
+**Test Environment Variables:**
+For integration tests, set these environment variables:
+```bash
+export TEST_RESOURCE_ARN=<Your Resource ARN>
+export TEST_SECRET_ARN=<Your Secret ARN>
+```
+
+## Amazon Q Developer CLI Integration
+
+Add to your MCP configuration file (`~/.aws/amazonq/mcp.json`):
 
 ```json
 {
   "mcpServers": {
-    "awslabs.postgres-mcp-server": {
-      "command": "uvx",
+    "postgresql-enhanced": {
+      "command": "uv",
       "args": [
-        "awslabs.postgres-mcp-server@latest",
-        "--resource_arn", "[your data]",
-        "--secret_arn", "[your data]",
-        "--database", "[your data]",
-        "--region", "[your data]",
-        "--readonly", "True"
+        "run", "python", "-m", "awslabs.postgres_mcp_server.server",
+        "--resource_arn", "<Your Resource ARN>",
+        "--secret_arn", "<Your Secret ARN>",
+        "--database", "your-database",
+        "--region", "us-west-2",
+        "--readonly", "true"
       ],
+      "cwd": "/path/to/postgres-mcp-server",
       "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
+        "AWS_PROFILE": "your-profile-name"
+      }
     }
   }
 }
 ```
 
-### Build and install docker image locally on the same host of your LLM client
+## Security Features
 
-1. 'git clone https://github.com/awslabs/mcp.git'
-2. Go to sub-directory 'src/postgres-mcp-server/'
-3. Run 'docker build -t awslabs/postgres-mcp-server:latest .'
+- **SQL Injection Protection**: Parameterized queries and validation
+- **Read-only Mode**: Enforced readonly operations for safety
+- **Credential Security**: AWS profiles only, no hardcoded credentials
+- **Query Validation**: Advanced pattern detection and risk assessment
 
-### Add or update your LLM client's config with following:
-<pre><code>
-{
-  "mcpServers": {
-    "awslabs.postgres-mcp-server": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e", "AWS_ACCESS_KEY_ID=[your data]",
-        "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
-        "-e", "AWS_REGION=[your data]",
-        "awslabs/postgres-mcp-server:latest",
-        "--resource_arn", "[your data]",
-        "--secret_arn", "[your data]",
-        "--database", "[your data]",
-        "--region", "[your data]",
-        "--readonly", "True"
-      ]
-    }
-  }
-}
-</code></pre>
+## Development
 
-NOTE: By default, only read-only queries are allowed and it is controlled by --readonly parameter above. Set it to False if you also want to allow writable DML or DDL.
+```bash
+# Setup development environment
+uv sync --dev
 
-### AWS Authentication
+# Run linting
+uv run ruff check
 
-The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
+# Run formatting
+uv run ruff format
 
-```json
-"env": {
-  "AWS_PROFILE": "your-aws-profile"
-}
+# Run type checking
+uv run pyright
 ```
 
-Make sure the AWS profile has permissions to access the [RDS data API](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api.html#data-api.access), and the secret from AWS Secrets Manager. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+## Configuration
+
+### Connection Pool
+Configure via environment variables:
+- `POSTGRES_POOL_MIN_SIZE`: Minimum connections (default: 5)
+- `POSTGRES_POOL_MAX_SIZE`: Maximum connections (default: 30)
+
+### Required PostgreSQL Extensions
+For full functionality, enable:
+```sql
+CREATE EXTENSION pg_stat_statements;
+```
+
+## Documentation
+
+- [Testing Guide](TESTING.md) - Comprehensive testing information
+
+## Dependencies
+
+- boto3, botocore - AWS SDK
+- loguru - Logging
+- mcp[cli] - Model Context Protocol
+- pydantic - Data validation
+- psycopg2-binary - PostgreSQL adapter
+
+## License
+
+Apache License 2.0 - See [LICENSE](LICENSE) file for details.

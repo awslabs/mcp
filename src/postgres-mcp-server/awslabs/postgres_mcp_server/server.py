@@ -12,143 +12,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs postgres MCP Server implementation."""
+"""PostgreSQL MCP Server implementation."""
 
 import argparse
 import asyncio
-import boto3
 import sys
-from awslabs.postgres_mcp_server.mutable_sql_detector import (
-    check_sql_injection_risk,
-    detect_mutating_keywords,
+from .analysis import (
+    analyze_database_structure as analyze_db_structure,
 )
-from botocore.exceptions import BotoCoreError, ClientError
+from .analysis import (
+    analyze_query_performance as analyze_performance,
+)
+from .analysis import (
+    analyze_table_fragmentation as analyze_fragmentation,
+)
+from .analysis import (
+    analyze_vacuum_stats as analyze_vacuum,
+)
+from .analysis import (
+    get_table_schema as fetch_table_schema,
+)
+from .analysis import (
+    identify_slow_queries as find_slow_queries,
+)
+from .analysis import (
+    recommend_indexes as suggest_indexes,
+)
+from .analysis import (
+    show_postgresql_settings as show_pg_settings,
+)
+from .connection import ConnectionFactory, DBConnector
+from .mutable_sql_detector import check_sql_injection_risk, detect_mutating_keywords
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
 
 
-client_error_code_key = 'run_query ClientError code'
-unexpected_error_key = 'run_query unexpected error'
-write_query_prohibited_key = 'Your MCP tool only allows readonly query. If you want to write, change the MCP configuration per README.md'
-query_comment_prohibited_key = 'The comment in query is prohibited because of injection risk'
-query_injection_risk_key = 'Your query contains risky injection patterns'
+# Error message constants
+UNEXPECTED_ERROR_KEY = 'run_query unexpected error'
+WRITE_QUERY_PROHIBITED_KEY = (
+    'Your MCP tool only allows readonly query. '
+    'If you want to write, change the MCP configuration per README.md'
+)
+QUERY_INJECTION_RISK_KEY = 'Your query contains risky injection patterns'
+
+# Initialize MCP server
+mcp = FastMCP("PostgreSQL MCP Server")
+
+# Global database connection
+db_connection: Optional[DBConnector] = None
 
 
-class DummyCtx:
-    """A dummy context class for error handling in MCP tools."""
-
-    async def error(self, message):
-        """Raise a runtime error with the given message.
-
-        Args:
-            message: The error message to include in the runtime error
-        """
-        # Do nothing
-        pass
-
-
-class DBConnection:
-    """Class that wraps DB connection client by RDS API."""
-
-    def __init__(self, cluster_arn, secret_arn, database, region, readonly, is_test=False):
-        """Initialize a new DB connection.
-
-        Args:
-            cluster_arn: The ARN of the RDS cluster
-            secret_arn: The ARN of the secret containing credentials
-            database: The name of the database to connect to
-            region: The AWS region where the RDS instance is located
-            readonly: Whether the connection should be read-only
-            is_test: Whether this is a test connection
-        """
-        self.cluster_arn = cluster_arn
-        self.secret_arn = secret_arn
-        self.database = database
-        self.readonly = readonly
-        if not is_test:
-            self.data_client = boto3.client('rds-data', region_name=region)
-
-    @property
-    def readonly_query(self):
-        """Get whether this connection is read-only.
-
-        Returns:
-            bool: True if the connection is read-only, False otherwise
-        """
-        return self.readonly
-
-
-class DBConnectionSingleton:
-    """Manages a single DBConnection instance across the application.
-
-    This singleton ensures that only one DBConnection is created and reused.
-    """
-
-    _instance = None
-
-    def __init__(self, resource_arn, secret_arn, database, region, readonly, is_test=False):
-        """Initialize a new DB connection singleton.
-
-        Args:
-            resource_arn: The ARN of the RDS resource
-            secret_arn: The ARN of the secret containing credentials
-            database: The name of the database to connect to
-            region: The AWS region where the RDS instance is located
-            readonly: Whether the connection should be read-only
-            is_test: Whether this is a test connection
-        """
-        if not all([resource_arn, secret_arn, database, region]):
-            raise ValueError(
-                'Missing required connection parameters. '
-                'Please provide resource_arn, secret_arn, database, and region.'
-            )
-        self._db_connection = DBConnection(
-            resource_arn, secret_arn, database, region, readonly, is_test
-        )
-
-    @classmethod
-    def initialize(cls, resource_arn, secret_arn, database, region, readonly, is_test=False):
-        """Initialize the singleton instance if it doesn't exist.
-
-        Args:
-            resource_arn: The ARN of the RDS resource
-            secret_arn: The ARN of the secret containing credentials
-            database: The name of the database to connect to
-            region: The AWS region where the RDS instance is located
-            readonly: Whether the connection should be read-only
-            is_test: Whether this is a test connection
-        """
-        if cls._instance is None:
-            cls._instance = cls(resource_arn, secret_arn, database, region, readonly, is_test)
-
-    @classmethod
-    def get(cls):
-        """Get the singleton instance.
-
-        Returns:
-            DBConnectionSingleton: The singleton instance
-
-        Raises:
-            RuntimeError: If the singleton has not been initialized
-        """
-        if cls._instance is None:
-            raise RuntimeError('DBConnectionSingleton is not initialized.')
-        return cls._instance
-
-    @property
-    def db_connection(self):
-        """Get the database connection.
-
-        Returns:
-            DBConnection: The database connection instance
-        """
-        return self._db_connection
-
-
-def extract_cell(cell: dict):
-    """Extracts the scalar or array value from a single cell."""
+def extract_cell(cell: Dict[str, Any]) -> Any:
+    """Extract the scalar or array value from a single cell."""
     if cell.get('isNull'):
         return None
     for key in (
@@ -164,266 +81,541 @@ def extract_cell(cell: dict):
     return None
 
 
-def parse_execute_response(response: dict) -> list[dict]:
+def parse_execute_response(response: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Convert RDS Data API execute_statement response to list of rows."""
     columns = [col['name'] for col in response.get('columnMetadata', [])]
     records = []
 
     for row in response.get('records', []):
-        row_data = {col: extract_cell(cell) for col, cell in zip(columns, row)}
+        row_data = {
+            col: extract_cell(cell)
+            for col, cell in zip(columns, row)
+        }
         records.append(row_data)
 
     return records
 
 
-mcp = FastMCP(
-    'apg-mcp MCP server. This is the starting point for all solutions created',
-    dependencies=[
-        'loguru',
-    ],
+@mcp.tool(
+    name='run_query',
+    description='Run a SQL query using unified database connection'
 )
-
-
-@mcp.tool(name='run_query', description='Run a SQL query using boto3 execute_statement')
 async def run_query(
     sql: Annotated[str, Field(description='The SQL query to run')],
     ctx: Context,
-    db_connection=None,
     query_parameters: Annotated[
-        Optional[List[Dict[str, Any]]], Field(description='Parameters for the SQL query')
+        Optional[List[Dict[str, Any]]],
+        Field(description='Parameters for the SQL query')
     ] = None,
-) -> list[dict]:  # type: ignore
-    """Run a SQL query using boto3 execute_statement.
-
-    Args:
-        sql: The sql statement to run
-        ctx: MCP context for logging and state management
-        db_connection: DB connection object passed by unit test. It should be None if if called by MCP server.
-        query_parameters: Parameters for the SQL query
-
-    Returns:
-        List of dictionary that contains query response rows
-    """
-    global client_error_code_key
-    global unexpected_error_key
-    global write_query_prohibited_key
-
-    if db_connection is None:
-        db_connection = DBConnectionSingleton.get().db_connection
-
-    if db_connection.readonly_query:
-        matches = detect_mutating_keywords(sql)
-        if (bool)(matches):
-            logger.info(
-                f'query is rejected because current setting only allows readonly query. detected keywords: {matches}, SQL query: {sql}'
-            )
-            await ctx.error(write_query_prohibited_key)
-            return [{'error': write_query_prohibited_key}]
-
-    issues = check_sql_injection_risk(sql)
-    if issues:
-        logger.info(
-            f'query is rejected because it contains risky SQL pattern, SQL query: {sql}, reasons: {issues}'
-        )
-        await ctx.error(
-            str({'message': 'Query parameter contains suspicious pattern', 'details': issues})
-        )
-        return [{'error': query_injection_risk_key}]
+) -> List[Dict[str, Any]]:
+    """Run a SQL query using unified database connection with security validation."""
+    global db_connection
 
     try:
-        logger.info(f'run_query: readonly:{db_connection.readonly_query}, SQL:{sql}')
+        if db_connection is None:
+            error_msg = "No database connection available. Please configure the database first."
+            await ctx.error(error_msg)
+            return [{'error': error_msg}]
 
         if db_connection.readonly_query:
-            response = await asyncio.to_thread(
-                execute_readonly_query, db_connection, sql, query_parameters
-            )
-        else:
-            execute_params = {
-                'resourceArn': db_connection.cluster_arn,
-                'secretArn': db_connection.secret_arn,
-                'database': db_connection.database,
-                'sql': sql,
-                'includeResultMetadata': True,
+            matches = detect_mutating_keywords(sql)
+            if matches:
+                logger.info(f'Query rejected - readonly mode, detected keywords: {matches}')
+                await ctx.error(WRITE_QUERY_PROHIBITED_KEY)
+                return [{'error': WRITE_QUERY_PROHIBITED_KEY}]
+
+        issues = check_sql_injection_risk(sql)
+        if issues:
+            logger.info(f'Query rejected - injection risk: {issues}')
+            error_details = {
+                'message': 'Query contains suspicious patterns',
+                'details': issues
             }
+            await ctx.error(str(error_details))
+            return [{'error': QUERY_INJECTION_RISK_KEY}]
 
-            if query_parameters:
-                execute_params['parameters'] = query_parameters
+        # Ensure connection is established
+        if not db_connection.is_connected():
+            logger.info("Establishing database connection for query execution...")
+            connected = await db_connection.connect()
+            if not connected:
+                raise Exception("Failed to establish database connection")
 
-            response = await asyncio.to_thread(
-                db_connection.data_client.execute_statement, **execute_params
-            )
-
-        logger.success('run_query successfully executed query:{}', sql)
-        return parse_execute_response(response)
-    except ClientError as e:
-        logger.exception(client_error_code_key)
-        await ctx.error(
-            str({'code': e.response['Error']['Code'], 'message': e.response['Error']['Message']})
+        logger.info(
+            f'run_query: connection_type:{db_connection.connection_info["type"]}, '
+            f'readonly:{db_connection.readonly_query}'
         )
-        return [{'error': client_error_code_key}]
+
+        # Execute query using parameterized approach
+        response = await db_connection.execute_query(sql, query_parameters)
+
+        logger.success('Query executed successfully')
+        return parse_execute_response(response)
+
     except Exception as e:
-        logger.exception(unexpected_error_key)
+        logger.exception(UNEXPECTED_ERROR_KEY)
         error_details = f'{type(e).__name__}: {str(e)}'
         await ctx.error(str({'message': error_details}))
-        return [{'error': unexpected_error_key}]
+        return [{'error': UNEXPECTED_ERROR_KEY}]
 
 
 @mcp.tool(
     name='get_table_schema',
-    description='Fetch table columns and comments from Postgres using RDS Data API',
+    description='Fetch table columns and comments from Postgres using RDS Data API'
 )
 async def get_table_schema(
-    table_name: Annotated[str, Field(description='name of the table')], ctx: Context
-) -> list[dict]:
-    """Get a table's schema information given the table name.
+    table_name: Annotated[str, Field(description='name of the table')],
+    ctx: Context
+) -> List[Dict[str, Any]]:
+    """Get a table's schema information given the table name."""
+    global db_connection
 
-    Args:
-        table_name: name of the table
-        ctx: MCP context for logging and state management
-
-    Returns:
-        List of dictionary that contains query response rows
-    """
-    logger.info(f'get_table_schema: {table_name}')
-
-    sql = """
-        SELECT
-            a.attname AS column_name,
-            pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
-            col_description(a.attrelid, a.attnum) AS column_comment
-        FROM
-            pg_attribute a
-        WHERE
-            a.attrelid = to_regclass(:table_name)
-            AND a.attnum > 0
-            AND NOT a.attisdropped
-        ORDER BY a.attnum
-    """
-
-    params = [{'name': 'table_name', 'value': {'stringValue': table_name}}]
-
-    return await run_query(sql=sql, ctx=ctx, query_parameters=params)
-
-
-def execute_readonly_query(
-    db_connection: DBConnection, query: str, parameters: Optional[List[Dict[str, Any]]] = None
-) -> dict:
-    """Execute a query under readonly transaction.
-
-    Args:
-        db_connection: connection object
-        query: query to run
-        parameters: parameters
-
-    Returns:
-        List of dictionary that contains query response rows
-    """
-    tx_id = ''
     try:
-        # Begin read-only transaction
-        tx = db_connection.data_client.begin_transaction(
-            resourceArn=db_connection.cluster_arn,
-            secretArn=db_connection.secret_arn,
-            database=db_connection.database,
+        if db_connection is None:
+            error_msg = "No database connection available"
+            await ctx.error(error_msg)
+            return [{'error': error_msg}]
+
+        # Use analysis module for secure query execution
+        result = await fetch_table_schema(db_connection, table_name)
+        return result
+
+    except Exception as e:
+        logger.exception("Error fetching table schema")
+        error_details = f'{type(e).__name__}: {str(e)}'
+        await ctx.error(str({'message': error_details}))
+        return [{'error': 'Failed to fetch table schema'}]
+
+
+@mcp.tool(
+    name='analyze_database_structure',
+    description='Analyze the database structure and provide insights on schema design, indexes, and potential optimizations'
+)
+async def analyze_database_structure(
+    ctx: Context,
+    debug: Annotated[
+        bool,
+        Field(description='Whether to include debug information')
+    ] = False
+) -> str:
+    """Analyze the database structure and provide optimization insights."""
+    global db_connection
+
+    try:
+        if db_connection is None:
+            error_msg = "No database connection available"
+            await ctx.error(error_msg)
+            return str({'error': error_msg})
+
+        # Use analysis module for secure analysis
+        result = await analyze_db_structure(db_connection)
+        return str(result)
+
+    except Exception as e:
+        logger.exception("Error analyzing database structure")
+        error_details = f'{type(e).__name__}: {str(e)}'
+        await ctx.error(str({'message': error_details}))
+        return str({'error': 'Failed to analyze database structure'})
+
+
+@mcp.tool(
+    name='show_postgresql_settings',
+    description='Show PostgreSQL configuration settings with optional filtering'
+)
+async def show_postgresql_settings(
+    ctx: Context,
+    pattern: Annotated[
+        Optional[str],
+        Field(description='Pattern to filter settings (SQL LIKE pattern)')
+    ] = None,
+    debug: Annotated[
+        bool,
+        Field(description='Include debug information')
+    ] = False
+) -> str:
+    """Show PostgreSQL configuration settings with optional filtering."""
+    global db_connection
+
+    try:
+        if db_connection is None:
+            error_msg = "No database connection available"
+            await ctx.error(error_msg)
+            return str({'error': error_msg})
+
+        # Use analysis module for secure analysis
+        result = await show_pg_settings(db_connection, pattern)
+        return str(result)
+
+    except Exception as e:
+        logger.exception("Error showing PostgreSQL settings")
+        error_details = f'{type(e).__name__}: {str(e)}'
+        await ctx.error(str({'message': error_details}))
+        return str({'error': 'Failed to show PostgreSQL settings'})
+
+
+@mcp.tool(
+    name='identify_slow_queries',
+    description='Identify slow-running queries in the database'
+)
+async def identify_slow_queries(
+    ctx: Context,
+    min_execution_time: Annotated[
+        float,
+        Field(description='Minimum execution time in milliseconds')
+    ] = 100.0,
+    limit: Annotated[
+        int,
+        Field(description='Maximum number of queries to return')
+    ] = 20,
+    debug: Annotated[
+        bool,
+        Field(description='Include debug information')
+    ] = False
+) -> str:
+    """Identify slow-running queries in the database."""
+    global db_connection
+
+    try:
+        if db_connection is None:
+            error_msg = "No database connection available"
+            await ctx.error(error_msg)
+            return str({'error': error_msg})
+
+        # Use analysis module for secure analysis
+        result = await find_slow_queries(
+            db_connection,
+            min_execution_time,
+            limit
+        )
+        return str(result)
+
+    except Exception as e:
+        logger.exception("Error identifying slow queries")
+        error_details = f'{type(e).__name__}: {str(e)}'
+        await ctx.error(str({'message': error_details}))
+        return str({'error': 'Failed to identify slow queries'})
+
+
+@mcp.tool(
+    name='analyze_table_fragmentation',
+    description='Analyze table fragmentation and provide optimization recommendations'
+)
+async def analyze_table_fragmentation(
+    ctx: Context,
+    threshold: Annotated[
+        float,
+        Field(description='Bloat percentage threshold for recommendations')
+    ] = 10.0,
+    debug: Annotated[
+        bool,
+        Field(description='Include debug information')
+    ] = False
+) -> str:
+    """Analyze table fragmentation and provide optimization recommendations."""
+    global db_connection
+
+    try:
+        if db_connection is None:
+            error_msg = "No database connection available"
+            await ctx.error(error_msg)
+            return str({'error': error_msg})
+
+        # Use analysis module for secure analysis
+        result = await analyze_fragmentation(db_connection, threshold)
+        return str(result)
+
+    except Exception as e:
+        logger.exception("Error analyzing table fragmentation")
+        error_details = f'{type(e).__name__}: {str(e)}'
+        await ctx.error(str({'message': error_details}))
+        return str({'error': 'Failed to analyze table fragmentation'})
+
+
+@mcp.tool(
+    name='analyze_query_performance',
+    description='Analyze query performance and provide optimization recommendations'
+)
+async def analyze_query_performance(
+    ctx: Context,
+    query: Annotated[str, Field(description='SQL query to analyze')],
+    debug: Annotated[
+        bool,
+        Field(description='Include debug information')
+    ] = False
+) -> str:
+    """Analyze query performance and provide optimization recommendations."""
+    global db_connection
+
+    try:
+        if db_connection is None:
+            error_msg = "No database connection available"
+            await ctx.error(error_msg)
+            return str({'error': error_msg})
+
+        # Use analysis module for secure analysis
+        result = await analyze_performance(db_connection, query)
+        return str(result)
+
+    except Exception as e:
+        logger.exception("Error analyzing query performance")
+        error_details = f'{type(e).__name__}: {str(e)}'
+        await ctx.error(str({'message': error_details}))
+        return str({'error': 'Failed to analyze query performance'})
+
+
+@mcp.tool(
+    name='health_check',
+    description='Check if the server is running and responsive'
+)
+async def health_check(ctx: Context) -> Dict[str, Any]:
+    """Check if the server is running and responsive."""
+    global db_connection
+
+    try:
+        if db_connection is None:
+            return {
+                'status': 'error',
+                'message': 'No database connection available',
+                'connection_status': 'not_configured'
+            }
+
+        # Test basic connectivity
+        connection_info = db_connection.connection_info
+        connection_type = connection_info.get('type', 'Unknown')
+
+        # Use a simple test query
+        test_result = await run_query("SELECT 1 as health_check", ctx)
+        connection_test = (
+            len(test_result) > 0 and
+            'error' not in test_result[0]
         )
 
-        tx_id = tx['transactionId']
-
-        db_connection.data_client.execute_statement(
-            resourceArn=db_connection.cluster_arn,
-            secretArn=db_connection.secret_arn,
-            database=db_connection.database,
-            sql='SET TRANSACTION READ ONLY',
-            transactionId=tx_id,
-        )
-
-        execute_params = {
-            'resourceArn': db_connection.cluster_arn,
-            'secretArn': db_connection.secret_arn,
-            'database': db_connection.database,
-            'sql': query,
-            'includeResultMetadata': True,
-            'transactionId': tx_id,
+        return {
+            'status': 'healthy' if connection_test else 'unhealthy',
+            'connection_type': connection_type,
+            'connection_status': 'connected' if connection_test else 'failed',
+            'readonly_mode': db_connection.readonly_query,
+            'server_info': 'PostgreSQL MCP Server v1.0.2'
         }
 
-        if parameters is not None:
-            execute_params['parameters'] = parameters
-
-        result = db_connection.data_client.execute_statement(**execute_params)
-
-        db_connection.data_client.commit_transaction(
-            resourceArn=db_connection.cluster_arn,
-            secretArn=db_connection.secret_arn,
-            transactionId=tx_id,
-        )
-        return result
     except Exception as e:
-        if tx_id:
-            db_connection.data_client.rollback_transaction(
-                resourceArn=db_connection.cluster_arn,
-                secretArn=db_connection.secret_arn,
-                transactionId=tx_id,
-            )
-        raise e
+        logger.exception("Health check failed")
+        return {
+            'status': 'error',
+            'message': f'Health check failed: {str(e)}',
+            'connection_status': 'error'
+        }
 
 
-def main():
-    """Main entry point for the MCP server application."""
-    global client_error_code_key
+@mcp.tool(
+    name='analyze_vacuum_stats',
+    description='Analyze vacuum statistics and provide recommendations for vacuum settings'
+)
+async def analyze_vacuum_stats(
+    ctx: Context,
+    debug: Annotated[
+        bool,
+        Field(description='Include debug information')
+    ] = False
+) -> str:
+    """Analyze vacuum statistics and provide recommendations for vacuum settings."""
+    global db_connection
 
-    """Run the MCP server with CLI argument support."""
+    try:
+        if db_connection is None:
+            error_msg = "No database connection available"
+            await ctx.error(error_msg)
+            return str({'error': error_msg})
+
+        # Use analysis module for secure analysis
+        result = await analyze_vacuum(db_connection)
+        return str(result)
+
+    except Exception as e:
+        logger.exception("Error analyzing vacuum stats")
+        error_details = f'{type(e).__name__}: {str(e)}'
+        await ctx.error(str({'message': error_details}))
+        return str({'error': 'Failed to analyze vacuum stats'})
+
+
+@mcp.tool(
+    name='recommend_indexes',
+    description='Recommend indexes for database optimization based on query patterns'
+)
+async def recommend_indexes(
+    ctx: Context,
+    query: Annotated[
+        Optional[str],
+        Field(description='Specific query to analyze for index recommendations')
+    ] = None,
+    debug: Annotated[
+        bool,
+        Field(description='Include debug information')
+    ] = False
+) -> str:
+    """Recommend indexes for database optimization based on query patterns."""
+    global db_connection
+
+    try:
+        if db_connection is None:
+            error_msg = "No database connection available"
+            await ctx.error(error_msg)
+            return str({'error': error_msg})
+
+        if not query:
+            error_msg = "Query parameter is required for index recommendations"
+            await ctx.error(error_msg)
+            return str({'error': error_msg})
+
+        # Use analysis module for secure analysis
+        result = await suggest_indexes(db_connection, query)
+        return str(result)
+
+    except Exception as e:
+        logger.exception("Error recommending indexes")
+        error_details = f'{type(e).__name__}: {str(e)}'
+        await ctx.error(str({'message': error_details}))
+        return str({'error': 'Failed to recommend indexes'})
+
+
+async def main() -> None:
+    """Main entry point for the PostgreSQL MCP Server."""
+    global db_connection
+
     parser = argparse.ArgumentParser(
-        description='An AWS Labs Model Context Protocol (MCP) server for postgres'
+        description='PostgreSQL MCP Server'
     )
-    parser.add_argument('--resource_arn', required=True, help='ARN of the RDS cluster')
+
+    # Connection method 1: RDS Data API
+    parser.add_argument(
+        '--resource_arn',
+        help='ARN of the RDS cluster (for RDS Data API)'
+    )
+
+    # Connection method 2: Direct PostgreSQL
+    parser.add_argument(
+        '--hostname',
+        help='Database hostname (for direct PostgreSQL connection)'
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=5432,
+        help='Database port (default: 5432)'
+    )
+
+    # Common parameters
     parser.add_argument(
         '--secret_arn',
         required=True,
-        help='ARN of the Secrets Manager secret for database credentials',
-    )
-    parser.add_argument('--database', required=True, help='Database name')
-    parser.add_argument(
-        '--region', required=True, help='AWS region for RDS Data API (default: us-west-2)'
+        help='ARN of the Secrets Manager secret for database credentials'
     )
     parser.add_argument(
-        '--readonly', required=True, help='Enforce NL to SQL to only allow readonly sql statement'
+        '--database',
+        required=True,
+        help='Database name'
     )
+    parser.add_argument(
+        '--region',
+        required=True,
+        help='AWS region'
+    )
+    parser.add_argument(
+        '--readonly',
+        required=True,
+        help='Enforce readonly SQL statements'
+    )
+
     args = parser.parse_args()
 
-    logger.info(
-        'Postgres MCP init with CLUSTER_ARN:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
-        args.resource_arn,
-        args.secret_arn,
-        args.region,
-        args.database,
-        args.readonly,
+    # Validate connection parameters
+    if not args.resource_arn and not args.hostname:
+        parser.error(
+            "Either --resource_arn (for RDS Data API) or "
+            "--hostname (for direct PostgreSQL) must be provided"
+        )
+
+    if args.resource_arn and args.hostname:
+        parser.error(
+            "Cannot specify both --resource_arn and --hostname. "
+            "Choose one connection method."
+        )
+
+    # Create database connection using ConnectionFactory
+    readonly = args.readonly == 'true'
+    connection_target = (
+        args.resource_arn if args.resource_arn
+        else f"{args.hostname}:{args.port}"
     )
 
     try:
-        DBConnectionSingleton.initialize(
-            args.resource_arn, args.secret_arn, args.database, args.region, args.readonly
+        # Create the appropriate connection
+        db_connection = ConnectionFactory.create_connection(
+            resource_arn=args.resource_arn,
+            hostname=args.hostname,
+            port=args.port,
+            secret_arn=args.secret_arn,
+            database=args.database,
+            region=args.region,
+            readonly=readonly
         )
-    except BotoCoreError:
-        logger.exception('Failed to RDS API client object for Postgres. Exit the MCP server')
+
+        connection_type = db_connection.connection_info['type']
+        connection_display = connection_type.replace('_', ' ').title()
+        logger.info(
+            f'PostgreSQL MCP Server starting with {connection_display} '
+            f'connection to {connection_target}, DATABASE:{args.database}, '
+            f'READONLY:{readonly}'
+        )
+
+    except Exception:
+        logger.exception(
+            'Failed to initialize database connection. Exiting.'
+        )
         sys.exit(1)
 
-    # Test RDS API connection
+    # Test database connection with optimized approach
+    class DummyCtx:
+        async def error(self, message):
+            pass
+
     ctx = DummyCtx()
-    response = asyncio.run(run_query('SELECT 1', ctx))
-    if (
-        isinstance(response, list)
-        and len(response) == 1
-        and isinstance(response[0], dict)
-        and 'error' in response[0]
-    ):
-        logger.error('Failed to validate RDS API db connection to Postgres. Exit the MCP server')
+
+    try:
+        connection_type = db_connection.connection_info['type']
+        connection_display = connection_type.replace('_', ' ').title()
+
+        if connection_type == "rds_data_api":
+            # For RDS Data API, test with actual query (fast)
+            response = await run_query('SELECT 1', ctx)
+            if (isinstance(response, list) and len(response) == 1 and
+                isinstance(response[0], dict) and 'error' in response[0]):
+                logger.error(
+                    f'Failed to validate {connection_display} database connection. Exiting.'
+                )
+                sys.exit(1)
+        else:
+            # For direct PostgreSQL, test connection establishment
+            connected = await db_connection.connect()
+            if not connected:
+                logger.error(
+                    f'Failed to establish {connection_display} database connection. Exiting.'
+                )
+                sys.exit(1)
+
+        logger.success(
+            f'{connection_display} database connection validated successfully'
+        )
+
+    except Exception:
+        logger.exception(
+            'Database connection validation failed. Exiting.'
+        )
         sys.exit(1)
 
-    logger.success('Successfully validated RDS API db connection to Postgres')
-
-    logger.info('Starting Postgres MCP server')
-    mcp.run()
+    # Run the MCP server
+    await mcp.run_stdio_async()
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    asyncio.run(main())

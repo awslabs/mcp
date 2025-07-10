@@ -1,4 +1,3 @@
-#!/bin/bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eo pipefail
+"""Connection module for PostgreSQL MCP Server."""
 
-# Since MCP servers don't typically run HTTP endpoints, 
-# we'll check if the main server module exists and is accessible
-if [ -f "/app/awslabs/postgres_mcp_server/server.py" ]; then
-  exit 0
-fi
+from .base_connection import DBConnector
+from .rds_connector import RDSDataAPIConnector
+from .postgres_driver import PostgresDriver
+from .connection_factory import ConnectionFactory
 
-exit 1
+__all__ = [
+    'DBConnector',
+    'RDSDataAPIConnector',
+    'PostgresDriver',
+    'ConnectionFactory',
+]
