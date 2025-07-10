@@ -2,7 +2,7 @@
 
 MCP server for AWS Cloud Development Kit (CDK) best practices, infrastructure as code patterns, and security compliance with CDK Nag.
 
-> **Note**: The [AWS CDK MCP Server](https://github.com/awslabs/mcp/tree/main/src/cdk-mcp-server) is not a standalone server. It lacks a FastAPI ASGI application, a direct server entry point, a standalone server implementation, and its own uvicorn-compatible server structure. Instead, it is a Python package that provides CDK-related functionality and is designed to register endpoints within an MCP server environment.
+> **Note**: The AWS CDK MCP Server is not a standalone server. It lacks a FastAPI ASGI application, a direct server entry point, a standalone server implementation, and its own uvicorn-compatible server structure. Instead, it is a Python package that provides CDK-related functionality and is designed to register endpoints within an MCP server environment.
 >
 > This package must be integrated into a proper MCP server environment rather than being run directly as a server itself. The MCP server is not included in this repository and must be set up separately to use this module. This approach is typically intended for customized workflows or specific needs, such as adding cdk-nag integration to generated code.
 >
