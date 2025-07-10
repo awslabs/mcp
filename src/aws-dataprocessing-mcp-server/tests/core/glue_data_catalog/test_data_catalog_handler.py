@@ -263,7 +263,6 @@ class TestDataCatalogManager:
         connection_properties = {
             'JDBC_CONNECTION_URL': 'jdbc:mysql://localhost:3306/test',
             'USERNAME': 'test-user',
-            'PASSWORD': 'test-password',  # pragma: allowlist secret
         }
         creation_time = datetime(2023, 1, 1, 0, 0, 0)
         last_updated_time = datetime(2023, 1, 2, 0, 0, 0)
@@ -289,7 +288,7 @@ class TestDataCatalogManager:
 
         # Verify that the Glue client was called with the correct parameters
         mock_glue_client.get_connection.assert_called_once_with(
-            Name=connection_name, CatalogId=catalog_id, HidePassword='true'
+            Name=connection_name, CatalogId=catalog_id, HidePassword=True
         )
 
         # Verify the response
@@ -568,7 +567,7 @@ class TestDataCatalogManager:
         mock_glue_client.get_partitions.assert_called_once_with(
             DatabaseName=database_name,
             TableName=table_name,
-            MaxResults=str(max_results),
+            MaxResults=max_results,
             Expression=expression,
             CatalogId=catalog_id,
         )
@@ -1654,7 +1653,7 @@ class TestDataCatalogManager:
         mock_glue_client.get_connection.assert_called_once_with(
             Name=connection_name,
             CatalogId=catalog_id,
-            HidePassword='true',  # pragma: allowlist secret
+            HidePassword=True,
             ApplyOverrideForComputeEnvironment=apply_override_for_compute_environment,
         )
 
@@ -1886,7 +1885,7 @@ class TestDataCatalogManager:
         mock_glue_client.get_partitions.assert_called_once_with(
             DatabaseName=database_name,
             TableName=table_name,
-            MaxResults=str(max_results),
+            MaxResults=max_results,
             Expression=expression,
             CatalogId=catalog_id,
             Segment=segment,
