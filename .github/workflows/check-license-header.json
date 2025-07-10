@@ -9,7 +9,7 @@
       "**/site-packages/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt"
+      "**/*requirements*.txt"
     ],
     "include": [
       "**/*.py",
@@ -36,7 +36,7 @@
       ".venv/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt"
+      "**/*requirements*.txt"
     ]
   }
 ]
