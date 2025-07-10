@@ -2,12 +2,12 @@
 
 The official MCP Server for interacting with AWS DynamoDB
 
-This comprehensive server provides both operational DynamoDB management and expert design guidance, featuring 30+ operational tools for managing DynamoDB tables, items, indexes, backups, and more, expert data modeling guidance through The DynamoDB Architect system, and complete workflow support from design to implementation to management.
+This comprehensive server provides both operational DynamoDB management and expert design guidance, featuring 30+ operational tools for managing DynamoDB tables, items, indexes, backups, and more, expert data modeling guidance.
 
 ## Available MCP Tools
 
 ### Design & Modeling
-- `dynamodb_data_modeling` - Launch The DynamoDB Architect - an enterprise-level expert system for systematic DynamoDB data modeling.
+- `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt
 
 ### Table Operations
 - `create_table` - Creates a new DynamoDB table with optional secondary indexes

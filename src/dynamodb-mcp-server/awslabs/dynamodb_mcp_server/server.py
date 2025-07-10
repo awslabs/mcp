@@ -170,11 +170,21 @@ resource_arn: str = Field(description='The Amazon Resource Name (ARN) of the Dyn
 @app.tool()
 @handle_exceptions
 async def dynamodb_data_modeling() -> str:
-    """Launch The DynamoDB Architect - an enterprise-level expert system for systematic DynamoDB data modeling.
+    """Retrieves the complete DynamoDB Data Modeling Expert prompt.
 
-    Transforms application requirements into production-ready multi-table designs with advanced optimizations, cost analysis, and integration patterns.
-    Supports enterprise-scale patterns including hot partition analysis, write sharding, sparse GSIs, and OpenSearch integration.
-    No parameters required.
+    This tool returns a production-ready prompt to help user with data modeling on DynamoDB.
+    The prompt guides through requirements gathering, access pattern analysis, and production-ready
+    schema design. The prompt contains:
+
+    - Structured 2-phase workflow (requirements → final design)
+    - Enterprise design patterns: hot partition analysis, write sharding, sparse GSIs, and more
+    - Cost optimization strategies and RPS-based capacity planning
+    - Multi-table design philosophy with advanced denormalization patterns
+    - Integration guidance for OpenSearch, Lambda, and analytics
+
+    Usage: Simply call this tool to get the expert prompt.
+
+    Returns: Complete expert system prompt as text (no parameters required)
     """
     prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_architect.md'
     architect_prompt = prompt_file.read_text(encoding='utf-8')
