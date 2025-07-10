@@ -114,5 +114,3 @@ The server uses two key environment variables:
   "AWS_REGION": "us-east-1"
 }
 ```
-
-The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing the AWS Pricing API to retrieve publicly available pricing information.
