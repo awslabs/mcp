@@ -90,7 +90,8 @@ def create_pricing_client(profile: Optional[str] = None, region: Optional[str] =
     Returns:
         boto3 pricing client
     """
-    session = boto3.Session(profile_name=profile if profile else consts.AWS_PROFILE)
+    profile_name = profile if profile else consts.AWS_PROFILE
+    session = boto3.Session(profile_name=profile_name)
 
     # Determine the appropriate pricing region
     pricing_region = get_pricing_region(region)
@@ -100,5 +101,19 @@ def create_pricing_client(profile: Optional[str] = None, region: Optional[str] =
         user_agent_extra=f'awslabs/mcp/{consts.MCP_SERVER_NAME}/{__version__}',
     )
 
-    logger.debug(f'Creating pricing client for region: {pricing_region}')
+    logger.debug(
+        f'Creating pricing client for region "{pricing_region}" and profile "{profile_name}"'
+    )
     return session.client('pricing', config=config)
+
+
+def get_currency_for_region(region: str) -> str:
+    """Determine currency based on AWS region.
+
+    Args:
+        region: AWS region code (e.g., 'us-east-1', 'cn-north-1')
+
+    Returns:
+        'CNY' for China partition regions (cn-*), 'USD' otherwise
+    """
+    return 'CNY' if region.startswith('cn-') else 'USD'

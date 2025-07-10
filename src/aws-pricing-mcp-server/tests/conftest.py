@@ -14,6 +14,7 @@
 
 """Test fixtures for the aws-pricing-mcp-server."""
 
+import json
 import pytest
 import tempfile
 from pathlib import Path
@@ -172,29 +173,35 @@ def mock_boto3() -> MagicMock:
 
     # Mock pricing client
     pricing_client = MagicMock()
-    pricing_client.get_products.return_value = {
-        'PriceList': [
-            {
-                'product': {
-                    'attributes': {
-                        'productFamily': 'Serverless',
-                        'description': 'Run code without thinking about servers',
-                    },
-                },
-                'terms': {
-                    'OnDemand': {
-                        'rate1': {
-                            'priceDimensions': {
-                                'dim1': {
-                                    'unit': 'requests',
-                                    'pricePerUnit': {'USD': '0.20'},
-                                    'description': 'per 1M requests',
-                                },
-                            },
+
+    # Create sample pricing data as a dictionary then convert to JSON string
+    sample_pricing_item = {
+        'product': {
+            'attributes': {
+                'productFamily': 'Serverless',
+                'description': 'Run code without thinking about servers',
+            },
+        },
+        'serviceCode': 'AmazonEC2',
+        'terms': {
+            'OnDemand': {
+                'rate1': {
+                    'priceDimensions': {
+                        'dim1': {
+                            'unit': 'requests',
+                            'pricePerUnit': {'USD': '0.20'},
+                            'description': 'per 1M requests',
                         },
                     },
                 },
             },
+        },
+    }
+
+    # Return JSON strings in PriceList (as the real AWS API does)
+    pricing_client.get_products.return_value = {
+        'PriceList': [
+            json.dumps(sample_pricing_item),
         ],
     }
 
@@ -204,3 +211,113 @@ def mock_boto3() -> MagicMock:
     mock.Session.return_value = session
 
     return mock
+
+
+@pytest.fixture
+def mock_pricing_client_attributes() -> MagicMock:
+    """Mock pricing client specifically for describe_services calls."""
+    mock_client = MagicMock()
+
+    # Default response for AmazonEC2
+    mock_client.describe_services.return_value = {
+        'Services': [
+            {
+                'ServiceCode': 'AmazonEC2',
+                'AttributeNames': [
+                    'instanceType',
+                    'location',
+                    'tenancy',
+                    'operatingSystem',
+                    'preInstalledSw',
+                    'capacitystatus',
+                    'productFamily',
+                ],
+            }
+        ]
+    }
+
+    return mock_client
+
+
+@pytest.fixture
+def mock_pricing_client_values() -> MagicMock:
+    """Mock pricing client specifically for get_attribute_values calls."""
+    mock_client = MagicMock()
+
+    # Default response for instanceType attribute
+    mock_client.get_attribute_values.return_value = {
+        'AttributeValues': [
+            {'Value': 't2.micro'},
+            {'Value': 't2.small'},
+            {'Value': 't3.medium'},
+            {'Value': 'm5.large'},
+            {'Value': 'c5.xlarge'},
+            {'Value': 'r5.2xlarge'},
+        ]
+    }
+
+    return mock_client
+
+
+@pytest.fixture
+def sample_service_attributes() -> Dict[str, Any]:
+    """Sample service attributes for different AWS services."""
+    return {
+        'AmazonEC2': [
+            'instanceType',
+            'location',
+            'tenancy',
+            'operatingSystem',
+            'preInstalledSw',
+            'capacitystatus',
+            'productFamily',
+        ],
+        'AmazonRDS': [
+            'engineCode',
+            'instanceType',
+            'deploymentOption',
+            'location',
+            'databaseEngine',
+            'licenseModel',
+        ],
+        'AmazonS3': ['storageClass', 'location', 'volumeType', 'productFamily'],
+    }
+
+
+@pytest.fixture
+def sample_attribute_values() -> Dict[str, Any]:
+    """Sample attribute values for different service attributes."""
+    return {
+        'instanceType': [
+            't2.micro',
+            't2.small',
+            't3.medium',
+            'm5.large',
+            'c5.xlarge',
+            'r5.2xlarge',
+        ],
+        'location': [
+            'US East (N. Virginia)',
+            'US West (Oregon)',
+            'EU (Ireland)',
+            'EU (London)',
+            'Asia Pacific (Tokyo)',
+            'Asia Pacific (Sydney)',
+        ],
+        'engineCode': [
+            'mysql',
+            'postgres',
+            'oracle-ee',
+            'sqlserver-ex',
+            'aurora-mysql',
+            'aurora-postgresql',
+        ],
+        'operatingSystem': ['Linux', 'Windows', 'RHEL', 'SUSE'],
+        'storageClass': [
+            'Standard',
+            'Standard-IA',
+            'One Zone-IA',
+            'Glacier',
+            'Glacier Deep Archive',
+        ],
+    }
