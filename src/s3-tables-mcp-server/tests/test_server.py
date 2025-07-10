@@ -777,3 +777,118 @@ def test_main_entry(monkeypatch):
     monkeypatch.setattr(sys, 'argv', ['prog'])
     server_mod.main()
     assert getattr(server_mod, '_main_called', False)
+
+
+@pytest.mark.asyncio
+async def test_create_table_bucket_invalid_region(mock_table_buckets):
+    """Test create_table_bucket tool with invalid region_name."""
+    name = 'test-bucket'
+    region = 'bad-region'
+    mock_table_buckets.create_table_bucket.side_effect = Exception('Invalid region')
+    with pytest.raises(Exception, match='Invalid region'):
+        await create_table_bucket(name=name, region_name=region)
+
+
+@pytest.mark.asyncio
+async def test_create_table_bucket_default_region(mock_table_buckets):
+    """Test create_table_bucket tool with default (None) region_name."""
+    name = 'test-bucket'
+    expected_response = {'status': 'success'}
+    result = await create_table_bucket(name=name, region_name=None)
+    assert result == expected_response
+    mock_table_buckets.create_table_bucket.assert_called_with(name=name, region_name=None)
+
+
+@pytest.mark.asyncio
+async def test_create_namespace_invalid_region(mock_namespaces):
+    """Test create_namespace tool with invalid region_name."""
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    region = 'bad-region'
+    mock_namespaces.create_namespace.side_effect = Exception('Invalid region')
+    with pytest.raises(Exception, match='Invalid region'):
+        await create_namespace(
+            table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=region
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_namespace_default_region(mock_namespaces):
+    """Test create_namespace tool with default (None) region_name."""
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    expected_response = {'status': 'success'}
+    result = await create_namespace(
+        table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=None
+    )
+    assert result == expected_response
+    mock_namespaces.create_namespace.assert_called_with(
+        table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=None
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_table_invalid_region(mock_tables):
+    """Test create_table tool with invalid region_name."""
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    format = 'ICEBERG'
+    metadata = TableMetadata(
+        iceberg=IcebergMetadata(
+            schema=IcebergSchema(
+                fields=[
+                    SchemaField(name='id', type='long', required=True),
+                    SchemaField(name='name', type='string', required=True),
+                ]
+            )
+        )
+    )
+    region = 'bad-region'
+    mock_tables.create_table.side_effect = Exception('Invalid region')
+    with pytest.raises(Exception, match='Invalid region'):
+        await create_table(
+            table_bucket_arn=table_bucket_arn,
+            namespace=namespace,
+            name=name,
+            format=format,
+            metadata=metadata,
+            region_name=region,
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_table_default_region(mock_tables):
+    """Test create_table tool with default (None) region_name."""
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    namespace = 'test-namespace'
+    name = 'test-table'
+    format = 'ICEBERG'
+    metadata = TableMetadata(
+        iceberg=IcebergMetadata(
+            schema=IcebergSchema(
+                fields=[
+                    SchemaField(name='id', type='long', required=True),
+                    SchemaField(name='name', type='string', required=True),
+                ]
+            )
+        )
+    )
+    expected_response = {'status': 'success'}
+    result = await create_table(
+        table_bucket_arn=table_bucket_arn,
+        namespace=namespace,
+        name=name,
+        format=format,
+        metadata=metadata,
+        region_name=None,
+    )
+    assert result == expected_response
+    mock_tables.create_table.assert_called_with(
+        table_bucket_arn=table_bucket_arn,
+        namespace=namespace,
+        name=name,
+        format=OpenTableFormat.ICEBERG,
+        metadata=metadata,
+        region_name=None,
+    )

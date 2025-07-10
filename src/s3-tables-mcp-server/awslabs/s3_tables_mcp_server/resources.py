@@ -25,7 +25,7 @@ from .models import (
 )
 from .utils import get_s3tables_client
 from pydantic import BaseModel
-from typing import Any, Callable, Dict, List, Type, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
 
 T = TypeVar('T')
@@ -89,7 +89,7 @@ async def create_resource_response(
         return create_error_response(e, resource_name)
 
 
-async def list_table_buckets_resource() -> str:
+async def list_table_buckets_resource(region_name: Optional[str] = None) -> str:
     """List all S3 Tables buckets.
 
     Lists table buckets for your account. Requires s3tables:ListTableBuckets permission.
@@ -99,7 +99,7 @@ async def list_table_buckets_resource() -> str:
         A JSON string containing the list of table buckets and total count.
     """
     try:
-        client = get_s3tables_client()
+        client = get_s3tables_client(region_name)
         paginator = client.get_paginator('list_table_buckets')
 
         table_buckets = await paginate_and_collect(
@@ -123,20 +123,20 @@ async def list_table_buckets_resource() -> str:
         return create_error_response(e, 'table_buckets')
 
 
-async def get_table_buckets() -> List[TableBucketSummary]:
+async def get_table_buckets(region_name: Optional[str] = None) -> List[TableBucketSummary]:
     """Get all table buckets as TableBucketSummary objects.
 
     Returns:
         A list of TableBucketSummary objects
     """
-    response = await list_table_buckets_resource()
+    response = await list_table_buckets_resource(region_name=region_name)
     data = json.loads(response)
     if 'error' in data:
         raise Exception(data['error'])
     return [TableBucketSummary(**bucket) for bucket in data['table_buckets']]
 
 
-async def list_namespaces_resource() -> str:
+async def list_namespaces_resource(region_name: Optional[str] = None) -> str:
     """List all namespaces across all table buckets.
 
     Lists the namespaces within table buckets. Requires s3tables:ListNamespaces permission.
@@ -146,10 +146,10 @@ async def list_namespaces_resource() -> str:
         A JSON string containing the list of namespaces and total count.
     """
     try:
-        client = get_s3tables_client()
+        client = get_s3tables_client(region_name)
 
         # Get all table buckets
-        table_buckets = await get_table_buckets()
+        table_buckets = await get_table_buckets(region_name=region_name)
 
         # Then get namespaces for each bucket
         all_namespaces = []
@@ -181,7 +181,7 @@ async def list_namespaces_resource() -> str:
         return create_error_response(e, 'namespaces')
 
 
-async def list_tables_resource() -> str:
+async def list_tables_resource(region_name: Optional[str] = None) -> str:
     """List all Iceberg tables across all table buckets and namespaces.
 
     Lists tables in the given table bucket. Requires s3tables:ListTables permission.
@@ -192,10 +192,10 @@ async def list_tables_resource() -> str:
         A JSON string containing the list of tables and total count.
     """
     try:
-        client = get_s3tables_client()
+        client = get_s3tables_client(region_name)
 
         # Get all table buckets
-        table_buckets = await get_table_buckets()
+        table_buckets = await get_table_buckets(region_name=region_name)
 
         # Then get tables for each bucket
         all_tables = []

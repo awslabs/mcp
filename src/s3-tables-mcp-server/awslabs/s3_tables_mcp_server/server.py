@@ -133,36 +133,38 @@ def log_tool_call(tool_name, *args, **kwargs):
 
 
 @app.tool()
-async def list_table_buckets() -> str:
+async def list_table_buckets(
+    region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
+) -> str:
     """List all S3 table buckets for your AWS account.
 
     Permissions:
     You must have the s3tables:ListTableBuckets permission to use this operation.
     """
     log_tool_call('list_table_buckets', locals())
-    return await resources.list_table_buckets_resource()
+    return await resources.list_table_buckets_resource(region_name=region_name)
 
 
 @app.tool()
-async def list_namespaces() -> str:
+async def list_namespaces(region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None) -> str:
     """List all namespaces across all S3 table buckets.
 
     Permissions:
     You must have the s3tables:ListNamespaces permission to use this operation.
     """
     log_tool_call('list_namespaces', locals())
-    return await resources.list_namespaces_resource()
+    return await resources.list_namespaces_resource(region_name=region_name)
 
 
 @app.tool()
-async def list_tables() -> str:
+async def list_tables(region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None) -> str:
     """List all S3 tables across all table buckets and namespaces.
 
     Permissions:
     You must have the s3tables:ListTables permission to use this operation.
     """
     log_tool_call('list_tables', locals())
-    return await resources.list_tables_resource()
+    return await resources.list_tables_resource(region_name=region_name)
 
 
 @write_operation

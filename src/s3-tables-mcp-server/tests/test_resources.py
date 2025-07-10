@@ -310,6 +310,46 @@ class TestListTableBucketsResource:
             assert parsed['table_buckets'] == []
             assert parsed['total_count'] == 0
 
+    @pytest.mark.asyncio
+    async def test_list_table_buckets_resource_with_region(self):
+        """Test table buckets resource listing with region_name provided."""
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {
+                'tableBuckets': [
+                    {
+                        'arn': 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+                        'name': 'test-bucket',
+                        'ownerAccountId': '123456789012',
+                        'createdAt': '2023-01-01T00:00:00Z',
+                    }
+                ]
+            }
+        ]
+        mock_client.get_paginator.return_value = mock_paginator
+        with patch(
+            'awslabs.s3_tables_mcp_server.resources.get_s3tables_client'
+        ) as mock_get_client:
+            mock_get_client.return_value = mock_client
+            result = await list_table_buckets_resource(region_name='us-west-2')
+            parsed = json.loads(result)
+            assert len(parsed['table_buckets']) == 1
+            mock_get_client.assert_called_once_with('us-west-2')
+
+    @pytest.mark.asyncio
+    async def test_list_table_buckets_resource_invalid_region(self):
+        """Test table buckets resource listing with invalid region_name."""
+        with patch(
+            'awslabs.s3_tables_mcp_server.resources.get_s3tables_client'
+        ) as mock_get_client:
+            mock_get_client.side_effect = Exception('Invalid region')
+            result = await list_table_buckets_resource(region_name='bad-region')
+            parsed = json.loads(result)
+            assert parsed['error'] == 'Invalid region'
+            assert parsed['table_buckets'] == []
+            assert parsed['total_count'] == 0
+
 
 class TestGetTableBuckets:
     """Test the get_table_buckets function."""
@@ -441,6 +481,66 @@ class TestListNamespacesResource:
             assert parsed['namespaces'] == []
             assert parsed['total_count'] == 0
 
+    @pytest.mark.asyncio
+    async def test_list_namespaces_resource_with_region(self):
+        """Test namespaces resource listing with region_name provided."""
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {
+                'namespaces': [
+                    {
+                        'namespace': ['test-namespace'],
+                        'createdAt': '2023-01-01T00:00:00Z',
+                        'createdBy': '123456789012',
+                        'ownerAccountId': '123456789012',
+                    }
+                ]
+            }
+        ]
+        mock_client.get_paginator.return_value = mock_paginator
+        mock_bucket = TableBucketSummary(
+            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            name='test-bucket',
+            owner_account_id='123456789012',
+            created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
+        )
+        with (
+            patch('awslabs.s3_tables_mcp_server.resources.get_s3tables_client') as mock_get_client,
+            patch(
+                'awslabs.s3_tables_mcp_server.resources.get_table_buckets',
+                return_value=[mock_bucket],
+            ),
+        ):
+            mock_get_client.return_value = mock_client
+            result = await list_namespaces_resource(region_name='us-west-2')
+            parsed = json.loads(result)
+            assert len(parsed['namespaces']) == 1
+            mock_get_client.assert_called_with('us-west-2')
+
+    @pytest.mark.asyncio
+    async def test_list_namespaces_resource_invalid_region(self):
+        """Test namespaces resource listing with invalid region_name."""
+        mock_bucket = TableBucketSummary(
+            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            name='test-bucket',
+            owner_account_id='123456789012',
+            created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
+        )
+        with (
+            patch(
+                'awslabs.s3_tables_mcp_server.resources.get_table_buckets',
+                return_value=[mock_bucket],
+            ),
+            patch('awslabs.s3_tables_mcp_server.resources.get_s3tables_client') as mock_get_client,
+        ):
+            mock_get_client.side_effect = Exception('Invalid region')
+            result = await list_namespaces_resource(region_name='bad-region')
+            parsed = json.loads(result)
+            assert parsed['error'] == 'Invalid region'
+            assert parsed['namespaces'] == []
+            assert parsed['total_count'] == 0
+
 
 class TestListTablesResource:
     """Test the list_tables_resource function."""
@@ -538,5 +638,69 @@ class TestListTablesResource:
 
             # Assert
             parsed = json.loads(result)
+            assert parsed['tables'] == []
+            assert parsed['total_count'] == 0
+
+    @pytest.mark.asyncio
+    async def test_list_tables_resource_with_region(self):
+        """Test tables resource listing with region_name provided."""
+        mock_client = MagicMock()
+        mock_paginator = MagicMock()
+        mock_paginator.paginate.return_value = [
+            {
+                'tables': [
+                    {
+                        'name': 'test-table',
+                        'namespace': ['test-namespace'],
+                        'type': 'customer',
+                        'tableARN': 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket/table/123e4567-e89b-12d3-a456-426614174000',
+                        'createdAt': '2023-01-01T00:00:00Z',
+                        'modifiedAt': '2023-01-01T00:00:00Z',
+                        'createdBy': '123456789012',
+                        'ownerAccountId': '123456789012',
+                    }
+                ]
+            }
+        ]
+        mock_client.get_paginator.return_value = mock_paginator
+        mock_bucket = TableBucketSummary(
+            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            name='test-bucket',
+            owner_account_id='123456789012',
+            created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
+        )
+        with (
+            patch('awslabs.s3_tables_mcp_server.resources.get_s3tables_client') as mock_get_client,
+            patch(
+                'awslabs.s3_tables_mcp_server.resources.get_table_buckets',
+                return_value=[mock_bucket],
+            ),
+        ):
+            mock_get_client.return_value = mock_client
+            result = await list_tables_resource(region_name='us-west-2')
+            parsed = json.loads(result)
+            assert len(parsed['tables']) == 1
+            mock_get_client.assert_called_with('us-west-2')
+
+    @pytest.mark.asyncio
+    async def test_list_tables_resource_invalid_region(self):
+        """Test tables resource listing with invalid region_name."""
+        mock_bucket = TableBucketSummary(
+            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            name='test-bucket',
+            owner_account_id='123456789012',
+            created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
+        )
+        with (
+            patch(
+                'awslabs.s3_tables_mcp_server.resources.get_table_buckets',
+                return_value=[mock_bucket],
+            ),
+            patch('awslabs.s3_tables_mcp_server.resources.get_s3tables_client') as mock_get_client,
+        ):
+            mock_get_client.side_effect = Exception('Invalid region')
+            result = await list_tables_resource(region_name='bad-region')
+            parsed = json.loads(result)
+            assert parsed['error'] == 'Invalid region'
             assert parsed['tables'] == []
             assert parsed['total_count'] == 0
