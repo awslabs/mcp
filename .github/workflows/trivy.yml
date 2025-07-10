@@ -44,8 +44,36 @@ jobs:
       security-events: write
     runs-on: ubuntu-latest
     steps:
+      - name: Get Checkout Depth
+        id: checkout-depth
+        run: |
+          # Fetch depth the number of commits in the PR and otherwise 1
+          echo "fetch-depth=$(( ${{ (github.event_name == 'pull_request' && github.event.pull_request.commits) || 0 }} + 1 ))" >> "${GITHUB_OUTPUT}"
+
       - name: Checkout code
+        id: checkout-code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          lfs: true
+          fetch-depth: ${{ steps.checkout-depth.outputs.fetch-depth || '1' }}
+
+      - name: If trivy-results.sarif exists, it must be part of the PR changes
+        if: github.event_name == 'pull_request' && hashFiles(format('{0}/trivy-results.sarif', matrix.dockerfile)) != ''
+        id: check-sarif-in-pr
+        run: |
+          # Check if trivy-results.sarif is in the PR changes
+
+          if git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ steps.checkout-code.outputs.commit }} | grep -q "${{ matrix.dockerfile }}/trivy-results.sarif"; then
+            echo "${{ matrix.dockerfile }}/trivy-results.sarif is in the PR changes"
+            echo "sarif-in-pr=true" >> $GITHUB_OUTPUT
+            echo "::group::Here is the SARIF file before LFS pull"
+            cat "${{ matrix.dockerfile }}/trivy-results.sarif"
+            echo "::endgroup::"
+          else
+            echo "Either remove the ${{ matrix.dockerfile }}/trivy-results.sarif or include a fresh one in the PR"
+            echo "sarif-in-pr=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
       - name: Build an image from Dockerfile
         working-directory: ${{ matrix.dockerfile }}
@@ -53,6 +81,7 @@ jobs:
           docker build -t docker.io/${{ matrix.dockerfile }}:${{ github.sha }} .
 
       - name: Run Trivy vulnerability scanner
+        if: hashFiles(format('{0}/trivy-results.sarif', matrix.dockerfile)) == ''
         uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 #v0.31.0
         with:
           image-ref: 'docker.io/${{ matrix.dockerfile }}:${{ github.sha }}'
