@@ -530,6 +530,22 @@ A server for interacting with AWS Cost Explorer to analyze AWS costs and usage d
 
 [Learn more about the AWS Cost Explorer MCP Server](servers/cost-explorer-mcp-server.md)
 
+### AWS FinOps MCP Server
+
+A Model Context Protocol (MCP) server that provides tools for AWS cost optimization by wrapping boto3 SDK functions.
+
+**Features:**
+
+- Access AWS Cost Optimization Hub recommendations
+- Query AWS Compute Optimizer for resource optimization insights
+- Analyze S3 Storage Lens data for storage optimization
+- Get reservation and savings plan purchase recommendations
+- Retrieve cost and usage data for detailed analysis
+
+This MCP server enables LLMs to access AWS cost optimization services directly, allowing them to:
+
+[Learn more about the aws-finops MCP Server](servers/aws-finops-mcp-server.md)
+
 ### AWS HealthOmics MCP Server
 
 An AWS Labs Model Context Protocol (MCP) server for AWS HealthOmics
