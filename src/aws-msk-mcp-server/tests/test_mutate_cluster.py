@@ -457,6 +457,95 @@ class TestMutateClusterTools:
         mock_check_tag.assert_called_once()
         assert result == expected_response
 
+        # Verify that update_security was called with the correct parameters
+        mock_kafka_client.update_security.assert_called_once_with(
+            ClusterArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            CurrentVersion='1',
+            ClientAuthentication=client_authentication,
+        )
+
+        # Reset mocks for the next test
+        mock_boto3_client.reset_mock()
+        mock_check_tag.reset_mock()
+        mock_kafka_client.reset_mock()
+
+        # Test with no optional parameters (lines 72-75 in update_security.py)
+        mock_check_tag.return_value = True
+        mock_kafka_client.update_security.return_value = expected_response
+
+        # Act - call with only required parameters
+        result = mock_update_security_tool(
+            region='us-east-1',
+            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            current_version='1',
+        )
+
+        # Assert
+        mock_boto3_client.assert_called_once_with(service_name='kafka', region_name='us-east-1')
+        mock_check_tag.assert_called_once()
+        assert result == expected_response
+
+        # Verify that update_security was called with only the required parameters
+        mock_kafka_client.update_security.assert_called_once_with(
+            ClusterArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            CurrentVersion='1',
+        )
+
+        # Reset mocks for the next test
+        mock_boto3_client.reset_mock()
+        mock_check_tag.reset_mock()
+        mock_kafka_client.reset_mock()
+
+        # Test with encryption_info parameter (line 76 in update_security.py)
+        mock_check_tag.return_value = True
+        mock_kafka_client.update_security.return_value = expected_response
+
+        # Create encryption_info parameter
+        encryption_info = {
+            'EncryptionInTransit': {'InCluster': True, 'ClientBroker': 'TLS'},
+            'EncryptionAtRest': {'DataVolumeKMSKeyId': 'alias/aws/kafka'},
+        }
+
+        # Act - call with encryption_info parameter
+        result = mock_update_security_tool(
+            region='us-east-1',
+            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            current_version='1',
+            encryption_info=encryption_info,
+        )
+
+        # Assert
+        mock_boto3_client.assert_called_once_with(service_name='kafka', region_name='us-east-1')
+        mock_check_tag.assert_called_once()
+        assert result == expected_response
+
+        # Verify that update_security was called with the encryption_info parameter
+        mock_kafka_client.update_security.assert_called_once_with(
+            ClusterArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            CurrentVersion='1',
+            EncryptionInfo=encryption_info,
+        )
+
+        # Reset mocks for the next test
+        mock_boto3_client.reset_mock()
+        mock_check_tag.reset_mock()
+        mock_kafka_client.reset_mock()
+
+        # Test with client=None (line 64 in update_security.py)
+        # Create a direct reference to the update_security function
+        from awslabs.aws_msk_mcp_server.tools.mutate_cluster.update_security import update_security
+
+        # Act & Assert - call with client=None should raise ValueError
+        with pytest.raises(ValueError) as excinfo:
+            update_security(
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                current_version='1',
+                client=None,
+            )
+
+        # Verify the error message
+        assert 'Client must be provided' in str(excinfo.value)
+
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag')
     def test_put_cluster_policy_tool(self, mock_check_tag, mock_boto3_client):

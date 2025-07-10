@@ -326,6 +326,39 @@ class TestReadClusterInit:
         assert result == expected_response
 
     @patch('boto3.client')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_nodes')
+    def test_list_nodes_with_next_token(self, mock_list_nodes, mock_boto3_client):
+        """Test the list_nodes function with a next_token parameter."""
+        # Arrange
+        # Import the function directly to test it
+        from awslabs.aws_msk_mcp_server.tools.read_cluster.list_nodes import list_nodes
+
+        # Mock the boto3 client and its response
+        mock_kafka_client = MagicMock()
+        mock_boto3_client.return_value = mock_kafka_client
+
+        expected_response = {
+            'NodeInfoList': [
+                {
+                    'BrokerNodeInfo': {
+                        'BrokerId': 1,
+                        'ClientVpcIpAddress': '10.0.0.1',
+                        'ClientSubnet': 'subnet-1',
+                        'CurrentBrokerSoftwareInfo': {'KafkaVersion': '2.8.1'},
+                    }
+                }
+            ],
+            'NextToken': 'next-token-value',
+        }
+        mock_kafka_client.list_nodes.return_value = expected_response
+
+        # Act
+        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        next_token = 'test-next-token'
+        result = list_nodes(cluster_arn, mock_kafka_client, next_token=next_token)
+        assert result == expected_response
+
+    @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_compatible_kafka_versions')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
@@ -797,3 +830,100 @@ class TestReadClusterInit:
         mock_get_bootstrap_brokers.assert_called_once_with(cluster_arn, mock_kafka_client)
         assert result['metadata'] == {'error': 'Test error'}
         assert result['brokers'] == {'brokers': 'data'}
+
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.__version__', '1.0.0')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.Config')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_scram_secrets')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_client_vpc_connections')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_cluster_operations')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_cluster_policy')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_compatible_kafka_versions')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.list_nodes')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.get_bootstrap_brokers')
+    @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.describe_cluster')
+    @patch('boto3.client')
+    def test_get_cluster_info_all_with_all_errors(
+        self,
+        mock_boto3_client,
+        mock_describe_cluster,
+        mock_get_bootstrap_brokers,
+        mock_list_nodes,
+        mock_get_compatible_kafka_versions,
+        mock_get_cluster_policy,
+        mock_list_cluster_operations,
+        mock_list_client_vpc_connections,
+        mock_list_scram_secrets,
+        mock_config,
+    ):
+        """Test the get_cluster_info function with 'all' info_type when all functions raise errors."""
+        # Arrange
+        # Create a spy that will capture the decorated functions
+        decorated_functions = {}
+
+        class MockMCP:
+            @staticmethod
+            def tool(name=None, **kwargs):
+                def decorator(func):
+                    decorated_functions[name] = func
+                    return func
+
+                return decorator
+
+        # Register the tools with our spy
+        from awslabs.aws_msk_mcp_server.tools.read_cluster import register_module
+
+        register_module(cast(FastMCP, MockMCP()))
+
+        # Get the captured function
+        get_cluster_info_tool = decorated_functions['get_cluster_info']
+        assert get_cluster_info_tool is not None, 'get_cluster_info tool was not registered'
+
+        # Mock the boto3 client and its response
+        mock_kafka_client = MagicMock()
+        mock_boto3_client.return_value = mock_kafka_client
+
+        # Mock the Config class
+        mock_config_instance = MagicMock()
+        mock_config.return_value = mock_config_instance
+
+        # Make all functions raise exceptions
+        mock_describe_cluster.side_effect = Exception('Metadata error')
+        mock_get_bootstrap_brokers.side_effect = Exception('Brokers error')
+        mock_list_nodes.side_effect = Exception('Nodes error')
+        mock_get_compatible_kafka_versions.side_effect = Exception('Compatible versions error')
+        mock_get_cluster_policy.side_effect = Exception('Policy error')
+        mock_list_cluster_operations.side_effect = Exception('Operations error')
+        mock_list_client_vpc_connections.side_effect = Exception('Client VPC connections error')
+        mock_list_scram_secrets.side_effect = Exception('SCRAM secrets error')
+
+        # Act
+        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        result = get_cluster_info_tool(
+            region='us-east-1', cluster_arn=cluster_arn, info_type='all'
+        )
+
+        # Assert
+        mock_config.assert_called_once_with(
+            user_agent_extra='awslabs/mcp/aws-msk-mcp-server/1.0.0'
+        )
+        mock_boto3_client.assert_called_once_with(
+            'kafka', region_name='us-east-1', config=mock_config_instance
+        )
+        mock_describe_cluster.assert_called_once_with(cluster_arn, mock_kafka_client)
+        mock_get_bootstrap_brokers.assert_called_once_with(cluster_arn, mock_kafka_client)
+        mock_list_nodes.assert_called_once_with(cluster_arn, mock_kafka_client)
+        mock_get_compatible_kafka_versions.assert_called_once_with(cluster_arn, mock_kafka_client)
+        mock_get_cluster_policy.assert_called_once_with(cluster_arn, mock_kafka_client)
+        mock_list_cluster_operations.assert_called_once_with(cluster_arn, mock_kafka_client)
+        mock_list_client_vpc_connections.assert_called_once_with(cluster_arn, mock_kafka_client)
+        mock_list_scram_secrets.assert_called_once_with(cluster_arn, mock_kafka_client)
+
+        # Check that all error messages are correctly captured
+        assert result['metadata'] == {'error': 'Metadata error'}
+        assert result['brokers'] == {'error': 'Brokers error'}
+        assert result['nodes'] == {'error': 'Nodes error'}
+        assert result['compatible_versions'] == {'error': 'Compatible versions error'}
+        assert result['policy'] == {'error': 'Policy error'}
+        assert result['operations'] == {'error': 'Operations error'}
+        assert result['client_vpc_connections'] == {'error': 'Client VPC connections error'}
+        assert result['scram_secrets'] == {'error': 'SCRAM secrets error'}

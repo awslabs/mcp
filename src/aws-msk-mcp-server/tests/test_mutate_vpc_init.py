@@ -18,6 +18,33 @@ from awslabs.aws_msk_mcp_server.tools.mutate_vpc import register_module
 from unittest.mock import MagicMock, patch
 
 
+def capture_tool_functions(mcp):
+    """Capture the tool functions registered with the MCP."""
+    tool_functions = {}
+
+    # Store the original tool decorator
+    original_tool = mcp.tool
+
+    # Create a new tool decorator that captures the decorated function
+    def mock_tool_decorator(**kwargs):
+        def capture_function(func):
+            tool_functions[kwargs.get('name')] = func
+            return func
+
+        return capture_function
+
+    # Replace the original tool decorator with our mock
+    mcp.tool = mock_tool_decorator
+
+    # Register the module to capture the tool functions
+    register_module(mcp)
+
+    # Restore the original tool decorator
+    mcp.tool = original_tool
+
+    return tool_functions
+
+
 class TestMutateVpcInit:
     """Tests for the mutate_vpc/__init__.py module."""
 
@@ -38,93 +65,170 @@ class TestMutateVpcInit:
         mock_mcp.tool.assert_any_call(name='delete_vpc_connection')
         mock_mcp.tool.assert_any_call(name='reject_client_vpc_connection')
 
-    @patch('boto3.client')
-    @patch('awslabs.aws_msk_mcp_server.tools.mutate_vpc.create_vpc_connection')
-    def test_create_vpc_connection_tool(self, mock_create_vpc_connection, mock_boto3_client):
+    def test_create_vpc_connection_tool(self):
         """Test the create_vpc_connection_tool function."""
-        # This test verifies that the create_vpc_connection function is called with the correct parameters
-        # when the create_vpc_connection_tool is called. Since we can't directly access the callback function
-        # in the test, we're just verifying that the register_module function is called and that the
-        # boto3 client and create_vpc_connection functions would be called with the expected parameters.
-
         # Arrange
         mock_mcp = MagicMock()
-        register_module(mock_mcp)
+        tool_functions = capture_tool_functions(mock_mcp)
 
-        # Mock the boto3 client
-        mock_client = MagicMock()
-        mock_boto3_client.return_value = mock_client
+        # Get the create_vpc_connection_tool function
+        create_vpc_connection_tool = tool_functions.get('create_vpc_connection')
+        assert create_vpc_connection_tool is not None, 'create_vpc_connection_tool not found'
 
-        # Mock the create_vpc_connection function
-        expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
-            'VpcConnectionState': 'CREATING',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'CreationTime': '2025-06-20T10:00:00.000Z',
-            'VpcId': 'vpc-12345678',
-        }
-        mock_create_vpc_connection.return_value = expected_response
+        # Use context managers for patching
+        with (
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_vpc.__version__', '1.0.0'),
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_vpc.create_vpc_connection'
+            ) as mock_create_vpc_connection,
+            patch('boto3.client') as mock_boto3_client,
+        ):
+            # Mock the boto3 client
+            mock_client = MagicMock()
+            mock_boto3_client.return_value = mock_client
 
-        # Assert
-        # Verify that the tool decorator was called with the expected name
-        mock_mcp.tool.assert_any_call(name='create_vpc_connection')
+            # Mock the create_vpc_connection function
+            expected_response = {
+                'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                'VpcConnectionState': 'CREATING',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'CreationTime': '2025-06-20T10:00:00.000Z',
+                'VpcId': 'vpc-12345678',
+            }
+            mock_create_vpc_connection.return_value = expected_response
 
-    @patch('boto3.client')
-    @patch('awslabs.aws_msk_mcp_server.tools.mutate_vpc.delete_vpc_connection')
-    def test_delete_vpc_connection_tool(self, mock_delete_vpc_connection, mock_boto3_client):
+            # Act
+            result = create_vpc_connection_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                vpc_id='vpc-12345678',
+                subnet_ids=['subnet-1234abcd', 'subnet-5678efgh'],
+                security_groups=['sg-1234abcd'],
+                authentication_type='IAM',
+                client_subnets=['subnet-abcd1234'],
+                tags={'Environment': 'Production'},
+            )
+
+            # Assert
+            mock_boto3_client.assert_called_once()
+            args, kwargs = mock_boto3_client.call_args
+            assert args[0] == 'kafka'
+            assert kwargs['region_name'] == 'us-east-1'
+            # Don't check the config object as it's created internally
+
+            mock_create_vpc_connection.assert_called_once_with(
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                vpc_id='vpc-12345678',
+                subnet_ids=['subnet-1234abcd', 'subnet-5678efgh'],
+                security_groups=['sg-1234abcd'],
+                client=mock_client,
+                authentication_type='IAM',
+                client_subnets=['subnet-abcd1234'],
+                tags={'Environment': 'Production'},
+            )
+
+            assert result == expected_response
+
+    def test_delete_vpc_connection_tool(self):
         """Test the delete_vpc_connection_tool function."""
-        # This test verifies that the delete_vpc_connection function is called with the correct parameters
-        # when the delete_vpc_connection_tool is called. Since we can't directly access the callback function
-        # in the test, we're just verifying that the register_module function is called and that the
-        # boto3 client and delete_vpc_connection functions would be called with the expected parameters.
-
         # Arrange
         mock_mcp = MagicMock()
-        register_module(mock_mcp)
+        tool_functions = capture_tool_functions(mock_mcp)
 
-        # Mock the boto3 client
-        mock_client = MagicMock()
-        mock_boto3_client.return_value = mock_client
+        # Get the delete_vpc_connection_tool function
+        delete_vpc_connection_tool = tool_functions.get('delete_vpc_connection')
+        assert delete_vpc_connection_tool is not None, 'delete_vpc_connection_tool not found'
 
-        # Mock the delete_vpc_connection function
-        expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
-            'VpcConnectionState': 'DELETING',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-        }
-        mock_delete_vpc_connection.return_value = expected_response
+        # Use context managers for patching
+        with (
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_vpc.__version__', '1.0.0'),
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_vpc.delete_vpc_connection'
+            ) as mock_delete_vpc_connection,
+            patch('boto3.client') as mock_boto3_client,
+        ):
+            # Mock the boto3 client
+            mock_client = MagicMock()
+            mock_boto3_client.return_value = mock_client
 
-        # Assert
-        # Verify that the tool decorator was called with the expected name
-        mock_mcp.tool.assert_any_call(name='delete_vpc_connection')
+            # Mock the delete_vpc_connection function
+            expected_response = {
+                'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                'VpcConnectionState': 'DELETING',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            }
+            mock_delete_vpc_connection.return_value = expected_response
 
-    @patch('boto3.client')
-    @patch('awslabs.aws_msk_mcp_server.tools.mutate_vpc.reject_client_vpc_connection')
-    def test_reject_client_vpc_connection_tool(
-        self, mock_reject_client_vpc_connection, mock_boto3_client
-    ):
+            # Act
+            result = delete_vpc_connection_tool(
+                region='us-east-1',
+                vpc_connection_arn='arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            )
+
+            # Assert
+            mock_boto3_client.assert_called_once()
+            args, kwargs = mock_boto3_client.call_args
+            assert args[0] == 'kafka'
+            assert kwargs['region_name'] == 'us-east-1'
+            # Don't check the config object as it's created internally
+
+            mock_delete_vpc_connection.assert_called_once_with(
+                vpc_connection_arn='arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                client=mock_client,
+            )
+
+            assert result == expected_response
+
+    def test_reject_client_vpc_connection_tool(self):
         """Test the reject_client_vpc_connection_tool function."""
-        # This test verifies that the reject_client_vpc_connection function is called with the correct parameters
-        # when the reject_client_vpc_connection_tool is called. Since we can't directly access the callback function
-        # in the test, we're just verifying that the register_module function is called and that the
-        # boto3 client and reject_client_vpc_connection functions would be called with the expected parameters.
-
         # Arrange
         mock_mcp = MagicMock()
-        register_module(mock_mcp)
+        tool_functions = capture_tool_functions(mock_mcp)
 
-        # Mock the boto3 client
-        mock_client = MagicMock()
-        mock_boto3_client.return_value = mock_client
+        # Get the reject_client_vpc_connection_tool function
+        reject_client_vpc_connection_tool = tool_functions.get('reject_client_vpc_connection')
+        assert reject_client_vpc_connection_tool is not None, (
+            'reject_client_vpc_connection_tool not found'
+        )
 
-        # Mock the reject_client_vpc_connection function
-        expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
-            'VpcConnectionState': 'REJECTED',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-        }
-        mock_reject_client_vpc_connection.return_value = expected_response
+        # Use context managers for patching
+        with (
+            patch('awslabs.aws_msk_mcp_server.tools.mutate_vpc.__version__', '1.0.0'),
+            patch(
+                'awslabs.aws_msk_mcp_server.tools.mutate_vpc.reject_client_vpc_connection'
+            ) as mock_reject_client_vpc_connection,
+            patch('boto3.client') as mock_boto3_client,
+        ):
+            # Mock the boto3 client
+            mock_client = MagicMock()
+            mock_boto3_client.return_value = mock_client
 
-        # Assert
-        # Verify that the tool decorator was called with the expected name
-        mock_mcp.tool.assert_any_call(name='reject_client_vpc_connection')
+            # Mock the reject_client_vpc_connection function
+            expected_response = {
+                'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                'VpcConnectionState': 'REJECTED',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            }
+            mock_reject_client_vpc_connection.return_value = expected_response
+
+            # Act
+            result = reject_client_vpc_connection_tool(
+                region='us-east-1',
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                vpc_connection_arn='arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            )
+
+            # Assert
+            mock_boto3_client.assert_called_once()
+            args, kwargs = mock_boto3_client.call_args
+            assert args[0] == 'kafka'
+            assert kwargs['region_name'] == 'us-east-1'
+            # Don't check the config object as it's created internally
+
+            mock_reject_client_vpc_connection.assert_called_once_with(
+                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                vpc_connection_arn='arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                client=mock_client,
+            )
+
+            assert result == expected_response

@@ -126,3 +126,36 @@ class TestDeleteVpcConnection:
 
         # Verify the error
         assert 'Client must be provided' in str(excinfo.value)
+
+    def test_delete_vpc_connection_mcp_generated_tag_check(self):
+        """Test that the MCP Generated tag check works correctly."""
+        # Arrange
+        mock_client = MagicMock()
+
+        vpc_connection_arn = (
+            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+        )
+
+        # Use context managers for patching
+        from unittest.mock import patch
+
+        with patch(
+            'awslabs.aws_msk_mcp_server.tools.common_functions.check_mcp_generated_tag'
+        ) as mock_check_tag:
+            # Mock the check_mcp_generated_tag function to return False
+            mock_check_tag.return_value = False
+
+            # Act & Assert
+            with pytest.raises(ValueError) as excinfo:
+                original_delete_vpc_connection(vpc_connection_arn, mock_client)
+
+            # Verify the error message
+            error_message = str(excinfo.value)
+            assert (
+                f"Resource {vpc_connection_arn} does not have the 'MCP Generated' tag"
+                in error_message
+            )
+            assert (
+                "This operation can only be performed on resources tagged with 'MCP Generated'"
+                in error_message
+            )
