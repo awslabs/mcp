@@ -96,9 +96,6 @@ class DataCatalogDatabaseManager:
                 for k, v in parameters.items():
                     database_input[k] = v
 
-            # Remove complex types for now as they're causing type errors
-            # We can add them back with proper handling if needed
-
             # Add MCP management tags
             resource_tags = AwsHelper.prepare_resource_tags('GlueDatabase')
 

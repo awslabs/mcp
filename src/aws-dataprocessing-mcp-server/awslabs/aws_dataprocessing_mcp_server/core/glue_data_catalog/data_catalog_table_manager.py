@@ -106,7 +106,6 @@ class DataCatalogTableManager:
             kwargs = {
                 'DatabaseName': database_name,
                 'TableInput': table_input,
-                'Tags': resource_tags,
             }
 
             # Note: kwargs already defined above with Tags included
@@ -638,6 +637,7 @@ class DataCatalogTableManager:
 
             response = self.glue_client.search_tables(**kwargs)
             tables = response.get('TableList', [])
+            next_token_response = response.get('NextToken', None)
 
             log_with_request_id(ctx, LogLevel.INFO, f'Search found {len(tables)} tables')
 
@@ -672,6 +672,7 @@ class DataCatalogTableManager:
                 search_text=search_text or '',
                 count=len(tables),
                 operation='search-tables',
+                next_token=next_token_response,
                 content=[TextContent(type='text', text=success_msg)],
             )
 

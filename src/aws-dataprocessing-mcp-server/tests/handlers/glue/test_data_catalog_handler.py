@@ -656,7 +656,7 @@ class TestGlueDataCatalogHandler:
         # Verify that the method was called with the correct parameters
         # Use ANY for catalog_id to handle the FieldInfo object
         mock_catalog_manager.get_connection.assert_called_once_with(
-            ctx=mock_ctx, connection_name='test-connection', catalog_id=ANY
+            ctx=mock_ctx, connection_name='test-connection', catalog_id=ANY, hide_password=ANY
         )
 
         # Verify that the result is the expected response
