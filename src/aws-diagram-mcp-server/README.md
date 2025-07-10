@@ -4,7 +4,7 @@ Model Context Protocol (MCP) server for AWS Diagrams
 
 This MCP server that seamlessly creates [diagrams](https://diagrams.mingrammer.com/) using the Python diagrams package DSL. This server allows you to generate AWS diagrams, sequence diagrams, flow diagrams, and class diagrams using Python code.
 
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/awslabs/mcp/blob/main/src/aws-diagram-mcp-server/tests/)
 
 ## Prerequisites
 
@@ -108,7 +108,7 @@ To run with coverage:
 pytest --cov=awslabs.aws_diagram_mcp_server --cov-report=term-missing tests/
 ```
 
-For more information about the tests, see the [tests README](tests/README.md).
+For more information about the tests, see the [tests README](https://github.com/awslabs/mcp/blob/main/src/aws-diagram-mcp-server/tests/README.md).
 
 ### Development Dependencies
 
