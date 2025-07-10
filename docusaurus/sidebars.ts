@@ -95,7 +95,6 @@ const sidebars: SidebarsConfig = {
             'servers/iam-mcp-server',
             'servers/kendra-index-mcp-server',
             'servers/syntheticdata-mcp-server',
-            'servers/cloudwatch-logs-mcp-server',
             'servers/aws-bedrock-data-automation-mcp-server',
             'servers/aws-location-mcp-server',
           ],

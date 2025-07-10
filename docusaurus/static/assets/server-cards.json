@@ -864,28 +864,6 @@
     },
     {
       "category": "Cost & Operations",
-      "description": "Log analysis and operational troubleshooting",
-      "icon": "\ud83d\udcb0",
-      "id": "cloudwatch-logs-mcp-server",
-      "name": "Amazon CloudWatch Logs MCP Server",
-      "source_path": "src/cloudwatch-logs-mcp-server/",
-      "subcategory": "Monitoring & Logging",
-      "tags": [
-        "cost-operations",
-        "cloudwatch",
-        "logs",
-        "analysis",
-        "troubleshooting",
-        "monitoring",
-        "autonomous",
-        "operations-monitoring"
-      ],
-      "workflows": [
-        "autonomous"
-      ]
-    },
-    {
-      "category": "Cost & Operations",
       "description": "Prometheus-compatible operations",
       "icon": "\ud83d\udcb0",
       "id": "prometheus-mcp-server",
