@@ -199,6 +199,11 @@ class TestOutputOptionsFiltering:
         assert 'Reserved' in item['terms']
         assert 'serviceCode' not in item
 
+    def test_transform_pricing_data_empty_list(self):
+        """Test that transform_pricing_data returns empty list for empty input."""
+        result = transform_pricing_data([], None)
+        assert result == []
+
     def test_transform_pricing_data_no_terms_section(self):
         """Test filtering with items that don't have a terms section."""
         sample_data = [

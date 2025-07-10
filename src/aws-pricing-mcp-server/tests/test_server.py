@@ -16,7 +16,9 @@
 
 import pytest
 from awslabs.aws_pricing_mcp_server.models import PricingFilter, PricingFilters
-from awslabs.aws_pricing_mcp_server.pricing_transformer import _is_free_product
+from awslabs.aws_pricing_mcp_server.pricing_transformer import (
+    _is_free_product,
+)
 from awslabs.aws_pricing_mcp_server.server import (
     analyze_cdk_project_wrapper,
     generate_cost_report_wrapper,
@@ -333,6 +335,23 @@ class TestGetPricing:
         assert result['service_code'] == 'AWSLambda'
         assert result['region'] == 'us-west-2'
         assert 'suggestion' in result
+        mock_context.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_data_processing_error(self, mock_boto3, mock_context):
+        """Test handling of data processing errors in transform_pricing_data."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_products.return_value = {'PriceList': ['invalid json']}
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing(mock_context, 'AWSLambda', 'us-west-2')
+
+        assert result is not None
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'data_processing_error'
+        assert 'Failed to process pricing data' in result['message']
+        assert result['service_code'] == 'AWSLambda'
+        assert result['region'] == 'us-west-2'
         mock_context.error.assert_called_once()
 
     @pytest.mark.asyncio
@@ -701,6 +720,44 @@ class TestGetPricingServiceAttributes:
             assert 'suggestion' in result
             mock_context.error.assert_called()
 
+    @pytest.mark.asyncio
+    async def test_get_pricing_service_attributes_empty_attributes(self, mock_context, mock_boto3):
+        """Test handling when service exists but has no attributes."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.describe_services.return_value = {
+            'Services': [{'ServiceCode': 'TestService', 'AttributeNames': []}]
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_service_attributes(mock_context, 'TestService')
+
+            # Verify error response structure
+            assert isinstance(result, dict)
+            assert result['status'] == 'error'
+            assert result['error_type'] == 'empty_results'
+            assert 'TestService' in result['message']
+            assert 'no filterable attributes available' in result['message']
+            assert result['service_code'] == 'TestService'
+            assert 'Try using get_pricing() without filters' in result['suggestion']
+            mock_context.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_service_attributes_client_creation_error(self, mock_context):
+        """Test handling of client creation errors."""
+        with patch(
+            'awslabs.aws_pricing_mcp_server.server.create_pricing_client',
+            side_effect=Exception('Client creation failed'),
+        ):
+            result = await get_pricing_service_attributes(mock_context, 'AmazonEC2')
+
+        assert isinstance(result, dict)
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'client_creation_failed'
+        assert 'Failed to create AWS Pricing client' in result['message']
+        assert 'Client creation failed' in result['message']
+        assert result['service_code'] == 'AmazonEC2'
+        mock_context.error.assert_called()
+
 
 class TestGetPricingAttributeValues:
     """Tests for the get_pricing_attribute_values function."""
@@ -964,6 +1021,44 @@ class TestServerIntegration:
 
             # Verify context was used correctly
             mock_context.info.assert_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_scenario,side_effect,expected_error_type',
+        [
+            ('client_creation_failed', 'create_pricing_client', 'client_creation_failed'),
+            ('api_error', 'describe_services', 'api_error'),
+            ('empty_results', None, 'empty_results'),
+        ],
+    )
+    async def test_get_pricing_service_codes_errors(
+        self, mock_context, mock_boto3, error_scenario, side_effect, expected_error_type
+    ):
+        """Test error handling scenarios for get_pricing_service_codes."""
+        if error_scenario == 'client_creation_failed':
+            with patch(
+                'awslabs.aws_pricing_mcp_server.server.create_pricing_client',
+                side_effect=Exception('Client creation failed'),
+            ):
+                result = await get_pricing_service_codes(mock_context)
+        elif error_scenario == 'api_error':
+            pricing_client = mock_boto3.Session().client('pricing')
+            pricing_client.describe_services.side_effect = Exception('API Error')
+            with patch('boto3.Session', return_value=mock_boto3.Session()):
+                result = await get_pricing_service_codes(mock_context)
+        elif error_scenario == 'empty_results':
+            pricing_client = mock_boto3.Session().client('pricing')
+            pricing_client.describe_services.return_value = {'Services': []}
+            with patch('boto3.Session', return_value=mock_boto3.Session()):
+                result = await get_pricing_service_codes(mock_context)
+        else:
+            # Should not reach here with current parametrize values
+            raise ValueError(f'Unknown error scenario: {error_scenario}')
+
+        assert isinstance(result, dict)
+        assert result['status'] == 'error'
+        assert result['error_type'] == expected_error_type
+        mock_context.error.assert_called()
 
     @pytest.mark.asyncio
     async def test_get_pricing_service_codes_pagination(self, mock_context, mock_boto3):
@@ -1316,4 +1411,29 @@ class TestGetPriceListUrls:
         assert 'Unexpected Error' in result['message']
         assert result['service_code'] == 'AmazonEC2'
         assert result['region'] == 'us-east-1'
+        mock_context.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_price_list_urls_no_supported_formats(self, mock_context, mock_boto3):
+        """Test error handling when price list has no supported formats."""
+        pricing_client = mock_boto3.Session().client('pricing')
+
+        pricing_client.list_price_lists.return_value = {
+            'PriceLists': [
+                {
+                    'PriceListArn': 'arn:aws:pricing::123456789012:price-list/AmazonEC2',
+                    'FileFormats': [],  # Empty list of formats
+                }
+            ]
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_price_list_urls(mock_context, 'AmazonEC2', 'us-east-1')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'no_formats_available'
+        assert 'no file formats are available for service "AmazonEC2"' in result['message']
+        assert result['service_code'] == 'AmazonEC2'
+        assert result['region'] == 'us-east-1'
+        assert result['price_list_arn'] == 'arn:aws:pricing::123456789012:price-list/AmazonEC2'
         mock_context.error.assert_called()
