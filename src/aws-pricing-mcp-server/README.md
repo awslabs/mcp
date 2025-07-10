@@ -1,29 +1,31 @@
 # AWS Pricing MCP Server
 
-MCP server for generating upfront AWS service cost estimates and providing cost insights
+MCP server for accessing real-time AWS pricing information and providing cost analysis capabilities
 
-**Important Note**: This server provides estimated pricing based on AWS pricing APIs and web pages. These estimates are for pre-deployment planning purposes and do not reflect the actual expenses of deployed cloud services.
+**Important Note**: This server provides real-time pricing data from the AWS Pricing API. We cannot guarantee that AI assistants will always construct filters correctly or identify the absolute cheapest options. All calls are free of charge.
 
 ## Features
 
-### Analyze and visualize AWS costs
+### AWS Pricing Discovery & Information
 
-- Get detailed breakdown of your AWS costs by service, region and tier
-- Understand how costs are distributed across various services
-- Provide pre-deployment cost estimates for infrastructure planning
-- Support for analyzing both CDK and Terraform projects to identify AWS services
+- **Service catalog exploration**: Discover all AWS services with available pricing information
+- **Pricing attribute discovery**: Identify filterable dimensions (instance types, regions, storage classes, etc.) for any AWS service
+- **Real-time pricing queries**: Access current pricing data with advanced filtering capabilities including multi-option comparisons and pattern matching
+- **Multi-region pricing comparisons**: Compare pricing across different AWS regions in a single query
+- **Bulk pricing data access**: Download complete pricing datasets in CSV/JSON formats for historical analysis and offline processing
 
-### Query cost data with natural language
+### Cost Analysis & Planning
 
-- Ask questions about your AWS costs in plain English, no complex query languages required
-- Get instant answers fetched from pricing webpage and AWS Pricing API, for questions related to AWS services
-- Retrieve estimated pricing information before actual cloud service deployment
+- **Detailed cost report generation**: Create comprehensive cost analysis reports with unit pricing, calculation breakdowns, and usage scenarios
+- **Infrastructure project analysis**: Scan CDK and Terraform projects to automatically identify AWS services and their configurations
+- **Architecture pattern guidance**: Get detailed architecture patterns and cost considerations, especially for Amazon Bedrock services
+- **Cost optimization recommendations**: Receive AWS Well-Architected Framework aligned suggestions for cost optimization
 
-### Generate cost reports and insights
+### Query pricing data with natural language
 
-- Generate comprehensive cost estimates based on your IaC implementation
-- Get cost optimization recommendations for potential cloud infrastructure
-- Provide upfront pricing analysis to support informed decision-making
+- Ask questions about AWS pricing in plain English, no complex query languages required
+- Get instant answers from the AWS Pricing API for any AWS service
+- Retrieve comprehensive pricing information with flexible filtering options
 
 ## Prerequisites
 
@@ -32,11 +34,11 @@ MCP server for generating upfront AWS service cost estimates and providing cost 
 3. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
-   - Ensure your IAM role/user has permissions to access AWS Pricing API
+   - Ensure your IAM role/user has `pricing:*` permissions to access the AWS Pricing API
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-pricing-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuY29zdC1hbmFseXNpcy1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-pricing-mcp-server&config=ewogICAgImNvbW1hbmQiOiAidXZ4IGF3c2xhYnMuYXdzLXByaWNpbmctbWNwLXNlcnZlckBsYXRlc3QiLAogICAgImVudiI6IHsKICAgICAgIkZBU1RNQ1BfTE9HX0xFVkVMIjogIkVSUk9SIiwKICAgICAgIkFXU19QUk9GSUxFIjogInlvdXItYXdzLXByb2ZpbGUiLAogICAgICAiQVdTX1JFR0lPTiI6ICJ1cy1lYXN0LTEiCiAgICB9LAogICAgImRpc2FibGVkIjogZmFsc2UsCiAgICAiYXV0b0FwcHJvdmUiOiBbXQogIH0K)
 
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
@@ -48,7 +50,8 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "args": ["awslabs.aws-pricing-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "your-aws-profile"
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
       },
       "disabled": false,
       "autoApprove": []
@@ -64,6 +67,7 @@ or docker after a successful `docker build -t awslabs/aws-pricing-mcp-server .`:
 AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+AWS_REGION=us-east-1
 ```
 
 ```json
@@ -93,12 +97,20 @@ NOTE: Your credentials will need to be kept refreshed from your host
 
 ### AWS Authentication
 
-The MCP server uses the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
+The MCP server requires specific AWS permissions and configuration:
+
+#### Required Permissions
+Your AWS IAM role or user must have `pricing:*` permissions to access the AWS Pricing API. The server only accesses generally available AWS pricing information and does not retrieve any user-specific data. All pricing API calls are **free of charge** and do not incur any costs.
+
+#### Configuration
+The server uses two key environment variables:
+
+- **`AWS_PROFILE`**: Specifies the AWS profile to use from your AWS configuration file. If not provided, it defaults to the "default" profile.
+- **`AWS_REGION`**: Determines the geographically closest AWS Pricing API endpoint to use. This improves performance by routing requests to the nearest regional endpoint.
 
 ```json
 "env": {
-  "AWS_PROFILE": "your-aws-profile"
+  "AWS_PROFILE": "your-aws-profile",
+  "AWS_REGION": "us-east-1"
 }
 ```
-
-Make sure the AWS profile has permissions to access the AWS Pricing API. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
