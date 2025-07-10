@@ -197,7 +197,7 @@ Connect systems with messaging, workflows, and location services.
 
 Monitor, optimize, and manage your AWS infrastructure and costs.
 
-- **[AWS Pricing MCP Server](src/aws-pricing-mcp-server/)** - Pre-deployment cost estimation and optimization
+- **[AWS Pricing MCP Server](src/aws-pricing-mcp-server/)** - AWS service pricing and cost estimates
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and reporting
 - **[Amazon CloudWatch MCP Server](src/cloudwatch-mcp-server/)** - Metrics, Alarms, and Logs analysis and operational troubleshooting
 - **[Amazon CloudWatch Logs MCP Server (deprecated)](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
