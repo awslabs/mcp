@@ -130,4 +130,4 @@ Contributions are welcome! Please see the [CONTRIBUTING.md](https://github.com/a
 
 ## Feedback and Issues
 
-We value your feedback! Submit your feedback, feature requests and any bugs at [GitHub issues](https://github.com/awslabs/mcp/issues) with prefix `cloudwatch-mcp-server` in title. 
+We value your feedback! Submit your feedback, feature requests and any bugs at [GitHub issues](https://github.com/awslabs/mcp/issues) with prefix `cloudwatch-mcp-server` in title.
