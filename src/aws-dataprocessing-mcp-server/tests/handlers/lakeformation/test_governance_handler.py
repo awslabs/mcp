@@ -24,6 +24,9 @@ from mcp.server.fastmcp import Context
 class TestGovernanceHandler(unittest.TestCase):
     def setUp(self):
         self.mcp = MagicMock()
+        # Set a default region for boto3 clients in tests
+        import os
+        os.environ['AWS_REGION'] = 'us-east-1'
         self.handler = GovernanceHandler(self.mcp)
         self.ctx = Context(request_id="test_request_id")
 
@@ -70,6 +73,54 @@ class TestGovernanceHandler(unittest.TestCase):
             self.ctx, operation="describe-resource", resource_arn="arn:aws:s3:::test-bucket"
         )
         mock_describe_resource.assert_called_once()
+
+    @patch("awslabs.aws_dataprocessing_mcp_server.core.lakeformation.governance_manager.GovernanceManager.list_permissions")
+    async def test_manage_aws_lakeformation_permissions_list_pagination(self, mock_list_permissions):
+        # Mock the API to return two pages of results
+        mock_list_permissions.side_effect = [
+            AsyncMock(return_value={
+                "PrincipalResourcePermissions": [{"id": "perm1"}],
+                "NextToken": "token1"
+            }),
+            AsyncMock(return_value={
+                "PrincipalResourcePermissions": [{"id": "perm2"}],
+                "NextToken": None
+            })
+        ]
+
+        result = await self.handler.manage_aws_lakeformation_permissions(
+            self.ctx, operation="list-permissions"
+        )
+
+        self.assertEqual(len(result.permissions), 2)
+        self.assertEqual(result.permissions[0]["id"], "perm1")
+        self.assertEqual(result.permissions[1]["id"], "perm2")
+        self.assertIsNone(result.next_token)
+        mock_list_permissions.assert_called()
+
+    @patch("awslabs.aws_dataprocessing_mcp_server.core.lakeformation.governance_manager.GovernanceManager.list_resources")
+    async def test_manage_aws_lakeformation_resources_list_pagination(self, mock_list_resources):
+        # Mock the API to return two pages of results
+        mock_list_resources.side_effect = [
+            AsyncMock(return_value={
+                "ResourceInfoList": [{"arn": "arn1"}],
+                "NextToken": "token1"
+            }),
+            AsyncMock(return_value={
+                "ResourceInfoList": [{"arn": "arn2"}],
+                "NextToken": None
+            })
+        ]
+
+        result = await self.handler.manage_aws_lakeformation_resources(
+            self.ctx, operation="list-resources"
+        )
+
+        self.assertEqual(len(result.resources), 2)
+        self.assertEqual(result.resources[0]["arn"], "arn1")
+        self.assertEqual(result.resources[1]["arn"], "arn2")
+        self.assertIsNone(result.next_token)
+        mock_list_resources.assert_called()
 
 
 if __name__ == "__main__":

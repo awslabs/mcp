@@ -26,6 +26,7 @@ class ListPermissionsResponse(CallToolResult):
         ..., description="A list of permissions."
     )
     operation: str = Field(..., description="The operation performed.")
+    next_token: Optional[str] = Field(None, description="Token for pagination.")
 
 
 class GetDataLakeSettingsResponse(CallToolResult):
@@ -44,6 +45,7 @@ class ListResourcesResponse(CallToolResult):
         ..., description="A list of resources."
     )
     operation: str = Field(..., description="The operation performed.")
+    next_token: Optional[str] = Field(None, description="Token for pagination.")
 
 
 class DescribeResourceResponse(CallToolResult):

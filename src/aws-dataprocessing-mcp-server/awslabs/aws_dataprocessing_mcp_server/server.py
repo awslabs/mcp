@@ -249,6 +249,13 @@ It enables you to create, manage, and monitor data processing workflows.
 - Use Glue Crawlers to automatically discover and catalog data in your data lake.
 - Organize your Data Catalog with meaningful database and table names.
 - Use connections to securely store and manage credentials for external data sources.
+### Lake Formation Governance
+1. List permissions: `manage_aws_lakeformation_permissions(operation='list-permissions', principal='arn:aws:iam::123456789012:user/testuser')`
+2. Get data lake settings: `manage_aws_lakeformation_datalakesettings(operation='get-data-lake-settings')`
+3. List resources: `manage_aws_lakeformation_resources(operation='list-resources')`
+4. Describe resource: `manage_aws_lakeformation_resources(operation='describe-resource', resource_arn='arn:aws:s3:::my-lake-bucket')`
+5. Batch get effective permissions for path: `manage_aws_lakeformation_permissions(operation='batch-get-effective-permissions-for-path', resource_path='s3://my-lake-bucket/my-data/')`
+
 """
 
 SERVER_DEPENDENCIES = [

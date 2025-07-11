@@ -47,23 +47,38 @@ class GovernanceManager:
         principal: Optional[str] = None,
         resource_type: Optional[str] = None,
         catalog_id: Optional[str] = None,
+        next_token: Optional[str] = None,
+        max_results: Optional[int] = None,
     ) -> ListPermissionsResponse:
         """List AWS Lake Formation permissions."""
         try:
-            params = {}
-            if principal:
-                params["Principal"] = {"DataLakePrincipalIdentifier": principal}
-            if resource_type:
-                params["ResourceType"] = resource_type
-            if catalog_id:
-                params["CatalogId"] = catalog_id
+            all_permissions = []
+            current_next_token = next_token
+            while True:
+                params = {}
+                if principal:
+                    params["Principal"] = {"DataLakePrincipalIdentifier": principal}
+                if resource_type:
+                    params["ResourceType"] = resource_type
+                if catalog_id:
+                    params["CatalogId"] = catalog_id
+                if max_results:
+                    params["MaxResults"] = max_results
+                if current_next_token:
+                    params["NextToken"] = current_next_token
 
-            response = self.lakeformation_client.list_permissions(**params)
+                response = self.lakeformation_client.list_permissions(**params)
+                all_permissions.extend(response.get("PrincipalResourcePermissions", []))
+                current_next_token = response.get("NextToken")
+                if not current_next_token:
+                    break
+
             return ListPermissionsResponse(
                 isError=False,
                 content=[],
-                permissions=response.get("PrincipalResourcePermissions", []),
+                permissions=all_permissions,
                 operation="list-permissions",
+                next_token=current_next_token,
             )
         except ClientError as e:
             log_with_request_id(ctx, LogLevel.ERROR, f"Error listing permissions: {e}")
@@ -99,15 +114,32 @@ class GovernanceManager:
                 operation="get-data-lake-settings",
             )
 
-    async def list_resources(self, ctx: Context) -> ListResourcesResponse:
+    async def list_resources(
+        self, ctx: Context, next_token: Optional[str] = None, max_results: Optional[int] = None
+    ) -> ListResourcesResponse:
         """List AWS Lake Formation resources."""
         try:
-            response = self.lakeformation_client.list_resources()
+            all_resources = []
+            current_next_token = next_token
+            while True:
+                params = {}
+                if max_results:
+                    params["MaxResults"] = max_results
+                if current_next_token:
+                    params["NextToken"] = current_next_token
+
+                response = self.lakeformation_client.list_resources(**params)
+                all_resources.extend(response.get("ResourceInfoList", []))
+                current_next_token = response.get("NextToken")
+                if not current_next_token:
+                    break
+
             return ListResourcesResponse(
                 isError=False,
                 content=[],
-                resources=response.get("ResourceInfoList", []),
+                resources=all_resources,
                 operation="list-resources",
+                next_token=current_next_token,
             )
         except ClientError as e:
             log_with_request_id(ctx, LogLevel.ERROR, f"Error listing resources: {e}")

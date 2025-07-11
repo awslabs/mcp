@@ -86,11 +86,19 @@ class GovernanceHandler:
             None,
             description='ID of the catalog (optional, defaults to account ID).',
         ),
+        next_token: Optional[str] = Field(
+            None,
+            description='Token for pagination.',
+        ),
+        max_results: Optional[int] = Field(
+            None,
+            description='Maximum number of results to return.',
+        ),
     ) -> Union[
         ListPermissionsResponse,
         BatchGetEffectivePermissionsForPathResponse,
     ]:
-        """Manage AWS Lake Formation permissions.
+        """Manage AWS Lake Formation permissions."
 
         This tool provides operations for managing AWS Lake Formation permissions, including listing permissions
         and getting effective permissions for a path.
@@ -102,6 +110,8 @@ class GovernanceHandler:
             resource_type: The type of resource for which to list permissions.
             resource_path: The path to the resource for which to get effective permissions.
             catalog_id: ID of the catalog (optional, defaults to account ID)
+            next_token: Token for pagination.
+            max_results: Maximum number of results to return.
 
         Returns:
             Union of response types specific to the operation performed
@@ -118,6 +128,8 @@ class GovernanceHandler:
                     principal=principal,
                     resource_type=resource_type,
                     catalog_id=catalog_id,
+                    next_token=next_token,
+                    max_results=max_results,
                 )
             elif operation == 'batch-get-effective-permissions-for-path':
                 if resource_path is None:
@@ -161,7 +173,7 @@ class GovernanceHandler:
             description='ID of the catalog (optional, defaults to account ID).',
         ),
     ) -> GetDataLakeSettingsResponse:
-        """Manage AWS Lake Formation data lake settings.
+        """Manage AWS Lake Formation data lake settings."
 
         This tool provides operations for managing AWS Lake Formation data lake settings, including getting the settings.
 
@@ -214,11 +226,19 @@ class GovernanceHandler:
             None,
             description='The ARN of the resource to describe.',
         ),
+        next_token: Optional[str] = Field(
+            None,
+            description='Token for pagination.',
+        ),
+        max_results: Optional[int] = Field(
+            None,
+            description='Maximum number of results to return.',
+        ),
     ) -> Union[
         ListResourcesResponse,
         DescribeResourceResponse,
     ]:
-        """Manage AWS Lake Formation resources.
+        """Manage AWS Lake Formation resources."
 
         This tool provides operations for managing AWS Lake Formation resources, including listing and describing resources.
 
@@ -226,6 +246,8 @@ class GovernanceHandler:
             ctx: MCP context
             operation: Operation to perform (list-resources, describe-resource)
             resource_arn: The ARN of the resource to describe.
+            next_token: Token for pagination.
+            max_results: Maximum number of results to return.
 
         Returns:
             Union of response types specific to the operation performed
@@ -239,6 +261,8 @@ class GovernanceHandler:
             if operation == 'list-resources':
                 return await self.governance_manager.list_resources(
                     ctx=ctx,
+                    next_token=next_token,
+                    max_results=max_results,
                 )
             elif operation == 'describe-resource':
                 if resource_arn is None:
