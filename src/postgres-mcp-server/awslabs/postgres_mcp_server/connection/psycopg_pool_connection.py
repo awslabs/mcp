@@ -22,13 +22,11 @@ parameters (host, port, database, user, password) or via AWS Secrets Manager.
 import boto3
 import json
 import psycopg
+from psycopg_pool import AsyncConnectionPool
 from loguru import logger
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple
 
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
-
-if TYPE_CHECKING:
-    from psycopg_pool import AsyncConnectionPool
 
 
 class PsycopgPoolConnection(AbstractDBConnection):
@@ -85,9 +83,28 @@ class PsycopgPoolConnection(AbstractDBConnection):
             self.conninfo = f"host={host} port={port} dbname={database} user={self.user} password={self.password}"
             logger.info("Connection parameters stored")
     
+    async def initialize_pool(self):
+        """Initialize the connection pool."""
+        if self.pool is None:
+            logger.info(f"Initializing connection pool with min_size={self.min_size}, max_size={self.max_size}")
+            self.pool = AsyncConnectionPool(
+                self.conninfo,
+                min_size=self.min_size,
+                max_size=self.max_size,
+                open=True
+            )
+            logger.info("Connection pool initialized successfully")
+            
+            # Set read-only mode if needed
+            if self.readonly_query:
+                await self._set_all_connections_readonly()
+    
     async def _get_connection(self):
-        """Get a database connection."""
-        return await psycopg.AsyncConnection.connect(self.conninfo)
+        """Get a database connection from the pool."""
+        if self.pool is None:
+            await self.initialize_pool()
+        
+        return self.pool.connection(timeout=15.0)
         
     async def _set_all_connections_readonly(self):
         """Set all connections in the pool to read-only mode."""
@@ -115,50 +132,52 @@ class PsycopgPoolConnection(AbstractDBConnection):
                     if self.readonly_query:
                         await conn.execute("SET TRANSACTION READ ONLY")  # type: ignore
                     
-                    # Execute the query
-                    if parameters:
-                        params = self._convert_parameters(parameters)
-                        result = await conn.execute(sql, params)  # type: ignore
-                    else:
-                        result = await conn.execute(sql)  # type: ignore
-                    
-                    # If there are results to fetch
-                    if result.description:
-                        # Get column names
-                        columns = [desc[0] for desc in result.description]
+                    # Create a cursor for better control
+                    async with conn.cursor() as cursor:
+                        # Execute the query
+                        if parameters:
+                            params = self._convert_parameters(parameters)
+                            await cursor.execute(sql, params)
+                        else:
+                            await cursor.execute(sql)
                         
-                        # Fetch all rows
-                        rows = await result.fetchall()
-                        
-                        # Structure the response to match the interface contract required by server.py
-                        column_metadata = [{"name": col} for col in columns]
-                        records = []
-                        
-                        # Convert each row to the expected format
-                        for row in rows:
-                            record = []
-                            for value in row:
-                                if value is None:
-                                    record.append({"isNull": True})
-                                elif isinstance(value, str):
-                                    record.append({"stringValue": value})
-                                elif isinstance(value, int):
-                                    record.append({"longValue": value})
-                                elif isinstance(value, float):
-                                    record.append({"doubleValue": value})
-                                elif isinstance(value, bool):
-                                    record.append({"booleanValue": value})
-                                elif isinstance(value, bytes):
-                                    record.append({"blobValue": value})
-                                else:
-                                    # Convert other types to string
-                                    record.append({"stringValue": str(value)})
-                            records.append(record)
-                        
-                        return {"columnMetadata": column_metadata, "records": records}
-                    else:
-                        # No results (e.g., for INSERT, UPDATE, etc.)
-                        return {"columnMetadata": [], "records": []}
+                        # Check if there are results to fetch by examining the cursor's description
+                        if cursor.description:
+                            # Get column names
+                            columns = [desc[0] for desc in cursor.description]
+                            
+                            # Fetch all rows
+                            rows = await cursor.fetchall()
+                            
+                            # Structure the response to match the interface contract required by server.py
+                            column_metadata = [{"name": col} for col in columns]
+                            records = []
+                            
+                            # Convert each row to the expected format
+                            for row in rows:
+                                record = []
+                                for value in row:
+                                    if value is None:
+                                        record.append({"isNull": True})
+                                    elif isinstance(value, str):
+                                        record.append({"stringValue": value})
+                                    elif isinstance(value, int):
+                                        record.append({"longValue": value})
+                                    elif isinstance(value, float):
+                                        record.append({"doubleValue": value})
+                                    elif isinstance(value, bool):
+                                        record.append({"booleanValue": value})
+                                    elif isinstance(value, bytes):
+                                        record.append({"blobValue": value})
+                                    else:
+                                        # Convert other types to string
+                                        record.append({"stringValue": str(value)})
+                                records.append(record)
+                            
+                            return {"columnMetadata": column_metadata, "records": records}
+                        else:
+                            # No results (e.g., for INSERT, UPDATE, etc.)
+                            return {"columnMetadata": [], "records": []}
                         
         except Exception as e:
             logger.error(f"Database connection error: {str(e)}")
@@ -235,8 +254,12 @@ class PsycopgPoolConnection(AbstractDBConnection):
             raise ValueError(f"Failed to retrieve credentials from Secrets Manager: {str(e)}")
     
     async def close(self) -> None:
-        """Close connections."""
-        pass
+        """Close all connections in the pool."""
+        if self.pool is not None:
+            logger.info("Closing connection pool")
+            await self.pool.close()
+            self.pool = None
+            logger.info("Connection pool closed successfully")
             
     async def check_connection_health(self) -> bool:
         """Check if the connection is healthy."""
