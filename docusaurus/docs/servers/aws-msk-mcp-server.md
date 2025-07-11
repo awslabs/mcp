@@ -2,7 +2,7 @@
 title: AWS MSK MCP Server
 ---
 
-import ReadmeContent from "../../src/aws-msk-mcp-server/README.md";
+import ReadmeContent from "../../../src/aws-msk-mcp-server/README.md";
 
 <div className="readme-content">
   <style>
