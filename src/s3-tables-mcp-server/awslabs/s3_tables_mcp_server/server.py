@@ -167,8 +167,8 @@ async def list_tables(region_name: Annotated[Optional[str], REGION_NAME_FIELD] =
     return await resources.list_tables_resource(region_name=region_name)
 
 
-@write_operation
 @app.tool()
+@write_operation
 async def create_table_bucket(
     name: Annotated[
         str,
@@ -191,8 +191,8 @@ async def create_table_bucket(
     return await table_buckets.create_table_bucket(name=name, region_name=region_name)
 
 
-@write_operation
 @app.tool()
+@write_operation
 async def create_namespace(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -212,8 +212,8 @@ async def create_namespace(
     )
 
 
-@write_operation
 @app.tool()
+@write_operation
 async def create_table(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -357,8 +357,8 @@ async def get_table_metadata_location(
     )
 
 
-@write_operation
 @app.tool()
+@write_operation
 async def rename_table(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -396,8 +396,8 @@ async def rename_table(
     )
 
 
-@write_operation
 @app.tool()
+@write_operation
 async def update_table_metadata_location(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -516,8 +516,8 @@ async def preview_csv_file(
     return file_processor.preview_csv_structure(s3_url)
 
 
-@write_operation
 @app.tool()
+@write_operation
 async def import_csv_to_table(
     warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
     region: Annotated[
@@ -648,8 +648,8 @@ async def get_bucket_metadata_config(
     )
 
 
-@write_operation
 @app.tool()
+@write_operation
 async def append_rows_to_table(
     warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
     region: Annotated[
