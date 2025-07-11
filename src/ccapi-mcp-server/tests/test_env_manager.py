@@ -295,3 +295,191 @@ aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
         # Should handle parsing error gracefully
         assert isinstance(result, dict)
         assert 'profiles' in result
+
+    # Additional coverage tests
+    def test_env_manager_aws_cli_not_found(self):
+        """Test env_manager when AWS CLI is not found."""
+        with patch('os.environ.get') as mock_env:
+            mock_env.side_effect = lambda key, default=None: {'AWS_PROFILE': 'test-profile'}.get(
+                key, default
+            )
+
+            with patch('subprocess.run') as mock_run:
+                # AWS CLI not found
+                mock_run.side_effect = FileNotFoundError('aws command not found')
+
+                with patch('boto3.Session') as mock_session:
+                    mock_session_obj = MagicMock()
+                    mock_session_obj.get_config_variable.return_value = 'us-east-1'
+                    mock_session.return_value = mock_session_obj
+
+                    mock_sts = MagicMock()
+                    mock_sts.get_caller_identity.return_value = {
+                        'Account': '123456789012',
+                        'Arn': 'arn:aws:iam::123456789012:user/test',
+                    }
+                    mock_session_obj.client.return_value = mock_sts
+
+                    result = check_aws_credentials()
+                    assert 'credential_source' in result
+
+    def test_env_manager_partial_credentials(self):
+        """Test env_manager with partial credentials."""
+        with patch('os.environ.get') as mock_env:
+            # Only AWS_ACCESS_KEY_ID, missing AWS_SECRET_ACCESS_KEY
+            mock_env.side_effect = (
+                lambda key, default=None: 'AKIATEST' if key == 'AWS_ACCESS_KEY_ID' else default
+            )
+
+            result = check_aws_credentials()
+            assert not result.get('valid', True)
+
+    def test_detect_profile_auth_type_sso(self):
+        """Test _detect_profile_auth_type with SSO profile."""
+        from awslabs.ccapi_mcp_server.env_manager import _detect_profile_auth_type
+
+        config_content = """[profile sso-profile]
+sso_start_url = https://example.com/start
+sso_region = us-east-1
+sso_account_id = 123456789012
+sso_role_name = SSORole
+region = us-west-2
+"""
+
+        with patch('os.path.exists', return_value=True):
+            with patch('builtins.open', mock_open(read_data=config_content)):
+                result = _detect_profile_auth_type('sso-profile')
+                assert result == 'sso_profile'
+
+    def test_detect_profile_auth_type_assume_role(self):
+        """Test _detect_profile_auth_type with assume role profile."""
+        from awslabs.ccapi_mcp_server.env_manager import _detect_profile_auth_type
+
+        config_content = """[profile assume-role-profile]
+role_arn = arn:aws:iam::123456789012:role/AssumeRole
+source_profile = default
+region = us-west-2
+"""
+
+        with patch('os.path.exists', return_value=True):
+            with patch('builtins.open', mock_open(read_data=config_content)):
+                result = _detect_profile_auth_type('assume-role-profile')
+                assert result == 'assume_role_profile'
+
+    def test_detect_profile_auth_type_standard(self):
+        """Test _detect_profile_auth_type with standard profile."""
+        from awslabs.ccapi_mcp_server.env_manager import _detect_profile_auth_type
+
+        config_content = """[profile standard-profile]
+region = us-west-2
+output = json
+"""
+
+        with patch('os.path.exists', return_value=True):
+            with patch('builtins.open', mock_open(read_data=config_content)):
+                result = _detect_profile_auth_type('standard-profile')
+                assert result == 'standard_profile'
+
+    def test_detect_profile_auth_type_no_config(self):
+        """Test _detect_profile_auth_type with no config file."""
+        from awslabs.ccapi_mcp_server.env_manager import _detect_profile_auth_type
+
+        with patch('os.path.exists', return_value=False):
+            result = _detect_profile_auth_type('test-profile')
+            assert result == 'regular'
+
+    def test_detect_profile_auth_type_empty_profile(self):
+        """Test _detect_profile_auth_type with empty profile name."""
+        from awslabs.ccapi_mcp_server.env_manager import _detect_profile_auth_type
+
+        result = _detect_profile_auth_type('')
+        assert result == 'unknown'
+
+    def test_detect_profile_auth_type_exception(self):
+        """Test _detect_profile_auth_type with exception."""
+        from awslabs.ccapi_mcp_server.env_manager import _detect_profile_auth_type
+
+        with patch('os.path.exists', return_value=True):
+            with patch('builtins.open', side_effect=Exception('File error')):
+                result = _detect_profile_auth_type('test-profile')
+                assert result == 'unknown'
+
+    def test_detect_profile_auth_type_default_profile(self):
+        """Test _detect_profile_auth_type with default profile format."""
+        from awslabs.ccapi_mcp_server.env_manager import _detect_profile_auth_type
+
+        config_content = """[default]
+region = us-west-2
+output = json
+
+[profile other-profile]
+region = us-east-1
+"""
+
+        with patch('os.path.exists', return_value=True):
+            with patch('builtins.open', mock_open(read_data=config_content)):
+                result = _detect_profile_auth_type('default')
+                assert result == 'standard_profile'
+
+    def test_detect_profile_auth_type_profile_not_found(self):
+        """Test _detect_profile_auth_type when profile is not found."""
+        from awslabs.ccapi_mcp_server.env_manager import _detect_profile_auth_type
+
+        config_content = """[profile existing-profile]
+region = us-west-2
+"""
+
+        with patch('os.path.exists', return_value=True):
+            with patch('builtins.open', mock_open(read_data=config_content)):
+                result = _detect_profile_auth_type('non-existent-profile')
+                assert result == 'standard_profile'  # Default fallback
+
+    def test_check_aws_credentials_with_boto3_fallback(self):
+        """Test check_aws_credentials with boto3 fallback."""
+        with patch('subprocess.run', side_effect=Exception('AWS CLI not available')):
+            with patch('boto3.Session') as mock_session:
+                mock_session_obj = MagicMock()
+                mock_session_obj.client.return_value.get_caller_identity.return_value = {
+                    'Account': '123456789012',
+                    'Arn': 'arn:aws:iam::123456789012:user/test',
+                    'UserId': 'AIDATEST',
+                }
+                mock_session.return_value = mock_session_obj
+
+                result = check_aws_credentials()
+                assert 'error' in result  # Should still report the subprocess error
+
+    def test_list_aws_profiles_with_default_in_credentials(self):
+        """Test list_aws_profiles with default profile in credentials file."""
+        config_content = """[profile test-profile]
+region = us-west-2
+"""
+
+        creds_content = """[default]
+aws_access_key_id = AKIATEST
+aws_secret_access_key = SECRET
+"""
+
+        def mock_exists(path):
+            return True  # Both files exist
+
+        with patch('os.path.exists', side_effect=mock_exists):
+            with patch('builtins.open') as mock_open_func:
+                mock_open_func.side_effect = [
+                    mock_open(read_data=config_content).return_value,
+                    mock_open(read_data=creds_content).return_value,
+                ]
+
+                result = list_aws_profiles()
+                assert 'default' in result['profiles']
+                assert result['profiles']['default']['source'] == 'credentials'
+
+    def test_load_environment_variables_with_security_scanning(self):
+        """Test load_environment_variables with SECURITY_SCANNING."""
+        with patch.dict(os.environ, {'SECURITY_SCANNING': 'disabled'}, clear=True):
+            result = load_environment_variables()
+            assert result['SECURITY_SCANNING'] == 'disabled'
+
+        with patch.dict(os.environ, {}, clear=True):
+            result = load_environment_variables()
+            assert result['SECURITY_SCANNING'] == 'enabled'  # Default value

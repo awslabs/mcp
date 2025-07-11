@@ -44,6 +44,10 @@ def get_aws_client(service_name, region_name=None):
     Returns:
         Boto3 client for the specified service
     """
+    # Handle FieldInfo objects (from pydantic)
+    if hasattr(region_name, 'default') and region_name is not None:
+        region_name = region_name.default
+
     # Create session with profile if specified
     profile_name = environ.get('AWS_PROFILE')
     session = Session(profile_name=profile_name) if profile_name else Session()

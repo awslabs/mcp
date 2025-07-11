@@ -63,39 +63,39 @@ def get_env_var(name: str, default: Optional[str] = None) -> str:
 
 def _detect_profile_auth_type(profile_name: str) -> str:
     """Detect the specific authentication type for a profile.
-    
+
     Returns:
         'sso', 'assume_role', 'regular', or 'unknown'
     """
     if not profile_name:
         return 'unknown'
-        
+
     config_file = os.path.expanduser('~/.aws/config')
     if not os.path.exists(config_file):
         return 'regular'  # Assume regular if no config file
-        
+
     try:
         with open(config_file, 'r') as f:
             lines = f.readlines()
-            
+
         # Parse config file to find the profile section
         in_target_profile = False
         profile_config = {}
-        
+
         for line in lines:
             line = line.strip()
-            
+
             # Check for profile section headers
             if line.startswith('[profile ') and line.endswith(']'):
                 current_profile = line[9:-1]  # Remove '[profile ' and ']'
-                in_target_profile = (current_profile == profile_name)
+                in_target_profile = current_profile == profile_name
             elif line.startswith('[') and line.endswith(']') and not line.startswith('[profile '):
                 current_profile = line[1:-1]  # Remove '[' and ']'
-                in_target_profile = (current_profile == profile_name)
+                in_target_profile = current_profile == profile_name
             elif in_target_profile and '=' in line:
                 key, value = [x.strip() for x in line.split('=', 1)]
                 profile_config[key] = value
-                
+
         # Determine auth type based on config
         if 'sso_start_url' in profile_config:
             return 'sso_profile'
@@ -105,7 +105,7 @@ def _detect_profile_auth_type(profile_name: str) -> str:
             return 'standard_profile'
         else:
             return 'standard_profile'  # Default fallback
-            
+
     except Exception:
         return 'unknown'
 
@@ -136,10 +136,14 @@ def check_aws_credentials() -> Dict[str, Any]:
         region = 'us-east-1'
 
     # Detect credential source
-    using_env_vars = bool(os.environ.get('AWS_ACCESS_KEY_ID') and os.environ.get('AWS_SECRET_ACCESS_KEY'))
+    using_env_vars = bool(
+        os.environ.get('AWS_ACCESS_KEY_ID') and os.environ.get('AWS_SECRET_ACCESS_KEY')
+    )
     credential_source = 'env' if using_env_vars else 'profile'
-    profile_auth_type = _detect_profile_auth_type(profile) if profile and not using_env_vars else None
-    
+    profile_auth_type = (
+        _detect_profile_auth_type(profile) if profile and not using_env_vars else None
+    )
+
     result = {
         'valid': False,
         'profile': profile,

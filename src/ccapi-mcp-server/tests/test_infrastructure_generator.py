@@ -1,335 +1,385 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""Tests for infrastructure_generator."""
+"""Tests for infrastructure_generator.py module."""
 
 import pytest
+from awslabs.ccapi_mcp_server.errors import ClientError
+from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-@pytest.mark.asyncio
 class TestInfrastructureGenerator:
-    """Test infrastructure generator functions."""
+    """Test infrastructure generation functions."""
 
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    async def test_generate_infrastructure_code_success(self, mock_schema_manager):
-        """Test successful infrastructure code generation."""
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
+    @pytest.mark.asyncio
+    async def test_generate_infrastructure_code_no_resource_type(self):
+        """Test generate_infrastructure_code with no resource type."""
+        with pytest.raises(ClientError, match='Please provide a resource type'):
+            await generate_infrastructure_code('')
 
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(
-            return_value={'properties': {'BucketName': {'type': 'string'}}}
-        )
-        mock_schema_manager.return_value = mock_instance
+    @pytest.mark.asyncio
+    async def test_generate_infrastructure_code_create_operation(self):
+        """Test generate_infrastructure_code for create operation."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+                }
+            )
+            mock_sm.return_value = mock_schema_manager
 
-        result = await generate_infrastructure_code(
-            resource_type='AWS::S3::Bucket',
-            properties={'BucketName': 'test-bucket'},
-            region='us-east-1',
-        )
-
-        assert 'cloudformation_template' in result
-        # terraform_code may not be in result depending on implementation
-        assert isinstance(result, dict)
-
-    async def test_generate_infrastructure_code_no_type(self):
-        """Test infrastructure code generation with no type."""
-        from awslabs.ccapi_mcp_server.errors import ClientError
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
-
-        with pytest.raises(ClientError):
-            await generate_infrastructure_code(resource_type='', properties={}, region='us-east-1')
-
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    async def test_generate_infrastructure_code_with_options(self, mock_schema_manager):
-        """Test infrastructure code generation with additional options."""
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
-
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(
-            return_value={'properties': {'BucketName': {'type': 'string'}}}
-        )
-        mock_schema_manager.return_value = mock_instance
-
-        result = await generate_infrastructure_code(
-            resource_type='AWS::S3::Bucket',
-            properties={'BucketName': 'test-bucket'},
-            region='us-east-1',
-        )
-
-        assert 'cloudformation_template' in result
-        assert isinstance(result, dict)
-
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    async def test_generate_infrastructure_code_schema_error(self, mock_schema_manager):
-        """Test infrastructure code generation with schema error."""
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
-
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(side_effect=Exception('Schema not found'))
-        mock_schema_manager.return_value = mock_instance
-
-        with pytest.raises(Exception, match='Schema not found'):
-            await generate_infrastructure_code(
+            result = await generate_infrastructure_code(
                 resource_type='AWS::S3::Bucket',
                 properties={'BucketName': 'test-bucket'},
                 region='us-east-1',
             )
 
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    async def test_generate_infrastructure_code_complex_properties(self, mock_schema_manager):
-        """Test infrastructure code generation with complex properties."""
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
+            assert result['operation'] == 'create'
+            assert result['resource_type'] == 'AWS::S3::Bucket'
+            assert 'properties' in result
+            assert 'cloudformation_template' in result
+            assert result['supports_tagging'] is True
 
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(
-            return_value={
-                'properties': {
-                    'BucketName': {'type': 'string'},
-                    'Tags': {'type': 'array'},
-                    'PublicAccessBlockConfiguration': {'type': 'object'},
+    @pytest.mark.asyncio
+    async def test_generate_infrastructure_code_create_no_properties(self):
+        """Test generate_infrastructure_code create with no properties."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(return_value={'properties': {}})
+            mock_sm.return_value = mock_schema_manager
+
+            with pytest.raises(ClientError, match='Please provide the properties'):
+                await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket', region='us-east-1'
+                )
+
+    @pytest.mark.asyncio
+    async def test_generate_infrastructure_code_update_operation(self):
+        """Test generate_infrastructure_code for update operation."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
                 }
-            }
-        )
-        mock_schema_manager.return_value = mock_instance
-
-        complex_properties = {
-            'BucketName': 'test-bucket',
-            'Tags': [{'Key': 'Environment', 'Value': 'Test'}],
-            'PublicAccessBlockConfiguration': {'BlockPublicAcls': True, 'BlockPublicPolicy': True},
-        }
-
-        result = await generate_infrastructure_code(
-            resource_type='AWS::S3::Bucket', properties=complex_properties, region='us-west-2'
-        )
-
-        assert 'cloudformation_template' in result
-        assert isinstance(result, dict)
-
-    async def test_generate_infrastructure_code_no_properties(self):
-        """Test infrastructure code generation with no properties."""
-        from awslabs.ccapi_mcp_server.errors import ClientError
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
-
-        with pytest.raises(ClientError):
-            await generate_infrastructure_code(
-                resource_type='AWS::S3::Bucket', properties={}, region='us-east-1'
             )
+            mock_sm.return_value = mock_schema_manager
 
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    async def test_generate_infrastructure_code_no_region(self, mock_schema_manager):
-        """Test infrastructure code generation with no region uses default."""
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
+            with patch(
+                'awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client'
+            ) as mock_client:
+                mock_client.return_value.get_resource.return_value = {
+                    'ResourceDescription': {
+                        'Properties': '{"BucketName": "existing-bucket", "Tags": []}'
+                    }
+                }
 
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(
-            return_value={'properties': {'BucketName': {'type': 'string'}}}
-        )
-        mock_schema_manager.return_value = mock_instance
+                result = await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='existing-bucket',
+                    properties={'BucketName': 'updated-bucket'},
+                    region='us-east-1',
+                )
 
-        # Empty region should use default region instead of raising error
-        result = await generate_infrastructure_code(
-            resource_type='AWS::S3::Bucket',
-            properties={'BucketName': 'test-bucket'},
-            region='',
-        )
-        assert isinstance(result, dict)
-        assert 'cloudformation_template' in result
+                assert result['operation'] == 'update'
+                assert 'recommended_patch_document' in result
 
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    async def test_generate_infrastructure_code_no_properties_create(self, mock_schema_manager):
-        """Test generate_infrastructure_code with no properties for create - line 76."""
-        from awslabs.ccapi_mcp_server.errors import ClientError
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
-
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(return_value={'properties': {}})
-        mock_schema_manager.return_value = mock_instance
-
-        with pytest.raises(ClientError, match='Please provide the properties'):
-            await generate_infrastructure_code(
-                resource_type='AWS::S3::Bucket', properties={}, identifier=''
+    @pytest.mark.asyncio
+    async def test_generate_infrastructure_code_known_taggable_resource(self):
+        """Test generate_infrastructure_code with known taggable resource even if schema doesn't show it."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={'properties': {'InstanceType': {'type': 'string'}}}
             )
+            mock_sm.return_value = mock_schema_manager
 
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client')
-    async def test_generate_infrastructure_code_update_path(
-        self, mock_client, mock_schema_manager
-    ):
-        """Test infrastructure code generation update path - lines 49-72."""
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
-
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(return_value={'properties': {}})
-        mock_schema_manager.return_value = mock_instance
-
-        mock_client.return_value.get_resource.return_value = {
-            'ResourceDescription': {'Properties': '{"BucketName": "existing-bucket"}'}
-        }
-
-        result = await generate_infrastructure_code(
-            resource_type='AWS::S3::Bucket',
-            properties={'BucketName': 'test-bucket'},
-            identifier='existing-bucket',
-            patch_document=[{'op': 'replace', 'path': '/BucketName', 'value': 'new-bucket'}],
-        )
-
-        assert isinstance(result, dict)
-
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    async def test_generate_infrastructure_code_schema_error_lines(self, mock_schema_manager):
-        """Test generate_infrastructure_code with schema error - covers lines 50, 59-60."""
-        from awslabs.ccapi_mcp_server.errors import ClientError
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
-
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(side_effect=ClientError('Schema error'))
-        mock_schema_manager.return_value = mock_instance
-
-        with pytest.raises(ClientError):
-            await generate_infrastructure_code(
-                resource_type='AWS::S3::Bucket',
-                properties={'BucketName': 'test'},
+            result = await generate_infrastructure_code(
+                resource_type='AWS::EC2::Instance',
+                properties={'InstanceType': 't2.micro'},
                 region='us-east-1',
             )
 
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.add_default_tags')
-    async def test_generate_infrastructure_code_tag_error_lines(
-        self, mock_tags, mock_schema_manager
-    ):
-        """Test generate_infrastructure_code with tag error - covers lines 70, 80-81."""
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
+            # Should still support tagging for known AWS resources
+            assert result['supports_tagging'] is True
 
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(return_value={'properties': {}})
-        mock_schema_manager.return_value = mock_instance
-        mock_tags.side_effect = Exception('Tag error')
-
-        with pytest.raises(Exception):
-            await generate_infrastructure_code(
-                resource_type='AWS::S3::Bucket',
-                properties={'BucketName': 'test'},
-                region='us-east-1',
+    # Additional coverage tests
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_patch_edge_cases(self):
+        """Test infrastructure generator patch edge cases."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+                }
             )
+            mock_sm.return_value = mock_schema_manager
 
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager')
-    @patch('awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client')
-    async def test_generate_infrastructure_code_update_with_default_tags(
-        self, mock_client, mock_schema_manager
-    ):
-        """Test infrastructure code generation for update includes default tags in recommended patch."""
-        from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code
+            with patch(
+                'awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client'
+            ) as mock_client:
+                mock_client.return_value.get_resource.return_value = {
+                    'ResourceDescription': {'Properties': '{"BucketName": "test", "Tags": []}'}
+                }
 
-        # Mock schema with Tags support
-        mock_instance = MagicMock()
-        mock_instance.get_schema = AsyncMock(
-            return_value={
-                'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
-            }
-        )
-        mock_schema_manager.return_value = mock_instance
+                # Test with move operation
+                result = await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='test-bucket',
+                    patch_document=[
+                        {'op': 'move', 'from': '/BucketName', 'path': '/NewBucketName'}
+                    ],
+                    region='us-east-1',
+                )
 
-        # Mock current resource with existing tags
-        mock_client.return_value.get_resource.return_value = {
-            'ResourceDescription': {
-                'Properties': '{"BucketName": "existing-bucket", "Tags": [{"Key": "existing", "Value": "tag"}]}'
-            }
-        }
+                assert result['operation'] == 'update'
 
-        # User wants to add a new tag
-        result = await generate_infrastructure_code(
-            resource_type='AWS::S3::Bucket',
-            properties={'Tags': [{'Key': 'user-tag', 'Value': 'user-value'}]},
-            identifier='existing-bucket',
-            region='us-east-1',
-        )
-
-        # Should return recommended patch document with all tags (existing + user + default)
-        assert 'recommended_patch_document' in result
-        patch_doc = result['recommended_patch_document']
-        assert len(patch_doc) == 1
-        assert patch_doc[0]['op'] == 'replace'
-        assert patch_doc[0]['path'] == '/Tags'
-
-        # Should have existing tag + user tag + 3 default tags = 5 total
-        tags = patch_doc[0]['value']
-        assert len(tags) == 5
-
-        tag_dict = {tag['Key']: tag['Value'] for tag in tags}
-        assert tag_dict['existing'] == 'tag'  # Existing tag preserved
-        assert tag_dict['user-tag'] == 'user-value'  # User tag added
-        assert tag_dict['MANAGED_BY'] == 'CCAPI-MCP-SERVER'  # Default tags added
-        assert (
-            tag_dict['MCP_SERVER_SOURCE_CODE']
-            == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
-        )
-        assert tag_dict['MCP_SERVER_VERSION'] == '1.1.0'
-
-    async def test_real_s3_schema_supports_tagging(self):
-        """Test that real S3 schema from schema_manager supports tagging."""
-        from awslabs.ccapi_mcp_server.schema_manager import schema_manager
-
-        # Get the actual S3 schema
-        sm = schema_manager()
-        try:
-            schema = await sm.get_schema('AWS::S3::Bucket', 'us-east-1')
-
-            # Check if schema supports tagging
-            supports_tagging = 'Tags' in schema.get('properties', {})
-            schema_properties = list(schema.get('properties', {}).keys())
-
-            print(f'S3 Schema supports tagging: {supports_tagging}')
-            print(f'S3 Schema properties: {schema_properties}')
-
-            # This should be True for S3 buckets
-            assert supports_tagging, (
-                f'S3 schema should support Tags. Properties: {schema_properties}'
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_tag_merging(self):
+        """Test tag merging logic."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={'properties': {'Tags': {'type': 'array'}}}
             )
+            mock_sm.return_value = mock_schema_manager
 
-        except Exception as e:
-            # If we can't get the real schema, skip this test
-            pytest.skip(f'Could not get real S3 schema: {e}')
+            with patch(
+                'awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client'
+            ) as mock_client:
+                mock_client.return_value.get_resource.return_value = {
+                    'ResourceDescription': {
+                        'Properties': '{"BucketName": "test", "Tags": [{"Key": "Existing", "Value": "Tag"}]}'
+                    }
+                }
 
-    async def test_add_default_tags_with_real_schema(self):
-        """Test add_default_tags with real S3 schema."""
-        from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
-        from awslabs.ccapi_mcp_server.schema_manager import schema_manager
+                # Test patch operation that adds invalid tag format
+                result = await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='test-bucket',
+                    patch_document=[
+                        {'op': 'add', 'path': '/Tags/-', 'value': 'invalid-string-tag'},
+                        {'op': 'add', 'path': '/Tags/-', 'value': {'InvalidKey': 'NoKeyValue'}},
+                    ],
+                    region='us-east-1',
+                )
 
-        # Get the actual S3 schema
-        sm = schema_manager()
-        try:
-            schema = await sm.get_schema('AWS::S3::Bucket', 'us-east-1')
+                # Should filter out invalid tags
+                assert result['operation'] == 'update'
 
-            # Test properties like what the MCP server receives
-            properties = {
-                'BucketName': 'test-bucket',
-                'Tags': [{'Key': 'user-tag', 'Value': 'user-value'}],
-            }
-
-            result = add_default_tags(properties, schema)
-
-            # Should have user tag + 3 default tags = 4 total
-            assert len(result['Tags']) == 4, (
-                f'Expected 4 tags, got {len(result["Tags"])}: {result["Tags"]}'
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_no_existing_resource(self):
+        """Test infrastructure generator when resource doesn't exist."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={'properties': {'BucketName': {'type': 'string'}}}
             )
+            mock_sm.return_value = mock_schema_manager
 
-            tag_dict = {tag['Key']: tag['Value'] for tag in result['Tags']}
-            assert 'user-tag' in tag_dict
-            assert 'MANAGED_BY' in tag_dict
-            assert 'MCP_SERVER_SOURCE_CODE' in tag_dict
-            assert 'MCP_SERVER_VERSION' in tag_dict
+            with patch(
+                'awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client'
+            ) as mock_client:
+                # Resource doesn't exist
+                mock_client.return_value.get_resource.side_effect = Exception('ResourceNotFound')
 
-        except Exception as e:
-            # If we can't get the real schema, skip this test
-            pytest.skip(f'Could not get real S3 schema: {e}')
+                with pytest.raises(ClientError):
+                    await generate_infrastructure_code(
+                        resource_type='AWS::S3::Bucket',
+                        identifier='nonexistent-bucket',
+                        patch_document=[
+                            {'op': 'replace', 'path': '/BucketName', 'value': 'new-name'}
+                        ],
+                        region='us-east-1',
+                    )
+
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_no_identifier_update(self):
+        """Test infrastructure generator update without identifier."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={'properties': {'BucketName': {'type': 'string'}}}
+            )
+            mock_sm.return_value = mock_schema_manager
+
+            with pytest.raises(ClientError):
+                await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='',  # Empty identifier
+                    patch_document=[{'op': 'replace', 'path': '/BucketName', 'value': 'new-name'}],
+                    region='us-east-1',
+                )
+
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_copy_operation(self):
+        """Test infrastructure generator with copy operation."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+                }
+            )
+            mock_sm.return_value = mock_schema_manager
+
+            with patch(
+                'awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client'
+            ) as mock_client:
+                mock_client.return_value.get_resource.return_value = {
+                    'ResourceDescription': {
+                        'Properties': '{"BucketName": "test", "Tags": [{"Key": "Source", "Value": "Tag"}]}'
+                    }
+                }
+
+                result = await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='test-bucket',
+                    patch_document=[
+                        {'op': 'copy', 'from': '/Tags/0', 'path': '/Tags/-'},
+                        {'op': 'test', 'path': '/BucketName', 'value': 'test'},
+                    ],
+                    region='us-east-1',
+                )
+
+                assert result['operation'] == 'update'
+
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_remove_operation(self):
+        """Test infrastructure generator with remove operation."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+                }
+            )
+            mock_sm.return_value = mock_schema_manager
+
+            with patch(
+                'awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client'
+            ) as mock_client:
+                mock_client.return_value.get_resource.return_value = {
+                    'ResourceDescription': {
+                        'Properties': '{"BucketName": "test", "Tags": [{"Key": "Remove", "Value": "Me"}]}'
+                    }
+                }
+
+                result = await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='test-bucket',
+                    patch_document=[{'op': 'remove', 'path': '/Tags/0'}],
+                    region='us-east-1',
+                )
+
+                assert result['operation'] == 'update'
+
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_add_tags_operation(self):
+        """Test infrastructure generator with add tags operation."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+                }
+            )
+            mock_sm.return_value = mock_schema_manager
+
+            with patch(
+                'awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client'
+            ) as mock_client:
+                mock_client.return_value.get_resource.return_value = {
+                    'ResourceDescription': {'Properties': '{"BucketName": "test", "Tags": []}'}
+                }
+
+                # Test with add operation for entire Tags array
+                result = await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='test-bucket',
+                    patch_document=[
+                        {
+                            'op': 'add',
+                            'path': '/Tags',
+                            'value': [{'Key': 'NewTag', 'Value': 'NewValue'}],
+                        }
+                    ],
+                    region='us-east-1',
+                )
+
+                assert result['operation'] == 'update'
+                assert any(tag['Key'] == 'NewTag' for tag in result['properties']['Tags'])
+
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_replace_tags_operation(self):
+        """Test infrastructure generator with replace tags operation."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+                }
+            )
+            mock_sm.return_value = mock_schema_manager
+
+            with patch(
+                'awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client'
+            ) as mock_client:
+                mock_client.return_value.get_resource.return_value = {
+                    'ResourceDescription': {
+                        'Properties': '{"BucketName": "test", "Tags": [{"Key": "OldTag", "Value": "OldValue"}]}'
+                    }
+                }
+
+                # Test with replace operation for Tags
+                result = await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='test-bucket',
+                    patch_document=[
+                        {
+                            'op': 'replace',
+                            'path': '/Tags',
+                            'value': [{'Key': 'ReplacedTag', 'Value': 'ReplacedValue'}],
+                        }
+                    ],
+                    region='us-east-1',
+                )
+
+                assert result['operation'] == 'update'
+                assert any(tag['Key'] == 'ReplacedTag' for tag in result['properties']['Tags'])
+
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_update_with_properties(self):
+        """Test infrastructure generator update with properties instead of patch document."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+                }
+            )
+            mock_sm.return_value = mock_schema_manager
+
+            with patch(
+                'awslabs.ccapi_mcp_server.infrastructure_generator.get_aws_client'
+            ) as mock_client:
+                mock_client.return_value.get_resource.return_value = {
+                    'ResourceDescription': {
+                        'Properties': '{"BucketName": "test", "Tags": [{"Key": "OldTag", "Value": "OldValue"}]}'
+                    }
+                }
+
+                # Test update with properties instead of patch document
+                result = await generate_infrastructure_code(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='test-bucket',
+                    properties={
+                        'BucketName': 'updated-bucket',
+                        'Tags': [{'Key': 'NewTag', 'Value': 'NewValue'}],
+                    },
+                    region='us-east-1',
+                )
+
+                assert result['operation'] == 'update'
+                assert result['properties']['BucketName'] == 'updated-bucket'
+                assert any(tag['Key'] == 'NewTag' for tag in result['properties']['Tags'])

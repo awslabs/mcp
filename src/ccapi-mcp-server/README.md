@@ -1,6 +1,6 @@
-# Cloud Control API MCP Server
+# AWS Cloud Control API (CCAPI) MCP Server
 
-Model Context Protocol (MCP) server that enables LLMs to directly create and manage over 1,100 AWS resources through natural language using AWS Cloud Control API and Iac Generator with Infrastructure as Code best practices.
+Model Context Protocol (MCP) server that enables LLMs to directly create and manage over 1,100 AWS resources through natural language using AWS Cloud Control API and IaC Generator with Infrastructure as Code best practices.
 
 ## Prerequisites
 
@@ -36,8 +36,8 @@ For resource creation and updates, the server follows this secure workflow:
 
 This workflow ensures that:
 
-- **Full Transparency**: Users see exactly what will be created/modified before execution via the mandatory `explain()` step
-- **Security Validation**: Resources are scanned for security issues before creation/modification (when enabled)
+- **Full Transparency**: Users see exactly what will be created/modified before execution via the `explain()` step
+- **Security Validation**: Resources are scanned for security issues before creation/modification (when enabled, default configuration)
 - **Informed Consent**: Users cannot accidentally create resources without understanding the configuration
 - **Audit Trail**: Default management tags are automatically applied for tracking and support
 - **Flexible Security**: Security scanning can be enabled/disabled based on environment needs
@@ -119,9 +119,9 @@ The server uses boto3's standard credential chain automatically:
 
 ### Server Configuration
 
-| Variable            | Default     | Description                              |
-| ------------------- | ----------- | ---------------------------------------- |
-| `FASTMCP_LOG_LEVEL` | _(not set)_ | Logging level (ERROR, WARN, INFO, DEBUG) |
+| Variable            | Default     | Description                                                                                                                                 |
+| ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FASTMCP_LOG_LEVEL` | _(not set)_ | Logging level (ERROR, WARN, INFO, DEBUG)                                                                                                    |
 | `SECURITY_SCANNING` | `enabled`   | Enable/disable Checkov security scanning (`enabled` or `disabled`). When disabled, shows warning but allows resource operations to proceed. |
 
 ### Default Tagging
@@ -170,6 +170,8 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "args": ["awslabs.ccapi-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-named-profile",
+        "DEFAULT_TAGS": "enabled",
+        "SECURITY_SCANNING": "enabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
@@ -179,9 +181,30 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
-_Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-west-2"` to override._
+_Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-west-2"` (or other desired AWS Region) to override._
 
 **Alternative configurations:**
+
+**Using SSO via AWS IAM Identity Center:**
+
+```json
+{
+  "mcpServers": {
+    "awslabs.ccapi-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.ccapi-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-sso-profile",
+        "DEFAULT_TAGS": "enabled",
+        "SECURITY_SCANNING": "enabled",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+_Note: Run `aws sso login --profile your-sso-profile` before starting the MCP server_
 
 **Using Environment Variables for Credentials:**
 
@@ -192,7 +215,10 @@ _Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-wes
       "command": "uvx",
       "args": ["awslabs.ccapi-mcp-server@latest"],
       "env": {
-        "AWS_REGION": "us-west-2"
+        "AWS_REGION": "us-west-2",
+        "DEFAULT_TAGS": "enabled",
+        "SECURITY_SCANNING": "enabled",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
@@ -200,24 +226,6 @@ _Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-wes
 ```
 
 _Note: Ensure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are exported in your shell_
-
-**Using AWS SSO:**
-
-```json
-{
-  "mcpServers": {
-    "awslabs.ccapi-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.ccapi-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-sso-profile"
-      }
-    }
-  }
-}
-```
-
-_Note: Run `aws sso login --profile your-sso-profile` before starting the MCP server_
 
 **Security Scanning Configuration:**
 
@@ -231,6 +239,7 @@ By default, the MCP server runs Checkov security scanning on all infrastructure 
       "args": ["awslabs.ccapi-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-named-profile",
+        "DEFAULT_TAGS": "enabled",
         "SECURITY_SCANNING": "disabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
@@ -241,7 +250,7 @@ By default, the MCP server runs Checkov security scanning on all infrastructure 
 
 **Read-Only Mode (Security Feature):**
 
-To prevent the MCP server from performing any mutating actions (Create/Update/Delete), use the `--readonly` command-line flag. This is a security feature that cannot be bypassed via environment variables:
+To prevent the MCP server from performing any mutating actions (Create/Update/Delete), use the `--readonly` command-line flag. This is a security feature that cannot be bypassed via environment variables. Note, this is why the `DEFAULT_TAGS`, and `SECURITY_SCANNING` environment variables are omitted from the follow example. Even if they were present, the `--readonly` flag would prevent any CREATE/UPDATE/DELETE operations, which cause those environment variables to have no use:
 
 ```json
 {
@@ -338,25 +347,26 @@ Prepares resource properties for Cloud Control API operations, applies default m
 
 **Requirements**: `properties_token` from `generate_infrastructure_code()` (for infrastructure operations) OR `content` parameter (for general explanations)
 
-**MANDATORY**: Explains any data in clear, human-readable format. For infrastructure operations, this tool consumes the `properties_token` and returns an `execution_token` that must be used for create/update/delete operations.
+Explains any data in clear, human-readable format. For infrastructure operations, this tool consumes the `properties_token` and returns an `execution_token` that must be used for create/update/delete operations.
 
-**Infrastructure workflow**: 
+**Infrastructure workflow**:
+
 - Takes `properties_token` from `generate_infrastructure_code()`
 - Provides comprehensive explanation of what will be created/updated/deleted
 - Returns `execution_token` for use with `create_resource()`/`update_resource()`/`delete_resource()`
-- **Critical**: You MUST display the explanation to the user before proceeding
+- **Security**: Ensures users see exactly what will be created/modified before execution.
 
 **General data explanation**:
+
 - Pass any data in `content` parameter
 - Explains JSON, YAML, dictionaries, lists, API responses, configurations
 - No token workflow required
 
-**Example**: Explain S3 bucket configuration before creation, or explain API response data.
-**Security**: Ensures users see exactly what will be created/modified before execution.
+**Example**: Explain S3 bucket configuration when fetching an existing bucket, or explain general API response data.
 
 ### run_checkov()
 
-**Requirements**: CloudFormation template content and `file_type` parameter
+**Requirements**: IaC template content and `file_type` parameter
 
 Runs Checkov security and compliance scanner on Infrastructure as Code content. Supports CloudFormation (JSON/YAML), Terraform (HCL), and other IaC formats. **Security validation behavior depends on SECURITY_SCANNING environment variable**.
 
@@ -377,7 +387,8 @@ Get schema information for an AWS CloudFormation resource.
 
 **Requirements**: `aws_session_info` from `get_aws_session_info()` AND `execution_token` from `explain()`
 
-**Security Requirements**: 
+**Security Requirements**:
+
 - When SECURITY_SCANNING=enabled (default): Requires `checkov_validation_token` from `run_checkov()`
 - When SECURITY_SCANNING=disabled: Shows security warning but proceeds without validation token
 
@@ -397,7 +408,8 @@ Gets details of a specific AWS resource using the AWS Cloud Control API.
 
 **Requirements**: `aws_session_info` from `get_aws_session_info()` AND `execution_token` from `explain()`
 
-**Security Requirements**: 
+**Security Requirements**:
+
 - When SECURITY_SCANNING=enabled (default): Requires `checkov_validation_token` from `run_checkov()`
 - When SECURITY_SCANNING=disabled: Shows security warning but proceeds without validation token
 
@@ -463,7 +475,7 @@ Creates CloudFormation templates from existing AWS resources using AWS CloudForm
 2. Experiment with prompts like "Using the CCAPI MCP server, create..."
 3. For a scalable solution, implement the rules/instructions mentioned below
 
-**Note**: This is not a limitation of the CCAPI MCP Server - it's a current MCP protocol limitation. MCP has no native tool ordering concept or functionality, allowing LLMs to choose any available MCP server/tool. This flexibility is both good (choice) and problematic (undesirable sever/tool selection).
+**Note**: This is not a limitation of the CCAPI MCP Server - it's a current MCP protocol limitation. MCP has no native tool ordering concept or functionality, allowing LLMs to choose any available MCP server/tool. This flexibility is both good (choice) and problematic (undesirable sever/tool selection). We use a token-based approach to enforce some ordering in tool usage the LLM must follow, however this does not span across multiple MCP servers. It is internal to this MCP server.
 
 ### Recommendation
 

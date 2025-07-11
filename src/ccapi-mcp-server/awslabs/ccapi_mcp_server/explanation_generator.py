@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Explanation generator for AWS resources."""
 
 from typing import Any
@@ -5,13 +19,23 @@ from typing import Any
 
 def _format_value(value: Any) -> str:
     """Format any value for display."""
-    if isinstance(value, str):
+    if value is None:
+        return 'None'
+    elif isinstance(value, str):
+        if not value:  # Empty string
+            return '""'
         return f'"{value[:100]}"' + ('...' if len(value) > 100 else '')
     elif isinstance(value, (int, float, bool)):
         return str(value)
     elif isinstance(value, dict):
+        if not value:  # Empty dict
+            return '{}'
         return f'{{dict with {len(value)} keys}}'
     elif isinstance(value, list):
+        if not value:  # Empty list
+            return '[]'
+        if len(value) == 1:  # Single item list - show the item
+            return f'[{_format_value(value[0])}]'
         return f'[list with {len(value)} items]'
     else:
         return f'{type(value).__name__} object'
