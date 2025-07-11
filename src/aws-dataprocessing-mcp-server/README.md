@@ -10,6 +10,8 @@ Integrating the DataProcessing MCP server into AI code assistants transforms dat
 ### AWS Glue Integration
 
 * Data Catalog Management: Enables users to explore, create, and manage databases, tables, and partitions through natural language requests, automatically translating them into appropriate AWS Glue Data Catalog operations.
+* Interactive Sessions: Provides interactive development environment for Spark and Ray workloads, enabling data exploration, debugging, and iterative development through managed Jupyter-like sessions.
+* Workflows and Triggers: Orchestrates complex ETL activities through visual workflows and automated triggers, supporting scheduled, conditional, and event-based execution patterns.
 * Commons: Enables users to create and manage usage profiles, security configurations, catalog encryption settings and resource policies, which provide users with the ability to manage the configuration and encryption of several Glue resources like ETL jobs, catalogs, etc.
 * ETL Job Orchestration: Provides the ability to create, monitor, and manage Glue ETL jobs with automatic script generation, job scheduling, and workflow coordination based on user-defined data transformation requirements.
 * Crawler Management: Enables intelligent data discovery through automated crawler configuration, scheduling, and metadata extraction from various data sources.
@@ -20,6 +22,14 @@ Integrating the DataProcessing MCP server into AI code assistants transforms dat
 * Instance Management: Provides the ability to add, modify, and monitor instance fleets and instance groups within EMR clusters, supporting both on-demand and spot instances with auto-scaling capabilities.
 * Step Execution: Orchestrates data processing workflows through EMR steps, allowing users to submit, monitor, and manage Hadoop, Spark, and other application jobs on running clusters.
 * Security Configuration: Manages EMR security settings including encryption, authentication, and authorization policies to ensure secure data processing environments.
+
+### Amazon Athena Integration
+
+* Query Execution: Enables users to execute, monitor, and manage SQL queries with comprehensive control over query lifecycle, including starting queries, retrieving results, monitoring performance statistics, and canceling running queries through natural language requests.
+* Named Query Management: Provides the ability to create, update, retrieve, and delete saved SQL queries, enabling users to build reusable query libraries with proper organization and team collaboration capabilities.
+* Data Catalog Operations: Manages Athena data catalogs with support for multiple catalog types (LAMBDA, GLUE, HIVE, FEDERATED), enabling users to create, configure, and maintain data source connections for cross-platform querying.
+* Database and Table Discovery: Facilitates data exploration through comprehensive database and table metadata retrieval, allowing users to discover available data sources, understand schema structures, and navigate data catalogs efficiently.
+* Workgroup Administration: Orchestrates query execution environments through workgroup management, providing cost control, access management, and query result configuration with support for different user groups and organizational policies.
 
 ## Prerequisites
 
@@ -51,6 +61,27 @@ For read operations, the following permissions are required:
         "glue:GetTables",
         "glue:ListCrawlers",
         "glue:SearchTables",
+        "glue:GetJobRun",
+        "glue:GetJobRuns",
+        "glue:GetJob",
+        "glue:GetJobs",
+        "glue:GetJobBookmark",
+        "glue:GetUsageProfile",
+        "glue:GetSecurityConfiguration",
+        "glue:GetDataCatalogEncryptionSettings",
+        "glue:GetResourcePolicy",
+        "glue:GetSession",
+        "glue:ListSessions",
+        "glue:GetStatement",
+        "glue:ListStatements",
+        "glue:GetSession",
+        "glue:ListSessions",
+        "glue:GetStatement",
+        "glue:ListStatements",
+        "glue:GetWorkflow",
+        "glue:ListWorkflows",
+        "glue:GetTrigger",
+        "glue:GetTriggers",
         "cloudwatch:GetMetricData",
         "logs:DescribeLogGroups",
         "logs:DescribeLogStreams",
@@ -254,6 +285,21 @@ Specifies the AWS region where Glue,EMR clusters or Athena are managed, which wi
 | manage_aws_glue_connections | Manage AWS Glue Data Catalog connections | create-connection, delete-connection, get-connection, list-connections, update-connection | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
 | manage_aws_glue_partitions | Manage AWS Glue Data Catalog partitions | create-partition, delete-partition, get-partition, list-partitions, update-partition | --allow-write flag for create/delete/update operations, database and table must exist, appropriate AWS permissions |
 | manage_aws_glue_catalog | Manage AWS Glue Data Catalog | create-catalog, delete-catalog, get-catalog, list-catalogs, import-catalog-to-glue | --allow-write flag for create/delete/import operations, appropriate AWS permissions |
+
+### Glue Interactive Sessions Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_glue_sessions | Manage AWS Glue Interactive Sessions for Spark and Ray workloads | create-session, delete-session, get-session, list-sessions, stop-session | --allow-write flag for create/delete/stop operations, appropriate AWS permissions |
+| manage_aws_glue_statements | Execute and manage code statements within Glue Interactive Sessions | run-statement, cancel-statement, get-statement, list-statements | --allow-write flag for run/cancel operations, active session required |
+
+### Glue Workflows and Triggers Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_glue_workflows | Orchestrate complex ETL activities through visual workflows | create-workflow, delete-workflow, get-workflow, list-workflows, start-workflow-run | --allow-write flag for create/delete/start operations, appropriate AWS permissions |
+| manage_aws_glue_triggers | Automate workflow and job execution with scheduled or event-based triggers | create-trigger, delete-trigger, get-trigger, get-triggers, start-trigger, stop-trigger | --allow-write flag for create/delete/start/stop operations, appropriate AWS permissions |
+
 
 ### EMR Cluster Handler Tools
 
