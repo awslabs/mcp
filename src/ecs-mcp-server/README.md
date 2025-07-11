@@ -190,7 +190,7 @@ We strongly recommend creating dedicated IAM roles with least-privilege permissi
 3. **Use scoped-down resource policies** whenever possible
 4. **Apply a permission boundary** to limit the maximum permissions
 
-For detailed example IAM policies tailored for different ECS MCP Server use cases (read-only monitoring, troubleshooting, deployment, and service-specific access), see [EXAMPLE_IAM_POLICIES.md](EXAMPLE_IAM_POLICIES.md).
+For detailed example IAM policies tailored for different ECS MCP Server use cases (read-only monitoring, troubleshooting, deployment, and service-specific access), see [EXAMPLE_IAM_POLICIES.md](https://github.com/awslabs/mcp/blob/main/src/ecs-mcp-server/EXAMPLE_IAM_POLICIES.md).
 
 
 ## MCP Tools
