@@ -116,5 +116,6 @@ def test_pyiceberg_load_catalog(monkeypatch):
         mock_load_catalog.assert_called_once()
         assert result == mock_catalog
         assert (
-            mock_catalog._session.headers['User-Agent'] == 'awslabs/mcp/s3-tables-mcp-server/1.2.3'
+            mock_catalog._session.headers['User-Agent']
+            == 'awslabs/mcp/s3-tables-mcp-server/1.2.3/ro'
         )

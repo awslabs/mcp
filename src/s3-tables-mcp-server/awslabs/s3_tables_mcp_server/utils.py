@@ -23,6 +23,19 @@ from functools import wraps
 from typing import Optional
 
 
+_user_agent_mode = 'ro'  # Default to read-only
+
+
+def set_user_agent_mode(allow_write: bool):
+    """Set the user agent mode to 'rw' (read-write) or 'ro' (read-only)."""
+    global _user_agent_mode
+    _user_agent_mode = 'rw' if allow_write else 'ro'
+
+
+def _user_agent_extra():
+    return f'awslabs/mcp/s3-tables-mcp-server/{__version__}/{_user_agent_mode}'
+
+
 def handle_exceptions(func):
     """Decorator to handle exceptions consistently across tools."""
 
@@ -47,7 +60,7 @@ def get_s3tables_client(region_name: Optional[str] = None) -> BaseClient:
         boto3.client: Configured S3 Tables client
     """
     region = region_name or os.getenv('AWS_REGION') or 'us-east-1'
-    config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
+    config = Config(user_agent_extra=_user_agent_extra())
     session = boto3.Session()
     return session.client('s3tables', region_name=region, config=config)
 
@@ -63,7 +76,7 @@ def get_s3_client(region_name: Optional[str] = None) -> BaseClient:
         boto3.client: Configured S3 client
     """
     region = region_name or os.getenv('AWS_REGION') or 'us-east-1'
-    config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
+    config = Config(user_agent_extra=_user_agent_extra())
     session = boto3.Session()
     return session.client('s3', region_name=region, config=config)
 
@@ -79,7 +92,7 @@ def get_sts_client(region_name: Optional[str] = None) -> BaseClient:
         boto3.client: Configured STS client
     """
     region = region_name or os.getenv('AWS_REGION') or 'us-east-1'
-    config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
+    config = Config(user_agent_extra=_user_agent_extra())
     session = boto3.Session()
     return session.client('sts', region_name=region, config=config)
 
@@ -95,7 +108,7 @@ def get_athena_client(region_name: Optional[str] = None) -> BaseClient:
         boto3.client: Configured Athena client
     """
     region = region_name or os.getenv('AWS_REGION') or 'us-east-1'
-    config = Config(user_agent_extra=f'awslabs/mcp/s3-tables-mcp-server/{__version__}')
+    config = Config(user_agent_extra=_user_agent_extra())
     session = boto3.Session()
     return session.client('athena', region_name=region, config=config)
 
@@ -122,5 +135,5 @@ def pyiceberg_load_catalog(
             'rest.signing-region': region,
         },
     )
-    catalog._session.headers['User-Agent'] = f'awslabs/mcp/s3-tables-mcp-server/{__version__}'  # type: ignore[attr-defined]
+    catalog._session.headers['User-Agent'] = _user_agent_extra()  # type: ignore[attr-defined]
     return catalog

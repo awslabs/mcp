@@ -26,6 +26,7 @@ import os
 import platform
 import sys
 import traceback
+from .utils import set_user_agent_mode
 
 # Import modular components
 from awslabs.s3_tables_mcp_server import (
@@ -795,6 +796,7 @@ def main():
     args = parser.parse_args()
 
     app.allow_write = args.allow_write
+    set_user_agent_mode(args.allow_write)
 
     # Determine log directory
     if args.log_dir:
