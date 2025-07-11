@@ -451,6 +451,7 @@ class CloudWatchLogsTools:
                     query_string='pattern @message | sort @sampleCount desc | limit 5',
                     limit=5,
                     max_timeout=30,
+                    region=region,
                 ),
                 self.execute_log_insights_query(
                     ctx,
@@ -461,6 +462,7 @@ class CloudWatchLogsTools:
                     query_string='fields @timestamp, @message | filter @message like /(?i)(error|exception|fail|timeout|fatal)/ | pattern @message | limit 5',
                     limit=5,
                     max_timeout=30,
+                    region=region,
                 ),
             )
 
