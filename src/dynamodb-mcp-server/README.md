@@ -2,7 +2,12 @@
 
 The official MCP Server for interacting with AWS DynamoDB
 
+This comprehensive server provides both operational DynamoDB management and expert design guidance, featuring 30+ operational tools for managing DynamoDB tables, items, indexes, backups, and more, expert data modeling guidance.
+
 ## Available MCP Tools
+
+### Design & Modeling
+- `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt
 
 ### Table Operations
 - `create_table` - Creates a new DynamoDB table with optional secondary indexes
@@ -50,7 +55,7 @@ The official MCP Server for interacting with AWS DynamoDB
 
 ## Instructions
 
-The official MCP Server for interacting with AWS DynamoDB provides a comprehensive set of tools for managing DynamoDB resources. Each tool maps directly to DynamoDB API operations and supports all relevant parameters.
+The official MCP Server for interacting with AWS DynamoDB provides a comprehensive set of tools for both designing and managing DynamoDB resources.
 
 To use these tools, ensure you have proper AWS credentials configured with appropriate permissions for DynamoDB operations. The server will automatically use credentials from environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN) or other standard AWS credential sources.
 
