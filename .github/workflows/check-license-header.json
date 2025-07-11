@@ -9,7 +9,9 @@
       "**/site-packages/**",
       ".github/**",
       "docusaurus/**",
-      "**/*requirements.txt"
+      "docs/**",
+      "**/*requirements.txt",
+      "**/*.pyc"
     ],
     "include": [
       "**/*.py",
@@ -34,6 +36,7 @@
       "**/tests/**",
       ".venv/**",
       ".github/**",
+      "docs/**",
       "docusaurus/**",
       "**/*requirements.txt",
       "**/*.js",
@@ -42,7 +45,8 @@
       "**/*.ts",
       "**/*.css",
       "**/*.module.css",
-      "**/yarn.lock"
+      "**/yarn.lock",
+      "**/*.pyc"
     ]
   }
 ]
