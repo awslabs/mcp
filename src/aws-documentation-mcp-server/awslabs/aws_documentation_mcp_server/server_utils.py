@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import httpx
+import os
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
     format_documentation_result,
@@ -29,6 +30,21 @@ except Exception:
 
 DEFAULT_USER_AGENT = f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/{__version__} (AWS Documentation Server)'
 
+def get_ssl_verify():
+    """Get the SSL verification setting based on environment variables.
+    
+    Returns:
+        bool or str: Returns the path to the certificate from environment variables,
+                    or True to use the default certificate store.
+    """
+    # Check for certificates in order of preference
+    for env_var in ['REQUESTS_CA_BUNDLE', 'SSL_CERT_FILE', 'CURL_CA_BUNDLE']:
+        cert_path = os.environ.get(env_var)
+        if cert_path:
+            logger.info(f"Using certificate from {env_var}: {cert_path}")
+            return cert_path
+    
+    return True
 
 async def read_documentation_impl(
     ctx: Context,
@@ -42,7 +58,7 @@ async def read_documentation_impl(
 
     url_with_session = f'{url_str}?session={session_uuid}'
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(verify=get_ssl_verify()) as client:
         try:
             response = await client.get(
                 url_with_session,
