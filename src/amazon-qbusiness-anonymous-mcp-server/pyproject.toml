@@ -1,23 +1,26 @@
 [project]
-name = "awslabs.aws-serverless-mcp-server"
-version = "0.1.6"
-description = "An AWS Labs Model Context Protocol (MCP) server for AWS Serverless"
+name = "awslabs.amazon-qbusiness-anonymous-mcp-server"
+
+# NOTE: "Patch"=9223372036854775807 bumps next release to zero.
+version = "0.0.1"
+
+description = "An AWS Labs Model Context Protocol (MCP) server for Amazon Q Business anonymous mode application."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.37.27",
+    "boto3>=1.38.45",
+    "boto3-stubs[qbusiness]>=1.38.46",
+    "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
+    "mypy-boto3-qbusiness>=1.38.45",
     "pydantic>=2.10.6",
-    "requests>=2.31.0",
-    "jinja2>=3.1.0",
-    "loguru>=0.7.0"
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
-
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    {name = "Abhinav Jawadekar", email="abhjaw@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -30,15 +33,15 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 
-[project.scripts]
-"awslabs.aws-serverless-mcp-server" = "awslabs.aws_serverless_mcp_server.server:main"
-
 [project.urls]
-Homepage = "https://awslabs.github.io/mcp/"
-Documentation = "https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server/"
-Source = "https://github.com/awslabs/mcp.git"
-"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
-Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-serverless-mcp-server/CHANGELOG.md"
+homepage = "https://awslabs.github.io/mcp/"
+docs = "https://awslabs.github.io/mcp/servers/amazon-qbusiness-anonymous-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/amazon-qbusiness-anonymous-mcp-server/"
+repository = "https://github.com/awslabs/mcp.git"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-qbusiness-anonymous-mcp-server/CHANGELOG.md"
+
+[project.scripts]
+"awslabs.amazon-qbusiness-anonymous-mcp-server" = "awslabs.amazon_qbusiness_anonymous_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -97,30 +100,35 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/aws_serverless_mcp_server/__init__.py:__version__"
+    "awslabs/amazon_qbusiness_anonymous_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
 
+[tool.bandit]
+exclude_dirs = ["venv", ".venv", "tests"]
+
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-asyncio_mode = "auto"
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-asyncio_default_fixture_loop_scope = "function"
-addopts = "--cov=awslabs.aws_serverless_mcp_server --cov-report=term-missing"
+testpaths = [ "tests"]
+asyncio_mode = "auto"
 markers = [
-    "live: mark test as making live API calls",
-    "asyncio: mark a test as an asyncio coroutine",
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
 ]
 
 [tool.coverage.report]
