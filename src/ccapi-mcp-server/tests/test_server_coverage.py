@@ -39,21 +39,23 @@ class TestServerCoverage:
             'valid_token': {'explained': True, 'operation': 'create'}
         }
 
-        with patch('awslabs.ccapi_mcp_server.server.get_aws_client') as mock_client:
-            mock_client.return_value.create_resource.return_value = {
-                'ProgressEvent': {
-                    'OperationStatus': 'SUCCESS',
-                    'TypeName': 'AWS::S3::Bucket',
-                    'RequestToken': 'token',
+        with patch('awslabs.ccapi_mcp_server.server.environ.get', return_value='enabled'):
+            with patch('awslabs.ccapi_mcp_server.server.get_aws_client') as mock_client:
+                mock_client.return_value.create_resource.return_value = {
+                    'ProgressEvent': {
+                        'OperationStatus': 'SUCCESS',
+                        'TypeName': 'AWS::S3::Bucket',
+                        'RequestToken': 'token',
+                    }
                 }
-            }
 
-            result = await create_resource(
-                resource_type='AWS::S3::Bucket',
-                aws_session_info={'account_id': 'test', 'readonly_mode': False},
-                execution_token='valid_token',
-            )
-            assert result['status'] == 'SUCCESS'
+                result = await create_resource(
+                    resource_type='AWS::S3::Bucket',
+                    aws_session_info={'account_id': 'test', 'readonly_mode': False},
+                    execution_token='valid_token',
+                    checkov_validation_token='token',
+                )
+                assert result['status'] == 'SUCCESS'
 
     @pytest.mark.asyncio
     async def test_create_resource_metadata_validation(self):
@@ -92,23 +94,25 @@ class TestServerCoverage:
             'update_token': {'explained': True, 'operation': 'update'}
         }
 
-        with patch('awslabs.ccapi_mcp_server.server.get_aws_client') as mock_client:
-            mock_client.return_value.update_resource.return_value = {
-                'ProgressEvent': {
-                    'OperationStatus': 'SUCCESS',
-                    'TypeName': 'AWS::S3::Bucket',
-                    'RequestToken': 'token',
+        with patch('awslabs.ccapi_mcp_server.server.environ.get', return_value='enabled'):
+            with patch('awslabs.ccapi_mcp_server.server.get_aws_client') as mock_client:
+                mock_client.return_value.update_resource.return_value = {
+                    'ProgressEvent': {
+                        'OperationStatus': 'SUCCESS',
+                        'TypeName': 'AWS::S3::Bucket',
+                        'RequestToken': 'token',
+                    }
                 }
-            }
 
-            result = await update_resource(
-                resource_type='AWS::S3::Bucket',
-                identifier='test-bucket',
-                patch_document=[{'op': 'replace', 'path': '/Tags', 'value': []}],
-                aws_session_info={'account_id': 'test', 'region': 'us-east-1'},
-                execution_token='update_token',
-            )
-            assert result['status'] == 'SUCCESS'
+                result = await update_resource(
+                    resource_type='AWS::S3::Bucket',
+                    identifier='test-bucket',
+                    patch_document=[{'op': 'replace', 'path': '/Tags', 'value': []}],
+                    aws_session_info={'account_id': 'test', 'region': 'us-east-1'},
+                    execution_token='update_token',
+                    checkov_validation_token='token',
+                )
+                assert result['status'] == 'SUCCESS'
 
     @pytest.mark.asyncio
     async def test_delete_resource_comprehensive_paths(self):
@@ -349,7 +353,7 @@ class TestServerCoverage:
 
                 result = await get_aws_session_info({'properly_configured': True})
 
-                assert result['using_env_vars'] is True
+                assert result['aws_auth_type'] == 'env'
                 assert 'masked_credentials' in result
                 assert result['masked_credentials']['AWS_ACCESS_KEY_ID'].endswith('MPLE')
                 assert result['masked_credentials']['AWS_SECRET_ACCESS_KEY'].endswith('EKEY')

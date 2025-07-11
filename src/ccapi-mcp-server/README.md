@@ -25,19 +25,24 @@ Model Context Protocol (MCP) server that enables LLMs to directly create and man
 For resource creation and updates, the server follows this secure workflow:
 
 1. Check for AWS credentials and display account ID and region to the user
-2. Generate a template
-3. Run security scans against the template
-4. If checks pass, attempt to create/update resource(s) with the AWS Cloud Control API. Will add default tags to the resource (if supported) to easily determine which are being managed by the MCP server
-5. Validate that the resource(s) were created/updated successfully
-6. Provide a summary of what was done
-7. (Optional) create an IaC template that aligns to the resources it just created or updated
+2. Generate infrastructure code with properties and CloudFormation template
+3. **Explain the configuration** - Show user exactly what will be created/modified
+4. Run security scans against the template (if SECURITY_SCANNING=enabled)
+5. If checks pass (or security scanning disabled with warning), attempt to create/update resource(s) with the AWS Cloud Control API
+6. Automatically add default management tags to resources for tracking and support
+7. Validate that the resource(s) were created/updated successfully
+8. Provide a summary of what was done, including any security warnings
+9. (Optional) create an IaC template that aligns to the resources it just created or updated
 
 This workflow ensures that:
 
-- Resources are validated before creation/modification
-- Security checks are performed to prevent insecure configurations
-- Users have the option to preserve their infrastructure as code
-- Multiple IaC formats are supported for maximum flexibility
+- **Full Transparency**: Users see exactly what will be created/modified before execution via the mandatory `explain()` step
+- **Security Validation**: Resources are scanned for security issues before creation/modification (when enabled)
+- **Informed Consent**: Users cannot accidentally create resources without understanding the configuration
+- **Audit Trail**: Default management tags are automatically applied for tracking and support
+- **Flexible Security**: Security scanning can be enabled/disabled based on environment needs
+- **IaC Preservation**: Users have the option to preserve their infrastructure as code
+- **Multiple Formats**: Multiple IaC formats are supported for maximum flexibility
 
 ## Security Protections
 
@@ -117,6 +122,7 @@ The server uses boto3's standard credential chain automatically:
 | Variable            | Default     | Description                              |
 | ------------------- | ----------- | ---------------------------------------- |
 | `FASTMCP_LOG_LEVEL` | _(not set)_ | Logging level (ERROR, WARN, INFO, DEBUG) |
+| `SECURITY_SCANNING` | `enabled`   | Enable/disable Checkov security scanning (`enabled` or `disabled`). When disabled, shows warning but allows resource operations to proceed. |
 
 ### Default Tagging
 
@@ -133,11 +139,13 @@ These tags help identify resources created by the MCP server for support and tro
 The server automatically displays AWS account information on startup:
 
 - **AWS Profile**: The profile being used (if any)
+- **Authentication Type**: How you're authenticated (SSO Profile, Standard AWS Profile, Environment Variables, Assume Role Profile)
 - **AWS Account ID**: The AWS account ID
 - **AWS Region**: The region where resources will be created
 - **Read-only Mode**: Whether the server is in read-only mode
+- **Security Scanning**: Whether Checkov security scanning is enabled
 
-This ensures you always know which AWS account and region will be affected by operations.
+This ensures you always know which AWS account and region will be affected by operations, and what security measures are in place.
 
 ## Installation
 
@@ -211,6 +219,26 @@ _Note: Ensure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are exported in your s
 
 _Note: Run `aws sso login --profile your-sso-profile` before starting the MCP server_
 
+**Security Scanning Configuration:**
+
+By default, the MCP server runs Checkov security scanning on all infrastructure before creation/updates. You can disable this for faster operations (not recommended):
+
+```json
+{
+  "mcpServers": {
+    "awslabs.ccapi-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.ccapi-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-named-profile",
+        "SECURITY_SCANNING": "disabled",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
 **Read-Only Mode (Security Feature):**
 
 To prevent the MCP server from performing any mutating actions (Create/Update/Delete), use the `--readonly` command-line flag. This is a security feature that cannot be bypassed via environment variables:
@@ -273,16 +301,18 @@ NOTE: Your credentials will need to be kept refreshed from your host
 
 **Requirements**: None (starting point)
 
-Checks if AWS credentials are properly configured through AWS_PROFILE or environment variables.
+Checks if AWS credentials are properly configured through AWS_PROFILE or environment variables. Returns detailed information about credential source, authentication type, and configuration status.
 **Example**: Verify that AWS credentials are available before performing operations.
+**Returns**: Environment variables, AWS profile, region, authentication type (sso_profile, standard_profile, assume_role_profile, env), and configuration status.
 
 ### get_aws_session_info()
 
 **Requirements**: `env_check_result` parameter from `check_environment_variables()`
 
-Provides detailed information about the current AWS session including account ID, region, and credential source.
+Provides detailed information about the current AWS session including account ID, region, credential source, and masked credential information for security.
 **Example**: Display which AWS account and region will be affected by operations.
 **Use when**: You need detailed session info and have already called `check_environment_variables()`.
+**Security**: Automatically masks sensitive credential information (shows only last 4 characters).
 
 ### get_aws_account_info()
 
@@ -296,19 +326,45 @@ Convenience tool that automatically calls `check_environment_variables()` intern
 
 **Requirements**: `aws_session_info` parameter from `get_aws_session_info()`
 
-Prepares resource properties for Cloud Control API operations and generates a CloudFormation-format template solely for security scanning. **Important**: The CloudFormation service is never involved - the template is only used by Checkov for security analysis.
+Prepares resource properties for Cloud Control API operations, applies default management tags, and generates a CloudFormation-format template for security scanning. **Important**: The CloudFormation service is never involved - the template is only used by Checkov for security analysis.
 
 **Consistency guarantee**: The exact same properties object is used for both the CF template (for Checkov scanning) and passed to `create_resource()`/`update_resource()` (for CCAPI operations). This ensures what gets security-scanned is identical to what gets deployed.
 
 **Example**: Process S3 bucket properties, apply default tags, create CF-format template for Checkov, then use the same properties for CCAPI resource creation.
-**Workflow**: generate_infrastructure_code() → run_checkov() (scans template) → create_resource() (uses same properties via CCAPI).
+**Returns**: `properties_token` for use with `explain()`, CloudFormation template for security scanning, and properties for explanation.
+**Workflow**: generate_infrastructure_code() → explain() → run_checkov() (if enabled) → create_resource().
+
+### explain()
+
+**Requirements**: `properties_token` from `generate_infrastructure_code()` (for infrastructure operations) OR `content` parameter (for general explanations)
+
+**MANDATORY**: Explains any data in clear, human-readable format. For infrastructure operations, this tool consumes the `properties_token` and returns an `execution_token` that must be used for create/update/delete operations.
+
+**Infrastructure workflow**: 
+- Takes `properties_token` from `generate_infrastructure_code()`
+- Provides comprehensive explanation of what will be created/updated/deleted
+- Returns `execution_token` for use with `create_resource()`/`update_resource()`/`delete_resource()`
+- **Critical**: You MUST display the explanation to the user before proceeding
+
+**General data explanation**:
+- Pass any data in `content` parameter
+- Explains JSON, YAML, dictionaries, lists, API responses, configurations
+- No token workflow required
+
+**Example**: Explain S3 bucket configuration before creation, or explain API response data.
+**Security**: Ensures users see exactly what will be created/modified before execution.
 
 ### run_checkov()
 
-**Requirements**: `security_check_token` from `generate_infrastructure_code()` (enforced by default)
+**Requirements**: CloudFormation template content and `file_type` parameter
 
-Runs Checkov security and compliance scanner on the infrastructure code generated by `generate_infrastructure_code()`. Scans the generated resource configuration code for security vulnerabilities before actual resource creation/update. **Security validation is mandatory** - `create_resource()` and `update_resource()` will not proceed without a `checkov_validation_token` from this tool.
-**Example**: Scan the generated infrastructure code for security issues before executing Cloud Control API operations.
+Runs Checkov security and compliance scanner on Infrastructure as Code content. Supports CloudFormation (JSON/YAML), Terraform (HCL), and other IaC formats. **Security validation behavior depends on SECURITY_SCANNING environment variable**.
+
+**When SECURITY_SCANNING=enabled (default)**: `create_resource()` and `update_resource()` require a `checkov_validation_token` from this tool.
+**When SECURITY_SCANNING=disabled**: Security scanning is optional, and operations can proceed with a warning.
+
+**Example**: Scan CloudFormation template for security issues before executing Cloud Control API operations.
+**Returns**: Security scan results, passed/failed checks, and `checkov_validation_token` for resource operations.
 
 ### get_resource_schema_information()
 
@@ -319,10 +375,15 @@ Get schema information for an AWS CloudFormation resource.
 
 ### create_resource()
 
-**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `checkov_validation_token` from `run_checkov()`
+**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `execution_token` from `explain()`
 
-Creates an AWS resource using the AWS Cloud Control API with a declarative approach.
+**Security Requirements**: 
+- When SECURITY_SCANNING=enabled (default): Requires `checkov_validation_token` from `run_checkov()`
+- When SECURITY_SCANNING=disabled: Shows security warning but proceeds without validation token
+
+Creates an AWS resource using the AWS Cloud Control API with a declarative approach. Automatically adds default management tags for tracking and support.
 **Example**: Create an S3 bucket with versioning and encryption enabled.
+**Security**: Uses only properties that were explained to the user via `explain()` tool.
 
 ### get_resource()
 
@@ -330,20 +391,27 @@ Creates an AWS resource using the AWS Cloud Control API with a declarative appro
 
 Gets details of a specific AWS resource using the AWS Cloud Control API.
 **Example**: Get the configuration of an EC2 instance.
+**Returns**: Resource identifier and detailed properties.
 
 ### update_resource()
 
-**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `checkov_validation_token` from `run_checkov()`
+**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `execution_token` from `explain()`
 
-Updates an AWS resource using the AWS Cloud Control API with a declarative approach.
+**Security Requirements**: 
+- When SECURITY_SCANNING=enabled (default): Requires `checkov_validation_token` from `run_checkov()`
+- When SECURITY_SCANNING=disabled: Shows security warning but proceeds without validation token
+
+Updates an AWS resource using the AWS Cloud Control API with RFC 6902 JSON Patch operations.
 **Example**: Update an RDS instance's storage capacity.
+**Security**: Requires explanation of changes via `explain()` tool before execution.
 
 ### delete_resource()
 
-**Requirements**: `aws_session_info` from `get_aws_session_info()`
+**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `execution_token` from `explain()`
 
-Deletes an AWS resource using the AWS Cloud Control API.
+Deletes an AWS resource using the AWS Cloud Control API. Requires explicit confirmation and explanation of what will be deleted.
 **Example**: Remove an unused NAT gateway.
+**Security**: Requires explanation of deletion impact via `explain()` tool and explicit confirmation.
 
 ### list_resources()
 

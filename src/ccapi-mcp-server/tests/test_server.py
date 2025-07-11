@@ -166,13 +166,14 @@ class TestTools:
         from awslabs.ccapi_mcp_server.server import create_resource
 
         with patch('awslabs.ccapi_mcp_server.server.Context.readonly_mode', return_value=True):
-            with pytest.raises(ClientError, match='read-only mode'):
-                await create_resource(
-                    resource_type='AWS::S3::Bucket',
-                    aws_session_info={'account_id': 'test'},
-                    execution_token='token',
-                    skip_security_check=True,
-                )
+            with patch('awslabs.ccapi_mcp_server.server.environ.get', return_value='enabled'):
+                with pytest.raises(ClientError, match='read-only mode'):
+                    await create_resource(
+                        resource_type='AWS::S3::Bucket',
+                        aws_session_info={'account_id': 'test'},
+                        execution_token='token',
+                        checkov_validation_token='token',
+                    )
 
     @pytest.mark.asyncio
     async def test_delete_resource_session_validation(self):
@@ -370,7 +371,7 @@ class TestTools:
 
             result = await get_aws_session_info({'properly_configured': True})
 
-            assert result['using_env_vars'] is True
+            assert result['aws_auth_type'] == 'env'
             assert 'masked_credentials' in result
             assert result['masked_credentials']['AWS_ACCESS_KEY_ID'].endswith('MPLE')
 
@@ -792,7 +793,6 @@ class TestTools:
                 resource_type='AWS::S3::Bucket',
                 aws_session_info={'account_id': 'test', 'readonly_mode': True},
                 execution_token='token',
-                skip_security_check=True,
             )
 
     @patch('awslabs.ccapi_mcp_server.server.get_aws_client')
@@ -926,7 +926,7 @@ class TestTools:
 
         result = await get_aws_session_info({'properly_configured': True})
 
-        assert result['using_env_vars'] is True
+        assert result['aws_auth_type'] == 'env'
         assert 'masked_credentials' in result
         assert result['masked_credentials']['AWS_ACCESS_KEY_ID'].endswith('MPLE')
         assert result['masked_credentials']['AWS_SECRET_ACCESS_KEY'].endswith('EKEY')
