@@ -15,32 +15,30 @@
 * [ ] Keep test coverage at or above the `main` branch - NOTE: GitHub Actions run this command for CodeCov metrics `uv run --frozen pytest --cov --cov-branch --cov-report=term-missing`
 * [ ] Document the MCP Server in this "README.md"
 * [ ] Add a section for this {{cookiecutter.project_domain}} MCP Server at the top level of this repository "../../README.md"
-* [ ] Create the "../../doc/servers/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server.md" file with these contents:
+* [ ] Create the "../../docusaraus/docs/servers/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server.md" file with these contents:
 
     ```markdown
     ---
     title: {{cookiecutter.project_domain}} MCP Server
     ---
 
-    {% raw %}{%{% endraw %} include "../../src/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server/README.md" {% raw %}%}{% endraw %}
+    import ReadmeContent from "../../../src/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server/README.md";
+
+    <div className="readme-content">
+      <style>
+        {`
+        .readme-content h1:first-of-type {
+          display: none;
+        }
+        `}
+      </style>
+      <ReadmeContent />
+    </div>
     ```
   
-* [ ] Reference within the "../../doc/index.md" like this:
+* [ ] Reference within the "../../docusaraus/sidebars.ts" in the appropriate category.
+* [ ] Add an entry to "../../docusaraus/statics/assets/server-cards.json" in the servers json. 
 
-    ```markdown
-    ### {{cookiecutter.project_domain}} MCP Server
-    
-    {{cookiecutter.description}}
-    
-    **Features:**
-    
-    - Feature one
-    - Feature two
-    - ...
 
-    {{cookiecutter.instructions}}
-    
-    [Learn more about the {{cookiecutter.project_domain}} MCP Server](servers/{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server.md)
-    ```
 
 * [ ] Submit a PR and pass all the checks
