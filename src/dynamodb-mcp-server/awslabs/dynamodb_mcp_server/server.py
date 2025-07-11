@@ -58,7 +58,7 @@ app = FastMCP(
     instructions="""The official MCP Server for interacting with AWS DynamoDB
 
 This server provides comprehensive DynamoDB capabilities with over 30 operational tools for managing DynamoDB tables,
-items, indexes, backups, and more, plus expert data modeling guidance through The DynamoDB Architect system
+items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt
 
 IMPORTANT: DynamoDB Attribute Value Format
 -----------------------------------------
