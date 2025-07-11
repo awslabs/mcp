@@ -104,6 +104,9 @@ class PsycopgPoolConnection(AbstractDBConnection):
         if self.pool is None:
             await self.initialize_pool()
         
+        if self.pool is None:
+            raise ValueError("Failed to initialize connection pool")
+            
         return self.pool.connection(timeout=15.0)
         
     async def _set_all_connections_readonly(self):
