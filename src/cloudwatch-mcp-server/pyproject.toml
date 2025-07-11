@@ -15,7 +15,7 @@ license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Isaiah Lemmon", email="ilemmon@amazon.com"}, 
+    {name = "Isaiah Lemmon", email="ilemmon@amazon.com"},
     {name = "Shrikant Tambe", email="tshrikan@amazon.com"},
     {name = "Gianluca Cacace", email="cacaceg@amazon.com"},
     {name = "Andrea Giuliano", email="aggiulia@amazon.com"},
