@@ -25,6 +25,7 @@ import json
 import os
 import platform
 import sys
+import traceback
 
 # Import modular components
 from awslabs.s3_tables_mcp_server import (
@@ -104,6 +105,77 @@ def write_operation(func: Callable) -> Callable:
     return wrapper
 
 
+def log_tool_call_with_response(func):
+    """Decorator to log tool call, response, and errors, using the function name automatically. Skips logging during tests if MCP_SERVER_DISABLE_LOGGING is set."""
+
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        # Disable logging during tests
+        if os.environ.get('PYTEST_CURRENT_TEST') or os.environ.get('MCP_SERVER_DISABLE_LOGGING'):
+            return await func(*args, **kwargs)
+        tool_name = func.__name__
+        # Log the call
+        try:
+            os.makedirs(app.log_dir, exist_ok=True)
+            log_file = os.path.join(app.log_dir, 'mcp-server-awslabs.s3-tables-mcp-server.log')
+            log_entry = {
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'tool': tool_name,
+                'event': 'call',
+                'args': args,
+                'kwargs': kwargs,
+                'mcp_version': __version__,
+            }
+            with open(log_file, 'a') as f:
+                f.write(json.dumps(log_entry, default=str) + '\n')
+        except Exception as e:
+            print(
+                f"ERROR: Failed to create or write to log file in directory '{app.log_dir}': {e}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        # Execute the function and log response or error
+        try:
+            response = await func(*args, **kwargs)
+            try:
+                log_entry = {
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'tool': tool_name,
+                    'event': 'response',
+                    'response': response,
+                    'mcp_version': __version__,
+                }
+                with open(log_file, 'a') as f:
+                    f.write(json.dumps(log_entry, default=str) + '\n')
+            except Exception as e:
+                print(
+                    f"ERROR: Failed to log response in directory '{app.log_dir}': {e}",
+                    file=sys.stderr,
+                )
+            return response
+        except Exception as e:
+            tb = traceback.format_exc()
+            try:
+                log_entry = {
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'tool': tool_name,
+                    'event': 'error',
+                    'error': str(e),
+                    'traceback': tb,
+                    'mcp_version': __version__,
+                }
+                with open(log_file, 'a') as f:
+                    f.write(json.dumps(log_entry) + '\n')
+            except Exception as log_e:
+                print(
+                    f"ERROR: Failed to log error in directory '{app.log_dir}': {log_e}",
+                    file=sys.stderr,
+                )
+            raise
+
+    return wrapper
+
+
 def log_tool_call(tool_name, *args, **kwargs):
     """Log a tool call with its arguments and metadata to the server log file.
 
@@ -133,6 +205,7 @@ def log_tool_call(tool_name, *args, **kwargs):
 
 
 @app.tool()
+@log_tool_call_with_response
 async def list_table_buckets(
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
 ) -> str:
@@ -141,33 +214,33 @@ async def list_table_buckets(
     Permissions:
     You must have the s3tables:ListTableBuckets permission to use this operation.
     """
-    log_tool_call('list_table_buckets', locals())
     return await resources.list_table_buckets_resource(region_name=region_name)
 
 
 @app.tool()
+@log_tool_call_with_response
 async def list_namespaces(region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None) -> str:
     """List all namespaces across all S3 table buckets.
 
     Permissions:
     You must have the s3tables:ListNamespaces permission to use this operation.
     """
-    log_tool_call('list_namespaces', locals())
     return await resources.list_namespaces_resource(region_name=region_name)
 
 
 @app.tool()
+@log_tool_call_with_response
 async def list_tables(region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None) -> str:
     """List all S3 tables across all table buckets and namespaces.
 
     Permissions:
     You must have the s3tables:ListTables permission to use this operation.
     """
-    log_tool_call('list_tables', locals())
     return await resources.list_tables_resource(region_name=region_name)
 
 
 @app.tool()
+@log_tool_call_with_response
 @write_operation
 async def create_table_bucket(
     name: Annotated[
@@ -187,11 +260,11 @@ async def create_table_bucket(
     Permissions:
     You must have the s3tables:CreateTableBucket permission to use this operation.
     """
-    log_tool_call('create_table_bucket', locals())
     return await table_buckets.create_table_bucket(name=name, region_name=region_name)
 
 
 @app.tool()
+@log_tool_call_with_response
 @write_operation
 async def create_namespace(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
@@ -206,13 +279,13 @@ async def create_namespace(
     Permissions:
     You must have the s3tables:CreateNamespace permission to use this operation.
     """
-    log_tool_call('create_namespace', locals())
     return await namespaces.create_namespace(
         table_bucket_arn=table_bucket_arn, namespace=namespace, region_name=region_name
     )
 
 
 @app.tool()
+@log_tool_call_with_response
 @write_operation
 async def create_table(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
@@ -277,7 +350,6 @@ async def create_table(
     You must have the s3tables:CreateTable permission to use this operation.
     If using metadata parameter, you must have the s3tables:PutTableData permission.
     """
-    log_tool_call('create_table', locals())
     from awslabs.s3_tables_mcp_server.models import OpenTableFormat, TableMetadata
 
     # Convert string parameter to enum value
@@ -297,6 +369,7 @@ async def create_table(
 
 
 @app.tool()
+@log_tool_call_with_response
 async def get_table_maintenance_config(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -310,13 +383,13 @@ async def get_table_maintenance_config(
     Permissions:
     You must have the s3tables:GetTableMaintenanceConfiguration permission to use this operation.
     """
-    log_tool_call('get_table_maintenance_config', locals())
     return await tables.get_table_maintenance_configuration(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region_name
     )
 
 
 @app.tool()
+@log_tool_call_with_response
 async def get_maintenance_job_status(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -330,13 +403,13 @@ async def get_maintenance_job_status(
     Permissions:
     You must have the s3tables:GetTableMaintenanceJobStatus permission to use this operation.
     """
-    log_tool_call('get_maintenance_job_status', locals())
     return await tables.get_table_maintenance_job_status(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region_name
     )
 
 
 @app.tool()
+@log_tool_call_with_response
 async def get_table_metadata_location(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
     namespace: Annotated[str, NAMESPACE_NAME_FIELD],
@@ -351,13 +424,13 @@ async def get_table_metadata_location(
     Permissions:
     You must have the s3tables:GetTableMetadataLocation permission to use this operation.
     """
-    log_tool_call('get_table_metadata_location', locals())
     return await tables.get_table_metadata_location(
         table_bucket_arn=table_bucket_arn, namespace=namespace, name=name, region_name=region_name
     )
 
 
 @app.tool()
+@log_tool_call_with_response
 @write_operation
 async def rename_table(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
@@ -384,7 +457,6 @@ async def rename_table(
     Permissions:
     You must have the s3tables:RenameTable permission to use this operation.
     """
-    log_tool_call('rename_table', locals())
     return await tables.rename_table(
         table_bucket_arn=table_bucket_arn,
         namespace=namespace,
@@ -397,6 +469,7 @@ async def rename_table(
 
 
 @app.tool()
+@log_tool_call_with_response
 @write_operation
 async def update_table_metadata_location(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
@@ -430,7 +503,6 @@ async def update_table_metadata_location(
     Permissions:
     You must have the s3tables:UpdateTableMetadataLocation permission to use this operation.
     """
-    log_tool_call('update_table_metadata_location', locals())
     return await tables.update_table_metadata_location(
         table_bucket_arn=table_bucket_arn,
         namespace=namespace,
@@ -446,6 +518,7 @@ def _default_uri_for_region(region: str) -> str:
 
 
 @app.tool()
+@log_tool_call_with_response
 async def query_database(
     warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
     region: Annotated[
@@ -477,7 +550,6 @@ async def query_database(
         rest_signing_name: 's3tables'
         rest_sigv4_enabled: 'true'
     """
-    log_tool_call('query_database', locals())
     if uri is None:
         uri = _default_uri_for_region(region)
     return await database.query_database_resource(
@@ -493,6 +565,7 @@ async def query_database(
 
 
 @app.tool()
+@log_tool_call_with_response
 async def preview_csv_file(
     s3_url: Annotated[str, S3_URL_FIELD],
 ) -> dict:
@@ -512,11 +585,11 @@ async def preview_csv_file(
     Permissions:
     You must have the s3:GetObject permission for the S3 bucket and key.
     """
-    log_tool_call('preview_csv_file', locals())
     return file_processor.preview_csv_structure(s3_url)
 
 
 @app.tool()
+@log_tool_call_with_response
 @write_operation
 async def import_csv_to_table(
     warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
@@ -566,12 +639,10 @@ async def import_csv_to_table(
     Permissions:
     You must have:
     - s3:GetObject permission for the CSV file
-    - s3tables:GetCatalog permission to access the S3Tables catalog
     - s3tables:GetDatabase and s3tables:GetDatabases permissions to access database information
     - s3tables:GetTable and s3tables:GetTables permissions to access table information
-    - s3tables:CreateTable and s3tables:UpdateTable permissions to modify table metadata
+    - s3tables:PutTableData permission to write to the table
     """
-    log_tool_call('import_csv_to_table', locals())
     if uri is None:
         uri = _default_uri_for_region(region)
     return await file_processor.import_csv_to_table(
@@ -588,6 +659,7 @@ async def import_csv_to_table(
 
 
 @app.tool()
+@log_tool_call_with_response
 async def get_bucket_metadata_config(
     bucket: Annotated[
         str,
@@ -642,13 +714,13 @@ async def get_bucket_metadata_config(
     Permissions:
     You must have the s3:GetBucketMetadataTableConfiguration permission to use this operation.
     """
-    log_tool_call('get_bucket_metadata_config', locals())
     return await s3_operations.get_bucket_metadata_table_configuration(
         bucket=bucket, region_name=region_name
     )
 
 
 @app.tool()
+@log_tool_call_with_response
 @write_operation
 async def append_rows_to_table(
     warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
@@ -684,7 +756,6 @@ async def append_rows_to_table(
         rest_signing_name: 's3tables'
         rest_sigv4_enabled: 'true'
     """
-    log_tool_call('append_rows_to_table', locals())
     if uri is None:
         uri = _default_uri_for_region(region)
     return await database.append_rows_to_table_resource(
