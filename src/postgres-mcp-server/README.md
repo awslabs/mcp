@@ -92,6 +92,7 @@ Note: The `--port` parameter is optional and defaults to 5432 (the standard Post
 
 #### Option 1: Using RDS Data API Connection
 <pre><code>
+```json
 {
   "mcpServers": {
     "awslabs.postgres-mcp-server": {
@@ -113,7 +114,7 @@ Note: The `--port` parameter is optional and defaults to 5432 (the standard Post
     }
   }
 }
-</code></pre>
+```
 
 #### Option 2: Using Direct PostgreSQL Connection (psycopg)
 <pre><code>
