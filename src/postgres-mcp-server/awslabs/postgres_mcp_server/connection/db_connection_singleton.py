@@ -24,7 +24,7 @@ class DBConnectionSingleton:
 
     _instance = None
 
-    def __init__(self, 
+    def __init__(self,
                  resource_arn: str,
                  secret_arn: str,
                  database: str,
@@ -46,7 +46,7 @@ class DBConnectionSingleton:
                 'Missing required connection parameters for RDS Data API. '
                 'Please provide resource_arn, secret_arn, database, and region.'
             )
-        
+
         self._db_connection = RDSDataAPIConnection(
             cluster_arn=resource_arn,
             secret_arn=secret_arn,
@@ -57,7 +57,7 @@ class DBConnectionSingleton:
         )
 
     @classmethod
-    def initialize(cls, 
+    def initialize(cls,
                   resource_arn: str,
                   secret_arn: str,
                   database: str,
@@ -65,7 +65,7 @@ class DBConnectionSingleton:
                   readonly: bool = True,
                   is_test: bool = False):
         """Initialize the singleton instance if it doesn't exist.
-        
+
         Args:
             resource_arn: The ARN of the RDS cluster
             secret_arn: The ARN of the secret containing credentials
@@ -95,7 +95,7 @@ class DBConnectionSingleton:
     def db_connection(self):
         """Get the database connection."""
         return self._db_connection
-    
+
     @classmethod
     def cleanup(cls):
         """Clean up resources when shutting down."""

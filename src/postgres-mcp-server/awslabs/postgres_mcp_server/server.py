@@ -120,7 +120,7 @@ async def run_query(
             logger.error("No database connection available")
             await ctx.error("No database connection available")
             return [{'error': 'No database connection available'}]
-    
+
     assert db_connection is not None, "db_connection should never be None"
 
     if db_connection.readonly_query:
@@ -210,7 +210,7 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
     )
-    
+
     # Connection method 1: RDS Data API
     parser.add_argument(
         '--resource_arn',
@@ -268,16 +268,16 @@ def main():
 
     # Convert args to dict for easier handling
     connection_params = vars(args)
-    
+
     # Convert readonly string to boolean
     connection_params['readonly'] = args.readonly.lower() == 'true'
-    
+
     # Log connection information
     connection_target = (
         args.resource_arn if args.resource_arn
         else f"{args.hostname}:{args.port}"
     )
-    
+
     if args.resource_arn:
         logger.info(
             'Postgres MCP init with RDS Data API: CONNECTION_TARGET:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
@@ -298,7 +298,7 @@ def main():
 
     # Create the appropriate database connection based on the provided parameters
     db_connection = None
-    
+
     try:
         if args.resource_arn:
             # Use RDS Data API with singleton pattern
@@ -311,13 +311,13 @@ def main():
                     region=args.region,
                     readonly=connection_params['readonly']
                 )
-                
+
                 # Get the connection from the singleton
                 db_connection = DBConnectionSingleton.get().db_connection
             except Exception as e:
                 logger.exception(f'Failed to create RDS Data API connection: {str(e)}')
                 sys.exit(1)
-                
+
         else:
             # Use Direct PostgreSQL connection using psycopg connection pool
             try:
@@ -333,7 +333,7 @@ def main():
             except Exception as e:
                 logger.exception(f'Failed to create PostgreSQL connection: {str(e)}')
                 sys.exit(1)
-                
+
     except BotoCoreError as e:
         logger.exception(f'Failed to create database connection: {str(e)}')
         sys.exit(1)

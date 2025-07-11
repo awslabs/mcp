@@ -25,12 +25,12 @@ class RDSDataAPIConnection(AbstractDBConnection):
     """Class that wraps DB connection client by RDS API."""
 
     def __init__(
-        self, 
-        cluster_arn: str, 
-        secret_arn: str, 
-        database: str, 
-        region: str, 
-        readonly: bool, 
+        self,
+        cluster_arn: str,
+        secret_arn: str,
+        database: str,
+        region: str,
+        readonly: bool,
         is_test: bool = False
     ):
         """Initialize a new DB connection.
@@ -51,16 +51,16 @@ class RDSDataAPIConnection(AbstractDBConnection):
             self.data_client = boto3.client('rds-data', region_name=region)
 
     async def execute_query(
-        self, 
-        sql: str, 
+        self,
+        sql: str,
         parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Execute a SQL query using RDS Data API.
-        
+
         Args:
             sql: The SQL query to execute
             parameters: Optional parameters for the query
-            
+
         Returns:
             Dict containing query results with column metadata and records
         """
@@ -85,8 +85,8 @@ class RDSDataAPIConnection(AbstractDBConnection):
             )
 
     def _execute_readonly_query(
-        self, 
-        query: str, 
+        self,
+        query: str,
         parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Execute a query under readonly transaction.
@@ -145,15 +145,15 @@ class RDSDataAPIConnection(AbstractDBConnection):
                     transactionId=tx_id,
                 )
             raise e
-    
+
     async def close(self) -> None:
         """Close the database connection asynchronously."""
         # RDS Data API doesn't maintain persistent connections
         pass
-        
+
     async def check_connection_health(self) -> bool:
         """Check if the RDS Data API connection is healthy.
-        
+
         Returns:
             bool: True if the connection is healthy, False otherwise
         """

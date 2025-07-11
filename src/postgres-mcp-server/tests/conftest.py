@@ -192,14 +192,14 @@ class Mock_DBConnection:
             bool: True if the connection is read-only, False otherwise
         """
         return self.readonly
-        
+
     async def execute_query(self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None) -> dict:
         """Execute a SQL query.
-        
+
         Args:
             sql: The SQL query to execute
             parameters: Optional parameters for the query
-            
+
         Returns:
             dict: Query results with column metadata and records
         """
@@ -220,18 +220,18 @@ class Mock_DBConnection:
                 }
             }
             raise Exception(error_response)
-            
+
         # Use the data_client to execute the statement
         if self.readonly:
             # Begin read-only transaction
             tx_id = self.data_client.begin_transaction()['transactionId']
-            
+
             # Set transaction to read-only
             self.data_client.execute_statement(sql='SET TRANSACTION READ ONLY', transactionId=tx_id)
-            
+
             # Execute the query
             result = self.data_client.execute_statement(sql=sql, parameters=parameters, transactionId=tx_id)
-            
+
             # Commit the transaction
             self.data_client.commit_transaction(transactionId=tx_id)
             return result
@@ -267,10 +267,10 @@ def mock_DBConnection():
 
 class MockConnectionPool:
     """Mock implementation of psycopg_pool.AsyncConnectionPool for testing purposes."""
-    
+
     def __init__(self, conninfo=None, min_size=1, max_size=10, timeout=15.0, max_idle=60.0, reconnect_timeout=5.0):
         """Initialize the mock connection pool.
-        
+
         Args:
             conninfo: Connection info string
             min_size: Minimum pool size
@@ -289,14 +289,14 @@ class MockConnectionPool:
         self.idle = 0
         self._open = False
         self._connections = []
-    
+
     async def open(self, wait=True, timeout=15.0):
         """Open the connection pool asynchronously.
-        
+
         Args:
             wait: Whether to wait for connections to be established
             timeout: Timeout in seconds
-            
+
         Returns:
             None
         """
@@ -304,10 +304,10 @@ class MockConnectionPool:
         self.size = self.min_size
         self.idle = self.min_size
         return None
-    
+
     async def close(self):
         """Close the connection pool asynchronously.
-        
+
         Returns:
             None
         """
@@ -315,13 +315,13 @@ class MockConnectionPool:
         self.size = 0
         self.idle = 0
         return None
-    
+
     async def connection(self, timeout=15.0):
         """Get a connection from the pool asynchronously.
-        
+
         Args:
             timeout: Timeout in seconds
-            
+
         Returns:
             ConnectionContext: A context manager for a connection
         """
@@ -330,27 +330,27 @@ class MockConnectionPool:
             def __init__(self, pool):
                 self.pool = pool
                 self.pool.idle -= 1
-            
+
             async def __aenter__(self):
                 return MockAsyncConnection()
-            
+
             async def __aexit__(self, exc_type, exc_val, exc_tb):
                 self.pool.idle += 1
                 return False
-        
+
         return ConnectionContext(self)
 
 
 class MockConnection:
     """Mock implementation of psycopg.Connection for testing purposes."""
-    
+
     def __init__(self):
         """Initialize the mock connection."""
         pass
-    
+
     def transaction(self):
         """Start a transaction.
-        
+
         Returns:
             TransactionContext: A context manager for a transaction
         """
@@ -358,15 +358,15 @@ class MockConnection:
         class TransactionContext:
             def __enter__(self):
                 return None
-            
+
             def __exit__(self, exc_type, exc_val, exc_tb):
                 return False
-        
+
         return TransactionContext()
-    
+
     def cursor(self):
         """Get a cursor.
-        
+
         Returns:
             CursorContext: A context manager for a cursor
         """
@@ -375,47 +375,47 @@ class MockConnection:
             def __init__(self):
                 self.description = [("column1",), ("column2",)]
                 self.rowcount = 0
-            
+
             def __enter__(self):
                 return self
-            
+
             def __exit__(self, exc_type, exc_val, exc_tb):
                 return False
-            
+
             def execute(self, query, params=None):
                 """Execute a query.
-                
+
                 Args:
                     query: The SQL query to execute
                     params: Query parameters
-                    
+
                 Returns:
                     None
                 """
                 self.rowcount = 1
                 return None
-            
+
             def fetchall(self):
                 """Fetch all rows.
-                
+
                 Returns:
                     list: List of rows
                 """
                 return [("value1", "value2")]
-        
+
         return CursorContext()
 
 
 class MockAsyncConnection:
     """Mock implementation of psycopg.AsyncConnection for testing purposes."""
-    
+
     def __init__(self):
         """Initialize the mock async connection."""
         pass
-    
+
     async def transaction(self):
         """Start a transaction asynchronously.
-        
+
         Returns:
             AsyncTransactionContext: An async context manager for a transaction
         """
@@ -423,19 +423,19 @@ class MockAsyncConnection:
         class AsyncTransactionContext:
             async def __aenter__(self):
                 return None
-            
+
             async def __aexit__(self, exc_type, exc_val, exc_tb):
                 return False
-        
+
         return AsyncTransactionContext()
-    
+
     async def execute(self, query, params=None):
         """Execute a query asynchronously.
-        
+
         Args:
             query: The SQL query to execute
             params: Query parameters
-            
+
         Returns:
             AsyncCursorResult: A mock cursor result
         """
@@ -443,30 +443,30 @@ class MockAsyncConnection:
             def __init__(self):
                 self.description = [("column1",), ("column2",)]
                 self.rowcount = 1
-            
+
             async def fetchall(self):
                 """Fetch all rows asynchronously.
-                
+
                 Returns:
                     list: List of rows
                 """
                 return [("value1", "value2")]
-        
+
         return AsyncCursorResult()
 
 
 class Mock_PsycopgPoolConnection:
     """Mock implementation of PsycopgPoolConnection for testing purposes."""
-    
+
     def __init__(self, host, port, database, readonly, secret_arn, region, min_size=1, max_size=10, is_test=False):
         """Initialize the mock PsycopgPoolConnection.
-        
+
         Args:
             host: Database host
             port: Database port
             database: Database name
             readonly: Whether the connection is read-only
-            secret_arn: Secret ARN 
+            secret_arn: Secret ARN
             region: AWS region
             min_size: Minimum pool size
             max_size: Maximum pool size
@@ -489,23 +489,23 @@ class Mock_PsycopgPoolConnection:
             max_idle=60.0,
             reconnect_timeout=5.0
         )
-    
+
     @property
     def readonly_query(self):
         """Get whether this connection is read-only.
-        
+
         Returns:
             bool: True if the connection is read-only, False otherwise
         """
         return self.readonly
-    
+
     async def execute_query(self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Execute a SQL query.
-        
+
         Args:
             sql: The SQL query to execute
             parameters: Query parameters
-            
+
         Returns:
             dict: Query results
         """
@@ -519,27 +519,27 @@ class Mock_PsycopgPoolConnection:
                 [{"stringValue": "value1"}, {"stringValue": "value2"}]
             ]
         }
-    
+
     async def close(self):
         """Close the connection.
-        
+
         Returns:
             None
         """
         if hasattr(self, 'pool'):
             await self.pool.close()
-    
+
     async def check_connection_health(self):
         """Check the connection health.
-        
+
         Returns:
             bool: True if the connection is healthy, False otherwise
         """
         return True
-    
+
     def get_pool_stats(self):
         """Get pool statistics.
-        
+
         Returns:
             dict: Pool statistics
         """
@@ -554,7 +554,7 @@ class Mock_PsycopgPoolConnection:
 @pytest.fixture
 def mock_PsycopgPoolConnection():
     """Fixture that provides a mock PsycopgPoolConnection for testing.
-    
+
     Returns:
         Mock_PsycopgPoolConnection: A mock PsycopgPoolConnection
     """

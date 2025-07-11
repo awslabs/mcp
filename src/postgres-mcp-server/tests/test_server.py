@@ -20,7 +20,6 @@ import json
 import pytest
 import sys
 import uuid
-from unittest.mock import patch, MagicMock, AsyncMock
 from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
 from awslabs.postgres_mcp_server.server import (
     DBConnectionSingleton,
@@ -31,7 +30,8 @@ from awslabs.postgres_mcp_server.server import (
     unexpected_error_key,
     write_query_prohibited_key,
 )
-from conftest import DummyCtx, Mock_DBConnection, MockException, Mock_PsycopgPoolConnection
+from conftest import DummyCtx, Mock_DBConnection, Mock_PsycopgPoolConnection, MockException
+from unittest.mock import AsyncMock
 
 
 SAFE_READONLY_QUERIES = [
@@ -746,12 +746,12 @@ async def test_run_query_with_psycopg_connection():
         region="us-east-1",
         is_test=True
     )
-    
+
     sql_text = 'SELECT * FROM example_table'
     ctx = DummyCtx()
-    
+
     tool_response = await run_query(sql_text, ctx, mock_db_connection)
-    
+
     # validate tool_response
     assert (
         isinstance(tool_response, (list, tuple))
@@ -791,7 +791,7 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
     def patched_init(self, host, port, database, readonly, secret_arn, region, min_size=1, max_size=10, is_test=False):
         # Call the original __init__ but force is_test=True
         original_init(self, host, port, database, readonly, secret_arn, region, min_size, max_size, is_test=True)
-    
+
     monkeypatch.setattr('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.__init__', patched_init)
 
     # Create a mock connection that can be used with async with
@@ -802,7 +802,7 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
     mock_conn.transaction.__aenter__ = AsyncMock(return_value=mock_conn.transaction)
     mock_conn.transaction.__aexit__ = AsyncMock(return_value=None)
     mock_conn.execute = AsyncMock()
-    
+
     # Create a mock cursor
     cursor_mock = AsyncMock()
     cursor_mock.__aenter__ = AsyncMock(return_value=cursor_mock)
@@ -811,32 +811,32 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
     cursor_mock.fetchall = AsyncMock(return_value=[])
     cursor_mock.description = None
     mock_conn.cursor = AsyncMock(return_value=cursor_mock)
-    
+
     # Patch _get_connection to return our mock connection
     monkeypatch.setattr(
-        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection._get_connection', 
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection._get_connection',
         AsyncMock(return_value=mock_conn)
     )
-    
+
     # Also patch the initialize_pool method to prevent actual connection attempts
     monkeypatch.setattr(
-        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.initialize_pool', 
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.initialize_pool',
         AsyncMock(return_value=None)
     )
-    
+
     # And patch check_connection_health to return a successful result
     # Create an event loop and set it as the current event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
+
     # Now create the Future with the loop
     future = asyncio.Future()
     future.set_result(True)
     monkeypatch.setattr(
-        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.check_connection_health', 
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.check_connection_health',
         lambda self: future
     )
-    
+
     # Patch execute_query to return a successful result
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.execute_query',
@@ -872,7 +872,7 @@ def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
-    
+
     # This test of main() will fail due to invalid port
     with pytest.raises(SystemExit) as excinfo:
         main()

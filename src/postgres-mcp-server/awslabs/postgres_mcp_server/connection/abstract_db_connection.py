@@ -23,7 +23,7 @@ class AbstractDBConnection(ABC):
 
     def __init__(self, readonly: bool):
         """Initialize the database connection.
-        
+
         Args:
             readonly: Whether the connection should be read-only
         """
@@ -40,16 +40,16 @@ class AbstractDBConnection(ABC):
 
     @abstractmethod
     async def execute_query(
-        self, 
-        sql: str, 
+        self,
+        sql: str,
         parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Execute a SQL query.
-        
+
         Args:
             sql: The SQL query to execute
             parameters: Optional parameters for the query
-            
+
         Returns:
             Dict containing query results with column metadata and records
         """
@@ -59,11 +59,11 @@ class AbstractDBConnection(ABC):
     async def close(self) -> None:
         """Close the database connection."""
         pass
-        
+
     @abstractmethod
     async def check_connection_health(self) -> bool:
         """Check if the database connection is healthy.
-        
+
         Returns:
             bool: True if the connection is healthy, False otherwise
         """
