@@ -396,18 +396,18 @@ class TestAnalyzeLogGroup:
     async def test_analyze_log_group_region_parameter(self, ctx, cloudwatch_tools):
         """Test that analyze_log_group passes region parameter to execute_log_insights_query calls."""
         log_group_arn = 'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/test/group1'
-        
+
         # Mock anomaly detection
         cloudwatch_tools.logs_client.get_paginator = MagicMock()
-        
+
         # Mock list_log_anomaly_detectors paginator
         anomaly_paginator = MagicMock()
         anomaly_paginator.paginate.return_value = [{'anomalyDetectors': []}]
-        
+
         # Mock list_anomalies paginator
         anomalies_paginator = MagicMock()
         anomalies_paginator.paginate.return_value = [{'anomalies': []}]
-        
+
         def get_paginator_side_effect(operation_name):
             if operation_name == 'list_log_anomaly_detectors':
                 return anomaly_paginator
@@ -415,12 +415,12 @@ class TestAnalyzeLogGroup:
                 return anomalies_paginator
             else:
                 return MagicMock()
-        
+
         cloudwatch_tools.logs_client.get_paginator.side_effect = get_paginator_side_effect
-        
+
         # Mock execute_log_insights_query to capture the region parameter
         executed_queries = []
-        
+
         async def mock_execute_query(*args, **kwargs):
             executed_queries.append(kwargs)
             return {
@@ -428,7 +428,7 @@ class TestAnalyzeLogGroup:
                 'status': 'Complete',
                 'results': [{'@message': 'Test pattern', '@sampleCount': '10'}],
             }
-        
+
         # Patch the execute_log_insights_query method
         with patch.object(
             cloudwatch_tools, 'execute_log_insights_query', side_effect=mock_execute_query
@@ -441,12 +441,12 @@ class TestAnalyzeLogGroup:
                 end_time='2023-01-01T01:00:00+00:00',
                 region='eu-west-1',
             )
-        
+
         # Verify that both execute_log_insights_query calls received the correct region
         assert len(executed_queries) == 2
         assert executed_queries[0]['region'] == 'eu-west-1'
         assert executed_queries[1]['region'] == 'eu-west-1'
-        
+
         # Verify other parameters are passed correctly
         for query in executed_queries:
             assert query['log_group_identifiers'] == [log_group_arn]
