@@ -27,7 +27,7 @@ class TestDBConnectionSingleton:
         DBConnectionSingleton._instance = None
         
         # Setup mock
-        with patch('awslabs.postgres_mcp_server.connection.rds_api_connection.RDSDataAPIConnection') as mock_rds_connection:
+        with patch('awslabs.postgres_mcp_server.connection.db_connection_singleton.RDSDataAPIConnection') as mock_rds_connection:
             mock_conn = MagicMock()
             mock_rds_connection.return_value = mock_conn
             
