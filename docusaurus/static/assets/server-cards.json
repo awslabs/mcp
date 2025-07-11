@@ -1034,6 +1034,30 @@
       ]
     },
     {
+      "category": "Developer Tools & Support",
+      "description": "Manage, monitor, and optimize Amazon MSK clusters with best practices",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "aws-msk-mcp-server",
+      "name": "AWS MSK MCP Server",
+      "source_path": "src/aws-msk-mcp-server/",
+      "subcategory": "Messaging & Streaming",
+      "tags": [
+        "developer-tools",
+        "msk",
+        "kafka",
+        "streaming",
+        "messaging",
+        "cluster-management",
+        "monitoring",
+        "autonomous",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "autonomous",
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Data & Analytics",
       "description": "Provides tools to discover, explore, and query Amazon Redshift clusters and serverless workgroups",
       "icon": "\ud83d\udcca",
