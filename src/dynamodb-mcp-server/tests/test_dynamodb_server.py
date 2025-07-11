@@ -924,6 +924,6 @@ async def test_dynamodb_data_modeling_mcp_integration():
     # Get tool metadata
     modeling_tool = next((tool for tool in tools if tool.name == 'dynamodb_data_modeling'), None)
 
-    assert modeling_tool is not None, 'Could not find dynamodb_data_modeling tool'
+    assert modeling_tool.description is not None
     assert 'DynamoDB' in modeling_tool.description
     assert 'data modeling' in modeling_tool.description.lower()
