@@ -303,6 +303,28 @@
     },
     {
       "category": "AI & Machine Learning",
+      "description": "AI assistant based on knowledgebase with anonymous access",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-qbusiness-anonymous-mcp-server",
+      "name": "Amazon Q Business anonymous MCP Server",
+      "source_path": "src/amazon-qbusiness-anonymous-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "amazon-q",
+        "amazon-q-business",
+        "ai-assistant",
+        "enterprise-search",
+        "data-access",
+        "conversational",
+        "knowledge-search"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
       "description": "Data accessors to search through enterprise's Q index",
       "icon": "\ud83e\udd16",
       "id": "amazon-qindex-mcp-server",
