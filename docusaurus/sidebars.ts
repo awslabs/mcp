@@ -59,6 +59,7 @@ const sidebars: SidebarsConfig = {
             'servers/bedrock-kb-retrieval-mcp-server',
             'servers/amazon-rekognition-mcp-server',
             'servers/amazon-qindex-mcp-server',
+            'servers/amazon-qbusiness-anonymous-mcp-server',
             'servers/nova-canvas-mcp-server',
           ],
         },
