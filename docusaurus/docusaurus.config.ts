@@ -25,8 +25,8 @@ const config: Config = {
   organizationName: 'awslabs', // Usually your GitHub org/user name.
   projectName: 'mcp', // Usually your repo name.
 
-  onBrokenLinks: 'warn',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenLinks: 'throw',
+  onBrokenMarkdownLinks: 'throw',
 
   // Add plugins
   plugins: [],
