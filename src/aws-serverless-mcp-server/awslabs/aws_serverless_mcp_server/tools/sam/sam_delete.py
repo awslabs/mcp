@@ -37,7 +37,9 @@ class SamDeleteTool(BaseTool):
             default=None,
             description='Absolute path to directory containing the SAM project',
         ),
-        region: Optional[str] = Field(default=None, description='AWS region where the stack exists'),
+        region: Optional[str] = Field(
+            default=None, description='AWS region where the stack exists'
+        ),
         profile: Optional[str] = Field(default=None, description='AWS profile to use'),
         config_file: Optional[str] = Field(
             default=None, description='Absolute path to the SAM configuration file'
@@ -82,7 +84,7 @@ class SamDeleteTool(BaseTool):
         cmd = ['sam', 'delete']
 
         cmd.extend(['--stack-name', stack_name])
-        
+
         # Always include --no-prompts to ensure non-interactive behavior
         cmd.append('--no-prompts')
 
