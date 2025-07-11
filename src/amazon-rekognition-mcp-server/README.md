@@ -260,4 +260,4 @@ text = await detect_text(
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/amazon-rekognition-mcp-server/LICENSE) file for details.
