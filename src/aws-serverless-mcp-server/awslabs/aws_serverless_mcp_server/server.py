@@ -33,6 +33,7 @@ from awslabs.aws_serverless_mcp_server.tools.guidance import (
 )
 from awslabs.aws_serverless_mcp_server.tools.sam import (
     SamBuildTool,
+    SamDeleteTool,
     SamDeployTool,
     SamInitTool,
     SamLocalInvokeTool,
@@ -195,6 +196,7 @@ def main() -> int:
     GetServerlessTemplatesTool(mcp)
 
     SamBuildTool(mcp)
+    SamDeleteTool(mcp, args.allow_write)
     SamDeployTool(mcp, args.allow_write)
     SamInitTool(mcp)
     SamLocalInvokeTool(mcp)
