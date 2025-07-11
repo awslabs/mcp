@@ -98,6 +98,7 @@ const sidebars: SidebarsConfig = {
             'servers/syntheticdata-mcp-server',
             'servers/aws-bedrock-data-automation-mcp-server',
             'servers/aws-location-mcp-server',
+            'servers/aws-msk-mcp-server'
           ],
         },
         {
