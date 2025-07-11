@@ -125,4 +125,4 @@ NOTE: Your credentials will need to be kept refreshed from your host
 
 ## Contributing
 
-Contributions are welcome! Please see the [CONTRIBUTING.md](../../CONTRIBUTING.md) in the monorepo root for guidelines.
+Contributions are welcome! Please see the [CONTRIBUTING.md](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) in the monorepo root for guidelines.

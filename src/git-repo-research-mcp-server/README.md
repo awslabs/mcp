@@ -123,7 +123,7 @@ delete_research_repository(
 
 ## Resources
 
-### repositories://{repository_name}/summary
+### repositories://repository_name/summary
 
 Get a summary of an indexed repository including structure and helpful files.
 
@@ -139,7 +139,7 @@ List all indexed repositories with detailed information.
 repositories://
 ```
 
-### repositories://{index_directory}
+### repositories://index_directory
 
 List all indexed repositories from a specific index directory.
 

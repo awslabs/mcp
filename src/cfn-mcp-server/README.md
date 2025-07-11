@@ -158,7 +158,7 @@ Examples of how to use the AWS Infrastructure as Code MCP Server:
 
 ## Resource Type support
 
-Resources which are supported by this MCP and the supported operations can be found here: <https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html>
+Resources which are supported by this MCP and the supported operations can be found [here](https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html)
 
 ## Security Considerations
 

@@ -9,7 +9,7 @@ There are two parts to this implementation:
 1. The `user_interfaces/image_generator_st.py` file, which handles the Streamlit/User Interface for the image generator
 2. The `client_server.py` file, which handles the MCP client and server implementation
 
-The exact MCP server code leveraged can be found in the [src/nova-canvas-mcp-server](../../src/nova-canvas-mcp-server/) folder.
+The exact MCP server code leveraged can be found in the [src/nova-canvas-mcp-server](https://github.com/awslabs/mcp/blob/main/src/nova-canvas-mcp-server/) folder.
 
 ### Architecture
 

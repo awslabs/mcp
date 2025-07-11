@@ -1,0 +1,1056 @@
+{
+  "categories": [
+    {
+      "description": "Real-time access to official AWS documentation",
+      "icon": "\ud83d\udcda",
+      "id": "documentation",
+      "name": "Documentation"
+    },
+    {
+      "description": "Build, deploy, and manage cloud infrastructure",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "infrastructure-deployment",
+      "name": "Infrastructure & Deployment"
+    },
+    {
+      "description": "Enhance AI applications with knowledge retrieval and ML capabilities",
+      "icon": "\ud83e\udd16",
+      "id": "ai-ml",
+      "name": "AI & Machine Learning"
+    },
+    {
+      "description": "Work with databases, caching systems, and data processing",
+      "icon": "\ud83d\udcca",
+      "id": "data-analytics",
+      "name": "Data & Analytics"
+    },
+    {
+      "description": "Accelerate development with code analysis and testing utilities",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "developer-tools",
+      "name": "Developer Tools & Support"
+    },
+    {
+      "description": "Connect systems with messaging, workflows, and location services",
+      "icon": "\ud83d\udce1",
+      "id": "integration-messaging",
+      "name": "Integration & Messaging"
+    },
+    {
+      "description": "Monitor, optimize, and manage your AWS infrastructure and costs",
+      "icon": "\ud83d\udcb0",
+      "id": "cost-operations",
+      "name": "Cost & Operations"
+    },
+    {
+      "description": "Interact with AWS HealthAI services",
+      "icon": "\ud83e\uddc0",
+      "id": "healthcare-lifesciences",
+      "name": "Healthcare & Lifesciences"
+    },
+    {
+      "description": "Essential orchestration and planning capabilities",
+      "icon": "\u26a1",
+      "id": "core",
+      "name": "Core"
+    }
+  ],
+  "servers": [
+    {
+      "category": "Documentation",
+      "description": "Get latest AWS docs and APIs",
+      "icon": "\ud83d\udcda",
+      "id": "aws-documentation-mcp-server",
+      "name": "AWS Documentation MCP Server",
+      "source_path": "src/aws-documentation-mcp-server/",
+      "subcategory": "Real-time Documentation Access",
+      "tags": [
+        "documentation",
+        "real-time-access",
+        "api-reference",
+        "vibe-coding",
+        "conversational",
+        "core-development"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "conversational"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "AWS CDK development with security compliance",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "cdk-mcp-server",
+      "name": "AWS CDK MCP Server",
+      "source_path": "src/cdk-mcp-server/",
+      "subcategory": "Infrastructure as Code",
+      "tags": [
+        "infrastructure-as-code",
+        "cdk",
+        "security",
+        "compliance",
+        "best-practices",
+        "vibe-coding",
+        "infrastructure-deployment"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Terraform workflows with integrated security scanning",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "terraform-mcp-server",
+      "name": "AWS Terraform MCP Server",
+      "source_path": "src/terraform-mcp-server/",
+      "subcategory": "Infrastructure as Code",
+      "tags": [
+        "infrastructure-as-code",
+        "terraform",
+        "security-scanning",
+        "workflows",
+        "vibe-coding",
+        "infrastructure-deployment"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Direct CloudFormation resource management via Cloud Control API",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "cfn-mcp-server",
+      "name": "AWS CloudFormation MCP Server",
+      "source_path": "src/cfn-mcp-server/",
+      "subcategory": "Infrastructure as Code",
+      "tags": [
+        "infrastructure-as-code",
+        "cloudformation",
+        "cloud-control-api",
+        "resource-management",
+        "vibe-coding",
+        "infrastructure-deployment"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Kubernetes cluster management and application deployment",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "eks-mcp-server",
+      "name": "Amazon EKS MCP Server",
+      "source_path": "src/eks-mcp-server/",
+      "subcategory": "Container Platforms",
+      "tags": [
+        "containers",
+        "kubernetes",
+        "eks",
+        "cluster-management",
+        "application-deployment",
+        "vibe-coding",
+        "container-platforms"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Container orchestration and ECS application deployment",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "ecs-mcp-server",
+      "name": "Amazon ECS MCP Server",
+      "source_path": "src/ecs-mcp-server/",
+      "subcategory": "Container Platforms",
+      "tags": [
+        "containers",
+        "ecs",
+        "orchestration",
+        "application-deployment",
+        "vibe-coding",
+        "container-platforms"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Local container building with ECR integration",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "finch-mcp-server",
+      "name": "Finch MCP Server",
+      "source_path": "src/finch-mcp-server/",
+      "subcategory": "Container Platforms",
+      "tags": [
+        "containers",
+        "finch",
+        "local-development",
+        "ecr",
+        "container-building",
+        "vibe-coding",
+        "container-platforms"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Complete serverless application lifecycle with SAM CLI",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "aws-serverless-mcp-server",
+      "name": "AWS Serverless MCP Server",
+      "source_path": "src/aws-serverless-mcp-server/",
+      "subcategory": "Serverless & Functions",
+      "tags": [
+        "serverless",
+        "sam-cli",
+        "application-lifecycle",
+        "lambda",
+        "vibe-coding",
+        "serverless-functions"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Execute Lambda functions as AI tools for private resource access",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "lambda-tool-mcp-server",
+      "name": "AWS Lambda Tool MCP Server",
+      "source_path": "src/lambda-tool-mcp-server/",
+      "subcategory": "Serverless & Functions",
+      "tags": [
+        "serverless",
+        "lambda",
+        "ai-tools",
+        "private-resources",
+        "autonomous",
+        "serverless-functions"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Help users create and manage AWS Support cases",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "aws-support-mcp-server",
+      "name": "AWS Support MCP Server",
+      "source_path": "src/aws-support-mcp-server/",
+      "subcategory": "Support",
+      "tags": [
+        "support",
+        "case-management",
+        "aws-support",
+        "help-desk",
+        "infrastructure-deployment"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Query enterprise knowledge bases with citation support",
+      "icon": "\ud83e\udd16",
+      "id": "bedrock-kb-retrieval-mcp-server",
+      "name": "Amazon Bedrock Knowledge Bases Retrieval MCP Server",
+      "source_path": "src/bedrock-kb-retrieval-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "knowledge-bases",
+        "retrieval",
+        "citations",
+        "conversational",
+        "knowledge-search"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Enterprise search and RAG enhancement",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-kendra-index-mcp-server",
+      "name": "Amazon Kendra Index MCP Server",
+      "source_path": "src/amazon-kendra-index-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "kendra",
+        "enterprise-search",
+        "rag",
+        "search-enhancement",
+        "conversational",
+        "knowledge-search"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Data accessors to search through enterprise's Q index",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-qindex-mcp-server",
+      "name": "Amazon Q index MCP Server",
+      "source_path": "src/amazon-qindex-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "amazon-q",
+        "enterprise-search",
+        "data-access",
+        "conversational",
+        "knowledge-search"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "AI image generation with text and color guidance",
+      "icon": "\ud83e\udd16",
+      "id": "nova-canvas-mcp-server",
+      "name": "Amazon Nova Canvas MCP Server",
+      "source_path": "src/nova-canvas-mcp-server/",
+      "subcategory": "Content Processing & Generation",
+      "tags": [
+        "ai-ml",
+        "image-generation",
+        "nova-canvas",
+        "text-guidance",
+        "color-guidance",
+        "conversational",
+        "content-generation"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Analyze images using computer vision capabilities",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-rekognition-mcp-server",
+      "name": "Amazon Rekognition MCP Server",
+      "source_path": "src/amazon-rekognition-mcp-server/",
+      "subcategory": "Content Processing & Generation",
+      "tags": [
+        "ai-ml",
+        "computer-vision",
+        "rekognition",
+        "image-analysis",
+        "conversational",
+        "content-processing"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Analyze documents, images, videos, and audio files",
+      "icon": "\ud83e\udd16",
+      "id": "aws-bedrock-data-automation-mcp-server",
+      "name": "Amazon Bedrock Data Automation MCP Server",
+      "source_path": "src/aws-bedrock-data-automation-mcp-server/",
+      "subcategory": "Content Processing & Generation",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "data-automation",
+        "document-analysis",
+        "media-analysis",
+        "conversational",
+        "content-processing"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Complete DynamoDB operations and table management",
+      "icon": "\ud83d\udcca",
+      "id": "dynamodb-mcp-server",
+      "name": "Amazon DynamoDB MCP Server",
+      "source_path": "src/dynamodb-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "dynamodb",
+        "nosql",
+        "table-management",
+        "database-operations",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "PostgreSQL database operations via RDS Data API",
+      "icon": "\ud83d\udcca",
+      "id": "postgres-mcp-server",
+      "name": "Amazon Aurora PostgreSQL MCP Server",
+      "source_path": "src/postgres-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "postgresql",
+        "aurora",
+        "rds-data-api",
+        "sql-database",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "MySQL database operations via RDS Data API",
+      "icon": "\ud83d\udcca",
+      "id": "mysql-mcp-server",
+      "name": "Amazon Aurora MySQL MCP Server",
+      "source_path": "src/mysql-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "mysql",
+        "aurora",
+        "rds-data-api",
+        "sql-database",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Distributed SQL with PostgreSQL compatibility",
+      "icon": "\ud83d\udcca",
+      "id": "aurora-dsql-mcp-server",
+      "name": "Amazon Aurora DSQL MCP Server",
+      "source_path": "src/aurora-dsql-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "aurora-dsql",
+        "distributed-sql",
+        "postgresql-compatibility",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "MongoDB-compatible document database operations",
+      "icon": "\ud83d\udcca",
+      "id": "documentdb-mcp-server",
+      "name": "Amazon DocumentDB MCP Server",
+      "source_path": "src/documentdb-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "documentdb",
+        "mongodb-compatible",
+        "document-database",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Graph database queries with openCypher and Gremlin",
+      "icon": "\ud83d\udcca",
+      "id": "amazon-neptune-mcp-server",
+      "name": "Amazon Neptune MCP Server",
+      "source_path": "src/amazon-neptune-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "neptune",
+        "graph-database",
+        "opencypher",
+        "gremlin",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Apache Cassandra-compatible operations",
+      "icon": "\ud83d\udcca",
+      "id": "amazon-keyspaces-mcp-server",
+      "name": "Amazon Keyspaces MCP Server",
+      "source_path": "src/amazon-keyspaces-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "keyspaces",
+        "cassandra-compatible",
+        "nosql",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "InfluxDB-compatible operations",
+      "icon": "\ud83d\udcca",
+      "id": "timestream-for-influxdb-mcp-server",
+      "name": "Amazon Timestream for InfluxDB MCP Server",
+      "source_path": "src/timestream-for-influxdb-mcp-server/",
+      "subcategory": "SQL & NoSQL Databases",
+      "tags": [
+        "data-analytics",
+        "timestream",
+        "influxdb-compatible",
+        "time-series",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Complete ElastiCache operations",
+      "icon": "\ud83d\udcca",
+      "id": "elasticache-mcp-server",
+      "name": "Amazon ElastiCache MCP Server",
+      "source_path": "src/elasticache-mcp-server/",
+      "subcategory": "Caching & Performance",
+      "tags": [
+        "data-analytics",
+        "elasticache",
+        "caching",
+        "performance",
+        "autonomous",
+        "caching-performance"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Advanced data structures and caching with Valkey",
+      "icon": "\ud83d\udcca",
+      "id": "valkey-mcp-server",
+      "name": "Amazon ElastiCache / MemoryDB for Valkey MCP Server",
+      "source_path": "src/valkey-mcp-server/",
+      "subcategory": "Caching & Performance",
+      "tags": [
+        "data-analytics",
+        "valkey",
+        "caching",
+        "data-structures",
+        "performance",
+        "autonomous",
+        "caching-performance"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "High-speed caching operations",
+      "icon": "\ud83d\udcca",
+      "id": "memcached-mcp-server",
+      "name": "Amazon ElastiCache for Memcached MCP Server",
+      "source_path": "src/memcached-mcp-server/",
+      "subcategory": "Caching & Performance",
+      "tags": [
+        "data-analytics",
+        "memcached",
+        "caching",
+        "high-speed",
+        "performance",
+        "autonomous",
+        "caching-performance"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Semantic code search and repository analysis",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "git-repo-research-mcp-server",
+      "name": "Git Repo Research MCP Server",
+      "source_path": "src/git-repo-research-mcp-server/",
+      "subcategory": "Code Analysis",
+      "tags": [
+        "developer-tools",
+        "git",
+        "repository-analysis",
+        "semantic-search",
+        "code-analysis",
+        "vibe-coding",
+        "core-development"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Automated documentation from code analysis",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "code-doc-gen-mcp-server",
+      "name": "Code Documentation Generation MCP Server",
+      "source_path": "src/code-doc-gen-mcp-server/",
+      "subcategory": "Documentation",
+      "tags": [
+        "developer-tools",
+        "documentation",
+        "code-analysis",
+        "automation",
+        "vibe-coding",
+        "application-development"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Generate architecture diagrams and technical illustrations",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "aws-diagram-mcp-server",
+      "name": "AWS Diagram MCP Server",
+      "source_path": "src/aws-diagram-mcp-server/",
+      "subcategory": "Visualization",
+      "tags": [
+        "developer-tools",
+        "diagrams",
+        "architecture",
+        "visualization",
+        "technical-illustrations",
+        "vibe-coding",
+        "application-development"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "React and modern web development guidance",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "frontend-mcp-server",
+      "name": "Frontend MCP Server",
+      "source_path": "src/frontend-mcp-server/",
+      "subcategory": "Web Development",
+      "tags": [
+        "developer-tools",
+        "frontend",
+        "react",
+        "web-development",
+        "modern-development",
+        "vibe-coding",
+        "application-development"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Generate realistic test data for development and ML",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "syntheticdata-mcp-server",
+      "name": "Synthetic Data MCP Server",
+      "source_path": "src/syntheticdata-mcp-server/",
+      "subcategory": "Testing & Data",
+      "tags": [
+        "developer-tools",
+        "synthetic-data",
+        "test-data",
+        "machine-learning",
+        "development",
+        "vibe-coding",
+        "testing-data"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Integration & Messaging",
+      "description": "Dynamic API integration through OpenAPI specifications",
+      "icon": "\ud83d\udce1",
+      "id": "openapi-mcp-server",
+      "name": "OpenAPI MCP Server",
+      "source_path": "src/openapi-mcp-server/",
+      "subcategory": "API Integration",
+      "tags": [
+        "integration-messaging",
+        "openapi",
+        "api-integration",
+        "specifications",
+        "dynamic-integration",
+        "vibe-coding",
+        "application-development"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Integration & Messaging",
+      "description": "Event-driven messaging and queue management",
+      "icon": "\ud83d\udce1",
+      "id": "amazon-sns-sqs-mcp-server",
+      "name": "Amazon SNS / SQS MCP Server",
+      "source_path": "src/amazon-sns-sqs-mcp-server/",
+      "subcategory": "Messaging",
+      "tags": [
+        "integration-messaging",
+        "sns",
+        "sqs",
+        "event-driven",
+        "messaging",
+        "queue-management",
+        "autonomous",
+        "workflow-integration"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Integration & Messaging",
+      "description": "Message broker management for RabbitMQ and ActiveMQ",
+      "icon": "\ud83d\udce1",
+      "id": "amazon-mq-mcp-server",
+      "name": "Amazon MQ MCP Server",
+      "source_path": "src/amazon-mq-mcp-server/",
+      "subcategory": "Message Brokers",
+      "tags": [
+        "integration-messaging",
+        "amazon-mq",
+        "message-broker",
+        "rabbitmq",
+        "activemq",
+        "autonomous",
+        "workflow-integration"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Integration & Messaging",
+      "description": "Execute complex workflows and business processes",
+      "icon": "\ud83d\udce1",
+      "id": "stepfunctions-tool-mcp-server",
+      "name": "AWS Step Functions MCP Server",
+      "source_path": "src/stepfunctions-tool-mcp-server/",
+      "subcategory": "Workflow Orchestration",
+      "tags": [
+        "integration-messaging",
+        "step-functions",
+        "workflows",
+        "business-processes",
+        "orchestration",
+        "autonomous",
+        "workflow-integration"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Integration & Messaging",
+      "description": "Place search, geocoding, and route optimization",
+      "icon": "\ud83d\udce1",
+      "id": "aws-location-mcp-server",
+      "name": "Amazon Location Service MCP Server",
+      "source_path": "src/aws-location-mcp-server/",
+      "subcategory": "Location Services",
+      "tags": [
+        "integration-messaging",
+        "location-services",
+        "geocoding",
+        "place-search",
+        "route-optimization",
+        "conversational",
+        "business-services"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "Pre-deployment cost estimation and optimization",
+      "icon": "\ud83d\udcb0",
+      "id": "aws-pricing-mcp-server",
+      "name": "AWS Pricing MCP Server",
+      "source_path": "src/aws-pricing-mcp-server/",
+      "subcategory": "Cost Analysis",
+      "tags": [
+        "cost-operations",
+        "cost-analysis",
+        "estimation",
+        "optimization",
+        "pre-deployment",
+        "conversational",
+        "business-services"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "Detailed cost analysis and reporting",
+      "icon": "\ud83d\udcb0",
+      "id": "cost-explorer-mcp-server",
+      "name": "AWS Cost Explorer MCP Server",
+      "source_path": "src/cost-explorer-mcp-server/",
+      "subcategory": "Cost Analysis",
+      "tags": [
+        "cost-operations",
+        "cost-explorer",
+        "detailed-analysis",
+        "reporting",
+        "autonomous",
+        "conversational",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "Prometheus-compatible operations",
+      "icon": "\ud83d\udcb0",
+      "id": "prometheus-mcp-server",
+      "name": "AWS Managed Prometheus MCP Server",
+      "source_path": "src/prometheus-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "prometheus",
+        "monitoring",
+        "metrics",
+        "observability",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Core",
+      "description": "Intelligent planning and AWS MCP server orchestration",
+      "icon": "\u26a1",
+      "id": "core-mcp-server",
+      "name": "Core MCP Server",
+      "source_path": "src/core-mcp-server/",
+      "subcategory": "Orchestration",
+      "tags": [
+        "core",
+        "orchestration",
+        "planning",
+        "intelligent",
+        "vibe-coding",
+        "core-development"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2",
+      "icon": "\ud83d\udcca",
+      "id": "aws-dataprocessing-mcp-server",
+      "name": "Amazon Data Processing MCP Server",
+      "source_path": "src/aws-dataprocessing-mcp-server/",
+      "subcategory": "Data Operations & ETL",
+      "tags": [
+        "data-analytics",
+        "glue",
+        "emr",
+        "data-processing",
+        "etl",
+        "pipeline",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Healthcare & Lifesciences",
+      "description": "Generate, run, debug and optimize lifescience workflows on AWS HealthOmics",
+      "icon": "\ud83e\uddc0",
+      "id": "aws-healthomics-mcp-server",
+      "name": "AWS HealthOmics MCP Server",
+      "source_path": "src/aws-healthomics-mcp-server/",
+      "subcategory": "Lifesciences Workflow Development",
+      "tags": [
+        "healthcare",
+        "lifesciences",
+        "healthomics",
+        "workflows",
+        "genomics",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "Application monitoring and performance insights",
+      "icon": "\ud83d\udcb0",
+      "id": "cloudwatch-appsignals-mcp-server",
+      "name": "Amazon CloudWatch Application Signals MCP Server",
+      "source_path": "src/cloudwatch-appsignals-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "cloudwatch",
+        "application-signals",
+        "monitoring",
+        "performance",
+        "insights",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "Metrics, Alarms, and Logs analysis and operational troubleshooting",
+      "icon": "\ud83d\udcb0",
+      "id": "cloudwatch-mcp-server",
+      "name": "Amazon CloudWatch MCP Server",
+      "source_path": "src/cloudwatch-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "cloudwatch",
+        "metrics",
+        "alarms",
+        "logs",
+        "analysis",
+        "troubleshooting",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Comprehensive IAM user, role, group, and policy management with security best practices",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "iam-mcp-server",
+      "name": "AWS IAM MCP Server",
+      "source_path": "src/iam-mcp-server/",
+      "subcategory": "Security & Access",
+      "tags": [
+        "developer-tools",
+        "iam",
+        "security",
+        "access-management",
+        "policies",
+        "best-practices",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Provides tools to discover, explore, and query Amazon Redshift clusters and serverless workgroups",
+      "icon": "\ud83d\udcca",
+      "id": "redshift-mcp-server",
+      "name": "Amazon Redshift MCP Server",
+      "source_path": "src/redshift-mcp-server/",
+      "subcategory": "Search & Analytics",
+      "tags": [
+        "data-analytics",
+        "redshift",
+        "data-warehouse",
+        "query",
+        "analytics",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "description": "AI coding assistants helping you build faster",
+      "icon": "\ud83d\udc68\u200d\ud83d\udcbb",
+      "id": "vibe-coding",
+      "name": "Vibe Coding & Development"
+    },
+    {
+      "description": "Customer-facing chatbots and interactive Q&A systems",
+      "icon": "\ud83d\udcac",
+      "id": "conversational",
+      "name": "Conversational Assistants"
+    },
+    {
+      "description": "Headless automation, ETL pipelines, and operational systems",
+      "icon": "\ud83e\udd16",
+      "id": "autonomous",
+      "name": "Autonomous Background Agents"
+    }
+  ]
+}

@@ -305,8 +305,8 @@ uv run pyright
 
 ## Contributing
 
-Contributions are welcome! Please see the [contributing guidelines](../../CONTRIBUTING.md) for more information.
+Contributions are welcome! Please see the [contributing guidelines](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) for more information.
 
 ## License
 
-This project is licensed under the Apache-2.0 License. See the [LICENSE](../../LICENSE) file for details.
+This project is licensed under the Apache-2.0 License. See the [LICENSE](https://github.com/awslabs/mcp/blob/main/LICENSE) file for details.

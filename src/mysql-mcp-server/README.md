@@ -58,7 +58,8 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 3. Run 'docker build -t awslabs/mysql-mcp-server:latest .'
 
 ### Add or update your LLM client's config with following:
-<pre><code>
+
+```json
 {
   "mcpServers": {
     "awslabs.mysql-mcp-server": {
@@ -80,7 +81,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
     }
   }
 }
-</code></pre>
+```
 
 NOTE: By default, only read-only queries are allowed and it is controlled by --readonly parameter above. Set it to False if you also want to allow writable DML or DDL.
 
