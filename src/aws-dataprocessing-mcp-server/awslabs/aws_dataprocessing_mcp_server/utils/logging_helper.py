@@ -39,6 +39,9 @@ def log_with_request_id(ctx: Context, level: LogLevel, message: str, **kwargs: A
         message: The message to log
         **kwargs: Additional fields to include in the log message
     """
+    logger.add(
+        '/Users/linliyu/github_repo/mcp-naikvaib/src/aws-dataprocessing-mcp-server/application.log'
+    )
     # Format the log message with request_id
     log_message = f'[request_id={ctx.request_id}] {message}'
 

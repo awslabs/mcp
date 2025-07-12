@@ -331,3 +331,62 @@ class AwsHelper:
             # If we can't get the cluster information, return error
             result['error_message'] = f'Error retrieving cluster {cluster_id}: {str(e)}'
             return result
+
+    @classmethod
+    def verify_athena_data_catalog_managed_by_mcp(
+        cls, athena_client: Any, name: str, work_group: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Verify if an Athena data catalog is managed by the MCP server.
+
+        This method checks if the Athena data catalog exists and has the MCP managed tag.
+
+        Args:
+            athena_client: Athena boto3 client
+            name: Name of the data catalog
+            work_group: Optional workgroup name
+
+        Returns:
+            Dictionary with verification result:
+                - is_valid: True if verification passed, False otherwise
+                - error_message: Error message if verification failed, None otherwise
+        """
+        result = {'is_valid': False, 'error_message': None}
+
+        try:
+            # Get data catalog to confirm it exists
+            get_params = {'Name': name}
+            if work_group is not None:
+                get_params['WorkGroup'] = work_group
+
+            athena_client.get_data_catalog(**get_params)
+
+            # Construct the ARN for the data catalog
+            account_id = cls.get_aws_account_id()
+            region = cls.get_aws_region()
+            data_catalog_arn = (
+                f'arn:{cls.get_aws_partition()}:athena:{region}:{account_id}:datacatalog/{name}'
+            )
+
+            # Get tags for the data catalog
+            try:
+                tags_response = athena_client.list_tags_for_resource(ResourceARN=data_catalog_arn)
+                tags = tags_response.get('Tags', [])
+
+                # Check if the data catalog is managed by MCP
+                if not cls.verify_resource_managed_by_mcp(tags):
+                    result['error_message'] = (
+                        f'Data catalog {name} is not managed by MCP (missing required tags)'
+                    )
+                    return result
+
+                # All checks passed
+                result['is_valid'] = True
+                return result
+
+            except Exception as e:
+                result['error_message'] = f'Error checking data catalog tags: {str(e)}'
+                return result
+
+        except Exception as e:
+            result['error_message'] = f'Error getting data catalog: {str(e)}'
+            return result
