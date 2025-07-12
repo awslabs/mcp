@@ -694,3 +694,489 @@ class TestAddInstanceGroups:
                 # Verify response
                 assert result.isError is False
                 assert result.cluster_id == 'j-12345ABCDEF'
+
+
+class TestModifyInstanceFleet:
+    """Test modify-instance-fleet operation."""
+
+    @pytest.fixture
+    def mock_aws_helper(self):
+        """Create a mock AwsHelper instance for testing."""
+        with patch(
+            'awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_instance_handler.AwsHelper'
+        ) as mock:
+            mock.verify_emr_cluster_managed_by_mcp.return_value = {
+                'is_valid': True,
+                'error_message': None,
+            }
+            yield mock
+
+    async def test_modify_instance_fleet_success(
+        self, emr_handler_with_write_access, mock_context, mock_aws_helper
+    ):
+        """Test successful modify-instance-fleet operation."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Call function
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='modify-instance-fleet',
+                cluster_id='j-12345ABCDEF',
+                instance_fleet_id='if-12345ABCDEF',
+                instance_fleet_config={
+                    'TargetOnDemandCapacity': 5,
+                    'TargetSpotCapacity': 2,
+                },
+            )
+
+            # Verify AWS client was called correctly
+            mock_emr_client.modify_instance_fleet.assert_called_once_with(
+                ClusterId='j-12345ABCDEF',
+                InstanceFleet={
+                    'InstanceFleetId': 'if-12345ABCDEF',
+                    'TargetOnDemandCapacity': 5,
+                    'TargetSpotCapacity': 2,
+                },
+            )
+
+            # Verify response
+            assert result.isError is False
+            assert result.cluster_id == 'j-12345ABCDEF'
+            assert result.instance_fleet_id == 'if-12345ABCDEF'
+            assert any(
+                'Successfully modified instance fleet' in content.text
+                for content in result.content
+            )
+
+    async def test_modify_instance_fleet_unmanaged_resource(
+        self, emr_handler_with_write_access, mock_context, mock_aws_helper
+    ):
+        """Test modify-instance-fleet with unmanaged resource."""
+        # Mock verification to return invalid
+        mock_aws_helper.verify_emr_cluster_managed_by_mcp.return_value = {
+            'is_valid': False,
+            'error_message': 'Resource is not managed by MCP',
+        }
+
+        # Call function
+        result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+            ctx=mock_context,
+            operation='modify-instance-fleet',
+            cluster_id='j-12345ABCDEF',
+            instance_fleet_id='if-12345ABCDEF',
+            instance_fleet_config={'TargetOnDemandCapacity': 5},
+        )
+
+        # Verify response indicates error
+        assert result.isError is True
+        assert any('Resource is not managed by MCP' in content.text for content in result.content)
+
+    async def test_modify_instance_fleet_aws_error(
+        self, emr_handler_with_write_access, mock_context, mock_aws_helper
+    ):
+        """Test handling of AWS errors during modify-instance-fleet."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Mock AWS client to raise an error
+            mock_emr_client.modify_instance_fleet.side_effect = ClientError(
+                error_response={
+                    'Error': {
+                        'Code': 'ValidationException',
+                        'Message': 'Invalid fleet configuration',
+                    }
+                },
+                operation_name='ModifyInstanceFleet',
+            )
+
+            # Call function
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='modify-instance-fleet',
+                cluster_id='j-12345ABCDEF',
+                instance_fleet_id='if-12345ABCDEF',
+                instance_fleet_config={'TargetOnDemandCapacity': 5},
+            )
+
+            # Verify error handling
+            assert result.isError is True
+            assert any(
+                'Error in manage_aws_emr_ec2_instances' in content.text
+                for content in result.content
+            )
+
+
+class TestModifyInstanceGroups:
+    """Test modify-instance-groups operation."""
+
+    @pytest.fixture
+    def mock_aws_helper(self):
+        """Create a mock AwsHelper instance for testing."""
+        with patch(
+            'awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_instance_handler.AwsHelper'
+        ) as mock:
+            mock.verify_emr_cluster_managed_by_mcp.return_value = {
+                'is_valid': True,
+                'error_message': None,
+            }
+            yield mock
+
+    async def test_modify_instance_groups_success(
+        self, emr_handler_with_write_access, mock_context, mock_aws_helper
+    ):
+        """Test successful modify-instance-groups operation."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Call function
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='modify-instance-groups',
+                cluster_id='j-12345ABCDEF',
+                instance_group_configs=[
+                    {
+                        'InstanceGroupId': 'ig-12345ABCDEF',
+                        'InstanceCount': 3,
+                    },
+                    {
+                        'InstanceGroupId': 'ig-67890GHIJKL',
+                        'InstanceCount': 2,
+                    },
+                ],
+            )
+
+            # Verify AWS client was called correctly
+            mock_emr_client.modify_instance_groups.assert_called_once_with(
+                ClusterId='j-12345ABCDEF',
+                InstanceGroups=[
+                    {
+                        'InstanceGroupId': 'ig-12345ABCDEF',
+                        'InstanceCount': 3,
+                    },
+                    {
+                        'InstanceGroupId': 'ig-67890GHIJKL',
+                        'InstanceCount': 2,
+                    },
+                ],
+            )
+
+            # Verify response
+            assert result.isError is False
+            assert result.cluster_id == 'j-12345ABCDEF'
+            assert len(result.instance_group_ids) == 2
+            assert 'ig-12345ABCDEF' in result.instance_group_ids
+            assert 'ig-67890GHIJKL' in result.instance_group_ids
+
+    async def test_modify_instance_groups_unmanaged_resource(
+        self, emr_handler_with_write_access, mock_context, mock_aws_helper
+    ):
+        """Test modify-instance-groups with unmanaged resource."""
+        # Mock verification to return invalid
+        mock_aws_helper.verify_emr_cluster_managed_by_mcp.return_value = {
+            'is_valid': False,
+            'error_message': 'Resource is not managed by MCP',
+        }
+
+        # Call function
+        result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+            ctx=mock_context,
+            operation='modify-instance-groups',
+            cluster_id='j-12345ABCDEF',
+            instance_group_configs=[{'InstanceGroupId': 'ig-12345ABCDEF', 'InstanceCount': 3}],
+        )
+
+        # Verify response indicates error
+        assert result.isError is True
+        assert any('Resource is not managed by MCP' in content.text for content in result.content)
+
+    async def test_modify_instance_groups_missing_cluster_id(
+        self, emr_handler_with_write_access, mock_context
+    ):
+        """Test modify-instance-groups without cluster_id."""
+        # Call function
+        result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+            ctx=mock_context,
+            operation='modify-instance-groups',
+            instance_group_configs=[{'InstanceGroupId': 'ig-12345ABCDEF', 'InstanceCount': 3}],
+        )
+
+        # Verify response indicates error
+        assert result.isError is True
+        assert any(
+            'Cannot modify instance groups without providing a cluster_id' in content.text
+            for content in result.content
+        )
+
+
+class TestListInstanceFleets:
+    """Test list-instance-fleets operation."""
+
+    async def test_list_instance_fleets_success(self, emr_handler_with_write_access, mock_context):
+        """Test successful list-instance-fleets operation."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Mock AWS response
+            mock_emr_client.list_instance_fleets.return_value = {
+                'InstanceFleets': [
+                    {
+                        'Id': 'if-12345ABCDEF',
+                        'Name': 'Master',
+                        'Status': {'State': 'RUNNING'},
+                        'InstanceFleetType': 'MASTER',
+                        'TargetOnDemandCapacity': 1,
+                        'ProvisionedOnDemandCapacity': 1,
+                    },
+                    {
+                        'Id': 'if-67890GHIJKL',
+                        'Name': 'Core',
+                        'Status': {'State': 'RUNNING'},
+                        'InstanceFleetType': 'CORE',
+                        'TargetOnDemandCapacity': 2,
+                        'ProvisionedOnDemandCapacity': 2,
+                    },
+                ],
+                'Marker': 'next-page-token',
+            }
+
+            # Call function
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='list-instance-fleets',
+                cluster_id='j-12345ABCDEF',
+            )
+
+            # Verify AWS client was called correctly
+            mock_emr_client.list_instance_fleets.assert_called_once_with(
+                ClusterId='j-12345ABCDEF',
+            )
+
+            # Verify response
+            assert result.isError is False
+            assert result.cluster_id == 'j-12345ABCDEF'
+            assert len(result.instance_fleets) == 2
+            assert result.count == 2
+            assert result.marker == 'next-page-token'
+
+    async def test_list_instance_fleets_with_marker(
+        self, emr_handler_with_write_access, mock_context
+    ):
+        """Test list-instance-fleets with pagination marker."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Mock AWS response
+            mock_emr_client.list_instance_fleets.return_value = {
+                'InstanceFleets': [],
+                'Marker': None,
+            }
+
+            # Call function
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='list-instance-fleets',
+                cluster_id='j-12345ABCDEF',
+                marker='previous-page-token',
+            )
+
+            # Verify AWS client was called correctly with marker
+            mock_emr_client.list_instance_fleets.assert_called_once_with(
+                ClusterId='j-12345ABCDEF',
+                Marker='previous-page-token',
+            )
+
+            # Verify response
+            assert result.isError is False
+            assert result.count == 0
+            assert result.marker is None
+
+
+class TestListInstances:
+    """Test list-instances operation."""
+
+    async def test_list_instances_success(self, emr_handler_with_write_access, mock_context):
+        """Test successful list-instances operation."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Mock AWS response
+            mock_emr_client.list_instances.return_value = {
+                'Instances': [
+                    {
+                        'Id': 'i-12345ABCDEF',
+                        'Ec2InstanceId': 'i-12345ABCDEF',
+                        'PublicDnsName': 'ec2-1-2-3-4.compute-1.amazonaws.com',
+                        'PublicIpAddress': '1.2.3.4',
+                        'PrivateDnsName': 'ip-10-0-0-1.ec2.internal',
+                        'PrivateIpAddress': '10.0.0.1',
+                        'Status': {'State': 'RUNNING'},
+                        'InstanceGroupId': 'ig-12345ABCDEF',
+                        'InstanceType': 'm5.xlarge',
+                    },
+                    {
+                        'Id': 'i-67890GHIJKL',
+                        'Ec2InstanceId': 'i-67890GHIJKL',
+                        'PublicDnsName': 'ec2-5-6-7-8.compute-1.amazonaws.com',
+                        'PublicIpAddress': '5.6.7.8',
+                        'PrivateDnsName': 'ip-10-0-0-2.ec2.internal',
+                        'PrivateIpAddress': '10.0.0.2',
+                        'Status': {'State': 'RUNNING'},
+                        'InstanceGroupId': 'ig-67890GHIJKL',
+                        'InstanceType': 'm5.xlarge',
+                    },
+                ],
+                'Marker': 'next-page-token',
+            }
+
+            # Call function
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='list-instances',
+                cluster_id='j-12345ABCDEF',
+            )
+
+            # Verify AWS client was called correctly
+            mock_emr_client.list_instances.assert_called_once_with(
+                ClusterId='j-12345ABCDEF',
+            )
+
+            # Verify response
+            assert result.isError is False
+            assert result.cluster_id == 'j-12345ABCDEF'
+            assert len(result.instances) == 2
+            assert result.count == 2
+            assert result.marker == 'next-page-token'
+
+    async def test_list_instances_with_filters(self, emr_handler_with_write_access, mock_context):
+        """Test list-instances with various filters."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Mock AWS response
+            mock_emr_client.list_instances.return_value = {
+                'Instances': [],
+                'Marker': None,
+            }
+
+            # Call function with all possible filters
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='list-instances',
+                cluster_id='j-12345ABCDEF',
+                instance_group_ids=['ig-12345ABCDEF'],
+                instance_group_types=['MASTER', 'CORE'],
+                instance_states=['RUNNING'],
+                instance_fleet_id='if-12345ABCDEF',
+                marker='previous-page-token',
+            )
+
+            # Verify AWS client was called correctly with all filters
+            mock_emr_client.list_instances.assert_called_once_with(
+                ClusterId='j-12345ABCDEF',
+                InstanceGroupIds=['ig-12345ABCDEF'],
+                InstanceGroupTypes=['MASTER', 'CORE'],
+                InstanceStates=['RUNNING'],
+                InstanceFleetId='if-12345ABCDEF',
+                Marker='previous-page-token',
+            )
+
+            # Verify response
+            assert result.isError is False
+            assert result.count == 0
+            assert result.marker is None
+
+    async def test_list_instances_with_instance_fleet_type(
+        self, emr_handler_with_write_access, mock_context
+    ):
+        """Test list-instances with instance_fleet_type filter."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Mock AWS response
+            mock_emr_client.list_instances.return_value = {
+                'Instances': [],
+                'Marker': None,
+            }
+
+            # Call function with instance_fleet_type filter
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='list-instances',
+                cluster_id='j-12345ABCDEF',
+                instance_fleet_type='TASK',
+            )
+
+            # Verify AWS client was called correctly with instance_fleet_type
+            mock_emr_client.list_instances.assert_called_once_with(
+                ClusterId='j-12345ABCDEF',
+                InstanceFleetType='TASK',
+            )
+
+            # Verify response
+            assert result.isError is False
+
+
+class TestListSupportedInstanceTypes:
+    """Test list-supported-instance-types operation."""
+
+    async def test_list_supported_instance_types_success(
+        self, emr_handler_with_write_access, mock_context
+    ):
+        """Test successful list-supported-instance-types operation."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Mock AWS response
+            mock_emr_client.list_supported_instance_types.return_value = {
+                'SupportedInstanceTypes': [
+                    {
+                        'InstanceType': 'm5.xlarge',
+                        'EstimatedTotalPrice': '0.192',
+                        'EstimatedOnDemandPrice': '0.192',
+                        'EstimatedSpotPrice': '0.0576',
+                        'EstimatedEbsStoragePrice': '0.00',
+                        'AvailabilityZones': ['us-west-2a', 'us-west-2b', 'us-west-2c'],
+                    },
+                    {
+                        'InstanceType': 'm5.2xlarge',
+                        'EstimatedTotalPrice': '0.384',
+                        'EstimatedOnDemandPrice': '0.384',
+                        'EstimatedSpotPrice': '0.1152',
+                        'EstimatedEbsStoragePrice': '0.00',
+                        'AvailabilityZones': ['us-west-2a', 'us-west-2b', 'us-west-2c'],
+                    },
+                ],
+                'Marker': 'next-page-token',
+            }
+
+            # Call function
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='list-supported-instance-types',
+                release_label='emr-6.10.0',
+            )
+
+            # Verify AWS client was called correctly
+            mock_emr_client.list_supported_instance_types.assert_called_once_with(
+                ReleaseLabel='emr-6.10.0',
+            )
+
+            # Verify response
+            assert result.isError is False
+            assert len(result.instance_types) == 2
+            assert result.count == 2
+            assert result.marker == 'next-page-token'
+            assert result.release_label == 'emr-6.10.0'
+
+    async def test_list_supported_instance_types_with_marker(
+        self, emr_handler_with_write_access, mock_context
+    ):
+        """Test list-supported-instance-types with pagination marker."""
+        with patch.object(emr_handler_with_write_access, 'emr_client') as mock_emr_client:
+            # Mock AWS response
+            mock_emr_client.list_supported_instance_types.return_value = {
+                'SupportedInstanceTypes': [],
+                'Marker': None,
+            }
+
+            # Call function
+            result = await emr_handler_with_write_access.manage_aws_emr_ec2_instances(
+                ctx=mock_context,
+                operation='list-supported-instance-types',
+                release_label='emr-6.10.0',
+                marker='previous-page-token',
+            )
+
+            # Verify AWS client was called correctly with marker
+            mock_emr_client.list_supported_instance_types.assert_called_once_with(
+                ReleaseLabel='emr-6.10.0',
+                Marker='previous-page-token',
+            )
+
+            # Verify response
+            assert result.isError is False
+            assert result.count == 0
+            assert result.marker is None

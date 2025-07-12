@@ -51,6 +51,20 @@ def steps_handler_with_write_access():
 
 
 @pytest.fixture
+def mock_aws_helper():
+    """Create a mock AwsHelper instance for testing."""
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_steps_handler.AwsHelper'
+    ) as mock:
+        mock.create_boto3_client.return_value = MagicMock()
+        mock.prepare_resource_tags.return_value = {
+            'ManagedBy': 'mcpServer',
+            'ResourceType': 'EMRSteps',
+        }
+        yield mock
+
+
+@pytest.fixture
 def steps_handler_without_write_access():
     """Create an EMR steps handler with write access disabled."""
     mcp_mock = MagicMock()
@@ -216,9 +230,15 @@ class TestAddSteps:
 class TestCancelSteps:
     """Test cancel-steps operation."""
 
-    async def test_cancel_steps_success(self, steps_handler_with_write_access, mock_context):
+    async def test_cancel_steps_success(
+        self, mock_aws_helper, steps_handler_with_write_access, mock_context
+    ):
         """Test successful cancel-steps operation."""
         with patch.object(steps_handler_with_write_access, 'emr_client') as mock_emr_client:
+            mock_aws_helper.verify_emr_cluster_managed_by_mcp.return_value = {
+                'is_valid': True,
+                'error_message': None,
+            }
             mock_emr_client.cancel_steps.return_value = {
                 'CancelStepsInfoList': [
                     {'StepId': 's-12345ABCDEF', 'Status': 'SUBMITTED', 'Reason': 'User request'}
@@ -240,11 +260,35 @@ class TestCancelSteps:
             assert result.cluster_id == 'j-12345ABCDEF'
             assert result.count == 1
 
+    async def test_cancel_steps_for_unmanaged_resource(
+        self, mock_aws_helper, steps_handler_with_write_access, mock_context
+    ):
+        """Test failure cancel-steps operation for unmanaged mcp step."""
+        with patch.object(steps_handler_with_write_access, 'emr_client'):
+            mock_aws_helper.verify_emr_cluster_managed_by_mcp.return_value = {
+                'is_valid': False,
+                'error_message': 'need to be mcp managed tag',
+            }
+
+            result = await steps_handler_with_write_access.manage_aws_emr_ec2_steps(
+                ctx=mock_context,
+                operation='cancel-steps',
+                cluster_id='j-12345ABCDEF',
+                step_ids=['s-12345ABCDEF'],
+            )
+
+            assert result.isError
+            assert 'eed to be mcp managed tag' in result.content[0].text
+
     async def test_cancel_steps_with_cancellation_option(
-        self, steps_handler_with_write_access, mock_context
+        self, mock_aws_helper, steps_handler_with_write_access, mock_context
     ):
         """Test cancel-steps with cancellation option."""
         with patch.object(steps_handler_with_write_access, 'emr_client') as mock_emr_client:
+            mock_aws_helper.verify_emr_cluster_managed_by_mcp.return_value = {
+                'is_valid': True,
+                'error_message': None,
+            }
             mock_emr_client.cancel_steps.return_value = {'CancelStepsInfoList': []}
 
             result = await steps_handler_with_write_access.manage_aws_emr_ec2_steps(

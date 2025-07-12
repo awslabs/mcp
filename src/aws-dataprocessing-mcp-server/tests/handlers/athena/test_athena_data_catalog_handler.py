@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_data_catalog_handler import (
     AthenaDataCatalogHandler,
@@ -38,6 +37,10 @@ def mock_aws_helper():
         mock.create_boto3_client.return_value = Mock()
         mock.prepare_resource_tags.return_value = {'ManagedBy': 'MCP'}
         mock.convert_tags_to_aws_format.return_value = [{'Key': 'ManagedBy', 'Value': 'MCP'}]
+        mock.verify_athena_data_catalog_managed_by_mcp.return_value = {
+            'is_valid': True,
+            'error_message': '',
+        }
         yield mock
 
 
@@ -111,7 +114,7 @@ async def test_create_data_catalog_success(handler, mock_athena_client):
     assert call_args['Name'] == 'test-catalog'
     assert call_args['Type'] == 'GLUE'
     assert call_args['Description'] == 'Test catalog'
-    assert call_args['Parameters'] == json.dumps({'catalog-id': '123456789012'})
+    assert call_args['Parameters'] == {'catalog-id': '123456789012'}
     assert call_args['Tags'] == [{'Key': 'ManagedBy', 'Value': 'MCP'}]
 
 
@@ -289,7 +292,7 @@ async def test_update_data_catalog_success(handler, mock_athena_client):
     assert call_args['Name'] == 'test-catalog'
     assert call_args['Type'] == 'GLUE'
     assert call_args['Description'] == 'Updated catalog'
-    assert call_args['Parameters'] == json.dumps({'catalog-id': '987654321098'})
+    assert call_args['Parameters'] == {'catalog-id': '987654321098'}
 
 
 @pytest.mark.asyncio
@@ -552,3 +555,134 @@ async def test_database_table_client_error_handling(handler, mock_athena_client)
 
     assert response.isError
     assert 'Error in manage_aws_athena_databases_and_tables' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_delete_data_catalog_not_mcp_managed(handler, mock_aws_helper, mock_athena_client):
+    """Test that deleting a non-MCP managed data catalog fails."""
+    handler.athena_client = mock_athena_client
+    # Override the default mock to simulate a non-MCP managed catalog
+    mock_aws_helper.verify_athena_data_catalog_managed_by_mcp.return_value = {
+        'is_valid': False,
+        'error_message': 'Data catalog is not managed by MCP',
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_data_catalogs(
+        ctx, operation='delete-data-catalog', name='test-catalog'
+    )
+
+    assert response.isError
+    assert 'Cannot delete data catalog' in response.content[0].text
+    assert 'Data catalog is not managed by MCP' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_update_data_catalog_not_mcp_managed(handler, mock_aws_helper, mock_athena_client):
+    """Test that updating a non-MCP managed data catalog fails."""
+    handler.athena_client = mock_athena_client
+    # Override the default mock to simulate a non-MCP managed catalog
+    mock_aws_helper.verify_athena_data_catalog_managed_by_mcp.return_value = {
+        'is_valid': False,
+        'error_message': 'Data catalog is not managed by MCP',
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_data_catalogs(
+        ctx,
+        operation='update-data-catalog',
+        name='test-catalog',
+        type='GLUE',
+        description='Updated catalog',
+    )
+
+    assert response.isError
+    assert 'Cannot update data catalog' in response.content[0].text
+    assert 'Data catalog is not managed by MCP' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_list_data_catalogs_with_no_parameters(handler, mock_athena_client):
+    """Test listing data catalogs with no optional parameters."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.list_data_catalogs.return_value = {
+        'DataCatalogsSummary': [{'CatalogName': 'catalog1', 'Type': 'GLUE'}],
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_data_catalogs(ctx, operation='list-data-catalogs')
+
+    assert not response.isError
+    assert len(response.data_catalogs) == 1
+    assert response.count == 1
+    assert response.next_token is None
+    mock_athena_client.list_data_catalogs.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_list_databases_with_no_optional_parameters(handler, mock_athena_client):
+    """Test listing databases with no optional parameters."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.list_databases.return_value = {
+        'DatabaseList': [{'Name': 'db1'}],
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_databases_and_tables(
+        ctx, operation='list-databases', catalog_name='test-catalog'
+    )
+
+    assert not response.isError
+    assert len(response.database_list) == 1
+    assert response.count == 1
+    assert response.next_token is None
+    mock_athena_client.list_databases.assert_called_once_with(CatalogName='test-catalog')
+
+
+@pytest.mark.asyncio
+async def test_list_table_metadata_with_minimal_parameters(handler, mock_athena_client):
+    """Test listing table metadata with only required parameters."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.list_table_metadata.return_value = {
+        'TableMetadataList': [{'Name': 'table1'}],
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_databases_and_tables(
+        ctx,
+        operation='list-table-metadata',
+        catalog_name='test-catalog',
+        database_name='test-db',
+    )
+
+    assert not response.isError
+    assert len(response.table_metadata_list) == 1
+    assert response.count == 1
+    assert response.next_token is None
+    mock_athena_client.list_table_metadata.assert_called_once_with(
+        CatalogName='test-catalog', DatabaseName='test-db'
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_query_results_with_all_parameters(handler, mock_athena_client):
+    """Test get query results with all parameters."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.get_table_metadata.return_value = {
+        'ResultSet': {'Rows': []},
+        'NextToken': 'next-token',
+        'UpdateCount': 5,
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_databases_and_tables(
+        ctx,
+        operation='get-table-metadata',
+        catalog_name='test-catalog',
+        database_name='test-db',
+        table_name='test-table',
+        work_group='work-group',
+    )
+
+    assert not response.isError
+    assert response.operation == 'get-table-metadata'

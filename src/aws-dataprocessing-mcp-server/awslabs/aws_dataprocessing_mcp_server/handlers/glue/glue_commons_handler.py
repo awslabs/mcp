@@ -37,7 +37,7 @@ from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional, Union
 
 
 class GlueCommonsHandler:
@@ -69,26 +69,36 @@ class GlueCommonsHandler:
     async def manage_aws_glue_usage_profiles(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-profile, delete-profile, get-profile, update-profile. Choose "get-profile" for read-only operations when write access is disabled.',
-        ),
-        profile_name: str = Field(
-            ...,
-            description='Name of the usage profile.',
-        ),
-        description: Optional[str] = Field(
-            None,
-            description='Description of the usage profile (for create-profile and update-profile operations).',
-        ),
-        configuration: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Configuration object specifying job and session values for the profile (required for create-profile and update-profile operations).',
-        ),
-        tags: Optional[Dict[str, str]] = Field(
-            None,
-            description='Tags to apply to the usage profile (for create-profile operation).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-profile, delete-profile, get-profile, update-profile. Choose "get-profile" for read-only operations when write access is disabled.',
+            ),
+        ],
+        profile_name: Annotated[
+            str,
+            Field(
+                description='Name of the usage profile.',
+            ),
+        ],
+        description: Annotated[
+            Optional[str],
+            Field(
+                description='Description of the usage profile (for create-profile and update-profile operations).',
+            ),
+        ] = None,
+        configuration: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Configuration object specifying job and session values for the profile (required for create-profile and update-profile operations).',
+            ),
+        ] = None,
+        tags: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description='Tags to apply to the usage profile (for create-profile operation).',
+            ),
+        ] = None,
     ) -> Union[
         CreateUsageProfileResponse,
         DeleteUsageProfileResponse,
@@ -361,18 +371,24 @@ class GlueCommonsHandler:
     async def manage_aws_glue_security(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-security-configuration, delete-security-configuration, get-security-configuration. Choose "get-security-configuration" for read-only operations when write access is disabled.',
-        ),
-        config_name: str = Field(
-            ...,
-            description='Name of the security configuration.',
-        ),
-        encryption_configuration: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Encryption configuration for create-security-configuration operation, containing settings for S3, CloudWatch, and job bookmarks encryption.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-security-configuration, delete-security-configuration, get-security-configuration. Choose "get-security-configuration" for read-only operations when write access is disabled.',
+            ),
+        ],
+        config_name: Annotated[
+            str,
+            Field(
+                description='Name of the security configuration.',
+            ),
+        ],
+        encryption_configuration: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Encryption configuration for create-security-configuration operation, containing settings for S3, CloudWatch, and job bookmarks encryption.',
+            ),
+        ] = None,
     ) -> Union[
         CreateSecurityConfigurationResponse,
         DeleteSecurityConfigurationResponse,
@@ -569,22 +585,30 @@ class GlueCommonsHandler:
     async def manage_aws_glue_encryption(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: get-catalog-encryption-settings, put-catalog-encryption-settings. Choose "get-catalog-encryption-settings" for read-only operations when write access is disabled.',
-        ),
-        catalog_id: Optional[str] = Field(
-            None,
-            description="ID of the Data Catalog to retrieve or update encryption settings for (defaults to caller's AWS account ID).",
-        ),
-        encryption_at_rest: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Encryption-at-rest configuration for the Data Catalog (for put-catalog-encryption-settings operation).',
-        ),
-        connection_password_encryption: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Connection password encryption configuration for the Data Catalog (for put-catalog-encryption-settings operation).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: get-catalog-encryption-settings, put-catalog-encryption-settings. Choose "get-catalog-encryption-settings" for read-only operations when write access is disabled.',
+            ),
+        ],
+        catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description="ID of the Data Catalog to retrieve or update encryption settings for (defaults to caller's AWS account ID).",
+            ),
+        ] = None,
+        encryption_at_rest: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Encryption-at-rest configuration for the Data Catalog (for put-catalog-encryption-settings operation).',
+            ),
+        ] = None,
+        connection_password_encryption: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Connection password encryption configuration for the Data Catalog (for put-catalog-encryption-settings operation).',
+            ),
+        ] = None,
     ) -> Union[
         GetDataCatalogEncryptionSettingsResponse,
         PutDataCatalogEncryptionSettingsResponse,
@@ -719,30 +743,42 @@ class GlueCommonsHandler:
     async def manage_aws_glue_resource_policies(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: get-resource-policy, put-resource-policy, delete-resource-policy. Choose "get-resource-policy" for read-only operations when write access is disabled.',
-        ),
-        policy: Optional[str] = Field(
-            None,
-            description='Resource policy document for put-resource-policy operation.',
-        ),
-        policy_hash: Optional[str] = Field(
-            None,
-            description='Hash of the policy to update or delete.',
-        ),
-        policy_exists_condition: Optional[str] = Field(
-            None,
-            description='Condition under which to update or delete the policy (MUST_EXIST or NOT_EXIST).',
-        ),
-        enable_hybrid: Optional[bool] = Field(
-            None,
-            description='Whether to enable hybrid access policy for put-resource-policy operation.',
-        ),
-        resource_arn: Optional[str] = Field(
-            None,
-            description='ARN of the Glue resource for the resource policy (optional).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: get-resource-policy, put-resource-policy, delete-resource-policy. Choose "get-resource-policy" for read-only operations when write access is disabled.',
+            ),
+        ],
+        policy: Annotated[
+            Optional[str],
+            Field(
+                description='Resource policy document for put-resource-policy operation.',
+            ),
+        ] = None,
+        policy_hash: Annotated[
+            Optional[str],
+            Field(
+                description='Hash of the policy to update or delete.',
+            ),
+        ] = None,
+        policy_exists_condition: Annotated[
+            Optional[str],
+            Field(
+                description='Condition under which to update or delete the policy (MUST_EXIST or NOT_EXIST).',
+            ),
+        ] = None,
+        enable_hybrid: Annotated[
+            Optional[bool],
+            Field(
+                description='Whether to enable hybrid access policy for put-resource-policy operation.',
+            ),
+        ] = None,
+        resource_arn: Annotated[
+            Optional[str],
+            Field(
+                description='ARN of the Glue resource for the resource policy (optional).',
+            ),
+        ] = None,
     ) -> Union[
         GetResourcePolicyResponse,
         PutResourcePolicyResponse,
