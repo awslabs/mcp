@@ -391,6 +391,7 @@ async def test_invoke_data_automation_and_get_results():
                             )
 
                             assert result == {
+                                'invocationArn': 'test-invocation-arn',
                                 'standardOutput': {'standard': 'output'},
                                 'customOutput': {'custom': 'output'},
                             }
@@ -464,6 +465,7 @@ async def test_invoke_data_automation_and_get_results_default_project():
                         result = await invoke_data_automation_and_get_results('/path/to/asset.pdf')
 
                         assert result == {
+                            'invocationArn': 'test-invocation-arn',
                             'standardOutput': {'standard': 'output'},
                             'customOutput': {'custom': 'output'},
                         }
@@ -745,6 +747,7 @@ async def test_invoke_data_automation_and_get_results_only_standard_output():
                     ):
                         result = await invoke_data_automation_and_get_results('/path/to/asset.pdf')
                         assert result == {
+                            'invocationArn': 'test-invocation-arn',
                             'standardOutput': {'standard': 'output'},
                             'customOutput': None,
                         }
@@ -800,6 +803,7 @@ async def test_invoke_data_automation_and_get_results_only_custom_output():
                     ):
                         result = await invoke_data_automation_and_get_results('/path/to/asset.pdf')
                         assert result == {
+                            'invocationArn': 'test-invocation-arn',
                             'standardOutput': None,
                             'customOutput': {'custom': 'output'},
                         }

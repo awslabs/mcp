@@ -8,8 +8,10 @@
       "**/*venv/**",
       "**/site-packages/**",
       ".github/**",
+      "docusaurus/**",
       "docs/**",
-      "**/*requirements.txt"
+      "**/*requirements.txt",
+      "**/*.pyc"
     ],
     "include": [
       "**/*.py",
@@ -21,7 +23,6 @@
   {
     "include": [
       "**/*.md",
-      "mkdocs.yml",
       "**/LICENSE",
       "**/NOTICE",
       "**/uv.lock",
@@ -36,7 +37,16 @@
       ".venv/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt"
+      "docusaurus/**",
+      "**/*requirements.txt",
+      "**/*.js",
+      "**/*.html",
+      "**/*.tsx",
+      "**/*.ts",
+      "**/*.css",
+      "**/*.module.css",
+      "**/yarn.lock",
+      "**/*.pyc"
     ]
   }
 ]

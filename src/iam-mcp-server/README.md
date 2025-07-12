@@ -644,11 +644,11 @@ python -m awslabs.iam_mcp_server.server
 
 ## Contributing
 
-Contributions are welcome! Please see the main repository's [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Please see the main repository's [CONTRIBUTING.md](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) for guidelines.
 
 ## License
 
-This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/iam-mcp-server/LICENSE) file for details.
 
 ## Support
 
@@ -659,4 +659,4 @@ For issues and questions:
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and changes.
+See [CHANGELOG.md](https://github.com/awslabs/mcp/blob/main/src/iam-mcp-server/CHANGELOG.md) for version history and changes.

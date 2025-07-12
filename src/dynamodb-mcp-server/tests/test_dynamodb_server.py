@@ -13,6 +13,7 @@ from awslabs.dynamodb_mcp_server.server import (
     describe_limits,
     describe_table,
     describe_time_to_live,
+    dynamodb_data_modeling,
     get_item,
     get_resource_policy,
     list_backups,
@@ -887,3 +888,43 @@ async def test_list_imports(test_table):
 
     # Should return a dict with ImportSummaryList and NextToken keys
     assert isinstance(result, dict)
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_modeling():
+    """Test the dynamodb_data_modeling tool directly."""
+    result = await dynamodb_data_modeling()
+
+    assert isinstance(result, str), 'Expected string response'
+    assert len(result) > 1000, 'Expected substantial content (>1000 characters)'
+
+    expected_sections = [
+        'DynamoDB Data Modeling Expert System Prompt',
+        'Multi-Table First',
+        'Denormalization',
+        'Sparse GSI',
+    ]
+
+    for section in expected_sections:
+        assert section in result, f"Expected section '{section}' not found in content"
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_data_modeling_mcp_integration():
+    """Test the dynamodb_data_modeling tool through MCP client."""
+    from awslabs.dynamodb_mcp_server.server import app
+
+    # Verify tool is registered in the MCP server
+    tools = await app.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'dynamodb_data_modeling' in tool_names, (
+        'dynamodb_data_modeling tool not found in MCP server'
+    )
+
+    # Get tool metadata
+    modeling_tool = next((tool for tool in tools if tool.name == 'dynamodb_data_modeling'), None)
+    assert modeling_tool is not None, 'dynamodb_data_modeling tool not found'
+
+    assert modeling_tool.description is not None
+    assert 'DynamoDB' in modeling_tool.description
+    assert 'data modeling' in modeling_tool.description.lower()

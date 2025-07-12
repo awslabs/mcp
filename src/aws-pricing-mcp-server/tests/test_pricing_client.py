@@ -17,6 +17,7 @@
 import pytest
 from awslabs.aws_pricing_mcp_server.pricing_client import (
     create_pricing_client,
+    get_currency_for_region,
     get_pricing_region,
 )
 from unittest.mock import Mock, patch
@@ -121,3 +122,26 @@ class TestCreatePricingClient:
         create_pricing_client()
 
         mock_session.assert_called_once_with(profile_name='env-profile')
+
+
+class TestGetCurrencyForRegion:
+    """Tests for the get_currency_for_region function."""
+
+    @pytest.mark.parametrize(
+        'region,expected',
+        [
+            # China regions
+            ('cn-north-1', 'CNY'),
+            ('cn-northwest-1', 'CNY'),
+            ('cn-south-1', 'CNY'),
+            # Other regions
+            ('us-east-1', 'USD'),
+            ('us-west-2', 'USD'),
+            ('eu-west-1', 'USD'),
+            ('ap-southeast-1', 'USD'),
+            ('unknown-region', 'USD'),
+        ],
+    )
+    def test_currency_mapping(self, region, expected):
+        """Test currency mapping for different regions."""
+        assert get_currency_for_region(region) == expected

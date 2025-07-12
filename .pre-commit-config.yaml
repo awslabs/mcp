@@ -14,17 +14,6 @@ repos:
     -   id: check-xml
         # Full check against all YAML files excluding mkdocs.yml
     -   id: check-yaml
-        name: check non-mkdocs yaml
-        exclude: mkdocs.yml
-        # Unsafe check against mkdocs.yml specifically to allow the necessary
-        # custom tags to render Mermaid diagrams.
-    -   id: check-yaml
-        name: check mkdocs yaml
-        files: mkdocs.yml
-        args:
-          # https://github.com/pre-commit/pre-commit-hooks/issues/701
-          # Necessary so that non-standard tags do not throw failures.
-          - '--unsafe'
     -   id: end-of-file-fixer
     -   id: debug-statements
     -   id: destroyed-symlinks
@@ -33,6 +22,8 @@ repos:
         args: [ --allow-missing-credentials ]
     -   id: forbid-submodules
     -   id: pretty-format-json
+        exclude: ^docusaurus\/package-lock.json$
+        args: [ --autofix ]
     -   id: trailing-whitespace
 
 -   repo: https://github.com/astral-sh/ruff-pre-commit

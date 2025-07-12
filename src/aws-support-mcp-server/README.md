@@ -99,7 +99,7 @@ The server can be configured using environment variables:
 
 ## Documentation
 
-For detailed documentation on available tools and resources, see the [API Documentation](docs/api.md).
+For detailed documentation on available tools and resources, see the [API Documentation](https://github.com/awslabs/mcp/blob/main/src/aws-support-mcp-server/docs/api.md).
 
 
 

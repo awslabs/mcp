@@ -1,26 +1,25 @@
-# Vibe coding tips and tricks
+# Vibe Coding Tips and Tricks
 
 > Note
 > This field is evolving quickly, and we will update this guide as new methods and recommendations arise.
 
 ## Table of Contents
 
-- [Vibe coding tips and tricks](#vibe-coding-tips-and-tricks)
-  - [Table of Contents](#table-of-contents)
-  - [Vibe coding](#vibe-coding)
-  - [AI Development Clients](#ai-development-clients)
-  - [Requirements and Design Guidelines](#requirements-and-design-guidelines)
-  - [Prompting](#prompting)
-  - [Testing and Validation](#testing-and-validation)
-  - [Documentation](#documentation)
-    - [Co-authoring Documentation with AI](#co-authoring-documentation-with-ai)
-  - [Limitations](#limitations)
-    - [Number of MCP servers and tools](#number-of-mcp-servers-and-tools)
-    - [Conversation Management](#conversation-management)
-  - [Context](#context)
-    - [Rules and Configuration](#rules-and-configuration)
-  - [Tooling](#tooling)
-  - [Version Control](#version-control)
+
+- [Vibe coding](#vibe-coding)
+- [AI Development Clients](#ai-development-clients)
+- [Requirements and Design Guidelines](#requirements-and-design-guidelines)
+- [Prompting](#prompting)
+- [Testing and Validation](#testing-and-validation)
+- [Documentation](#documentation)
+  - [Co-authoring Documentation with AI](#co-authoring-documentation-with-ai)
+- [Limitations](#limitations)
+  - [Number of MCP servers and tools](#number-of-mcp-servers-and-tools)
+  - [Conversation Management](#conversation-management)
+- [Context](#context)
+  - [Rules and Configuration](#rules-and-configuration)
+- [Tooling](#tooling)
+- [Version Control](#version-control)
 
 ## Vibe coding
 
