@@ -18,6 +18,7 @@ import boto3
 import os
 from .consts import (
     DEFAULT_RESOURCE_TAGS,
+    EMR_CLUSTER_RESOURCE_TYPE,
     MCP_CREATION_TIME_TAG_KEY,
     MCP_MANAGED_TAG_KEY,
     MCP_MANAGED_TAG_VALUE,
@@ -279,3 +280,54 @@ class AwsHelper:
             return parameters.get(MCP_MANAGED_TAG_KEY) == MCP_MANAGED_TAG_VALUE
 
         return False
+
+    @staticmethod
+    def verify_emr_cluster_managed_by_mcp(
+        emr_client: Any, cluster_id: str, expected_resource_type: str = EMR_CLUSTER_RESOURCE_TYPE
+    ) -> Dict[str, Any]:
+        """Verify if an EMR cluster is managed by the MCP server and has the expected resource type.
+
+        This method checks if the EMR cluster has the MCP managed tag and the correct resource type tag.
+
+        Args:
+            emr_client: EMR boto3 client
+            cluster_id: ID of the EMR cluster to verify
+            expected_resource_type: The expected resource type value (default: EMR_CLUSTER_RESOURCE_TYPE)
+
+        Returns:
+            Dictionary with verification result:
+                - is_valid: True if verification passed, False otherwise
+                - error_message: Error message if verification failed, None otherwise
+        """
+        result = {'is_valid': False, 'error_message': None}
+
+        try:
+            response = emr_client.describe_cluster(ClusterId=cluster_id)
+            tags_list = response.get('Cluster', {}).get('Tags', [])
+
+            # Check if the resource is managed by MCP
+            if not AwsHelper.verify_resource_managed_by_mcp(tags_list):
+                result['error_message'] = (
+                    f'Cluster {cluster_id} is not managed by MCP (missing required tags)'
+                )
+                return result
+
+            # Convert tags to dictionary for easier lookup
+            tag_dict = {tag.get('Key', ''): tag.get('Value', '') for tag in tags_list}
+
+            # Check if the resource has the expected resource type
+            actual_type = tag_dict.get(MCP_RESOURCE_TYPE_TAG_KEY, 'unknown')
+            if actual_type != expected_resource_type and actual_type != EMR_CLUSTER_RESOURCE_TYPE:
+                result['error_message'] = (
+                    f'Cluster {cluster_id} has incorrect type (expected {expected_resource_type}, got {actual_type})'
+                )
+                return result
+
+            # All checks passed
+            result['is_valid'] = True
+            return result
+
+        except ClientError as e:
+            # If we can't get the cluster information, return error
+            result['error_message'] = f'Error retrieving cluster {cluster_id}: {str(e)}'
+            return result

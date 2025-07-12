@@ -371,11 +371,12 @@ async def test_terminate_clusters_success(handler, mock_context):
 
 
 @pytest.mark.asyncio
-async def test_terminate_clusters_unmanaged(handler, mock_context):
+async def test_terminate_clusters_unmanaged(handler, mock_aws_helper, mock_context):
     """Test that terminating unmanaged clusters fails."""
     handler.emr_client = MagicMock()
-    handler.emr_client.describe_cluster.return_value = {
-        'Cluster': {'Tags': [{'Key': 'Other', 'Value': 'tag'}]}
+    mock_aws_helper.verify_emr_cluster_managed_by_mcp.return_value = {
+        'is_valid': False,
+        'error_message': 'is not managed by MCP (missing required tags)',
     }
 
     response = await handler.manage_aws_emr_clusters(
@@ -384,7 +385,7 @@ async def test_terminate_clusters_unmanaged(handler, mock_context):
 
     assert response.isError
     assert 'Cannot terminate clusters' in response.content[0].text
-    assert 'not managed by the MCP server' in response.content[0].text
+    assert 'not managed by MCP' in response.content[0].text
 
 
 @pytest.mark.asyncio
@@ -596,10 +597,12 @@ async def test_modify_cluster_attributes_both_params(handler, mock_context):
 
 # Test terminate clusters with exception during describe
 @pytest.mark.asyncio
-async def test_terminate_clusters_describe_exception(handler, mock_context):
+async def test_terminate_clusters_describe_exception(handler, mock_aws_helper, mock_context):
     """Test terminate clusters when describe_cluster raises exception."""
     handler.emr_client = MagicMock()
-    handler.emr_client.describe_cluster.side_effect = Exception('Cluster not found')
+    mock_aws_helper.verify_emr_cluster_managed_by_mcp.side_effect = Exception(
+        'Cannot terminate clusters'
+    )
 
     response = await handler.manage_aws_emr_clusters(
         mock_context, operation='terminate-clusters', cluster_ids=['j-nonexistent']

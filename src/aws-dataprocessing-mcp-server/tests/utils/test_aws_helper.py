@@ -474,3 +474,149 @@ class TestAwsHelper:
         )
         assert result is False
         mock_glue_client.get_tags.assert_called_once()
+
+    def test_verify_emr_cluster_managed_by_mcp_success(self):
+        """Test that verify_emr_cluster_managed_by_mcp returns valid when the cluster is managed by MCP."""
+        # Mock the EMR client
+        mock_emr_client = MagicMock()
+        mock_emr_client.describe_cluster.return_value = {
+            'Cluster': {
+                'Id': 'j-12345ABCDEF',
+                'Name': 'TestCluster',
+                'Status': {'State': 'RUNNING'},
+                'Tags': [
+                    {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
+                    {'Key': MCP_RESOURCE_TYPE_TAG_KEY, 'Value': 'EMRCluster'},
+                ],
+            }
+        }
+
+        # Test with a cluster that is managed by MCP
+        result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+            mock_emr_client, 'j-12345ABCDEF', 'EMRCluster'
+        )
+
+        # Verify the result
+        assert result['is_valid'] is True
+        assert result['error_message'] is None
+        mock_emr_client.describe_cluster.assert_called_once_with(ClusterId='j-12345ABCDEF')
+
+    def test_verify_emr_cluster_managed_by_mcp_not_managed(self):
+        """Test that verify_emr_cluster_managed_by_mcp returns invalid when the cluster is not managed by MCP."""
+        # Mock the EMR client
+        mock_emr_client = MagicMock()
+        mock_emr_client.describe_cluster.return_value = {
+            'Cluster': {
+                'Id': 'j-12345ABCDEF',
+                'Name': 'TestCluster',
+                'Status': {'State': 'RUNNING'},
+                'Tags': [
+                    {'Key': 'SomeOtherTag', 'Value': 'SomeValue'},
+                ],
+            }
+        }
+
+        # Test with a cluster that is not managed by MCP
+        result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+            mock_emr_client, 'j-12345ABCDEF', 'EMRCluster'
+        )
+
+        # Verify the result
+        assert result['is_valid'] is False
+        assert 'not managed by MCP' in result['error_message']
+        mock_emr_client.describe_cluster.assert_called_once_with(ClusterId='j-12345ABCDEF')
+
+    def test_verify_emr_cluster_managed_by_mcp_wrong_type(self):
+        """Test that verify_emr_cluster_managed_by_mcp returns invalid when the cluster has the wrong resource type."""
+        # Mock the EMR client
+        mock_emr_client = MagicMock()
+        mock_emr_client.describe_cluster.return_value = {
+            'Cluster': {
+                'Id': 'j-12345ABCDEF',
+                'Name': 'TestCluster',
+                'Status': {'State': 'RUNNING'},
+                'Tags': [
+                    {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
+                    {'Key': MCP_RESOURCE_TYPE_TAG_KEY, 'Value': 'WrongType'},
+                ],
+            }
+        }
+
+        # Test with a cluster that has the wrong resource type
+        result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+            mock_emr_client, 'j-12345ABCDEF', 'EMRInstanceFleet'
+        )
+
+        # Verify the result
+        assert result['is_valid'] is False
+        assert 'incorrect type' in result['error_message']
+        mock_emr_client.describe_cluster.assert_called_once_with(ClusterId='j-12345ABCDEF')
+
+    def test_verify_emr_cluster_managed_by_mcp_client_error(self):
+        """Test that verify_emr_cluster_managed_by_mcp handles ClientError correctly."""
+        # Mock the EMR client to raise a ClientError
+        mock_emr_client = MagicMock()
+        mock_emr_client.describe_cluster.side_effect = ClientError(
+            {'Error': {'Code': 'ClusterNotFound', 'Message': 'Cluster not found'}},
+            'DescribeCluster',
+        )
+
+        # Test with a cluster that doesn't exist
+        result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+            mock_emr_client, 'j-nonexistent', 'EMRCluster'
+        )
+
+        # Verify the result
+        assert result['is_valid'] is False
+        assert 'Error retrieving cluster' in result['error_message']
+        mock_emr_client.describe_cluster.assert_called_once_with(ClusterId='j-nonexistent')
+
+    def test_verify_emr_cluster_managed_by_mcp_cluster_resource_type(self):
+        """Test that verify_emr_cluster_managed_by_mcp accepts EMR_CLUSTER_RESOURCE_TYPE as valid."""
+        # Mock the EMR client
+        mock_emr_client = MagicMock()
+        mock_emr_client.describe_cluster.return_value = {
+            'Cluster': {
+                'Id': 'j-12345ABCDEF',
+                'Name': 'TestCluster',
+                'Status': {'State': 'RUNNING'},
+                'Tags': [
+                    {'Key': MCP_MANAGED_TAG_KEY, 'Value': MCP_MANAGED_TAG_VALUE},
+                    {'Key': MCP_RESOURCE_TYPE_TAG_KEY, 'Value': 'EMRCluster'},
+                ],
+            }
+        }
+
+        # Test with a cluster that has EMRCluster type but we're checking for EMRInstanceFleet
+        # This should still be valid because EMRCluster is always acceptable
+        result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+            mock_emr_client, 'j-12345ABCDEF', 'EMRInstanceFleet'
+        )
+
+        # Verify the result
+        assert result['is_valid'] is True
+        assert result['error_message'] is None
+        mock_emr_client.describe_cluster.assert_called_once_with(ClusterId='j-12345ABCDEF')
+
+    def test_verify_emr_cluster_managed_by_mcp_no_tags(self):
+        """Test that verify_emr_cluster_managed_by_mcp handles clusters with no tags."""
+        # Mock the EMR client
+        mock_emr_client = MagicMock()
+        mock_emr_client.describe_cluster.return_value = {
+            'Cluster': {
+                'Id': 'j-12345ABCDEF',
+                'Name': 'TestCluster',
+                'Status': {'State': 'RUNNING'},
+                # No Tags field
+            }
+        }
+
+        # Test with a cluster that has no tags
+        result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+            mock_emr_client, 'j-12345ABCDEF', 'EMRCluster'
+        )
+
+        # Verify the result
+        assert result['is_valid'] is False
+        assert 'not managed by MCP' in result['error_message']
+        mock_emr_client.describe_cluster.assert_called_once_with(ClusterId='j-12345ABCDEF')
