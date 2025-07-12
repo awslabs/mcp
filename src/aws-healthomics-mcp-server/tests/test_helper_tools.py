@@ -33,16 +33,14 @@ async def test_get_supported_regions_success():
         ]
     }
 
-    # Mock context and session
+    # Mock context and SSM client
     mock_ctx = AsyncMock()
-    mock_session = MagicMock()
     mock_ssm = MagicMock()
     mock_ssm.get_parameters_by_path.return_value = mock_ssm_response
-    mock_session.client.return_value = mock_ssm
 
     with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
-        return_value=mock_session,
+        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
+        return_value=mock_ssm,
     ):
         result = await get_supported_regions(mock_ctx)
 
@@ -52,7 +50,6 @@ async def test_get_supported_regions_success():
     assert 'note' not in result
 
     # Verify SSM was called correctly
-    mock_session.client.assert_called_once_with('ssm')
     mock_ssm.get_parameters_by_path.assert_called_once_with(
         Path='/aws/service/global-infrastructure/services/omics/regions'
     )
@@ -64,16 +61,14 @@ async def test_get_supported_regions_empty_ssm():
     # Mock SSM response with no parameters
     mock_ssm_response = {'Parameters': []}
 
-    # Mock context and session
+    # Mock context and SSM client
     mock_ctx = AsyncMock()
-    mock_session = MagicMock()
     mock_ssm = MagicMock()
     mock_ssm.get_parameters_by_path.return_value = mock_ssm_response
-    mock_session.client.return_value = mock_ssm
 
     with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
-        return_value=mock_session,
+        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
+        return_value=mock_ssm,
     ):
         result = await get_supported_regions(mock_ctx)
 
@@ -86,16 +81,14 @@ async def test_get_supported_regions_empty_ssm():
 @pytest.mark.asyncio
 async def test_get_supported_regions_boto_error():
     """Test handling of BotoCoreError."""
-    # Mock context and session
+    # Mock context and SSM client
     mock_ctx = AsyncMock()
-    mock_session = MagicMock()
     mock_ssm = MagicMock()
     mock_ssm.get_parameters_by_path.side_effect = BotoCoreError()
-    mock_session.client.return_value = mock_ssm
 
     with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
-        return_value=mock_session,
+        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
+        return_value=mock_ssm,
     ):
         result = await get_supported_regions(mock_ctx)
 
@@ -109,18 +102,16 @@ async def test_get_supported_regions_boto_error():
 @pytest.mark.asyncio
 async def test_get_supported_regions_client_error():
     """Test handling of ClientError."""
-    # Mock context and session
+    # Mock context and SSM client
     mock_ctx = AsyncMock()
-    mock_session = MagicMock()
     mock_ssm = MagicMock()
     mock_ssm.get_parameters_by_path.side_effect = ClientError(
         {'Error': {'Code': 'InvalidParameter', 'Message': 'Test error'}}, 'GetParametersByPath'
     )
-    mock_session.client.return_value = mock_ssm
 
     with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
-        return_value=mock_session,
+        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
+        return_value=mock_ssm,
     ):
         result = await get_supported_regions(mock_ctx)
 
@@ -134,16 +125,14 @@ async def test_get_supported_regions_client_error():
 @pytest.mark.asyncio
 async def test_get_supported_regions_unexpected_error():
     """Test handling of unexpected errors."""
-    # Mock context and session
+    # Mock context and SSM client
     mock_ctx = AsyncMock()
-    mock_session = MagicMock()
     mock_ssm = MagicMock()
     mock_ssm.get_parameters_by_path.side_effect = Exception('Unexpected error')
-    mock_session.client.return_value = mock_ssm
 
     with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_aws_session',
-        return_value=mock_session,
+        'awslabs.aws_healthomics_mcp_server.tools.helper_tools.get_ssm_client',
+        return_value=mock_ssm,
     ):
         result = await get_supported_regions(mock_ctx)
 

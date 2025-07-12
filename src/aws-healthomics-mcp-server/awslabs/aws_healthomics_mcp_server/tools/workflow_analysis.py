@@ -16,30 +16,13 @@
 
 import botocore
 import botocore.exceptions
-import os
-from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_REGION
-from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
+from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_logs_client
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from typing import Any, Dict, Optional
-
-
-def get_logs_client():
-    """Get an AWS CloudWatch Logs client.
-
-    Returns:
-        boto3.client: Configured CloudWatch Logs client
-    """
-    region = os.environ.get('AWS_REGION', DEFAULT_REGION)
-    session = get_aws_session(region)
-    try:
-        return session.client('logs')
-    except Exception as e:
-        logger.error(f'Failed to create CloudWatch Logs client: {str(e)}')
-        raise
 
 
 async def _get_logs_from_stream(

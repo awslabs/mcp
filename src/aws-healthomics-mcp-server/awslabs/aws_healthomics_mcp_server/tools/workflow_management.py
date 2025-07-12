@@ -16,34 +16,17 @@
 
 import botocore
 import botocore.exceptions
-import os
 from awslabs.aws_healthomics_mcp_server.consts import (
     DEFAULT_MAX_RESULTS,
-    DEFAULT_REGION,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     decode_from_base64,
-    get_aws_session,
+    get_omics_client,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
 from typing import Any, Dict, Optional
-
-
-def get_omics_client():
-    """Get an AWS HealthOmics client.
-
-    Returns:
-        boto3.client: Configured HealthOmics client
-    """
-    region = os.environ.get('AWS_REGION', DEFAULT_REGION)
-    session = get_aws_session(region)
-    try:
-        return session.client('omics')
-    except Exception as e:
-        logger.error(f'Failed to create HealthOmics client: {str(e)}')
-        raise
 
 
 async def list_workflows(
@@ -147,8 +130,7 @@ async def create_workflow(
     Returns:
         Dictionary containing the created workflow information
     """
-    client = get_omics_client()
-
+    # Validate base64 input first, before creating client
     try:
         definition_zip = decode_from_base64(definition_zip_base64)
     except Exception as e:
@@ -156,6 +138,8 @@ async def create_workflow(
         logger.error(error_message)
         await ctx.error(error_message)
         raise
+
+    client = get_omics_client()
 
     params = {
         'name': name,
@@ -305,8 +289,7 @@ async def create_workflow_version(
     Returns:
         Dictionary containing the created workflow version information
     """
-    client = get_omics_client()
-
+    # Validate inputs first, before creating client
     try:
         definition_zip = decode_from_base64(definition_zip_base64)
     except Exception as e:
@@ -314,6 +297,16 @@ async def create_workflow_version(
         logger.error(error_message)
         await ctx.error(error_message)
         raise
+
+    # Validate storage requirements
+    if storage_type == 'STATIC':
+        if not storage_capacity:
+            error_message = 'Storage capacity is required when storage type is STATIC'
+            logger.error(error_message)
+            await ctx.error(error_message)
+            raise ValueError(error_message)
+
+    client = get_omics_client()
 
     params = {
         'workflowId': workflow_id,
@@ -329,11 +322,6 @@ async def create_workflow_version(
         params['parameterTemplate'] = parameter_template
 
     if storage_type == 'STATIC':
-        if not storage_capacity:
-            error_message = 'Storage capacity is required when storage type is STATIC'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
         params['storageCapacity'] = storage_capacity
 
     try:
