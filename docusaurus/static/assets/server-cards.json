@@ -303,6 +303,28 @@
     },
     {
       "category": "AI & Machine Learning",
+      "description": "AI assistant based on knowledgebase with anonymous access",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-qbusiness-anonymous-mcp-server",
+      "name": "Amazon Q Business anonymous MCP Server",
+      "source_path": "src/amazon-qbusiness-anonymous-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "amazon-q",
+        "amazon-q-business",
+        "ai-assistant",
+        "enterprise-search",
+        "data-access",
+        "conversational",
+        "knowledge-search"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
       "description": "Data accessors to search through enterprise's Q index",
       "icon": "\ud83e\udd16",
       "id": "amazon-qindex-mcp-server",
@@ -1008,6 +1030,30 @@
         "vibe-coding"
       ],
       "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Manage, monitor, and optimize Amazon MSK clusters with best practices",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "aws-msk-mcp-server",
+      "name": "AWS MSK MCP Server",
+      "source_path": "src/aws-msk-mcp-server/",
+      "subcategory": "Messaging & Streaming",
+      "tags": [
+        "developer-tools",
+        "msk",
+        "kafka",
+        "streaming",
+        "messaging",
+        "cluster-management",
+        "monitoring",
+        "autonomous",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "autonomous",
         "vibe-coding"
       ]
     },
