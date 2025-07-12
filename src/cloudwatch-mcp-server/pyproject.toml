@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.cloudwatch-mcp-server"
-version = "0.0.3"
+version = "0.0.4"
 description = "An AWS Labs Model Context Protocol (MCP) server for cloudwatch"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -16,6 +16,10 @@ authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
     {name = "Isaiah Lemmon", email="ilemmon@amazon.com"},
+    {name = "Shrikant Tambe", email="tshrikan@amazon.com"},
+    {name = "Gianluca Cacace", email="cacaceg@amazon.com"},
+    {name = "Andrea Giuliano", email="aggiulia@amazon.com"},
+    {name = "Goran Modrusa", email="goran@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
