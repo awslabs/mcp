@@ -25,6 +25,11 @@ When a user presents a query, follow these steps to break it down:
 - Use `awslabs.core-mcp-server` tools for:
   - prompt_understanding: Initial query analysis and guidance on using MCP servers
 
+#### AWS API MCP Server
+- Use `awslabs.aws-api-mcp-server` for any general enquiries about AWS resources.
+  - suggest_aws_commands: Search AWS CLI commands for APIs that are relevant to the user query.
+  - call_aws: Execute AWS CLI commands.
+
 #### CDK MCP Server
 - Use `awslabs.cdk-mcp-server` for infrastructure patterns and CDK guidance:
   - CDKGeneralGuidance: Get prescriptive CDK advice for building applications on AWS
@@ -372,3 +377,33 @@ Key Research Areas:
 - Integration requirements
 
 Remember: The goal is to translate general application requirements into specific, modern AWS services and patterns while considering scalability, security, and cost-effectiveness. if any MCP server referenced here is not avalaible, ask the user if they would like to install it
+
+### 6.5 AWS API MCP Server
+
+Find all running EC2 servers in us-west-2 in the user's AWS account using AWS CLI commands.
+
+```md
+# Search for relevant AWS commands
+<use_mcp_tool>
+<server_name>awslabs.aws-api-mcp-server</server_name>
+<tool_name>suggest_aws_commands</tool_name>
+<arguments>
+{
+  "query": "Show me all running EC2 instances in us-west-2",
+}
+</arguments>
+</use_mcp_tool>
+```
+
+```md
+# Execute an AWS CLI command
+<use_mcp_tool>
+<server_name>awslabs.aws-api-mcp-server</server_name>
+<tool_name>call_aws</tool_name>
+<arguments>
+{
+  "cli_command": "aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" --region us-west-2",
+}
+</arguments>
+</use_mcp_tool>
+```

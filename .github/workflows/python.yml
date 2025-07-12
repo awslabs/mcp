@@ -14,8 +14,45 @@ jobs:
       contents: read
     outputs:
       packages: ${{ steps.find-packages.outputs.packages }}
+      changed-directories: ${{ steps.find-changed-directories.outputs.changed-directories }}
+      changed-files: ${{ steps.find-changed-directories.outputs.changed-files }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+      - name: find changed directories
+        id: find-changed-directories
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # Push         against last commit
+          # Pull Request against target branch sha
+          # Otherwise    against latest release
+          if [ "$EVENT_NAME" == "push" ]; then
+            # Handle null SHA case for new branches
+            if [ "$EVENT_BEFORE" == "0000000000000000000000000000000000000000" ]; then
+              SINCE="$(git merge-base HEAD origin/main)"
+            else
+              SINCE="$EVENT_BEFORE"
+            fi
+          elif [ "$EVENT_NAME" == "pull_request" ]; then
+            SINCE="$BASE_REF"
+          else
+            SINCE="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName | jq -r '.[].tagName')"
+          fi;
+          if [ -z "$SINCE" ]; then SINCE="$(git rev-list --max-parents=0 HEAD)"; fi;
+          echo "$SINCE"
+          CHANGEDFILES="$(git diff --name-only "$SINCE" HEAD | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')"
+          CHANGEDDIRECTORIES="$(echo $CHANGEDFILES | jq -r '.[] | select(. | startswith("src\/"))' | cut -d'/' -f2 | sort -u | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')"
+          echo "$CHANGEDDIRECTORIES"
+          echo "$CHANGEDFILES"
+          echo "changed-files=$CHANGEDFILES" >> $GITHUB_OUTPUT
+          echo "changed-directories=$CHANGEDDIRECTORIES" >> $GITHUB_OUTPUT
+
       - name: Find Python packages
         id: find-packages
         working-directory: src
@@ -90,6 +127,36 @@ jobs:
       - name: Install dependencies
         working-directory: src/${{ matrix.package }}
         run: uv sync --frozen --all-extras --dev
+
+      - name: Check for existing embeddings or generate new ones for aws-api-mcp-server
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+        if: matrix.package == 'aws-api-mcp-server'
+        working-directory: src/${{ matrix.package }}
+        run: |
+          # Try to download latest embeddings first
+          if uv run --frozen download-latest-embeddings; then
+            DOWNLOAD_SUCCESS=true
+            echo "Successfully downloaded existing embeddings"
+          else
+            DOWNLOAD_SUCCESS=false
+            echo "Failed to download existing embeddings"
+          fi
+
+          CHANGED_FILES='${{ needs.detect-packages.outputs.changed-files }}'
+          if echo "$CHANGED_FILES" | grep -q 'aws-api-mcp-server/pyproject.toml' || \
+             echo "$CHANGED_FILES" | grep -q 'aws_api_mcp_server/core/kb/' || \
+             echo "$CHANGED_FILES" | grep -q 'aws_api_mcp_server/core/data/embeddings/' || \
+             echo "$CHANGED_FILES" | grep -q 'aws_api_mcp_server/scripts/'; then
+            uv run --frozen generate-embeddings
+          else
+            if [ "$DOWNLOAD_SUCCESS" = "true" ]; then
+              echo "Using previously downloaded embeddings"
+            else
+              echo "No matching embeddings found, generating new ones..."
+              uv run --frozen generate-embeddings
+            fi
+          fi
 
       - name: Run tests
         working-directory: src/${{ matrix.package }}

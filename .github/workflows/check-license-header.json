@@ -11,7 +11,9 @@
       "docusaurus/**",
       "docs/**",
       "**/*requirements.txt",
-      "**/*.pyc"
+      "**/*.pyc",
+      "**/trivy-results.sarif",
+      "**/py.typed"
     ],
     "include": [
       "**/*.py",
@@ -46,7 +48,9 @@
       "**/*.css",
       "**/*.module.css",
       "**/yarn.lock",
-      "**/*.pyc"
+      "**/*.pyc",
+      "**/trivy-results.sarif",
+      "**/py.typed"
     ]
   }
 ]
