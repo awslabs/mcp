@@ -54,7 +54,6 @@ from awslabs.aws_support_mcp_server.models import (
     AddCommunicationResponse,
     CreateCaseResponse,
     DescribeCasesResponse,
-    ResolveCaseRequest,
     ResolveCaseResponse,
     SupportCase,
 )
@@ -558,14 +557,9 @@ async def resolve_support_case(
     ```
     """
     try:
-        # Create a request model
-        request = ResolveCaseRequest(
-            caseId=case_id,
-        )
-
         # Resolve the case
         logger.info(f"Resolving support case: {case_id}")
-        response = await support_client.resolve_case(**request.to_api_params())
+        response = await support_client.resolve_case(case_id=case_id)
 
         # Create a response model
         result = ResolveCaseResponse(
