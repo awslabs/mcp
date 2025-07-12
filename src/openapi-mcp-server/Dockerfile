@@ -12,66 +12,95 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM public.ecr.aws/sam/build-python3.10@sha256:84738adb2767299571443d742c006d2f153c809c7181b099468583ac97be2dda AS uv
+# Build stage: Install dependencies and build application
+FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d AS builder
 
-# Install the project into `/app`
+# Python optimization and uv configuration
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_PREFERENCE=only-system
+
+# Install system dependencies and Python package manager
+RUN apk update && \
+    apk add --no-cache --virtual .build-deps \
+    build-base \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    cargo && \
+    pip install --no-cache-dir uv
+
 WORKDIR /app
 
-# Enable bytecode compilation
-ENV UV_COMPILE_BYTECODE=1
+# Copy dependency manifests for layer caching optimization
+COPY pyproject.toml ./
+COPY uv.loc[k] uv-requirements.tx[t] ./
+COPY requirements.tx[t] ./
 
-# Copy from the cache instead of linking since it's a mounted volume
-ENV UV_LINK_MODE=copy
+# Install Python dependencies based on available dependency files
+RUN if [ -f "uv.lock" ]; then \
+        echo "Installing dependencies with uv lockfile" && \
+        uv sync --python 3.13 --no-install-project --no-dev --no-editable; \
+    elif [ -f "uv-requirements.txt" ]; then \
+        echo "Installing dependencies with uv requirements" && \
+        pip install --require-hashes --requirement uv-requirements.txt && \
+        uv sync --python 3.13 --no-install-project --no-dev --no-editable; \
+    elif [ -f "requirements.txt" ]; then \
+        echo "Installing dependencies with pip requirements" && \
+        python -m venv /app/.venv && \
+        . /app/.venv/bin/activate && \
+        pip install --no-cache-dir -r requirements.txt; \
+    else \
+        echo "Creating empty virtual environment" && \
+        python -m venv /app/.venv; \
+    fi
 
-# Prefer the system python
-ENV UV_PYTHON_PREFERENCE=only-system
-
-# Run without updating the uv.lock file like running with `--frozen`
-ENV UV_FROZEN=true
-
-# Copy the required files first
-COPY pyproject.toml uv.lock uv-requirements.txt ./
-
-# Install the project's dependencies using the lockfile and settings
-RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt && \
-    uv sync --frozen --no-install-project --no-dev --no-editable
-
-# Then, add the rest of the project source code and install it
-# Installing separately from its dependencies allows optimal layer caching
+# Copy application source code and install package
 COPY . /app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+RUN if [ -f "uv.lock" ] || [ -f "uv-requirements.txt" ]; then \
+        uv sync --python 3.13 --no-dev --no-editable; \
+    else \
+        . /app/.venv/bin/activate && \
+        pip install --no-cache-dir --no-deps .; \
+    fi && \
+    find /app -name '*.pyc' -delete && \
+    find /app -name '__pycache__' -delete
 
-# Make the directory just in case it doesn't exist
-RUN mkdir -p /root/.local
+# Runtime stage: Minimal production image
+FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d
 
-FROM public.ecr.aws/sam/build-python3.10@sha256:84738adb2767299571443d742c006d2f153c809c7181b099468583ac97be2dda
+# Runtime environment configuration
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/app/.venv/bin:$PATH"
 
-# Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+# Install runtime dependencies and create application user
+RUN apk update && \
+    apk add --no-cache ca-certificates && \
+    update-ca-certificates && \
+    addgroup -S app && \
+    adduser -S app -G app -h /app
 
-# Install lsof for the healthcheck
-# Install other tools as needed for the MCP server
-# Add non-root user and ability to change directory into /root
-RUN yum update -y && \
-    yum install -y lsof && \
-    yum clean all -y && \
-    rm -rf /var/cache/yum && \
-    groupadd --force --system app && \
-    useradd app -g app -d /app && \
-    chmod o+x /root
+# Copy application artifacts from build stage
+COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --from=builder --chown=app:app /app/awslabs /app/awslabs
 
-# Get the project from the uv layer
-COPY --from=uv --chown=app:app /root/.local /root/.local
-COPY --from=uv --chown=app:app /app/.venv /app/.venv
-
-# Get healthcheck script
-COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+# Install health check script
+COPY --chown=app:app ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 RUN chmod +x /usr/local/bin/docker-healthcheck.sh
 
-# Run as non-root
+# Switch to non-root user for security
 USER app
+WORKDIR /app
 
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
+# Configure container health monitoring
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
+    CMD ["docker-healthcheck.sh"]
+
+# Define application entry point
 ENTRYPOINT ["python", "-m", "awslabs.openapi_mcp_server.server"]
