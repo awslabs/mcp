@@ -140,6 +140,7 @@ Enhance AI applications with knowledge retrieval, content generation, and ML cap
 
 - **[Amazon Bedrock Knowledge Bases Retrieval MCP Server](src/bedrock-kb-retrieval-mcp-server/)** - Query enterprise knowledge bases with citation support
 - **[Amazon Kendra Index MCP Server](src/amazon-kendra-index-mcp-server/)** - Enterprise search and RAG enhancement
+- **[Amazon Q Business MCP Server](src/amazon-qbusiness-anonymous-mcp-server/)** - AI assistant for your ingested content or knowledgebase with anonymous access
 - **[Amazon Q index MCP Server](src/amazon-qindex-mcp-server/)** - Data accessors to search through enterprise's Q index
 - **[Amazon Nova Canvas MCP Server](src/nova-canvas-mcp-server/)** - AI image generation with text and color guidance
 - **[Amazon Rekognition MCP Server](src/amazon-rekognition-mcp-server/)** - Analyze images using computer vision capabilities
@@ -159,6 +160,7 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries with openCypher and Gremlin
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
+- **[Amazon MSK MCP Server](src/aws-msk-mcp-server/)** - Managed Kafka cluster operations and monitoring
 - **[Amazon Redshift MCP Server](src/redshift-mcp-server/)** - Provides tools to discover, explore, and query Amazon Redshift clusters and serverless workgroups
 
 ##### Search & Analytics
@@ -189,15 +191,17 @@ Connect systems with messaging, workflows, and location services.
 
 - **[Amazon SNS / SQS MCP Server](src/amazon-sns-sqs-mcp-server/)** - Event-driven messaging and queue management
 - **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker management for RabbitMQ and ActiveMQ
+- **[Amazon MSK MCP Server](src/aws-msk-mcp-server/)** - Managed Kafka cluster operations and streaming
 - **[AWS Step Functions Tool MCP Server](src/stepfunctions-tool-mcp-server/)** - Execute complex workflows and business processes
 - **[Amazon Location Service MCP Server](src/aws-location-mcp-server/)** - Place search, geocoding, and route optimization
 - **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
+
 
 #### 💰 Cost & Operations
 
 Monitor, optimize, and manage your AWS infrastructure and costs.
 
-- **[AWS Pricing MCP Server](src/aws-pricing-mcp-server/)** - Pre-deployment cost estimation and optimization
+- **[AWS Pricing MCP Server](src/aws-pricing-mcp-server/)** - AWS service pricing and cost estimates
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Detailed cost analysis and reporting
 - **[Amazon CloudWatch MCP Server](src/cloudwatch-mcp-server/)** - Metrics, Alarms, and Logs analysis and operational troubleshooting
 - **[Amazon CloudWatch Logs MCP Server (deprecated)](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
@@ -259,6 +263,7 @@ Interact with AWS HealthAI services.
 
 - **[Amazon Bedrock Knowledge Bases Retrieval MCP Server](src/bedrock-kb-retrieval-mcp-server/)** - Query enterprise knowledge with citations
 - **[Amazon Kendra Index MCP Server](src/amazon-kendra-index-mcp-server/)** - Enterprise search and document retrieval
+- **[Amazon Q Business MCP Server](src/amazon-qbusiness-anonymous-mcp-server/)** - AI assistant for your ingested content or knowledgebase with anonymous access
 - **[Amazon Q index MCP Server](src/amazon-qindex-mcp-server/)** - Data accessors to search through enterprise's Q index
 - **[AWS Documentation MCP Server](src/aws-documentation-mcp-server/)** - Official AWS documentation for technical answers
 
@@ -289,6 +294,7 @@ Interact with AWS HealthAI services.
 - **[Amazon Neptune MCP Server](src/amazon-neptune-mcp-server/)** - Graph database queries and analytics
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
+- **[Amazon MSK MCP Server](src/aws-msk-mcp-server/)** - Managed Kafka cluster operations and streaming data management
 
 ##### Caching & Performance
 
@@ -301,6 +307,8 @@ Interact with AWS HealthAI services.
 - **[AWS Step Functions Tool MCP Server](src/stepfunctions-tool-mcp-server/)** - Complex multi-step workflow execution
 - **[Amazon SNS / SQS MCP Server](src/amazon-sns-sqs-mcp-server/)** - Event-driven messaging and queue processing
 - **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker operations
+- **[Amazon MSK MCP Server](src/aws-msk-mcp-server/)** - Managed Kafka cluster operations and streaming
+
 
 ##### Operations & Monitoring
 
