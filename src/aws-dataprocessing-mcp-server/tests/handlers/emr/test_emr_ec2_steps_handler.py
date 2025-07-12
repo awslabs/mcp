@@ -260,6 +260,26 @@ class TestCancelSteps:
             assert result.cluster_id == 'j-12345ABCDEF'
             assert result.count == 1
 
+    async def test_cancel_steps_for_unmanaged_resource(
+        self, mock_aws_helper, steps_handler_with_write_access, mock_context
+    ):
+        """Test failure cancel-steps operation for unmanaged mcp step."""
+        with patch.object(steps_handler_with_write_access, 'emr_client'):
+            mock_aws_helper.verify_emr_cluster_managed_by_mcp.return_value = {
+                'is_valid': False,
+                'error_message': 'need to be mcp managed tag',
+            }
+
+            result = await steps_handler_with_write_access.manage_aws_emr_ec2_steps(
+                ctx=mock_context,
+                operation='cancel-steps',
+                cluster_id='j-12345ABCDEF',
+                step_ids=['s-12345ABCDEF'],
+            )
+
+            assert result.isError
+            assert 'eed to be mcp managed tag' in result.content[0].text
+
     async def test_cancel_steps_with_cancellation_option(
         self, mock_aws_helper, steps_handler_with_write_access, mock_context
     ):
