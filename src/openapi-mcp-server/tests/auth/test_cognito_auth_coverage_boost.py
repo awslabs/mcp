@@ -1,6 +1,5 @@
 """Test to improve coverage for cognito_auth.py - one test case at a time."""
 
-import pytest
 from awslabs.openapi_mcp_server.api.config import Config
 from awslabs.openapi_mcp_server.auth.cognito_auth import CognitoAuthProvider
 from unittest.mock import MagicMock, patch
@@ -25,13 +24,15 @@ class TestCognitoAuthCoverageBoost:
             auth_cognito_client_id='test_client_id',
             auth_cognito_username='testuser',
             auth_cognito_password='testpass',
+            # Add client_secret to make it use client_credentials flow
+            auth_cognito_client_secret='',
+            auth_cognito_domain='',
         )
 
-        # This should raise MissingCredentialsError because no token was obtained
-        from awslabs.openapi_mcp_server.auth.auth_errors import MissingCredentialsError
-
-        with pytest.raises(MissingCredentialsError):
-            CognitoAuthProvider(config)
+        # This should not raise MissingCredentialsError because we now set a placeholder token
+        # Instead, it should create the provider but with a placeholder token
+        auth = CognitoAuthProvider(config)
+        assert auth._token == 'PENDING_COGNITO_TOKEN'
 
     @patch.object(CognitoAuthProvider, '_get_cognito_token')
     def test_cognito_auth_successful_validation(self, mock_get_token):
