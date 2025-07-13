@@ -199,6 +199,28 @@ The `args` field in the MCP server definition specifies the command-line argumen
 }
 ```
 
+**Example with SSE Transport (for containerized or HTTP-based deployments):**
+```
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.eks-mcp-server@latest",
+        "--transport",
+        "sse",
+        "--allow-write",
+        "--allow-sensitive-data-access"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
 #### Command Format
 
 The command format differs between operating systems:
@@ -224,6 +246,16 @@ Enables access to sensitive data such as logs, events, and Kubernetes Secrets. T
 
 * Default: false (Access to sensitive data is restricted by default)
 * Example: Add `--allow-sensitive-data-access` to the `args` list in your MCP server definition.
+
+#### `--transport` (optional)
+
+Specifies the transport type for the MCP server communication protocol.
+
+* Valid values: "stdio", "sse" 
+* Default: "stdio" (Standard input/output transport)
+* Example: Add `--transport sse` to the `args` list to enable Server-Sent Events (SSE) transport for HTTP-based communication on port 8000.
+
+**Note**: When using SSE transport, the server will listen on host `0.0.0.0` and port `8000`. This is useful for containerized deployments or when you need HTTP-based communication instead of stdio.
 
 ### Environment variables
 
