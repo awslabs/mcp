@@ -95,13 +95,22 @@ SERVER_DEPENDENCIES = [
 mcp = None
 
 
-def create_server():
+def create_server(transport='stdio'):
     """Create and configure the MCP server instance."""
-    return FastMCP(
-        'awslabs.eks-mcp-server',
-        instructions=SERVER_INSTRUCTIONS,
-        dependencies=SERVER_DEPENDENCIES,
-    )
+    if transport == 'sse':
+        return FastMCP(
+            'awslabs.eks-mcp-server',
+            instructions=SERVER_INSTRUCTIONS,
+            dependencies=SERVER_DEPENDENCIES,
+            host="0.0.0.0",
+            port=8000,
+        )
+    else:
+        return FastMCP(
+            'awslabs.eks-mcp-server',
+            instructions=SERVER_INSTRUCTIONS,
+            dependencies=SERVER_DEPENDENCIES,
+        )
 
 
 def main():
@@ -123,11 +132,18 @@ def main():
         default=False,
         help='Enable sensitive data access (required for reading logs, events, and Kubernetes Secrets)',
     )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'sse'],
+        default='stdio',
+        help='Transport type for MCP server (default: stdio)',
+    )
 
     args = parser.parse_args()
 
     allow_write = args.allow_write
     allow_sensitive_data_access = args.allow_sensitive_data_access
+    transport = args.transport
 
     # Log startup mode
     mode_info = []
@@ -137,10 +153,10 @@ def main():
         mode_info.append('restricted sensitive data access mode')
 
     mode_str = ' in ' + ', '.join(mode_info) if mode_info else ''
-    logger.info(f'Starting EKS MCP Server{mode_str}')
+    logger.info(f'Starting EKS MCP Server{mode_str} with {transport} transport')
 
     # Create the MCP server instance
-    mcp = create_server()
+    mcp = create_server(transport)
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
     CloudWatchHandler(mcp, allow_sensitive_data_access)
@@ -150,8 +166,11 @@ def main():
     IAMHandler(mcp, allow_write)
     CloudWatchMetricsHandler(mcp)
 
-    # Run server
-    mcp.run()
+    # Run server with specified transport
+    if transport == 'sse':
+        mcp.run(transport="sse")
+    else:
+        mcp.run()
 
     return mcp
 
