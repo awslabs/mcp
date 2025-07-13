@@ -72,6 +72,13 @@ COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 # Run as non-root
 USER app
 
+EXPOSE 8000
+
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
 ENTRYPOINT ["awslabs.eks-mcp-server"]
+
+# Example configurations:
+#ENTRYPOINT ["awslabs.eks-mcp-server", "--allow-sensitive-data-access"]
+#ENTRYPOINT ["awslabs.eks-mcp-server", "--transport", "sse"]
+#ENTRYPOINT ["awslabs.eks-mcp-server", "--transport", "sse", "--allow-write", "--allow-sensitive-data-access"]
