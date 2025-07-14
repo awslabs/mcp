@@ -16,12 +16,12 @@
 
 import argparse
 import asyncio
-import boto3
 import sys
 from awslabs.postgres_mcp_server.mutable_sql_detector import (
     check_sql_injection_risk,
     detect_mutating_keywords,
 )
+from awslabs.postgres_mcp_server.connection import DBConnectionSingleton
 from botocore.exceptions import BotoCoreError, ClientError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -47,104 +47,6 @@ class DummyCtx:
         """
         # Do nothing
         pass
-
-
-class DBConnection:
-    """Class that wraps DB connection client by RDS API."""
-
-    def __init__(self, cluster_arn, secret_arn, database, region, readonly, is_test=False):
-        """Initialize a new DB connection.
-
-        Args:
-            cluster_arn: The ARN of the RDS cluster
-            secret_arn: The ARN of the secret containing credentials
-            database: The name of the database to connect to
-            region: The AWS region where the RDS instance is located
-            readonly: Whether the connection should be read-only
-            is_test: Whether this is a test connection
-        """
-        self.cluster_arn = cluster_arn
-        self.secret_arn = secret_arn
-        self.database = database
-        self.readonly = readonly
-        if not is_test:
-            self.data_client = boto3.client('rds-data', region_name=region)
-
-    @property
-    def readonly_query(self):
-        """Get whether this connection is read-only.
-
-        Returns:
-            bool: True if the connection is read-only, False otherwise
-        """
-        return self.readonly
-
-
-class DBConnectionSingleton:
-    """Manages a single DBConnection instance across the application.
-
-    This singleton ensures that only one DBConnection is created and reused.
-    """
-
-    _instance = None
-
-    def __init__(self, resource_arn, secret_arn, database, region, readonly, is_test=False):
-        """Initialize a new DB connection singleton.
-
-        Args:
-            resource_arn: The ARN of the RDS resource
-            secret_arn: The ARN of the secret containing credentials
-            database: The name of the database to connect to
-            region: The AWS region where the RDS instance is located
-            readonly: Whether the connection should be read-only
-            is_test: Whether this is a test connection
-        """
-        if not all([resource_arn, secret_arn, database, region]):
-            raise ValueError(
-                'Missing required connection parameters. '
-                'Please provide resource_arn, secret_arn, database, and region.'
-            )
-        self._db_connection = DBConnection(
-            resource_arn, secret_arn, database, region, readonly, is_test
-        )
-
-    @classmethod
-    def initialize(cls, resource_arn, secret_arn, database, region, readonly, is_test=False):
-        """Initialize the singleton instance if it doesn't exist.
-
-        Args:
-            resource_arn: The ARN of the RDS resource
-            secret_arn: The ARN of the secret containing credentials
-            database: The name of the database to connect to
-            region: The AWS region where the RDS instance is located
-            readonly: Whether the connection should be read-only
-            is_test: Whether this is a test connection
-        """
-        if cls._instance is None:
-            cls._instance = cls(resource_arn, secret_arn, database, region, readonly, is_test)
-
-    @classmethod
-    def get(cls):
-        """Get the singleton instance.
-
-        Returns:
-            DBConnectionSingleton: The singleton instance
-
-        Raises:
-            RuntimeError: If the singleton has not been initialized
-        """
-        if cls._instance is None:
-            raise RuntimeError('DBConnectionSingleton is not initialized.')
-        return cls._instance
-
-    @property
-    def db_connection(self):
-        """Get the database connection.
-
-        Returns:
-            DBConnection: The database connection instance
-        """
-        return self._db_connection
 
 
 def extract_cell(cell: dict):
@@ -177,14 +79,14 @@ def parse_execute_response(response: dict) -> list[dict]:
 
 
 mcp = FastMCP(
-    'apg-mcp MCP server. This is the starting point for all solutions created',
+    'pg-mcp MCP server. This is the starting point for all solutions created',
     dependencies=[
         'loguru',
     ],
 )
 
 
-@mcp.tool(name='run_query', description='Run a SQL query using boto3 execute_statement')
+@mcp.tool(name='run_query', description='Run a SQL query against PostgreSQL')
 async def run_query(
     sql: Annotated[str, Field(description='The SQL query to run')],
     ctx: Context,
@@ -193,12 +95,12 @@ async def run_query(
         Optional[List[Dict[str, Any]]], Field(description='Parameters for the SQL query')
     ] = None,
 ) -> list[dict]:  # type: ignore
-    """Run a SQL query using boto3 execute_statement.
+    """Run a SQL query against PostgreSQL.
 
     Args:
         sql: The sql statement to run
         ctx: MCP context for logging and state management
-        db_connection: DB connection object passed by unit test. It should be None if if called by MCP server.
+        db_connection: DB connection object passed by unit test. It should be None if called by MCP server.
         query_parameters: Parameters for the SQL query
 
     Returns:
@@ -209,7 +111,16 @@ async def run_query(
     global write_query_prohibited_key
 
     if db_connection is None:
-        db_connection = DBConnectionSingleton.get().db_connection
+        try:
+            # Try to get the connection from the singleton
+            db_connection = DBConnectionSingleton.get().db_connection
+        except RuntimeError:
+            # If the singleton is not initialized, this might be a direct connection
+            logger.error("No database connection available")
+            await ctx.error("No database connection available")
+            return [{'error': 'No database connection available'}]
+    
+    assert db_connection is not None, "db_connection should never be None"
 
     if db_connection.readonly_query:
         matches = detect_mutating_keywords(sql)
@@ -233,25 +144,8 @@ async def run_query(
     try:
         logger.info(f'run_query: readonly:{db_connection.readonly_query}, SQL:{sql}')
 
-        if db_connection.readonly_query:
-            response = await asyncio.to_thread(
-                execute_readonly_query, db_connection, sql, query_parameters
-            )
-        else:
-            execute_params = {
-                'resourceArn': db_connection.cluster_arn,
-                'secretArn': db_connection.secret_arn,
-                'database': db_connection.database,
-                'sql': sql,
-                'includeResultMetadata': True,
-            }
-
-            if query_parameters:
-                execute_params['parameters'] = query_parameters
-
-            response = await asyncio.to_thread(
-                db_connection.data_client.execute_statement, **execute_params
-            )
+        # Execute the query using the abstract connection interface
+        response = await db_connection.execute_query(sql, query_parameters)
 
         logger.success('run_query successfully executed query:{}', sql)
         return parse_execute_response(response)
@@ -270,7 +164,7 @@ async def run_query(
 
 @mcp.tool(
     name='get_table_schema',
-    description='Fetch table columns and comments from Postgres using RDS Data API',
+    description='Fetch table columns and comments from Postgres',
 )
 async def get_table_schema(
     table_name: Annotated[str, Field(description='name of the table')], ctx: Context
@@ -305,66 +199,6 @@ async def get_table_schema(
     return await run_query(sql=sql, ctx=ctx, query_parameters=params)
 
 
-def execute_readonly_query(
-    db_connection: DBConnection, query: str, parameters: Optional[List[Dict[str, Any]]] = None
-) -> dict:
-    """Execute a query under readonly transaction.
-
-    Args:
-        db_connection: connection object
-        query: query to run
-        parameters: parameters
-
-    Returns:
-        List of dictionary that contains query response rows
-    """
-    tx_id = ''
-    try:
-        # Begin read-only transaction
-        tx = db_connection.data_client.begin_transaction(
-            resourceArn=db_connection.cluster_arn,
-            secretArn=db_connection.secret_arn,
-            database=db_connection.database,
-        )
-
-        tx_id = tx['transactionId']
-
-        db_connection.data_client.execute_statement(
-            resourceArn=db_connection.cluster_arn,
-            secretArn=db_connection.secret_arn,
-            database=db_connection.database,
-            sql='SET TRANSACTION READ ONLY',
-            transactionId=tx_id,
-        )
-
-        execute_params = {
-            'resourceArn': db_connection.cluster_arn,
-            'secretArn': db_connection.secret_arn,
-            'database': db_connection.database,
-            'sql': query,
-            'includeResultMetadata': True,
-            'transactionId': tx_id,
-        }
-
-        if parameters is not None:
-            execute_params['parameters'] = parameters
-
-        result = db_connection.data_client.execute_statement(**execute_params)
-
-        db_connection.data_client.commit_transaction(
-            resourceArn=db_connection.cluster_arn,
-            secretArn=db_connection.secret_arn,
-            transactionId=tx_id,
-        )
-        return result
-    except Exception as e:
-        if tx_id:
-            db_connection.data_client.rollback_transaction(
-                resourceArn=db_connection.cluster_arn,
-                secretArn=db_connection.secret_arn,
-                transactionId=tx_id,
-            )
-        raise e
 
 
 def main():
@@ -375,53 +209,152 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
     )
-    parser.add_argument('--resource_arn', required=True, help='ARN of the RDS cluster')
+    
+    # Connection method 1: RDS Data API
+    parser.add_argument(
+        '--resource_arn',
+        help='ARN of the RDS cluster (for RDS Data API)'
+    )
+
+    # Connection method 2: Psycopg Direct Connection
+    parser.add_argument(
+        '--hostname',
+        help='Database hostname (for direct PostgreSQL connection)'
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=5432,
+        help='Database port (default: 5432)'
+    )
+
+    # Common parameters
     parser.add_argument(
         '--secret_arn',
         required=True,
-        help='ARN of the Secrets Manager secret for database credentials',
-    )
-    parser.add_argument('--database', required=True, help='Database name')
-    parser.add_argument(
-        '--region', required=True, help='AWS region for RDS Data API (default: us-west-2)'
+        help='ARN of the Secrets Manager secret for database credentials'
     )
     parser.add_argument(
-        '--readonly', required=True, help='Enforce NL to SQL to only allow readonly sql statement'
+        '--database',
+        required=True,
+        help='Database name'
     )
+    parser.add_argument(
+        '--region',
+        required=True,
+        help='AWS region'
+    )
+    parser.add_argument(
+        '--readonly',
+        required=True,
+        help='Enforce readonly SQL statements'
+    )
+
     args = parser.parse_args()
 
-    logger.info(
-        'Postgres MCP init with CLUSTER_ARN:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
-        args.resource_arn,
-        args.secret_arn,
-        args.region,
-        args.database,
-        args.readonly,
-    )
-
-    try:
-        DBConnectionSingleton.initialize(
-            args.resource_arn, args.secret_arn, args.database, args.region, args.readonly
+    # Validate connection parameters
+    if not args.resource_arn and not args.hostname:
+        parser.error(
+            "Either --resource_arn (for RDS Data API) or "
+            "--hostname (for direct PostgreSQL) must be provided"
         )
-    except BotoCoreError:
-        logger.exception('Failed to RDS API client object for Postgres. Exit the MCP server')
+
+    if args.resource_arn and args.hostname:
+        parser.error(
+            "Cannot specify both --resource_arn and --hostname. "
+            "Choose one connection method."
+        )
+
+    # Convert args to dict for easier handling
+    connection_params = vars(args)
+    
+    # Convert readonly string to boolean
+    connection_params['readonly'] = args.readonly.lower() == 'true'
+    
+    # Log connection information
+    connection_target = (
+        args.resource_arn if args.resource_arn
+        else f"{args.hostname}:{args.port}"
+    )
+    
+    if args.resource_arn:
+        logger.info(
+            'Postgres MCP init with RDS Data API: CONNECTION_TARGET:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
+            connection_target,
+            args.secret_arn,
+            args.region,
+            args.database,
+            args.readonly,
+        )
+    else:
+        logger.info(
+            'Postgres MCP init with psycopg: CONNECTION_TARGET:{}, PORT:{}, DATABASE:{}, READONLY:{}',
+            connection_target,
+            args.port,
+            args.database,
+            args.readonly,
+        )
+
+    # Create the appropriate database connection based on the provided parameters
+    db_connection = None
+    
+    try:
+        if args.resource_arn:
+            # Use RDS Data API with singleton pattern
+            try:
+                # Initialize the RDS Data API connection singleton
+                DBConnectionSingleton.initialize(
+                    resource_arn=args.resource_arn,
+                    secret_arn=args.secret_arn,
+                    database=args.database,
+                    region=args.region,
+                    readonly=connection_params['readonly']
+                )
+                
+                # Get the connection from the singleton
+                db_connection = DBConnectionSingleton.get().db_connection
+            except Exception as e:
+                logger.exception(f'Failed to create RDS Data API connection: {str(e)}')
+                sys.exit(1)
+                
+        else:
+            # Use direct PostgreSQL connection with connection pool
+            try:
+                # Import here to avoid circular imports
+                from awslabs.postgres_mcp_server.connection.psycopg_connector import PsycopgPoolConnection
+                
+                # Create a direct PostgreSQL connection pool
+                db_connection = PsycopgPoolConnection(
+                    host=args.hostname,
+                    port=args.port,
+                    database=args.database,
+                    readonly=connection_params['readonly'],
+                    secret_arn=args.secret_arn,
+                    region=args.region
+                )
+            except Exception as e:
+                logger.exception(f'Failed to create PostgreSQL connection: {str(e)}')
+                sys.exit(1)
+                
+    except BotoCoreError as e:
+        logger.exception(f'Failed to create database connection: {str(e)}')
         sys.exit(1)
 
-    # Test RDS API connection
+    # Test database connection
     ctx = DummyCtx()
-    response = asyncio.run(run_query('SELECT 1', ctx))
+    response = asyncio.run(run_query('SELECT 1', ctx, db_connection))
     if (
         isinstance(response, list)
         and len(response) == 1
         and isinstance(response[0], dict)
         and 'error' in response[0]
     ):
-        logger.error('Failed to validate RDS API db connection to Postgres. Exit the MCP server')
+        logger.error('Failed to validate database connection to Postgres. Exit the MCP server')
         sys.exit(1)
 
-    logger.success('Successfully validated RDS API db connection to Postgres')
+    logger.success('Successfully validated database connection to Postgres')
 
-    logger.info('Starting Postgres MCP server')
+    logger.info('Started Postgres MCP server')
     mcp.run()
 
 
