@@ -29,8 +29,7 @@ from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
-    MCP_MANAGED_TAG_KEY,
-    MCP_MANAGED_TAG_VALUE,
+    EMR_CLUSTER_RESOURCE_TYPE,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
@@ -543,7 +542,7 @@ class EMREc2ClusterHandler:
                     params['PlacementGroups'] = placement_groups
 
                 # Add MCP management tags
-                resource_tags = AwsHelper.prepare_resource_tags('EMRCluster')
+                resource_tags = AwsHelper.prepare_resource_tags(EMR_CLUSTER_RESOURCE_TYPE)
                 aws_tags = [{'Key': key, 'Value': value} for key, value in resource_tags.items()]
                 params['Tags'] = aws_tags
 
@@ -593,6 +592,16 @@ class EMREc2ClusterHandler:
                     )
                     return self._create_error_response(operation, error_message)
 
+                # Verify that the cluster is managed by MCP and has the correct resource type
+                verification_result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                    self.emr_client, cluster_id, EMR_CLUSTER_RESOURCE_TYPE
+                )
+
+                if not verification_result['is_valid']:
+                    error_message = verification_result['error_message']
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return self._create_error_response(operation, error_message)
+
                 # Modify cluster
                 response = self.emr_client.modify_cluster(
                     ClusterId=cluster_id,
@@ -621,6 +630,16 @@ class EMREc2ClusterHandler:
 
                 if auto_terminate is None and termination_protected is None:
                     error_message = 'At least one of auto_terminate or termination_protected must be provided for modify-cluster-attributes operation'
+                    return self._create_error_response(operation, error_message)
+
+                # Verify that the cluster is managed by MCP and has the correct resource type
+                verification_result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                    self.emr_client, cluster_id, EMR_CLUSTER_RESOURCE_TYPE
+                )
+
+                if not verification_result['is_valid']:
+                    error_message = verification_result['error_message']
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
                     return self._create_error_response(operation, error_message)
 
                 # Modify cluster attributes
@@ -653,21 +672,20 @@ class EMREc2ClusterHandler:
                     error_message = 'cluster_ids is required for terminate-clusters operation'
                     return self._create_error_response(operation, error_message)
 
-                # Verify that all clusters are managed by MCP before terminating
-                unmanaged_clusters = []
+                # Verify that all clusters are managed by MCP and have the correct resource type
+                invalid_clusters = []
                 for cluster_id in cluster_ids:
-                    try:
-                        response = self.emr_client.describe_cluster(ClusterId=cluster_id)
-                        tags_list = response.get('Cluster', {}).get('Tags', [])
-                        cluster_tags = {tag['Key']: tag['Value'] for tag in tags_list}
-                        # Check if cluster is managed by MCP
-                        if cluster_tags.get(MCP_MANAGED_TAG_KEY) != MCP_MANAGED_TAG_VALUE:
-                            unmanaged_clusters.append(cluster_id)
-                    except Exception:
-                        unmanaged_clusters.append(cluster_id)
+                    verification_result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                        self.emr_client, cluster_id, EMR_CLUSTER_RESOURCE_TYPE
+                    )
 
-                if unmanaged_clusters:
-                    error_message = f'Cannot terminate clusters {unmanaged_clusters} - they are not managed by the MCP server (missing required tags)'
+                    if not verification_result['is_valid']:
+                        invalid_clusters.append(
+                            f'{cluster_id} ({verification_result["error_message"]})'
+                        )
+
+                if invalid_clusters:
+                    error_message = f'Cannot terminate clusters: {", ".join(invalid_clusters)}'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
                     return self._create_error_response(operation, error_message)
 
