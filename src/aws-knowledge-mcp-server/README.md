@@ -1,6 +1,6 @@
 # AWS Knowledge MCP Server
 
-A remote, fully-managed MCP server hosted by AWS that provides access to the latest AWS docs, API references, What's New Posts, Getting Started information, Builder Center, Blog posts, Architectural references, and Well-Architected guidance. 
+A fully managed remote MCP server that provides up-to-date documentation, code samples, and other official AWS content.
 
 **Important Note**: Not all MCP clients today support remote servers. Please make sure that your client supports remote MCP servers or that you have a suitable proxy setup to use this server. 
 
@@ -19,6 +19,16 @@ A remote, fully-managed MCP server hosted by AWS that provides access to the lat
 1. `search_documentation`: Search across all AWS documentation
 2. `read_documentation`: Retrieve and convert AWS documentation pages to markdown
 3. `recommend`: Get content recommendations for AWS documentation pages
+
+### Current knowledge sources
+- The latest AWS docs
+- API references
+- What's New posts
+- Getting Started information
+- Builder Center
+- Blog posts
+- Architectural references
+- Well-Architected guidance 
 
 ### FAQs
 #### 1. Should I use the local AWS Documentation MCP Server or the remote AWS Knowledge MCP Server? 
