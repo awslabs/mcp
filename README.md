@@ -119,6 +119,8 @@ For general AWS interactions and comprehensive API support, we recommend startin
 
 - **[AWS API MCP Server](src/aws-api-mcp-server)** - **Start here for general AWS interactions!** Comprehensive AWS API support with command validation, security controls, and access to all AWS services. Perfect for managing infrastructure, exploring resources, and executing AWS operations through natural language.
 
+- **[AWS Knowledge MCP Server](src)** - A remote, fully-managed MCP server hosted by AWS that provides access to the latest AWS docs, API references, What's New Posts, Getting Started information, Builder Center, Blog posts, Architectural references, and Well-Architected guidance.
+
 ### Browse by What You're Building
 
 #### 📚 Real-time access to official AWS documentation

@@ -60,7 +60,8 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 Before diving into specific AWS services, set up these fundamental MCP servers for working with AWS resources:
 
 <div className={styles.cardGrid}>
-  <div className={styles.serverCard} style={{ minHeight: '200px' }}>
+  <a href="/mcp/servers/aws-api-mcp-server" className={styles.serverCardLink}>
+    <div className={styles.serverCard} style={{ minHeight: '200px' }}>
     <div className={styles.serverCardHeader}>
       <div className={styles.serverCardIcon}>
         <img src="/mcp/assets/icons/key.svg" alt="API icon" style={{ width: '22px', height: '22px' }} />
@@ -78,8 +79,10 @@ Before diving into specific AWS services, set up these fundamental MCP servers f
       </p>
     </div>
   </div>
+  </a>
 
-  <div className={styles.serverCard} style={{ minHeight: '200px' }}>
+  <a href="/mcp/servers/aws-knowledge-mcp-server" className={styles.serverCardLink}>
+    <div className={styles.serverCard} style={{ minHeight: '200px' }}>
     <div className={styles.serverCardHeader}>
       <div className={styles.serverCardIcon}>
         <img src="/mcp/assets/icons/book-open.svg" alt="Documentation icon" style={{ width: '22px', height: '22px' }} />
@@ -97,6 +100,7 @@ Before diving into specific AWS services, set up these fundamental MCP servers f
       </p>
     </div>
   </div>
+  </a>
 </div>
 
 ## Available AWS MCP Servers
