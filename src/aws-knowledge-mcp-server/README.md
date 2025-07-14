@@ -12,6 +12,11 @@ A remote MCP server providing access to the latest AWS docs, API references, Wha
 - **Getting started**: Find out how to quickly get started using AWS services while following best practices
 - **The latest information**: Access the latest announcements about new AWS services and features 
 
+### Tools 
+1. `search_documentation`: Search across all AWS documentation
+2. `read_documentation`: Retrieve and convert AWS documentation pages to markdown
+3. `recommend`: Get content recommendations for AWS documentation pages
+
 ### FAQs
 #### Should I use the local AWS Documentation MCP Server or the remote AWS Knowledge MCP Server? 
 
