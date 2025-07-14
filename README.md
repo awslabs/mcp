@@ -8,16 +8,16 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 [![OSSF-Scorecard Score](https://img.shields.io/ossf-scorecard/github.com/awslabs/mcp)](https://scorecard.dev/viewer/?uri=github.com/awslabs/mcp)
 
 ## Table of Contents
-[AWS MCP Servers]
+[AWS MCP Servers](#aws-mcp-servers)
   - [Table of Contents](#table-of-contents)
   - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
   - [Server Sent Events Support Removal](#server-sent-events-support-removal)
   - [Why AWS MCP Servers?](#why-aws-mcp-servers)
 
-- [Remote AWS MCP Servers](#aws-remote-mcp-servers)
-  - [AWS Knowledge](#aws-remote-knowledge-mcp)
+[Remote AWS MCP Servers](#aws-remote-mcp-servers)
+  - [Real-time AWS Knowledge](src/aws-knowledge-mcp-server/)
 
-- [Local AWS MCP Servers](#aws-mcp-servers)
+[Local AWS MCP Servers](#aws-mcp-servers)
   - [Available MCP Servers](#available-mcp-servers)
     - [Browse by What You're Building](#browse-by-what-youre-building)
       - [📚 Real-time access to official AWS documentation](#-real-time-access-to-official-aws-documentation)
