@@ -4,15 +4,17 @@ A remote MCP server providing access to the latest AWS docs, API references, Wha
 
 **Important Note**: Not all MCP clients today support remote servers. Please make sure that your client supports remote MCP servers or that you have a suitable proxy setup to use this server. 
 
-## Features
+### Key Features
+- Real-time access to AWS documentation, API references, and architectural guidance
+- Less local setup compared to client-hosted servers
+- Structured access to AWS knowledge for AI agents
 
-### AWS Knowledge
+### AWS Knowledge capabilities
 - **Best practices**: Discover best practices around using AWS APIs and services
-- **API documetnation**: Learn about how to call APIs including required and optional parameters and flags 
+- **API documentation**: Learn about how to call APIs including required and optional parameters and flags 
 - **Getting started**: Find out how to quickly get started using AWS services while following best practices
 - **The latest information**: Access the latest announcements about new AWS services and features 
 
-<<<<<<< HEAD
 ### Tools 
 1. `search_documentation`: Search across all AWS documentation
 2. `read_documentation`: Retrieve and convert AWS documentation pages to markdown
@@ -26,8 +28,6 @@ The Knowledge server indexes a wider variety of infomration beyond documentation
 #### Do I need network access to use the AWS Knowledge MCP Server? 
 Yes, you'll need to be able to access the public internet to access the AWS Knowledge MCP Server. 
 
-=======
->>>>>>> 3bb98a0 (Add initial documentation for remote AWS Knowledge MCP Server)
 ### Learn about AWS with natural language
 
 - Ask questions about AWS APIs, best practices, new releases, or architectural guidance 
@@ -66,6 +66,8 @@ Yes, you'll need to be able to access the public internet to access the AWS Know
   - `/mcp`
 5. You should see `aws-knowledge-mcp` in the list and its connection status
 
+### Testing and Troubleshooting
+If you want to call Knowledge MCP directly, not through an LLM, you can do so using MCP Inspector. It gives you a UI where you can do tools/list and tools/call with arbitrary parameters.
 
 ### AWS Authentication
 
