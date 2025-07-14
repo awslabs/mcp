@@ -4,7 +4,7 @@
 ## Overview
 The AWS API MCP Server enables AI assistants to interact with AWS services and resources through AWS CLI commands. It provides programmatic access to manage your AWS infrastructure while maintaining proper security controls.
 
-This server bridges the gap between AI assistants and AWS services, allowing you to create, update, and manage AWS resources across all available services. It helps with AWS CLI command selection and provides access to the latest AWS API features and services, even those released after an AI model's knowledge cutoff date.
+This server acts as a bridge between AI assistants and AWS services, allowing you to create, update, and manage AWS resources across all available services. It helps with AWS CLI command selection and provides access to the latest AWS API features and services, even those released after an AI model's knowledge cutoff date.
 
 This MCP server is meant for testing, development, and evaluation purposes.
 
@@ -186,9 +186,9 @@ The MCP server can perform various file operations through AWS CLI commands, inc
 ### Prompt Injection and Untrusted Data
 This MCP server executes AWS CLI commands as instructed by an AI model, which can be vulnerable to prompt injection attacks:
 
-- **Do not connect this MCP server to untrusted data sources** (e.g., CloudWatch logs containing raw user data, user-generated content in databases, etc.)
-- When working with potentially untrusted data sources, always use scoped-down IAM credentials with minimal permissions necessary for the specific task.
-- Be aware that prompt injection vulnerabilities are inherent to LLMs and not caused by this MCP server itself. However, the consequences of a successful prompt injection can be amplified when the LLM has access to execute AWS CLI commands.
+- **Do not connect this MCP server to data sources with untrusted data** (e.g., CloudWatch logs containing raw user data, user-generated content in databases, etc.)
+- Always use scoped-down IAM credentials with minimal permissions necessary for the specific task.
+- Be aware that prompt injection vulnerabilities are a known issue with LLMs and not caused by MCP servers inherently. When working with untrusted data use a client that supports command validation with a human in the loop.
 
 ### Logging
 
