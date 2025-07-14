@@ -83,6 +83,7 @@ To use this MCP server with your MCP client, add the following configuration to 
     "disabled": false,
     "autoApprove": []
 }
+```
 
 Alternatively, you can use the MCP Inspector to test the server:
 
