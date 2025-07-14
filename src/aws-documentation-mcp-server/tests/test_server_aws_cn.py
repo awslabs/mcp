@@ -133,6 +133,8 @@ class TestGetAvailableServices:
                 assert '# AWS Services in China\n\nAvailable services list.' in result
                 mock_get.assert_called_once()
                 mock_extract.assert_called_once()
+                called_url = mock_get.call_args[0][0]
+                assert '?session=' in called_url
 
     @pytest.mark.asyncio
     async def test_get_available_services_error(self):

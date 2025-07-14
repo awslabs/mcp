@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.valkey-mcp-server"
-version = "1.0.2"
+version = "1.0.3"
 description = "An AWS Labs Model Context Protocol (MCP) server for valkey"
 readme = "README.md"
 requires-python = ">=3.10"

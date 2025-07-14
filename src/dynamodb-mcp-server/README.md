@@ -2,7 +2,12 @@
 
 The official MCP Server for interacting with AWS DynamoDB
 
+This comprehensive server provides both operational DynamoDB management and expert design guidance, featuring 30+ operational tools for managing DynamoDB tables, items, indexes, backups, and more, expert data modeling guidance.
+
 ## Available MCP Tools
+
+### Design & Modeling
+- `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt
 
 ### Table Operations
 - `create_table` - Creates a new DynamoDB table with optional secondary indexes
@@ -50,7 +55,7 @@ The official MCP Server for interacting with AWS DynamoDB
 
 ## Instructions
 
-The official MCP Server for interacting with AWS DynamoDB provides a comprehensive set of tools for managing DynamoDB resources. Each tool maps directly to DynamoDB API operations and supports all relevant parameters.
+The official MCP Server for interacting with AWS DynamoDB provides a comprehensive set of tools for both designing and managing DynamoDB resources.
 
 To use these tools, ensure you have proper AWS credentials configured with appropriate permissions for DynamoDB operations. The server will automatically use credentials from environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN) or other standard AWS credential sources.
 
@@ -65,7 +70,9 @@ All tools support an optional `region_name` parameter to specify which AWS regio
 
 ## Installation
 
-Add the MCP to your favorite agentic tools. e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.dynamodb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZHluYW1vZGItbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiRERCLU1DUC1SRUFET05MWSI6InRydWUiLCJBV1NfUFJPRklMRSI6ImRlZmF1bHQiLCJBV1NfUkVHSU9OIjoidXMtd2VzdC0yIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
+
+Add the MCP to your favorite agentic tools. (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 
 ```json
 {

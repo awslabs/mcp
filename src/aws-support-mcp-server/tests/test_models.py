@@ -3,6 +3,10 @@
 import pytest
 from pydantic import ValidationError
 
+from awslabs.aws_support_mcp_server.consts import (
+    CaseStatus,
+    IssueType,
+)
 from awslabs.aws_support_mcp_server.models import (
     AddAttachmentsToSetRequest,
     AddAttachmentsToSetResponse,
@@ -10,7 +14,6 @@ from awslabs.aws_support_mcp_server.models import (
     AddCommunicationResponse,
     AttachmentData,
     AttachmentDetails,
-    CaseStatus,
     Category,
     Communication,
     CreateCaseRequest,
@@ -19,7 +22,6 @@ from awslabs.aws_support_mcp_server.models import (
     DescribeCasesResponse,
     DescribeSupportedLanguagesRequest,
     DescribeSupportedLanguagesResponse,
-    IssueType,
     RecentCommunications,
     ResolveCaseRequest,
     ResolveCaseResponse,
@@ -444,6 +446,7 @@ class TestEnums:
         assert CaseStatus.UNASSIGNED.value == "unassigned"
         assert CaseStatus.WORK_IN_PROGRESS.value == "work-in-progress"
         assert CaseStatus.CLOSED.value == "closed"
+        assert CaseStatus.REOPENED.value == "reopened"
 
         # Test invalid value
         with pytest.raises(ValueError):
