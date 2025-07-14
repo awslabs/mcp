@@ -70,6 +70,17 @@ class TestValidateS3Url:
         assert bucket is None
         assert key is None
 
+    def test_validate_s3_url_exception(self):
+        """Test that an exception in urlparse is handled gracefully in validate_s3_url."""
+        # Passing a non-string (e.g., int) will cause urlparse to raise an exception
+        value = 12345
+        valid, error, bucket, key = file_processor.validate_s3_url(value)  # type: ignore[arg-type]
+        assert valid is False
+        assert error is not None
+        assert 'Error parsing S3 URL' in error
+        assert bucket is None
+        assert key is None
+
 
 class TestPreviewCsvStructure:
     """Unit tests for previewing CSV structure from S3 in file_processor."""
@@ -127,6 +138,15 @@ class TestPreviewCsvStructure:
         result = file_processor.preview_csv_structure(s3_url)
         assert result['status'] == 'error'
         assert 'File is empty' in result['error']
+
+    @patch('awslabs.s3_tables_mcp_server.file_processor.validate_s3_url')
+    def test_preview_csv_structure_bucket_or_key_none(self, mock_validate_s3_url):
+        """Test that preview_csv_structure returns an error if bucket or key is None after validation."""
+        mock_validate_s3_url.return_value = (True, None, None, None)
+        s3_url = 's3://bucket/key.csv'
+        result = file_processor.preview_csv_structure(s3_url)
+        assert result['status'] == 'error'
+        assert 'bucket or key is None' in result['error']
 
 
 class TestConvertValue:
