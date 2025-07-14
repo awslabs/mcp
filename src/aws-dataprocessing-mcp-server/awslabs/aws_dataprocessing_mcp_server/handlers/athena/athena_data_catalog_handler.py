@@ -14,7 +14,6 @@
 
 """AthenaDataCatalogHandler for Data Processing MCP Server."""
 
-import json
 from awslabs.aws_dataprocessing_mcp_server.models.athena_models import (
     CreateDataCatalogResponse,
     DeleteDataCatalogResponse,
@@ -34,7 +33,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional, Union
 
 
 class AthenaDataCatalogHandler:
@@ -62,46 +61,66 @@ class AthenaDataCatalogHandler:
     async def manage_aws_athena_data_catalogs(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-data-catalog, delete-data-catalog, get-data-catalog, list-data-catalogs, update-data-catalog. Choose read-only operations when write access is disabled.',
-        ),
-        name: Optional[str] = Field(
-            None,
-            description='Name of the data catalog (required for create-data-catalog, delete-data-catalog, get-data-catalog, update-data-catalog). The catalog name must be unique for the AWS account and can use a maximum of 127 alphanumeric, underscore, at sign, or hyphen characters.',
-        ),
-        type: Optional[str] = Field(
-            None,
-            description='Type of the data catalog (required for create-data-catalog and update-data-catalog). Valid values: LAMBDA, GLUE, HIVE, FEDERATED.',
-        ),
-        description: Optional[str] = Field(
-            None,
-            description='Description of the data catalog (optional for create-data-catalog and update-data-catalog).',
-        ),
-        parameters: Optional[Dict[str, str]] = Field(
-            None,
-            description="Parameters for the data catalog (optional for create-data-catalog and update-data-catalog). Format depends on catalog type (e.g., for LAMBDA: 'metadata-function=lambda_arn,record-function=lambda_arn' or 'function=lambda_arn').",
-        ),
-        tags: Optional[Dict[str, str]] = Field(
-            None,
-            description='Tags for the data catalog (optional for create-data-catalog).',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for list-data-catalogs operation (range: 2-50).',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for list-data-catalogs operation.',
-        ),
-        work_group: Optional[str] = Field(
-            None,
-            description='The name of the workgroup (required if making an IAM Identity Center request).',
-        ),
-        delete_catalog_only: Optional[bool] = Field(
-            None,
-            description='For delete-data-catalog operation, whether to delete only the Athena Data Catalog (true) or also its resources (false). Only applicable for FEDERATED catalogs.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-data-catalog, delete-data-catalog, get-data-catalog, list-data-catalogs, update-data-catalog. Choose read-only operations when write access is disabled.',
+            ),
+        ],
+        name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the data catalog (required for create-data-catalog, delete-data-catalog, get-data-catalog, update-data-catalog). The catalog name must be unique for the AWS account and can use a maximum of 127 alphanumeric, underscore, at sign, or hyphen characters.',
+            ),
+        ] = None,
+        type: Annotated[
+            Optional[str],
+            Field(
+                description='Type of the data catalog (required for create-data-catalog and update-data-catalog). Valid values: LAMBDA, GLUE, HIVE, FEDERATED.',
+            ),
+        ] = None,
+        description: Annotated[
+            Optional[str],
+            Field(
+                description='Description of the data catalog (optional for create-data-catalog and update-data-catalog).',
+            ),
+        ] = None,
+        parameters: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description="Parameters for the data catalog (optional for create-data-catalog and update-data-catalog). Format depends on catalog type (e.g., for LAMBDA: 'metadata-function=lambda_arn,record-function=lambda_arn' or 'function=lambda_arn').",
+            ),
+        ] = None,
+        tags: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description='Tags for the data catalog (optional for create-data-catalog).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for list-data-catalogs operation (range: 2-50).',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for list-data-catalogs operation.',
+            ),
+        ] = None,
+        work_group: Annotated[
+            Optional[str],
+            Field(
+                description='The name of the workgroup (required if making an IAM Identity Center request).',
+            ),
+        ] = None,
+        delete_catalog_only: Annotated[
+            Optional[bool],
+            Field(
+                description='For delete-data-catalog operation, whether to delete only the Athena Data Catalog (true) or also its resources (false). Only applicable for FEDERATED catalogs.',
+            ),
+        ] = None,
     ) -> Union[
         CreateDataCatalogResponse,
         DeleteDataCatalogResponse,
@@ -210,7 +229,7 @@ class AthenaDataCatalogHandler:
                     params['Description'] = description
 
                 if parameters is not None:
-                    params['Parameters'] = json.dumps(parameters)
+                    params['Parameters'] = parameters
 
                 # Add MCP management tags
                 resource_tags = AwsHelper.prepare_resource_tags('AthenaDataCatalog', tags)
@@ -236,7 +255,27 @@ class AthenaDataCatalogHandler:
                 if name is None:
                     raise ValueError('name is required for delete-data-catalog operation')
 
-                # Prepare parameters
+                # Verify that the data catalog is managed by MCP
+                verification_result = AwsHelper.verify_athena_data_catalog_managed_by_mcp(
+                    self.athena_client, name, work_group
+                )
+
+                if not verification_result['is_valid']:
+                    error_message = verification_result['error_message']
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return DeleteDataCatalogResponse(
+                        isError=True,
+                        content=[
+                            TextContent(
+                                type='text',
+                                text=f'Cannot delete data catalog {name}: {error_message}',
+                            )
+                        ],
+                        name=name,
+                        operation='delete-data-catalog',
+                    )
+
+                # Prepare parameters for deletion
                 params = {'Name': name}
                 if delete_catalog_only is not None:
                     params['DeleteCatalogOnly'] = str(delete_catalog_only).lower()
@@ -319,7 +358,28 @@ class AthenaDataCatalogHandler:
             elif operation == 'update-data-catalog':
                 if name is None:
                     raise ValueError('name is required for update-data-catalog operation')
-                # Prepare parameters
+
+                # Verify that the data catalog is managed by MCP
+                verification_result = AwsHelper.verify_athena_data_catalog_managed_by_mcp(
+                    self.athena_client, name, work_group
+                )
+
+                if not verification_result['is_valid']:
+                    error_message = verification_result['error_message']
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return UpdateDataCatalogResponse(
+                        isError=True,
+                        content=[
+                            TextContent(
+                                type='text',
+                                text=f'Cannot update data catalog {name}: {error_message}',
+                            )
+                        ],
+                        name=name,
+                        operation='update-data-catalog',
+                    )
+
+                # Prepare parameters for update
                 params = {'Name': name}
 
                 if type is not None:
@@ -329,7 +389,7 @@ class AthenaDataCatalogHandler:
                     params['Description'] = description
 
                 if parameters is not None:
-                    params['Parameters'] = json.dumps(parameters)
+                    params['Parameters'] = parameters
 
                 # Update data catalog
                 self.athena_client.update_data_catalog(**params)
@@ -372,38 +432,54 @@ class AthenaDataCatalogHandler:
     async def manage_aws_athena_databases_and_tables(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: get-database, get-table-metadata, list-databases, list-table-metadata. These are read-only operations.',
-        ),
-        catalog_name: str = Field(
-            ...,
-            description='Name of the data catalog.',
-        ),
-        database_name: Optional[str] = Field(
-            None,
-            description='Name of the database (required for get-database, get-table-metadata, list-table-metadata).',
-        ),
-        table_name: Optional[str] = Field(
-            None,
-            description='Name of the table (required for get-table-metadata).',
-        ),
-        expression: Optional[str] = Field(
-            None,
-            description='Expression to filter tables (optional for list-table-metadata). A regex pattern that pattern-matches table names.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for list-databases (range: 1-50) and list-table-metadata (range: 1-50) operations.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for list-databases and list-table-metadata operations.',
-        ),
-        work_group: Optional[str] = Field(
-            None,
-            description='The name of the workgroup (required if making an IAM Identity Center request).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: get-database, get-table-metadata, list-databases, list-table-metadata. These are read-only operations.',
+            ),
+        ],
+        catalog_name: Annotated[
+            str,
+            Field(
+                description='Name of the data catalog.',
+            ),
+        ],
+        database_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the database (required for get-database, get-table-metadata, list-table-metadata).',
+            ),
+        ] = None,
+        table_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the table (required for get-table-metadata).',
+            ),
+        ] = None,
+        expression: Annotated[
+            Optional[str],
+            Field(
+                description='Expression to filter tables (optional for list-table-metadata). A regex pattern that pattern-matches table names.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for list-databases (range: 1-50) and list-table-metadata (range: 1-50) operations.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for list-databases and list-table-metadata operations.',
+            ),
+        ] = None,
+        work_group: Annotated[
+            Optional[str],
+            Field(
+                description='The name of the workgroup (required if making an IAM Identity Center request).',
+            ),
+        ] = None,
     ) -> Union[
         GetDatabaseResponse,
         GetTableMetadataResponse,

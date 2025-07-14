@@ -34,7 +34,7 @@ from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 
 class GlueInteractiveSessionsHandler:
@@ -60,78 +60,114 @@ class GlueInteractiveSessionsHandler:
     async def manage_aws_glue_sessions(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-session, delete-session, get-session, list-sessions, stop-session. Choose "get-session" or "list-sessions" for read-only operations when write access is disabled.',
-        ),
-        session_id: Optional[str] = Field(
-            None,
-            description='ID of the session (required for delete-session, get-session, and stop-session operations).',
-        ),
-        description: Optional[str] = Field(
-            None,
-            description='Description of the session (optional for create-session operation).',
-        ),
-        role: Optional[str] = Field(
-            None,
-            description='IAM Role ARN (required for create-session operation).',
-        ),
-        command: Optional[Dict[str, str]] = Field(
-            None,
-            description="Session command with Name (e.g., 'glueetl', 'gluestreaming') and optional PythonVersion (required for create-session operation).",
-        ),
-        timeout: Optional[int] = Field(
-            None,
-            description='Number of minutes before session times out (optional for create-session operation).',
-        ),
-        idle_timeout: Optional[int] = Field(
-            None,
-            description='Number of minutes when idle before session times out (optional for create-session operation).',
-        ),
-        default_arguments: Optional[Dict[str, str]] = Field(
-            None,
-            description='Map of key-value pairs for session arguments (optional for create-session operation).',
-        ),
-        connections: Optional[Dict[str, List[str]]] = Field(
-            None,
-            description='Connections to use for the session (optional for create-session operation).',
-        ),
-        max_capacity: Optional[float] = Field(
-            None,
-            description='Number of Glue data processing units (DPUs) to allocate (optional for create-session operation).',
-        ),
-        number_of_workers: Optional[int] = Field(
-            None,
-            description='Number of workers to use for the session (optional for create-session operation).',
-        ),
-        worker_type: Optional[str] = Field(
-            None,
-            description='Type of predefined worker (G.1X, G.2X, G.4X, G.8X, Z.2X) (optional for create-session operation).',
-        ),
-        security_configuration: Optional[str] = Field(
-            None,
-            description='Name of the SecurityConfiguration structure (optional for create-session operation).',
-        ),
-        glue_version: Optional[str] = Field(
-            None,
-            description='Glue version to use (must be greater than 2.0) (optional for create-session operation).',
-        ),
-        tags: Optional[Dict[str, str]] = Field(
-            None,
-            description='Map of key-value pairs (tags) for the session (optional for create-session operation).',
-        ),
-        request_origin: Optional[str] = Field(
-            None,
-            description='Origin of the request (optional for all operations).',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for list-sessions operation.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for list-sessions operation.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-session, delete-session, get-session, list-sessions, stop-session. Choose "get-session" or "list-sessions" for read-only operations when write access is disabled.',
+            ),
+        ],
+        session_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the session (required for delete-session, get-session, and stop-session operations).',
+            ),
+        ] = None,
+        description: Annotated[
+            Optional[str],
+            Field(
+                description='Description of the session (optional for create-session operation).',
+            ),
+        ] = None,
+        role: Annotated[
+            Optional[str],
+            Field(
+                description='IAM Role ARN (required for create-session operation).',
+            ),
+        ] = None,
+        command: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description="Session command with Name (e.g., 'glueetl', 'gluestreaming') and optional PythonVersion (required for create-session operation).",
+            ),
+        ] = None,
+        timeout: Annotated[
+            Optional[int],
+            Field(
+                description='Number of minutes before session times out (optional for create-session operation).',
+            ),
+        ] = None,
+        idle_timeout: Annotated[
+            Optional[int],
+            Field(
+                description='Number of minutes when idle before session times out (optional for create-session operation).',
+            ),
+        ] = None,
+        default_arguments: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description='Map of key-value pairs for session arguments (optional for create-session operation).',
+            ),
+        ] = None,
+        connections: Annotated[
+            Optional[Dict[str, List[str]]],
+            Field(
+                description='Connections to use for the session (optional for create-session operation).',
+            ),
+        ] = None,
+        max_capacity: Annotated[
+            Optional[float],
+            Field(
+                description='Number of Glue data processing units (DPUs) to allocate (optional for create-session operation).',
+            ),
+        ] = None,
+        number_of_workers: Annotated[
+            Optional[int],
+            Field(
+                description='Number of workers to use for the session (optional for create-session operation).',
+            ),
+        ] = None,
+        worker_type: Annotated[
+            Optional[str],
+            Field(
+                description='Type of predefined worker (G.1X, G.2X, G.4X, G.8X, Z.2X) (optional for create-session operation).',
+            ),
+        ] = None,
+        security_configuration: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the SecurityConfiguration structure (optional for create-session operation).',
+            ),
+        ] = None,
+        glue_version: Annotated[
+            Optional[str],
+            Field(
+                description='Glue version to use (must be greater than 2.0) (optional for create-session operation).',
+            ),
+        ] = None,
+        tags: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description='Map of key-value pairs (tags) for the session (optional for create-session operation).',
+            ),
+        ] = None,
+        request_origin: Annotated[
+            Optional[str],
+            Field(
+                description='Origin of the request (optional for all operations).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for list-sessions operation.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for list-sessions operation.',
+            ),
+        ] = None,
     ) -> Union[
         CreateSessionResponse,
         DeleteSessionResponse,
@@ -480,34 +516,48 @@ class GlueInteractiveSessionsHandler:
     async def manage_aws_glue_statements(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: run-statement, cancel-statement, get-statement, list-statements. Choose "get-statement" or "list-statements" for read-only operations when write access is disabled.',
-        ),
-        session_id: str = Field(
-            ...,
-            description='ID of the session (required for all operations).',
-        ),
-        statement_id: Optional[int] = Field(
-            None,
-            description='ID of the statement (required for cancel-statement and get-statement operations).',
-        ),
-        code: Optional[str] = Field(
-            None,
-            description='Code to execute for run-statement operation (up to 68000 characters).',
-        ),
-        request_origin: Optional[str] = Field(
-            None,
-            description='Origin of the request (optional for all operations).',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for list-statements operation.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for list-statements operation.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: run-statement, cancel-statement, get-statement, list-statements. Choose "get-statement" or "list-statements" for read-only operations when write access is disabled.',
+            ),
+        ],
+        session_id: Annotated[
+            str,
+            Field(
+                description='ID of the session (required for all operations).',
+            ),
+        ],
+        statement_id: Annotated[
+            Optional[int],
+            Field(
+                description='ID of the statement (required for cancel-statement and get-statement operations).',
+            ),
+        ] = None,
+        code: Annotated[
+            Optional[str],
+            Field(
+                description='Code to execute for run-statement operation (up to 68000 characters).',
+            ),
+        ] = None,
+        request_origin: Annotated[
+            Optional[str],
+            Field(
+                description='Origin of the request (optional for all operations).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for list-statements operation.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for list-statements operation.',
+            ),
+        ] = None,
     ) -> Union[
         RunStatementResponse,
         CancelStatementResponse,

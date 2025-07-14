@@ -58,7 +58,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 
 class GlueDataCatalogHandler:
@@ -101,37 +101,52 @@ class GlueDataCatalogHandler:
     async def manage_aws_glue_data_catalog_databases(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-database, delete-database, get-database, list-databases, or update-database. Choose "get-database" or "list-databases" for read-only operations when write access is disabled.',
-        ),
-        database_name: Optional[str] = Field(
-            None,
-            description='Name of the database (required for create-database, delete-database, get-database, and update-database operations).',
-        ),
-        description: Optional[str] = Field(
-            None,
-            description='Description of the database (for create-database and update-database operations).',
-        ),
-        location_uri: Optional[str] = Field(
-            None,
-            description='Location URI of the database (for create-database and update-database operations).',
-        ),
-        parameters: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Key-value pairs that define parameters and properties of the database.',
-        ),
-        catalog_id: Optional[str] = Field(
-            None,
-            description='ID of the catalog (optional, defaults to account ID).',
-        ),
-        max_results: Optional[int] = Field(
-            None, description='The maximum number of databases to return in one response.'
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='A continuation token, if this is a continuation call.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-database, delete-database, get-database, list-databases, or update-database. Choose "get-database" or "list-databases" for read-only operations when write access is disabled.',
+            ),
+        ],
+        database_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the database (required for create-database, delete-database, get-database, and update-database operations).',
+            ),
+        ] = None,
+        description: Annotated[
+            Optional[str],
+            Field(
+                description='Description of the database (for create-database and update-database operations).',
+            ),
+        ] = None,
+        location_uri: Annotated[
+            Optional[str],
+            Field(
+                description='Location URI of the database (for create-database and update-database operations).',
+            ),
+        ] = None,
+        parameters: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Key-value pairs that define parameters and properties of the database.',
+            ),
+        ] = None,
+        catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the catalog (optional, defaults to account ID).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(description='The maximum number of databases to return in one response.'),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='A continuation token, if this is a continuation call.',
+            ),
+        ] = None,
     ) -> Union[
         CreateDatabaseResponse,
         DeleteDatabaseResponse,
@@ -302,37 +317,52 @@ class GlueDataCatalogHandler:
     async def manage_aws_glue_data_catalog_tables(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-table, delete-table, get-table, list-tables, update-table, or search-tables. Choose "get-table", "list-tables", or "search-tables" for read-only operations.',
-        ),
-        database_name: str = Field(
-            ...,
-            description='Name of the database containing the table.',
-        ),
-        table_name: Optional[str] = Field(
-            None,
-            description='Name of the table (required for create-table, delete-table, get-table, and update-table operations).',
-        ),
-        catalog_id: Optional[str] = Field(
-            None,
-            description='ID of the catalog (optional, defaults to account ID).',
-        ),
-        table_input: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Table definition for create-table and update-table operations.',
-        ),
-        search_text: Optional[str] = Field(
-            None,
-            description='Search text for search-tables operation.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for list and search-tables operations.',
-        ),
-        next_token: Optional[str] = Field(
-            None, description='A continuation token, included if this is a continuation call.'
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-table, delete-table, get-table, list-tables, update-table, or search-tables. Choose "get-table", "list-tables", or "search-tables" for read-only operations.',
+            ),
+        ],
+        database_name: Annotated[
+            str,
+            Field(
+                description='Name of the database containing the table.',
+            ),
+        ],
+        table_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the table (required for create-table, delete-table, get-table, and update-table operations).',
+            ),
+        ] = None,
+        catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the catalog (optional, defaults to account ID).',
+            ),
+        ] = None,
+        table_input: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Table definition for create-table and update-table operations.',
+            ),
+        ] = None,
+        search_text: Annotated[
+            Optional[str],
+            Field(
+                description='Search text for search-tables operation.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for list and search-tables operations.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(description='A continuation token, included if this is a continuation call.'),
+        ] = None,
     ) -> Union[
         CreateTableResponse,
         DeleteTableResponse,
@@ -552,32 +582,44 @@ class GlueDataCatalogHandler:
     async def manage_aws_glue_data_catalog_connections(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-connection, delete-connection, get-connection, list-connections, or update-connection. Choose "get-connection" or "list-connections" for read-only operations.',
-        ),
-        connection_name: Optional[str] = Field(
-            None,
-            description='Name of the connection (required for create-connection, delete-connection, get-connection, and update-connection operations).',
-        ),
-        connection_input: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Connection definition for create and update operations.',
-        ),
-        catalog_id: Optional[str] = Field(
-            None,
-            description='Catalog ID for the connection (optional, defaults to account ID).',
-        ),
-        max_results: Optional[int] = Field(
-            None, description='The maximum number of connections to return in one response.'
-        ),
-        next_token: Optional[str] = Field(
-            None, description='A continuation token, if this is a continuation call.'
-        ),
-        hide_password: Optional[bool] = Field(
-            True,
-            description='Flag to retrieve the connection metadata without returning the password(for get-connection and list-connections operation).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-connection, delete-connection, get-connection, list-connections, or update-connection. Choose "get-connection" or "list-connections" for read-only operations.',
+            ),
+        ],
+        connection_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the connection (required for create-connection, delete-connection, get-connection, and update-connection operations).',
+            ),
+        ] = None,
+        connection_input: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Connection definition for create and update operations.',
+            ),
+        ] = None,
+        catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description='Catalog ID for the connection (optional, defaults to account ID).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(description='The maximum number of connections to return in one response.'),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(description='A continuation token, if this is a continuation call.'),
+        ] = None,
+        hide_password: Annotated[
+            Optional[bool],
+            Field(
+                description='Flag to retrieve the connection metadata without returning the password(for get-connection and list-connections operation).',
+            ),
+        ] = True,
     ) -> Union[
         CreateConnectionResponse,
         DeleteConnectionResponse,
@@ -793,42 +835,60 @@ class GlueDataCatalogHandler:
     async def manage_aws_glue_data_catalog_partitions(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-partition, delete-partition, get-partition, list-partitions, or update-partition. Choose "get-partition" or "list-partitions" for read-only operations.',
-        ),
-        database_name: str = Field(
-            ...,
-            description='Name of the database containing the table.',
-        ),
-        table_name: str = Field(
-            ...,
-            description='Name of the table containing the partition.',
-        ),
-        partition_values: Optional[List[str]] = Field(
-            None,
-            description='Values that define the partition (required for create-partition, delete-partition, get-partition, and update-partition operations).',
-        ),
-        partition_input: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Partition definition for create-partition and update-partition operations.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for list-partitions operation.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='A continuation token, if this is not the first call to retrieve these partitions.',
-        ),
-        expression: Optional[str] = Field(
-            None,
-            description='Filter expression for list-partitions operation.',
-        ),
-        catalog_id: Optional[str] = Field(
-            None,
-            description='ID of the catalog (optional, defaults to account ID).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-partition, delete-partition, get-partition, list-partitions, or update-partition. Choose "get-partition" or "list-partitions" for read-only operations.',
+            ),
+        ],
+        database_name: Annotated[
+            str,
+            Field(
+                description='Name of the database containing the table.',
+            ),
+        ],
+        table_name: Annotated[
+            str,
+            Field(
+                description='Name of the table containing the partition.',
+            ),
+        ],
+        partition_values: Annotated[
+            Optional[List[str]],
+            Field(
+                description='Values that define the partition (required for create-partition, delete-partition, get-partition, and update-partition operations).',
+            ),
+        ] = None,
+        partition_input: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Partition definition for create-partition and update-partition operations.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for list-partitions operation.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='A continuation token, if this is not the first call to retrieve these partitions.',
+            ),
+        ] = None,
+        expression: Annotated[
+            Optional[str],
+            Field(
+                description='Filter expression for list-partitions operation.',
+            ),
+        ] = None,
+        catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the catalog (optional, defaults to account ID).',
+            ),
+        ] = None,
     ) -> Union[
         CreatePartitionResponse,
         DeletePartitionResponse,
@@ -1038,28 +1098,38 @@ class GlueDataCatalogHandler:
     async def manage_aws_glue_data_catalog(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-catalog, delete-catalog, get-catalog, list-catalogs, or import-catalog-to-glue. Choose "get-catalog" or "list-catalogs" for read-only operations.',
-        ),
-        catalog_id: Optional[str] = Field(
-            None,
-            description='ID of the catalog (required for create-catalog, delete-catalog, get-catalog, and import-catalog-to-glue operations).',
-        ),
-        catalog_input: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Catalog definition for create-catalog operations.',
-        ),
-        max_results: Optional[int] = Field(
-            None, description='The maximum number of catalogs to return in one response.'
-        ),
-        next_token: Optional[str] = Field(
-            None, description='A continuation token, if this is a continuation call.'
-        ),
-        parent_catalog_id: Optional[str] = Field(
-            None,
-            description='The ID of the parent catalog in which the catalog resides. If none is provided, the AWS Account Number is used by default.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-catalog, delete-catalog, get-catalog, list-catalogs, or import-catalog-to-glue. Choose "get-catalog" or "list-catalogs" for read-only operations.',
+            ),
+        ],
+        catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the catalog (required for create-catalog, delete-catalog, get-catalog, and import-catalog-to-glue operations).',
+            ),
+        ] = None,
+        catalog_input: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Catalog definition for create-catalog operations.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(description='The maximum number of catalogs to return in one response.'),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(description='A continuation token, if this is a continuation call.'),
+        ] = None,
+        parent_catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description='The ID of the parent catalog in which the catalog resides. If none is provided, the AWS Account Number is used by default.',
+            ),
+        ] = None,
     ) -> Union[
         CreateCatalogResponse,
         DeleteCatalogResponse,

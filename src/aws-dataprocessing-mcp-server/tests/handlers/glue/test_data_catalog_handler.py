@@ -938,7 +938,7 @@ class TestGlueDataCatalogHandler:
 
         # Call the method without catalog_id
         result = await handler_with_write_access.manage_aws_glue_data_catalog(
-            mock_ctx, operation='create-catalog', catalog_input={}
+            mock_ctx, operation='create-catalog', catalog_input={}, catalog_id='123456'
         )
 
         # Verify that the result is the expected error response
@@ -1455,7 +1455,7 @@ class TestGlueDataCatalogHandler:
             )
 
         # Verify that the correct error message is raised
-        assert 'table_name and table_input are required' in str(excinfo.value)
+        assert 'database_name, table_input and table_name are required' in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_update_missing_table_input(
@@ -1587,7 +1587,7 @@ class TestGlueDataCatalogHandler:
                 )
 
             # Verify that the correct error message is raised
-            assert 'catalog_input is required' in str(excinfo.value)
+            assert 'catalog_id and catalog_input are required' in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_create_with_table_input(
@@ -2261,50 +2261,28 @@ class TestGlueDataCatalogHandler:
         self, handler, mock_ctx
     ):
         """Test that missing catalog_id parameter for get-catalog operation returns an error response."""
-        # Mock the get_catalog method to return an error response
-        mock_response = MagicMock()
-        mock_response.isError = True
-        mock_response.content = [MagicMock()]
-        mock_response.content[0].text = 'catalog_id is required for get-catalog operation'
-        mock_response.catalog_id = ''
-        mock_response.operation = 'get-catalog'
-        handler.data_catalog_manager.get_catalog.return_value = mock_response
-
         # Call the method without catalog_id
-        result = await handler.manage_aws_glue_data_catalog(
-            mock_ctx,
-            operation='get-catalog',
-        )
+        with pytest.raises(ValueError) as e:
+            await handler.manage_aws_glue_data_catalog(
+                mock_ctx,
+                operation='get-catalog',
+            )
 
-        # Verify that the result is an error response
-        assert result.isError is True
-        assert result.catalog_id == ''
-        assert result.operation == 'get-catalog'
+        assert 'catalog_id is required' in str(e.value)
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_missing_catalog_id_for_delete(
         self, handler_with_write_access, mock_ctx
     ):
         """Test that missing catalog_id parameter for delete-catalog operation returns an error response."""
-        # Mock the delete_catalog method to return an error response
-        mock_response = MagicMock()
-        mock_response.isError = True
-        mock_response.content = [MagicMock()]
-        mock_response.content[0].text = 'catalog_id is required for delete-catalog operation'
-        mock_response.catalog_id = ''
-        mock_response.operation = 'delete-catalog'
-        handler_with_write_access.data_catalog_manager.delete_catalog.return_value = mock_response
-
         # Call the method without catalog_id
-        result = await handler_with_write_access.manage_aws_glue_data_catalog(
-            mock_ctx,
-            operation='delete-catalog',
-        )
+        with pytest.raises(ValueError) as e:
+            await handler_with_write_access.manage_aws_glue_data_catalog(
+                mock_ctx,
+                operation='delete-catalog',
+            )
 
-        # Verify that the result is an error response
-        assert result.isError is True
-        assert result.catalog_id == ''
-        assert result.operation == 'delete-catalog'
+        assert 'catalog_id is required' in str(e.value)
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_other_write_access_error(
@@ -3141,71 +3119,6 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is the expected response
         assert result == expected_response
-
-    @pytest.mark.asyncio
-    async def test_manage_aws_glue_data_catalog_tables_missing_database_name(
-        self, handler_with_write_access, mock_ctx
-    ):
-        """Test that missing database_name parameter raises a ValueError."""
-        # Mock the get_table method to raise the expected ValueError
-        handler_with_write_access.data_catalog_table_manager.get_table.side_effect = ValueError(
-            'database_name is required for get-table operation'
-        )
-
-        # Call the method without database_name
-        with pytest.raises(ValueError) as excinfo:
-            await handler_with_write_access.manage_aws_glue_data_catalog_tables(
-                mock_ctx,
-                operation='get-table',
-                table_name='test-table',
-            )
-
-        # Verify that the correct error message is raised
-        assert 'database_name is required' in str(excinfo.value)
-
-    @pytest.mark.asyncio
-    async def test_manage_aws_glue_data_catalog_partitions_missing_database_name(
-        self, handler_with_write_access, mock_ctx
-    ):
-        """Test that missing database_name parameter raises a ValueError."""
-        # Mock the get_partition method to raise the expected ValueError
-        handler_with_write_access.data_catalog_manager.get_partition.side_effect = ValueError(
-            'database_name is required for get-partition operation'
-        )
-
-        # Call the method without database_name
-        with pytest.raises(ValueError) as excinfo:
-            await handler_with_write_access.manage_aws_glue_data_catalog_partitions(
-                mock_ctx,
-                operation='get-partition',
-                table_name='test-table',
-                partition_values=['2023'],
-            )
-
-        # Verify that the correct error message is raised
-        assert 'database_name is required' in str(excinfo.value)
-
-    @pytest.mark.asyncio
-    async def test_manage_aws_glue_data_catalog_partitions_missing_table_name(
-        self, handler_with_write_access, mock_ctx
-    ):
-        """Test that missing table_name parameter raises a ValueError."""
-        # Mock the get_partition method to raise the expected ValueError
-        handler_with_write_access.data_catalog_manager.get_partition.side_effect = ValueError(
-            'table_name is required for get-partition operation'
-        )
-
-        # Call the method without table_name
-        with pytest.raises(ValueError) as excinfo:
-            await handler_with_write_access.manage_aws_glue_data_catalog_partitions(
-                mock_ctx,
-                operation='get-partition',
-                database_name='test-db',
-                partition_values=['2023'],
-            )
-
-        # Verify that the correct error message is raised
-        assert 'table_name is required' in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_tables_update_with_catalog_id(

@@ -387,3 +387,144 @@ async def test_initialization_registers_tools(mock_aws_helper):
     AthenaWorkGroupHandler(mcp)
 
     mcp.tool.assert_called_once_with(name='manage_aws_athena_workgroups')
+
+
+@pytest.mark.asyncio
+async def test_create_work_group_with_minimal_parameters(handler, mock_athena_client):
+    """Test creating a workgroup with only required parameters."""
+    handler.athena_client = mock_athena_client
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_workgroups(
+        ctx, operation='create-work-group', name='test-workgroup'
+    )
+
+    assert not response.isError
+    assert response.work_group_name == 'test-workgroup'
+    assert response.operation == 'create-work-group'
+
+    # Verify that only the required parameters were passed
+    call_args = mock_athena_client.create_work_group.call_args[1]
+    assert 'Name' in call_args
+    assert 'Description' not in call_args
+    assert 'Configuration' not in call_args
+    assert 'State' not in call_args
+    assert 'Tags' in call_args  # Tags are always added by the handler
+
+
+@pytest.mark.asyncio
+async def test_delete_work_group_without_recursive_option(handler, mock_athena_client):
+    """Test deleting a workgroup without specifying recursive_delete_option."""
+    handler.athena_client = mock_athena_client
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_workgroups(
+        ctx, operation='delete-work-group', name='test-workgroup'
+    )
+
+    assert not response.isError
+    assert response.work_group_name == 'test-workgroup'
+    mock_athena_client.delete_work_group.assert_called_once_with(WorkGroup='test-workgroup')
+
+
+@pytest.mark.asyncio
+async def test_list_work_groups_with_minimal_parameters(handler, mock_athena_client):
+    """Test listing workgroups with minimal parameters."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.list_work_groups.return_value = {
+        'WorkGroups': [{'Name': 'workgroup1'}],
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_workgroups(ctx, operation='list-work-groups')
+
+    assert not response.isError
+    assert len(response.work_groups) == 1
+    assert response.count == 1
+    assert response.next_token is None
+    mock_athena_client.list_work_groups.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_update_work_group_with_minimal_parameters(handler, mock_athena_client):
+    """Test updating a workgroup with only name parameter."""
+    handler.athena_client = mock_athena_client
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_workgroups(
+        ctx, operation='update-work-group', name='test-workgroup'
+    )
+
+    assert not response.isError
+    assert response.work_group_name == 'test-workgroup'
+    mock_athena_client.update_work_group.assert_called_once_with(WorkGroup='test-workgroup')
+
+
+@pytest.mark.asyncio
+async def test_update_work_group_with_only_description(handler, mock_athena_client):
+    """Test updating a workgroup with only description parameter."""
+    handler.athena_client = mock_athena_client
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_workgroups(
+        ctx,
+        operation='update-work-group',
+        name='test-workgroup',
+        description='Updated description',
+    )
+
+    assert not response.isError
+    assert response.work_group_name == 'test-workgroup'
+    mock_athena_client.update_work_group.assert_called_once_with(
+        WorkGroup='test-workgroup', Description='Updated description'
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_work_group_with_only_configuration(handler, mock_athena_client):
+    """Test updating a workgroup with only configuration parameter."""
+    handler.athena_client = mock_athena_client
+    config = {'ResultConfiguration': {'OutputLocation': 's3://bucket/path'}}
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_workgroups(
+        ctx, operation='update-work-group', name='test-workgroup', configuration=config
+    )
+
+    assert not response.isError
+    assert response.work_group_name == 'test-workgroup'
+    mock_athena_client.update_work_group.assert_called_once_with(
+        WorkGroup='test-workgroup', ConfigurationUpdates=config
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_work_group_with_only_state(handler, mock_athena_client):
+    """Test updating a workgroup with only state parameter."""
+    handler.athena_client = mock_athena_client
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_workgroups(
+        ctx, operation='update-work-group', name='test-workgroup', state='DISABLED'
+    )
+
+    assert not response.isError
+    assert response.work_group_name == 'test-workgroup'
+    mock_athena_client.update_work_group.assert_called_once_with(
+        WorkGroup='test-workgroup', State='DISABLED'
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_work_group_error_handling(handler, mock_athena_client):
+    """Test error handling in get_work_group when an unexpected error occurs."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.get_work_group.side_effect = Exception('Unexpected error')
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_workgroups(
+        ctx, operation='get-work-group', name='test-workgroup'
+    )
+
+    assert response.isError
+    assert 'Error in manage_aws_athena_workgroups' in response.content[0].text

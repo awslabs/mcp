@@ -37,7 +37,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 
 class AthenaQueryHandler:
@@ -63,58 +63,84 @@ class AthenaQueryHandler:
     async def manage_aws_athena_queries(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: batch-get-query-execution, get-query-execution, get-query-results, get-query-runtime-statistics, list-query-executions, start-query-execution, stop-query-execution. Choose read-only operations when write access is disabled.',
-        ),
-        query_execution_id: Optional[str] = Field(
-            None,
-            description='ID of the query execution (required for get-query-execution, get-query-results, get-query-runtime-statistics, stop-query-execution).',
-        ),
-        query_execution_ids: Optional[List[str]] = Field(
-            None,
-            description='List of query execution IDs (required for batch-get-query-execution, max 50 IDs).',
-        ),
-        query_string: Optional[str] = Field(
-            None,
-            description='The SQL query string to execute (required for start-query-execution).',
-        ),
-        client_request_token: Optional[str] = Field(
-            None,
-            description='A unique case-sensitive string used to ensure the request to create the query is idempotent (optional for start-query-execution).',
-        ),
-        query_execution_context: Optional[Dict[str, str]] = Field(
-            None,
-            description='Context for the query execution, such as database name and catalog (optional for start-query-execution).',
-        ),
-        result_configuration: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Configuration for query results, such as output location and encryption (optional for start-query-execution).',
-        ),
-        work_group: Optional[str] = Field(
-            None,
-            description='The name of the workgroup in which the query is being started (optional for start-query-execution, list-query-executions).',
-        ),
-        execution_parameters: Optional[List[str]] = Field(
-            None,
-            description='Execution parameters for parameterized queries (optional for start-query-execution).',
-        ),
-        result_reuse_configuration: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Specifies the query result reuse behavior for the query (optional for start-query-execution).',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return (1-1000 for get-query-results, 0-50 for list-query-executions).',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for get-query-results and list-query-executions operations.',
-        ),
-        query_result_type: Optional[str] = Field(
-            None,
-            description='Type of query results to return: DATA_ROWS (default) or DATA_MANIFEST (optional for get-query-results).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: batch-get-query-execution, get-query-execution, get-query-results, get-query-runtime-statistics, list-query-executions, start-query-execution, stop-query-execution. Choose read-only operations when write access is disabled.',
+            ),
+        ],
+        query_execution_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the query execution (required for get-query-execution, get-query-results, get-query-runtime-statistics, stop-query-execution).',
+            ),
+        ] = None,
+        query_execution_ids: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of query execution IDs (required for batch-get-query-execution, max 50 IDs).',
+            ),
+        ] = None,
+        query_string: Annotated[
+            Optional[str],
+            Field(
+                description='The SQL query string to execute (required for start-query-execution).',
+            ),
+        ] = None,
+        client_request_token: Annotated[
+            Optional[str],
+            Field(
+                description='A unique case-sensitive string used to ensure the request to create the query is idempotent (optional for start-query-execution).',
+            ),
+        ] = None,
+        query_execution_context: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description='Context for the query execution, such as database name and catalog (optional for start-query-execution).',
+            ),
+        ] = None,
+        result_configuration: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Configuration for query results, such as output location and encryption (optional for start-query-execution).',
+            ),
+        ] = None,
+        work_group: Annotated[
+            Optional[str],
+            Field(
+                description='The name of the workgroup in which the query is being started (optional for start-query-execution, list-query-executions).',
+            ),
+        ] = None,
+        execution_parameters: Annotated[
+            Optional[List[str]],
+            Field(
+                description='Execution parameters for parameterized queries (optional for start-query-execution).',
+            ),
+        ] = None,
+        result_reuse_configuration: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Specifies the query result reuse behavior for the query (optional for start-query-execution).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return (1-1000 for get-query-results, 0-50 for list-query-executions).',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for get-query-results and list-query-executions operations.',
+            ),
+        ] = None,
+        query_result_type: Annotated[
+            Optional[str],
+            Field(
+                description='Type of query results to return: DATA_ROWS (default) or DATA_MANIFEST (optional for get-query-results).',
+            ),
+        ] = None,
     ) -> Union[
         BatchGetQueryExecutionResponse,
         GetQueryExecutionResponse,
@@ -428,50 +454,72 @@ class AthenaQueryHandler:
     async def manage_aws_athena_named_queries(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: batch-get-named-query, create-named-query, delete-named-query, get-named-query, list-named-queries, update-named-query. Choose read-only operations when write access is disabled.',
-        ),
-        named_query_id: Optional[str] = Field(
-            None,
-            description='ID of the named query (required for get-named-query, delete-named-query, update-named-query).',
-        ),
-        named_query_ids: Optional[List[str]] = Field(
-            None,
-            description='List of named query IDs (required for batch-get-named-query, max 50 IDs).',
-        ),
-        name: Optional[str] = Field(
-            None,
-            description='Name of the named query (required for create-named-query and update-named-query).',
-        ),
-        description: Optional[str] = Field(
-            None,
-            description='Description of the named query (optional for create-named-query and update-named-query, max 1024 chars).',
-        ),
-        database: Optional[str] = Field(
-            None,
-            description='Database context for the named query (required for create-named-query, optional for update-named-query).',
-        ),
-        query_string: Optional[str] = Field(
-            None,
-            description='The SQL query string (required for create-named-query and update-named-query).',
-        ),
-        client_request_token: Optional[str] = Field(
-            None,
-            description='A unique case-sensitive string used to ensure the request to create the query is idempotent (optional for create-named-query).',
-        ),
-        work_group: Optional[str] = Field(
-            None,
-            description='The name of the workgroup (optional for create-named-query and list-named-queries).',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for list-named-queries operation.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for list-named-queries operation.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: batch-get-named-query, create-named-query, delete-named-query, get-named-query, list-named-queries, update-named-query. Choose read-only operations when write access is disabled.',
+            ),
+        ],
+        named_query_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the named query (required for get-named-query, delete-named-query, update-named-query).',
+            ),
+        ] = None,
+        named_query_ids: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of named query IDs (required for batch-get-named-query, max 50 IDs).',
+            ),
+        ] = None,
+        name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the named query (required for create-named-query and update-named-query).',
+            ),
+        ] = None,
+        description: Annotated[
+            Optional[str],
+            Field(
+                description='Description of the named query (optional for create-named-query and update-named-query, max 1024 chars).',
+            ),
+        ] = None,
+        database: Annotated[
+            Optional[str],
+            Field(
+                description='Database context for the named query (required for create-named-query, optional for update-named-query).',
+            ),
+        ] = None,
+        query_string: Annotated[
+            Optional[str],
+            Field(
+                description='The SQL query string (required for create-named-query and update-named-query).',
+            ),
+        ] = None,
+        client_request_token: Annotated[
+            Optional[str],
+            Field(
+                description='A unique case-sensitive string used to ensure the request to create the query is idempotent (optional for create-named-query).',
+            ),
+        ] = None,
+        work_group: Annotated[
+            Optional[str],
+            Field(
+                description='The name of the workgroup (optional for create-named-query and list-named-queries).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for list-named-queries operation.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for list-named-queries operation.',
+            ),
+        ] = None,
     ) -> Union[
         BatchGetNamedQueryResponse,
         CreateNamedQueryResponse,

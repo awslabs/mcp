@@ -649,3 +649,150 @@ async def test_initialization_registers_tools(mock_aws_helper):
 
     mcp.tool.assert_any_call(name='manage_aws_athena_query_executions')
     mcp.tool.assert_any_call(name='manage_aws_athena_named_queries')
+
+
+@pytest.mark.asyncio
+async def test_get_query_results_with_minimal_parameters(handler, mock_athena_client):
+    """Test get query results with only required parameters."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.get_query_results.return_value = {
+        'ResultSet': {'Rows': []},
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_queries(
+        ctx, operation='get-query-results', query_execution_id='query1'
+    )
+
+    assert not response.isError
+    assert response.query_execution_id == 'query1'
+    assert response.next_token is None
+    mock_athena_client.get_query_results.assert_called_once_with(QueryExecutionId='query1')
+
+
+@pytest.mark.asyncio
+async def test_list_query_executions_with_minimal_parameters(handler, mock_athena_client):
+    """Test list query executions with only required parameters."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.list_query_executions.return_value = {
+        'QueryExecutionIds': ['query1', 'query2'],
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_queries(ctx, operation='list-query-executions')
+
+    assert not response.isError
+    assert len(response.query_execution_ids) == 2
+    assert response.count == 2
+    assert response.next_token is None
+    mock_athena_client.list_query_executions.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_start_query_execution_with_minimal_parameters(handler, mock_athena_client):
+    """Test start query execution with only required parameters."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_queries(
+        ctx, operation='start-query-execution', query_string='SELECT * FROM table'
+    )
+
+    assert not response.isError
+    assert response.query_execution_id == 'query1'
+    mock_athena_client.start_query_execution.assert_called_once_with(
+        QueryString='SELECT * FROM table'
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_named_queries_with_minimal_parameters(handler, mock_athena_client):
+    """Test list named queries with only required parameters."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.list_named_queries.return_value = {
+        'NamedQueryIds': ['id1', 'id2'],
+    }
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_named_queries(ctx, operation='list-named-queries')
+
+    assert not response.isError
+    assert len(response.named_query_ids) == 2
+    assert response.count == 2
+    assert response.next_token is None
+    mock_athena_client.list_named_queries.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_update_named_query_with_partial_parameters(handler, mock_athena_client):
+    """Test update named query with only some optional parameters."""
+    handler.athena_client = mock_athena_client
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_named_queries(
+        ctx,
+        operation='update-named-query',
+        named_query_id='id1',
+        name='Updated Query',
+    )
+
+    assert not response.isError
+    assert response.named_query_id == 'id1'
+    mock_athena_client.update_named_query.assert_called_once_with(
+        NamedQueryId='id1',
+        Name='Updated Query',
+    )
+
+
+@pytest.mark.asyncio
+async def test_start_query_execution_with_select_in_uppercase(
+    read_only_handler, mock_athena_client
+):
+    """Test that starting a SELECT query (uppercase) execution succeeds when write access is disabled."""
+    read_only_handler.athena_client = mock_athena_client
+    mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
+
+    ctx = Mock()
+    response = await read_only_handler.manage_aws_athena_queries(
+        ctx, operation='start-query-execution', query_string='SELECT * FROM table'
+    )
+
+    assert not response.isError
+    assert response.query_execution_id == 'query1'
+
+
+@pytest.mark.asyncio
+async def test_start_query_execution_with_ctas_in_query_string(read_only_handler):
+    """Test that starting a query with CTAS in the middle fails when write access is disabled."""
+    ctx = Mock()
+    response = await read_only_handler.manage_aws_athena_queries(
+        ctx,
+        operation='start-query-execution',
+        query_string='WITH temp AS (SELECT * FROM table) CREATE TABLE AS SELECT * FROM temp',
+    )
+
+    assert response.isError
+    assert response.query_execution_id == ''
+
+
+@pytest.mark.asyncio
+async def test_get_query_execution_with_none_id(handler):
+    """Test error handling when query_execution_id is None in the response."""
+    ctx = Mock()
+    response = await handler.manage_aws_athena_queries(ctx, operation='invalid-operation')
+
+    # This should return an error response with empty query_execution_id
+    assert response.isError
+    assert response.query_execution_id == ''
+
+
+@pytest.mark.asyncio
+async def test_get_named_query_with_none_id(handler):
+    """Test error handling when named_query_id is None in the response."""
+    ctx = Mock()
+    response = await handler.manage_aws_athena_named_queries(ctx, operation='invalid-operation')
+
+    # This should return an error response with empty named_query_id
+    assert response.isError
+    assert response.named_query_id == ''

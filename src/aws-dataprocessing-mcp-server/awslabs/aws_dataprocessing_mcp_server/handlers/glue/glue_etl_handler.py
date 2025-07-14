@@ -38,7 +38,7 @@ from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 
 class GlueEtlJobsHandler:
@@ -63,70 +63,102 @@ class GlueEtlJobsHandler:
     async def manage_aws_glue_jobs(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-job, delete-job, get-job, get-jobs, update-job, start-job-run, stop-job-run, get-job-run, get-job-runs, batch-stop-job-run, get-job-bookmark, reset-job-bookmark. Choose "get-job", "get-jobs", "get-job-run", "get-job-runs", or "get-job-bookmark" for read-only operations when write access is disabled.',
-        ),
-        job_name: Optional[str] = Field(
-            None,
-            description='Name of the job (required for all operations except get-jobs).',
-        ),
-        job_definition: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Job definition for create-job and update-job operations. For create-job, must include Role and Command parameters.',
-        ),
-        job_run_id: Optional[str] = Field(
-            None,
-            description='Job run ID for get-job-run, stop-job-run operations, or to retry for start-job-run operation.',
-        ),
-        job_run_ids: Optional[List[str]] = Field(
-            None,
-            description='List of job run IDs for batch-stop-job-run operation.',
-        ),
-        job_arguments: Optional[Dict[str, str]] = Field(
-            None,
-            description='Job arguments for start-job-run operation. These replace the default arguments set in the job definition.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for get-jobs or get-job-runs operations.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for get-jobs or get-job-runs operations.',
-        ),
-        worker_type: Optional[str] = Field(
-            None,
-            description='Worker type for start-job-run operation (G.1X, G.2X, G.4X, G.8X, G.025X for Spark jobs, Z.2X for Ray jobs).',
-        ),
-        number_of_workers: Optional[int] = Field(
-            None,
-            description='Number of workers for start-job-run operation.',
-        ),
-        max_capacity: Optional[float] = Field(
-            None,
-            description='Maximum capacity in DPUs for start-job-run operation (not compatible with worker_type and number_of_workers).',
-        ),
-        timeout: Optional[int] = Field(
-            None,
-            description='Timeout in minutes for start-job-run operation.',
-        ),
-        security_configuration: Optional[str] = Field(
-            None,
-            description='Security configuration name for start-job-run operation.',
-        ),
-        execution_class: Optional[str] = Field(
-            None,
-            description='Execution class for start-job-run operation (STANDARD or FLEX).',
-        ),
-        job_run_queuing_enabled: Optional[bool] = Field(
-            None,
-            description='Whether job run queuing is enabled for start-job-run operation.',
-        ),
-        predecessors_included: Optional[bool] = Field(
-            None,
-            description='Whether to include predecessor runs in get-job-run operation.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-job, delete-job, get-job, get-jobs, update-job, start-job-run, stop-job-run, get-job-run, get-job-runs, batch-stop-job-run, get-job-bookmark, reset-job-bookmark. Choose "get-job", "get-jobs", "get-job-run", "get-job-runs", or "get-job-bookmark" for read-only operations when write access is disabled.',
+            ),
+        ],
+        job_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the job (required for all operations except get-jobs).',
+            ),
+        ] = None,
+        job_definition: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Job definition for create-job and update-job operations. For create-job, must include Role and Command parameters.',
+            ),
+        ] = None,
+        job_run_id: Annotated[
+            Optional[str],
+            Field(
+                description='Job run ID for get-job-run, stop-job-run operations, or to retry for start-job-run operation.',
+            ),
+        ] = None,
+        job_run_ids: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of job run IDs for batch-stop-job-run operation.',
+            ),
+        ] = None,
+        job_arguments: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description='Job arguments for start-job-run operation. These replace the default arguments set in the job definition.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for get-jobs or get-job-runs operations.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for get-jobs or get-job-runs operations.',
+            ),
+        ] = None,
+        worker_type: Annotated[
+            Optional[str],
+            Field(
+                description='Worker type for start-job-run operation (G.1X, G.2X, G.4X, G.8X, G.025X for Spark jobs, Z.2X for Ray jobs).',
+            ),
+        ] = None,
+        number_of_workers: Annotated[
+            Optional[int],
+            Field(
+                description='Number of workers for start-job-run operation.',
+            ),
+        ] = None,
+        max_capacity: Annotated[
+            Optional[float],
+            Field(
+                description='Maximum capacity in DPUs for start-job-run operation (not compatible with worker_type and number_of_workers).',
+            ),
+        ] = None,
+        timeout: Annotated[
+            Optional[int],
+            Field(
+                description='Timeout in minutes for start-job-run operation.',
+            ),
+        ] = None,
+        security_configuration: Annotated[
+            Optional[str],
+            Field(
+                description='Security configuration name for start-job-run operation.',
+            ),
+        ] = None,
+        execution_class: Annotated[
+            Optional[str],
+            Field(
+                description='Execution class for start-job-run operation (STANDARD or FLEX).',
+            ),
+        ] = None,
+        job_run_queuing_enabled: Annotated[
+            Optional[bool],
+            Field(
+                description='Whether job run queuing is enabled for start-job-run operation.',
+            ),
+        ] = None,
+        predecessors_included: Annotated[
+            Optional[bool],
+            Field(
+                description='Whether to include predecessor runs in get-job-run operation.',
+            ),
+        ] = None,
     ) -> Union[
         CreateJobResponse,
         DeleteJobResponse,
