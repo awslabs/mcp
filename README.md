@@ -19,6 +19,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 
 [Local AWS MCP Servers](#aws-mcp-servers)
   - [Available MCP Servers](#available-mcp-servers)
+    - [🚀Getting Started with AWS](#-getting-started-with-aws)
     - [Browse by What You're Building](#browse-by-what-youre-building)
       - [📚 Real-time access to official AWS documentation](#-real-time-access-to-official-aws-documentation)
       - [🏗️ Infrastructure \& Deployment](#️-infrastructure--deployment)
@@ -115,6 +116,12 @@ MCP Servers can operate locally on client hosts as well as remotely over the net
 - **[AWS Knowledge MCP Server](src/aws-knowledge-mcp-server/)** - Get latest AWS docs, API references, What's New Posts, Getting Started information, Builder Library, Blog posts, Architectural references, and Well-Architected guidance.
 
 ## Available Local MCP Servers
+
+### 🚀 Getting Started with AWS
+
+For general AWS interactions and comprehensive API support, we recommend starting with:
+
+- **[AWS API MCP Server](src/aws-api-mcp-server)** - **Start here for general AWS interactions!** Comprehensive AWS API support with command validation, security controls, and access to all AWS services. Perfect for managing infrastructure, exploring resources, and executing AWS operations through natural language.
 
 ### Browse by What You're Building
 
