@@ -653,7 +653,7 @@ async def test_get_table_schema():
     DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
 
     ctx = DummyCtx()
-    tool_response = await get_table_schema(table_name='table_name', database_name='mysql', ctx=ctx)
+    tool_response = await get_table_schema(table_name='table_name', ctx=ctx)
 
     # validate tool_response
     assert (
@@ -741,6 +741,62 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
     with pytest.raises(SystemExit) as excinfo:
         main()
     assert excinfo.value.code == 1
+
+
+def test_main_with_allowed_tables(monkeypatch, capsys):
+    """Test main function with allowed_tables argument."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--resource_arn', 'mock',
+            '--secret_arn', 'mock',
+            '--database', 'mock',
+            '--region', 'mock',
+            '--readonly', 'True',
+            '--allowed_tables', 'employees,departments'
+        ],
+    )
+    monkeypatch.setattr('awslabs.mysql_mcp_server.server.mcp.run', lambda: None)
+
+    # Mock the connection so main can complete successfully
+    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    mock_db_connection = Mock_DBConnection(readonly=True)
+    mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
+    DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
+
+    main()
+    from awslabs.mysql_mcp_server.server import ALLOWED_TABLES
+    assert 'employees' in ALLOWED_TABLES
+    assert 'departments' in ALLOWED_TABLES
+
+import pytest
+
+@pytest.mark.asyncio
+async def test_run_query_with_allowed_tables():
+    """Test that run_query enforces allowed_tables restriction."""
+    import awslabs.mysql_mcp_server.server as server
+
+    # Set allowed tables
+    server.ALLOWED_TABLES = {'employees'}
+
+    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    mock_db_connection = Mock_DBConnection(readonly=True)
+
+    # Allowed table
+    ctx = DummyCtx()
+    mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
+    response = await run_query('SELECT * FROM employees', ctx, mock_db_connection)
+    assert isinstance(response, list)
+    assert 'error' not in response[0]
+
+    # Not allowed table
+    ctx = DummyCtx()
+    response = await run_query('SELECT * FROM departments', ctx, mock_db_connection)
+    assert isinstance(response, list)
+    assert 'error' in response[0]
+    assert "not allowed" in response[0]['error']
 
 
 if __name__ == '__main__':

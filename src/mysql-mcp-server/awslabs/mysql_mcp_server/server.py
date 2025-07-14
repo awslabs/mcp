@@ -21,6 +21,7 @@ import sys
 from awslabs.mysql_mcp_server.mutable_sql_detector import (
     check_sql_injection_risk,
     detect_mutating_keywords,
+    extract_table_names,
 )
 from botocore.exceptions import BotoCoreError, ClientError
 from loguru import logger
@@ -228,6 +229,17 @@ async def run_query(
             str({'message': 'Query parameter contains suspicious pattern', 'details': issues})
         )
         return [{'error': query_injection_risk_key}]
+    
+    if ALLOWED_TABLES:
+        tables_in_query = extract_table_names(sql)
+        logger.debug(f"Allowed tables: {ALLOWED_TABLES}")
+        logger.debug(f"Tables found in SQL: {tables_in_query}")
+        for table in tables_in_query:
+            if table.lower() not in ALLOWED_TABLES:
+                error_msg = f"Access to table '{table}' is not allowed."
+                logger.warning(error_msg)
+                await ctx.error(error_msg)
+                return [{'error': error_msg}]
 
     try:
         logger.info(f'run_query: readonly:{db_connection.readonly_query}, SQL:{sql}')
@@ -268,7 +280,6 @@ async def run_query(
 )
 async def get_table_schema(
     table_name: Annotated[str, Field(description='name of the table')],
-    database_name: Annotated[str, Field(description='name of the database')],
     ctx: Context,
 ) -> list[dict]:
     """Get a table's schema information given the table name.
@@ -282,6 +293,7 @@ async def get_table_schema(
         List of dictionary that contains query response rows
     """
     logger.info(f'get_table_schema: {table_name}')
+    db_connection = DBConnectionSingleton.get().db_connection
 
     sql = """
         SELECT
@@ -302,11 +314,14 @@ async def get_table_schema(
     """
     params = [
         {'name': 'table_name', 'value': {'stringValue': table_name}},
-        {'name': 'database_name', 'value': {'stringValue': database_name}},
+        {'name': 'database_name', 'value': {'stringValue': db_connection.database}},
     ]
 
     return await run_query(sql=sql, ctx=ctx, query_parameters=params)
 
+
+
+ALLOWED_TABLES = set()
 
 def main():
     """Main entry point for the MCP server application."""
@@ -326,10 +341,15 @@ def main():
     parser.add_argument(
         '--region', required=True, help='AWS region for RDS Data API (default: us-west-2)'
     )
-    parser.add_argument(
-        '--readonly', required=True, help='Enforce NL to SQL to only allow readonly sql statement'
-    )
-    args = parser.parse_args()
+    parser.add_argument('--readonly',required=True,help='Enforce NL to SQL to only allow readonly SQL statement')
+    parser.add_argument('--allowed_tables',required=False,help='Comma-separated list of allowed tables. If omitted, all tables are allowed.')
+
+    args = parser.parse_args()  
+    global ALLOWED_TABLES
+    if args.allowed_tables:
+        ALLOWED_TABLES = {table.strip().lower() for table in args.allowed_tables.split(',')}
+    else:
+        ALLOWED_TABLES = set()
 
     logger.info(
         'MySQL MCP init with CLUSTER_ARN:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
@@ -339,6 +359,7 @@ def main():
         args.database,
         args.readonly,
     )
+
 
     try:
         DBConnectionSingleton.initialize(

@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import re
-
+from typing import List
+import sqlparse
 
 # -- Mutating keyword set for quick string matching --
 MUTATING_KEYWORDS = {
@@ -105,6 +106,15 @@ SUSPICIOUS_PATTERNS = [
     r'(?i)\binto\s+outfile\b',  # file write
 ]
 
+
+def extract_table_names(sql: str) -> List[str]:
+    # Extract table names after FROM and JOIN, optionally with aliases
+    pattern = re.compile(r'\bFROM\s+([^\s;]+)|\bJOIN\s+([^\s;]+)', re.IGNORECASE)
+    matches = pattern.findall(sql)
+    tables = set()
+    for match in matches:
+        tables.update(filter(None, match))  # Remove empty values
+    return list(tables)
 
 def detect_mutating_keywords(sql: str) -> list[str]:
     """Return a list of mutating keywords found in the SQL (excluding comments)."""
