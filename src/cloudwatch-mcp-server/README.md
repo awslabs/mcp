@@ -17,13 +17,10 @@ Metric Definition Analyzer - Provides comprehensive descriptions of what metrics
 Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm settings.
 
 ## Prerequisites
-
-1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python using `uv python install 3.10`
-3. An AWS account with [CloudWatch Telemetry](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html)
-4. This MCP server can only be run locally on the same host as your LLM client.
-5. Set up AWS credentials with access to AWS services
-   - You need an AWS account with appropriate permissions
+1. An AWS account with [CloudWatch Telemetry](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html)
+2. This MCP server can only be run locally on the same host as your LLM client.
+3. Set up AWS credentials with access to AWS services
+   - You need an AWS account with appropriate permissions (See required permissions below)
    - Configure AWS credentials with `aws configure` or environment variables
 
 ## Available Tools
@@ -60,17 +57,23 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://www.cursor.com/install-mcp?name=awslabs.cloudwatch-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidGltZW91dCI6NjAsImNvbW1hbmQiOiJ1dnggYXdzbGFicy5jbG91ZHdhdGNoLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoiW1RoZSBBV1MgUHJvZmlsZSBOYW1lIHRvIHVzZSBmb3IgQVdTIGFjY2Vzc10iLCJBV1NfUkVHSU9OIjoiW1RoZSBBV1MgcmVnaW9uIHRvIHJ1biBpbl0iLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sInRyYW5zcG9ydFR5cGUiOiJzdGRpbyJ9)
+### Option 1: Python (UVX)
+#### Prerequisites
+1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
+2. Install Python using `uv python install 3.10`
 
-Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
+#### One Click Cursor Install
+[![Install CloudWatch MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://www.cursor.com/install-mcp?name=awslabs.cloudwatch-mcp-server&config=ewogICAgImF1dG9BcHByb3ZlIjogW10sCiAgICAiZGlzYWJsZWQiOiBmYWxzZSwKICAgICJjb21tYW5kIjogInV2eCBhd3NsYWJzLmNsb3Vkd2F0Y2gtbWNwLXNlcnZlckBsYXRlc3QiLAogICAgImVudiI6IHsKICAgICAgIkFXU19QUk9GSUxFIjogIltUaGUgQVdTIFByb2ZpbGUgTmFtZSB0byB1c2UgZm9yIEFXUyBhY2Nlc3NdIiwKICAgICAgIkZBU1RNQ1BfTE9HX0xFVkVMIjogIkVSUk9SIgogICAgfSwKICAgICJ0cmFuc3BvcnRUeXBlIjogInN0ZGlvIgp9)
 
+#### MCP Config (Q CLI, Cline)
+* For Q CLI, update MCP Config Amazon Q Developer CLI (~/.aws/amazonq/mcp.json)
+* For Cline click on "Configure MCP Servers" option from MCP tab
 ```json
 {
   "mcpServers": {
     "awslabs.cloudwatch-mcp-server": {
       "autoApprove": [],
       "disabled": false,
-      "timeout": 60,
       "command": "uvx",
       "args": [
         "awslabs.cloudwatch-mcp-server@latest"
@@ -87,20 +90,18 @@ Example for Amazon Q Developer CLI (~/.aws/amazonq/mcp.json):
 
 Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) to create and manage your credentials profile
 
-### Build and install docker image locally on the same host of your LLM client
+### Option 2: Docker Image
+#### Prerequisites
+Build and install docker image locally on the same host of your LLM client
+1. Install [Docker](https://docs.docker.com/desktop/)
+2. `git clone https://github.com/awslabs/mcp.git`
+3. Go to sub-directory `cd src/cloudwatch-mcp-server/`
+4. Run `docker build -t awslabs/cloudwatch-mcp-server:latest .`
 
-1. `git clone https://github.com/awslabs/mcp.git`
-2. Go to sub-directory 'src/cloudwatch-mcp-server/'
-3. Run 'docker build -t awslabs/cloudwatch-mcp-server:latest .'
+#### One Click Cursor Install
+[![Install CloudWatch MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://www.cursor.com/install-mcp?name=awslabs.cloudwatch-mcp-server&config=ewogICAgICAgICJjb21tYW5kIjogImRvY2tlciIsCiAgICAgICAgImFyZ3MiOiBbCiAgICAgICAgICAicnVuIiwKICAgICAgICAgICItLXJtIiwKICAgICAgICAgICItLWludGVyYWN0aXZlIiwKICAgICAgICAgICItZSBBV1NfUFJPRklMRT1bVGhlIEFXUyBQcm9maWxlIE5hbWVdIiwKICAgICAgICAgICJhd3NsYWJzL2Nsb3Vkd2F0Y2gtbWNwLXNlcnZlcjpsYXRlc3QiCiAgICAgICAgXSwKICAgICAgICAiZW52Ijoge30sCiAgICAgICAgImRpc2FibGVkIjogZmFsc2UsCiAgICAgICAgImF1dG9BcHByb3ZlIjogW10KfQ==)
 
-### Add or update your LLM client's config with following:
-```file
-# fictitious `.env` file with AWS temporary credentials
-AWS_ACCESS_KEY_ID=<from the profile you set up>
-AWS_SECRET_ACCESS_KEY=<from the profile you set up>
-AWS_SESSION_TOKEN=<from the profile you set up>
-```
-
+#### MCP Config using Docker image(Q CLI, Cline)
 ```json
   {
     "mcpServers": {
@@ -110,8 +111,8 @@ AWS_SESSION_TOKEN=<from the profile you set up>
           "run",
           "--rm",
           "--interactive",
-          "--env-file",
-          "/full/path/to/file/above/.env",
+          "-v ~/.aws:/root/.aws",
+          "-e AWS_PROFILE=[The AWS Profile Name to use for AWS access]",
           "awslabs/cloudwatch-mcp-server:latest"
         ],
         "env": {},
@@ -121,8 +122,12 @@ AWS_SESSION_TOKEN=<from the profile you set up>
     }
   }
 ```
-NOTE: Your credentials will need to be kept refreshed from your host
+Please reference [AWS documentation](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html) to create and manage your credentials profile
 
 ## Contributing
 
 Contributions are welcome! Please see the [CONTRIBUTING.md](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md) in the monorepo root for guidelines.
+
+## Feedback and Issues
+
+We value your feedback! Submit your feedback, feature requests and any bugs at [GitHub issues](https://github.com/awslabs/mcp/issues) with prefix `cloudwatch-mcp-server` in title.
