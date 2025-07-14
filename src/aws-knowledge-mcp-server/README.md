@@ -21,14 +21,14 @@ A remote, fully-managed MCP server hosted by AWS that provides access to the lat
 3. `recommend`: Get content recommendations for AWS documentation pages
 
 ### FAQs
-#### Should I use the local AWS Documentation MCP Server or the remote AWS Knowledge MCP Server? 
+#### 1. Should I use the local AWS Documentation MCP Server or the remote AWS Knowledge MCP Server? 
 
 The Knowledge server indexes a wider variety of infomration beyond documentation including What's New Posts, Getting Started Information, guidance from the Builder Center, Blog posts, Architectural references, and Well-Architected guidance. If your MCP client supports remote servers you can easily try the Knowledge MCP server to see if it suits your needs. 
 
-#### Do I need network access to use the AWS Knowledge MCP Server? 
+#### 2. Do I need network access to use the AWS Knowledge MCP Server? 
 Yes, you'll need to be able to access the public internet to access the AWS Knowledge MCP Server. 
 
-#### Do I need an AWS account? 
+#### 3. Do I need an AWS account? 
 No. You can get started with the Knowledge MCP server without an AWS account. The Knowledge MCP is subject to the [AWS Site Terms](https://aws.amazon.com/terms/)
 
 ### Learn about AWS with natural language
