@@ -160,6 +160,11 @@ jobs:
         working-directory: src/${{ matrix.package }}
         run: uv run --frozen pyright
 
+      - name: Generate Embeddings
+        if: matrix.package == 'aws-api-mcp-server'
+        working-directory: src/${{ matrix.package }}
+        run: uv run --frozen generate-embeddings
+
       - name: Build package
         working-directory: src/${{ matrix.package }}
         run: uv build
