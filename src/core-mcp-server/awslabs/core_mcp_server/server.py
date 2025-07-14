@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import loguru
+import signal
 import sys
 from awslabs.core_mcp_server.static import PROMPT_UNDERSTANDING
 from mcp.server.fastmcp import FastMCP
@@ -74,8 +75,18 @@ async def get_prompt_understanding() -> str:
     return PROMPT_UNDERSTANDING
 
 
+def signal_handler(signum, _frame):
+    """Handle shutdown signals gracefully."""
+    logger.info(f"Received signal {signum}, shutting down server...")
+    sys.exit(0)
+
+
 def main() -> None:
     """Run the MCP server."""
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    
     mcp.run()
 
 
