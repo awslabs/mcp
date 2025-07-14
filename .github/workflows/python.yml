@@ -144,7 +144,7 @@ jobs:
               fi;
             ) || echo "good $line"
           done < .venv/FILES;
-          uv tool run --from cyclonedx-bom cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format JSON > sbom.json
+          uv tool run --from cyclonedx-bom==6.1.3 cyclonedx-py environment $VIRTUAL_ENV --PEP-639 --gather-license-texts --pyproject pyproject.toml --mc-type library --output-format JSON > sbom.json
       - name: Display SBOM
         working-directory: src/${{ matrix.package }}
         run: |
