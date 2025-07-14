@@ -1,6 +1,6 @@
 # AWS Knowledge MCP Server
 
-A remote MCP server providing access to the latest AWS docs, API references, What's New Posts, Getting Started information, Builder Center, Blog posts, Architectural references, and Well-Architected guidance. 
+A remote, fully-managed MCP server hosted by AWS that provides access to the latest AWS docs, API references, What's New Posts, Getting Started information, Builder Center, Blog posts, Architectural references, and Well-Architected guidance. 
 
 **Important Note**: Not all MCP clients today support remote servers. Please make sure that your client supports remote MCP servers or that you have a suitable proxy setup to use this server. 
 
@@ -71,6 +71,6 @@ If you want to call Knowledge MCP directly, not through an LLM, you can do so us
 
 ### AWS Authentication
 
-The Knowledge MCP server does not require authentication but is subject to rate limits
+The Knowledge MCP server does not require authentication but is subject to rate limits.
 
 ### Terms and Conditions  
