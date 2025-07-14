@@ -28,6 +28,9 @@ The Knowledge server indexes a wider variety of infomration beyond documentation
 #### Do I need network access to use the AWS Knowledge MCP Server? 
 Yes, you'll need to be able to access the public internet to access the AWS Knowledge MCP Server. 
 
+#### Do I need an AWS account? 
+No. You can get started with the Knowledge MCP server without an AWS account. The Knowledge MCP is subject to the [AWS Site Terms](https://aws.amazon.com/terms/)
+
 ### Learn about AWS with natural language
 
 - Ask questions about AWS APIs, best practices, new releases, or architectural guidance 
@@ -72,5 +75,3 @@ If you want to call Knowledge MCP directly, not through an LLM, you can do so us
 ### AWS Authentication
 
 The Knowledge MCP server does not require authentication but is subject to rate limits.
-
-### Terms and Conditions  
