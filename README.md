@@ -8,12 +8,16 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 [![OSSF-Scorecard Score](https://img.shields.io/ossf-scorecard/github.com/awslabs/mcp)](https://scorecard.dev/viewer/?uri=github.com/awslabs/mcp)
 
 ## Table of Contents
-
-- [AWS MCP Servers](#aws-mcp-servers)
+[AWS MCP Servers]
   - [Table of Contents](#table-of-contents)
   - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
   - [Server Sent Events Support Removal](#server-sent-events-support-removal)
   - [Why AWS MCP Servers?](#why-aws-mcp-servers)
+
+- [Remote AWS MCP Servers](#aws-remote-mcp-servers)
+  - [AWS Knowledge](#aws-remote-knowledge-mcp)
+
+- [Local AWS MCP Servers](#aws-mcp-servers)
   - [Available MCP Servers](#available-mcp-servers)
     - [Browse by What You're Building](#browse-by-what-youre-building)
       - [📚 Real-time access to official AWS documentation](#-real-time-access-to-official-aws-documentation)
@@ -101,7 +105,16 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 
 - **Specialized Domain Knowledge**: MCP servers provide deep, contextual knowledge about AWS services that might not be fully represented in foundation models' training data, enabling more accurate and helpful responses for cloud development tasks.
 
-## Available MCP Servers
+### AWS Remote MCP Servers
+MCP Servers can operate locally on client hosts as well as remotely over the network. In general, remote servers require less local setup and configuration. However, not all MCP clients currently support remote servers so please consult your client documentation. 
+
+## Available Remote MCP Servers
+
+### Real-time access to AWS Knowledge
+
+- **[AWS Knowledge MCP Server](src/aws-knowledge-mcp-server/)** - Get latest AWS docs, API references, What's New Posts, Getting Started information, Builder Library, Blog posts, Architectural references, and Well-Architected guidance.
+
+## Available Local MCP Servers
 
 ### Browse by What You're Building
 
