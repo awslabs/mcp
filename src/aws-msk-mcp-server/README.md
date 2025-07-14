@@ -66,13 +66,13 @@ This MCP server can be used by AI assistants to help users manage their Amazon M
 
 ### Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-msk-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnV2JTIwYXdzbGFicy5hd3MtbXNrLW1jcC1zZXJ2ZXIlMjAtLWFsbG93LXdyaXRlcyUyMiUyQyUyMmVudiUyMiUzQSU3QiUyMkZBU1RNQ1BfTE9HX0xFVkVMJTIyJTNBJTIyRVJST1IlMjIlN0QlMkMlMjJkaXNhYmxlZCUyMiUzQWZhbHNlJTJDJTIyYXV0b0FwcHJvdmUlMjIlM0ElNUIlNUQlN0Q%3D)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-msk-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnV2eCUyMGF3c2xhYnMuYXdzLW1zay1tY3Atc2VydmVyJTIwLS1hbGxvdy13cml0ZXMlMjIlMkMlMjJlbnYlMjIlM0ElN0IlMjJGQVNUTUNQX0xPR19MRVZFTCUyMiUzQSUyMkVSUk9SJTIyJTdEJTJDJTIyZGlzYWJsZWQlMjIlM0FmYWxzZSUyQyUyMmF1dG9BcHByb3ZlJTIyJTNBJTVCJTVEJTdE)
 
 To use this MCP server with your MCP client, add the following configuration to your MCP client settings:
 
 ```json
 "awslabs.aws-msk-mcp-server": {
-    "command": "uv",
+    "command": "uvx",
     "args": [
         "awslabs.aws-msk-mcp-server",
         "--allow-writes"
