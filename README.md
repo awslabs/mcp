@@ -15,7 +15,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Why AWS MCP Servers?](#why-aws-mcp-servers)
 
 [Remote AWS MCP Servers](#aws-remote-mcp-servers)
-  - [Real-time AWS Knowledge](src/aws-knowledge-mcp-server/)
+  - [AWS Knowledge MCP Server](src/aws-knowledge-mcp-server/)
 
 [Local AWS MCP Servers](#aws-mcp-servers)
   - [Available MCP Servers](#available-mcp-servers)
