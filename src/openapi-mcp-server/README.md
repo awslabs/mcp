@@ -115,7 +115,7 @@ awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://
 awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json --auth-type api_key --auth-api-key YOUR_API_KEY --auth-api-key-name X-API-Key --auth-api-key-in header # pragma: allowlist secret
 ```
 
-For detailed information about authentication methods, configuration options, and examples, see [AUTHENTICATION.md](AUTHENTICATION.md).
+For detailed information about authentication methods, configuration options, and examples, see [AUTHENTICATION.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AUTHENTICATION.md).
 
 ### Local OpenAPI Specification
 
@@ -200,11 +200,11 @@ export AUTH_API_KEY_IN="header"  # Where to place the API key (options: header, 
 
 The OpenAPI MCP Server includes comprehensive documentation to help you get started and make the most of its features:
 
-- [**AUTHENTICATION.md**](AUTHENTICATION.md): Detailed information about authentication methods, configuration options, and troubleshooting
-- [**DEPLOYMENT.md**](DEPLOYMENT.md): Guidelines for deploying the server in various environments, including Docker and AWS
-- [**AWS_BEST_PRACTICES.md**](AWS_BEST_PRACTICES.md): AWS best practices implemented in the server for resilience, caching, and efficiency
-- [**OBSERVABILITY.md**](OBSERVABILITY.md): Information about metrics, logging, and monitoring capabilities
-- [**tests/README.md**](tests/README.md): Overview of the test structure and strategy
+- [**AUTHENTICATION.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AUTHENTICATION.md): Detailed information about authentication methods, configuration options, and troubleshooting
+- [**DEPLOYMENT.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/DEPLOYMENT.md): Guidelines for deploying the server in various environments, including Docker and AWS
+- [**AWS_BEST_PRACTICES.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AWS_BEST_PRACTICES.md): AWS best practices implemented in the server for resilience, caching, and efficiency
+- [**OBSERVABILITY.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/OBSERVABILITY.md): Information about metrics, logging, and monitoring capabilities
+- [**tests/README.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/tests/README.md): Overview of the test structure and strategy
 
 ## AWS Best Practices
 
@@ -214,7 +214,7 @@ The OpenAPI MCP Server implements AWS best practices for building resilient, obs
 - **Resilience**: Patterns to handle transient failures and ensure high availability
 - **Observability**: Comprehensive monitoring, metrics, and logging features
 
-For detailed information about these features, including implementation details and configuration options, see [AWS_BEST_PRACTICES.md](AWS_BEST_PRACTICES.md).
+For detailed information about these features, including implementation details and configuration options, see [AWS_BEST_PRACTICES.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AWS_BEST_PRACTICES.md).
 
 ## Docker Deployment
 
@@ -240,7 +240,7 @@ docker run -p 8000:8000 \
   openapi-mcp-server:latest
 ```
 
-For detailed information about Docker deployment, AWS service integration, and transport considerations, see the [DEPLOYMENT.md](DEPLOYMENT.md) file.
+For detailed information about Docker deployment, AWS service integration, and transport considerations, see the [DEPLOYMENT.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/DEPLOYMENT.md) file.
 
 ## Testing
 
@@ -272,7 +272,7 @@ The test suite covers:
 5. **Metrics**: Tests for metrics collection and reporting
 6. **OpenAPI Validation**: Tests for OpenAPI specification validation
 
-For more information about the test structure and strategy, see the [tests/README.md](tests/README.md) file.
+For more information about the test structure and strategy, see the [tests/README.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/tests/README.md) file.
 
 ## Instructions
 
