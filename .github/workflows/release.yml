@@ -129,10 +129,10 @@ jobs:
     if: github.repository == 'awslabs/mcp' && needs.create-metadata.outputs.pypi_packages != '[]' && needs.create-metadata.outputs.pypi_packages != ''
     needs: [update-packages, create-metadata]
     strategy:
-      fail-fast: false
-      max-parallel: 10
       matrix:
         package: ${{ fromJson(needs.create-metadata.outputs.pypi_packages) }}
+        platform: [linux/amd64, linux/arm64]
+      max-parallel: 10
     name: Build ${{ matrix.package }}
     environment: release
     permissions:
@@ -190,6 +190,7 @@ jobs:
           public-erc-role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
           public-erc-registry-alias: 'f3y8w4n0' # 'w3i4n7u1'
           public-erc-aws-region: ${{ env.AWS_REGION || 'us-east-1' }}
+          platform: ${{ matrix.platform }}
 
       - name: Display Image Version ${{ matrix.package }}
         id: display-image-version
@@ -198,6 +199,45 @@ jobs:
           echo "version: ${VERSION}"
         env:
           VERSION: ${{ steps.build-and-publish.outputs.version }}
+
+  create-manifest:
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.create-metadata.outputs.pypi_packages) }}
+    steps:
+      - name: Download amd64 digest
+        uses: actions/download-artifact@v4
+        with:
+          name: digests-${{ matrix.package }}-linux/amd64
+          path: ./digests/amd64
+      - name: Download arm64 digest
+        uses: actions/download-artifact@v4
+        with:
+          name: digests-${{ matrix.package }}-linux/arm64
+          path: ./digests/arm64
+      - name: Create and push manifest
+        env:
+          IMAGE: ${{ matrix.package }}
+          ALIAS: 'f3y8w4n0' # 'w3i4n7u1'
+          OWNER: ${{ github.repository_owner }}
+          VERSION: ${{ github.sha }}
+        run: |
+          AMD64_DIGEST=$(ls ./digests/amd64)
+          ARM64_DIGEST=$(ls ./digests/arm64)
+          docker buildx imagetools create \
+            -t public.ecr.aws/$ALIAS/$OWNER/$IMAGE:$VERSION \
+            public.ecr.aws/$ALIAS/$OWNER/$IMAGE@sha256:$AMD64_DIGEST \
+            public.ecr.aws/$ALIAS/$OWNER/$IMAGE@sha256:$ARM64_DIGEST
+      - name: Inspect image
+        env:
+          IMAGE: ${{ matrix.package }}
+          ALIAS: 'f3y8w4n0' # 'w3i4n7u1'
+          OWNER: ${{ github.repository_owner }}
+          VERSION: ${{ github.sha }}
+        run: |
+          docker buildx imagetools inspect public.ecr.aws/$ALIAS/$OWNER/$IMAGE:$VERSION
 
   publish-npm:
     if: github.repository == 'awslabs/mcp' && needs.create-metadata.outputs.npm_packages != '[]' && needs.create-metadata.outputs.npm_packages != ''
@@ -249,7 +289,7 @@ jobs:
 
   create-release:
     if: github.repository == 'awslabs/mcp' && needs.update-packages.outputs.changes_made == 'true' && !failure() && !cancelled() && ( needs.publish-npm.result == 'success' || needs.publish-pypi.result == 'success')
-    needs: [update-packages, create-metadata, publish-pypi, publish-npm]
+    needs: [update-packages, create-metadata, create-manifest, publish-pypi, publish-npm]
     runs-on: ubuntu-latest
     # environment: release
     permissions:

@@ -47,6 +47,10 @@ inputs:
     description: 'The region to login'
     type: string
     required: false
+  platform:
+    description: 'The platform to build for (e.g., linux/amd64 or linux/arm64)'
+    type: string
+    required: true
 
 outputs:
   version:
@@ -114,7 +118,7 @@ runs:
       id: build
       uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
       with:
-        platforms: 'linux/amd64,linux/arm64' # add more platforms after testing completed
+        platforms: ${{ inputs.platform }}
         labels: ${{ steps.meta.outputs.labels }}
         tags: public.ecr.aws/${{ inputs.public-erc-registry-alias }}/${{ github.repository_owner }}/${{ inputs.image }}
         context: ./src/${{ inputs.image }}
@@ -135,30 +139,11 @@ runs:
     - name: Upload digest
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: digests-${{ inputs.image }}
+        name: digests-${{ inputs.image }}-${{ inputs.platform }}
         path: ${{ runner.temp }}/digests/${{ inputs.image }}/*
         if-no-files-found: error
         retention-days: 1
 
-    - name: Create manifest list and push
-      working-directory: ${{ runner.temp }}/digests/${{ inputs.image }}
-      env:
-        IMAGE: ${{ inputs.image }}
-        ALIAS: ${{ inputs.public-erc-registry-alias }}
-        OWNER: ${{ github.repository_owner }}
-      run: |
-        docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-          $(printf 'public.ecr.aws/'$ALIAS'/'$OWNER'/'$IMAGE'@sha256:%s ' *)
-      shell: bash
-    - name: Inspect image
-      env:
-        IMAGE: ${{ inputs.image }}
-        ALIAS: ${{ inputs.public-erc-registry-alias }}
-        OWNER: ${{ github.repository_owner }}
-        VERSION: ${{ steps.meta.outputs.version }}
-      run: |
-        docker buildx imagetools inspect public.ecr.aws/$ALIAS/$OWNER/$IMAGE:$VERSION
-      shell: bash
     - name: Get version
       id: get-version
       working-directory: ${{ env.GITHUB_WORKSPACE }}
