@@ -1374,20 +1374,8 @@ async def test_list_runs_with_invalid_creation_time():
     assert 'Unexpected error listing runs' in mock_ctx.error.call_args[0][0]
 
 
-@pytest.mark.asyncio
-async def test_get_omics_client_failure():
-    """Test get_omics_client failure handling."""
-    from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import get_omics_client
-
-    with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_aws_session'
-    ) as mock_get_session:
-        mock_session = MagicMock()
-        mock_get_session.return_value = mock_session
-        mock_session.client.side_effect = Exception('Client creation failed')
-
-        with pytest.raises(Exception, match='Client creation failed'):
-            get_omics_client()
+# Note: get_omics_client tests have been moved to test_aws_utils.py since the function
+# is now centralized in aws_utils.py
 
 
 @pytest.mark.asyncio
