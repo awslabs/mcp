@@ -53,12 +53,18 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
     - [Running MCP servers in containers](#running-mcp-servers-in-containers)
+    - [Getting Started with Amazon Q Developer CLI](#getting-started-with-amazon-q-developer-cli)
+      - [`~/.aws/amazonq/mcp.json`](#awsamazonqmcpjson)
+    - [Getting Started with Kiro](#getting-started-with-kiro)
+      - [`kiro_mcp_settings.json`](#kiro_mcp_settingsjson)
     - [Getting Started with Cline and Amazon Bedrock](#getting-started-with-cline-and-amazon-bedrock)
       - [`cline_mcp_settings.json`](#cline_mcp_settingsjson)
     - [Getting Started with Cursor](#getting-started-with-cursor)
       - [`.cursor/mcp.json`](#cursormcpjson)
     - [Getting Started with Windsurf](#getting-started-with-windsurf)
       - [`~/.codeium/windsurf/mcp_config.json`](#codeiumwindsurfmcp_configjson)
+     - [Getting Started with VS Code](#getting-started-with-vs-code)
+      - [`.vscode/mcp.json`](#vscodemcpjson)
   - [Samples](#samples)
   - [Vibe coding](#vibe-coding)
   - [Additional Resources](#additional-resources)
@@ -346,7 +352,7 @@ For example, you can use the **AWS Documentation MCP Server** to help your AI as
 
 ## Installation and Setup
 
-Each server has specific installation instructions. Generally, you can:
+Each server has specific installation instructions with one-click installs for Cursor and VSCode. Generally, you can:
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
 2. Install Python using `uv python install 3.10`
@@ -454,70 +460,6 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       },
       "disabled": false,
       "autoApprove": []
-    },
-    "awslabs.valkey-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.valkey-mcp-server@latest"
-      ],
-      "env": {
-        "VALKEY_HOST": "127.0.0.1",
-        "VALKEY_PORT": "6379",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "autoApprove": [],
-      "disabled": false
-    },
-    "awslabs.aws-location-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.aws-location-mcp-server@latest"
-      ],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    },
-    "awslabs.memcached-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.memcached-mcp-server@latest"
-      ],
-      "env": {
-        "MEMCACHED_HOST": "127.0.0.1",
-        "MEMCACHED_PORT": "11211",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "autoApprove": [],
-      "disabled": false
-    },
-    "awslabs.git-repo-research-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.git-repo-research-mcp-server@latest"
-      ],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "GITHUB_TOKEN": "your-github-token"
-      },
-      "disabled": false,
-      "autoApprove": []
-    },
-    "awslabs.cloudformation": {
-      "command": "uvx",
-      "args": [
-        "awslabs.cfn-mcp-server@latest"
-      ],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile"
-      },
-      "disabled": false,
-      "autoApprove": []
     }
   }
 }
@@ -593,6 +535,100 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
     }
   }
   ```
+### Getting Started with Amazon Q Developer CLI
+
+<details>
+<summary>Install in Amazon Q Developer CLI</summary>
+
+See [Amazon Q Developer CLI documentation](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html) for details.
+
+
+1. **Access MCP Settings**
+   - Open the Q Developer panel and open the **Chat** panel.
+   - Choose the tools icon to access to MCP configuration.
+
+2. **Add MCP Servers**
+   - Choose the plus (+) symbol.
+   - Select the scope: global or local.
+    If you select global scope, the MCP server configuration is stored in ~/.aws/amazonq/mcp.json and available across all your projects. If you select local scope, the configuration is stored in .amazonq/mcp.json within your current project.
+   - Fill in values as applicable.
+
+3. **Manual Configuration**
+   - You can also manually edit the MCP configuration file located at `~/.aws/amazonq/mcp.json` globally or `.amazonq/mcp.json` locally.
+
+#### `~/.aws/amazonq/mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+</details>
+
+
+### Getting Started with Kiro
+
+<details>
+<summary>Install in Kiro</summary>
+
+See [Kiro Model Context Protocol Documentation](https://kiro.dev/docs/mcp/configuration/) for details.
+
+1. Navigate `Kiro` > `MCP Servers`
+2. Add a new MCP server by clicking the `+ Add` button.
+3. Paste the configuration given below:
+
+#### `kiro_mcp_settings.json`
+
+For macOS/Linux:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+For Windows:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.core-mcp-server@latest",
+        "awslabs.core-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+</details>
 
 ### Getting Started with Cline and Amazon Bedrock
 
@@ -731,132 +767,6 @@ For every new project, always look at your MCP servers and use mcp-core as the s
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
-    },
-    "awslabs.nova-canvas-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.nova-canvas-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awslabs.bedrock-kb-retrieval-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.bedrock-kb-retrieval-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awslabs.aws-pricing-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.aws-pricing-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awslabs.cdk-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.cdk-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awslabs.aws-documentation-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    },
-    "awslabs.lambda-tool-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.lambda-tool-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FUNCTION_PREFIX": "your-function-prefix",
-        "FUNCTION_LIST": "your-first-function, your-second-function",
-        "FUNCTION_TAG_KEY": "your-tag-key",
-        "FUNCTION_TAG_VALUE": "your-tag-value"
-      }
-    },
-    "awslabs.terraform-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.terraform-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
-     },
-    "awslabs.frontend-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.frontend-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
-     },
-      "awslabs.valkey-mcp-server": {
-        "command": "uvx",
-        "args": ["awslabs.valkey-mcp-server@latest"],
-        "env": {
-          "VALKEY_HOST": "127.0.0.1",
-          "VALKEY_PORT": "6379",
-          "FASTMCP_LOG_LEVEL": "ERROR"
-        },
-        "autoApprove": [],
-        "disabled": false
-      },
-    "awslabs.aws-location-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.aws-location-mcp-server@latest"],
-       "env": {
-         "AWS_PROFILE": "your-aws-profile",
-         "AWS_REGION": "us-east-1",
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
-    },
-    "awslabs.memcached-mcp-server": {
-        "command": "uvx",
-        "args": ["awslabs.memcached-mcp-server@latest"],
-        "env": {
-          "MEMCACHED_HOST": "127.0.0.1",
-          "MEMCACHED_PORT": "11211",
-          "FASTMCP_LOG_LEVEL": "ERROR"
-        },
-        "autoApprove": [],
-        "disabled": false
-    },
-    "awslabs.git-repo-research-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.git-repo-research-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "GITHUB_TOKEN": "your-github-token"
-      },
-      "disabled": false,
-      "autoApprove": []
-    },
-    "awslabs.cloudformation": {
-      "command": "uvx",
-      "args": ["awslabs.cfn-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile"
-      },
-      "disabled": false,
-      "autoApprove": []
     }
   }
 }
@@ -899,29 +809,35 @@ For every new project, always look at your MCP servers and use mcp-core as the s
          "FASTMCP_LOG_LEVEL": "ERROR",
          "MCP_SETTINGS_PATH": "path to your mcp settings file"
        }
-     },
-     "awslabs.nova-canvas-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.nova-canvas-mcp-server@latest"],
-       "env": {
-         "AWS_PROFILE": "your-aws-profile",
-         "AWS_REGION": "us-east-1",
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       }
-     },
-     "awslabs.terraform-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.terraform-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
-     },
+     }
     }
   }
  ```
 
+</details>
+
+### Getting Started with VS Code
+
+<details>
+<summary>Install in VS Code</summary>
+
+Configure MCP servers in VS Code settings or in `.vscode/mcp.json` (see [VS Code MCP docs](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more info.):
+
+#### `.vscode/mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
 </details>
 
 ## Samples
