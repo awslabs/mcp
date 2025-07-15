@@ -143,12 +143,12 @@ This quickstart guide walks you through the steps to configure the Amazon Data P
 ```
 {
   "mcpServers": {
-    "aws.aws-dataprocessing-mcp-server": {
+    "aws.dp-mcp": {
       "autoApprove": [],
       "disabled": false,
       "command": "uvx",
       "args": [
-        "aws.aws-dataprocessing-mcp-server@latest",
+        "awslabs.aws-dataprocessing-mcp-server@latest",
         "--allow-write"
       ],
       "env": {
@@ -172,9 +172,9 @@ After a few minutes, you should see a green indicator if your MCP server definit
 ```
 {
   "mcpServers": {
-    "aws.aws-dataprocessing-mcp-server": {
+    "aws.dp-mcp": {
       "command": "uvx",
-      "args": ["aws.aws-dataprocessing-mcp-server@latest"],
+      "args": ["awslabs.aws-dataprocessing-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -198,10 +198,10 @@ The `args` field in the MCP server definition specifies the command-line argumen
 ```
 {
   "mcpServers": {
-    "awslabs.aws-dataprocessing-mcp-server": {
+    "aws.dp-mcp": {
       "command": "uvx",
       "args": [
-        "aws.aws-dataprocessing-mcp-server@latest",
+        "awslabs.aws-dataprocessing-mcp-server@latest",
         "--allow-write",
         "--allow-sensitive-data-access"
       ],
@@ -241,7 +241,13 @@ The `env` field in the MCP server definition allows you to configure environment
 ```
 {
   "mcpServers": {
-    "awslabs.aws-dataprocessing-mcp-server": {
+    "aws.dp-mcp": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-dataprocessing-mcp-server@latest",
+        "--allow-write",
+        "--allow-sensitive-data-access"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "my-profile",
