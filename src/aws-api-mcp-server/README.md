@@ -32,27 +32,27 @@ pip install awslabs.aws-api-mcp-server
 ```
 
 **Step 2: Configure your MCP client**
-   Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
-   ```json
-   {
-      "mcpServers": {
-        "awslabs.aws-api-mcp-server": {
-          "command": "python",
-          "args": [
-            "-m",
-            "awslabs.aws_api_mcp_server.server"
-          ],
-          "env": {
-            "AWS_REGION": "us-east-1",
-            "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
-          },
-          "disabled": false,
-          "autoApprove": []
-        }
-      }
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "python",
+      "args": [
+        "-m",
+        "awslabs.aws_api_mcp_server.server"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
-   ```
+  }
+}
+```
 
 ### ⚡ Using uv
 
@@ -60,44 +60,44 @@ pip install awslabs.aws-api-mcp-server
 
 ```json
 {
-      "mcpServers": {
-        "awslabs.aws-api-mcp-server": {
-          "command": "uvx",
-          "args": [
-            "awslabs.aws-api-mcp-server@latest"
-          ],
-          "env": {
-            "AWS_REGION": "us-east-1",
-            "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
-          },
-          "disabled": false,
-          "autoApprove": []
-        }
-      }
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-api-mcp-server@latest"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
+  }
+}
 ```
 
 **For Windows users:**
 
 ```json
-   {
-      "mcpServers": {
-        "awslabs.aws-api-mcp-server": {
-          "command": "uvx",
-          "args": [
-            "--from",
-            "awslabs.aws-api-mcp-server@latest",
-            "awslabs.aws-api-mcp-server.exe"
-          ],
-          "env": {
-            "AWS_REGION": "us-east-1",
-            "AWS_API_MCP_WORKING_DIR": "C:\\path\\to\\working\\directory"
-          },
-          "disabled": false,
-          "autoApprove": []
-        }
-      }
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.aws-api-mcp-server@latest",
+        "awslabs.aws-api-mcp-server.exe"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_API_MCP_WORKING_DIR": "C:\\path\\to\\working\\directory"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
+  }
+}
 ```
 
 ### 🔧 Using Cloned Repository
