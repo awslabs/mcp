@@ -15,12 +15,10 @@
 """Run analysis tools for the AWS HealthOmics MCP server."""
 
 import json
-import os
-from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_REGION
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_manifest_logs_internal,
 )
-from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
+from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from datetime import datetime, timezone
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -352,10 +350,8 @@ async def _generate_analysis_report(analysis_data: Dict[str, Any]) -> str:
 async def _get_run_analysis_data(run_ids: List[str]) -> Dict[str, Any]:
     """Get structured analysis data for the specified runs."""
     try:
-        # Get AWS session and clients
-        region = os.environ.get('AWS_REGION', DEFAULT_REGION)
-        session = get_aws_session(region)
-        omics_client = session.client('omics')
+        # Get centralized omics client
+        omics_client = get_omics_client()
 
         analysis_results = {
             'runs': [],
