@@ -15,6 +15,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Server Sent Events Support Removal](#server-sent-events-support-removal)
   - [Why AWS MCP Servers?](#why-aws-mcp-servers)
   - [Available MCP Servers](#available-mcp-servers)
+    - [🚀Getting Started with AWS](#-getting-started-with-aws)
     - [Browse by What You're Building](#browse-by-what-youre-building)
       - [📚 Real-time access to official AWS documentation](#-real-time-access-to-official-aws-documentation)
       - [🏗️ Infrastructure \& Deployment](#️-infrastructure--deployment)
@@ -103,6 +104,12 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 
 ## Available MCP Servers
 
+### 🚀 Getting Started with AWS
+
+For general AWS interactions and comprehensive API support, we recommend starting with:
+
+- **[AWS API MCP Server](src/aws-api-mcp-server)** - **Start here for general AWS interactions!** Comprehensive AWS API support with command validation, security controls, and access to all AWS services. Perfect for managing infrastructure, exploring resources, and executing AWS operations through natural language.
+
 ### Browse by What You're Building
 
 #### 📚 Real-time access to official AWS documentation
@@ -161,6 +168,7 @@ Work with databases, caching systems, and data processing workflows.
 - **[Amazon Keyspaces MCP Server](src/amazon-keyspaces-mcp-server/)** - Apache Cassandra-compatible operations
 - **[Amazon Timestream for InfluxDB MCP Server](src/timestream-for-influxdb-mcp-server/)** - InfluxDB-compatible operations
 - **[Amazon MSK MCP Server](src/aws-msk-mcp-server/)** - Managed Kafka cluster operations and monitoring
+- **[AWS S3 Tables MCP Server](src/s3-tables-mcp-server/)** - Manage AWS S3 Tables for table storage and operations
 - **[Amazon Redshift MCP Server](src/redshift-mcp-server/)** - Provides tools to discover, explore, and query Amazon Redshift clusters and serverless workgroups
 
 ##### Search & Analytics
@@ -929,7 +937,7 @@ You can use these MCP servers with your AI coding assistant to [vibe code](https
 - [Introducing AWS MCP Servers for code assistants](https://aws.amazon.com/blogs/machine-learning/introducing-aws-mcp-servers-for-code-assistants-part-1/)
 - [Vibe coding with AWS MCP Servers | AWS Show & Tell](https://www.youtube.com/watch?v=qXGQQRMrcz0)
 - [Supercharging AWS database development with AWS MCP servers](https://aws.amazon.com/blogs/database/supercharging-aws-database-development-with-aws-mcp-servers/)
-- [AWS costs estimation using Amazon Q CLI and AWS Cost Analysis MCP](https://aws.amazon.com/blogs/machine-learning/aws-costs-estimation-using-amazon-q-cli-and-aws-cost-analysis-mcp/)
+- [AWS costs estimation using Amazon Q CLI and AWS Pricing MCP Server](https://aws.amazon.com/blogs/machine-learning/aws-costs-estimation-using-amazon-q-cli-and-aws-cost-analysis-mcp/)
 - [Introducing AWS Serverless MCP Server: AI-powered development for modern applications](https://aws.amazon.com/blogs/compute/introducing-aws-serverless-mcp-server-ai-powered-development-for-modern-applications/)
 - [Announcing new Model Context Protocol (MCP) Servers for AWS Serverless and Containers](https://aws.amazon.com/about-aws/whats-new/2025/05/new-model-context-protocol-servers-aws-serverless-containers/)
 - [Accelerating application development with the Amazon EKS MCP server](https://aws.amazon.com/blogs/containers/accelerating-application-development-with-the-amazon-eks-model-context-protocol-server/)
