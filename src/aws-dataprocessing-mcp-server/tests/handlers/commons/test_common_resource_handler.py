@@ -18,7 +18,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_hand
     CommonResourceHandler,
 )
 from botocore.exceptions import ClientError
-from datetime import datetime
+from datetime import datetime, timedelta
 from mcp.server.fastmcp import Context
 from typing import Type
 from unittest.mock import Mock, patch
@@ -635,6 +635,337 @@ async def test_list_s3_buckets_error_handling(handler, mock_s3_client):
 
 
 @pytest.mark.asyncio
+async def test_analyze_s3_usage_glue_connections_error(handler, mock_s3_client):
+    """Test error handling when Glue connections check fails in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock Glue connections to raise an exception
+        mock_glue_client.get_connections.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetConnections'
+        )
+
+        # Mock other service responses
+        mock_athena_client.list_work_groups.return_value = {'WorkGroups': []}
+        mock_emr_client.list_clusters.return_value = {'Clusters': []}
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should still return results but with error details in the text
+        assert 'Error checking Glue usage' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_athena_workgroups_error(handler, mock_s3_client):
+    """Test error handling when Athena workgroups check fails in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock service responses
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+
+        # Mock Athena list_work_groups to raise an exception
+        mock_athena_client.list_work_groups.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'ListWorkGroups'
+        )
+
+        mock_emr_client.list_clusters.return_value = {'Clusters': []}
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should still return results but with error details in the text
+        assert 'Error checking Athena usage' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_athena_workgroup_details_error(handler, mock_s3_client):
+    """Test error handling when getting Athena workgroup details fails in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock service responses
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+
+        # Mock Athena workgroups
+        mock_athena_client.list_work_groups.return_value = {
+            'WorkGroups': [{'Name': 'test-workgroup'}]
+        }
+
+        # Mock get_work_group to raise an exception
+        mock_athena_client.get_work_group.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetWorkGroup'
+        )
+
+        mock_emr_client.list_clusters.return_value = {'Clusters': []}
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should still return results but with warning about workgroup check
+        assert 'Warning: Could not check workgroup test-workgroup' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_emr_clusters_error(handler, mock_s3_client):
+    """Test error handling when EMR clusters check fails in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock service responses
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+        mock_athena_client.list_work_groups.return_value = {'WorkGroups': []}
+
+        # Mock EMR list_clusters to raise an exception
+        mock_emr_client.list_clusters.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'ListClusters'
+        )
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should still return results but with error details in the text
+        assert 'Error checking EMR usage' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_emr_cluster_details_error(handler, mock_s3_client):
+    """Test error handling when getting EMR cluster details fails in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock service responses
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+        mock_athena_client.list_work_groups.return_value = {'WorkGroups': []}
+
+        # Mock EMR clusters
+        mock_emr_client.list_clusters.return_value = {
+            'Clusters': [{'Id': 'j-1234567890123', 'Name': 'test-cluster'}]
+        }
+
+        # Mock describe_cluster to raise an exception
+        mock_emr_client.describe_cluster.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'DescribeCluster'
+        )
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should still return results but with warning about cluster check
+        assert 'Warning: Could not check cluster j-1234567890123' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_last_activity_error(handler, mock_s3_client):
+    """Test error handling when checking last activity fails in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 to raise an exception
+    mock_s3_client.list_objects_v2.side_effect = ClientError(
+        {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'ListObjectsV2'
+    )
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock service responses
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+        mock_athena_client.list_work_groups.return_value = {'WorkGroups': []}
+        mock_emr_client.list_clusters.return_value = {'Clusters': []}
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should still return results but with error details in the text
+        assert 'Error checking last activity' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_bucket_name_hints(handler, mock_s3_client):
+    """Test bucket name hint detection in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response with buckets that have hints in their names
+    mock_s3_client.list_buckets.return_value = {
+        'Buckets': [
+            {'Name': 'my-glue-etl-bucket'},
+            {'Name': 'athena-query-results'},
+            {'Name': 'emr-hadoop-logs'},
+            {'Name': 'random-bucket-name'},
+        ]
+    }
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock service responses - no active usage detected
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+        mock_athena_client.list_work_groups.return_value = {'WorkGroups': []}
+        mock_emr_client.list_clusters.return_value = {'Clusters': []}
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should detect bucket name hints
+        assert (
+            'Likely Glue bucket (based on name) but no active usage detected'
+            in response.analysis_summary
+        )
+        assert (
+            'Likely Athena bucket (based on name) but no active usage detected'
+            in response.analysis_summary
+        )
+        assert (
+            'Likely EMR bucket (based on name) but no active usage detected'
+            in response.analysis_summary
+        )
+        assert 'No data processing service usage detected' in response.analysis_summary
+
+
+@pytest.mark.asyncio
 async def test_upload_to_s3_success(handler, mock_s3_client):
     """Test successful upload to S3."""
     handler.s3_client = mock_s3_client
@@ -1049,3 +1380,547 @@ async def test_initialization_default_parameters(mock_aws_helper):
 
     assert not handler.allow_write  # Default should be False
     assert handler.mcp == mcp
+
+
+@pytest.mark.asyncio
+async def test_get_managed_policies_error_handling(handler, mock_iam_client):
+    """Test error handling in _get_managed_policies method."""
+    handler.iam_client = mock_iam_client
+
+    # Mock successful list_attached_role_policies
+    mock_iam_client.list_attached_role_policies.return_value = {
+        'AttachedPolicies': [
+            {
+                'PolicyName': 'TestManagedPolicy',
+                'PolicyArn': 'arn:aws:iam::aws:policy/TestManagedPolicy',
+            }
+        ]
+    }
+
+    # Mock successful get_policy
+    mock_iam_client.get_policy.return_value = {
+        'Policy': {'DefaultVersionId': 'v1', 'Description': 'Test managed policy'}
+    }
+
+    # Mock get_policy_version to raise an exception
+    mock_iam_client.get_policy_version.side_effect = ClientError(
+        {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetPolicyVersion'
+    )
+
+    ctx = Mock()
+    managed_policies = handler._get_managed_policies(ctx, 'test-role')
+
+    # Should still return policy summary even if policy version fails
+    assert len(managed_policies) == 1
+    assert managed_policies[0].policy_type == 'Managed'
+    assert managed_policies[0].policy_document is None
+
+
+@pytest.mark.asyncio
+async def test_create_data_processing_role_create_role_error(handler, mock_iam_client):
+    """Test error handling when create_role fails in create_data_processing_role."""
+    handler.iam_client = mock_iam_client
+
+    # Mock create_role to raise an exception
+    mock_iam_client.create_role.side_effect = ClientError(
+        {'Error': {'Code': 'EntityAlreadyExists', 'Message': 'Role already exists'}}, 'CreateRole'
+    )
+
+    ctx = Mock()
+    response = await handler.create_data_processing_role(
+        ctx, role_name='existing-role', service_type='glue'
+    )
+
+    assert response.isError
+    assert 'Failed to create IAM role' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_idle_bucket_detection(handler, mock_s3_client):
+    """Test idle bucket detection in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response with a bucket that has old activity
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'old-bucket'}]}
+
+    # Mock list_objects_v2 response with old last modified date (>90 days ago)
+    old_date = datetime.now() - timedelta(days=100)
+    mock_s3_client.list_objects_v2.return_value = {
+        'KeyCount': 1,
+        'Contents': [{'LastModified': old_date}],
+    }
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock service responses - no active usage detected
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+        mock_athena_client.list_work_groups.return_value = {'WorkGroups': []}
+        mock_emr_client.list_clusters.return_value = {'Clusters': []}
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should detect idle bucket
+        assert (
+            'IDLE: No data processing service usage detected and no activity for 90+ days'
+            in response.analysis_summary
+        )
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_glue_job_detection(handler, mock_s3_client):
+    """Test Glue job bucket detection in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock Glue job with bucket reference in DefaultArguments
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {
+            'Jobs': [
+                {
+                    'Name': 'test-job',
+                    'DefaultArguments': {
+                        '--TempDir': 's3://test-bucket/temp/',
+                        '--job-bookmark-option': 'job-bookmark-enable',
+                    },
+                }
+            ]
+        }
+        mock_athena_client.list_work_groups.return_value = {'WorkGroups': []}
+        mock_emr_client.list_clusters.return_value = {'Clusters': []}
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should detect Glue usage
+        assert '✅ Used by AWS Glue' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_glue_crawler_detection(handler, mock_s3_client):
+    """Test Glue crawler bucket detection in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock Glue crawler with S3 target
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {
+            'Crawlers': [
+                {
+                    'Name': 'test-crawler',
+                    'Targets': {'S3Targets': [{'Path': 's3://test-bucket/data/'}]},
+                }
+            ]
+        }
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+        mock_athena_client.list_work_groups.return_value = {'WorkGroups': []}
+        mock_emr_client.list_clusters.return_value = {'Clusters': []}
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should detect Glue usage
+        assert '✅ Used by AWS Glue' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_athena_workgroup_detection(handler, mock_s3_client):
+    """Test Athena workgroup bucket detection in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock service responses
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+
+        # Mock Athena workgroup with output location
+        mock_athena_client.list_work_groups.return_value = {
+            'WorkGroups': [{'Name': 'test-workgroup'}]
+        }
+        mock_athena_client.get_work_group.return_value = {
+            'WorkGroup': {
+                'Configuration': {
+                    'ResultConfiguration': {'OutputLocation': 's3://test-bucket/athena-results/'}
+                }
+            }
+        }
+
+        mock_emr_client.list_clusters.return_value = {'Clusters': []}
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should detect Athena usage
+        assert '✅ Used by Amazon Athena' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_analyze_s3_usage_emr_cluster_detection(handler, mock_s3_client):
+    """Test EMR cluster bucket detection in analyze_s3_usage_for_data_processing."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {'Buckets': [{'Name': 'test-bucket'}]}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {'KeyCount': 0}
+
+    # Mock AWS service clients
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler.AwsHelper'
+    ) as mock_aws_helper:
+        mock_glue_client = Mock()
+        mock_athena_client = Mock()
+        mock_emr_client = Mock()
+
+        mock_aws_helper.create_boto3_client.side_effect = lambda service: {
+            'glue': mock_glue_client,
+            'athena': mock_athena_client,
+            'emr': mock_emr_client,
+        }[service]
+
+        # Mock service responses
+        mock_glue_client.get_connections.return_value = {'ConnectionList': []}
+        mock_glue_client.get_crawlers.return_value = {'Crawlers': []}
+        mock_glue_client.get_jobs.return_value = {'Jobs': []}
+        mock_athena_client.list_work_groups.return_value = {'WorkGroups': []}
+
+        # Mock EMR cluster with log URI
+        mock_emr_client.list_clusters.return_value = {
+            'Clusters': [{'Id': 'j-1234567890123', 'Name': 'test-cluster'}]
+        }
+        mock_emr_client.describe_cluster.return_value = {
+            'Cluster': {'LogUri': 's3://test-bucket/emr-logs/'}
+        }
+
+        ctx = Mock()
+        response = await handler.analyze_s3_usage_for_data_processing(ctx)
+
+        assert not response.isError
+        # Should detect EMR usage
+        assert '✅ Used by Amazon EMR' in response.analysis_summary
+
+
+@pytest.mark.asyncio
+async def test_list_s3_buckets_us_east_1_location_constraint(handler, mock_s3_client):
+    """Test list_s3_buckets with us-east-1 location constraint (None)."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {
+        'Buckets': [{'Name': 'test-glue-bucket', 'CreationDate': datetime(2023, 1, 1)}]
+    }
+
+    # Mock bucket location returning None (us-east-1 case)
+    mock_s3_client.get_bucket_location.return_value = {'LocationConstraint': None}
+
+    # Mock list_objects_v2 response
+    mock_s3_client.list_objects_v2.return_value = {
+        'KeyCount': 5,
+        'Contents': [{'LastModified': datetime(2023, 6, 1)}],
+    }
+
+    ctx = Mock()
+    response = await handler.list_s3_buckets(ctx, region='us-east-1')
+
+    assert not response.isError
+    assert response.region == 'us-east-1'
+    assert response.bucket_count == 1
+    assert len(response.buckets) == 1
+    assert response.buckets[0].name == 'test-glue-bucket'
+
+
+@pytest.mark.asyncio
+async def test_list_s3_buckets_truncated_objects(handler, mock_s3_client):
+    """Test list_s3_buckets with truncated object list."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {
+        'Buckets': [{'Name': 'test-glue-bucket', 'CreationDate': datetime(2023, 1, 1)}]
+    }
+
+    # Mock bucket location
+    mock_s3_client.get_bucket_location.return_value = {'LocationConstraint': 'us-east-1'}
+
+    # Mock list_objects_v2 response with truncated results
+    mock_s3_client.list_objects_v2.return_value = {
+        'KeyCount': 1000,
+        'IsTruncated': True,
+        'Contents': [{'LastModified': datetime(2023, 6, 1)}],
+    }
+
+    ctx = Mock()
+    response = await handler.list_s3_buckets(ctx, region='us-east-1')
+
+    assert not response.isError
+    assert response.region == 'us-east-1'
+    assert response.bucket_count == 1
+    assert len(response.buckets) == 1
+    assert response.buckets[0].name == 'test-glue-bucket'
+    # Should show truncated count
+    assert '1000+ (truncated)' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_upload_to_s3_us_east_1_location_constraint(handler, mock_s3_client):
+    """Test upload_to_s3 with us-east-1 location constraint (None)."""
+    handler.s3_client = mock_s3_client
+
+    # Mock successful head_bucket
+    mock_s3_client.head_bucket.return_value = {}
+
+    # Mock bucket location returning None (us-east-1 case)
+    mock_s3_client.get_bucket_location.return_value = {'LocationConstraint': None}
+
+    code_content = "print('Hello, World!')"
+
+    ctx = Mock()
+    response = await handler.upload_to_s3(
+        ctx, code_content=code_content, bucket_name='test-bucket', s3_key='scripts/test.py'
+    )
+
+    assert not response.isError
+    assert response.s3_uri == 's3://test-bucket/scripts/test.py'
+    assert response.bucket_name == 'test-bucket'
+    assert response.s3_key == 'scripts/test.py'
+
+    # Verify put_object was called
+    mock_s3_client.put_object.assert_called_once_with(
+        Body=code_content, Bucket='test-bucket', Key='scripts/test.py', ContentType='text/x-python'
+    )
+
+
+def test_can_be_assumed_by_service_list_actions(handler):
+    """Test checking if role can be assumed by service with list of actions."""
+    assume_role_policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {
+                'Effect': 'Allow',
+                'Principal': {'Service': 'glue.amazonaws.com'},
+                'Action': ['sts:AssumeRole', 'sts:GetCallerIdentity'],
+            }
+        ],
+    }
+
+    assert handler._can_be_assumed_by_service(assume_role_policy, 'glue.amazonaws.com')
+
+
+def test_can_be_assumed_by_service_no_principal_service(handler):
+    """Test checking if role can be assumed by service with no Principal.Service."""
+    assume_role_policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {
+                'Effect': 'Allow',
+                'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
+                'Action': 'sts:AssumeRole',
+            }
+        ],
+    }
+
+    assert not handler._can_be_assumed_by_service(assume_role_policy, 'glue.amazonaws.com')
+
+
+@pytest.mark.asyncio
+async def test_list_s3_buckets_bucket_location_error(handler, mock_s3_client):
+    """Test error handling when get_bucket_location fails in list_s3_buckets."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {
+        'Buckets': [{'Name': 'test-glue-bucket', 'CreationDate': datetime(2023, 1, 1)}]
+    }
+
+    # Mock get_bucket_location to raise an exception
+    mock_s3_client.get_bucket_location.side_effect = ClientError(
+        {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetBucketLocation'
+    )
+
+    ctx = Mock()
+    response = await handler.list_s3_buckets(ctx, region='us-east-1')
+
+    assert not response.isError
+    # Should still return results but with error details in the text
+    assert 'Error getting details' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_list_s3_buckets_list_objects_error(handler, mock_s3_client):
+    """Test error handling when list_objects_v2 fails in list_s3_buckets."""
+    handler.s3_client = mock_s3_client
+
+    # Mock list_buckets response
+    mock_s3_client.list_buckets.return_value = {
+        'Buckets': [{'Name': 'test-glue-bucket', 'CreationDate': datetime(2023, 1, 1)}]
+    }
+
+    # Mock successful get_bucket_location
+    mock_s3_client.get_bucket_location.return_value = {'LocationConstraint': 'us-east-1'}
+
+    # Mock list_objects_v2 to raise an exception
+    mock_s3_client.list_objects_v2.side_effect = ClientError(
+        {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'ListObjectsV2'
+    )
+
+    ctx = Mock()
+    response = await handler.list_s3_buckets(ctx, region='us-east-1')
+
+    assert not response.isError
+    # Should still return results but with error details in the text
+    assert 'Error getting details' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_upload_to_s3_bucket_access_denied(handler, mock_s3_client):
+    """Test upload to S3 when access is denied to bucket."""
+    handler.s3_client = mock_s3_client
+
+    # Mock bucket access denied
+    mock_s3_client.head_bucket.side_effect = ClientError(
+        {'Error': {'Code': '403', 'Message': 'Forbidden'}}, 'HeadBucket'
+    )
+
+    ctx = Mock()
+    response = await handler.upload_to_s3(
+        ctx, code_content="print('test')", bucket_name='forbidden-bucket', s3_key='test.py'
+    )
+
+    assert response.isError
+    assert 'Access denied to bucket' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_create_data_processing_role_attach_policy_error(handler, mock_iam_client):
+    """Test error handling when attach_role_policy fails in create_data_processing_role."""
+    handler.iam_client = mock_iam_client
+
+    # Mock successful create_role
+    mock_iam_client.create_role.return_value = {
+        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-role'}
+    }
+
+    # Mock attach_role_policy to raise an exception
+    mock_iam_client.attach_role_policy.side_effect = ClientError(
+        {'Error': {'Code': 'NoSuchEntity', 'Message': 'Policy not found'}}, 'AttachRolePolicy'
+    )
+
+    ctx = Mock()
+    response = await handler.create_data_processing_role(
+        ctx,
+        role_name='test-role',
+        service_type='glue',
+        managed_policy_arns=['arn:aws:iam::aws:policy/NonExistentPolicy'],
+    )
+
+    assert response.isError
+    assert 'Failed to create IAM role' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_create_data_processing_role_inline_policy_error(handler, mock_iam_client):
+    """Test error handling when put_role_policy fails in create_data_processing_role."""
+    handler.iam_client = mock_iam_client
+
+    # Mock successful create_role
+    mock_iam_client.create_role.return_value = {
+        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-role'}
+    }
+
+    # Mock put_role_policy to raise an exception
+    mock_iam_client.put_role_policy.side_effect = ClientError(
+        {'Error': {'Code': 'MalformedPolicyDocument', 'Message': 'Invalid policy'}},
+        'PutRolePolicy',
+    )
+
+    inline_policy = {
+        'Effect': 'Allow',
+        'Action': ['s3:GetObject'],
+        'Resource': 'arn:aws:s3:::test-bucket/*',
+    }
+
+    ctx = Mock()
+    response = await handler.create_data_processing_role(
+        ctx, role_name='test-role', service_type='glue', inline_policy=inline_policy
+    )
+
+    assert response.isError
+    assert 'Failed to create IAM role' in response.content[0].text

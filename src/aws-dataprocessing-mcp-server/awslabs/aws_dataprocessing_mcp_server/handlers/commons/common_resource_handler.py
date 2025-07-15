@@ -1056,7 +1056,11 @@ class CommonResourceHandler:
                             if bucket_name_res in output_location:
                                 usage['athena'] = True
                                 break
-                        except Exception:
+                        except Exception as e:
+                            # Log the specific error and continue to next workgroup
+                            result += (
+                                f'    Warning: Could not check workgroup {wg_name}: {str(e)}\n'
+                            )
                             continue
                 except Exception as e:
                     result += f'  Error checking Athena usage: {str(e)}\n'
@@ -1072,7 +1076,11 @@ class CommonResourceHandler:
                             if bucket_name_res in log_uri:
                                 usage['emr'] = True
                                 break
-                        except Exception:
+                        except Exception as e:
+                            # Log the specific error and continue to next cluster
+                            result += (
+                                f'    Warning: Could not check cluster {cluster_id}: {str(e)}\n'
+                            )
                             continue
                 except Exception as e:
                     result += f'  Error checking EMR usage: {str(e)}\n'
