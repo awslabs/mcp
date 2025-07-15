@@ -43,7 +43,7 @@ from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 
 class CrawlerHandler:
@@ -72,34 +72,48 @@ class CrawlerHandler:
     async def manage_aws_glue_crawlers(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-crawler, delete-crawler, get-crawler, get-crawlers, start-crawler, stop-crawler, batch-get-crawlers, list-crawlers, update-crawler. Choose "get-crawler", "get-crawlers", "batch-get-crawlers", or "list-crawlers" for read-only operations when write access is disabled.',
-        ),
-        crawler_name: Optional[str] = Field(
-            None,
-            description='Name of the crawler (required for all operations except get-crawlers, batch-get-crawlers, and list-crawlers).',
-        ),
-        crawler_definition: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Crawler definition for create-crawler and update-crawler operations.',
-        ),
-        crawler_names: Optional[List[str]] = Field(
-            None,
-            description='List of crawler names for batch-get-crawlers operation.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for get-crawlers and list-crawlers operations.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for get-crawlers and list-crawlers operations.',
-        ),
-        tags: Optional[Dict[str, str]] = Field(
-            None,
-            description='Tags to filter crawlers by for list-crawlers operation.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-crawler, delete-crawler, get-crawler, get-crawlers, start-crawler, stop-crawler, batch-get-crawlers, list-crawlers, update-crawler. Choose "get-crawler", "get-crawlers", "batch-get-crawlers", or "list-crawlers" for read-only operations when write access is disabled.',
+            ),
+        ],
+        crawler_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the crawler (required for all operations except get-crawlers, batch-get-crawlers, and list-crawlers).',
+            ),
+        ] = None,
+        crawler_definition: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Crawler definition for create-crawler and update-crawler operations.',
+            ),
+        ] = None,
+        crawler_names: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of crawler names for batch-get-crawlers operation.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for get-crawlers and list-crawlers operations.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for get-crawlers and list-crawlers operations.',
+            ),
+        ] = None,
+        tags: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description='Tags to filter crawlers by for list-crawlers operation.',
+            ),
+        ] = None,
     ) -> Union[
         CreateCrawlerResponse,
         DeleteCrawlerResponse,
@@ -527,26 +541,36 @@ class CrawlerHandler:
     async def manage_aws_glue_classifiers(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-classifier, delete-classifier, get-classifier, get-classifiers, update-classifier. Choose "get-classifier" or "get-classifiers" for read-only operations when write access is disabled.',
-        ),
-        classifier_name: Optional[str] = Field(
-            None,
-            description='Name of the classifier (required for delete-classifier and get-classifier operations).',
-        ),
-        classifier_definition: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Classifier definition for create-classifier and update-classifier operations. Must include one of GrokClassifier, XMLClassifier, JsonClassifier, or CsvClassifier.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for get-classifiers operation.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for get-classifiers operation.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-classifier, delete-classifier, get-classifier, get-classifiers, update-classifier. Choose "get-classifier" or "get-classifiers" for read-only operations when write access is disabled.',
+            ),
+        ],
+        classifier_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the classifier (required for delete-classifier and get-classifier operations).',
+            ),
+        ] = None,
+        classifier_definition: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Classifier definition for create-classifier and update-classifier operations. Must include one of GrokClassifier, XMLClassifier, JsonClassifier, or CsvClassifier.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for get-classifiers operation.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for get-classifiers operation.',
+            ),
+        ] = None,
     ) -> Union[
         CreateClassifierResponse,
         DeleteClassifierResponse,
@@ -817,26 +841,36 @@ class CrawlerHandler:
     async def manage_aws_glue_crawler_management(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: get-crawler-metrics, start-crawler-schedule, stop-crawler-schedule, update-crawler-schedule. Choose "get-crawler-metrics" for read-only operations when write access is disabled.',
-        ),
-        crawler_name: Optional[str] = Field(
-            None,
-            description='Name of the crawler (required for start-crawler-schedule, stop-crawler-schedule, and update-crawler-schedule operations).',
-        ),
-        crawler_name_list: Optional[List[str]] = Field(
-            None,
-            description='List of crawler names for get-crawler-metrics operation (optional).',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for get-crawler-metrics operation (optional).',
-        ),
-        schedule: Optional[str] = Field(
-            None,
-            description='Cron expression for the crawler schedule (required for update-crawler-schedule operation).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: get-crawler-metrics, start-crawler-schedule, stop-crawler-schedule, update-crawler-schedule. Choose "get-crawler-metrics" for read-only operations when write access is disabled.',
+            ),
+        ],
+        crawler_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the crawler (required for start-crawler-schedule, stop-crawler-schedule, and update-crawler-schedule operations).',
+            ),
+        ] = None,
+        crawler_name_list: Annotated[
+            Optional[List[str]],
+            Field(
+                description='List of crawler names for get-crawler-metrics operation (optional).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for get-crawler-metrics operation (optional).',
+            ),
+        ] = None,
+        schedule: Annotated[
+            Optional[str],
+            Field(
+                description='Cron expression for the crawler schedule (required for update-crawler-schedule operation).',
+            ),
+        ] = None,
     ) -> Union[
         GetCrawlerMetricsResponse,
         StartCrawlerScheduleResponse,

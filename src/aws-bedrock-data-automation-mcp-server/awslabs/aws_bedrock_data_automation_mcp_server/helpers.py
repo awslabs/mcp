@@ -297,7 +297,11 @@ async def invoke_data_automation_and_get_results(
     if not standard_output_uri and not custom_output_uri:
         raise ValueError('Data Automation failed. No standard or custom output found')
 
-    result: Dict[str, Optional[Dict[str, Any]]] = {'standardOutput': None, 'customOutput': None}
+    result: Dict[str, Optional[Dict[str, Any]]] = {
+        'invocationArn': invocation_arn,
+        'standardOutput': None,
+        'customOutput': None,
+    }
 
     if standard_output_uri:
         standard_output = await download_from_s3(standard_output_uri)
