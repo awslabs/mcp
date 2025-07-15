@@ -32,7 +32,25 @@ When readonly mode is enabled, any attempt to perform a write operation (set, ad
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.memcached-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMubWVtY2FjaGVkLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IiLCJNRU1DQUNIRURfSE9TVCI6InlvdXItbWVtY2FjaGVkLWhvc3QiLCJNRU1DQUNIRURfUE9SVCI6IjExMjExIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D)
+<table>
+<tr>
+<td width="49%" valign="top" style="text-align: center;">
+
+<a href="https://cursor.com/install-mcp?name=awslabs.memcached-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMubWVtY2FjaGVkLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IiLCJNRU1DQUNIRURfSE9TVCI6InlvdXItbWVtY2FjaGVkLWhvc3QiLCJNRU1DQUNIRURfUE9SVCI6IjExMjExIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D">
+<img src="https://cursor.com/deeplink/mcp-install-light.svg" alt="Install MCP Server" style="height: 20px;">
+</a>
+
+</td>
+<td width="2%" style="border-left: 1px solid #e1e5e9; padding: 0;"></td>
+<td width="49%" valign="top" style="text-align: center;">
+
+<a href="https://insiders.vscode.dev/redirect/mcp/install?name=Memcached%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.memcached-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22MEMCACHED_HOST%22%3A%22your-memcached-host%22%2C%22MEMCACHED_PORT%22%3A%2211211%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D">
+<img src="https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install on VS Code" style="height: 20px;">
+</a>
+
+</td>
+</tr>
+</table>
 
 Here are some ways you can work with MCP (e.g. for Amazon Q Developer CLI MCP, `~/.aws/amazonq/mcp.json`):
 

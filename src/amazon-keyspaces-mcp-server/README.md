@@ -28,7 +28,25 @@ Here are some example prompts that this MCP server can help with:
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.amazon-keyspaces-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWtleXNwYWNlcy1tY3Atc2VydmVyIiwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119)
+<table>
+<tr>
+<td width="49%" valign="top" style="text-align: center;">
+
+<a href="https://cursor.com/install-mcp?name=awslabs.amazon-keyspaces-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWtleXNwYWNlcy1tY3Atc2VydmVyIiwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119">
+<img src="https://cursor.com/deeplink/mcp-install-light.svg" alt="Install MCP Server" style="height: 20px;">
+</a>
+
+</td>
+<td width="2%" style="border-left: 1px solid #e1e5e9; padding: 0;"></td>
+<td width="49%" valign="top" style="text-align: center;">
+
+<a href="https://insiders.vscode.dev/redirect/mcp/install?name=Amazon%20Keyspaces%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-keyspaces-mcp-server%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D">
+<img src="https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install on VS Code" style="height: 20px;">
+</a>
+
+</td>
+</tr>
+</table>
 
 ### Prerequisites
 

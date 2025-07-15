@@ -31,7 +31,25 @@ Note: This server will run any query sent to it, which could include both mutati
 
 ## Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=Neptune%20Query&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLW5lcHR1bmUtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJJTkZPIiwiTkVQVFVORV9FTkRQT0lOVCI6IjxJTlNFUlQgTkVQVFVORSBFTkRQT0lOVCBJTiBGT1JNQVQgU1BFQ0lGSUVEIEJFTE9XPiJ9fQ%3D%3D)
+<table>
+<tr>
+<td width="49%" valign="top" style="text-align: center;">
+
+<a href="https://cursor.com/install-mcp?name=Neptune%20Query&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLW5lcHR1bmUtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiRkFTVE1DUF9MT0dfTEVWRUwiOiJJTkZPIiwiTkVQVFVORV9FTkRQT0lOVCI6IjxJTlNFUlQgTkVQVFVORSBFTkRQT0lOVCBJTiBGT1JNQVQgU1BFQ0lGSUVEIEJFTE9XPiJ9fQ%3D%3D">
+<img src="https://cursor.com/deeplink/mcp-install-light.svg" alt="Install MCP Server" style="height: 20px;">
+</a>
+
+</td>
+<td width="2%" style="border-left: 1px solid #e1e5e9; padding: 0;"></td>
+<td width="49%" valign="top" style="text-align: center;">
+
+<a href="https://insiders.vscode.dev/redirect/mcp/install?name=Neptune%20Query&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-neptune-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22INFO%22%2C%22NEPTUNE_ENDPOINT%22%3A%22%3CINSERT%20NEPTUNE%20ENDPOINT%20IN%20FORMAT%20SPECIFIED%20BELOW%3E%22%7D%7D">
+<img src="https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install on VS Code" style="height: 20px;">
+</a>
+
+</td>
+</tr>
+</table>
 
 Below is an example of how to configure your MCP client, although different clients may require a different format.
 
