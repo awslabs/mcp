@@ -449,6 +449,29 @@
     },
     {
       "category": "Data & Analytics",
+      "description": "Manage, query, and ingest S3-based tables with support for SQL, CSV-to-table conversion, and metadata discovery.",
+      "icon": "\ud83d\uddc4\ufe0f",
+      "id": "s3-tables-mcp-server",
+      "name": "AWS S3 Tables MCP Server",
+      "source_path": "src/s3-tables-mcp-server/",
+      "subcategory": "Data Lakes & Object Storage",
+      "tags": [
+        "data-analytics",
+        "s3-tables",
+        "iceberg",
+        "object-storage",
+        "table-bucket",
+        "csv-ingest",
+        "sql",
+        "metadata",
+        "autonomous"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
       "description": "MySQL database operations via RDS Data API",
       "icon": "\ud83d\udcca",
       "id": "mysql-mcp-server",
@@ -1030,6 +1053,30 @@
         "vibe-coding"
       ],
       "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Manage, monitor, and optimize Amazon MSK clusters with best practices",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "aws-msk-mcp-server",
+      "name": "AWS MSK MCP Server",
+      "source_path": "src/aws-msk-mcp-server/",
+      "subcategory": "Messaging & Streaming",
+      "tags": [
+        "developer-tools",
+        "msk",
+        "kafka",
+        "streaming",
+        "messaging",
+        "cluster-management",
+        "monitoring",
+        "autonomous",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "autonomous",
         "vibe-coding"
       ]
     },
