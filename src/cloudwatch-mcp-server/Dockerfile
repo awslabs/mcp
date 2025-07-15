@@ -33,7 +33,7 @@ ENV UV_FROZEN=true
 # Install the project's dependencies using the lockfile and settings
 COPY pyproject.toml uv.lock ./
 COPY README.md .
-COPY . /app
+COPY awslabs/ awslabs/
 
 # Install build backend and dependencies in a venv
 RUN python -m venv /app/.venv \

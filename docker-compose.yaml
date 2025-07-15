@@ -12,7 +12,7 @@ services:
       # if your tools need AWS creds:
       - AWS_DEFAULT_REGION=us-west-2
     volumes:
-      - ~/.aws:/root/.aws:ro
+      - ~/.aws:/app/.aws:ro
 
   cloudwatch-mcp:
     build:
@@ -24,7 +24,7 @@ services:
     environment:
       - AWS_DEFAULT_REGION=us-west-2
     volumes:
-      - ~/.aws:/root/.aws:ro
+      - ~/.aws:/app/.aws:ro
 
   eks-mcp:
     build:
@@ -36,17 +36,20 @@ services:
     environment:
       - AWS_DEFAULT_REGION=us-west-2
     volumes:
-      - ~/.aws:/root/.aws:ro
+      - ~/.aws:/app/.aws:ro
 
   docs-mcp:
     build:
       context: ./src/aws-documentation-mcp-server
       dockerfile: Dockerfile
     container_name: docs-mcp
+    environment:
+      - AWS_DEFAULT_REGION=europe-north-1
+      - AWS_PROFILE=default
     ports:
       - "8053:8053"
     volumes:
-      - ~/.aws:/root/.aws:ro
+      - ~/.aws:/app/.aws:ro
 
   prometheus-mcp:
     build:
@@ -56,4 +59,4 @@ services:
     ports:
       - "8054:8054"
     volumes:
-      - ~/.aws:/root/.aws:ro
+      - /Users/vihaankhandelwal/.aws:/app/.aws:ro

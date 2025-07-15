@@ -35,12 +35,12 @@ COPY README.md .
 
 # Install the project's dependencies using the lockfile and settings
 COPY pyproject.toml uv.lock uv-requirements.txt ./
-COPY . /app
+COPY awslabs/ awslabs/
 
 RUN python -m venv /app/.venv \
  && /app/.venv/bin/pip install --upgrade pip \
  && /app/.venv/bin/pip install --no-cache-dir --require-hashes --requirement uv-requirements.txt \
- && /app/.venv/bin/pip install --no-cache-dir -e .
+ && /app/.venv/bin/pip install --no-cache-dir .
 
 # Copy in your code and install the package
 
