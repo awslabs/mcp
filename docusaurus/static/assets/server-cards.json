@@ -873,6 +873,7 @@
       "source_path": "src/aws-pricing-mcp-server/",
       "subcategory": "Cost Analysis",
       "tags": [
+        "pricing",
         "cost-operations",
         "cost-analysis",
         "estimation",

@@ -12,10 +12,10 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
 ```json
 {
   "mcpServers": {
-    "awslabs.cost-analysis-mcp-server": {
+    "awslabs.aws-pricing-mcp-server": {
       "command": "uvx",
       "args": [
-        "awslabs.cost-analysis-mcp-server@latest"
+        "awslabs.aws-pricing-mcp-server@latest"
       ],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
