@@ -64,7 +64,7 @@ You can customize the container behavior using environment variables:
 
 # Authentication configuration
 -e AUTH_TYPE="api_key" \
--e AUTH_API_KEY="YOUR_API_KEY" \ # pragma: allowlist secret
+-e AUTH_API_KEY="YOUR_API_KEY" \
 -e AUTH_API_KEY_NAME="X-API-Key" \
 -e AUTH_API_KEY_IN="header" \
 

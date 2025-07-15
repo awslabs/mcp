@@ -85,7 +85,6 @@ def test_main_with_sse_transport(
 
     mock_config = MagicMock()
     mock_config.transport = 'sse'
-    mock_config.port = 8000
     mock_load_config.return_value = mock_config
 
     mock_server = MagicMock()
@@ -204,5 +203,5 @@ def test_main_with_get_all_counts_error(
         'Server shutting down due to error in tool/resource registration.'
     )
 
-    # Verify that sys.exit was called
+    # Verify that sys.exit was called with exit code 1
     mock_exit.assert_called_once_with(1)

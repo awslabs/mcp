@@ -7,7 +7,7 @@ allow-direct-references = true
 
 [project]
 name = "awslabs.openapi-mcp-server"
-version = "0.1.1"
+version = "0.2.9999999999999999999"
 description = "An AWS Labs Model Context Protocol (MCP) server for OpenAPI"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,40 +28,40 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "fastmcp>=0.1.0",
-    "httpx>=0.24.1",
-    "pydantic>=2.0.0",
-    "typing-extensions>=4.0.0",
-    "boto3>=1.28.0",
-    "cachetools>=5.3.0",
-    "loguru>=0.7.0",
-    "uvicorn>=0.23.0",
-    "tenacity>=8.2.0",
-    "prance>=23.6.21.0",
-    "pyyaml>=6.0.0",
-    "openapi-spec-validator>=0.6.0",
-    "bcrypt>=4.0.0",
+    "fastmcp>=2.10.2",
+    "httpx>=0.28.1",
+    "pydantic>=2.11.7",
+    "typing-extensions>=4.14.1",
+    "boto3>=1.39.3",
+    "cachetools>=6.1.0",
+    "loguru>=0.7.3",
+    "uvicorn>=0.35.0",
+    "tenacity>=9.1.2",
+    "prance>=25.4.8.0",
+    "pyyaml>=6.0.2",
+    "openapi-spec-validator>=0.7.2",
+    "bcrypt>=4.3.0",
 ]
 
 
 [project.optional-dependencies]
-yaml = ["pyyaml>=6.0.0"]
-prometheus = ["prometheus-client>=0.17.0"]
+yaml = ["pyyaml>=6.0.2"]
+prometheus = ["prometheus-client>=0.22.1"]
 test = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
-    "pytest-mock>=3.10.0",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.2.1",
+    "pytest-mock>=3.14.1",
 ]
 dev = [
-    "commitizen>=4.4.1",
+    "commitizen>=4.8.3",
     "pre-commit>=4.2.0",
-    "pyright>=1.1.398",
-    "ruff>=0.11.2",
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.1",
-    "pytest-cov>=4.1.0",
-    "lxml>=4.9.0",
+    "pyright>=1.1.402",
+    "ruff>=0.12.2",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.2.1",
+    "lxml>=6.0.0",
 ]
 all = ["pyyaml>=6.0.0", "prometheus-client>=0.17.0"]
 

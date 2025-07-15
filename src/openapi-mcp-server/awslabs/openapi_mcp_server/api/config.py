@@ -42,17 +42,20 @@ class Config:
     auth_cognito_client_id: str = ''
     auth_cognito_username: str = ''
     auth_cognito_password: str = ''
+    auth_cognito_client_secret: str = ''
+    auth_cognito_domain: str = ''  # Required for client credentials flow
+    auth_cognito_scopes: str = ''  # Optional, comma-separated list of scopes
     auth_cognito_user_pool_id: str = ''
     auth_cognito_region: str = 'us-east-1'
 
     # Server configuration
-    port: int = 8000
     # Default to localhost for security; use SERVER_HOST env var to override when needed (e.g. in Docker)
     host: str = '127.0.0.1'
+    port: int = 8000
     debug: bool = False
     transport: str = 'stdio'  # stdio only
     message_timeout: int = 60
-    version: str = '0.1.0'
+    version: str = '0.2.0'
 
 
 def load_config(args: Any = None) -> Config:
@@ -93,11 +96,14 @@ def load_config(args: Any = None) -> Config:
         'AUTH_COGNITO_CLIENT_ID': (lambda v: setattr(config, 'auth_cognito_client_id', v)),
         'AUTH_COGNITO_USERNAME': (lambda v: setattr(config, 'auth_cognito_username', v)),
         'AUTH_COGNITO_PASSWORD': (lambda v: setattr(config, 'auth_cognito_password', v)),
+        'AUTH_COGNITO_CLIENT_SECRET': (lambda v: setattr(config, 'auth_cognito_client_secret', v)),
+        'AUTH_COGNITO_DOMAIN': (lambda v: setattr(config, 'auth_cognito_domain', v)),
+        'AUTH_COGNITO_SCOPES': (lambda v: setattr(config, 'auth_cognito_scopes', v)),
         'AUTH_COGNITO_USER_POOL_ID': (lambda v: setattr(config, 'auth_cognito_user_pool_id', v)),
         'AUTH_COGNITO_REGION': (lambda v: setattr(config, 'auth_cognito_region', v)),
         # Server configuration
-        'SERVER_PORT': (lambda v: setattr(config, 'port', int(v))),
         'SERVER_HOST': (lambda v: setattr(config, 'host', v)),
+        'SERVER_PORT': (lambda v: setattr(config, 'port', int(v))),
         'SERVER_DEBUG': (lambda v: setattr(config, 'debug', v.lower() == 'true')),
         'SERVER_TRANSPORT': (lambda v: setattr(config, 'transport', v)),
         'SERVER_MESSAGE_TIMEOUT': (lambda v: setattr(config, 'message_timeout', int(v))),
@@ -184,6 +190,18 @@ def load_config(args: Any = None) -> Config:
             logger.debug('Setting Cognito password from arguments')
             config.auth_cognito_password = args.auth_cognito_password
 
+        if hasattr(args, 'auth_cognito_client_secret') and args.auth_cognito_client_secret:
+            logger.debug('Setting Cognito client secret from arguments')
+            config.auth_cognito_client_secret = args.auth_cognito_client_secret
+
+        if hasattr(args, 'auth_cognito_domain') and args.auth_cognito_domain:
+            logger.debug('Setting Cognito domain from arguments')
+            config.auth_cognito_domain = args.auth_cognito_domain
+
+        if hasattr(args, 'auth_cognito_scopes') and args.auth_cognito_scopes:
+            logger.debug('Setting Cognito scopes from arguments')
+            config.auth_cognito_scopes = args.auth_cognito_scopes
+
         if hasattr(args, 'auth_cognito_user_pool_id') and args.auth_cognito_user_pool_id:
             logger.debug('Setting Cognito user pool ID from arguments')
             config.auth_cognito_user_pool_id = args.auth_cognito_user_pool_id
@@ -193,8 +211,6 @@ def load_config(args: Any = None) -> Config:
             config.auth_cognito_region = args.auth_cognito_region
 
     # Log final configuration details
-    logger.info(
-        f'Configuration loaded: API name={config.api_name}, transport={config.transport}, port={config.port}'
-    )
+    logger.info(f'Configuration loaded: API name={config.api_name}, transport={config.transport}')
 
     return config
