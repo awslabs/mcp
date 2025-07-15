@@ -13,7 +13,7 @@
 # limitations under the License.
 
 #FROM public.ecr.aws/sam/build-python3.10:1.137.1-20250411084548
-FROM public.ecr.aws/sam/build-python3.10@sha256:84738adb2767299571443d742c006d2f153c809c7181b099468583ac97be2dda AS uv
+FROM python:3.10-slim AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -30,24 +30,22 @@ ENV UV_PYTHON_PREFERENCE=only-system
 # Run without updating the uv.lock file like running with `--frozen`
 ENV UV_FROZEN=true
 
-# Copy the required files first
-COPY pyproject.toml uv.lock uv-requirements.txt ./
+COPY README.md .
 
 # Install the project's dependencies using the lockfile and settings
-RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt && \
-    uv sync --frozen --no-install-project --no-dev --no-editable
-
-# Then, add the rest of the project source code and install it
-# Installing separately from its dependencies allows optimal layer caching
+COPY pyproject.toml uv.lock uv-requirements.txt ./
 COPY . /app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+
+RUN python -m venv /app/.venv \
+ && /app/.venv/bin/pip install --upgrade pip \
+ && /app/.venv/bin/pip install --no-cache-dir --require-hashes --requirement uv-requirements.txt \
+ && /app/.venv/bin/pip install --no-cache-dir -e .
+
 
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/sam/build-python3.10@sha256:84738adb2767299571443d742c006d2f153c809c7181b099468583ac97be2dda
+FROM python:3.10-slim
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
@@ -55,13 +53,13 @@ ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
 # Install lsof for the healthcheck
 # Install other tools as needed for the MCP server
 # Add non-root user and ability to change directory into /root
-RUN yum update -y && \
-    yum install -y lsof && \
-    yum clean all -y && \
-    rm -rf /var/cache/yum && \
-    groupadd --force --system app && \
-    useradd app -g app -d /app && \
-    chmod o+x /root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends lsof \
+  && rm -rf /var/lib/apt/lists/* \
+  && groupadd --system app \
+  && useradd --system --gid app --home-dir /app app \
+  && mkdir -p /root/.local \
+  && chmod o+x /root
 
 # Get the project from the uv layer
 COPY --from=uv --chown=app:app /root/.local /root/.local

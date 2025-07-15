@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  core-mcp:
+    build:
+      context: ./src/core-mcp-server
+      dockerfile: Dockerfile
+    container_name: core-mcp
+    ports:
+      - "8050:8050"
+    environment:
+      # if your tools need AWS creds:
+      - AWS_DEFAULT_REGION=us-west-2
+    volumes:
+      - ~/.aws:/root/.aws:ro
+
+  cloudwatch-mcp:
+    build:
+      context: ./src/cloudwatch-mcp-server
+      dockerfile: Dockerfile
+    container_name: cloudwatch-mcp
+    ports:
+      - "8051:8051"
+    environment:
+      - AWS_DEFAULT_REGION=us-west-2
+    volumes:
+      - ~/.aws:/root/.aws:ro
+
+  eks-mcp:
+    build:
+      context: ./src/eks-mcp-server
+      dockerfile: Dockerfile
+    container_name: eks-mcp
+    ports:
+      - "8052:8052"
+    environment:
+      - AWS_DEFAULT_REGION=us-west-2
+    volumes:
+      - ~/.aws:/root/.aws:ro
+
+  docs-mcp:
+    build:
+      context: ./src/aws-documentation-mcp-server
+      dockerfile: Dockerfile
+    container_name: docs-mcp
+    ports:
+      - "8053:8053"
+    volumes:
+      - ~/.aws:/root/.aws:ro
+
+  prometheus-mcp:
+    build:
+      context: ./src/prometheus-mcp-server
+      dockerfile: Dockerfile
+    container_name: prometheus-mcp
+    ports:
+      - "8054:8054"
+    volumes:
+      - ~/.aws:/root/.aws:ro

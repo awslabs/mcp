@@ -31,7 +31,7 @@ from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
 from awslabs.eks_mcp_server.iam_handler import IAMHandler
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 
 # Define server instructions and dependencies
@@ -89,6 +89,7 @@ SERVER_DEPENDENCIES = [
     'pyyaml',
     'cachetools',
     'requests_auth_aws_sigv4',
+    'fastmcp',
 ]
 
 # Global reference to the MCP server instance for testing purposes
@@ -151,7 +152,7 @@ def main():
     CloudWatchMetricsHandler(mcp)
 
     # Run server
-    mcp.run()
+    mcp.run(transport='streamable-http', host='0.0.0.0', port=8052)
 
     return mcp
 

@@ -481,20 +481,6 @@ class CloudWatchLogsTools:
     async def execute_log_insights_query(
         self,
         ctx: Context,
-        log_group_names: Annotated[
-            List[str] | None,
-            Field(
-                max_length=50,
-                description='The list of up to 50 log group names to be queried. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.',
-            ),
-        ] = None,
-        log_group_identifiers: Annotated[
-            List[str] | None,
-            Field(
-                max_length=50,
-                description="The list of up to 50 logGroupIdentifiers to query. You can specify them by the log group name or ARN. If a log group that you're querying is in a source account and you're using a monitoring account, you must use the ARN. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.",
-            ),
-        ] = None,
         start_time: str = Field(
             ...,
             description=(
@@ -511,6 +497,20 @@ class CloudWatchLogsTools:
             ...,
             description='The query string in the Cloudwatch Log Insights Query Language. See https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html.',
         ),
+        log_group_names: Annotated[
+            List[str] | None,
+            Field(
+                max_length=50,
+                description='The list of up to 50 log group names to be queried. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.',
+            ),
+        ] = None,
+        log_group_identifiers: Annotated[
+            List[str] | None,
+            Field(
+                max_length=50,
+                description="The list of up to 50 logGroupIdentifiers to query. You can specify them by the log group name or ARN. If a log group that you're querying is in a source account and you're using a monitoring account, you must use the ARN. CRITICAL: Exactly one of [log_group_names, log_group_identifiers] should be non-null.",
+            ),
+        ] = None,
         limit: Annotated[
             int | None,
             Field(

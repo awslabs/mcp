@@ -9,6 +9,9 @@ dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
     "pydantic>=2.10.6",
+    "fastmcp",
+    "fastapi>=0.103.0",
+    "uvicorn>=0.23.2",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

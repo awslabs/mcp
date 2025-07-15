@@ -4,6 +4,7 @@
 #
 #    pip-compile --generate-hashes --output-file=uv-requirements.txt --strip-extras uv-requirements-0.7.13.in
 #
+
 uv==0.7.13 \
     --hash=sha256:05f3c03c4ea55d294f3da725b6c2c2ff544754c18552da7594def4ec3889dcfb \
     --hash=sha256:1afdbfcabc3425b383141ba42d413841c0a48b9ee0f4da65459313275e3cea84 \

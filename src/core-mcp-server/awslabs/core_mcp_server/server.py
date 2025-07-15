@@ -15,9 +15,12 @@
 import loguru
 import sys
 from awslabs.core_mcp_server.static import PROMPT_UNDERSTANDING
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from typing import List, TypedDict
-
+from starlette.requests import Request
+from fastapi.responses import StreamingResponse
+import json, boto3
+from typing import List
 
 class ContentItem(TypedDict):
     """A TypedDict representing a single content item in an MCP response.
@@ -60,10 +63,9 @@ logger.add(sys.stderr, level='DEBUG')
 mcp = FastMCP(
     'mcp-core MCP server.  This is the starting point for all solutions created',
     dependencies=[
-        'loguru',
+        'loguru', 'boto3'
     ],
 )
-
 
 @mcp.tool(name='prompt_understanding')
 async def get_prompt_understanding() -> str:
@@ -73,10 +75,9 @@ async def get_prompt_understanding() -> str:
     """
     return PROMPT_UNDERSTANDING
 
-
 def main() -> None:
-    """Run the MCP server."""
-    mcp.run()
+    mcp.run(transport='streamable-http', host="0.0.0.0",
+        port=8050)
 
 
 if __name__ == '__main__':  # pragma: no cover

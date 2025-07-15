@@ -33,7 +33,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     parse_recommendation_results,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import List
 
@@ -365,7 +365,8 @@ async def recommend(
 def main():
     """Run the MCP server with CLI argument support."""
     logger.info('Starting AWS Documentation MCP Server')
-    mcp.run()
+    mcp.run(transport='streamable-http', host='0.0.0.0',
+        port=8053)
 
 
 if __name__ == '__main__':
