@@ -20,7 +20,7 @@ This MCP server is meant for testing, development, and evaluation purposes.
 
 Choose the installation method that best fits your workflow and get started with your favorite assistant with MCP support, like Q CLI, Cursor or Cline.
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-api-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnB5dGhvbiUyMC1tJTIwYXdzbGFicy5hd3NfbWNwX3NlcnZlci5zZXJ2ZXIlMjIlMkMlMjJlbnYlMjIlM0ElN0IlMjJBV1NfUkVHSU9OJTIyJTNBJTIydXMtZWFzdC0xJTIyJTJDJTIyQVdTX01DUF9XT1JLSU5HX0RJUiUyMiUzQSUyMkMlM0ElNUMlNUNwYXRoJTVDJTVDdG8lNUMlNUN3b3JraW5nJTVDJTVDZGlyZWN0b3J5JTIyJTdEJTJDJTIyZGlzYWJsZWQlMjIlM0FmYWxzZSUyQyUyMmF1dG9BcHByb3ZlJTIyJTNBJTVCJTVEJTdE)
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-api-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWFwaS1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBV1NfUkVHSU9OIjoidXMtZWFzdC0xIiwiQVdTX0FQSV9NQ1BfV09SS0lOR19ESVIiOiIvcGF0aC90by93b3JraW5nL2RpcmVjdG9yeSJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D)
 
 
 
@@ -32,27 +32,27 @@ pip install awslabs.aws-api-mcp-server
 ```
 
 **Step 2: Configure your MCP client**
-   Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
-   ```json
-   {
-      "mcpServers": {
-        "awslabs.aws-api-mcp-server": {
-          "command": "python",
-          "args": [
-            "-m",
-            "awslabs.aws_api_mcp_server.server"
-          ],
-          "env": {
-            "AWS_REGION": "us-east-1",
-            "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
-          },
-          "disabled": false,
-          "autoApprove": []
-        }
-      }
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "python",
+      "args": [
+        "-m",
+        "awslabs.aws_api_mcp_server.server"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
-   ```
+  }
+}
+```
 
 ### ⚡ Using uv
 
@@ -60,44 +60,44 @@ pip install awslabs.aws-api-mcp-server
 
 ```json
 {
-      "mcpServers": {
-        "awslabs.aws-api-mcp-server": {
-          "command": "uvx",
-          "args": [
-            "awslabs.aws-api-mcp-server@latest"
-          ],
-          "env": {
-            "AWS_REGION": "us-east-1",
-            "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
-          },
-          "disabled": false,
-          "autoApprove": []
-        }
-      }
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-api-mcp-server@latest"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
+  }
+}
 ```
 
 **For Windows users:**
 
 ```json
-   {
-      "mcpServers": {
-        "awslabs.aws-api-mcp-server": {
-          "command": "uvx",
-          "args": [
-            "--from",
-            "awslabs.aws-api-mcp-server@latest",
-            "awslabs.aws-api-mcp-server.exe"
-          ],
-          "env": {
-            "AWS_REGION": "us-east-1",
-            "AWS_API_MCP_WORKING_DIR": "C:\\path\\to\\working\\directory"
-          },
-          "disabled": false,
-          "autoApprove": []
-        }
-      }
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.aws-api-mcp-server@latest",
+        "awslabs.aws-api-mcp-server.exe"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_API_MCP_WORKING_DIR": "C:\\path\\to\\working\\directory"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
+  }
+}
 ```
 
 ### 🔧 Using Cloned Repository
