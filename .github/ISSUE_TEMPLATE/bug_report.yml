@@ -73,6 +73,7 @@ body:
       label: Server
       multiple: true
       options:
+        - aws-api-mcp-server
         - amazon-kendra-index-mcp-server
         - amazon-mq-mcp-server
         - amazon-neptune-mcp-server

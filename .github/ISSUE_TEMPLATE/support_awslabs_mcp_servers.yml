@@ -50,6 +50,8 @@ body:
     attributes:
       label: What servers are you using from Awslabs MCP Servers?
       options:
+        - label: aws-api-mcp-server
+          required: false
         - label: aws-diagram-mcp-server
           required: false
         - label: aws-documentation-mcp-server
