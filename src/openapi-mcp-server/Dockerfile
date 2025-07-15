@@ -68,7 +68,6 @@ FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-
 # Install runtime dependencies and create application user
 RUN apk update && \
     apk add --no-cache ca-certificates && \
