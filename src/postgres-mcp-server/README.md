@@ -26,7 +26,7 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora Postgres
 
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
-### Option 1: Using RDS Data API Connection
+### Option 1: Using RDS Data API Connection (for Aurora Postgres)
 
 ```json
 {
@@ -53,7 +53,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
-### Option 2: Using Direct PostgreSQL Connection (psycopg)
+### Option 2: Using Direct PostgreSQL(psycopg) Connection (for Aurora Postgres and RDS Postgres)
 
 ```json
 {
@@ -90,7 +90,7 @@ Note: The `--port` parameter is optional and defaults to 5432 (the standard Post
 
 ### Add or update your LLM client's config with following:
 
-#### Option 1: Using RDS Data API Connection
+#### Option 1: Using RDS Data API Connection (for Aurora Postgres)
 <pre><code>
 ```json
 {
@@ -116,7 +116,7 @@ Note: The `--port` parameter is optional and defaults to 5432 (the standard Post
 }
 ```
 
-#### Option 2: Using Direct PostgreSQL Connection (psycopg)
+#### Option 2: Using Direct PostgreSQL (psycopg) Connection (for Aurora Postgres and RDS Postgres)
 <pre><code>
 {
   "mcpServers": {
