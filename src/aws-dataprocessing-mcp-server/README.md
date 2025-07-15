@@ -23,6 +23,14 @@ Integrating the DataProcessing MCP server into AI code assistants transforms dat
 * Step Execution: Orchestrates data processing workflows through EMR steps, allowing users to submit, monitor, and manage Hadoop, Spark, and other application jobs on running clusters.
 * Security Configuration: Manages EMR security settings including encryption, authentication, and authorization policies to ensure secure data processing environments.
 
+### Amazon Athena Integration
+
+* Query Execution: Enables users to execute, monitor, and manage SQL queries with comprehensive control over query lifecycle, including starting queries, retrieving results, monitoring performance statistics, and canceling running queries through natural language requests.
+* Named Query Management: Provides the ability to create, update, retrieve, and delete saved SQL queries, enabling users to build reusable query libraries with proper organization and team collaboration capabilities.
+* Data Catalog Operations: Manages Athena data catalogs with support for multiple catalog types (LAMBDA, GLUE, HIVE, FEDERATED), enabling users to create, configure, and maintain data source connections for cross-platform querying.
+* Database and Table Discovery: Facilitates data exploration through comprehensive database and table metadata retrieval, allowing users to discover available data sources, understand schema structures, and navigate data catalogs efficiently.
+* Workgroup Administration: Orchestrates query execution environments through workgroup management, providing cost control, access management, and query result configuration with support for different user groups and organizational policies.
+
 ## Prerequisites
 
 * [Install Python 3.10+](https://www.python.org/downloads/release/python-3100/)
@@ -355,6 +363,25 @@ Specifies the AWS region where Glue,EMR clusters or Athena are managed, which wi
 | manage_aws_glue_classifiers | Manage AWS Glue classifiers to determine data formats and schemas | create-classifier, delete-classifier, get-classifier, get-classifiers, update-classifier | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
 | manage_aws_glue_crawler_management | Manage AWS Glue crawler schedules and monitor performance metrics | get-crawler-metrics, start-crawler-schedule, stop-crawler-schedule, update-crawler-schedule | --allow-write flag for schedule operations, appropriate AWS permissions |
 
+
+### Common Resource Handler Tools
+
+#### IAM Management Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| add_inline_policy | Add a new inline policy to an IAM role | Create inline policies with custom permissions for data processing services | --allow-write flag, role must exist, policy name must be unique |
+| get_policies_for_role | Get all policies attached to an IAM role | Retrieve managed and inline policies, assume role policy document, role metadata | Role must exist, valid AWS credentials |
+| create_data_processing_role | Create a new IAM role for data processing services | Create roles for Glue/EMR/Athena with trust relationships, attach managed policies, add inline policies | --allow-write flag, unique role name, valid service type (glue/emr/athena) |
+| get_roles_for_service | Get all IAM roles that can be assumed by a specific AWS service | List roles with trust relationships for Glue/EMR/Athena services, filter by service principal | Valid AWS credentials, service type parameter |
+
+#### S3 Management Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| list_s3_buckets | List S3 buckets with 'glue' in their name and usage statistics | List buckets by region, show object counts, last modified dates, idle time analysis | Valid AWS credentials, S3:ListAllMyBuckets permission |
+| upload_to_s3 | Upload Python code content directly to S3 buckets | Upload scripts for Glue jobs, EMR steps, or other data processing code | --allow-write flag, bucket must exist, S3 write permissions |
+| analyze_s3_usage_for_data_processing | Analyze S3 bucket usage patterns for data processing services | Identify buckets used by Glue/EMR/Athena, detect idle buckets, usage recommendations | Valid AWS credentials, permissions for Glue/EMR/Athena service APIs |
 
 ## Version
 

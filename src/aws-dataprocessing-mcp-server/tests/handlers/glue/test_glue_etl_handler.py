@@ -369,7 +369,9 @@ async def test_update_job_does_not_exist(handler, mock_glue_client):
     )
 
     ctx = Mock()
-    response = await handler.manage_aws_glue_jobs(ctx, operation='update-job', job_name='test-job')
+    response = await handler.manage_aws_glue_jobs(
+        ctx, operation='update-job', job_name='test-job', job_definition={}
+    )
 
     assert response.isError
 
