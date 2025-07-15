@@ -12,42 +12,57 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the awslabs.short-domain-mcp-server package."""
+"""Basic import tests for the RDS Control Plane MCP Server."""
 
-import importlib
-import re
+import os
 
 
-class TestInit:
-    """Tests for the __init__.py module."""
+def test_awslabs_package_exists():
+    """Test that the awslabs package exists."""
+    # Define the path to the awslabs package
+    awslabs_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'awslabs'
+    )
+    assert os.path.exists(awslabs_path)
+    assert os.path.isdir(awslabs_path)
 
-    def test_version(self):
-        """Test that __version__ is defined and follows semantic versioning."""
-        # Import the module
-        import awslabs.short_domain_mcp_server
 
-        # Check that __version__ is defined
-        assert hasattr(awslabs.short_domain_mcp_server, '__version__')
+def test_rds_control_plane_mcp_server_package_exists():
+    """Test that the rds_control_plane_mcp_server package exists."""
+    # Define the path to the rds_control_plane_mcp_server package
+    package_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'awslabs',
+        'rds_control_plane_mcp_server',
+    )
+    assert os.path.exists(package_path)
+    assert os.path.isdir(package_path)
 
-        # Check that __version__ is a string
-        assert isinstance(awslabs.short_domain_mcp_server.__version__, str)
 
-        # Check that __version__ follows semantic versioning (major.minor.patch)
-        version_pattern = r'^\d+\.\d+\.\d+$'
-        assert re.match(version_pattern, awslabs.short_domain_mcp_server.__version__), (
-            f"Version '{awslabs.short_domain_mcp_server.__version__}' does not follow semantic versioning"
-        )
+def test_can_import_common_server():
+    """Test that the common/server module can be imported."""
+    # Import the server module
+    try:
+        from awslabs.rds_control_plane_mcp_server.common import server
 
-    def test_module_reload(self):
-        """Test that the module can be reloaded."""
-        # Import the module
-        import awslabs.short_domain_mcp_server
+        assert server is not None
+    except ImportError as e:
+        assert False, f'Failed to import server module: {e}'
 
-        # Store the original version
-        original_version = awslabs.short_domain_mcp_server.__version__
 
-        # Reload the module
-        importlib.reload(awslabs.short_domain_mcp_server)
+def test_server_has_mcp_instance():
+    """Test that the server module has an MCP instance."""
+    # Import the server module
+    from awslabs.rds_control_plane_mcp_server.common import server
 
-        # Check that the version is still the same
-        assert awslabs.short_domain_mcp_server.__version__ == original_version
+    assert hasattr(server, 'mcp')
+    assert server.mcp is not None
+
+
+def test_constants_has_version():
+    """Test that the constants module has a version."""
+    # Import the constants module
+    from awslabs.rds_control_plane_mcp_server.constants import MCP_SERVER_VERSION
+
+    assert MCP_SERVER_VERSION is not None
+    assert isinstance(MCP_SERVER_VERSION, str)
