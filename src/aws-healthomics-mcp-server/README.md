@@ -184,7 +184,7 @@ Or install from source:
 git clone <repository-url>
 cd mcp/src/aws-healthomics-mcp-server
 uv sync
-uv run server.py
+uv run -m awslabs.aws_healthomics_mcp_server.server
 ```
 
 ## Configuration

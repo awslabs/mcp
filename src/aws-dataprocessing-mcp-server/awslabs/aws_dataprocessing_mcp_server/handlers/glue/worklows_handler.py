@@ -36,7 +36,7 @@ from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional, Union
 
 
 class GlueWorkflowAndTriggerHandler:
@@ -62,26 +62,36 @@ class GlueWorkflowAndTriggerHandler:
     async def manage_aws_glue_workflows(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-workflow, delete-workflow, get-workflow, list-workflows, start-workflow-run. Choose "get-workflow" or "list-workflows" for read-only operations when write access is disabled.',
-        ),
-        workflow_name: Optional[str] = Field(
-            None,
-            description='Name of the workflow (required for all operations except list-workflows).',
-        ),
-        workflow_definition: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Workflow definition for create-workflow operation.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for list-workflows operation.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for list-workflows operation.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-workflow, delete-workflow, get-workflow, list-workflows, start-workflow-run. Choose "get-workflow" or "list-workflows" for read-only operations when write access is disabled.',
+            ),
+        ],
+        workflow_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the workflow (required for all operations except list-workflows).',
+            ),
+        ] = None,
+        workflow_definition: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Workflow definition for create-workflow operation.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for list-workflows operation.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for list-workflows operation.',
+            ),
+        ] = None,
     ) -> Union[
         CreateWorkflowResponse,
         DeleteWorkflowResponse,
@@ -400,26 +410,36 @@ class GlueWorkflowAndTriggerHandler:
     async def manage_aws_glue_triggers(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-trigger, delete-trigger, get-trigger, get-triggers, start-trigger, stop-trigger. Choose "get-trigger" or "get-triggers" for read-only operations when write access is disabled.',
-        ),
-        trigger_name: Optional[str] = Field(
-            None,
-            description='Name of the trigger (required for all operations except get-triggers).',
-        ),
-        trigger_definition: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Trigger definition for create-trigger operation.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for get-triggers operation.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for get-triggers operation.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-trigger, delete-trigger, get-trigger, get-triggers, start-trigger, stop-trigger. Choose "get-trigger" or "get-triggers" for read-only operations when write access is disabled.',
+            ),
+        ],
+        trigger_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the trigger (required for all operations except get-triggers).',
+            ),
+        ] = None,
+        trigger_definition: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Trigger definition for create-trigger operation.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for get-triggers operation.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for get-triggers operation.',
+            ),
+        ] = None,
     ) -> Union[
         CreateTriggerResponse,
         DeleteTriggerResponse,
