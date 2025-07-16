@@ -64,6 +64,14 @@ The AWS MSK MCP Server provides a set of tools for interacting with Amazon MSK t
 
 This MCP server can be used by AI assistants to help users manage their Amazon MSK resources. It provides structured access to MSK APIs, making it easier for AI to understand and interact with MSK clusters.
 
+## Prerequisites
+
+1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
+2. Install Python using `uv python install 3.10`
+3. Set up AWS credentials with access to AWS services
+   - You need an AWS account with appropriate permissions
+   - Configure AWS credentials with profile name 'default' with `aws configure` or environment variables
+
 ### Installation
 
 | Cursor | VS Code |
