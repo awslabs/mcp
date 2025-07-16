@@ -17,7 +17,6 @@
 This module provides functionality to create and query Athena tables for S3 Storage Lens data.
 """
 
-import boto3
 import logging
 import time
 from awslabs.aws_finops_mcp_server.consts import ATHENA_MAX_RETRIES, ATHENA_RETRY_DELAY_SECONDS
@@ -35,7 +34,10 @@ class AthenaHandler:
 
     def __init__(self):
         """Initialize the Athena client."""
-        self.athena_client = boto3.client('athena')
+        from awslabs.aws_finops_mcp_server.utils.aws_utils import create_boto3_client
+
+        # Create Athena client using the common utility function
+        self.athena_client = create_boto3_client('athena')
 
     async def create_database(self, database_name: str, output_location: str) -> None:
         """Create an Athena database if it doesn't exist.

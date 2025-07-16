@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import boto3
 import logging
-import os
 from .boto3_docstrings import boto3_docstrings
 from awslabs.aws_finops_mcp_server.consts import (
     AWS_SERVICE_NAME_MAP,
-    DEFAULT_AWS_REGION,
-    ENV_AWS_DEFAULT_REGION,
-    ENV_AWS_REGION,
 )
 from awslabs.aws_finops_mcp_server.models import (
     AWSServiceNameMap,
@@ -96,17 +91,11 @@ class Boto3ToolRegistry:
         # Map our service name to boto3 service name
         boto3_service_name = AWS_SERVICE_NAME_MAP.get(service_name, service_name)
 
-        # Get region from environment variables or use default
-        region = (
-            os.environ.get(ENV_AWS_DEFAULT_REGION)
-            or os.environ.get(ENV_AWS_REGION)
-            or DEFAULT_AWS_REGION
-        )
-        logger.info(f'Using region: {region}')
+        from awslabs.aws_finops_mcp_server.utils.aws_utils import create_boto3_client
 
         logger.info(f'Creating boto3 client for service: {boto3_service_name}')
-        # Create boto3 client with region
-        client = boto3.client(boto3_service_name, region_name=region)
+        # Create boto3 client using the common utility function
+        client = create_boto3_client(boto3_service_name)
 
         # Transform parameters if needed (camelCase to PascalCase for some services)
         boto3_params = {}
