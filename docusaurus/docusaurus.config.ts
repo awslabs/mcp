@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'AWS MCP Servers',
   tagline: 'Get started with AWS MCP Servers and learn core features',
-  favicon: 'img/logo.png',
+  favicon: 'img/aws-logo.svg',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -67,12 +67,12 @@ const config: Config = {
       defaultMode: 'light',
       disableSwitch: true,
     },
-    image: 'img/logo.png',
+    image: 'img/aws-logo.svg',
     navbar: {
       title: 'AWS MCP Servers',
       logo: {
         alt: 'AWS MCP Servers Logo',
-        src: 'img/logo.png',
+        src: 'img/aws-logo.svg',
       },
       items: [
         {
