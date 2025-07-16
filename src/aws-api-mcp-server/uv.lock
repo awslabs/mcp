@@ -107,7 +107,7 @@ requires-dist = [
     { name = "importlib-resources", specifier = ">=6.0.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "lxml", specifier = ">=5.1.0" },
-    { name = "mcp", specifier = ">=1.10.0" },
+    { name = "mcp", specifier = ">=1.11.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-json-logger", specifier = ">=2.0.7" },
     { name = "requests", specifier = ">=2.32.4" },

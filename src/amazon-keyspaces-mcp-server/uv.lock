@@ -76,7 +76,7 @@ requires-dist = [
     { name = "cassandra-driver", specifier = ">=3.25.0" },
     { name = "fastmcp", specifier = ">=0.1.0" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", specifier = ">=1.10.0" },
+    { name = "mcp", specifier = ">=1.11.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
 ]
