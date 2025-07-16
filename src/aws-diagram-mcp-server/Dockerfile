@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d AS uv
+FROM public.ecr.aws/sam/build-python3.13@sha256:0c274ddd44e1d80e4dab3a70c25fe29508f612a045cba7d27840461c12eee86d AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -62,20 +62,19 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d
+FROM public.ecr.aws/sam/build-python3.13@sha256:0c274ddd44e1d80e4dab3a70c25fe29508f612a045cba7d27840461c12eee86d
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-# Install runtime dependencies and create application user
-RUN apk update && \
-    apk add --no-cache ca-certificates graphviz && \
-    update-ca-certificates && \
-    addgroup -S app && \
-    adduser -S app -G app -h /app
+# Add non-root user and ability to change directory into /root
+RUN groupadd --force --system app && \
+    useradd app -g app -d /app && \
+    chmod o+x /root
 
 # Copy application artifacts from build stage
+COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
