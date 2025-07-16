@@ -79,23 +79,6 @@ No. You can get started with the Knowledge MCP server without an AWS account. Th
   - `/mcp`
 5. You should see `aws-knowledge-mcp` in the list and its connection status
 
-### Using Kiro
-1. Navigate `Kiro` > `MCP Servers`
-2. Add a new MCP server by clicking the `+ Add` button.
-3. Paste the configuration given below:
-
-#### `kiro_mcp_settings.json`
-
-```json
-{
-  "mcpServers": {
-    "aws-knowledge-mcp": {
-      "url": "https://knowledge-mcp.global.api.aws"
-    }
-  }
-}
-```
-
 ### Testing and Troubleshooting
 If you want to call Knowledge MCP directly, not through an LLM, you can do so using MCP Inspector. It gives you a UI where you can do tools/list and tools/call with arbitrary parameters.
 
