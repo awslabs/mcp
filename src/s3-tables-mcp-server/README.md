@@ -171,6 +171,30 @@ You can override the default by providing the `--log-dir` flag with a custom pat
 | `Show the schema for customer_data table` | Retrieves the table structure and column definitions to understand the data format and types |
 | `Run a query to find monthly revenue trends` | Performs data analysis using **read-only** SQL queries to extract business insights from stored table data. For write operations, only appending new data (inserts) is supported; updates and deletes are not available via SQL. |
 
+## Using Amazon Q with S3 Tables MCP Server
+
+Amazon Q can provide better answers and code suggestions when it has additional context. To enhance Amazon Q's understanding of S3 Tables, you can add the provided context file to your Q environment.
+
+### How to Add Context to Amazon Q
+
+1. **Download the CONTEXT.md file**
+   - Download the `CONTEXT.md` file from the GitHub repository for this project.
+
+2. **Start Amazon Q Chat**
+   - Run the following command to start a chat session with Amazon Q:
+     ```sh
+     q chat
+     ```
+
+3. **Add the Context File**
+   - In the Q chat, run:
+     ```sh
+     /context add <path>/CONTEXT.md
+     ```
+   - Replace `<path>` with the actual path to where you downloaded `CONTEXT.md`.
+
+Now, Amazon Q will have improved context about S3 Tables and can provide more relevant answers.
+
 ## Security Considerations
 
 When using this MCP server, consider:
