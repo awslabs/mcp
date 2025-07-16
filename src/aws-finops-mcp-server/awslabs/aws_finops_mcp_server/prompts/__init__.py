@@ -17,9 +17,13 @@ import importlib
 import inspect
 import logging
 from fastmcp import FastMCP
+from typing import Set
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Define a whitelist of allowed prompt modules
+ALLOWED_PROMPT_MODULES: Set[str] = set()
 
 
 def register_all_prompts(mcp: FastMCP) -> None:
@@ -42,9 +46,17 @@ def register_all_prompts(mcp: FastMCP) -> None:
         if f.endswith('.py') and f not in ['__init__.py', 'decorator.py']
     ]
 
+    # Update the whitelist with discovered modules
+    ALLOWED_PROMPT_MODULES.update(prompt_files)
+
     # Import each module and find decorated functions
     registered_count = 0
     for module_name in prompt_files:
+        # Validate module name against whitelist
+        if module_name not in ALLOWED_PROMPT_MODULES:
+            logger.warning(f"Module '{module_name}' is not in the allowed modules list. Skipping.")
+            continue
+
         # Import the module
         module_path = f'awslabs.aws_finops_mcp_server.prompts.{module_name}'
         try:
