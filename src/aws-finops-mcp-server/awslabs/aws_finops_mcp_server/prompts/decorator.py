@@ -13,7 +13,11 @@
 # limitations under the License.
 
 import functools
-from typing import Callable, Optional, Set
+from typing import Any, Callable, Optional, Set, TypeVar, cast
+
+
+# Type variable for functions that can be decorated
+F = TypeVar('F', bound=Callable[..., Any])
 
 
 def finops_prompt(
@@ -30,17 +34,23 @@ def finops_prompt(
         Callable: Decorated function with prompt metadata
     """
 
-    def decorator(func: Callable):
+    def decorator(func: F) -> F:
         # Store metadata on the function
-        func._finops_prompt = True
-        func._prompt_name = name or func.__name__
-        func._prompt_description = description or func.__doc__ or ''
-        func._prompt_tags = tags or {'finops'}
+        setattr(func, '_finops_prompt', True)
+        setattr(func, '_prompt_name', name or func.__name__)
+        setattr(func, '_prompt_description', description or func.__doc__ or '')
+        setattr(func, '_prompt_tags', tags or {'finops'})
 
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             return func(*args, **kwargs)
 
-        return wrapper
+        # Transfer attributes to the wrapper
+        setattr(wrapper, '_finops_prompt', True)
+        setattr(wrapper, '_prompt_name', name or func.__name__)
+        setattr(wrapper, '_prompt_description', description or func.__doc__ or '')
+        setattr(wrapper, '_prompt_tags', tags or {'finops'})
+
+        return cast(F, wrapper)
 
     return decorator

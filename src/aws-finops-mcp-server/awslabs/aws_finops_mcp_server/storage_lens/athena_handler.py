@@ -229,7 +229,8 @@ class AthenaHandler:
             logger.error(f'Query timed out after {max_retries} retries')
             raise Exception('Query timed out')
 
-        return None
+        # This should never be reached due to the exception above, but return empty dict for type safety
+        return {'status': 'ERROR', 'message': 'Query timed out'}
 
     async def get_query_results(self, query_execution_id: str) -> Dict[str, Any]:
         """Get the results of a completed Athena query.

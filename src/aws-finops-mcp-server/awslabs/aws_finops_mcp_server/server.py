@@ -141,12 +141,12 @@ def register_storage_lens_tools():
         logger.info(f'Running Storage Lens query: {query}')
 
         # Get output location from environment variable (optional)
-        output_location = os.environ.get(ENV_STORAGE_LENS_OUTPUT_LOCATION)
+        output_location = os.environ.get(ENV_STORAGE_LENS_OUTPUT_LOCATION, '')
 
         try:
             # Create a validated request object
             request = StorageLensQueryRequest(
-                manifest_location=manifest_location,
+                manifest_location=manifest_location or '',  # Ensure non-None value
                 query=query,
                 output_location=output_location,
                 database_name=server_config.storage_lens_default_database,

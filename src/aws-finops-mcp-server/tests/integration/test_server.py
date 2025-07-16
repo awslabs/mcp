@@ -71,11 +71,15 @@ async def _test_cost_explorer_get_cost_and_usage():
         # Extract the text content from the response
         assert hasattr(response, 'content'), "Response should have 'content' attribute"
         assert len(response.content) > 0, 'Response content should not be empty'
-        assert hasattr(response.content[0], 'text'), (
-            "Response content item should have 'text' attribute"
-        )
 
-        text_content = response.content[0].text
+        # Get the content as text, handling different content types
+        content_item = response.content[0]  # type: ignore
+        if hasattr(content_item, 'text'):
+            text_content = content_item.text  # type: ignore
+        else:
+            # Convert the content to string if it doesn't have a text attribute
+            text_content = str(content_item)
+
         result = json.loads(text_content)
 
         # Print the parsed result
@@ -116,11 +120,15 @@ async def _test_storage_lens_run_query():
         # Extract the text content from the response
         assert hasattr(response, 'content'), "Response should have 'content' attribute"
         assert len(response.content) > 0, 'Response content should not be empty'
-        assert hasattr(response.content[0], 'text'), (
-            "Response content item should have 'text' attribute"
-        )
 
-        text_content = response.content[0].text
+        # Get the content as text, handling different content types
+        content_item = response.content[0]
+        if hasattr(content_item, 'text'):
+            text_content = content_item.text  # type: ignore
+        else:
+            # Convert the content to string if it doesn't have a text attribute
+            text_content = str(content_item)
+
         result = json.loads(text_content)
 
         # Print the parsed result
@@ -184,7 +192,7 @@ async def _test_graviton_prompt_execution():
         # Check that the first message contains the expected content
         first_message = response.messages[0]
         message_text = (
-            first_message.content.text
+            first_message.content.text  # type: ignore
             if hasattr(first_message.content, 'text')
             else str(first_message.content)
         )
@@ -222,7 +230,7 @@ async def _test_savings_plans_prompt_execution():
         # Check that the first message contains the expected content
         first_message = response.messages[0]
         message_text = (
-            first_message.content.text
+            first_message.content.text  # type: ignore
             if hasattr(first_message.content, 'text')
             else str(first_message.content)
         )
@@ -251,7 +259,7 @@ def test_storage_lens_run_query():
     try:
         result = asyncio.run(_test_storage_lens_run_query())
         if result == 'SKIP: STORAGE_LENS_MANIFEST_LOCATION environment variable not set':
-            pytest.skip(result)
+            pytest.skip('SKIP: STORAGE_LENS_MANIFEST_LOCATION environment variable not set')
         assert result is True
     except ClientError as e:
         # If we get an access denied error or the bucket doesn't exist, we'll skip the test

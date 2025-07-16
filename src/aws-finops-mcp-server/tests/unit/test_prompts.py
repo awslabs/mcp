@@ -1,5 +1,6 @@
 # Import from the proper package path
 from awslabs.aws_finops_mcp_server.prompts.decorator import finops_prompt
+from awslabs.aws_finops_mcp_server.prompts.types import as_prompt_function
 from unittest.mock import MagicMock
 
 
@@ -11,12 +12,15 @@ def test_decorator_basic():
         """This is a test docstring."""
         return 'Test'
 
+    # Cast to PromptFunction for type checking
+    prompt_func = as_prompt_function(test_function)
+
     # Check that metadata is correctly set
-    assert hasattr(test_function, '_finops_prompt')
-    assert test_function._finops_prompt is True
-    assert test_function._prompt_name == 'test_prompt'
-    assert test_function._prompt_description == 'Test description'
-    assert test_function._prompt_tags == {'test'}
+    assert hasattr(prompt_func, '_finops_prompt')
+    assert prompt_func._finops_prompt is True
+    assert prompt_func._prompt_name == 'test_prompt'
+    assert prompt_func._prompt_description == 'Test description'
+    assert prompt_func._prompt_tags == {'test'}
 
 
 def test_decorator_defaults():
@@ -27,10 +31,13 @@ def test_decorator_defaults():
         """This is a test docstring."""
         return 'Test'
 
+    # Cast to PromptFunction for type checking
+    prompt_func = as_prompt_function(test_function)
+
     # Check that defaults are correctly used
-    assert test_function._prompt_name == 'test_function'
-    assert test_function._prompt_description == 'This is a test docstring.'
-    assert test_function._prompt_tags == {'finops'}
+    assert prompt_func._prompt_name == 'test_function'
+    assert prompt_func._prompt_description == 'This is a test docstring.'
+    assert prompt_func._prompt_tags == {'finops'}
 
 
 def test_decorator_function_execution():
@@ -94,7 +101,7 @@ def test_graviton_migration_prompt():
     if hasattr(user_message, 'content'):
         if hasattr(user_message.content, 'text'):
             # If content is a TextContent object with text attribute
-            content_text = user_message.content.text
+            content_text = user_message.content.text  # type: ignore
         else:
             # If content is a string
             content_text = str(user_message.content)
@@ -148,7 +155,7 @@ def test_savings_plans_prompt():
     if hasattr(user_message, 'content'):
         if hasattr(user_message.content, 'text'):
             # If content is a TextContent object with text attribute
-            content_text = user_message.content.text
+            content_text = user_message.content.text  # type: ignore
         else:
             # If content is a string
             content_text = str(user_message.content)

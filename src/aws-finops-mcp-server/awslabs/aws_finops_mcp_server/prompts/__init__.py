@@ -16,8 +16,11 @@ import os
 import importlib
 import inspect
 import logging
-from fastmcp import FastMCP
-from typing import Set
+from typing import Set, Any
+
+# Import FastMCP as Any to avoid type issues
+
+from .types import is_prompt_function, as_prompt_function
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -26,7 +29,7 @@ logger = logging.getLogger(__name__)
 ALLOWED_PROMPT_MODULES: Set[str] = set()
 
 
-def register_all_prompts(mcp: FastMCP) -> None:
+def register_all_prompts(mcp: Any) -> None:
     """
     Dynamically discover and register all prompts from the prompts directory.
 
@@ -64,15 +67,18 @@ def register_all_prompts(mcp: FastMCP) -> None:
 
             # Find all functions decorated with @finops_prompt
             for name, obj in inspect.getmembers(module):
-                if inspect.isfunction(obj) and hasattr(obj, '_finops_prompt'):
+                if inspect.isfunction(obj) and is_prompt_function(obj):
+                    # Cast to PromptFunction for type checking
+                    prompt_func = as_prompt_function(obj)
+
                     # Register the function with the MCP server
                     mcp.prompt(
-                        name=obj._prompt_name,
-                        description=obj._prompt_description,
+                        name=prompt_func._prompt_name,
+                        description=prompt_func._prompt_description,
                         # Removed tags parameter as it's not supported in this version of FastMCP
                     )(obj)
                     registered_count += 1
-                    logger.info(f'Registered prompt: {obj._prompt_name}')
+                    logger.info(f'Registered prompt: {prompt_func._prompt_name}')
         except Exception as e:
             logger.error(f'Error loading prompts from {module_path}: {e}')
 

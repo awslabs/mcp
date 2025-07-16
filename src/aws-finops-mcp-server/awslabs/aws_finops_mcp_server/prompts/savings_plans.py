@@ -24,7 +24,7 @@ from typing import List
 )
 def savings_plans_analysis(
     account_ids: str, lookback_days: int = 30, term_in_years: int = 1
-) -> List[Message]:
+) -> List[Message]:  # type: ignore
     """Creates a structured conversation to guide the LLM through analyzing Savings Plans purchase opportunities.
 
     Args:

@@ -22,7 +22,7 @@ from awslabs.aws_finops_mcp_server.consts import (
     ENV_AWS_DEFAULT_REGION,
     ENV_AWS_REGION,
 )
-from typing import Tuple
+from typing import Any, Tuple
 
 
 # Configure logging
@@ -47,7 +47,7 @@ def get_aws_region() -> Tuple[str, bool]:
         return region_from_env, True
 
 
-def create_boto3_client(service_name: str, log_region: bool = True) -> boto3.client:
+def create_boto3_client(service_name: str, log_region: bool = True) -> Any:
     """Create a boto3 client with proper region handling.
 
     Args:

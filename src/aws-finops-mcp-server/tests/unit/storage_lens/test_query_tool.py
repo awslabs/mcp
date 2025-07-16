@@ -79,6 +79,7 @@ class TestStorageLensQueryTool:
             query='SELECT * FROM {table}',
             database_name='test_db',
             table_name='test_table',
+            output_location='s3://test-bucket/athena-results/',
         )
         result = await query_tool.query_storage_lens(request)
 
@@ -153,7 +154,9 @@ class TestStorageLensQueryTool:
 
         # Call the method with minimal parameters
         request = StorageLensQueryRequest(
-            manifest_location='s3://test-bucket/manifest.json', query='SELECT * FROM {table}'
+            manifest_location='s3://test-bucket/manifest.json',
+            query='SELECT * FROM {table}',
+            output_location='s3://test-bucket/athena-results/',
         )
         result = await query_tool.query_storage_lens(request)
 

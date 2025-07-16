@@ -23,14 +23,14 @@ from typing import List
     tags={'cost-optimization', 'ec2', 'graviton'},
 )
 def graviton_migration_analysis(
-    account_ids: str, lookback_days: int = 14, region: str = None
-) -> List[Message]:
+    account_ids: str, lookback_days: int = 14, region: str = ''
+) -> List[Message]:  # type: ignore
     """Creates a structured conversation to guide the LLM through analyzing Graviton migration opportunities.
 
     Args:
         account_ids: AWS account ID(s) to analyze (comma-separated if multiple)
         lookback_days: Number of days to look back for usage data (default: 14)
-        region: Optional AWS region to focus on
+        region: Optional AWS region to focus on (default: all regions)
 
     Returns:
         List[Message]: A list of messages forming the prompt conversation

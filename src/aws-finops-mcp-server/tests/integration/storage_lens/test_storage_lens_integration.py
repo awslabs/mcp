@@ -65,6 +65,9 @@ class TestStorageLensIntegration:
         # Run a simple query to get storage by region
         request = StorageLensQueryRequest(
             manifest_location=MANIFEST_LOCATION,
+            output_location=os.environ.get(
+                'STORAGE_LENS_OUTPUT_LOCATION', 's3://default-output-bucket/'
+            ),
             query="""
             SELECT
                 aws_region,
