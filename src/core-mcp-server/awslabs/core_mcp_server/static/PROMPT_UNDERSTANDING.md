@@ -25,6 +25,11 @@ When a user presents a query, follow these steps to break it down:
 - Use `awslabs.core-mcp-server` tools for:
   - prompt_understanding: Initial query analysis and guidance on using MCP servers
 
+#### AWS API MCP Server
+- Use `awslabs.aws-api-mcp-server` for any general enquiries about AWS resources.
+  - suggest_aws_commands: Search AWS CLI commands for APIs that are relevant to the user query.
+  - call_aws: Execute AWS CLI commands.
+
 #### CDK MCP Server
 - Use `awslabs.cdk-mcp-server` for infrastructure patterns and CDK guidance:
   - CDKGeneralGuidance: Get prescriptive CDK advice for building applications on AWS
@@ -45,10 +50,9 @@ When a user presents a query, follow these steps to break it down:
   - generate_image_with_colors: Generate an image using Amazon Nova Canvas with color guidance
 
 #### Cost Analysis MCP Server
-- Use `awslabs.cost-analysis-mcp-server` for analyzing AWS service costs:
+- Use `awslabs.aws-pricing-mcp-server` for analyzing AWS service costs:
   - analyze_cdk_project: Analyze a CDK project to identify AWS services used
-  - get_pricing_from_web: Get pricing information from AWS pricing webpage
-  - get_pricing_from_api: Get pricing information from AWS Price List API
+  - get_pricing: Get pricing information from AWS Price List API
   - get_bedrock_patterns: Get architecture patterns for Amazon Bedrock applications
   - generate_cost_report: Generate a detailed cost analysis report based on pricing data
 
@@ -271,18 +275,18 @@ Generate images for UI or solution architecture diagrams:
 </use_mcp_tool>
 ```
 
-### 6.2 AWS Cost Analysis MCP Server
+### 6.2 AWS Pricing MCP Server
 
 Get pricing information for AWS services:
 
 ```md
 # Getting pricing information
 <use_mcp_tool>
-<server_name>awslabs.cost-analysis-mcp-server</server_name>
-<tool_name>get_pricing_from_web</tool_name>
+<server_name>awslabs.aws-pricing-mcp-server</server_name>
+<tool_name>get_pricing</tool_name>
 <arguments>
 {
-  "service_code": "lambda"
+  "service_code": "AWSLambda"
 }
 </arguments>
 </use_mcp_tool>
@@ -373,3 +377,33 @@ Key Research Areas:
 - Integration requirements
 
 Remember: The goal is to translate general application requirements into specific, modern AWS services and patterns while considering scalability, security, and cost-effectiveness. if any MCP server referenced here is not avalaible, ask the user if they would like to install it
+
+### 6.5 AWS API MCP Server
+
+Find all running EC2 servers in us-west-2 in the user's AWS account using AWS CLI commands.
+
+```md
+# Search for relevant AWS commands
+<use_mcp_tool>
+<server_name>awslabs.aws-api-mcp-server</server_name>
+<tool_name>suggest_aws_commands</tool_name>
+<arguments>
+{
+  "query": "Show me all running EC2 instances in us-west-2",
+}
+</arguments>
+</use_mcp_tool>
+```
+
+```md
+# Execute an AWS CLI command
+<use_mcp_tool>
+<server_name>awslabs.aws-api-mcp-server</server_name>
+<tool_name>call_aws</tool_name>
+<arguments>
+{
+  "cli_command": "aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" --region us-west-2",
+}
+</arguments>
+</use_mcp_tool>
+```
