@@ -910,6 +910,28 @@
     },
     {
       "category": "Cost & Operations",
+      "description": "AWS cost optimization recommendations and resource efficiency insights",
+      "icon": "\ud83d\udcb0",
+      "id": "aws-finops-mcp-server",
+      "name": "AWS FinOps MCP Server",
+      "source_path": "src/aws-finops-mcp-server/",
+      "subcategory": "Cost Analysis",
+      "tags": [
+        "cost-operations",
+        "finops",
+        "cost-optimization",
+        "resource-efficiency",
+        "recommendations",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
       "description": "Prometheus-compatible operations",
       "icon": "\ud83d\udcb0",
       "id": "prometheus-mcp-server",
