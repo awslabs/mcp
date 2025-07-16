@@ -71,7 +71,7 @@ runs:
 
         df -h
         du -h -k -d 1
-    
+
     - name: Space After
       id: after
       run: |
