@@ -66,7 +66,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [`.cursor/mcp.json`](#cursormcpjson)
     - [Getting Started with Windsurf](#getting-started-with-windsurf)
       - [`~/.codeium/windsurf/mcp_config.json`](#codeiumwindsurfmcp_configjson)
-     - [Getting Started with VS Code](#getting-started-with-vs-code)
+    - [Getting Started with VS Code](#getting-started-with-vs-code)
       - [`.vscode/mcp.json`](#vscodemcpjson)
   - [Samples](#samples)
   - [Vibe coding](#vibe-coding)
