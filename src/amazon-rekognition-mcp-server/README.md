@@ -50,6 +50,15 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 or docker after a successful `docker build -t awslabs/amazon-rekognition-mcp-server .`:
 
+```file
+# fictitious `.env` file with AWS temporary credentials
+AWS_ACCESS_KEY_ID=<from the profile you set up>
+AWS_SECRET_ACCESS_KEY=<from the profile you set up>
+AWS_SESSION_TOKEN=<from the profile you set up>
+AWS_REGION=<your-region>
+BASE_DIR=/path/to/base/directory
+```
+
 ```json
 {
   "mcpServers": {
@@ -59,28 +68,18 @@ or docker after a successful `docker build -t awslabs/amazon-rekognition-mcp-ser
         "run",
         "--rm",
         "--interactive",
-        "--env",
-        "AWS_PROFILE",
-        "--env",
-        "AWS_REGION",
-        "--env",
-        "BASE_DIR",
-        "--env",
-        "FASTMCP_LOG_LEVEL",
+        "--env-file",
+        "/full/path/to/file/above/.env",
         "awslabs/amazon-rekognition-mcp-server:latest"
       ],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "BASE_DIR": "/path/to/base/directory",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
+      "env": {},
       "disabled": false,
       "autoApprove": []
     }
   }
 }
 ```
+NOTE: Your credentials will need to be kept refreshed from your host
 
 ## Environment Variables
 
