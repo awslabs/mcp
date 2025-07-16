@@ -44,7 +44,8 @@ jobs:
       security-events: write
     runs-on: ubuntu-latest
     steps:
-      - name: Clear Up Space (Agressively)
+      - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
+        if: contains(toJson('["src/aws-api-mcp-server"]'), matrix.dockerfile)
         run: |
             df -h
             du -h -k -d 1
