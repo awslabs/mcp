@@ -37,16 +37,16 @@ COPY pyproject.toml uv.lock uv-requirements.txt ./
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies and Python package manager
-RUN apk update && \
-    apk add --no-cache --virtual .build-deps \
-    build-base \
-    gcc \
-    musl-dev \
-    libffi-dev \
-    openssl-dev \
-    cargo && \
-    pip install --no-cache-dir uv
+# # Install system dependencies and Python package manager
+# RUN apk update && \
+#     apk add --no-cache --virtual .build-deps \
+#     build-base \
+#     gcc \
+#     musl-dev \
+#     libffi-dev \
+#     openssl-dev \
+#     cargo && \
+#     pip install --no-cache-dir uv
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
