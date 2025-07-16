@@ -24,8 +24,10 @@ from awslabs.postgres_mcp_server.server import (
     DBConnectionSingleton,
     client_error_code_key,
     get_table_schema,
+    get_table_schema_iam,
     main,
     run_query,
+    run_query_iam,
     unexpected_error_key,
     write_query_prohibited_key,
 )
@@ -732,6 +734,318 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
     assert excinfo.value.code == 1
 
 
+# ==================== IAM AUTHENTICATION TESTS ====================
+
+
+@pytest.mark.asyncio
+async def test_run_query_iam_basic():
+    """Test that run_query_iam correctly handles IAM authentication queries."""
+    DBConnectionSingleton.initialize(
+        auth_mode='iam-db-auth',
+        db_user='test_user',
+        db_host='test-host.cluster-xxx.us-east-1.rds.amazonaws.com',
+        database='test_db',
+        region='us-east-1',
+        readonly=True,
+        is_test=True,
+    )
+    mock_db_connection = Mock_DBConnection(readonly=True, auth_mode='iam-db-auth')
+
+    sql_text = 'SELECT * FROM example_table WHERE id = %(user_id)s'
+    parameters = {'user_id': 123}
+
+    ctx = DummyCtx()
+    tool_response = await run_query_iam(sql_text, ctx, mock_db_connection, parameters)
+
+    # validate tool_response - should be successful
+    assert isinstance(tool_response, list)
+    assert len(tool_response) == 1
+    assert isinstance(tool_response[0], dict)
+    assert 'error' not in tool_response[0]
+
+
+@pytest.mark.asyncio
+async def test_run_query_iam_auth_mode_validation():
+    """Test that run_query_iam only works with IAM auth mode."""
+    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    mock_db_connection = Mock_DBConnection(readonly=True, auth_mode='secrets-manager')
+
+    sql_text = 'SELECT 1'
+    ctx = DummyCtx()
+
+    response = await run_query_iam(sql_text, ctx, mock_db_connection)
+
+    assert len(response) == 1
+    assert 'error' in response[0]
+    assert response[0]['error'] == 'IAM authentication mode required'
+
+
+@pytest.mark.asyncio
+async def test_run_query_iam_readonly_enforcement():
+    """Test that run_query_iam enforces readonly mode correctly."""
+    DBConnectionSingleton.initialize(
+        auth_mode='iam-db-auth',
+        db_user='test_user',
+        db_host='test-host.cluster-xxx.us-east-1.rds.amazonaws.com',
+        database='test_db',
+        region='us-east-1',
+        readonly=True,
+        is_test=True,
+    )
+    mock_db_connection = Mock_DBConnection(readonly=True, auth_mode='iam-db-auth')
+
+    for sql_text in MUTATING_QUERIES:
+        ctx = DummyCtx()
+        response = await run_query_iam(sql_text, ctx, mock_db_connection)
+
+        # All queries should fail with write prohibition error
+        assert len(response) == 1
+        assert len(response[0]) == 1
+        assert 'error' in response[0]
+        assert response[0].get('error') == write_query_prohibited_key
+
+
+@pytest.mark.asyncio
+async def test_run_query_iam_risky_queries():
+    """Test that run_query_iam rejects risky queries like run_query."""
+    DBConnectionSingleton.initialize(
+        auth_mode='iam-db-auth',
+        db_user='test_user',
+        db_host='test-host.cluster-xxx.us-east-1.rds.amazonaws.com',
+        database='test_db',
+        region='us-east-1',
+        readonly=True,
+        is_test=True,
+    )
+    mock_db_connection = Mock_DBConnection(readonly=True, auth_mode='iam-db-auth')
+
+    for sql_text in RISKY_QUERY_WITHOUT_PARAMETERS:
+        ctx = DummyCtx()
+        response = await run_query_iam(sql_text, ctx, mock_db_connection)
+        assert len(response) == 1
+        assert len(response[0]) == 1
+        assert 'error' in response[0]
+
+
+@pytest.mark.asyncio
+async def test_run_query_iam_error_handling():
+    """Test that run_query_iam handles errors appropriately."""
+    DBConnectionSingleton.initialize(
+        auth_mode='iam-db-auth',
+        db_user='test_user',
+        db_host='test-host.cluster-xxx.us-east-1.rds.amazonaws.com',
+        database='test_db',
+        region='us-east-1',
+        readonly=True,
+        is_test=True,
+    )
+
+    # Test with connection error
+    mock_db_connection = Mock_DBConnection(
+        readonly=True, auth_mode='iam-db-auth', error=MockException.Unexpected
+    )
+    sql_text = 'SELECT 1'
+    ctx = DummyCtx()
+
+    response = await run_query_iam(sql_text, ctx, mock_db_connection)
+
+    assert len(response) == 1
+    assert 'error' in response[0]
+    assert response[0]['error'] == 'run_query_iam unexpected error'
+
+
+@pytest.mark.asyncio
+async def test_get_table_schema_iam():
+    """Test get_table_schema_iam with IAM authentication."""
+    DBConnectionSingleton.initialize(
+        auth_mode='iam-db-auth',
+        db_user='test_user',
+        db_host='test-host.cluster-xxx.us-east-1.rds.amazonaws.com',
+        database='test_db',
+        region='us-east-1',
+        readonly=True,
+        is_test=True,
+    )
+
+    ctx = DummyCtx()
+    mock_db_connection = Mock_DBConnection(readonly=True, auth_mode='iam-db-auth')
+
+    # Mock the internal call to run_query_iam by setting up the singleton
+    DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
+
+    tool_response = await get_table_schema_iam('test_table', ctx)
+
+    # validate tool_response - should be successful
+    assert isinstance(tool_response, list)
+    assert len(tool_response) == 1
+    assert isinstance(tool_response[0], dict)
+    assert 'error' not in tool_response[0]
+
+
+# ==================== CLI ARGUMENT TESTS ====================
+
+
+def test_main_with_iam_auth_parameters(monkeypatch, capsys):
+    """Test main function with IAM authentication parameters."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--auth-mode',
+            'iam-db-auth',
+            '--db-user',
+            'test_user',
+            '--db-host',
+            'test-cluster.cluster-xxx.us-east-1.rds.amazonaws.com',
+            '--database',
+            'postgres',
+            '--region',
+            'us-east-1',
+            '--readonly',
+            'True',
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    # Mock the connection so main can complete successfully
+    DBConnectionSingleton.initialize(
+        auth_mode='iam-db-auth',
+        db_user='test_user',
+        db_host='test-cluster.cluster-xxx.us-east-1.rds.amazonaws.com',
+        database='postgres',
+        region='us-east-1',
+        readonly=True,
+        is_test=True,
+    )
+    mock_db_connection = Mock_DBConnection(readonly=True, auth_mode='iam-db-auth')
+    DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
+
+    # This should succeed
+    main()
+
+
+def test_main_with_missing_iam_parameters(monkeypatch, capsys):
+    """Test main function with missing IAM parameters."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--auth-mode',
+            'iam-db-auth',
+            '--database',
+            'postgres',
+            '--region',
+            'us-east-1',
+            '--readonly',
+            'True',
+            # Missing --db-user and --db-host
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    # This should fail with argument error
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 2  # argparse error code
+
+
+def test_main_with_missing_secrets_manager_parameters(monkeypatch, capsys):
+    """Test main function with missing secrets manager parameters."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--auth-mode',
+            'secrets-manager',
+            '--database',
+            'postgres',
+            '--region',
+            'us-east-1',
+            '--readonly',
+            'True',
+            # Missing --resource_arn and --secret_arn
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    # This should fail with argument error
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 2  # argparse error code
+
+
+# ==================== SECURITY TESTS ====================
+
+
+@pytest.mark.asyncio
+async def test_both_tools_reject_risky_queries():
+    """Test that both tools consistently reject risky queries."""
+    # Test Secrets Manager tool
+    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    mock_db_connection_sm = Mock_DBConnection(readonly=True, auth_mode='secrets-manager')
+
+    # Test IAM tool
+    DBConnectionSingleton.initialize(
+        auth_mode='iam-db-auth',
+        db_user='test_user',
+        db_host='test-host.cluster-xxx.us-east-1.rds.amazonaws.com',
+        database='test_db',
+        region='us-east-1',
+        readonly=True,
+        is_test=True,
+    )
+    mock_db_connection_iam = Mock_DBConnection(readonly=True, auth_mode='iam-db-auth')
+
+    for sql_text in RISKY_QUERY_WITHOUT_PARAMETERS:
+        ctx = DummyCtx()
+
+        # Test Secrets Manager tool
+        response_sm = await run_query(sql_text, ctx, mock_db_connection_sm)
+        assert len(response_sm) == 1
+        assert 'error' in response_sm[0]
+
+        # Test IAM tool
+        response_iam = await run_query_iam(sql_text, ctx, mock_db_connection_iam)
+        assert len(response_iam) == 1
+        assert 'error' in response_iam[0]
+
+
+@pytest.mark.asyncio
+async def test_both_tools_enforce_readonly_correctly():
+    """Test that both tools consistently enforce readonly mode."""
+    # Test Secrets Manager tool
+    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
+    mock_db_connection_sm = Mock_DBConnection(readonly=True, auth_mode='secrets-manager')
+
+    # Test IAM tool
+    DBConnectionSingleton.initialize(
+        auth_mode='iam-db-auth',
+        db_user='test_user',
+        db_host='test-host.cluster-xxx.us-east-1.rds.amazonaws.com',
+        database='test_db',
+        region='us-east-1',
+        readonly=True,
+        is_test=True,
+    )
+    mock_db_connection_iam = Mock_DBConnection(readonly=True, auth_mode='iam-db-auth')
+
+    for sql_text in MUTATING_QUERIES:
+        ctx = DummyCtx()
+
+        # Test Secrets Manager tool
+        response_sm = await run_query(sql_text, ctx, mock_db_connection_sm)
+        assert len(response_sm) == 1
+        assert response_sm[0].get('error') == write_query_prohibited_key
+
+        # Test IAM tool
+        response_iam = await run_query_iam(sql_text, ctx, mock_db_connection_iam)
+        assert len(response_iam) == 1
+        assert response_iam[0].get('error') == write_query_prohibited_key
+
+
 if __name__ == '__main__':
     DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=True, is_test=True)
     asyncio.run(test_run_query_well_formatted_response())
@@ -740,3 +1054,13 @@ if __name__ == '__main__':
     asyncio.run(test_run_query_throw_client_error())
     asyncio.run(test_run_query_write_queries_on_readonly_setting())
     asyncio.run(test_run_query_write_queries_on_readonly_setting())
+
+    # IAM tests
+    asyncio.run(test_run_query_iam_basic())
+    asyncio.run(test_run_query_iam_auth_mode_validation())
+    asyncio.run(test_run_query_iam_readonly_enforcement())
+    asyncio.run(test_run_query_iam_risky_queries())
+    asyncio.run(test_run_query_iam_error_handling())
+    asyncio.run(test_get_table_schema_iam())
+    asyncio.run(test_both_tools_reject_risky_queries())
+    asyncio.run(test_both_tools_enforce_readonly_correctly())

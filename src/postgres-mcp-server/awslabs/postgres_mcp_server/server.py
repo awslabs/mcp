@@ -50,25 +50,50 @@ class DummyCtx:
 
 
 class DBConnection:
-    """Class that wraps DB connection client by RDS API."""
+    """Class that wraps DB connection client by RDS API or direct PostgreSQL connection."""
 
-    def __init__(self, cluster_arn, secret_arn, database, region, readonly, is_test=False):
+    def __init__(
+        self,
+        auth_mode='secrets-manager',
+        cluster_arn=None,
+        secret_arn=None,
+        db_user=None,
+        db_host=None,
+        db_port=5432,
+        database=None,
+        region=None,
+        readonly=False,
+        is_test=False,
+    ):
         """Initialize a new DB connection.
 
         Args:
-            cluster_arn: The ARN of the RDS cluster
-            secret_arn: The ARN of the secret containing credentials
+            auth_mode: Authentication mode ('secrets-manager' or 'iam-db-auth')
+            cluster_arn: The ARN of the RDS cluster (secrets-manager mode)
+            secret_arn: The ARN of the secret containing credentials (secrets-manager mode)
+            db_user: Database username (iam-db-auth mode)
+            db_host: Database host/endpoint (iam-db-auth mode)
+            db_port: Database port (iam-db-auth mode)
             database: The name of the database to connect to
             region: The AWS region where the RDS instance is located
             readonly: Whether the connection should be read-only
             is_test: Whether this is a test connection
         """
+        self.auth_mode = auth_mode
         self.cluster_arn = cluster_arn
         self.secret_arn = secret_arn
+        self.db_user = db_user
+        self.db_host = db_host
+        self.db_port = db_port
         self.database = database
+        self.region = region
         self.readonly = readonly
+
         if not is_test:
-            self.data_client = boto3.client('rds-data', region_name=region)
+            if auth_mode == 'secrets-manager':
+                self.data_client = boto3.client('rds-data', region_name=region)
+            else:  # iam-db-auth
+                self.rds_client = boto3.client('rds', region_name=region)
 
     @property
     def readonly_query(self):
@@ -79,6 +104,41 @@ class DBConnection:
         """
         return self.readonly
 
+    async def generate_auth_token(self):
+        """Generate IAM authentication token for database connection.
+
+        Returns:
+            str: Authentication token valid for 15 minutes
+        """
+        return await asyncio.to_thread(
+            self.rds_client.generate_db_auth_token,
+            DBHostname=self.db_host,
+            Port=self.db_port,
+            DBUsername=self.db_user,
+            Region=self.region,
+        )
+
+    async def get_direct_connection(self):
+        """Get a direct PostgreSQL connection using IAM authentication.
+
+        Returns:
+            psycopg2 connection object
+        """
+        import psycopg2
+
+        auth_token = await self.generate_auth_token()
+
+        connection_params = {
+            'host': self.db_host,
+            'port': self.db_port,
+            'database': self.database,
+            'user': self.db_user,
+            'password': auth_token,
+            'sslmode': 'require',
+        }
+
+        return await asyncio.to_thread(psycopg2.connect, **connection_params)
+
 
 class DBConnectionSingleton:
     """Manages a single DBConnection instance across the application.
@@ -88,40 +148,100 @@ class DBConnectionSingleton:
 
     _instance = None
 
-    def __init__(self, resource_arn, secret_arn, database, region, readonly, is_test=False):
+    def __init__(
+        self,
+        auth_mode='secrets-manager',
+        cluster_arn=None,
+        secret_arn=None,
+        db_user=None,
+        db_host=None,
+        db_port=5432,
+        database=None,
+        region=None,
+        readonly=False,
+        is_test=False,
+    ):
         """Initialize a new DB connection singleton.
 
         Args:
-            resource_arn: The ARN of the RDS resource
-            secret_arn: The ARN of the secret containing credentials
+            auth_mode: Authentication mode ('secrets-manager' or 'iam-db-auth')
+            cluster_arn: The ARN of the RDS cluster (secrets-manager mode)
+            secret_arn: The ARN of the secret containing credentials (secrets-manager mode)
+            db_user: Database username (iam-db-auth mode)
+            db_host: Database host/endpoint (iam-db-auth mode)
+            db_port: Database port (iam-db-auth mode)
             database: The name of the database to connect to
             region: The AWS region where the RDS instance is located
             readonly: Whether the connection should be read-only
             is_test: Whether this is a test connection
         """
-        if not all([resource_arn, secret_arn, database, region]):
-            raise ValueError(
-                'Missing required connection parameters. '
-                'Please provide resource_arn, secret_arn, database, and region.'
-            )
+        if auth_mode == 'secrets-manager':
+            if not all([cluster_arn, secret_arn, database, region]):
+                raise ValueError(
+                    'Missing required connection parameters for secrets-manager mode. '
+                    'Please provide cluster_arn, secret_arn, database, and region.'
+                )
+        elif auth_mode == 'iam-db-auth':
+            if not all([db_user, db_host, database, region]):
+                raise ValueError(
+                    'Missing required connection parameters for iam-db-auth mode. '
+                    'Please provide db_user, db_host, database, and region.'
+                )
+
         self._db_connection = DBConnection(
-            resource_arn, secret_arn, database, region, readonly, is_test
+            auth_mode=auth_mode,
+            cluster_arn=cluster_arn,
+            secret_arn=secret_arn,
+            db_user=db_user,
+            db_host=db_host,
+            db_port=db_port,
+            database=database,
+            region=region,
+            readonly=readonly,
+            is_test=is_test,
         )
 
     @classmethod
-    def initialize(cls, resource_arn, secret_arn, database, region, readonly, is_test=False):
+    def initialize(
+        cls,
+        auth_mode='secrets-manager',
+        cluster_arn=None,
+        secret_arn=None,
+        db_user=None,
+        db_host=None,
+        db_port=5432,
+        database=None,
+        region=None,
+        readonly=False,
+        is_test=False,
+    ):
         """Initialize the singleton instance if it doesn't exist.
 
         Args:
-            resource_arn: The ARN of the RDS resource
-            secret_arn: The ARN of the secret containing credentials
+            auth_mode: Authentication mode ('secrets-manager' or 'iam-db-auth')
+            cluster_arn: The ARN of the RDS cluster (secrets-manager mode)
+            secret_arn: The ARN of the secret containing credentials (secrets-manager mode)
+            db_user: Database username (iam-db-auth mode)
+            db_host: Database host/endpoint (iam-db-auth mode)
+            db_port: Database port (iam-db-auth mode)
             database: The name of the database to connect to
             region: The AWS region where the RDS instance is located
             readonly: Whether the connection should be read-only
             is_test: Whether this is a test connection
         """
         if cls._instance is None:
-            cls._instance = cls(resource_arn, secret_arn, database, region, readonly, is_test)
+            cls._instance = cls(
+                auth_mode=auth_mode,
+                cluster_arn=cluster_arn,
+                secret_arn=secret_arn,
+                db_user=db_user,
+                db_host=db_host,
+                db_port=db_port,
+                database=database,
+                region=region,
+                readonly=readonly,
+                is_test=is_test,
+            )
 
     @classmethod
     def get(cls):
@@ -305,6 +425,114 @@ async def get_table_schema(
     return await run_query(sql=sql, ctx=ctx, query_parameters=params)
 
 
+@mcp.tool(
+    name='run_query_iam',
+    description='Run SQL query using direct PostgreSQL connection with IAM authentication',
+)
+async def run_query_iam(
+    sql: Annotated[str, Field(description='The SQL query to run with %(param)s syntax')],
+    ctx: Context,
+    db_connection=None,
+    parameters: Annotated[
+        Optional[Dict[str, Any]], Field(description='Native Python dict parameters')
+    ] = None,
+) -> list[dict]:  # type: ignore
+    """Run a SQL query using direct PostgreSQL connection with IAM authentication.
+
+    Args:
+        sql: The sql statement to run with %(param)s syntax
+        ctx: MCP context for logging and state management
+        db_connection: DB connection object passed by unit test. It should be None if called by MCP server.
+        parameters: Native Python dict parameters
+
+    Returns:
+        List of dictionary that contains query response rows
+    """
+    global client_error_code_key
+    global unexpected_error_key
+    global write_query_prohibited_key
+
+    if db_connection is None:
+        db_connection = DBConnectionSingleton.get().db_connection
+
+    # Ensure we're in IAM auth mode
+    if db_connection.auth_mode != 'iam-db-auth':
+        await ctx.error('run_query_iam can only be used with IAM database authentication mode')
+        return [{'error': 'IAM authentication mode required'}]
+
+    if db_connection.readonly_query:
+        matches = detect_mutating_keywords(sql)
+        if (bool)(matches):
+            logger.info(
+                f'query is rejected because current setting only allows readonly query. detected keywords: {matches}, SQL query: {sql}'
+            )
+            await ctx.error(write_query_prohibited_key)
+            return [{'error': write_query_prohibited_key}]
+
+    issues = check_sql_injection_risk(sql)
+    if issues:
+        logger.info(
+            f'query is rejected because it contains risky SQL pattern, SQL query: {sql}, reasons: {issues}'
+        )
+        await ctx.error(
+            str({'message': 'Query parameter contains suspicious pattern', 'details': issues})
+        )
+        return [{'error': query_injection_risk_key}]
+
+    try:
+        logger.info(f'run_query_iam: readonly:{db_connection.readonly_query}, SQL:{sql}')
+
+        if db_connection.readonly_query:
+            response = await execute_direct_readonly_query(db_connection, sql, parameters)
+        else:
+            response = await execute_direct_query(db_connection, sql, parameters)
+
+        logger.success('run_query_iam successfully executed query:{}', sql)
+        return response
+    except Exception as e:
+        logger.exception('run_query_iam unexpected error')
+        error_details = f'{type(e).__name__}: {str(e)}'
+        await ctx.error(str({'message': error_details}))
+        return [{'error': 'run_query_iam unexpected error'}]
+
+
+@mcp.tool(
+    name='get_table_schema_iam',
+    description='Fetch table columns and comments from Postgres using direct connection with IAM auth',
+)
+async def get_table_schema_iam(
+    table_name: Annotated[str, Field(description='name of the table')], ctx: Context
+) -> list[dict]:
+    """Get a table's schema information using direct PostgreSQL connection with IAM auth.
+
+    Args:
+        table_name: name of the table
+        ctx: MCP context for logging and state management
+
+    Returns:
+        List of dictionary that contains query response rows
+    """
+    logger.info(f'get_table_schema_iam: {table_name}')
+
+    sql = """
+        SELECT
+            a.attname AS column_name,
+            pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+            col_description(a.attrelid, a.attnum) AS column_comment
+        FROM
+            pg_attribute a
+        WHERE
+            a.attrelid = to_regclass(%(table_name)s)
+            AND a.attnum > 0
+            AND NOT a.attisdropped
+        ORDER BY a.attnum
+    """
+
+    params = {'table_name': table_name}
+
+    return await run_query_iam(sql=sql, ctx=ctx, parameters=params)
+
+
 def execute_readonly_query(
     db_connection: DBConnection, query: str, parameters: Optional[List[Dict[str, Any]]] = None
 ) -> dict:
@@ -367,6 +595,91 @@ def execute_readonly_query(
         raise e
 
 
+async def execute_direct_query(
+    db_connection: DBConnection, sql: str, parameters: Optional[Dict[str, Any]] = None
+) -> list[dict]:
+    """Execute query using direct PostgreSQL connection with IAM auth.
+
+    Args:
+        db_connection: connection object
+        sql: SQL query with %(param)s syntax
+        parameters: Native Python dict parameters
+
+    Returns:
+        List of simple dictionaries with column names as keys
+    """
+    conn = None
+    try:
+        conn = await db_connection.get_direct_connection()
+        cursor = conn.cursor()
+
+        # Execute query with native parameters
+        cursor.execute(sql, parameters)
+
+        # Fetch results and column metadata
+        if cursor.description:
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+
+            # Convert directly to simple dictionaries
+            records = []
+            for row in rows:
+                row_dict = {columns[i]: value for i, value in enumerate(row)}
+                records.append(row_dict)
+
+            return records
+        else:
+            # No results (e.g., INSERT/UPDATE/DELETE)
+            return []
+
+    finally:
+        if conn:
+            await asyncio.to_thread(conn.close)
+
+
+async def execute_direct_readonly_query(
+    db_connection: DBConnection, sql: str, parameters: Optional[Dict[str, Any]] = None
+) -> list[dict]:
+    """Execute readonly query using direct PostgreSQL connection with IAM auth.
+
+    Args:
+        db_connection: connection object
+        sql: SQL query with %(param)s syntax
+        parameters: Native Python dict parameters
+
+    Returns:
+        List of simple dictionaries with column names as keys
+    """
+    conn = None
+    try:
+        conn = await db_connection.get_direct_connection()
+        conn.set_session(readonly=True)
+        cursor = conn.cursor()
+
+        # Execute query with native parameters
+        cursor.execute(sql, parameters)
+
+        # Fetch results and column metadata
+        if cursor.description:
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+
+            # Convert directly to simple dictionaries
+            records = []
+            for row in rows:
+                row_dict = {columns[i]: value for i, value in enumerate(row)}
+                records.append(row_dict)
+
+            return records
+        else:
+            # No results (e.g., INSERT/UPDATE/DELETE)
+            return []
+
+    finally:
+        if conn:
+            await asyncio.to_thread(conn.close)
+
+
 def main():
     """Main entry point for the MCP server application."""
     global client_error_code_key
@@ -375,51 +688,102 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
     )
-    parser.add_argument('--resource_arn', required=True, help='ARN of the RDS cluster')
+
+    # Authentication mode
+    parser.add_argument(
+        '--auth-mode',
+        choices=['secrets-manager', 'iam-db-auth'],
+        default='secrets-manager',
+        help='Authentication mode (default: secrets-manager)',
+    )
+
+    # Secrets Manager arguments (backward compatibility)
+    parser.add_argument('--resource_arn', help='ARN of the RDS cluster (secrets-manager mode)')
     parser.add_argument(
         '--secret_arn',
-        required=True,
-        help='ARN of the Secrets Manager secret for database credentials',
+        help='ARN of the Secrets Manager secret for database credentials (secrets-manager mode)',
     )
+
+    # IAM Database Authentication arguments
+    parser.add_argument('--db-user', help='Database username (iam-db-auth mode)')
+    parser.add_argument('--db-host', help='Database host/endpoint (iam-db-auth mode)')
+    parser.add_argument('--db-port', type=int, default=5432, help='Database port (default: 5432)')
+
+    # Common arguments
     parser.add_argument('--database', required=True, help='Database name')
-    parser.add_argument(
-        '--region', required=True, help='AWS region for RDS Data API (default: us-west-2)'
-    )
+    parser.add_argument('--region', required=True, help='AWS region')
     parser.add_argument(
         '--readonly', required=True, help='Enforce NL to SQL to only allow readonly sql statement'
     )
+
     args = parser.parse_args()
 
-    logger.info(
-        'Postgres MCP init with CLUSTER_ARN:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
-        args.resource_arn,
-        args.secret_arn,
-        args.region,
-        args.database,
-        args.readonly,
-    )
+    # Validate arguments based on authentication mode
+    if args.auth_mode == 'secrets-manager':
+        if not args.resource_arn or not args.secret_arn:
+            parser.error('secrets-manager mode requires --resource_arn and --secret_arn arguments')
+        logger.info(
+            'Postgres MCP init with AUTH_MODE:{}, CLUSTER_ARN:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
+            args.auth_mode,
+            args.resource_arn,
+            args.secret_arn,
+            args.region,
+            args.database,
+            args.readonly,
+        )
+    elif args.auth_mode == 'iam-db-auth':
+        if not args.db_user or not args.db_host:
+            parser.error('iam-db-auth mode requires --db-user and --db-host arguments')
+        logger.info(
+            'Postgres MCP init with AUTH_MODE:{}, DB_USER:{}, DB_HOST:{}, DB_PORT:{}, REGION:{}, DATABASE:{}, READONLY:{}',
+            args.auth_mode,
+            args.db_user,
+            args.db_host,
+            args.db_port,
+            args.region,
+            args.database,
+            args.readonly,
+        )
 
     try:
         DBConnectionSingleton.initialize(
-            args.resource_arn, args.secret_arn, args.database, args.region, args.readonly
+            auth_mode=args.auth_mode,
+            cluster_arn=getattr(args, 'resource_arn', None),
+            secret_arn=getattr(args, 'secret_arn', None),
+            db_user=getattr(args, 'db_user', None),
+            db_host=getattr(args, 'db_host', None),
+            db_port=getattr(args, 'db_port', 5432),
+            database=args.database,
+            region=args.region,
+            readonly=args.readonly,
         )
-    except BotoCoreError:
-        logger.exception('Failed to RDS API client object for Postgres. Exit the MCP server')
+    except (BotoCoreError, ValueError) as e:
+        logger.exception(f'Failed to initialize DB connection: {e}')
         sys.exit(1)
 
-    # Test RDS API connection
+    # Test connection based on authentication mode
     ctx = DummyCtx()
-    response = asyncio.run(run_query('SELECT 1', ctx))
+    if args.auth_mode == 'secrets-manager':
+        test_response = asyncio.run(run_query('SELECT 1', ctx))
+        test_tool = 'run_query'
+    else:  # iam-db-auth
+        test_response = asyncio.run(run_query_iam('SELECT 1', ctx))
+        test_tool = 'run_query_iam'
+
     if (
-        isinstance(response, list)
-        and len(response) == 1
-        and isinstance(response[0], dict)
-        and 'error' in response[0]
+        isinstance(test_response, list)
+        and len(test_response) == 1
+        and isinstance(test_response[0], dict)
+        and 'error' in test_response[0]
     ):
-        logger.error('Failed to validate RDS API db connection to Postgres. Exit the MCP server')
+        logger.error(
+            f'Failed to validate {args.auth_mode} db connection to Postgres using {test_tool}. Exit the MCP server'
+        )
         sys.exit(1)
 
-    logger.success('Successfully validated RDS API db connection to Postgres')
+    logger.success(
+        f'Successfully validated {args.auth_mode} db connection to Postgres using {test_tool}'
+    )
 
     logger.info('Starting Postgres MCP server')
     mcp.run()
