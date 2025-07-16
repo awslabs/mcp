@@ -44,6 +44,40 @@ jobs:
       security-events: write
     runs-on: ubuntu-latest
     steps:
+      - name: Clear Up Space (Agressively)
+        run: |
+            df -h
+            du -h -k -d 1
+
+            sudo rm -rf \
+              /usr/local/lib/android \
+              /usr/share/dotnet \
+              /opt/ghc \
+              /usr/local/.ghcup \
+              /usr/local/share/powershell \
+              /usr/share/swift \
+              /usr/lib/jvm || true
+
+            printWarningMessage () {
+              echo "[warning] Failed to remove '$1', perhaps because it doesn't exist. Ignoring..."
+            }
+
+            # Remove large packages we don't use.
+            sudo apt list --installed
+
+            sudo apt-get remove -y '^mysql-.*' || printWarningMessage '^mysql-.*'
+            sudo apt-get remove -y '^dotnet-.*' --fix-missing || printWarningMessage '^dotnet-.*'
+            sudo apt-get remove -y 'php.*' --fix-missing || printWarningMessage 'php.*'
+            sudo apt-get remove -y '^mongodb-.*' --fix-missing || printWarningMessage '^mongodb-.*'
+            sudo apt-get remove -y '^llvm-.*' --fix-missing || printWarningMessage '^llvm-.*'
+            sudo apt-get remove -y google-cloud-sdk --fix-missing || printWarningMessage 'google-cloud-sdk'
+            sudo apt-get remove -y google-cloud-cli --fix-missing || printWarningMessage 'google-cloud-cli'
+            sudo apt-get autoremove -y >/dev/null 2>&1
+            sudo apt-get autoclean -y >/dev/null 2>&1
+
+            df -h
+            du -h -k -d 1
+
       - name: Get Checkout Depth
         id: checkout-depth
         run: |
@@ -57,6 +91,8 @@ jobs:
         with:
           lfs: true
           fetch-depth: ${{ steps.checkout-depth.outputs.fetch-depth || '1' }}
+          sparse-checkout: |
+            ${{ matrix.dockerfile }}
 
       - name: If trivy-results.sarif exists, it must be part of the PR changes
         if: github.event_name == 'pull_request' && hashFiles(format('{0}/trivy-results.sarif', matrix.dockerfile)) != ''
