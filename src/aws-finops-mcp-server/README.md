@@ -178,4 +178,4 @@ uv run pytest --cov=.
 
 Note: Integration tests make actual AWS API calls and require valid AWS credentials. Tests will be skipped if you don't have the necessary permissions.
 
-See the [tests/README.md](tests/README.md) file for more details on testing.
+See the tests/README.md file for more details on testing.
