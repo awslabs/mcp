@@ -33,6 +33,7 @@ class CaseStatus(str, Enum):
     UNASSIGNED = "unassigned"
     WORK_IN_PROGRESS = "work-in-progress"
     CLOSED = "closed"
+    REOPENED = "reopened"
 
 
 # Issue types

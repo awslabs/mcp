@@ -13,32 +13,15 @@
 # limitations under the License.
 """Data models for the AWS Support MCP Server."""
 
-from enum import Enum
 from typing import Any, Dict, List, Mapping, Optional, TypeVar, Union, cast
 
 from pydantic import BaseModel, Field
 
-from awslabs.aws_support_mcp_server.consts import DEFAULT_ISSUE_TYPE, DEFAULT_LANGUAGE
-
-
-class IssueType(str, Enum):
-    """Issue types for AWS Support cases."""
-
-    TECHNICAL = "technical"
-    ACCOUNT_AND_BILLING = "account-and-billing"
-    SERVICE_LIMIT = "service-limit"
-
-
-class CaseStatus(str, Enum):
-    """Status values for AWS Support cases."""
-
-    OPENED = "opened"
-    PENDING_CUSTOMER_ACTION = "pending-customer-action"
-    RESOLVED = "resolved"
-    UNASSIGNED = "unassigned"
-    WORK_IN_PROGRESS = "work-in-progress"
-    CLOSED = "closed"
-
+from awslabs.aws_support_mcp_server.consts import (
+    DEFAULT_ISSUE_TYPE,
+    DEFAULT_LANGUAGE,
+    CaseStatus,
+)
 
 # Type variables and type definitions
 T = TypeVar("T")

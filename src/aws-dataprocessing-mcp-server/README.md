@@ -130,6 +130,12 @@ For write operations, we recommend the following IAM policies:
 **Resource Management Limitation**: The DataProcessing MCP Server can only update or delete resources that were originally created through it. Resources created by other means cannot be modified or deleted using the DataProcessing MCP Server.
 
 
+## Installation
+
+| Cursor | VS Code |
+|:------:|:-------:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=aws.aws-dataprocessing-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3cy5hd3MtZGF0YXByb2Nlc3NpbmctbWNwLXNlcnZlckBsYXRlc3QgLS1hbGxvdy13cml0ZSIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSJ9LCJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Data%20Processing%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22aws.aws-dataprocessing-mcp-server%40latest%22%2C%22--allow-write%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%2C%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22transportType%22%3A%22stdio%22%7D) |
+
 ## Quickstart
 
 This quickstart guide walks you through the steps to configure the Amazon Data Processing MCP Server for use with both the [Cursor](https://www.cursor.com/en/downloads) IDE and the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli). By following these steps, you'll setup your development environment to leverage the Data Processing MCP Server's tools for managing your Glue, EMR and Athena resources.
@@ -143,12 +149,12 @@ This quickstart guide walks you through the steps to configure the Amazon Data P
 ```
 {
   "mcpServers": {
-    "aws.aws-dataprocessing-mcp-server": {
+    "aws.dp-mcp": {
       "autoApprove": [],
       "disabled": false,
       "command": "uvx",
       "args": [
-        "aws.aws-dataprocessing-mcp-server@latest",
+        "awslabs.aws-dataprocessing-mcp-server@latest",
         "--allow-write"
       ],
       "env": {
@@ -172,9 +178,9 @@ After a few minutes, you should see a green indicator if your MCP server definit
 ```
 {
   "mcpServers": {
-    "aws.aws-dataprocessing-mcp-server": {
+    "aws.dp-mcp": {
       "command": "uvx",
-      "args": ["aws.aws-dataprocessing-mcp-server@latest"],
+      "args": ["awslabs.aws-dataprocessing-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -198,10 +204,10 @@ The `args` field in the MCP server definition specifies the command-line argumen
 ```
 {
   "mcpServers": {
-    "awslabs.aws-dataprocessing-mcp-server": {
+    "aws.dp-mcp": {
       "command": "uvx",
       "args": [
-        "aws.aws-dataprocessing-mcp-server@latest",
+        "awslabs.aws-dataprocessing-mcp-server@latest",
         "--allow-write",
         "--allow-sensitive-data-access"
       ],
@@ -241,7 +247,13 @@ The `env` field in the MCP server definition allows you to configure environment
 ```
 {
   "mcpServers": {
-    "awslabs.aws-dataprocessing-mcp-server": {
+    "aws.dp-mcp": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-dataprocessing-mcp-server@latest",
+        "--allow-write",
+        "--allow-sensitive-data-access"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "my-profile",
@@ -363,6 +375,25 @@ Specifies the AWS region where Glue,EMR clusters or Athena are managed, which wi
 | manage_aws_glue_classifiers | Manage AWS Glue classifiers to determine data formats and schemas | create-classifier, delete-classifier, get-classifier, get-classifiers, update-classifier | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
 | manage_aws_glue_crawler_management | Manage AWS Glue crawler schedules and monitor performance metrics | get-crawler-metrics, start-crawler-schedule, stop-crawler-schedule, update-crawler-schedule | --allow-write flag for schedule operations, appropriate AWS permissions |
 
+
+### Common Resource Handler Tools
+
+#### IAM Management Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| add_inline_policy | Add a new inline policy to an IAM role | Create inline policies with custom permissions for data processing services | --allow-write flag, role must exist, policy name must be unique |
+| get_policies_for_role | Get all policies attached to an IAM role | Retrieve managed and inline policies, assume role policy document, role metadata | Role must exist, valid AWS credentials |
+| create_data_processing_role | Create a new IAM role for data processing services | Create roles for Glue/EMR/Athena with trust relationships, attach managed policies, add inline policies | --allow-write flag, unique role name, valid service type (glue/emr/athena) |
+| get_roles_for_service | Get all IAM roles that can be assumed by a specific AWS service | List roles with trust relationships for Glue/EMR/Athena services, filter by service principal | Valid AWS credentials, service type parameter |
+
+#### S3 Management Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| list_s3_buckets | List S3 buckets with 'glue' in their name and usage statistics | List buckets by region, show object counts, last modified dates, idle time analysis | Valid AWS credentials, S3:ListAllMyBuckets permission |
+| upload_to_s3 | Upload Python code content directly to S3 buckets | Upload scripts for Glue jobs, EMR steps, or other data processing code | --allow-write flag, bucket must exist, S3 write permissions |
+| analyze_s3_usage_for_data_processing | Analyze S3 bucket usage patterns for data processing services | Identify buckets used by Glue/EMR/Athena, detect idle buckets, usage recommendations | Valid AWS credentials, permissions for Glue/EMR/Athena service APIs |
 
 ## Version
 

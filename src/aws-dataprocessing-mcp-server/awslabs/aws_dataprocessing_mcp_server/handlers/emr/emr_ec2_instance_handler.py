@@ -25,9 +25,8 @@ from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
-    MCP_MANAGED_TAG_KEY,
-    MCP_MANAGED_TAG_VALUE,
-    MCP_RESOURCE_TYPE_TAG_KEY,
+    EMR_INSTANCE_FLEET_RESOURCE_TYPE,
+    EMR_INSTANCE_GROUP_RESOURCE_TYPE,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
@@ -285,8 +284,14 @@ class EMREc2InstanceHandler:
                         'cluster_id and instance_fleet are required for add-instance-fleet operation'
                     )
 
-                # Prepare resource tags
-                tags = AwsHelper.prepare_resource_tags('EMRInstanceFleet')
+                # verify if resource is already MCP managed
+                verification_result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                    self.emr_client, cluster_id, EMR_INSTANCE_FLEET_RESOURCE_TYPE
+                )
+
+                tags = None
+                if not verification_result['is_valid']:
+                    tags = AwsHelper.prepare_resource_tags(EMR_INSTANCE_FLEET_RESOURCE_TYPE)
 
                 # Add instance fleet - ensure ClusterId is a string
                 response = self.emr_client.add_instance_fleet(
@@ -295,7 +300,7 @@ class EMREc2InstanceHandler:
                 )
 
                 # Apply tags to the newly created instance fleet
-                if 'InstanceFleetId' in response:
+                if tags and not verification_result['is_valid'] and 'InstanceFleetId' in response:
                     self.emr_client.add_tags(
                         ResourceId=str(cluster_id),
                         Tags=[{'Key': k, 'Value': v} for k, v in tags.items()],
@@ -320,8 +325,14 @@ class EMREc2InstanceHandler:
                         'cluster_id and instance_groups are required for add-instance-groups operation'
                     )
 
-                # Prepare resource tags
-                tags = AwsHelper.prepare_resource_tags('EMRInstanceGroup')
+                # verify if resource is already MCP managed
+                verification_result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                    self.emr_client, cluster_id, EMR_INSTANCE_GROUP_RESOURCE_TYPE
+                )
+
+                tags = None
+                if not verification_result['is_valid']:
+                    tags = AwsHelper.prepare_resource_tags(EMR_INSTANCE_GROUP_RESOURCE_TYPE)
 
                 # Add instance groups - ensure JobFlowId (ClusterId) is a string
                 response = self.emr_client.add_instance_groups(
@@ -330,7 +341,7 @@ class EMREc2InstanceHandler:
                 )
 
                 # Apply tags to the cluster
-                if 'InstanceGroupIds' in response:
+                if tags and not verification_result['is_valid'] and 'InstanceGroupIds' in response:
                     self.emr_client.add_tags(
                         ResourceId=cluster_id,
                         Tags=[{'Key': k, 'Value': v} for k, v in tags.items()],
@@ -368,52 +379,13 @@ class EMREc2InstanceHandler:
                     for key, value in instance_fleet_config.items():
                         instance_fleet_param[key] = value
 
-                # Check existing tags before modifying
-                try:
-                    existing_tags_response = self.emr_client.describe_cluster(
-                        ClusterId=str(cluster_id)
-                    )
-                    existing_tags = {
-                        tag['Key']: tag['Value']
-                        for tag in existing_tags_response.get('Cluster', {}).get('Tags', [])
-                    }
+                # Verify that the cluster is managed by MCP and has the correct resource type
+                verification_result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                    self.emr_client, cluster_id, EMR_INSTANCE_FLEET_RESOURCE_TYPE
+                )
 
-                    # Check if required MCP tags are present
-                    if (
-                        MCP_MANAGED_TAG_KEY not in existing_tags
-                        or existing_tags.get(MCP_MANAGED_TAG_KEY) != MCP_MANAGED_TAG_VALUE
-                    ):
-                        error_message = f'Cannot modify instance fleet {instance_fleet_id} in cluster {cluster_id} - resource is not managed by MCP'
-                        log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return ModifyInstanceFleetResponse(
-                            isError=True,
-                            content=[TextContent(type='text', text=error_message)],
-                            cluster_id=cluster_id,
-                            instance_fleet_id=instance_fleet_id,
-                        )
-
-                    # Check if resource type tag matches
-                    resource_type = existing_tags.get(MCP_RESOURCE_TYPE_TAG_KEY)
-                    if not resource_type or not resource_type.startswith('EMR'):
-                        error_message = f'Cannot modify instance fleet {instance_fleet_id} in cluster {cluster_id} - resource type mismatch'
-                        log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return ModifyInstanceFleetResponse(
-                            isError=True,
-                            content=[TextContent(type='text', text=error_message)],
-                            cluster_id=cluster_id,
-                            instance_fleet_id=instance_fleet_id,
-                        )
-
-                    # Resource is MCP managed, proceed with modification
-                    log_with_request_id(
-                        ctx,
-                        LogLevel.INFO,
-                        'Resource is MCP managed, proceeding with instance fleet modification',
-                    )
-
-                except Exception as e:
-                    # If we can't verify the tags, don't proceed with modification
-                    error_message = f'Cannot verify MCP management tags for instance fleet {instance_fleet_id}: {str(e)}'
+                if not verification_result['is_valid']:
+                    error_message = verification_result['error_message']
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
                     return ModifyInstanceFleetResponse(
                         isError=True,
@@ -421,6 +393,13 @@ class EMREc2InstanceHandler:
                         cluster_id=cluster_id,
                         instance_fleet_id=instance_fleet_id,
                     )
+
+                # Resource is MCP managed with correct type, proceed with modification
+                log_with_request_id(
+                    ctx,
+                    LogLevel.INFO,
+                    'Resource is MCP managed with correct type, proceeding with instance fleet modification',
+                )
 
                 # Perform the fleet modification
                 self.emr_client.modify_instance_fleet(
@@ -449,53 +428,14 @@ class EMREc2InstanceHandler:
                 # Don't use a params dictionary to avoid type issues
                 # We'll pass parameters directly to the API call later
 
-                # Check existing tags before modifying if cluster_id is provided
+                # Verify that the cluster is managed by MCP and has the correct resource type
                 if cluster_id:
-                    try:
-                        existing_tags_response = self.emr_client.describe_cluster(
-                            ClusterId=str(cluster_id)
-                        )
-                        existing_tags = {
-                            tag['Key']: tag['Value']
-                            for tag in existing_tags_response.get('Cluster', {}).get('Tags', [])
-                        }
+                    verification_result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                        self.emr_client, cluster_id, EMR_INSTANCE_GROUP_RESOURCE_TYPE
+                    )
 
-                        # Check if required MCP tags are present
-                        if (
-                            MCP_MANAGED_TAG_KEY not in existing_tags
-                            or existing_tags.get(MCP_MANAGED_TAG_KEY) != MCP_MANAGED_TAG_VALUE
-                        ):
-                            error_message = f'Cannot modify instance groups in cluster {cluster_id} - resource is not managed by MCP'
-                            log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                            return ModifyInstanceGroupsResponse(
-                                isError=True,
-                                content=[TextContent(type='text', text=error_message)],
-                                cluster_id=cluster_id,
-                                instance_group_ids=[],
-                            )
-
-                        # Check if resource type tag matches
-                        resource_type = existing_tags.get(MCP_RESOURCE_TYPE_TAG_KEY)
-                        if not resource_type or not resource_type.startswith('EMR'):
-                            error_message = f'Cannot modify instance groups in cluster {cluster_id} - resource type mismatch'
-                            log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                            return ModifyInstanceGroupsResponse(
-                                isError=True,
-                                content=[TextContent(type='text', text=error_message)],
-                                cluster_id=cluster_id,
-                                instance_group_ids=[],
-                            )
-
-                        # Resource is MCP managed, proceed with modification
-                        log_with_request_id(
-                            ctx,
-                            LogLevel.INFO,
-                            'Resource is MCP managed, proceeding with instance group modification',
-                        )
-
-                    except Exception as e:
-                        # If we can't verify the tags, don't proceed with modification
-                        error_message = f'Cannot verify MCP management tags for instance groups in cluster {cluster_id}: {str(e)}'
+                    if not verification_result['is_valid']:
+                        error_message = verification_result['error_message']
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
                         return ModifyInstanceGroupsResponse(
                             isError=True,
@@ -503,6 +443,13 @@ class EMREc2InstanceHandler:
                             cluster_id=cluster_id,
                             instance_group_ids=[],
                         )
+
+                    # Resource is MCP managed with correct type, proceed with modification
+                    log_with_request_id(
+                        ctx,
+                        LogLevel.INFO,
+                        'Resource is MCP managed with correct type, proceeding with instance group modification',
+                    )
                 else:
                     # If no cluster_id is provided, we can't verify tags, so we don't allow the operation
                     error_message = 'Cannot modify instance groups without providing a cluster_id for tag verification'
