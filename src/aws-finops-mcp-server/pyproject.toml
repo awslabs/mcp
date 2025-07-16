@@ -129,6 +129,8 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 log_cli = true
 log_cli_level = "INFO"
+# By default, only run unit tests (exclude integration tests)
+addopts = "-m 'not integration'"
 markers = [
     "integration: marks tests as integration tests that make actual AWS API calls",
     "unit: marks tests as unit tests that don't make external calls",
