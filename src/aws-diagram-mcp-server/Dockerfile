@@ -69,7 +69,10 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
 # Add non-root user and ability to change directory into /root
-RUN groupadd --force --system app && \
+RUN dnf update -y && \
+    dnf clean all -y && \
+    rm -rf /var/cache/dnf && \
+    groupadd --force --system app && \
     useradd app -g app -d /app && \
     chmod o+x /root
 
