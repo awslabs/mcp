@@ -70,7 +70,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 # Install runtime dependencies and create application user
 RUN apk update && \
-    apk add --no-cache ca-certificates && \
+    apk add --no-cache ca-certificates graphviz && \
     update-ca-certificates && \
     addgroup -S app && \
     adduser -S app -G app -h /app
