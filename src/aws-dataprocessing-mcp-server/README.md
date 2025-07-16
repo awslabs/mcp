@@ -130,6 +130,12 @@ For write operations, we recommend the following IAM policies:
 **Resource Management Limitation**: The DataProcessing MCP Server can only update or delete resources that were originally created through it. Resources created by other means cannot be modified or deleted using the DataProcessing MCP Server.
 
 
+## Installation
+
+| Cursor | VS Code |
+|:------:|:-------:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=aws.aws-dataprocessing-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3cy5hd3MtZGF0YXByb2Nlc3NpbmctbWNwLXNlcnZlckBsYXRlc3QgLS1hbGxvdy13cml0ZSIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSJ9LCJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Data%20Processing%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22aws.aws-dataprocessing-mcp-server%40latest%22%2C%22--allow-write%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%2C%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22transportType%22%3A%22stdio%22%7D) |
+
 ## Quickstart
 
 This quickstart guide walks you through the steps to configure the Amazon Data Processing MCP Server for use with both the [Cursor](https://www.cursor.com/en/downloads) IDE and the [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli). By following these steps, you'll setup your development environment to leverage the Data Processing MCP Server's tools for managing your Glue, EMR and Athena resources.
