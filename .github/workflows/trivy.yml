@@ -83,19 +83,19 @@ jobs:
       - name: Save an image
         working-directory: ${{ matrix.dockerfile }}
         run: |
-          docker image save -o "${{ runner.temp }}/${{ matrix.dockerfile }}.tar" docker.io/${{ matrix.dockerfile }}:${{ github.sha }}
+          docker image save -o "${{ runner.temp }}/image.tar" docker.io/${{ matrix.dockerfile }}:${{ github.sha }}
 
       - name: Upload digest
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: image-${{ matrix.dockerfile }}
-          path: ${{ runner.temp }}/${{ matrix.dockerfile }}.tar
+          path: ${{ runner.temp }}/image.tar
           if-no-files-found: error
           retention-days: 1
 
       - name: Delete the exported image
         run: |
-          rm -r -f "${{ runner.temp }}/${{ matrix.dockerfile }}.tar"
+          rm -r -f "${{ runner.temp }}/image.tar"
 
       - name: Run Trivy vulnerability scanner
         if: hashFiles(format('{0}/trivy-results.sarif', matrix.dockerfile)) == ''
