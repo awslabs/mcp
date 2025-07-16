@@ -50,6 +50,9 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
         - [Workflow \& Integration](#workflow--integration)
         - [Operations \& Monitoring](#operations--monitoring)
   - [MCP AWS Lambda Handler Module](#mcp-aws-lambda-handler-module)
+  - [When to use Local vs Remote MCP Servers?](#when-to-use-local-vs-remote-mcp-servers)
+    - [Local MCP Servers](#local-mcp-servers)
+    - [Remote MCP Servers](#remote-mcp-servers)
   - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
     - [Running MCP servers in containers](#running-mcp-servers-in-containers)
@@ -63,7 +66,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [`.cursor/mcp.json`](#cursormcpjson)
     - [Getting Started with Windsurf](#getting-started-with-windsurf)
       - [`~/.codeium/windsurf/mcp_config.json`](#codeiumwindsurfmcp_configjson)
-     - [Getting Started with VS Code](#getting-started-with-vs-code)
+    - [Getting Started with VS Code](#getting-started-with-vs-code)
       - [`.vscode/mcp.json`](#vscodemcpjson)
   - [Samples](#samples)
   - [Vibe coding](#vibe-coding)
@@ -115,6 +118,8 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 For general AWS interactions and comprehensive API support, we recommend starting with:
 
 - **[AWS API MCP Server](src/aws-api-mcp-server)** - **Start here for general AWS interactions!** Comprehensive AWS API support with command validation, security controls, and access to all AWS services. Perfect for managing infrastructure, exploring resources, and executing AWS operations through natural language.
+
+- **[AWS Knowledge MCP Server](src/aws-knowledge-mcp-server)** - A remote, fully-managed MCP server hosted by AWS that provides access to the latest AWS docs, API references, What's New Posts, Getting Started information, Builder Center, Blog posts, Architectural references, and Well-Architected guidance.
 
 ### Browse by What You're Building
 
@@ -345,6 +350,26 @@ A Python library for creating serverless HTTP handlers for the Model Context Pro
 - Example implementations and tests
 
 See [`src/mcp-lambda-handler/README.md`](src/mcp-lambda-handler/README.md) for full usage, installation, and development instructions.
+
+## When to use Local vs Remote MCP Servers?
+
+AWS MCP servers can be run either locally on your development machine or remotely on the cloud. Here's when to use each approach:
+
+### Local MCP Servers
+- **Development & Testing**: Perfect for local development, testing, and debugging
+- **Offline Work**: Continue working when internet connectivity is limited
+- **Data Privacy**: Keep sensitive data and credentials on your local machine
+- **Low Latency**: Minimal network overhead for faster response times
+- **Resource Control**: Direct control over server resources and configuration
+
+### Remote MCP Servers
+- **Team Collaboration**: Share consistent server configurations across your team
+- **Resource Intensive Tasks**: Offload heavy processing to dedicated cloud resources
+- **Always Available**: Access your MCP servers from anywhere, any device
+- **Automatic Updates**: Get the latest features and security patches automatically
+- **Scalability**: Easily handle varying workloads without local resource constraints
+
+> **Note**: Some MCP servers, like AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
 
 ## Use Cases for the Servers
 

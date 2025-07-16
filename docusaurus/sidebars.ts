@@ -31,6 +31,14 @@ const sidebars: SidebarsConfig = {
       items: [
         {
           type: 'category',
+          label: 'Getting Started',
+          items: [
+            'servers/aws-api-mcp-server',
+            'servers/aws-knowledge-mcp-server',
+          ],
+        },
+        {
+          type: 'category',
           label: 'Documentation',
           items: [
             'servers/aws-documentation-mcp-server',
