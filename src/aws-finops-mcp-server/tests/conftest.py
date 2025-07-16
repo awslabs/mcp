@@ -1,6 +1,12 @@
 import asyncio
 import os
 import pytest
+
+
+# Set default AWS region if not already set
+if 'AWS_REGION' not in os.environ and 'AWS_DEFAULT_REGION' not in os.environ:
+    os.environ['AWS_REGION'] = 'us-east-1'  # Default region for tests
+
 from awslabs.aws_finops_mcp_server.boto3_tools import Boto3ToolRegistry
 from awslabs.aws_finops_mcp_server.server import create_tool_function
 
