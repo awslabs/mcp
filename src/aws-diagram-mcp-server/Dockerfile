@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/sam/build-python3.13@sha256:0c274ddd44e1d80e4dab3a70c25fe29508f612a045cba7d27840461c12eee86d AS uv
+FROM public.ecr.aws/sam/build-python3.12@sha256:e76d50b20fa10ee101886cb62962aaf87a5cd1d737af48e1b8395a05f3a7c52f AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -37,44 +37,32 @@ COPY pyproject.toml uv.lock uv-requirements.txt ./
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# # Install system dependencies and Python package manager
-# RUN apk update && \
-#     apk add --no-cache --virtual .build-deps \
-#     build-base \
-#     gcc \
-#     musl-dev \
-#     libffi-dev \
-#     openssl-dev \
-#     cargo && \
-#     pip install --no-cache-dir uv
-
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
     pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
-    uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
+    uv sync --python 3.12 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --python 3.13 --frozen --no-dev --no-editable
+    uv sync --python 3.12 --frozen --no-dev --no-editable
 
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/sam/build-python3.13@sha256:0c274ddd44e1d80e4dab3a70c25fe29508f612a045cba7d27840461c12eee86d
+FROM public.ecr.aws/sam/build-python3.12@sha256:e76d50b20fa10ee101886cb62962aaf87a5cd1d737af48e1b8395a05f3a7c52f
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH" \
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
     PYTHONUNBUFFERED=1
 
 # Add non-root user and ability to change directory into /root
 RUN dnf update -y && \
+    dnf install -y graphviz && \
     dnf clean all -y && \
     rm -rf /var/cache/dnf && \
-    groupadd --force --system app && \
-    useradd app -g app -d /app && \
-    chmod o+x /root
+    groupadd --force --system app
 
 # Copy application artifacts from build stage
 COPY --from=uv --chown=app:app /root/.local /root/.local

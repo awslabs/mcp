@@ -37,17 +37,6 @@ COPY pyproject.toml uv.lock uv-requirements.txt ./
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# # Install system dependencies and Python package manager
-# RUN apk update && \
-#     apk add --no-cache --virtual .build-deps \
-#     build-base \
-#     gcc \
-#     musl-dev \
-#     libffi-dev \
-#     openssl-dev \
-#     cargo && \
-#     pip install --no-cache-dir uv
-
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
     pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
@@ -65,14 +54,11 @@ RUN mkdir -p /root/.local
 FROM public.ecr.aws/sam/build-python3.13@sha256:0c274ddd44e1d80e4dab3a70c25fe29508f612a045cba7d27840461c12eee86d
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH" \
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
     PYTHONUNBUFFERED=1
 
 # Add non-root user and ability to change directory into /root
-RUN dnf update -y && \
-    dnf clean all -y && \
-    rm -rf /var/cache/dnf && \
-    groupadd --force --system app && \
+RUN groupadd --force --system app && \
     useradd app -g app -d /app && \
     chmod o+x /root
 
