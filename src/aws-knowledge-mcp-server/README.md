@@ -55,7 +55,7 @@ You can configure the Knowledge server for use with any MCP client that supports
 {
     "mcpServers": {
         "aws-knowledge-mcp-server": {
-            "url": "https://knowledge-mcp.global.api.aws",
+            "url": "https://knowledge-mcp.global.api.aws"
         }
     }
 }
