@@ -14,8 +14,6 @@
 
 """Tool for listing Kinesis Firehose delivery streams."""
 
-from __future__ import annotations
-
 from ...common.connection import FirehoseConnectionManager
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp

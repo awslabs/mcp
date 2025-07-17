@@ -209,6 +209,7 @@ class GenerateTemplateResponse(CallToolResult):
     """Response model for generate operation of manage_eks_stacks tool."""
 
     template_path: str = Field(..., description='Path to the generated template')
+    content: list = Field(..., description='Content blocks for the response')
 
 
 class DeployStackResponse(CallToolResult):
@@ -217,6 +218,7 @@ class DeployStackResponse(CallToolResult):
     stack_name: str = Field(..., description='Name of the CloudFormation stack')
     stack_arn: str = Field(..., description='ARN of the CloudFormation stack')
     cluster_name: str = Field(..., description='Name of the EKS cluster')
+    content: list = Field(..., description='Content blocks for the response')
 
 
 class DescribeStackResponse(CallToolResult):
@@ -228,6 +230,7 @@ class DescribeStackResponse(CallToolResult):
     creation_time: str = Field(..., description='Creation time of the stack')
     stack_status: str = Field(..., description='Current status of the stack')
     outputs: Dict[str, str] = Field(..., description='Stack outputs')
+    content: list = Field(..., description='Content blocks for the response')
 
 
 class DeleteStackResponse(CallToolResult):
@@ -236,6 +239,7 @@ class DeleteStackResponse(CallToolResult):
     stack_name: str = Field(..., description='Name of the deleted CloudFormation stack')
     stack_id: str = Field(..., description='ID of the deleted CloudFormation stack')
     cluster_name: str = Field(..., description='Name of the EKS cluster')
+    content: list = Field(..., description='Content blocks for the response')
 
 
 class PolicySummary(BaseModel):
