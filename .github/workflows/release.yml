@@ -140,7 +140,7 @@ jobs:
       id-token: write # Required for trusted publishing
     runs-on: ubuntu-latest
     steps:
-      - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
+      - name: Clear Up Space (Agressively) for Multi-Architecture Builds that Run Out of Space
         if: contains(toJson('["aws-api-mcp-server"]'), matrix.package)
         uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@25167c70e07d52455d651af931970d0ffdac75c5
 
