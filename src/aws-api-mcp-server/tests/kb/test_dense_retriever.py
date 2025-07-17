@@ -43,6 +43,8 @@ def test_simple_initialization():
     assert rag._embeddings is not None
 
 
+@patch.object(knowledge_base, '_load_model_in_background', MagicMock(return_value=None))
+@patch.object(DenseRetriever, 'is_model_ready', PropertyMock(return_value=True))
 def test_dense_retriever():
     """Tests if knowledge base uses DenseRetriever by default and can retrieve documents."""
     # Check if embeddings file exists
@@ -230,11 +232,13 @@ def test_model_property_lazy_loading():
 
     # Model should not be loaded initially
     assert rag._model is None
+    assert not rag.is_model_ready
 
     # Accessing model property should load it
     model = rag.model
     assert rag._model is not None
     assert isinstance(model, SentenceTransformer)
+    assert rag.is_model_ready
 
     # Second access should return the same instance
     model2 = rag.model
@@ -324,3 +328,55 @@ def test_get_suggestions_with_mock_model():
         assert len(suggestions['suggestions']) == DEFAULT_TOP_K
         assert all('similarity' in doc for doc in suggestions['suggestions'])
         assert all('command' in doc for doc in suggestions['suggestions'])
+
+
+def test_get_suggestions_uses_rag_model_and_index():
+    """Test that get_suggestions properly uses the RAG model and index."""
+    rag = DenseRetriever(cache_dir=Path('/tmp'))
+
+    # Setup test data
+    test_query = 'list ec2 instances'
+    test_documents = [
+        {'command': 'aws ec2 describe-instances', 'description': 'Describe EC2 instances'},
+        {'command': 'aws ec2 list-images', 'description': 'List EC2 AMIs'},
+    ]
+    test_embeddings = np.array([[0.1, 0.2], [0.3, 0.4]]).astype('float32')
+
+    # Mock the model
+    mock_model = MagicMock()
+    mock_model.encode.return_value = np.array([[0.5, 0.6]]).astype('float32')
+    rag.model = mock_model
+
+    # Mock the index
+    mock_index = MagicMock()
+    mock_index.search.return_value = (
+        np.array([[0.95, 0.85]]),  # distances
+        np.array([[0, 1]]),  # indices
+    )
+    rag.index = mock_index
+
+    # Set documents and embeddings
+    rag.documents = test_documents
+    rag.embeddings = test_embeddings
+
+    # Call get_suggestions
+    result = rag.get_suggestions(test_query)
+
+    # Verify model.encode was called with the query
+    mock_model.encode.assert_called_once_with([test_query], normalize_embeddings=True)
+
+    # Verify index.search was called with the encoded query and top_k
+    mock_index.search.assert_called_once()
+    args, _ = mock_index.search.call_args
+    np.testing.assert_array_equal(args[0], np.array([[0.5, 0.6]]).astype('float32'))
+    assert args[1] == DEFAULT_TOP_K
+
+    # Verify the result structure
+    assert 'suggestions' in result
+    assert len(result['suggestions']) == 2
+
+    # Verify the documents were returned with similarity scores
+    assert result['suggestions'][0]['command'] == 'aws ec2 describe-instances'
+    assert result['suggestions'][0]['similarity'] == 0.95
+    assert result['suggestions'][1]['command'] == 'aws ec2 list-images'
+    assert result['suggestions'][1]['similarity'] == 0.85

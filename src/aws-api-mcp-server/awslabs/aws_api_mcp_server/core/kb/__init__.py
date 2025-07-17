@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import threading
+from typing import Protocol, Any
 from pathlib import Path
-from typing import Protocol
 
 from .dense_retriever import DenseRetriever
 from awslabs.aws_api_mcp_server.scripts.download_latest_embeddings import (
@@ -21,8 +21,15 @@ from awslabs.aws_api_mcp_server.scripts.download_latest_embeddings import (
 )
 
 
-class RAG(Protocol):
+class RAG(Protocol):  # pragma: no cover
     def get_suggestions(self, query: str, **kwargs) -> dict[str, list[dict]]: ...
+    def get_cache_file_with_version(self) -> Path | None: ...
+
+    @property
+    def model(self) -> Any: ...
+
+    @property
+    def is_model_ready(self) -> bool: ...
 
 
 class KnowledgeBase:
@@ -41,10 +48,20 @@ class KnowledgeBase:
                 raise FileNotFoundError(
                     'No embeddings file found. You can generate them by running: python -m awslabs.aws_api_mcp_server.scripts.generate_embeddings'
                 )
+        self._load_model_in_background()
+
+    def _load_model_in_background(self):
+        # Load the RAG model in background to avoid doing it at runtime when the tools are invoked
+        if self.rag is not None:
+            rag = self.rag
+            threading.Thread(target=lambda: rag.model, daemon=True).start()
 
     def get_suggestions(self, query: str, **kwargs):
         if self.rag is None:
             raise RuntimeError('RAG is not initialized. Call setup first.')
+
+        if not self.rag.is_model_ready:
+            raise RuntimeError('The model is still initializing, try again later.')
 
         results = self.rag.get_suggestions(query, **kwargs)
 
