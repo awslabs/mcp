@@ -14,6 +14,7 @@
 """awslabs AWS Documentation MCP Server implementation."""
 
 import httpx
+import os
 import json
 import re
 import uuid
@@ -26,6 +27,7 @@ from awslabs.aws_documentation_mcp_server.models import (
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
     read_documentation_impl,
+    get_ssl_verify
 )
 
 # Import utility functions
@@ -197,7 +199,7 @@ async def search_documentation(
 
     search_url_with_session = f'{SEARCH_API_URL}?session={SESSION_UUID}'
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(verify=get_ssl_verify()) as client:
         try:
             response = await client.post(
                 search_url_with_session,
@@ -324,7 +326,7 @@ async def recommend(
 
     recommendation_url = f'{RECOMMENDATIONS_API_URL}?path={url_str}&session={SESSION_UUID}'
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(verify=get_ssl_verify()) as client:
         try:
             response = await client.get(
                 recommendation_url,

@@ -14,11 +14,13 @@
 """awslabs AWS China Documentation MCP Server implementation."""
 
 import httpx
+import os
 import re
 import uuid
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
     read_documentation_impl,
+    get_ssl_verify
 )
 
 # Import utility functions
@@ -160,7 +162,7 @@ async def get_available_services(
     """
     url_str = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html'
     url_with_session = f'{url_str}?session={SESSION_UUID}'
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(verify=get_ssl_verify()) as client:
         try:
             response = await client.get(
                 url_with_session,
