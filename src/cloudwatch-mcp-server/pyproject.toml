@@ -140,3 +140,6 @@ exclude_also = [
 
 [tool.coverage.run]
 source = ["awslabs"]
+
+[tool.uv.entrypoints]
+cloudwatch = "server:main"

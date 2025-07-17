@@ -17,6 +17,7 @@ import httpx
 import json
 import re
 import uuid
+import os
 
 # Import models
 from awslabs.aws_documentation_mcp_server.models import (
@@ -36,7 +37,14 @@ from loguru import logger
 from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import List
+from dotenv import load_dotenv
 
+load_dotenv()
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+DEFAULT_PORT = 8053
+host = "0.0.0.0"
+port = DEFAULT_PORT
 
 SEARCH_API_URL = 'https://proxy.search.docs.aws.amazon.com/search'
 RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'
@@ -365,8 +373,12 @@ async def recommend(
 def main():
     """Run the MCP server with CLI argument support."""
     logger.info('Starting AWS Documentation MCP Server')
-    mcp.run(transport='streamable-http', host='0.0.0.0',
-        port=8053)
+    if transport == "stdio":
+        logger.info('Starting with stdio transport...')
+        mcp.run(transport=transport)
+    elif transport == "streamable-http" or transport == "http":
+        mcp.run(transport=transport, host=host, port=port)
+
 
 
 if __name__ == '__main__':

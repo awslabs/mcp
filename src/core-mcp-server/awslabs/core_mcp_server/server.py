@@ -21,6 +21,15 @@ from starlette.requests import Request
 from fastapi.responses import StreamingResponse
 import json, boto3
 from typing import List
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+DEFAULT_PORT = 8050
+host = "0.0.0.0"
+port = DEFAULT_PORT
 
 class ContentItem(TypedDict):
     """A TypedDict representing a single content item in an MCP response.
@@ -76,9 +85,11 @@ async def get_prompt_understanding() -> str:
     return PROMPT_UNDERSTANDING
 
 def main() -> None:
-    mcp.run(transport='streamable-http', host="0.0.0.0",
-        port=8050)
-
+    if transport == "stdio":
+        logger.info('Starting with stdio transport...')
+        mcp.run(transport=transport)
+    elif transport == "streamable-http" or transport == "http":
+        mcp.run(transport=transport, host=host, port=port)
 
 if __name__ == '__main__':  # pragma: no cover
     main()

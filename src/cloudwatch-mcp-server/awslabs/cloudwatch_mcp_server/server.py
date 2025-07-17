@@ -19,7 +19,10 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTo
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
 from loguru import logger
 from fastmcp import FastMCP
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 
 mcp = FastMCP(
     'awslabs.cloudwatch-mcp-server',
@@ -29,6 +32,11 @@ mcp = FastMCP(
         'loguru',
     ],
 )
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+DEFAULT_PORT = 8051
+host = "0.0.0.0"
+port = DEFAULT_PORT
 
 # Initialize and register CloudWatch tools
 try:
@@ -48,8 +56,11 @@ except Exception as e:
 
 def main():
     """Run the MCP server."""
-    mcp.run(transport='streamable-http', host="0.0.0.0",
-        port=8051)
+    if transport == "stdio":
+        logger.info('Starting with stdio transport...')
+        mcp.run(transport=transport)
+    elif transport == "streamable-http" or transport == "http":
+        mcp.run(transport=transport, host=host, port=port)
     logger.info('CloudWatch MCP server started')
 
 

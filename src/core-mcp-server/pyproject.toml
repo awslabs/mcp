@@ -127,3 +127,6 @@ markers = [
 
 [tool.coverage.run]
 source = ["awslabs"]
+
+[tool.uv.entrypoints]
+core = "server:main"

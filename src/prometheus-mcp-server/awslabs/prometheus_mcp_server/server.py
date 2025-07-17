@@ -51,6 +51,13 @@ from typing import Any, Dict, Optional
 logger.remove()
 logger.add(sys.stderr, level=os.getenv(ENV_LOG_LEVEL, 'INFO'))
 
+load_dotenv()  # load .env values into os.environ
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+DEFAULT_PORT = 8054
+host = "0.0.0.0"
+port = DEFAULT_PORT
+
 
 class ConfigManager:
     """Configuration management for the application."""
@@ -1094,9 +1101,12 @@ def main():
     logger.info('Starting server...')
 
     # Run with stdio transport
-    try:
-        logger.info('Starting with stdio transport...')
-        mcp.run(transport='streamable-http', host='0.0.0.0', port=8054)
+    try:  
+        if transport == "stdio":
+            logger.info('Starting with stdio transport...')
+            mcp.run(transport=transport)
+        elif transport == "streamable-http" or transport == "http":
+            mcp.run(transport=transport, host=host, port=port)
     except Exception as e:
         logger.error(f'Error starting server with stdio transport: {e}')
         sys.exit(1)

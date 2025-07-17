@@ -32,7 +32,15 @@ from awslabs.eks_mcp_server.iam_handler import IAMHandler
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
 from loguru import logger
 from fastmcp import FastMCP
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+DEFAULT_PORT = 8052
+host = "0.0.0.0"
+port = DEFAULT_PORT
 
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """
@@ -152,7 +160,11 @@ def main():
     CloudWatchMetricsHandler(mcp)
 
     # Run server
-    mcp.run(transport='streamable-http', host='0.0.0.0', port=8052)
+    if transport == "stdio":
+        logger.info('Starting with stdio transport...')
+        mcp.run(transport=transport)
+    elif transport == "streamable-http" or transport == "http":
+        mcp.run(transport=transport, host=host, port=port)
 
     return mcp
 

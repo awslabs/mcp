@@ -8,6 +8,8 @@ services:
     container_name: core-mcp
     ports:
       - "8050:8050"
+    env_file:
+      - .env
     environment:
       # if your tools need AWS creds:
       - AWS_DEFAULT_REGION=us-west-2
@@ -21,6 +23,8 @@ services:
     container_name: cloudwatch-mcp
     ports:
       - "8051:8051"
+    env_file:
+      - .env
     environment:
       - AWS_DEFAULT_REGION=us-west-2
     volumes:
@@ -33,6 +37,8 @@ services:
     container_name: eks-mcp
     ports:
       - "8052:8052"
+    env_file:
+      - .env
     environment:
       - AWS_DEFAULT_REGION=us-west-2
     volumes:
@@ -46,6 +52,8 @@ services:
     environment:
       - AWS_DEFAULT_REGION=europe-north-1
       - AWS_PROFILE=default
+    env_file:
+      - .env
     ports:
       - "8053:8053"
     volumes:
@@ -56,6 +64,8 @@ services:
       context: ./src/prometheus-mcp-server
       dockerfile: Dockerfile
     container_name: prometheus-mcp
+    env_file:
+      - .env
     ports:
       - "8054:8054"
     volumes:
