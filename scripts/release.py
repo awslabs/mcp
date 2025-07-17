@@ -175,9 +175,7 @@ class PyPiPackage:
         # Convert package name from awslabs.package-name to package_name format
         if package_name.startswith('awslabs.'):
             # Remove 'awslabs.' prefix and convert hyphens
-            module_name = package_name[8:].replace(
-                '-', '_'
-            )
+            module_name = package_name[8:].replace('-', '_')
             init_file = self.path / 'awslabs' / module_name / '__init__.py'
             if init_file.exists():
                 # Read current __init__.py
