@@ -283,3 +283,174 @@ class MetricsGuidanceResponse(CallToolResult):
         ..., description='Resource type (cluster, node, pod, namespace, service)'
     )
     metrics: List[Dict[str, Any]] = Field(..., description='List of metrics with their details')
+
+
+
+
+
+
+
+
+
+
+
+class HybridNodeTroubleshootingResponse(CallToolResult):
+    """Response model for search_hybrid_node_troubleshooting tool.
+    
+    This model contains the response from a hybrid node troubleshooting query,
+    including description, troubleshooting steps, symptoms, and references.
+    """
+    
+    query: str = Field(
+        ..., description='Original user query for troubleshooting'
+    )
+    description: str = Field(
+        ..., description='General description of the issue'
+    )
+    troubleshooting_steps: List[str] = Field(
+        ..., description='List of steps to troubleshoot the issue'
+    )
+    symptoms: List[str] = Field(
+        ..., description='List of symptoms associated with the issue'
+    )
+    references: List[str] = Field(
+        ..., description='List of reference links for further information'
+    )
+
+
+class EksVpcConfigResponse(CallToolResult):
+    """Response model for get_eks_vpc_config tool.
+    
+    This model contains comprehensive VPC configuration details for any EKS cluster,
+    including CIDR blocks and route tables which are essential for understanding
+    network connectivity. For hybrid node setups, it also automatically identifies
+    and includes remote node and pod CIDR configurations.
+    """
+    
+    vpc_id: str = Field(
+        ..., description='ID of the VPC'
+    )
+    cidr_block: str = Field(
+        ..., description='Primary CIDR block of the VPC'
+    )
+    additional_cidr_blocks: List[str] = Field(
+        [], description='Additional CIDR blocks associated with the VPC'
+    )
+    routes: List[Dict[str, Any]] = Field(
+        ..., description='List of route entries in the main route table'
+    )
+    remote_node_cidr_blocks: List[str] = Field(
+        [], description='CIDR blocks configured for remote node access (for hybrid setups)'
+    )
+    remote_pod_cidr_blocks: List[str] = Field(
+        [], description='CIDR blocks configured for remote pod access (for hybrid setups)'
+    )
+    cluster_name: str = Field(
+        ..., description='Name of the EKS cluster'
+    )
+
+
+
+
+class DnsResolutionResult(BaseModel):
+    """Model for a DNS resolution result.
+    
+    This model represents the result of a DNS resolution attempt,
+    including resolved IPs and response time.
+    """
+    
+    hostname: str = Field(
+        ..., description='Hostname that was resolved'
+    )
+    resolved_ips: List[str] = Field(
+        [], description='List of resolved IP addresses'
+    )
+    response_time_ms: Optional[float] = Field(
+        None, description='DNS resolution response time in milliseconds'
+    )
+    success: bool = Field(
+        False, description='Whether the DNS resolution was successful'
+    )
+    error_message: Optional[str] = Field(
+        None, description='Error message if resolution failed'
+    )
+
+
+class EksDnsStatusResponse(CallToolResult):
+    """Response model for get_eks_dns_status tool.
+    
+    This model contains DNS resolution results for EKS API endpoints and
+    other hostnames, helping diagnose network connectivity issues for any EKS cluster.
+    """
+    
+    api_server_endpoint: Optional[str] = Field(
+        None, description='EKS API server endpoint URL'
+    )
+    dns_resolutions: List[DnsResolutionResult] = Field(
+        [], description='List of DNS resolution results'
+    )
+    cluster_name: str = Field(
+        ..., description='Name of the EKS cluster'
+    )
+
+
+class EksNodeKubeletConfigResponse(CallToolResult):
+    """Response model for get_eks_node_kubelet_config tool.
+    
+    This model contains kubelet configuration details from systemd unit files
+    and bootstrap configuration for any EKS node (standard or hybrid).
+    Note: This tool must be executed directly on a Kubernetes node to access
+    the local configuration files.
+    """
+    
+    systemd_unit_content: Optional[str] = Field(
+        None, description='Content of the kubelet systemd unit file'
+    )
+    config_path: Optional[str] = Field(
+        None, description='Path to the kubelet configuration files'
+    )
+    command_args: Dict[str, Any] = Field(
+        {}, description='Kubelet command-line arguments'
+    )
+    environment_vars: Dict[str, str] = Field(
+        {}, description='Environment variables for kubelet'
+    )
+    certificate_paths: Dict[str, str] = Field(
+        {}, description='Paths to certificate files used by kubelet'
+    )
+    bootstrap_config: Optional[Dict[str, Any]] = Field(
+        None, description='Kubelet bootstrap configuration'
+    )
+
+
+class EksInsightStatus(BaseModel):
+    """Status of an EKS insight with status code and reason."""
+    
+    status: str = Field(..., description='Status of the insight (e.g., PASSING, FAILING, UNKNOWN)')
+    reason: str = Field(..., description='Explanation of the current status')
+
+
+class EksInsightItem(BaseModel):
+    """Model for a single EKS insight item."""
+    
+    id: str = Field(..., description='Unique identifier of the insight')
+    name: str = Field(..., description='Name of the insight')
+    category: str = Field(..., description='Category of the insight (e.g., CONFIGURATION, UPGRADE_READINESS)')
+    kubernetes_version: Optional[str] = Field(None, description='Target Kubernetes version for upgrade insights')
+    last_refresh_time: float = Field(..., description='Timestamp when the insight was last refreshed')
+    last_transition_time: float = Field(..., description='Timestamp when the insight last changed status')
+    description: str = Field(..., description='Description of what the insight checks')
+    insight_status: EksInsightStatus = Field(..., description='Current status of the insight')
+    recommendation: Optional[str] = Field(None, description='Recommendation for addressing the insight')
+    additional_info: Optional[Dict[str, str]] = Field(None, description='Additional information links')
+    resources: Optional[List[str]] = Field(None, description='Resources involved in the insight')
+    category_specific_summary: Optional[Dict[str, Any]] = Field(None, description='Additional category-specific details')
+
+
+class EksInsightsResponse(CallToolResult):
+    """Response model for get_eks_insights tool."""
+    
+    cluster_name: str = Field(..., description='Name of the EKS cluster')
+    insights: List[EksInsightItem] = Field(..., description='List of insights')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    detail_mode: bool = Field(False, description='Whether the response contains detailed insight information')

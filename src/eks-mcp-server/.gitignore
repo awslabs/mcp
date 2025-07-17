@@ -40,6 +40,7 @@ ENV/
 .coverage.*
 htmlcov/
 .pytest_cache/
+external-troubleshoot/
 
 # Ruff
 .ruff_cache/

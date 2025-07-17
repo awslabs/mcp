@@ -1,0 +1,13 @@
+{
+  "jsonrpc": "2.0",
+  "id": "tool-1752775928-2bb157b4",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"_meta\": null,\n  \"content\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"Performed DNS resolution for 3 hostnames\",\n      \"annotations\": null\n    }\n  ],\n  \"isError\": false,\n  \"api_server_endpoint\": \"https://2A6CF858684CB13AB4FADBE37D13397A.gr7.us-west-2.eks.amazonaws.com\",\n  \"dns_resolutions\": [\n    {\n      \"hostname\": \"2A6CF858684CB13AB4FADBE37D13397A.gr7.us-west-2.eks.amazonaws.com\",\n      \"resolved_ips\": [\n        \"44.252.191.249\",\n        \"54.190.88.148\"\n      ],\n      \"response_time_ms\": 66.67,\n      \"success\": true,\n      \"error_message\": null\n    },\n    {\n      \"hostname\": \"amazon.com\",\n      \"resolved_ips\": [\n        \"52.94.236.248\",\n        \"205.251.242.103\",\n        \"54.239.28.85\"\n      ],\n      \"response_time_ms\": 1.14,\n      \"success\": true,\n      \"error_message\": null\n    },\n    {\n      \"hostname\": \"aws.amazon.com\",\n      \"resolved_ips\": [\n        \"99.84.66.67\",\n        \"99.84.66.5\",\n        \"99.84.66.25\",\n        \"99.84.66.6\"\n      ],\n      \"response_time_ms\": 114.56,\n      \"success\": true,\n      \"error_message\": null\n    }\n  ],\n  \"cluster_name\": \"test-eks-hybrid\"\n}"
+      }
+    ],
+    "isError": false
+  }
+}
