@@ -40,15 +40,22 @@ from awslabs.git_repo_research_mcp_server.utils import (
 )
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP, Image
+from fastmcp import Context, FastMCP, Image
 from mcp.types import ImageContent
 from pydantic import Field
 from typing import Dict, List, Optional, Union
+from dotenv import load_dotenv
 
+load_dotenv()
 
 # Configure logging
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'INFO'))
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+DEFAULT_PORT = 8055
+host = "0.0.0.0"
+port = DEFAULT_PORT
 
 # Create the MCP server
 mcp = FastMCP(
@@ -600,8 +607,8 @@ async def access_file_or_directory(filepath: str) -> Union[str, List[str], Image
 @mcp.tool(name='search_research_repository')
 async def mcp_search_repository(
     ctx: Context,
-    index_path: str = Field(description='Name of the repository or path to the index to search'),
     query: str = Field(description='The search query to use for semantic search'),
+    index_path: str = Field(description='Name of the repository or path to the index to search'),
     limit: int = Field(default=10, description='Maximum number of results to return'),
     threshold: float = Field(
         default=0.0, description='Minimum similarity score threshold (0.0 to 1.0)'
@@ -896,7 +903,11 @@ async def mcp_delete_repository(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    mcp.run()
+    if transport == "stdio":
+        logger.info('Starting with stdio transport...')
+        mcp.run(transport=transport)
+    elif transport == "streamable-http" or transport == "http":
+        mcp.run(transport=transport, host=host, port=port)
 
 
 if __name__ == '__main__':

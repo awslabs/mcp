@@ -70,3 +70,17 @@ services:
       - "8054:8054"
     volumes:
       - /Users/vihaankhandelwal/.aws:/app/.aws:ro
+    
+  git-repo-research-mcp:
+    build:
+      context: ./src/git-repo-research-mcp-server
+      dockerfile: Dockerfile
+    container_name: git-repo-research-mcp
+    ports:
+      - "8055:8055"
+    env_file:
+      - .env
+    environment:
+      - AWS_DEFAULT_REGION=us-west-2
+    volumes:
+      - /Users/vihaankhandelwal/.aws:/app/.aws:ro
