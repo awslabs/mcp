@@ -46,38 +46,7 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/aws-api-mcp-server"]'), matrix.dockerfile)
-        run: |
-            df -h
-            du -h -k -d 1
-
-            sudo rm -rf \
-              /usr/local/lib/android \
-              /usr/share/dotnet \
-              /opt/ghc \
-              /usr/local/.ghcup \
-              /usr/local/share/powershell \
-              /usr/share/swift \
-              /usr/lib/jvm || true
-
-            printWarningMessage () {
-              echo "[warning] Failed to remove '$1', perhaps because it doesn't exist. Ignoring..."
-            }
-
-            # Remove large packages we don't use.
-            sudo apt list --installed
-
-            sudo apt-get remove -y '^mysql-.*' || printWarningMessage '^mysql-.*'
-            sudo apt-get remove -y '^dotnet-.*' --fix-missing || printWarningMessage '^dotnet-.*'
-            sudo apt-get remove -y 'php.*' --fix-missing || printWarningMessage 'php.*'
-            sudo apt-get remove -y '^mongodb-.*' --fix-missing || printWarningMessage '^mongodb-.*'
-            sudo apt-get remove -y '^llvm-.*' --fix-missing || printWarningMessage '^llvm-.*'
-            sudo apt-get remove -y google-cloud-sdk --fix-missing || printWarningMessage 'google-cloud-sdk'
-            sudo apt-get remove -y google-cloud-cli --fix-missing || printWarningMessage 'google-cloud-cli'
-            sudo apt-get autoremove -y >/dev/null 2>&1
-            sudo apt-get autoclean -y >/dev/null 2>&1
-
-            df -h
-            du -h -k -d 1
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@25167c70e07d52455d651af931970d0ffdac75c5
 
       - name: Get Checkout Depth
         id: checkout-depth
