@@ -58,7 +58,7 @@ class DenseRetriever:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
-            models_dir = get_server_directory() / 'models'
+            models_dir = get_server_directory() / 'models' / self.model_name
             local_files_only = models_dir.exists()
             self._model = SentenceTransformer(
                 self.model_name, cache_folder=str(models_dir), local_files_only=local_files_only
