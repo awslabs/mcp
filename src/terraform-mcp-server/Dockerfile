@@ -33,6 +33,10 @@ ENV UV_FROZEN=true
 # Copy the required files first
 COPY pyproject.toml uv.lock uv-requirements.txt ./
 
+# Python optimization and uv configuration
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
     pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
