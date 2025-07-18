@@ -1196,6 +1196,7 @@ async def get_pricing_attribute_values(
     - Historical pricing analysis (get_pricing() only provides current pricing)
     - Bulk data processing without repeated API calls
     - Offline analysis of complete pricing datasets
+    - Savings Plans analysis across services
 
     **FILE PROCESSING:**
     - CSV files: Lines 1-5 are metadata, Line 6 contains headers, Line 7+ contains pricing data
