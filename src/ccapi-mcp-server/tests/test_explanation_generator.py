@@ -238,7 +238,70 @@ class TestExplanationGenerator:
         long_string = 'x' * 1000
         result = generate_explanation(long_string, 'Long String', 'analyze', 'detailed', '')
         assert 'Long String' in result
-        assert '...' in result  # Should be truncated
+        assert '...' in result
+
+        # Integer content
+        result = generate_explanation(42, 'Number Test', 'analyze', 'detailed', '')
+        assert 'Number Test' in result
+        assert '**Value:** 42' in result
+        assert 'int' in result
+
+        # Boolean content
+        result = generate_explanation(True, 'Boolean Test', 'analyze', 'detailed', '')
+        assert 'Boolean Test' in result
+        assert '**Value:** True' in result
+        assert 'bool' in result
+
+        # Custom object content
+        class CustomObject:
+            def __str__(self):
+                return 'CustomObjectString'
+
+        custom_obj = CustomObject()
+        result = generate_explanation(custom_obj, 'Object Test', 'analyze', 'detailed', '')
+        assert 'Object Test' in result
+        assert '**Content Type:** CustomObject' in result
+        assert 'CustomObjectString' in result
+
+    def test_explain_dict_with_underscore_keys(self):
+        """Test explaining dictionary with keys that start with underscore."""
+        data = {
+            'normal_key': 'value',
+            '_private_key': 'should_be_skipped',  # pragma: allowlist secret
+            '__dunder_key': 'also_skipped',
+        }
+        result = _explain_dict(data, 'detailed')
+
+        assert 'normal_key' in result
+        assert '_private_key' not in result
+        assert '__dunder_key' not in result
+
+    def test_explain_dict_with_many_nested_properties(self):
+        """Test explaining dictionary with many nested properties."""
+        nested_dict = {f'nested_key_{i}': f'value_{i}' for i in range(10)}
+        data = {'parent_key': nested_dict}
+
+        result = _explain_dict(data, 'detailed')
+
+        assert 'parent_key' in result
+        assert 'Nested configuration with 10 properties' in result
+        assert 'nested_key_0' in result
+        assert 'nested_key_4' in result  # Should show first 5 properties
+        assert 'and 5 more properties' in result  # Should mention remaining properties
+
+    def test_explain_dict_with_long_list(self):
+        """Test explaining dictionary with a list that has more than 3 items."""
+        data = {'items': ['item1', 'item2', 'item3', 'item4', 'item5']}
+
+        result = _explain_dict(data, 'detailed')
+
+        assert 'items' in result
+        assert 'List with 5 items' in result
+        assert 'item1' in result
+        assert 'item2' in result
+        assert 'item3' in result
+        # Should mention remaining items# Should be truncated
+        assert 'and 2 more items' in result
 
         # Numeric content
         result = generate_explanation(42, 'Number Test', 'analyze', 'detailed', '')
