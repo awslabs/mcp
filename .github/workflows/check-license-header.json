@@ -13,7 +13,8 @@
       "**/*requirements.txt",
       "**/*.pyc",
       "**/trivy-results.sarif",
-      "**/py.typed"
+      "**/py.typed",
+      "**/*.npz"
     ],
     "include": [
       "**/*.py",
@@ -50,7 +51,8 @@
       "**/yarn.lock",
       "**/*.pyc",
       "**/trivy-results.sarif",
-      "**/py.typed"
+      "**/py.typed",
+      "**/*.npz"
     ]
   }
 ]
