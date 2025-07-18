@@ -47,7 +47,6 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
       ],
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
       },
       "disabled": false,
       "autoApprove": []
@@ -70,7 +69,6 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
       ],
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
       },
       "disabled": false,
       "autoApprove": []
@@ -93,7 +91,6 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
       ],
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_API_MCP_WORKING_DIR": "C:\\path\\to\\working\\directory"
       },
       "disabled": false,
       "autoApprove": []
@@ -113,7 +110,7 @@ For detailed instructions on setting up your local development environment and r
 | Environment Variable | Required | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 |---------------------|----------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `AWS_REGION` | ✅ Yes | - | Sets the default AWS region for all CLI commands, unless a specific region is provided in the request. This provides a consistent default while allowing flexibility to run commands in different regions as needed.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `AWS_API_MCP_WORKING_DIR` | ✅ Yes | - | Working directory path for the MCP server operations. Must be an absolute path. Used to resolve relative paths in commands like `aws s3 cp`. Does not provide any sandboxing or security restrictions                                                                                                                                                                                                                                                                        |
+| `AWS_API_MCP_WORKING_DIR` | ❌ No | \<Platform-specific temp directory\>/aws-api-mcp/workdir | Working directory path for the MCP server operations. Must be an absolute path when provided. Used to resolve relative paths in commands like `aws s3 cp`. Does not provide any sandboxing or security restrictions. If not provided, defaults to a platform-specific directory:<br/><br/>• **Windows**: `%TEMP%\aws-api-mcp\workdir` (typically `C:\Users\<username>\AppData\Local\Temp\aws-api-mcp\workdir`)<br/>• **macOS**: `/private/var/folders/<hash>/T/aws-api-mcp/workdir`<br/>• **Linux**: `$XDG_RUNTIME_DIR/aws-api-mcp/workdir` (if set) or `$TMPDIR/aws-api-mcp/workdir` (if set) or `/tmp/aws-api-mcp/workdir` |
 | `AWS_API_MCP_PROFILE_NAME` | ❌ No | `"default"` | AWS Profile for credentials to use for command executions. If not provided, the MCP server will follow the boto3's [default credentials chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) to look for credentials. We strongly recommend you to configure your credentials this way.                                                                                                                            |
 | `READ_OPERATIONS_ONLY` | ❌ No | `"false"` | When set to "true", restricts execution to read-only operations only. IAM permissions remain the primary security control. For a complete list of allowed operations under this flag, refer to the [Service Authorization Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html). Only operations where the **Access level** column is not `Write` will be allowed when this is set to "true". |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | ❌ No | - | Use environment variables to configure AWS credentials                                                                                                                                                                                                                                                                                                                                                                                                                       |
