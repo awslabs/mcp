@@ -142,9 +142,11 @@ R = TypeVar('R', covariant=True)
 
 class AsyncCallable(Protocol[P, R]):
     """Protocol for an asynchronous callable with parameters P and return type R."""
+
     async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """Call the asynchronous function with parameters."""
         ...
+
 
 def track_performance(func: AsyncCallable[P, R]) -> AsyncCallable[P, R]:
     """Decorator to track function performance."""

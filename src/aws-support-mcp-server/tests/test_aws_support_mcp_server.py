@@ -1540,6 +1540,7 @@ class TestSupportClient:
 
 class TestErrorHandling:
     """Test suite for error handling functions in the AWS Support MCP Server."""
+
     from awslabs.aws_support_mcp_server.consts import (
         ERROR_AUTHENTICATION_FAILED,
         ERROR_CASE_NOT_FOUND,
