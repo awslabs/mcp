@@ -78,6 +78,46 @@
       ]
     },
     {
+      "category": "Documentation",
+      "description": "Get latest AWS docs, code samples, and other official content",
+      "icon": "\ud83d\udcda",
+      "id": "aws-knowledge-mcp-server",
+      "name": "AWS Knowledge MCP Server",
+      "source_path": "src/aws-knowledge-mcp-server/",
+      "subcategory": "Real-time Documentation Access",
+      "tags": [
+        "documentation",
+        "real-time-access",
+        "api-reference",
+        "vibe-coding",
+        "conversational",
+        "core-development"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "conversational"
+      ]
+    },
+    {
+      "category": "Core",
+      "description": "Interact with AWS services and resources through AWS CLI commands.",
+      "icon": "\u26a1",
+      "id": "aws-api-mcp-server",
+      "name": "AWS API MCP Server",
+      "source_path": "src/aws-api-mcp-server/",
+      "subcategory": "AWS CLI",
+      "tags": [
+        "documentation",
+        "real-time-access",
+        "api-reference",
+        "vibe-coding",
+        "core-development"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Infrastructure & Deployment",
       "description": "AWS CDK development with security compliance",
       "icon": "\ud83c\udfd7\ufe0f",
@@ -303,6 +343,28 @@
     },
     {
       "category": "AI & Machine Learning",
+      "description": "AI assistant based on knowledgebase with anonymous access",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-qbusiness-anonymous-mcp-server",
+      "name": "Amazon Q Business anonymous MCP Server",
+      "source_path": "src/amazon-qbusiness-anonymous-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "amazon-q",
+        "amazon-q-business",
+        "ai-assistant",
+        "enterprise-search",
+        "data-access",
+        "conversational",
+        "knowledge-search"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
       "description": "Data accessors to search through enterprise's Q index",
       "icon": "\ud83e\udd16",
       "id": "amazon-qindex-mcp-server",
@@ -420,6 +482,29 @@
         "sql-database",
         "autonomous",
         "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Manage, query, and ingest S3-based tables with support for SQL, CSV-to-table conversion, and metadata discovery.",
+      "icon": "\ud83d\uddc4\ufe0f",
+      "id": "s3-tables-mcp-server",
+      "name": "AWS S3 Tables MCP Server",
+      "source_path": "src/s3-tables-mcp-server/",
+      "subcategory": "Data Lakes & Object Storage",
+      "tags": [
+        "data-analytics",
+        "s3-tables",
+        "iceberg",
+        "object-storage",
+        "table-bucket",
+        "csv-ingest",
+        "sql",
+        "metadata",
+        "autonomous"
       ],
       "workflows": [
         "autonomous"
@@ -828,6 +913,7 @@
       "source_path": "src/aws-pricing-mcp-server/",
       "subcategory": "Cost Analysis",
       "tags": [
+        "pricing",
         "cost-operations",
         "cost-analysis",
         "estimation",
@@ -1008,6 +1094,30 @@
         "vibe-coding"
       ],
       "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Manage, monitor, and optimize Amazon MSK clusters with best practices",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "aws-msk-mcp-server",
+      "name": "AWS MSK MCP Server",
+      "source_path": "src/aws-msk-mcp-server/",
+      "subcategory": "Messaging & Streaming",
+      "tags": [
+        "developer-tools",
+        "msk",
+        "kafka",
+        "streaming",
+        "messaging",
+        "cluster-management",
+        "monitoring",
+        "autonomous",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "autonomous",
         "vibe-coding"
       ]
     },

@@ -33,6 +33,9 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_query_handler 
 from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_workgroup_handler import (
     AthenaWorkGroupHandler,
 )
+from awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_handler import (
+    CommonResourceHandler,
+)
 from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_cluster_handler import (
     EMREc2ClusterHandler,
 )
@@ -222,6 +225,27 @@ It enables you to create, manage, and monitor data processing workflows.
 9. Manage crawler schedules: `manage_aws_glue_crawler_management(operation='update-crawler-schedule', crawler_name='my-crawler', schedule='cron(0 0 * * ? *)')`
 10. Get crawler metrics: `manage_aws_glue_crawler_management(operation='get-crawler-metrics', crawler_name_list=['my-crawler'])`
 
+### IAM Role Management
+1. Create a role for data processing: `create_data_processing_role(role_name='my-glue-role', service_type='glue', description='Role for Glue jobs')`
+2. View role permissions: `get_policies_for_role(role_name='my-glue-role')`
+3. Add permissions to a role: `add_inline_policy(policy_name='s3-access', role_name='my-glue-role', permissions={...})`
+4. Find roles for a service: `get_roles_for_service(service_type='glue')` - Lists all roles that can be assumed by the Glue service
+
+### S3 Bucket Management
+1. List S3 buckets for data processing: `list_s3_buckets(region='us-east-1')` - Lists buckets with 'glue' in their name
+2. Upload code to S3: `upload_to_s3(code_content='print("Hello")', bucket_name='my-bucket', s3_key='scripts/my-script.py')`
+3. Analyze S3 usage patterns: `analyze_s3_usage_for_data_processing(bucket_name='my-bucket')` - Identifies which buckets are used by data processing services
+
+## Best Practices
+- Use descriptive names for jobs, workflows, and other resources to make them easier to identify and manage.
+- Follow the principle of least privilege when creating IAM roles and policies.
+- Use Glue Data Catalog to maintain a consistent metadata repository across services.
+- Consider partitioning large datasets for better query performance in Athena.
+- Use appropriate instance types and sizes for your Glue and EMR workloads.
+- Implement error handling and retry logic in your ETL jobs and workflows.
+- Use Glue Crawlers to automatically discover and catalog data in your data lake.
+- Organize your Data Catalog with meaningful database and table names.
+- Use connections to securely store and manage credentials for external data sources.
 """
 
 SERVER_DEPENDENCIES = [
@@ -348,6 +372,7 @@ def main():
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,
     )
+    CommonResourceHandler(mcp, allow_write=allow_write)
 
     # Run server
     mcp.run()

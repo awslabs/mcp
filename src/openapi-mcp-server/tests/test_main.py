@@ -31,7 +31,6 @@ def test_main_function(mock_asyncio_run, mock_parse_args, mock_load_config, mock
 
     mock_config = MagicMock()
     mock_config.transport = 'sse'
-    mock_config.port = 8888
     mock_load_config.return_value = mock_config
 
     mock_server = MagicMock()

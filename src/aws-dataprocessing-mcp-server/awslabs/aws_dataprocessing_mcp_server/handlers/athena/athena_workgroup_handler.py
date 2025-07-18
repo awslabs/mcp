@@ -27,7 +27,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, Optional, Union
+from typing import Annotated, Any, Dict, Optional, Union
 
 
 class AthenaWorkGroupHandler:
@@ -52,42 +52,60 @@ class AthenaWorkGroupHandler:
     async def manage_aws_athena_workgroups(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: create-work-group, delete-work-group, get-work-group, list-work-groups, update-work-group. Choose read-only operations when write access is disabled.',
-        ),
-        name: Optional[str] = Field(
-            None,
-            description='Name of the workgroup (required for create-work-group, delete-work-group, get-work-group, update-work-group).',
-        ),
-        description: Optional[str] = Field(
-            None,
-            description='Description of the workgroup (optional for create-work-group and update-work-group).',
-        ),
-        configuration: Optional[Dict[str, Any]] = Field(
-            None,
-            description='Configuration for the workgroup, including result configuration, enforcement options, etc. (optional for create-work-group and update-work-group).',
-        ),
-        state: Optional[str] = Field(
-            None,
-            description='State of the workgroup: ENABLED or DISABLED (optional for create-work-group and update-work-group).',
-        ),
-        tags: Optional[Dict[str, str]] = Field(
-            None,
-            description="Tags for the workgroup (optional for create-work-group). Example {'ResourceType': 'Workgroup'}",
-        ),
-        recursive_delete_option: Optional[bool] = Field(
-            None,
-            description='Whether to recursively delete the workgroup and its contents (optional for delete-work-group).',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return for list-work-groups operation.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Pagination token for list-work-groups operation.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: create-work-group, delete-work-group, get-work-group, list-work-groups, update-work-group. Choose read-only operations when write access is disabled.',
+            ),
+        ],
+        name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the workgroup (required for create-work-group, delete-work-group, get-work-group, update-work-group).',
+            ),
+        ] = None,
+        description: Annotated[
+            Optional[str],
+            Field(
+                description='Description of the workgroup (optional for create-work-group and update-work-group).',
+            ),
+        ] = None,
+        configuration: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description='Configuration for the workgroup, including result configuration, enforcement options, etc. (optional for create-work-group and update-work-group).',
+            ),
+        ] = None,
+        state: Annotated[
+            Optional[str],
+            Field(
+                description='State of the workgroup: ENABLED or DISABLED (optional for create-work-group and update-work-group).',
+            ),
+        ] = None,
+        tags: Annotated[
+            Optional[Dict[str, str]],
+            Field(
+                description="Tags for the workgroup (optional for create-work-group). Example {'ResourceType': 'Workgroup'}",
+            ),
+        ] = None,
+        recursive_delete_option: Annotated[
+            Optional[bool],
+            Field(
+                description='Whether to recursively delete the workgroup and its contents (optional for delete-work-group).',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return for list-work-groups operation.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Pagination token for list-work-groups operation.',
+            ),
+        ] = None,
     ) -> Union[
         CreateWorkGroupResponse,
         DeleteWorkGroupResponse,
@@ -133,6 +151,12 @@ class AthenaWorkGroupHandler:
             Union of response types specific to the operation performed
         """
         try:
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Athena workgroup Handler - Tool: manage_aws_athena_workgroups - Operation: {operation}',
+            )
+
             if not self.allow_write and operation in [
                 'create-work-group',
                 'delete-work-group',
