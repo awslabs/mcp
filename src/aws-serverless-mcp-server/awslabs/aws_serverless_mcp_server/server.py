@@ -73,11 +73,11 @@ mcp = FastMCP(
 
     ## Features
     1. Serverless Application Lifecycle
-    - Intialize, build, and deploy Serverless Application Model (SAM) applications with SAM CLI
+    - Initialize, build, and deploy Serverless Application Model (SAM) applications with SAM CLI
     - Test Lambda functions locally and remotely
     2. Web Application Deployment & Management
     - Deploy fullstack, frontend, and backend web applications onto AWS Serverless using Lambda Web Adapter.
-    - Update frontend assets and optionally invaliate CloudFront caches
+    - Update frontend assets and optionally invalidate CloudFront caches
     - Create custom domain names, including certificate and DNS setup.
     3. Observability
     - Retrieve and logs and metrics of serverless resources
