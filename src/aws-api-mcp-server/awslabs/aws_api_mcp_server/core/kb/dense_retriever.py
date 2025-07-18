@@ -14,6 +14,7 @@
 
 import json
 import numpy as np
+from ...core.common.config import get_server_directory
 from awscli.clidriver import __version__ as awscli_version
 from copy import deepcopy
 from loguru import logger
@@ -57,7 +58,11 @@ class DenseRetriever:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer(self.model_name, cache_folder=str(self.cache_dir))
+            models_dir = get_server_directory() / 'models' / self.model_name
+            local_files_only = models_dir.exists()
+            self._model = SentenceTransformer(
+                self.model_name, cache_folder=str(models_dir), local_files_only=local_files_only
+            )
             self._model_ready = True
         return self._model
 

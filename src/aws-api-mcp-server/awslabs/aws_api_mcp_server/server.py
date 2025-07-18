@@ -14,7 +14,6 @@
 
 import os
 import sys
-import tempfile
 from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
     execute_awscli_customization,
@@ -29,6 +28,7 @@ from .core.common.config import (
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
     WORKING_DIRECTORY,
+    get_server_directory,
 )
 from .core.common.errors import AwsApiMcpError
 from .core.common.models import (
@@ -41,28 +41,15 @@ from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_rea
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pathlib import Path
 from pydantic import Field
 from typing import Annotated, Any, Optional, cast
-
-
-def _get_log_directory():
-    """Get platform-appropriate log directory."""
-    base_location = 'aws-api-mcp'
-    if os.name == 'nt' or os.uname().sysname == 'Darwin':  # Windows and macOS
-        return Path(tempfile.gettempdir()) / base_location
-    # Linux
-    base_dir = (
-        os.environ.get('XDG_RUNTIME_DIR') or os.environ.get('TMPDIR') or tempfile.gettempdir()
-    )
-    return Path(base_dir) / base_location
 
 
 logger.remove()
 logger.add(sys.stderr, level=FASTMCP_LOG_LEVEL)
 
 # Add file sink
-log_dir = _get_log_directory()
+log_dir = get_server_directory()
 log_dir.mkdir(exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
@@ -285,6 +272,7 @@ def main():
         logger.error(error_message)
         raise ValueError(error_message)
 
+    os.makedirs(WORKING_DIRECTORY, exist_ok=True)
     os.chdir(WORKING_DIRECTORY)
     logger.info(f'CWD: {os.getcwd()}')
 
