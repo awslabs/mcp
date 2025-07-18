@@ -54,7 +54,7 @@ class AttachmentDetails(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         return {
             'attachmentId': cast(JsonValue, self.attachment_id),
@@ -88,7 +88,7 @@ class Communication(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         result: Dict[str, JsonValue] = {'body': cast(JsonValue, self.body)}
 
@@ -120,7 +120,7 @@ class RecentCommunications(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         result: Dict[str, JsonValue] = {
             'communications': [cast(JsonDict, c.model_dump()) for c in self.communications]
@@ -143,7 +143,7 @@ class Category(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         return {'code': cast(JsonValue, self.code), 'name': cast(JsonValue, self.name)}
 
@@ -162,7 +162,7 @@ class Service(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         return {
             'code': cast(JsonValue, self.code),
@@ -182,7 +182,7 @@ class SeverityLevel(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         return {'code': cast(JsonValue, self.code), 'name': cast(JsonValue, self.name)}
 
@@ -224,7 +224,7 @@ class SupportCase(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         result: Dict[str, JsonValue] = {
             'caseId': cast(JsonValue, self.case_id),
@@ -464,7 +464,7 @@ class DescribeCasesResponse(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         result: Dict[str, JsonValue] = {
             'cases': [cast(JsonDict, case.model_dump()) for case in self.cases]
@@ -534,7 +534,7 @@ class CreateCaseCategory(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         return {'code': self.code, 'name': self.name}
 
@@ -560,7 +560,7 @@ class DescribeCreateCaseOptionsResponse(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         return {
             'categoryList': [cat.model_dump() for cat in self.category_list],
@@ -579,7 +579,7 @@ class AttachmentData(BaseModel):
 
         populate_by_name = True
 
-    def model_dump(self) -> Dict[str, JsonValue]:
+    def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         return {'data': cast(JsonValue, self.data), 'fileName': cast(JsonValue, self.file_name)}
 

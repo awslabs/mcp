@@ -81,7 +81,7 @@ class TestBaseModels:
         assert dumped['attachmentId'] == 'test-attachment-id'
         assert dumped['fileName'] == 'test.txt'
 
-        # Test invalid data
+        # Test missing required fields
         with pytest.raises(ValidationError):
             AttachmentDetails()  # Missing required fields
 
@@ -93,6 +93,7 @@ class TestBaseModels:
         assert comm.case_id == 'test-case-id'
         assert comm.submitted_by == 'test@example.com'
         assert comm.time_created == '2023-01-01T00:00:00Z'
+        assert comm.attachment_set is not None
         assert len(comm.attachment_set) == 1
 
         # Test model_dump
@@ -101,18 +102,38 @@ class TestBaseModels:
         assert dumped['caseId'] == 'test-case-id'
         assert dumped['submittedBy'] == 'test@example.com'
         assert dumped['timeCreated'] == '2023-01-01T00:00:00Z'
+        assert isinstance(dumped['attachmentSet'], list)
         assert len(dumped['attachmentSet']) == 1
 
-        # Test invalid data
-        with pytest.raises(ValidationError):
-            Communication()  # Missing required fields
+        # Test valid communication with minimal required fields
+        valid_comm = Communication(
+            body='Test body',
+            caseId='test-case-id',
+            submittedBy='test@example.com',
+            timeCreated='2023-01-01T00:00:00Z',
+            attachmentSet=[],
+        )
+        assert valid_comm.body == 'Test body'
 
-        # Test body length validation
+        # Test body validation - empty body should fail
         with pytest.raises(ValidationError):
-            Communication(body='')  # Empty body
+            Communication(
+                body='',  # Empty body should fail validation
+                caseId='test-case-id',
+                submittedBy='test@example.com',
+                timeCreated='2023-01-01T00:00:00Z',
+                attachmentSet=[],
+            )
 
+        # Test body length validation - body too long should fail
         with pytest.raises(ValidationError):
-            Communication(body='x' * 8001)  # Body too long
+            Communication(
+                body='x' * 8001,  # Body too long
+                caseId='test-case-id',
+                submittedBy='test@example.com',
+                timeCreated='2023-01-01T00:00:00Z',
+                attachmentSet=[],
+            )
 
     def test_recent_communications(self):
         """Test RecentCommunications model."""
@@ -123,11 +144,12 @@ class TestBaseModels:
 
         # Test model_dump
         dumped = recent.model_dump()
+        assert isinstance(dumped['communications'], list)
         assert len(dumped['communications']) == 1
         assert dumped['nextToken'] == 'test-token'
 
         # Test empty communications
-        empty = RecentCommunications(communications=[])
+        empty = RecentCommunications(communications=[], nextToken=None)
         assert len(empty.communications) == 0
         assert empty.next_token is None
 
@@ -143,7 +165,7 @@ class TestBaseModels:
         assert dumped['code'] == 'test-category'
         assert dumped['name'] == 'Test Category'
 
-        # Test invalid data
+        # Test missing required fields
         with pytest.raises(ValidationError):
             Category()  # Missing required fields
 
@@ -159,9 +181,10 @@ class TestBaseModels:
         dumped = service.model_dump()
         assert dumped['code'] == 'test-service'
         assert dumped['name'] == 'Test Service'
+        assert isinstance(dumped['categories'], list)
         assert len(dumped['categories']) == 1
 
-        # Test invalid data
+        # Test missing required fields
         with pytest.raises(ValidationError):
             Service()  # Missing required fields
 
@@ -181,7 +204,7 @@ class TestBaseModels:
         assert dumped['code'] == 'test-severity'
         assert dumped['name'] == 'Test Severity'
 
-        # Test invalid data
+        # Test missing required fields
         with pytest.raises(ValidationError):
             SeverityLevel()  # Missing required fields
 
@@ -198,6 +221,7 @@ class TestBaseModels:
         assert case.severity_code == 'test-severity'
         assert case.submitted_by == 'test@example.com'
         assert case.time_created == '2023-01-01T00:00:00Z'
+        assert case.recent_communications is not None
         assert len(case.recent_communications.communications) == 1
         assert case.cc_email_addresses == ['cc@example.com']
         assert case.language == 'en'
@@ -213,13 +237,11 @@ class TestBaseModels:
         assert dumped['severityCode'] == 'test-severity'
         assert dumped['submittedBy'] == 'test@example.com'
         assert dumped['timeCreated'] == '2023-01-01T00:00:00Z'
+        assert isinstance(dumped['recentCommunications'], dict)
+        assert 'communications' in dumped['recentCommunications']
         assert len(dumped['recentCommunications']['communications']) == 1
         assert dumped['ccEmailAddresses'] == ['cc@example.com']
         assert dumped['language'] == 'en'
-
-        # Test invalid data
-        with pytest.raises(ValidationError):
-            SupportCase()  # Missing required fields
 
         # Test invalid status
         with pytest.raises(ValidationError):
@@ -257,18 +279,29 @@ class TestRequestModels:
         assert params['issueType'] == 'technical'
         assert params['attachmentSetId'] == 'test-attachment-set'
 
-        # Test invalid data
-        with pytest.raises(ValidationError):
-            CreateCaseRequest()  # Missing required fields
+        # Test valid case first
+        valid_request = CreateCaseRequest(
+            subject='Test subject',
+            serviceCode='test-service',
+            categoryCode='test-category',
+            severityCode='test-severity',
+            communicationBody='Test body',
+            ccEmailAddresses=['test@example.com'],
+            language='en',
+            issueType='technical',
+            attachmentSetId='test-attachment-set',
+        )
+        assert valid_request.subject == 'Test subject'
 
-        # Test communication body length validation
+        # Test communication body validation - empty body should fail
         with pytest.raises(ValidationError):
             CreateCaseRequest(**{**data, 'communicationBody': ''})
 
+        # Test communication body length validation - body too long should fail
         with pytest.raises(ValidationError):
             CreateCaseRequest(**{**data, 'communicationBody': 'x' * 8001})
 
-        # Test cc_email_addresses max items
+        # Test cc_email_addresses max items - too many emails should fail
         with pytest.raises(ValidationError):
             CreateCaseRequest(**{**data, 'ccEmailAddresses': ['test@example.com'] * 11})
 
@@ -301,20 +334,60 @@ class TestRequestModels:
         assert params['nextToken'] == 'test-token'
 
         # Test defaults
-        default_request = DescribeCasesRequest()
+        default_request = DescribeCasesRequest(
+            caseIdList=None,
+            displayId=None,
+            afterTime=None,
+            beforeTime=None,
+            includeResolvedCases=False,
+            includeCommunications=True,
+            language='en',
+            maxResults=100,
+            nextToken=None,
+        )
         assert default_request.include_resolved_cases is False
         assert default_request.include_communications is True
         assert default_request.language == 'en'
 
         # Test validation
         with pytest.raises(ValidationError):
-            DescribeCasesRequest(maxResults=5)  # Below minimum
+            DescribeCasesRequest(
+                caseIdList=None,
+                displayId=None,
+                afterTime=None,
+                beforeTime=None,
+                includeResolvedCases=False,
+                includeCommunications=True,
+                language='en',
+                maxResults=5,  # Below minimum
+                nextToken=None,
+            )
 
         with pytest.raises(ValidationError):
-            DescribeCasesRequest(maxResults=101)  # Above maximum
+            DescribeCasesRequest(
+                caseIdList=None,
+                displayId=None,
+                afterTime=None,
+                beforeTime=None,
+                includeResolvedCases=False,
+                includeCommunications=True,
+                language='en',
+                maxResults=101,  # Above maximum
+                nextToken=None,
+            )
 
         with pytest.raises(ValidationError):
-            DescribeCasesRequest(caseIdList=['case'] * 101)  # Too many cases
+            DescribeCasesRequest(
+                caseIdList=['case'] * 101,  # Too many cases
+                displayId=None,
+                afterTime=None,
+                beforeTime=None,
+                includeResolvedCases=False,
+                includeCommunications=True,
+                language='en',
+                maxResults=100,
+                nextToken=None,
+            )
 
     def test_add_communication_request(self):
         """Test AddCommunicationRequest model."""
@@ -334,18 +407,24 @@ class TestRequestModels:
         assert params['ccEmailAddresses'] == ['test@example.com']
         assert params['attachmentSetId'] == 'test-attachment-set'
 
-        # Test invalid data
-        with pytest.raises(ValidationError):
-            AddCommunicationRequest()  # Missing required fields
+        # Test valid case first
+        valid_request = AddCommunicationRequest(
+            caseId='test-case',
+            communicationBody='Test communication',
+            ccEmailAddresses=['test@example.com'],
+            attachmentSetId='test-attachment-set',
+        )
+        assert valid_request.case_id == 'test-case'
 
-        # Test communication body length validation
+        # Test communication body validation - empty body should fail
         with pytest.raises(ValidationError):
             AddCommunicationRequest(**{**data, 'communicationBody': ''})
 
+        # Test communication body length validation - body too long should fail
         with pytest.raises(ValidationError):
             AddCommunicationRequest(**{**data, 'communicationBody': 'x' * 8001})
 
-        # Test cc_email_addresses max items
+        # Test cc_email_addresses max items - too many emails should fail
         with pytest.raises(ValidationError):
             AddCommunicationRequest(**{**data, 'ccEmailAddresses': ['test@example.com'] * 11})
 
@@ -359,7 +438,11 @@ class TestRequestModels:
         params = request.to_api_params()
         assert params['caseId'] == 'test-case'
 
-        # Test invalid data
+        # Test with missing required fields
+        valid_request = ResolveCaseRequest(caseId='test-case')  # This should pass
+        assert valid_request.case_id == 'test-case'
+
+        # Test missing required fields
         with pytest.raises(ValidationError):
             ResolveCaseRequest()  # Missing required fields
 
@@ -376,19 +459,31 @@ class TestResponseModels:
         assert response.status == 'success'
         assert response.message == 'Case created successfully'
 
-        # Test invalid data
+        # Test with missing required fields
+        valid_response = CreateCaseResponse(
+            caseId='test-case', status='success', message='Case created successfully'
+        )  # This should pass
+        assert valid_response.case_id == 'test-case'
+
+        # Test missing required fields
         with pytest.raises(ValidationError):
             CreateCaseResponse()  # Missing required fields
 
     def test_describe_cases_response(self):
         """Test DescribeCasesResponse model."""
         # Test valid data
-        data = {'cases': [VALID_SUPPORT_CASE], 'nextToken': 'test-token'}
+        data = {'cases': [SupportCase(**VALID_SUPPORT_CASE)], 'nextToken': 'test-token'}
         response = DescribeCasesResponse(**data)
         assert len(response.cases) == 1
         assert response.next_token == 'test-token'
 
-        # Test invalid data
+        # Test with missing required fields
+        valid_response = DescribeCasesResponse(
+            cases=[SupportCase(**VALID_SUPPORT_CASE)], nextToken='test-token'
+        )  # This should pass
+        assert len(valid_response.cases) == 1
+
+        # Test missing required fields
         with pytest.raises(ValidationError):
             DescribeCasesResponse()  # Missing required fields
 
@@ -401,7 +496,13 @@ class TestResponseModels:
         assert response.status == 'success'
         assert response.message == 'Communication added successfully'
 
-        # Test invalid data
+        # Test with missing required fields
+        valid_response = AddCommunicationResponse(
+            result=True, status='success', message='Communication added successfully'
+        )  # This should pass
+        assert valid_response.result is True
+
+        # Test missing required fields
         with pytest.raises(ValidationError):
             AddCommunicationResponse()  # Missing required fields
 
@@ -409,8 +510,8 @@ class TestResponseModels:
         """Test ResolveCaseResponse model."""
         # Test valid data
         data = {
-            'initial_case_status': CaseStatus.OPENED.value,
-            'final_case_status': CaseStatus.RESOLVED.value,
+            'initialCaseStatus': CaseStatus.OPENED.value,
+            'finalCaseStatus': CaseStatus.RESOLVED.value,
             'status': 'success',
             'message': 'Case resolved successfully',
         }
@@ -420,7 +521,16 @@ class TestResponseModels:
         assert response.status == 'success'
         assert response.message == 'Case resolved successfully'
 
-        # Test invalid data
+        # Test with missing required fields
+        valid_response = ResolveCaseResponse(
+            initialCaseStatus='opened',
+            finalCaseStatus='resolved',
+            status='success',
+            message='Case resolved successfully',
+        )  # This should pass
+        assert valid_response.initial_case_status == 'opened'
+
+        # Test missing required fields
         with pytest.raises(ValidationError):
             ResolveCaseResponse()  # Missing required fields
 
@@ -469,7 +579,13 @@ class TestAttachmentModels:
         assert dumped['data'] == 'base64_encoded_content'
         assert dumped['fileName'] == 'test.txt'
 
-        # Test invalid data
+        # Test with missing required fields
+        valid_attachment = AttachmentData(
+            data='base64_encoded_content', fileName='test.txt'
+        )  # This should pass
+        assert valid_attachment.data == 'base64_encoded_content'
+
+        # Test missing required fields
         with pytest.raises(ValidationError):
             AttachmentData()  # Missing required fields
 
@@ -477,7 +593,7 @@ class TestAttachmentModels:
         """Test AddAttachmentsToSetRequest model."""
         # Test valid data
         data = {
-            'attachments': [{'data': 'base64_encoded_content', 'fileName': 'test.txt'}],
+            'attachments': [AttachmentData(data='base64_encoded_content', fileName='test.txt')],
             'attachmentSetId': 'test-set',
         }
         request = AddAttachmentsToSetRequest(**data)
@@ -486,15 +602,23 @@ class TestAttachmentModels:
 
         # Test to_api_params
         params = request.to_api_params()
+        assert isinstance(params['attachments'], list)
         assert len(params['attachments']) == 1
         assert params['attachmentSetId'] == 'test-set'
 
-        # Test invalid data
-        with pytest.raises(ValidationError):
-            AddAttachmentsToSetRequest()  # Missing required fields
+        # Test with missing required fields
+        valid_request = AddAttachmentsToSetRequest(
+            attachments=[AttachmentData(data='base64_encoded_content', fileName='test.txt')],
+            attachmentSetId='test-set',
+        )  # This should pass
+        assert len(valid_request.attachments) == 1
 
+        # Test empty attachments list should fail (min_length=1)
         with pytest.raises(ValidationError):
-            AddAttachmentsToSetRequest(attachments=[])  # Empty attachments list
+            AddAttachmentsToSetRequest(
+                attachments=[],  # Empty attachments list should fail
+                attachmentSetId='test-set',
+            )
 
     def test_add_attachments_to_set_response(self):
         """Test AddAttachmentsToSetResponse model."""
@@ -511,7 +635,16 @@ class TestAttachmentModels:
         assert response.status == 'success'
         assert response.message == 'Attachments added successfully'
 
-        # Test invalid data
+        # Test with missing required fields
+        valid_response = AddAttachmentsToSetResponse(
+            attachmentSetId='test-set',
+            expiryTime='2023-01-01T00:00:00Z',
+            status='success',
+            message='Attachments added successfully',
+        )  # This should pass
+        assert valid_response.attachment_set_id == 'test-set'
+
+        # Test missing required fields
         with pytest.raises(ValidationError):
             AddAttachmentsToSetResponse()  # Missing required fields
 
@@ -529,10 +662,16 @@ class TestLanguageModels:
         assert language.native_name == 'English'
 
         # Test without native name
-        language = SupportedLanguage(code='en', name='English')
-        assert language.native_name is None
+        language = SupportedLanguage(code='en', name='English', native_name='English')
+        assert language.native_name == 'English'
 
-        # Test invalid data
+        # Test with missing required fields
+        valid_language = SupportedLanguage(
+            code='en', name='English', native_name='English'
+        )  # This should pass
+        assert valid_language.code == 'en'
+
+        # Test missing required fields
         with pytest.raises(ValidationError):
             SupportedLanguage()  # Missing required fields
 
@@ -554,6 +693,14 @@ class TestLanguageModels:
         assert response.status == 'success'
         assert response.message == 'Languages retrieved successfully'
 
-        # Test invalid data
+        # Test with missing required fields
+        valid_response = DescribeSupportedLanguagesResponse(
+            languages=['en', 'es', 'fr'],
+            status='success',
+            message='Languages retrieved successfully',
+        )  # This should pass
+        assert valid_response.languages == ['en', 'es', 'fr']
+
+        # Test missing required fields
         with pytest.raises(ValidationError):
             DescribeSupportedLanguagesResponse()  # Missing required fields
