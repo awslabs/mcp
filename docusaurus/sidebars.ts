@@ -31,6 +31,14 @@ const sidebars: SidebarsConfig = {
       items: [
         {
           type: 'category',
+          label: 'Getting Started',
+          items: [
+            'servers/aws-api-mcp-server',
+            'servers/aws-knowledge-mcp-server',
+          ],
+        },
+        {
+          type: 'category',
           label: 'Documentation',
           items: [
             'servers/aws-documentation-mcp-server',
@@ -80,6 +88,7 @@ const sidebars: SidebarsConfig = {
             'servers/postgres-mcp-server',
             'servers/aws-dataprocessing-mcp-server',
             'servers/redshift-mcp-server',
+            'servers/s3-tables-mcp-server',
           ],
         },
         {
@@ -98,6 +107,7 @@ const sidebars: SidebarsConfig = {
             'servers/syntheticdata-mcp-server',
             'servers/aws-bedrock-data-automation-mcp-server',
             'servers/aws-location-mcp-server',
+            'servers/aws-msk-mcp-server'
           ],
         },
         {

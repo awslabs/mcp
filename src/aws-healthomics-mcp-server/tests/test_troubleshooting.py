@@ -18,7 +18,6 @@ import botocore.exceptions
 import pytest
 from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import (
     diagnose_run_failure,
-    get_omics_client,
 )
 from datetime import datetime, timezone
 from mcp.server.fastmcp import Context
@@ -99,36 +98,6 @@ def sample_log_events():
             {'message': 'Task failed with exit code 1'},
         ]
     }
-
-
-class TestGetOmicsClient:
-    """Test the get_omics_client function."""
-
-    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_aws_session')
-    def test_get_omics_client_success(self, mock_get_aws_session):
-        """Test successful HealthOmics client creation."""
-        # Arrange
-        mock_session = MagicMock()
-        mock_client = MagicMock()
-        mock_get_aws_session.return_value = mock_session
-        mock_session.client.return_value = mock_client
-
-        # Act
-        result = get_omics_client()
-
-        # Assert
-        assert result == mock_client
-        mock_session.client.assert_called_once_with('omics')
-
-    @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_aws_session')
-    def test_get_omics_client_failure(self, mock_get_aws_session):
-        """Test HealthOmics client creation failure."""
-        # Arrange
-        mock_get_aws_session.side_effect = Exception('AWS session error')
-
-        # Act & Assert
-        with pytest.raises(Exception, match='AWS session error'):
-            get_omics_client()
 
 
 class TestDiagnoseRunFailure:
