@@ -331,6 +331,27 @@ class TestTools:
             result = await create_template(template_name='test-template', region='us-west-2')
             assert 'template_id' in result
 
+        # Test create_template with template_id and template_body
+        with patch('awslabs.ccapi_mcp_server.server.create_template_impl') as mock_impl:
+            mock_impl.return_value = {
+                'template_id': 'test-id',
+                'template_body': '{"Resources": {"MyBucket": {"Type": "AWS::S3::Bucket"}}}',
+            }
+            result = await create_template(template_id='test-id')
+            assert 'template_body' in result
+
+        # Test create_template with save_to_file and output_format
+        with patch('awslabs.ccapi_mcp_server.server.create_template_impl') as mock_impl:
+            mock_impl.return_value = {
+                'template_id': 'test-id',
+                'template_body': '{"Resources": {"MyBucket": {"Type": "AWS::S3::Bucket"}}}',
+            }
+            with patch('builtins.open', create=True) as mock_open:
+                result = await create_template(
+                    template_id='test-id', save_to_file='/tmp/template.json', output_format='JSON'
+                )
+                mock_open.assert_called_once()
+
         # Test generate_infrastructure_code with properties
         with patch(
             'awslabs.ccapi_mcp_server.server.generate_infrastructure_code_impl'
@@ -490,10 +511,24 @@ class TestTools:
         assert _format_value('test') == '"test"'
         assert _format_value(42) == '42'
         assert _format_value(True) == 'True'
-        _format_value(None)
-        _format_value([])
-        _format_value({})
-        _format_value(object())
+        assert 'NoneType object' in _format_value(None)
+        assert '[list with 0 items]' in _format_value([])
+        assert '{dict with 0 keys}' in _format_value({})
+        assert 'object' in _format_value(object())
+
+        # Test _format_value with long string
+        long_string = 'x' * 1000
+        result = _format_value(long_string)
+        assert len(result) < 1000
+        assert '...' in result
+
+        # Test _format_value with list
+        assert '[list with 3 items]' in _format_value([1, 2, 3])
+
+        # Test _format_value with dict
+        dict_result = _format_value({'key': 'value'})
+        assert '{dict with' in dict_result
+        assert '1 key' in dict_result
 
         # Test _generate_explanation with different content types
         _generate_explanation([], 'Test', 'create', 'detailed', 'Intent')
@@ -722,6 +757,32 @@ class TestTools:
             result = await get_aws_account_info()
             assert 'error' in result
 
+        # Test get_aws_account_info with success - using mocks to avoid real AWS credentials
+        with patch('awslabs.ccapi_mcp_server.server.check_environment_variables') as mock_check:
+            mock_check.return_value = {
+                'properly_configured': True,
+                'aws_profile': 'default',
+                'aws_region': 'us-east-1',
+            }
+            with patch('awslabs.ccapi_mcp_server.server.check_aws_credentials') as mock_creds:
+                mock_creds.return_value = {
+                    'valid': True,
+                    'account_id': '123456789012',
+                    'region': 'us-east-1',
+                    'arn': 'arn:aws:iam::123456789012:user/test',
+                    'profile': 'default',
+                }
+                with patch('awslabs.ccapi_mcp_server.server.get_aws_profile_info') as mock_profile:
+                    mock_profile.return_value = {
+                        'profile': 'default',
+                        'account_id': '123456789012',
+                        'region': 'us-east-1',
+                        'using_env_vars': False,
+                    }
+                    result = await get_aws_account_info()
+                    assert result['account_id'] == '123456789012'
+                    assert result['profile'] == 'default'
+
         # Test get_resource_request_status with different statuses
         with patch('awslabs.ccapi_mcp_server.server.get_aws_client') as mock_client:
             mock_client.return_value.get_resource_request_status.return_value = {
@@ -863,6 +924,51 @@ class TestTools:
                 )
                 assert result['passed']
                 assert 'checkov_validation_token' in result
+
+        # Test run_checkov with different file types
+        with patch('awslabs.ccapi_mcp_server.server._check_checkov_installed') as mock_check:
+            mock_check.return_value = {'installed': True, 'needs_user_action': False}
+            with patch('subprocess.run') as mock_run:
+                mock_run.return_value = MagicMock(
+                    returncode=0,
+                    stdout=json.dumps(
+                        {
+                            'results': {
+                                'failed_checks': [],
+                                'passed_checks': [{'id': 'CKV_AWS_1', 'check_name': 'Test check'}],
+                            },
+                            'summary': {'failed': 0, 'passed': 1},
+                        }
+                    ),
+                )
+                # Test with yaml file type
+                with patch('tempfile.NamedTemporaryFile') as mock_temp:
+                    mock_file = MagicMock()
+                    mock_file.name = '/tmp/test.yaml'
+                    mock_temp.return_value.__enter__.return_value = mock_file
+                    result = await run_checkov(content='{}', file_type='yaml')
+                    assert result['passed']
+                    assert 'checkov_validation_token' in result
+
+                # Test with hcl file type
+                with patch('tempfile.NamedTemporaryFile') as mock_temp:
+                    mock_file = MagicMock()
+                    mock_file.name = '/tmp/test.tf'
+                    mock_temp.return_value.__enter__.return_value = mock_file
+                    result = await run_checkov(content='{}', file_type='hcl')
+                    assert result['passed']
+                    assert 'checkov_validation_token' in result
+
+                # Test with framework parameter
+                with patch('tempfile.NamedTemporaryFile') as mock_temp:
+                    mock_file = MagicMock()
+                    mock_file.name = '/tmp/test.json'
+                    mock_temp.return_value.__enter__.return_value = mock_file
+                    result = await run_checkov(
+                        content='{}', file_type='json', framework='terraform'
+                    )
+                    assert result['passed']
+                    assert 'checkov_validation_token' in result
 
         # Test delete_resource with successful execution
         delete_token = 'delete-token'
