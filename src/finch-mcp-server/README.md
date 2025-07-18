@@ -174,12 +174,121 @@ Example:
 - **Error Handling**: Implement proper error handling in your applications when using these tools.
 
 
+## Logging
+
+The Finch MCP server provides comprehensive logging capabilities to help with debugging and monitoring operations.
+
+### Log Destinations
+
+By default, the server logs to two destinations:
+1. **stderr** - Standard error output (follows MCP protocol standards)
+2. **File** - Persistent log file for detailed debugging
+
+### File Logging
+
+#### Default Log Location
+
+Logs are automatically saved to platform-specific directories:
+- **macOS/Linux**: `~/.finch/finch-mcp-server/finch_mcp_server.log`
+- **Windows**: `%LOCALAPPDATA%\finch-mcp-server\finch_mcp_server.log`
+
+#### Custom Log File Location
+
+Specify a custom log file path using the `FINCH_MCP_LOG_FILE` environment variable:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.finch-mcp-server@latest"],
+      "env": {
+        "FINCH_MCP_LOG_FILE": "~/logs/finch-mcp-server.log"
+      }
+    }
+  }
+}
+```
+
+#### Disable File Logging
+
+To log only to stderr (following strict MCP standards), disable file logging:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.finch-mcp-server@latest"],
+      "env": {
+        "FINCH_DISABLE_FILE_LOGGING": "true"
+      }
+    }
+  }
+}
+```
+
+Or use the command line argument in the args array:
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.finch-mcp-server@latest",
+        "--disable-file-logging"
+      ]
+    }
+  }
+}
+```
+
+### Log Features
+
+#### Automatic Log Rotation
+- Log files are automatically rotated when they exceed 10 MB
+- Old logs are compressed (gzip) and retained for 7 days
+- This prevents disk space issues from large log files
+
+#### Sensitive Data Protection
+The logging system automatically redacts sensitive information from log messages:
+- AWS access keys and secret keys
+- API keys, passwords, and tokens
+- JWT tokens and OAuth credentials
+- URLs containing embedded credentials
+
+#### Log Format
+- **stderr**: `{time} | {level} | {message}`
+- **File**: `{time} | {level} | {name}:{function}:{line} | {message}`
+
+The file format includes additional context (function name and line number) for detailed debugging.
+
+### Example Configuration
+
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.finch-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "us-west-2",
+        "FINCH_MCP_LOG_FILE": "~/logs/finch-mcp-server.log"
+      }
+    }
+  }
+}
+```
+
 ## Troubleshooting
 
 - If you encounter permission errors with ECR, verify your AWS credentials and boto3 configuration are properly set up
 - For Finch VM issues, try running `finch vm stop` and then `finch vm start` manually
 - If the build fails with errors about missing files, check that your context path is correct
 - For general Finch issues, consult the [Finch documentation](https://github.com/runfinch/finch)
+- **Check the logs**: Enable DEBUG level logging and examine the log files for detailed error information
+- **Log file permissions**: If file logging fails, the server will continue with stderr-only logging and show a warning message
 
 ## Version
 
