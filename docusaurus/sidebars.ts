@@ -103,7 +103,7 @@ const sidebars: SidebarsConfig = {
             'servers/code-doc-gen-mcp-server',
             'servers/frontend-mcp-server',
             'servers/iam-mcp-server',
-            'servers/kendra-index-mcp-server',
+            'servers/amazon-kendra-index-mcp-server',
             'servers/syntheticdata-mcp-server',
             'servers/aws-bedrock-data-automation-mcp-server',
             'servers/aws-location-mcp-server',
@@ -126,6 +126,7 @@ const sidebars: SidebarsConfig = {
             'servers/cost-explorer-mcp-server',
             'servers/cloudwatch-mcp-server',
             'servers/cloudwatch-appsignals-mcp-server',
+            'servers/cloudwatch-logs-mcp-server',
           ],
         },
         {
