@@ -427,22 +427,8 @@ async def finch_create_ecr_repo(
         return Result(**error_result)
 
 
-def main(enable_aws_resource_write: bool = False):
-    """Run the Finch MCP server.
-
-    Args:
-        enable_aws_resource_write (bool, optional): Whether to enable AWS resource creation/modification. Defaults to False.
-
-    """
-    # Set AWS resource write mode
-    set_enable_aws_resource_write(enable_aws_resource_write)
-
-    logger.info('Starting Finch MCP server')
-    logger.info(f'Logs will be written to: {LOG_FILE}')
-    mcp.run(transport='stdio')
-
-
-if __name__ == '__main__':
+def main():
+    """Run the Finch MCP server."""
     import argparse
 
     parser = argparse.ArgumentParser(description='Run the Finch MCP server')
@@ -453,4 +439,13 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    main(enable_aws_resource_write=args.enable_aws_resource_write)
+    # Set AWS resource write mode based on parsed arguments
+    set_enable_aws_resource_write(args.enable_aws_resource_write)
+
+    logger.info('Starting Finch MCP server')
+    logger.info(f'Logs will be written to: {LOG_FILE}')
+    mcp.run(transport='stdio')
+
+
+if __name__ == '__main__':
+    main()
