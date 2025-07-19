@@ -151,6 +151,7 @@ class PyPiPackage:
 
     def update_version(self, build_release: BuildRelease) -> str:
         """Update version in pyproject.toml."""
+        package_name = self.package_name()
         version_str = self.package_version()
         with open(self.path / 'pyproject.toml', encoding='utf-8') as f:
             data = tomlkit.parse(f.read())
@@ -169,6 +170,34 @@ class PyPiPackage:
 
         with open(self.path / 'pyproject.toml', 'w', encoding='utf-8') as f:
             f.write(tomlkit.dumps(data))
+
+        # Find the corresponding __init__.py file
+        # Convert package name from awslabs.package-name to package_name format
+        if package_name.startswith('awslabs.'):
+            # Remove 'awslabs.' prefix and convert hyphens
+            module_name = package_name[8:].replace('-', '_')
+            init_file = self.path / 'awslabs' / module_name / '__init__.py'
+            if init_file.exists():
+                # Read current __init__.py
+                with open(init_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                # Update __version__ line
+                version_pattern = r"__version__\s*=\s*['\"][^'\"]*['\"]"
+                new_version_line = f"__version__ = '{version}'"
+                if re.search(version_pattern, content):
+                    # Replace existing __version__
+                    updated_content = re.sub(version_pattern, new_version_line, content)
+                    with open(init_file, 'w', encoding='utf-8') as f:
+                        f.write(updated_content)
+                    click.echo(f"Updated {init_file}: __version__ = '{version}'")
+                else:
+                    click.echo(f'Warning: No __version__ found in {init_file}')
+            else:
+                click.echo(f'Warning: {init_file} not found for package {package_name}')
+        else:
+            click.echo(
+                f"Warning: Package {package_name} doesn't follow awslabs.* naming convention"
+            )
         return version
 
 
@@ -209,7 +238,9 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
             logging.debug('Changed files: %s', changed_files)
 
             relevant_files = [
-                f for f in changed_files if f.suffix in ['.py', '.ts', '.toml', '.lock', '.json']
+                f
+                for f in changed_files
+                if f.suffix in ['.py', '.ts', '.toml', '.lock', '.json'] or f.name == 'Dockerfile'
             ]
             logging.debug('Relevant files: %s', relevant_files)
 
@@ -234,7 +265,9 @@ def has_changes(path: Path, git_hash: GitHash) -> bool:
             changed_files = [Path(f) for f in output.stdout.splitlines() if f.startswith(path_str)]
 
             relevant_files = [
-                f for f in changed_files if f.suffix in ['.py', '.ts', '.toml', '.lock', '.json']
+                f
+                for f in changed_files
+                if f.suffix in ['.py', '.ts', '.toml', '.lock', '.json'] or f.name == 'Dockerfile'
             ]
             return len(relevant_files) >= 1
     except subprocess.CalledProcessError as e:
