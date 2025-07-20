@@ -13,6 +13,20 @@
 # limitations under the License.
 
 import os
+import tempfile
+from pathlib import Path
+
+
+def get_server_directory():
+    """Get platform-appropriate log directory."""
+    base_location = 'aws-api-mcp'
+    if os.name == 'nt' or os.uname().sysname == 'Darwin':  # Windows and macOS
+        return Path(tempfile.gettempdir()) / base_location
+    # Linux
+    base_dir = (
+        os.environ.get('XDG_RUNTIME_DIR') or os.environ.get('TMPDIR') or tempfile.gettempdir()
+    )
+    return Path(base_dir) / base_location
 
 
 TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
@@ -29,5 +43,5 @@ FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'WARNING')
 DEFAULT_REGION = os.getenv('AWS_REGION')
 READ_OPERATIONS_ONLY_MODE = get_env_bool(READ_ONLY_KEY, False)
 OPT_IN_TELEMETRY = get_env_bool(TELEMETRY_KEY, True)
-WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR')
+WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR', get_server_directory() / 'workdir')
 AWS_API_MCP_PROFILE_NAME = os.getenv('AWS_API_MCP_PROFILE_NAME')
