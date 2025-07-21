@@ -285,14 +285,6 @@ class MetricsGuidanceResponse(CallToolResult):
     metrics: List[Dict[str, Any]] = Field(..., description='List of metrics with their details')
 
 
-
-
-
-
-
-
-
-
 class EksVpcConfigResponse(CallToolResult):
     """Response model for get_eks_vpc_config tool.
     
@@ -325,79 +317,6 @@ class EksVpcConfigResponse(CallToolResult):
     )
     cluster_name: str = Field(
         ..., description='Name of the EKS cluster'
-    )
-
-
-
-
-class DnsResolutionResult(BaseModel):
-    """Model for a DNS resolution result.
-    
-    This model represents the result of a DNS resolution attempt,
-    including resolved IPs and response time.
-    """
-    
-    hostname: str = Field(
-        ..., description='Hostname that was resolved'
-    )
-    resolved_ips: List[str] = Field(
-        [], description='List of resolved IP addresses'
-    )
-    response_time_ms: Optional[float] = Field(
-        None, description='DNS resolution response time in milliseconds'
-    )
-    success: bool = Field(
-        False, description='Whether the DNS resolution was successful'
-    )
-    error_message: Optional[str] = Field(
-        None, description='Error message if resolution failed'
-    )
-
-
-class EksDnsStatusResponse(CallToolResult):
-    """Response model for get_eks_dns_status tool.
-    
-    This model contains DNS resolution results for EKS API endpoints and
-    other hostnames, helping diagnose network connectivity issues for any EKS cluster.
-    """
-    
-    api_server_endpoint: Optional[str] = Field(
-        None, description='EKS API server endpoint URL'
-    )
-    dns_resolutions: List[DnsResolutionResult] = Field(
-        [], description='List of DNS resolution results'
-    )
-    cluster_name: str = Field(
-        ..., description='Name of the EKS cluster'
-    )
-
-
-class EksNodeKubeletConfigResponse(CallToolResult):
-    """Response model for get_eks_node_kubelet_config tool.
-    
-    This model contains kubelet configuration details from systemd unit files
-    and bootstrap configuration for any EKS node (standard or hybrid).
-    Note: This tool must be executed directly on a Kubernetes node to access
-    the local configuration files.
-    """
-    
-    systemd_unit_content: Optional[str] = Field(
-        None, description='Content of the kubelet systemd unit file'
-    )
-    config_path: Optional[str] = Field(
-        None, description='Path to the kubelet configuration files'
-    )
-    command_args: Dict[str, Any] = Field(
-        {}, description='Kubelet command-line arguments'
-    )
-    environment_vars: Dict[str, str] = Field(
-        {}, description='Environment variables for kubelet'
-    )
-    certificate_paths: Dict[str, str] = Field(
-        {}, description='Paths to certificate files used by kubelet'
-    )
-    bootstrap_config: Optional[Dict[str, Any]] = Field(
-        None, description='Kubelet bootstrap configuration'
     )
 
 

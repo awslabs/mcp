@@ -77,10 +77,9 @@ class TestHybridNodesHandler:
             mock_aws_helper.create_boto3_client.assert_any_call('ssm')
 
         # Verify that the tools were registered
-        assert mock_mcp.tool.call_count == 3
+        assert mock_mcp.tool.call_count == 2
         tool_names = [call[1]['name'] for call in mock_mcp.tool.call_args_list]
         assert 'get_eks_vpc_config' in tool_names
-        assert 'get_eks_dns_status' in tool_names
         assert 'get_eks_insights' in tool_names
 
     def test_init_with_options(self, mock_mcp):

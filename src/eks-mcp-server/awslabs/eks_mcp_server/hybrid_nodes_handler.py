@@ -19,8 +19,6 @@ from awslabs.eks_mcp_server.k8s_apis import K8sApis
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
     EksVpcConfigResponse,
-    EksDnsStatusResponse,
-    DnsResolutionResult,
     EksInsightsResponse,
     EksInsightItem,
     EksInsightStatus
@@ -58,7 +56,6 @@ class HybridNodesHandler:
         
         # Register tools
         self.mcp.tool(name='get_eks_vpc_config')(self.get_eks_vpc_config)
-        self.mcp.tool(name='get_eks_dns_status')(self.get_eks_dns_status)
         self.mcp.tool(name='get_eks_insights')(self.get_eks_insights)
 
          # Initialize AWS clients
@@ -615,136 +612,4 @@ class HybridNodesHandler:
                 cluster_name=cluster_name,
                 insights=[],
                 detail_mode=False
-            )
-
- # -------------------------------------------------------------------------------------------------------------------------------------------- #
-
-    # DNS resolution status tool
-    async def get_eks_dns_status(
-        self,
-        ctx: Context,
-        cluster_name: str = Field(
-            ...,
-            description='Name of the EKS cluster to check DNS resolution for',
-        ),
-        additional_hostnames: Optional[List[str]] = Field(
-            None,
-            description='Additional hostnames to resolve (optional)',
-        ),
-    ) -> EksDnsStatusResponse:
-        """Get DNS resolution status for EKS API endpoints.
-
-        This tool performs DNS lookups for the EKS API server endpoint and optionally other
-        hostnames to help diagnose network connectivity issues for any EKS cluster. It returns
-        raw resolution results with timing metrics to identify potential latency or configuration issues.
-
-        ## Response Information
-        The response includes the API server endpoint, resolved IP addresses, and response times
-        for DNS lookups.
-
-        ## Usage Tips
-        - Use to verify DNS resolution for EKS API server endpoint
-        - Check response times to identify potential latency issues
-        - Compare resolved IPs with expected network ranges
-        - Diagnose connectivity issues between client environments and EKS clusters
-        - Verify network connectivity for both standard and hybrid EKS deployments
-
-        Args:
-            ctx: MCP context
-            cluster_name: Name of the EKS cluster
-            additional_hostnames: Optional list of additional hostnames to resolve
-
-        Returns:
-            EksDnsStatusResponse with DNS resolution results
-        """
-        # Extract actual values from Field objects
-        cluster_name_value = cluster_name
-        additional_hostnames_value = [] if additional_hostnames is None else additional_hostnames
-        try:
-            import socket
-            import time
-            
-            # Get cluster API server endpoint
-            api_server_endpoint = None
-            try:
-                cluster_response = self.eks_client.describe_cluster(name=cluster_name_value)
-                api_server_endpoint = cluster_response['cluster'].get('endpoint')
-                
-                if not api_server_endpoint:
-                    log_with_request_id(ctx, LogLevel.WARNING, f"No API server endpoint found for cluster {cluster_name_value}")
-            except Exception as eks_error:
-                log_with_request_id(ctx, LogLevel.ERROR, f"Error getting cluster API endpoint: {str(eks_error)}")
-            
-            # Prepare list of hostnames to resolve
-            hostnames_to_resolve = []
-            if api_server_endpoint:
-                # Extract hostname part from the full URL
-                hostname = api_server_endpoint.replace("https://", "").split(":")[0]
-                hostnames_to_resolve.append(hostname)
-                
-            # Add any additional hostnames
-            if additional_hostnames_value:
-                hostnames_to_resolve.extend(additional_hostnames_value)
-            
-            # Perform DNS resolution for each hostname
-            from awslabs.eks_mcp_server.models import DnsResolutionResult
-            dns_resolutions = []
-            
-            try:
-                for hostname in hostnames_to_resolve:
-                    dns_result = DnsResolutionResult(hostname=hostname)
-                    
-                    try:
-                        # Time the DNS resolution
-                        start_time = time.time()
-                        resolved_info = socket.getaddrinfo(hostname, 443, family=socket.AF_INET)
-                        end_time = time.time()
-                        
-                        # Extract unique IPs
-                        resolved_ips = set()
-                        for info in resolved_info:
-                            ip = info[4][0]  # Extract IP from address tuple
-                            resolved_ips.add(ip)
-                        
-                        dns_result.resolved_ips = list(resolved_ips)
-                        dns_result.response_time_ms = round((end_time - start_time) * 1000, 2)
-                        dns_result.success = True
-                        
-                        log_with_request_id(ctx, LogLevel.INFO, 
-                                        f"Successfully resolved {hostname} to {', '.join(dns_result.resolved_ips)}")
-                        
-                    except Exception as dns_error:
-                        dns_result.success = False
-                        dns_result.error_message = str(dns_error)
-                        log_with_request_id(ctx, LogLevel.WARNING, f"Failed to resolve {hostname}: {str(dns_error)}")
-                    
-                    dns_resolutions.append(dns_result)
-            except Exception as e:
-                # If we get an error during the loop, create a result for the API server endpoint
-                if api_server_endpoint:
-                    hostname = api_server_endpoint.replace("https://", "").split(":")[0]
-                    dns_result = DnsResolutionResult(
-                        hostname=hostname,
-                        success=False,
-                        error_message=str(e)
-                    )
-                    dns_resolutions.append(dns_result)
-            
-            # Create the response
-            success_message = f"Performed DNS resolution for {len(dns_resolutions)} hostnames"
-            return EksDnsStatusResponse(
-                 isError=False,
-                content=[TextContent(type='text', text=success_message)],
-                api_server_endpoint=api_server_endpoint,
-                dns_resolutions=dns_resolutions,
-                cluster_name=cluster_name_value
-            )
-            
-        except Exception as e:
-            error_message = f"Error performing DNS resolution: {str(e)}"
-            log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return EksDnsStatusResponse(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-                cluster_name=cluster_name_value
             )
