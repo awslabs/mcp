@@ -88,6 +88,10 @@ def execute_awscli_customization(
     """Execute the given AWS CLI command."""
     args = split_cli_command(cli_command)[1:]
 
+    # Identify if a profile was passed in already and insert the defined one otherwise
+    if AWS_API_MCP_PROFILE_NAME and not any(elem == '--profile' for elem in args):
+        args.extend(['--profile', AWS_API_MCP_PROFILE_NAME])
+
     try:
         stdout_capture = StringIO()
         stderr_capture = StringIO()

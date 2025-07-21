@@ -218,8 +218,6 @@ async def call_aws(
         )
 
     try:
-        creds = get_local_credentials()
-
         if ir.command and ir.command.is_awscli_customization:
             response: AwsCliAliasResponse | AwsApiMcpServerErrorResponse = (
                 execute_awscli_customization(cli_command)
@@ -228,6 +226,7 @@ async def call_aws(
                 await ctx.error(response.detail)
             return response
 
+        creds = get_local_credentials()
         return interpret_command(
             cli_command=cli_command,
             credentials=creds,
