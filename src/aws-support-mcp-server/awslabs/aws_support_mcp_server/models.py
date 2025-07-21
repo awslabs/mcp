@@ -47,7 +47,9 @@ class AttachmentDetails(BaseModel):
     """Details of an attachment to a support case communication."""
 
     attachment_id: str = Field(..., description='The ID of the attachment', alias='attachmentId')
-    file_name: str = Field(..., description='The file name of the attachment', alias='fileName')
+    file_name: str = Field(
+        ..., description='The file name of the attachment', alias='fileName', min_length=1
+    )
 
     class Config:
         """Pydantic model configuration."""
@@ -136,7 +138,7 @@ class Category(BaseModel):
     """A category for an AWS service."""
 
     code: str = Field(..., description='The category code for the support case')
-    name: str = Field(..., description='The category name for the support case')
+    name: str = Field(..., description='The category name for the support case', min_length=1)
 
     class Config:
         """Pydantic model configuration."""
@@ -152,7 +154,7 @@ class Service(BaseModel):
     """An AWS service."""
 
     code: str = Field(..., description='The code for the AWS service')
-    name: str = Field(..., description='The name of the AWS service')
+    name: str = Field(..., description='The name of the AWS service', min_length=1)
     categories: List[Category] = Field(
         default_factory=list, description='The categories for the AWS service'
     )
@@ -175,7 +177,7 @@ class SeverityLevel(BaseModel):
     """A severity level for a support case."""
 
     code: str = Field(..., description='The code for the severity level')
-    name: str = Field(..., description='The name of the severity level')
+    name: str = Field(..., description='The name of the severity level', min_length=1)
 
     class Config:
         """Pydantic model configuration."""
@@ -423,7 +425,9 @@ class AddCommunicationRequest(BaseModel):
 class ResolveCaseRequest(BaseModel):
     """Request model for resolving a support case."""
 
-    case_id: str = Field(..., description='The ID of the support case', alias='caseId')
+    case_id: str = Field(
+        ..., description='The ID of the support case', alias='caseId', min_length=1
+    )
 
     class Config:
         """Pydantic model configuration."""
@@ -443,7 +447,9 @@ class CreateCaseResponse(BaseModel):
 
     case_id: str = Field(..., description='The ID of the created support case', alias='caseId')
     status: str = Field('success', description='The status of the operation')
-    message: str = Field(..., description='A message describing the result of the operation')
+    message: str = Field(
+        ..., description='A message describing the result of the operation', min_length=1
+    )
 
     class Config:
         """Pydantic model configuration."""
@@ -456,7 +462,7 @@ class DescribeCasesResponse(BaseModel):
 
     cases: List[SupportCase] = Field(..., description='The list of support cases')
     next_token: Optional[str] = Field(
-        None, description='A resumption point for pagination', alias='nextToken'
+        None, description='A resumption point for pagination', alias='nextToken', min_length=1
     )
 
     class Config:
@@ -481,7 +487,9 @@ class AddCommunicationResponse(BaseModel):
 
     result: bool = Field(..., description='Whether the operation was successful')
     status: str = Field('success', description='The status of the operation')
-    message: str = Field(..., description='A message describing the result of the operation')
+    message: str = Field(
+        ..., description='A message describing the result of the operation', min_length=1
+    )
 
     class Config:
         """Pydantic model configuration."""
@@ -499,7 +507,9 @@ class ResolveCaseResponse(BaseModel):
         ..., description='The status of the case after resolving', alias='finalCaseStatus'
     )
     status: str = Field('success', description='The status of the operation')
-    message: str = Field(..., description='A message describing the result of the operation')
+    message: str = Field(
+        ..., description='A message describing the result of the operation', min_length=1
+    )
 
     class Config:
         """Pydantic model configuration."""
@@ -572,7 +582,9 @@ class AttachmentData(BaseModel):
     """Model for attachment data."""
 
     data: str = Field(..., description='The base64-encoded contents of the attachment')
-    file_name: str = Field(..., description='The name of the attachment file', alias='fileName')
+    file_name: str = Field(
+        ..., description='The name of the attachment file', alias='fileName', min_length=1
+    )
 
     class Config:
         """Pydantic model configuration."""
@@ -632,7 +644,9 @@ class AddAttachmentsToSetResponse(BaseModel):
         alias='expiryTime',
     )
     status: str = Field('success', description='The status of the operation')
-    message: str = Field(..., description='A message describing the result of the operation')
+    message: str = Field(
+        ..., description='A message describing the result of the operation', min_length=1
+    )
 
     class Config:
         """Pydantic model configuration."""
@@ -663,7 +677,7 @@ class SupportedLanguage(BaseModel):
     code: str = Field(..., description="The ISO 639-1 language code (e.g., 'en' for English)")
     name: str = Field(..., description='The full name of the language in English')
     native_name: Optional[str] = Field(
-        None, description='The name of the language in its native script'
+        None, description='The name of the language in its native script', min_length=1
     )
 
 
@@ -672,7 +686,9 @@ class DescribeSupportedLanguagesResponse(BaseModel):
 
     languages: List[str] = Field(..., description='The list of supported language codes')
     status: str = Field('success', description='The status of the operation')
-    message: str = Field(..., description='A message describing the result of the operation')
+    message: str = Field(
+        ..., description='A message describing the result of the operation', min_length=1
+    )
 
     class Config:
         """Pydantic model configuration."""
