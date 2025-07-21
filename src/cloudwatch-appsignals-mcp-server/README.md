@@ -66,10 +66,9 @@ use [`uvx`](https://docs.astral.sh/uv/guides/tools/) to directly run *awslabs.cl
 ```json
 {
   "mcpServers": {
-    "awslabs.cloudwatch-appsignals-mcp-server": {
+    "awslabs.cloudwatch-appsignals-mcp": {
       "autoApprove": [],
       "disabled": false,
-      "timeout": 60,
       "command": "uvx",
       "args": [
         "awslabs.cloudwatch-appsignals-mcp-server@latest"
