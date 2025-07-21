@@ -485,19 +485,7 @@ class TestResponseModels:
         )  # This should pass
         assert len(valid_response.cases) == 1
 
-        # Test missing required fields
-        with pytest.raises(ValidationError):
-            DescribeCasesResponse(
-                cases=[], nextToken='test-token'
-            )  # Empty cases list might be valid, so test with invalid nextToken type
-
-        # Actually test with missing required parameter
-        with pytest.raises(ValidationError):
-            DescribeCasesResponse(
-                cases=[], nextToken='test-token'
-            )  # This should pass, so test with invalid type instead
-
-        # Test with missing cases parameter - provide cases parameter to avoid pyright error
+        # Test missing required fields - empty nextToken should fail
         with pytest.raises(ValidationError):
             DescribeCasesResponse(
                 cases=[], nextToken=''
